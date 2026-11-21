@@ -152,7 +152,7 @@ impl fmt::Debug for Upstream {
 pub enum FetchOutcome<Payload> {
     /// Upstream returned content.
     Ok(Payload),
-    /// Upstream returned 404. The caller should propagate this verbatim.
+    /// The upstream has no resource or does not implement the optional endpoint.
     NotFound,
 }
 
@@ -168,6 +168,12 @@ pub struct CacheValidators {
     pub etag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub last_modified: Option<String>,
+}
+
+#[derive(Clone, Copy)]
+enum DocumentRequest<'a> {
+    Artifact { accept: Option<&'a str> },
+    VersionManifest,
 }
 
 /// A document fetched by [`Upstream::fetch_document`].
@@ -472,7 +478,7 @@ impl Upstream {
         let base = self.base.trim_end_matches('/');
         let name = pnpm_network::encode_package_name(name.as_str());
         let url = format!("{base}/{name}/{version}");
-        self.read_document(&url, Some("application/json"), limit, true).await
+        self.read_document(&url, DocumentRequest::VersionManifest, limit).await
     }
 
     /// Fetch a bounded document at an absolute artifact URL with the same
@@ -483,17 +489,20 @@ impl Upstream {
         accept: Option<&str>,
         limit: usize,
     ) -> Result<FetchOutcome<FetchedDocument>> {
-        self.read_document(url, accept, limit, false).await
+        self.read_document(url, DocumentRequest::Artifact { accept }, limit).await
     }
 
     async fn read_document(
         &self,
         url: &str,
-        accept: Option<&str>,
+        document: DocumentRequest<'_>,
         limit: usize,
-        optional_manifest: bool,
     ) -> Result<FetchOutcome<FetchedDocument>> {
         self.ensure_available()?;
+        let accept = match document {
+            DocumentRequest::Artifact { accept } => accept,
+            DocumentRequest::VersionManifest => Some("application/json"),
+        };
         let mut headers = HeaderMap::new();
         if let Some(accept) = accept
             && let Ok(value) = HeaderValue::from_str(accept)
@@ -503,7 +512,10 @@ impl Upstream {
         let (response, _guard) =
             self.get_with_scoped_headers(url, &headers, Deadline::Whole).await?;
         if response.status() == StatusCode::NOT_FOUND
-            || (optional_manifest && response.status() == StatusCode::NOT_IMPLEMENTED)
+            || matches!(
+                (document, response.status()),
+                (DocumentRequest::VersionManifest, StatusCode::NOT_IMPLEMENTED),
+            )
         {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);

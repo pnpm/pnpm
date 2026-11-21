@@ -507,17 +507,47 @@ impl AuthHeaders {
         self.for_url_with_package(url, pkg_name)
     }
 
-    /// Headers selected by a server route, including an empty map for an anonymous route.
-    pub(crate) fn managed_request_headers(
-        &self,
-        url: &str,
-        package: &str,
-    ) -> Option<reqwest::header::HeaderMap> {
+    /// Select the deployment's headers for each hop within the original credential scope.
+    pub(crate) fn managed_request_headers<'a>(
+        &'a self,
+        start: &'a str,
+        package: Option<&'a str>,
+    ) -> Option<impl Fn(&str) -> reqwest::header::HeaderMap + 'a> {
         let hook = self.route_hook.as_ref()?;
-        if self.require_secure_transport && !is_url_secure_for_credentials(url) {
-            return Some(reqwest::header::HeaderMap::new());
+        let origin = reqwest::Url::parse(start).ok().map(|url| url.origin());
+        let headers = if self.require_secure_transport && !is_url_secure_for_credentials(start) {
+            reqwest::header::HeaderMap::new()
+        } else {
+            hook.request_headers(start, package)
+        };
+        Some(move |url: &str| {
+            if url == start {
+                return headers.clone();
+            }
+            if !headers.is_empty()
+                && reqwest::Url::parse(url).is_ok_and(|url| Some(url.origin()) == origin)
+                && self.metadata_scope(start, package) == self.metadata_scope(url, package)
+            {
+                return hook.request_headers(url, package);
+            }
+            reqwest::header::HeaderMap::new()
+        })
+    }
+
+    pub(crate) fn secure_request_auth<'a>(
+        &'a self,
+        start: &'a str,
+    ) -> impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder + 'a {
+        let managed = self.managed_request_headers(start, None);
+        move |request, url| {
+            if !is_url_secure_for_credentials(url) {
+                return request;
+            }
+            match &managed {
+                Some(headers) => request.headers(headers(url)),
+                None => apply_authorization(request, self.for_url(url)),
+            }
         }
-        Some(hook.request_headers(url, Some(package)))
     }
 
     /// Dispatch a GET locally when the route hook owns its destination.
@@ -590,6 +620,16 @@ impl AuthHeaders {
             Some(hook) => hook.metadata_scope(url, pkg_name),
             None => MetadataCacheScope::Public,
         }
+    }
+}
+
+pub(super) fn apply_authorization(
+    request: reqwest::RequestBuilder,
+    value: Option<String>,
+) -> reqwest::RequestBuilder {
+    match value {
+        Some(value) => request.header(reqwest::header::AUTHORIZATION, value),
+        None => request,
     }
 }
 

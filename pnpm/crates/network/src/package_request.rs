@@ -39,34 +39,23 @@ impl PackageRequest<'_> {
         &self,
         client: &'client ThrottledClient,
     ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
-        let Some(credentials) = self.auth.managed_request_headers(self.url, self.package) else {
+        let Some(credentials) = self.auth.managed_request_headers(self.url, Some(self.package))
+        else {
             let guard = client.acquire_for_url_with_priority(self.url, self.priority).await;
-            let mut request =
-                guard.request(self.method.clone(), self.url).headers(self.headers.clone());
-            if let Some(value) = self.auth.for_url_with_package(self.url, Some(self.package)) {
-                request = request.header(reqwest::header::AUTHORIZATION, value);
-            }
+            let request = crate::auth::apply_authorization(
+                guard.request(self.method.clone(), self.url).headers(self.headers.clone()),
+                self.auth.for_url_with_package(self.url, Some(self.package)),
+            );
             let response = request
                 .send()
                 .await
                 .inspect_err(|error| client.downscale_on_timeout(self.url, error))?;
             return Ok((guard, response));
         };
-        let origin = reqwest::Url::parse(self.url).ok().map(|url| url.origin());
         let configure = |request: RequestBuilder, url: &str| {
-            let request = request.headers(self.headers.clone());
-            if url == self.url {
-                return request.headers(credentials.clone());
-            }
-            if !credentials.is_empty()
-                && reqwest::Url::parse(url).is_ok_and(|url| Some(url.origin()) == origin)
-                && self.auth.metadata_scope(url, Some(self.package))
-                    == self.auth.metadata_scope(self.url, Some(self.package))
-                && let Some(headers) = self.auth.managed_request_headers(url, self.package)
-            {
-                return request.headers(headers);
-            }
             request
+                .headers(self.headers.clone())
+                .headers(credentials(url))
         };
         let (response, guard) = client.package_response_with_scoped_headers(
             self.method.clone(),

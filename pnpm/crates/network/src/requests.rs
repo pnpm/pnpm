@@ -89,7 +89,12 @@ impl ThrottledClient {
     ) -> Result<SecureAuthResponse, reqwest::Error> {
         let authorize = authorize_without_downgrade(auth_headers, url);
         retry::get_bytes(url, retry_opts, || {
-            self.get_limited_bytes_with_scoped_auth(url, authorize, accept, body_limit)
+            self.get_limited_bytes_with_scoped_auth(
+                url,
+                |request, hop| crate::auth::apply_authorization(request, authorize(hop)),
+                accept,
+                body_limit,
+            )
         })
         .await
     }
@@ -120,7 +125,7 @@ impl ThrottledClient {
         if let Some(response) = auth_headers.fetch_local(url, None, headers) {
             return self.read_response(response.await, body_limit).await;
         }
-        let authorize = |url: &str| auth_headers.for_secure_url(url);
+        let authorize = auth_headers.secure_request_auth(url);
         self.get_limited_bytes_with_scoped_auth(url, authorize, accept, body_limit).await
     }
 
@@ -128,7 +133,7 @@ impl ThrottledClient {
     pub(super) async fn get_limited_bytes_with_scoped_auth(
         &self,
         url: &str,
-        authorize: impl Fn(&str) -> Option<String> + Sync,
+        authorize: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder + Sync,
         accept: Option<&str>,
         body_limit: usize,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
@@ -136,10 +141,7 @@ impl ThrottledClient {
             if let Some(accept) = accept {
                 request = request.header(reqwest::header::ACCEPT, accept);
             }
-            if let Some(authorization) = authorize(url) {
-                request = request.header("authorization", authorization);
-            }
-            request
+            authorize(request, url)
         })
         .await?;
         self.read_response(response, body_limit).await

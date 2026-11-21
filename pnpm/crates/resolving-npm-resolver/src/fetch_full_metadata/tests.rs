@@ -334,32 +334,52 @@ async fn custom_registry_headers_are_scoped_to_the_metadata_origin() {
         .mock("GET", "/pkg")
         .match_header("x-api-key", mockito::Matcher::Missing)
         .with_status(304)
+        .expect(1)
         .create_async()
         .await;
     let source = registry
         .mock("GET", "/pkg")
         .match_header("x-api-key", "example-key")
         .with_status(302)
-        .with_header("location", &format!("{}/pkg", mirror.url()))
+        .with_header("location", "/metadata/pkg")
+        .expect(2)
         .create_async()
         .await;
-    let http = ThrottledClient::new_for_installs_with_redirect_guard(|_| true);
+    let metadata = registry
+        .mock("GET", "/metadata/pkg")
+        .match_header("x-api-key", "example-key")
+        .with_status(302)
+        .with_header("location", &format!("{}/pkg", mirror.url()))
+        .expect(2)
+        .create_async()
+        .await;
     let auth = AuthHeaders::default().with_route_hook(std::sync::Arc::new(PrivateRegistry));
-    let options = FetchFullMetadataOptions {
-        registry: &registry.url(),
-        full_metadata: false,
-        etag: Some("example"),
-        modified: None,
-        http: crate::MetadataHttpClient {
-            http_client: &http,
-            auth_headers: &auth,
-            retry_opts: no_retry_opts(),
-        },
-    };
-    assert!(matches!(
-        fetch_full_metadata("pkg", &options).await.unwrap(),
-        FetchFullMetadataOutcome::NotModified,
-    ));
+    for allow_mirror in [false, true] {
+        let registry_origin = reqwest::Url::parse(&registry.url()).unwrap().origin();
+        let http = ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+            allow_mirror || url.origin() == registry_origin
+        });
+        let options = FetchFullMetadataOptions {
+            registry: &registry.url(),
+            full_metadata: false,
+            etag: Some("example"),
+            modified: None,
+            http: crate::MetadataHttpClient {
+                http_client: &http,
+                auth_headers: &auth,
+                retry_opts: no_retry_opts(),
+            },
+        };
+        let result = fetch_full_metadata("pkg", &options).await;
+        if allow_mirror {
+            assert!(matches!(result, Ok(FetchFullMetadataOutcome::NotModified)));
+        } else {
+            assert!(
+                matches!(result, Err(crate::FetchMetadataError::Network { error, .. }) if error.is_redirect()),
+            );
+        }
+    }
+    metadata.assert_async().await;
     source.assert_async().await;
     destination.assert_async().await;
 }

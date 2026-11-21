@@ -283,7 +283,7 @@ public names through it. pnpr never forwards a client's credentials upstream,
 and sends configured headers only to the selected upstream.
 Upstreams with `auth` or `headers` require HTTPS or loopback HTTP.
 This also applies to networks listed in `routes.allowedPrivateNetworks`.
-The resolver uses custom headers when it fetches npm metadata for resolution
+The resolver uses custom headers when it fetches npm, Cargo, and Python package metadata for resolution
 and lockfile verification.
 
 Each upstream gets its own cache namespace: a `public` upstream uses a stable,
