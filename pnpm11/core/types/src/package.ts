@@ -362,6 +362,7 @@ export interface SideEffectsCacheSettings {
   /** Save a package's build output to the cache. */
   write?: boolean
   remote?: RemoteSideEffectsCacheSettings
+  exclude?: string[]
 }
 
 /**

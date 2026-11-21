@@ -245,6 +245,7 @@ function assertValidSideEffectsCache (
   assertObjectSetting(settings, 'sideEffectsCache')
   assertOptionalBoolean(settings.read, 'sideEffectsCache.read')
   assertOptionalBoolean(settings.write, 'sideEffectsCache.write')
+  assertOptionalStringArray(settings.exclude, 'sideEffectsCache.exclude')
   if (settings.remote != null) {
     assertValidSharedSideEffectsCache(settings.remote, trustedSource, 'sideEffectsCache.remote')
   }
