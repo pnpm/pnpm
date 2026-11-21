@@ -44,7 +44,7 @@ fn a_new_package_is_claimed_when_recent_attempts_fill_the_table() {
             .lock()
             .unwrap()
             .len()
-            <= CAPACITY
+            <= CAPACITY,
     );
 }
 

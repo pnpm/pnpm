@@ -206,7 +206,7 @@ async fn ordinary_read_failure_does_not_delay_forced_refresh_for_expired_tarball
             std::time::Duration::ZERO
         )
         .await
-        .is_err()
+        .is_err(),
     );
     outage.assert_async().await;
     outage.remove_async().await;
