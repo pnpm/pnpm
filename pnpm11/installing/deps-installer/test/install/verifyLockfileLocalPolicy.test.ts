@@ -737,7 +737,7 @@ test('a readPackage hook that throws on a real parent manifest surfaces its own 
   })).rejects.toThrow('hook exploded')
 })
 
-test('the hook replay of a placeholder manifest sees ranges that packageExtensions add', async () => {
+test('a hook rewrite keyed on a packageExtensions range authorizes nothing without the real manifest', async () => {
   const redirectExtendedHelper: ReadPackageHook = (pkg) => {
     if (pkg.dependencies?.helper === '^1.0.0') pkg.dependencies.helper = 'file:local-helper'
     return pkg
@@ -762,13 +762,16 @@ test('the hook replay of a placeholder manifest sees ranges that packageExtensio
       },
     },
   }
-  // No store controller, so the parent's real manifest is unavailable.
+  // No store controller, so the parent's real manifest is unavailable and the
+  // replay cannot tell whether it declares `helper` itself.
   const policy = await resolveLocalPolicyForInstall(lockfile, {
     hooks: { readPackage: [redirectExtendedHelper] },
     lockfileDir: '/work/app',
     packageExtensions: { 'tarball-parent': { dependencies: { helper: '^1.0.0' } } },
   })
-  expect(() => verifyLockfileLocalResolutions(lockfile, policy)).not.toThrow()
+  expect(() => verifyLockfileLocalResolutions(lockfile, policy)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+  }))
 })
 
 test('the hook replay sees in-archive file: dependencies as package-root links', async () => {

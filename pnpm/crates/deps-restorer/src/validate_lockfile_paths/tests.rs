@@ -435,21 +435,22 @@ async fn hook_replay_sees_package_extensions() {
     let replay = super::ReadPackageReplay::for_probe(drivers, modes)
         .expect("valid selector")
         .expect("a hook to replay");
-    // Without the real manifest, as on a cold store, the replay uses a placeholder.
-    for pristine in [Some(&pristine), None] {
-        let mut rewrites = Vec::new();
-        super::collect_probed_parent_rewrites(&replay, &parent, pristine, &mut rewrites)
-            .await
-            .expect("the hook accepts the manifest");
-        let rewritten: Vec<_> = rewrites
-            .iter()
-            .map(|(_, _, _, alias, spec)| (alias.as_str(), spec.as_str()))
-            .collect();
-        assert_eq!(
-            rewritten,
-            [("helper", "link:../helper")],
-            "real manifest: {}",
-            pristine.is_some(),
-        );
-    }
+    let mut rewrites = Vec::new();
+    super::collect_probed_parent_rewrites(&replay, &parent, Some(&pristine), &mut rewrites)
+        .await
+        .expect("the hook accepts the manifest");
+    let rewritten: Vec<_> = rewrites
+        .iter()
+        .map(|(_, _, _, alias, spec)| (alias.as_str(), spec.as_str()))
+        .collect();
+    assert_eq!(rewritten, [("helper", "link:../helper")]);
+
+    // Without the real manifest, as for a tarball on a cold store, the replay
+    // cannot tell whether the package declares `helper` itself, so a rewrite
+    // keyed on the extension's range authorizes nothing.
+    let mut rewrites = Vec::new();
+    super::collect_probed_parent_rewrites(&replay, &parent, None, &mut rewrites)
+        .await
+        .expect("the hook accepts the placeholder");
+    assert!(rewrites.is_empty(), "{rewrites:?}");
 }

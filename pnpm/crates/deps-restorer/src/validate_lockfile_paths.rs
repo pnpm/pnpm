@@ -51,6 +51,7 @@ use pristine_manifests::{
     record_pristine_specs,
 };
 use serde_json::{
+    Map,
     Value,
     json,
 };
@@ -335,34 +336,6 @@ impl<'a> ReadPackageReplay<'a> {
         }
     }
 
-    /// A stand-in for a parent whose real manifest is unavailable. The pre-hook
-    /// extensions run first, so a range they add reaches the hook. Each child
-    /// alias they leave unset gets `sentinel`.
-    fn placeholder_input(&self, parent: &LocalResolutionProbeParent, sentinel: &str) -> Value {
-        let mut manifest = self.hook_input(json!({
-            "name": parent.name,
-            "version": parent.version.as_deref().unwrap_or(sentinel),
-            "devDependencies": {},
-        }));
-        let Some(fields) = manifest.as_object_mut() else { return manifest };
-        for (field, aliases) in PROBE_FIELDS
-            .into_iter()
-            .zip([&parent.dep_aliases, &parent.optional_aliases, &parent.peer_aliases])
-        {
-            let Some(entries) = fields
-                .entry(field)
-                .or_insert_with(|| json!({}))
-                .as_object_mut()
-            else {
-                continue;
-            };
-            for alias in aliases {
-                entries.entry(alias.clone()).or_insert_with(|| Value::from(sentinel));
-            }
-        }
-        manifest
-    }
-
     /// Fresh resolution passes no directory for a dependency's manifest.
     async fn read_package(&self, manifest: Value) -> Result<Arc<Value>, HookError> {
         self.hook.read_package(manifest, HookContext { log: Arc::new(|_| {}), dir: None }).await
@@ -378,9 +351,8 @@ async fn collect_probed_parent_rewrites(
     let real_input = pristine
         .cloned()
         .map(|manifest| replay.hook_input(manifest));
-    let input = real_input
-        .clone()
-        .unwrap_or_else(|| replay.placeholder_input(parent, PROBE_SENTINEL_SPEC));
+    let input =
+        real_input.clone().unwrap_or_else(|| build_probe_manifest(parent, PROBE_SENTINEL_SPEC));
     let hooked = match replay.read_package(input.clone()).await {
         Ok(hooked) => hooked,
         // The hook may not handle a placeholder manifest. Only an error
@@ -389,7 +361,7 @@ async fn collect_probed_parent_rewrites(
         Err(error) => return Err(error),
     };
     let alt_hooked = if real_input.is_none() {
-        let alt_input = replay.placeholder_input(parent, PROBE_ALT_SENTINEL_SPEC);
+        let alt_input = build_probe_manifest(parent, PROBE_ALT_SENTINEL_SPEC);
         replay.read_package(alt_input).await.ok()
     } else {
         None
@@ -464,6 +436,29 @@ fn lookup_field_spec<'a>(manifest: &'a Value, field: &str, alias: &str) -> Optio
         .and_then(Value::as_object)
         .and_then(|map| map.get(alias))
         .and_then(Value::as_str)
+}
+
+/// A stand-in for a parent whose real manifest is unavailable, mapping each
+/// local child alias to `sentinel`. The pre-hook extensions do not run on it:
+/// they never override a declaration, and a placeholder cannot show which
+/// declarations the real manifest has, so a range they add could reach the
+/// hook where fresh resolution would pass another.
+fn build_probe_manifest(parent: &LocalResolutionProbeParent, sentinel: &str) -> Value {
+    let to_map = |aliases: &[String]| -> Value {
+        aliases
+            .iter()
+            .map(|alias| (alias.clone(), Value::String(sentinel.to_string())))
+            .collect::<Map<String, Value>>()
+            .into()
+    };
+    json!({
+        "name": parent.name,
+        "version": parent.version.as_deref().unwrap_or(sentinel),
+        "dependencies": to_map(&parent.dep_aliases),
+        "optionalDependencies": to_map(&parent.optional_aliases),
+        "peerDependencies": to_map(&parent.peer_aliases),
+        "devDependencies": {},
+    })
 }
 
 fn publish_directory_of(manifest: &PackageManifest) -> Option<&str> {
