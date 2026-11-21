@@ -111,18 +111,28 @@ pub(super) struct TreeCache {
     pub(super) bound_peers: peers::BoundPeersByKey,
 }
 
+/// Whether the lockfile may leave out the snapshot an edge points at.
+#[derive(Clone, Copy)]
+enum Edge {
+    Required,
+    /// An `optionalDependencies` entry, whose snapshot pnpm drops when it
+    /// skips the dependency (platform mismatch, fetch failure), or an edge
+    /// to a peer provider that is added only when its snapshot exists.
+    Optional,
+}
+
 /// Dependency groups merged as pnpm v11 spreads them into one object:
 /// group by group, each in the alias order the lockfile writes, and a
 /// later group overwrites an alias without moving it.
 fn spread_groups<'map, Value>(
-    groups: &[(&'map Option<HashMap<PkgName, Value>>, bool)],
-) -> IndexMap<&'map PkgName, (&'map Value, bool)> {
+    groups: &[(&'map Option<HashMap<PkgName, Value>>, Edge)],
+) -> IndexMap<&'map PkgName, (&'map Value, Edge)> {
     let mut merged = IndexMap::new();
-    for (deps, optional) in groups {
+    for (deps, edge) in groups {
         let mut entries: Vec<(&PkgName, &Value)> = deps.iter().flatten().collect();
         entries.sort_by_key(|(alias, _)| alias.to_string());
         for (alias, value) in entries {
-            merged.insert(alias, (value, *optional));
+            merged.insert(alias, (value, *edge));
         }
     }
     merged
@@ -136,11 +146,11 @@ pub(super) fn collect_importer_deps(
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
     let groups = [
-        (&importer.dependencies, false),
-        (&importer.dev_dependencies, false),
-        (&importer.optional_dependencies, true),
+        (&importer.dependencies, Edge::Required),
+        (&importer.dev_dependencies, Edge::Required),
+        (&importer.optional_dependencies, Edge::Optional),
     ];
-    for (alias, (spec, optional)) in spread_groups(&groups) {
+    for (alias, (spec, edge)) in spread_groups(&groups) {
         // For an aliased importer dep (`ImporterDepVersion::Alias`),
         // the snapshot key is the alias's own (name, suffix);
         // [`ImporterDepVersion::resolved_key`] returns that.
@@ -155,7 +165,7 @@ pub(super) fn collect_importer_deps(
         let Some(dep_key) = spec.version.resolved_key(alias) else {
             continue;
         };
-        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, cache)? else {
+        let Some(node) = build_dep_node(alias, &dep_key, edge, lockfile, opts, cache)? else {
             continue;
         };
         out.insert(RcByPtr(node));
@@ -173,23 +183,21 @@ fn link_aliased_peer_providers(
 ) -> Result<(), HoistError> {
     for (peer, key) in aliased::aliased_peer_providers(holder, children, &cache.bound_peers) {
         let Ok(alias) = PkgName::parse(peer.as_str()) else { continue };
-        if let Some(node) = build_dep_node(&alias, &key, true, lockfile, opts, cache)? {
+        if let Some(node) = build_dep_node(&alias, &key, Edge::Optional, lockfile, opts, cache)? {
             children.insert(RcByPtr(node));
         }
     }
     Ok(())
 }
 
-/// Returns `Ok(None)` for an optional edge whose target snapshot is
-/// missing, a skipped optional dependency (platform mismatch, fetch
-/// failure) is filtered out of the current lockfile, and pnpm skips
-/// such an edge rather than treating the lockfile as broken. A
-/// missing snapshot behind a non-optional edge is still
+/// Returns `Ok(None)` for an [`Edge::Optional`] whose target snapshot is
+/// missing: pnpm skips such an edge rather than treating the lockfile as
+/// broken. A missing snapshot behind an [`Edge::Required`] is
 /// [`HoistError::LockfileMissingDependency`].
 fn build_dep_node(
     alias: &PkgName,
     dep_key: &PkgNameVerPeer,
-    optional: bool,
+    edge: Edge,
     lockfile: &Lockfile,
     opts: &HoistOpts,
     cache: &mut TreeCache,
@@ -203,7 +211,7 @@ fn build_dep_node(
         return Ok(Some(Rc::clone(existing)));
     }
 
-    let Some(snapshot) = lookup_snapshot(dep_key, optional, lockfile)? else {
+    let Some(snapshot) = lookup_snapshot(dep_key, edge, lockfile)? else {
         return Ok(None);
     };
 
@@ -269,7 +277,7 @@ fn link_transitive_peer_providers(
     let providers = peers::unlinked_peer_providers((dep_key, snapshot), lockfile, &bound, has_edge);
     for provider in providers {
         if let Some(provider_node) =
-            build_dep_node(&provider.name, &provider, true, lockfile, opts, cache)?
+            build_dep_node(&provider.name, &provider, Edge::Optional, lockfile, opts, cache)?
         {
             children.insert(RcByPtr(provider_node));
         }
@@ -278,11 +286,11 @@ fn link_transitive_peer_providers(
 }
 
 /// `dep_key`'s entry in the `snapshots:` map. A missing entry is an error
-/// unless the dependency is optional, in which case there is nothing
+/// unless the edge is [`Edge::Optional`], in which case there is nothing
 /// to hoist.
 fn lookup_snapshot<'a>(
     dep_key: &PkgNameVerPeer,
-    optional: bool,
+    edge: Edge,
     lockfile: &'a Lockfile,
 ) -> Result<Option<&'a SnapshotEntry>, HoistError> {
     match lockfile.snapshots
@@ -290,7 +298,7 @@ fn lookup_snapshot<'a>(
         .and_then(|snapshots| snapshots.get(dep_key))
     {
         Some(snapshot) => Ok(Some(snapshot)),
-        None if optional => Ok(None),
+        None if matches!(edge, Edge::Optional) => Ok(None),
         None => Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() }),
     }
 }
@@ -302,8 +310,11 @@ fn collect_snapshot_deps(
     cache: &mut TreeCache,
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
-    let groups = [(&snapshot.dependencies, false), (&snapshot.optional_dependencies, true)];
-    for (alias, (dep_ref, optional)) in spread_groups(&groups) {
+    let groups = [
+        (&snapshot.dependencies, Edge::Required),
+        (&snapshot.optional_dependencies, Edge::Optional),
+    ];
+    for (alias, (dep_ref, edge)) in spread_groups(&groups) {
         // `dep_ref.resolve(alias)` returns the *snapshot lookup
         // key*: `<alias>@<ver>` for `Plain`, `<target>@<ver>` for
         // an npm-alias `Alias`. Pass that as `dep_key` so the
@@ -320,7 +331,7 @@ fn collect_snapshot_deps(
             }
             continue;
         };
-        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, cache)? else {
+        let Some(node) = build_dep_node(alias, &dep_key, edge, lockfile, opts, cache)? else {
             continue;
         };
         out.insert(RcByPtr(node));
