@@ -9,6 +9,7 @@ use derive_more::{
     Display,
     Error,
 };
+use pnpm_deps_path::link_path_to_peer_version;
 use serde::{
     Deserialize,
     Serialize,
@@ -115,6 +116,15 @@ impl SnapshotDepRef {
             }
             SnapshotDepRef::Alias(key) => Some(key.clone()),
             SnapshotDepRef::Link(_) => None,
+        }
+    }
+
+    /// The key used to identify this provider in a peer suffix. A link
+    /// has a peer key derived from its path, even without a snapshot.
+    pub(crate) fn peer_provider_key(&self, alias: &PkgName) -> Option<PkgNameVerPeer> {
+        match self {
+            Self::Link(path) => format!("{alias}@{}", link_path_to_peer_version(path)).parse().ok(),
+            _ => self.resolve(alias),
         }
     }
 
