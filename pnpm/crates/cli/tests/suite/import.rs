@@ -586,6 +586,19 @@ fn import_writes_through_a_symlinked_lockfile_when_allowed() {
     std::os::unix::fs::symlink("../source/pnpm-lock.yaml", workspace.join("pnpm-lock.yaml"))
         .expect("symlink pnpm-lock.yaml");
 
+    let output = std::process::Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_arg("import")
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(stderr.contains("symlink"), "{stderr}");
+    assert_eq!(
+        fs::read_to_string(source.join("pnpm-lock.yaml")).unwrap(),
+        "# stale placeholder lockfile\n",
+    );
+
     pacquet
         .with_env(
             "PNPM_CONFIG_SYMLINKED_LOCKFILE_TARGET_DIRS",
@@ -1017,6 +1030,15 @@ fn import_keeps_the_root_on_its_yarn_lock_pin_when_another_member_allows_newer()
 
 #[test]
 fn import_keeps_the_version_pinned_by_a_nested_yarn_lock() {
+    import_nested_yarn_lock(true);
+}
+
+#[test]
+fn import_writes_dedicated_project_lockfiles() {
+    import_nested_yarn_lock(false);
+}
+
+fn import_nested_yarn_lock(shared: bool) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -1026,6 +1048,11 @@ fn import_keeps_the_version_pinned_by_a_nested_yarn_lock() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
+    append_workspace_yaml_key(
+        &workspace,
+        "sharedWorkspaceLockfile",
+        if shared { "true" } else { "false" },
+    );
     append_workspace_yaml_key(&workspace, "packages", r#"["packages/*"]"#);
     write_file(
         &workspace,
@@ -1050,7 +1077,9 @@ fn import_keeps_the_version_pinned_by_a_nested_yarn_lock() {
         .success();
 
     assert_eq!(importer_version(&workspace, ".", "@pnpm.e2e/bravo-dep"), "1.0.0");
-    assert_eq!(importer_version(&workspace, "packages/foo", "@pnpm.e2e/bravo-dep"), "1.0.1");
+    let child = workspace.join("packages/foo");
+    let (dir, id) = if shared { (&workspace, "packages/foo") } else { (&child, ".") };
+    assert_eq!(importer_version(dir, id, "@pnpm.e2e/bravo-dep"), "1.0.1");
 
     drop((root, mock_instance));
 }
@@ -1110,4 +1139,33 @@ fn import_deduplicates_compatible_locked_versions_from_package_lock_json() {
     assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
 
     drop((root, npmrc_info));
+}
+
+#[test]
+fn failed_dedicated_import_restores_previous_projects() {
+    let CommandTempCwd { workspace, root: _root, pacquet, .. } = CommandTempCwd::init();
+    write_file(
+        &workspace,
+        "pnpm-workspace.yaml",
+        "packages: ['packages/*']\nsharedWorkspaceLockfile: false\nmergeGitBranchLockfiles: true\n",
+    );
+    write_file(&workspace, "package.json", "{}");
+    write_file(&workspace, "yarn.lock", "# yarn lockfile v1");
+    for name in ["a", "b", "c"] {
+        write_file(&workspace, &format!("packages/{name}/package.json"), "{}");
+    }
+    let first = workspace.join("packages/a");
+    write_file(&first, "pnpm-lock.yaml", "# original\n");
+    write_file(&first, "pnpm-lock.feature.yaml", "# branch\n");
+    write_file(&workspace, "packages/c/yarn.lock", "invalid");
+    let result = pacquet
+        .with_arg("import")
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&result.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED"), "{stderr}");
+    assert_eq!(fs::read_to_string(first.join("pnpm-lock.feature.yaml")).unwrap(), "# branch\n");
+    assert_eq!(fs::read_to_string(first.join("pnpm-lock.yaml")).unwrap(), "# original\n");
+    assert_no_import_backups(&first);
+    assert!(!workspace.join("packages/b/pnpm-lock.yaml").exists());
 }

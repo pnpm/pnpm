@@ -8,4 +8,6 @@ title: pnpm import
 * `npm-shrinkwrap.json`
 * `yarn.lock`
 
+Yarn patch files must be inside the workspace. pnpm warns and imports the dependency without the patch if the file is outside it.
+
 Declare workspaces in [pnpm-workspace.yaml](../settings.md) before running `pnpm import`.

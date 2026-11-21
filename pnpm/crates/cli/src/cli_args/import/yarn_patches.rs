@@ -92,6 +92,7 @@ fn patch_key(name: &str, range: &str) -> String {
 /// A Yarn patch that import did not apply.
 #[derive(Debug)]
 pub(super) enum DroppedPatch {
+    Outside { alias: String, patch_file: PathBuf },
     Missing { alias: String, patch_file: PathBuf },
     Several { alias: String },
     Conflicting { alias: String, patch_file: String, patch_key: String, kept: String },
@@ -100,6 +101,10 @@ pub(super) enum DroppedPatch {
 impl DroppedPatch {
     fn warning(&self) -> String {
         match self {
+            DroppedPatch::Outside { alias, patch_file } => format!(
+                r#"The patch file {} of "{alias}" is outside the workspace. "{alias}" was imported without the patch."#,
+                patch_file.display(),
+            ),
             DroppedPatch::Missing { alias, patch_file } => format!(
                 r#"The patch file {} of "{alias}" does not exist. "{alias}" was imported without the patch."#,
                 patch_file.display(),
@@ -147,25 +152,43 @@ pub(super) fn convert_yarn_patches(
             .wrap_err_with(|| format!("saving {}", manifest.path().display()))?;
         converted.manifests_changed = true;
         for (alias, patch) in patches {
-            let patch_file = single_patch_file(&alias, &patch.patch_paths, yarn_root, &project_dir);
-            let patch_file = match patch_file {
-                Ok(patch_file) => patch_file,
-                Err(DroppedPatch::Missing { .. })
-                    if patched_dependencies.contains_key(&patch.patch_key) =>
-                {
-                    continue;
-                }
-                Err(dropped) => {
-                    converted.dropped.push(dropped);
-                    continue;
-                }
-            };
-            let Some(patch_file) = patch_file else { continue };
-            let recorded = RecordedPatch { key: patch.patch_key, file: &patch_file, alias };
-            converted.dropped.extend(recorded.record(patched_dependencies, workspace_dir));
+            let dropped =
+                patch.record(alias, yarn_root, &project_dir, workspace_dir, patched_dependencies);
+            converted.dropped.extend(dropped);
         }
     }
     Ok(converted)
+}
+
+impl YarnPatchSpecifier {
+    fn record(
+        self,
+        alias: String,
+        yarn_root: &Path,
+        project_dir: &Path,
+        workspace_dir: &Path,
+        patched_dependencies: &mut IndexMap<String, String>,
+    ) -> Option<DroppedPatch> {
+        let file = match single_patch_file(
+            &alias,
+            &self.patch_paths,
+            yarn_root,
+            project_dir,
+            workspace_dir,
+        ) {
+            Ok(file) => file?,
+            Err(DroppedPatch::Missing { .. })
+                if patched_dependencies.contains_key(&self.patch_key) =>
+            {
+                return None;
+            }
+            Err(dropped) => return Some(dropped),
+        };
+        RecordedPatch { key: self.patch_key, file: &file, alias }.record(
+            patched_dependencies,
+            workspace_dir,
+        )
+    }
 }
 
 /// The one patch file pnpm can apply, or `None` when Yarn listed only
@@ -175,17 +198,30 @@ fn single_patch_file(
     patch_paths: &[String],
     yarn_root: &Path,
     project_dir: &Path,
+    workspace_dir: &Path,
 ) -> Result<Option<PathBuf>, DroppedPatch> {
     let patch_path = match patch_paths {
         [] => return Ok(None),
         [patch_path] => patch_path,
         _ => return Err(DroppedPatch::Several { alias: alias.to_string() }),
     };
-    let patch_file = patch_file_path(patch_path, yarn_root, project_dir);
-    if !patch_file.is_file() {
+    let patch_file = lexical_normalize(&patch_file_path(patch_path, yarn_root, project_dir));
+    if !patch_file.starts_with(workspace_dir) {
+        return Err(DroppedPatch::Outside { alias: alias.to_string(), patch_file });
+    }
+    let Ok(target) = patch_file.canonicalize() else {
+        return Err(DroppedPatch::Missing { alias: alias.to_string(), patch_file });
+    };
+    let Ok(root) = workspace_dir.canonicalize() else {
+        return Err(DroppedPatch::Missing { alias: alias.to_string(), patch_file });
+    };
+    let Ok(relative) = target.strip_prefix(&root) else {
+        return Err(DroppedPatch::Outside { alias: alias.to_string(), patch_file });
+    };
+    if !target.is_file() {
         return Err(DroppedPatch::Missing { alias: alias.to_string(), patch_file });
     }
-    Ok(Some(patch_file))
+    Ok(Some(workspace_dir.join(relative)))
 }
 
 /// A converted patch about to be recorded in `patchedDependencies`.
@@ -211,7 +247,9 @@ impl RecordedPatch<'_> {
             }
             Entry::Occupied(entry)
                 if lexical_normalize(&workspace_dir.join(entry.get()))
-                    == lexical_normalize(self.file) =>
+                    == lexical_normalize(self.file)
+                    || same_file::is_same_file(workspace_dir.join(entry.get()), self.file)
+                        .unwrap_or(false) =>
             {
                 None
             }
@@ -256,11 +294,18 @@ pub(super) fn import_yarn_patches<Reporter: self::Reporter>(
     let config = state.config;
     let workspace_dir = config.workspace_dir.clone().unwrap_or_else(|| yarn_root.to_path_buf());
     let mut manifests = match &config.workspace_dir {
-        Some(workspace_dir) => discover_workspace_projects(workspace_dir, config)?
-            .0
-            .into_iter()
-            .map(|project| project.manifest)
-            .collect(),
+        Some(workspace_dir) => {
+            let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
+            if !config.shares_one_lockfile() {
+                for project in &projects {
+                    super::checked_lockfile_path(config, &project.root_dir)?;
+                }
+            }
+            projects
+                .into_iter()
+                .map(|project| project.manifest)
+                .collect()
+        }
         None => vec![state.manifest.clone()],
     };
     let mut patched_dependencies = config.patched_dependencies.clone().unwrap_or_default();

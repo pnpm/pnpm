@@ -196,3 +196,62 @@ test('import keeps the version pinned by a nested yarn.lock', async () => {
   expect(importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.0')
   expect(importers['packages/foo'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
 })
+
+test('dedicated import checks only the selected project lockfiles', async () => {
+  if (process.platform === 'win32') return
+  prepareEmpty()
+  fs.writeFileSync('package.json', '{"name":"root"}')
+  fs.writeFileSync('package-lock.json', JSON.stringify({ lockfileVersion: 3, packages: {} }))
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages: ["packages/*"]\nsharedWorkspaceLockfile: false\n')
+  for (const name of ['selected', 'other']) {
+    fs.mkdirSync(`packages/${name}`, { recursive: true })
+    fs.writeFileSync(`packages/${name}/package.json`, JSON.stringify({ name, dependencies: { 'is-positive': '1.0.0' } }))
+  }
+  fs.symlinkSync('original.yaml', 'packages/other/pnpm-lock.yaml')
+  const dir = process.cwd()
+  const { allProjects, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [])
+  const selected = allProjects.find(project => project.manifest.name === 'selected')!.rootDir
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir,
+    workspaceDir: dir,
+    allProjects: allProjects.map((project, buildIndex) => ({ ...project, buildIndex })),
+    allProjectsGraph,
+    selectedProjectsGraph: { [selected]: allProjectsGraph[selected] },
+    sharedWorkspaceLockfile: false,
+  }, [])
+  expect(assertProject(selected).readLockfile().importers['.'].dependencies?.['is-positive'].version).toBe('1.0.0')
+  expect(fs.readlinkSync('packages/other/pnpm-lock.yaml')).toBe('original.yaml')
+})
+
+test('failed dedicated import restores selected lockfiles and preserves branch lockfiles', async () => {
+  prepareEmpty()
+  fs.writeFileSync('package.json', '{"name":"root"}')
+  fs.writeFileSync('package-lock.json', '{"lockfileVersion":3,"packages":{}}')
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages: ["packages/*"]\nsharedWorkspaceLockfile: false\n')
+  for (const name of ['first', 'second']) {
+    fs.mkdirSync(`packages/${name}`, { recursive: true })
+    const dependencies = name === 'first' ? { 'is-positive': '1.0.0' } : { first: 'workspace:*', missing: 'file:./missing.tgz' }
+    fs.writeFileSync(`packages/${name}/package.json`, JSON.stringify({ name, version: '1.0.0', dependencies }))
+  }
+  const dir = process.cwd()
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [])
+  fs.writeFileSync('packages/first/pnpm-lock.yaml', '# original\n')
+  fs.writeFileSync('packages/first/pnpm-lock.feature.yaml', '# branch\n')
+  await expect(importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir,
+    workspaceDir: dir,
+    allProjects: allProjects.map((project, buildIndex) => ({ ...project, buildIndex })),
+    allProjectsGraph,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    mergeGitBranchLockfiles: true,
+  }, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RECURSIVE_FAIL',
+    failures: [{ prefix: path.join(dir, 'packages/second'), message: expect.stringContaining('missing') }],
+  })
+  expect(fs.readFileSync('packages/first/pnpm-lock.yaml', 'utf8')).toBe('# original\n')
+  expect(fs.readFileSync('packages/first/pnpm-lock.feature.yaml', 'utf8')).toBe('# branch\n')
+  expect(fs.existsSync('packages/second/pnpm-lock.yaml')).toBe(false)
+})

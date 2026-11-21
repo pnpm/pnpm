@@ -13,6 +13,6 @@ export {
   type WriteLockfilesResult,
   writeWantedLockfile,
 } from './write.js'
-export { extractMainDocument } from './yamlDocuments.js'
+export { ensureLockfileIsNotSymlink, extractMainDocument } from './yamlDocuments.js'
 export * from '@pnpm/lockfile.types'
 export { getLockfileImporterId } from '@pnpm/lockfile.utils'

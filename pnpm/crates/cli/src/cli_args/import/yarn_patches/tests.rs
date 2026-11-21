@@ -105,3 +105,42 @@ fn records_a_patch_once_and_reports_a_conflicting_one() {
     );
     assert_eq!(patched_dependencies["foo@1.0.0"], "./patches/foo.patch");
 }
+
+#[test]
+fn patch_files_must_be_inside_the_workspace() {
+    let dir = tempfile::tempdir().unwrap();
+    let workspace = dir.path().join("project");
+    std::fs::create_dir(&workspace).unwrap();
+    let file = dir.path().join("other.patch");
+    std::fs::write(&file, "").unwrap();
+    let result = super::single_patch_file(
+        "example",
+        &["../other.patch".into()],
+        &workspace,
+        &workspace,
+        &workspace,
+    );
+    assert!(matches!(result, Err(super::DroppedPatch::Outside { .. })));
+}
+
+#[cfg(unix)]
+#[test]
+fn records_the_checked_target_of_a_patch_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("actual.patch");
+    std::fs::write(&target, "").unwrap();
+    std::os::unix::fs::symlink("actual.patch", dir.path().join("link.patch")).unwrap();
+    let checked = super::single_patch_file(
+        "example",
+        &["link.patch".into()],
+        dir.path(),
+        dir.path(),
+        dir.path(),
+    )
+    .unwrap();
+    assert_eq!(checked.as_ref(), Some(&target));
+    let mut patches =
+        indexmap::IndexMap::from([("example@1".to_string(), "link.patch".to_string())]);
+    let same = RecordedPatch { key: "example@1".into(), file: &target, alias: "example".into() };
+    assert!(same.record(&mut patches, dir.path()).is_none());
+}

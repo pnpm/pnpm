@@ -481,3 +481,12 @@ test.each([
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
+
+test('import checks the destination before moving the original lockfile', async () => {
+  if (process.platform === 'win32') return
+  testFixtures.prepare('has-package-lock-json')
+  const dir = process.cwd()
+  await fs.symlink('original.yaml', 'pnpm-lock.yaml')
+  await expect(importCommand.handler({ ...DEFAULT_OPTS, dir }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_IS_SYMLINK' })
+  expect(await fs.readlink('pnpm-lock.yaml')).toBe('original.yaml')
+})

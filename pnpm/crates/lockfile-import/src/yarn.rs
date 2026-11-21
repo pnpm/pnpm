@@ -154,7 +154,7 @@ fn collect_classic_versions(
     contents: &str,
     versions: &mut VersionsByPackageName,
 ) -> Result<(), YarnSyntaxError> {
-    let mut entry_names: Vec<&str> = Vec::new();
+    let mut entry_key = None;
     let mut property_indent: Option<usize> = None;
 
     for (offset, line) in contents.lines().enumerate() {
@@ -166,18 +166,21 @@ fn collect_classic_versions(
         let indent = line.len() - content.len();
 
         if indent == 0 {
-            entry_names.clear();
             property_indent = None;
-            start_classic_entry(content, number, &mut entry_names)?;
+            entry_key = Some(
+                content
+                    .trim_end()
+                    .strip_suffix(':')
+                    .ok_or(YarnSyntaxError::EntryKeyExpected { line: number })?,
+            );
             continue;
         }
 
-        let Some(version) =
-            entry_version(content, number, indent, &entry_names, &mut property_indent)?
-        else {
+        let key = entry_key.ok_or(YarnSyntaxError::OrphanedProperty { line: number })?;
+        let Some(version) = entry_version(content, number, indent, &mut property_indent)? else {
             continue;
         };
-        for name in &entry_names {
+        for name in descriptor_package_names(key, YarnDialect::Classic) {
             add_version(versions, name, version);
         }
     }
@@ -195,12 +198,8 @@ fn entry_version<'a>(
     content: &'a str,
     line: usize,
     indent: usize,
-    entry_names: &[&str],
     property_indent: &mut Option<usize>,
 ) -> Result<Option<&'a str>, YarnSyntaxError> {
-    if entry_names.is_empty() {
-        return Err(YarnSyntaxError::OrphanedProperty { line });
-    }
     let property =
         ClassicProperty::parse(content).ok_or(YarnSyntaxError::PropertyExpected { line })?;
     if indent != *property_indent.get_or_insert(indent) {
@@ -210,20 +209,6 @@ fn entry_version<'a>(
         ClassicProperty::Valued { key: "version", value } => Ok(Some(value)),
         _ => Ok(None),
     }
-}
-
-/// Read the descriptors one top-level entry key declares.
-fn start_classic_entry<'a>(
-    content: &'a str,
-    line: usize,
-    entry_names: &mut Vec<&'a str>,
-) -> Result<(), YarnSyntaxError> {
-    let key = content
-        .trim_end()
-        .strip_suffix(':')
-        .ok_or(YarnSyntaxError::EntryKeyExpected { line })?;
-    entry_names.extend(descriptor_package_names(key, YarnDialect::Classic));
-    Ok(())
 }
 
 /// A property line of a yarn classic entry, which either carries a value

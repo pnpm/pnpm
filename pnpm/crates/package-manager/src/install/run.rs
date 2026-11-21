@@ -124,6 +124,7 @@ where
         // would do never writes it, deleting them in either case drops
         // resolutions no file is left holding.
         let merge_will_be_saved = self.context.config.merge_git_branch_lockfiles
+            && !matches!(self.context.lockfile, pnpm_lockfile::MaybeLazyLockfile::Loaded(None))
             && self.context.config.lockfile
             && options.save.writes_lockfile()
             && !self.execution.dry_run;

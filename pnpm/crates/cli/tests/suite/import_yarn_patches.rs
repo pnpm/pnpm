@@ -74,11 +74,11 @@ fn import_converts_yarn_patches_into_patched_dependencies() {
     let foo_manifest = json!({
         "name": "foo",
         "devDependencies": {
-            "@pnpm.e2e/foo": "patch:@pnpm.e2e/foo@npm%3A1.0.0#./foo.patch::locator=foo%40workspace%3Apackages%2Ffoo",
+            "@pnpm.e2e/foo": "patch:@pnpm.e2e/foo@npm%3A1.0.0#../../patches/foo.patch::locator=foo%40workspace%3Apackages%2Ffoo",
         },
     });
     write_file(&workspace, "packages/foo/package.json", &foo_manifest.to_string());
-    write_file(&workspace, "packages/foo/foo.patch", MARKER_PATCH);
+    write_file(&workspace, "patches/foo.patch", MARKER_PATCH);
     write_file(&workspace, "yarn.lock", YARN_LOCKFILE);
 
     pacquet
@@ -97,7 +97,7 @@ fn import_converts_yarn_patches_into_patched_dependencies() {
         "pnpm-workspace.yaml:\n{workspace_yaml}",
     );
     assert!(
-        workspace_yaml.contains("'@pnpm.e2e/foo@1.0.0': packages/foo/foo.patch"),
+        workspace_yaml.contains("'@pnpm.e2e/foo@1.0.0': patches/foo.patch"),
         "pnpm-workspace.yaml:\n{workspace_yaml}",
     );
     let lockfile = read_text(&workspace.join("pnpm-lock.yaml"));

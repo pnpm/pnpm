@@ -175,3 +175,49 @@ test('importYarnPatches records a patch of a package named like an Object.protot
 
   expect(patchedDependencies).toStrictEqual({ 'constructor@1.0.0': path.resolve('p.patch') })
 })
+
+test('import skips patches outside the workspace', async () => {
+  prepareYarnProject()
+  const manifest = readManifest()
+  manifest.dependencies['is-positive'] = 'patch:is-positive@npm%3A1.0.0#../other.patch'
+  fs.writeFileSync('package.json', JSON.stringify(manifest))
+
+  await importCommand.handler({ ...DEFAULT_OPTS, dir: process.cwd() }, [])
+
+  expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('is outside the workspace'))
+  expect(assertProject(process.cwd()).readLockfile().patchedDependencies).toBeUndefined()
+})
+
+test('import records the target of a patch symlink inside the workspace', async () => {
+  if (process.platform === 'win32') return
+  prepareYarnProject()
+  const originalManifest = readManifest()
+  fs.copyFileSync(IS_POSITIVE_PATCH, 'actual.patch')
+  fs.mkdirSync(path.dirname(PATCH_PATH), { recursive: true })
+  fs.symlinkSync('../../actual.patch', PATCH_PATH)
+
+  await importCommand.handler({ ...DEFAULT_OPTS, dir: process.cwd() }, [])
+
+  expect(readYamlFileSync<{ patchedDependencies: Record<string, string> }>('pnpm-workspace.yaml').patchedDependencies)
+    .toStrictEqual({ 'is-positive@1.0.0': 'actual.patch' })
+
+  fs.writeFileSync('package.json', JSON.stringify(originalManifest))
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    patchedDependencies: { 'is-positive@1.0.0': path.resolve(PATCH_PATH) },
+  }, [])
+  expect(globalWarn).not.toHaveBeenCalled()
+})
+
+test('import checks the lockfile before converting Yarn patches', async () => {
+  if (process.platform === 'win32') return
+  prepareYarnProject()
+  const manifest = readManifest()
+  fs.symlinkSync('original.yaml', 'pnpm-lock.yaml')
+
+  await expect(importCommand.handler({ ...DEFAULT_OPTS, dir: process.cwd() }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_IS_SYMLINK' })
+
+  expect(readManifest()).toEqual(manifest)
+  expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
+})

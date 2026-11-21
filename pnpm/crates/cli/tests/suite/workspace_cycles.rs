@@ -197,3 +197,18 @@ fn an_already_up_to_date_install_reports_no_cycles() {
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(stdout.contains("Already up to date"), "{stdout}");
 }
+
+#[test]
+fn import_respects_disallow_workspace_cycles() {
+    let CommandTempCwd { root: _root, workspace, pacquet, .. } = CommandTempCwd::init();
+    write_cyclic_workspace(&workspace, "disallowWorkspaceCycles: true\n");
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    fs::write(workspace.join("yarn.lock"), "# yarn lockfile v1").unwrap();
+    let output = pacquet
+        .with_arg("import")
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_DISALLOW_WORKSPACE_CYCLES"), "{stderr}");
+    assert!(!workspace.join("pnpm-lock.yaml").exists());
+}
