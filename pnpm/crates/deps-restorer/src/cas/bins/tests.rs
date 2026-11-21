@@ -40,6 +40,8 @@ fn stored_directories_bin_creates_commands_from_virtual_files() {
                 super::super::StorePackage {
                     files: Some(BTreeMap::from([
                         ("package.json".into(), digest.clone()),
+                        ("commands/.gitkeep".into(), digest.clone()),
+                        ("commands/.hidden/nested".into(), digest.clone()),
                         ("commands/hello".into(), digest.clone()),
                         ("commands/nested/another".into(), digest),
                     ])),
@@ -62,6 +64,8 @@ fn stored_directories_bin_creates_commands_from_virtual_files() {
         &manifest,
     )
     .unwrap();
+    assert!(!root.join("node_modules/.bin/.gitkeep").exists());
+    assert!(!root.join("node_modules/.bin/nested").exists());
     assert!(root.join("node_modules/.bin/hello").is_file());
     assert!(root.join("node_modules/.bin/another").is_file());
     assert!(!root.join("node_modules/.pnpm/.pnpm-loader").exists());

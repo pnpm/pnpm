@@ -24,7 +24,7 @@ import { IS_WINDOWS } from './platform.js'
 export { getExtraNodePaths, getSlotShimNodePathOptions } from './getExtraNodePaths.js'
 export { getProjectNodePath } from './getProjectNodePath.js'
 export type { LinkBinOptions } from './linkBin.js'
-export { relinkModulesDirPackageBins } from './relinkModulesDirPackageBins.js'
+export { containingModulesDir, relinkModulesDirPackageBins } from './relinkModulesDirPackageBins.js'
 
 const binsConflictLogger = logger('bins-conflict')
 

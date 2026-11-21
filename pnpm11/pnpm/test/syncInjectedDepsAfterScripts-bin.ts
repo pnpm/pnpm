@@ -7,26 +7,27 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from './utils/index.js'
 
-test('sync bin links after build script', async () => {
+test.each([
+  { bin: { 'cli-tool': 'bin/cli-tool' } },
+  { directories: { bin: 'bin' } },
+])('sync bin links after build script with %j', async binFields => {
   preparePackages([
     {
-      name: 'cli-tool',
+      name: '@example/cli-tool',
       version: '1.0.0',
-      bin: {
-        'cli-tool': 'bin/cli.js',
-      },
+      ...binFields,
       scripts: {
-        build: 'node -e "const fs = require(\'fs\'); fs.mkdirSync(\'bin\', { recursive: true }); fs.writeFileSync(\'bin/cli.js\', \'#!/usr/bin/env node\\nconsole.log(\\\'CLI tool works!\\\')\\n\', \'utf-8\')"',
+        build: 'node -e "const fs = require(\'fs\'); fs.mkdirSync(\'bin\', { recursive: true }); fs.writeFileSync(\'bin/cli-tool\', \'#!/usr/bin/env node\\nconsole.log(\\\'CLI tool works!\\\')\\n\', \'utf-8\')"',
       },
     },
     {
       name: 'consumer',
       version: '1.0.0',
       dependencies: {
-        'cli-tool': 'workspace:*',
+        '@example/cli-tool': 'workspace:*',
       },
       dependenciesMeta: {
-        'cli-tool': {
+        '@example/cli-tool': {
           injected: true,
         },
       },
@@ -37,32 +38,27 @@ test('sync bin links after build script', async () => {
   ])
 
   writeYamlFileSync('pnpm-workspace.yaml', {
-    packages: ['*'],
+    packages: ['consumer', '@example/*'],
     reporter: 'append-only',
     injectWorkspacePackages: true,
     dedupeInjectedDeps: false,
     syncInjectedDepsAfterScripts: ['build'],
   })
 
-  // Install - bin won't be created because bin/cli.js doesn't exist yet
+  // Install - bin won't be created because bin/cli-tool doesn't exist yet
   await execPnpm(['install'])
 
-  // Verify injection happened
-  expect(fs.readdirSync('node_modules/.pnpm')).toContain('cli-tool@file+cli-tool')
-
   // Build cli-tool
-  await execPnpm(['--filter=cli-tool', 'run', 'build'])
+  await execPnpm(['--filter=@example/cli-tool', 'run', 'build'])
 
-  // Verify bin/cli.js was created
-  expect(fs.existsSync('cli-tool/bin/cli.js')).toBe(true)
+  // Verify bin/cli-tool was created
+  expect(fs.existsSync('@example/cli-tool/bin/cli-tool')).toBe(true)
 
   // Verify bin was synced to the injected location
-  const injectedBinPath = 'node_modules/.pnpm/cli-tool@file+cli-tool/node_modules/cli-tool/bin/cli.js'
-  expect(fs.existsSync(injectedBinPath)).toBe(true)
-
-  // Verify bin link was created
-  const binPath = 'node_modules/.pnpm/cli-tool@file+cli-tool/node_modules/.bin/cli-tool'
-  expect(fs.existsSync(binPath) || fs.existsSync(`${binPath}.CMD`) || fs.existsSync(`${binPath}.ps1`)).toBe(true)
+  const copy = fs.realpathSync('consumer/node_modules/@example/cli-tool')
+  expect(fs.existsSync(path.join(copy, 'bin/cli-tool'))).toBe(true)
+  expect(binExists(path.resolve(copy, '../../.bin/cli-tool'))).toBe(true)
+  expect(fs.existsSync(path.resolve(copy, '../.bin'))).toBe(false)
 
   // Run the consumer's test script which uses the bin
   await execPnpm(['--filter=consumer', 'test'])

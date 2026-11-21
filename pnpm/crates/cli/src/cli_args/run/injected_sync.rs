@@ -97,8 +97,11 @@ fn injected_sync_opts<'a>(
         project_modules_dirs,
         bin_links: BinLinkSettings {
             modules_dir_name: ctx.config.modules_dir_name(),
-            extend_node_path: ctx.config.extend_node_path,
-            ignored_directories: ctx.config.managed_directories(),
+            link_options: pnpm_deps_restorer::shim_link_options(ctx.config, ctx.config.node_linker),
+            projects: pnpm_workspace::FindWorkspaceProjectsOpts {
+                patterns: ctx.config.workspace_package_patterns.clone(),
+                ignored_directories: ctx.config.managed_directories(),
+            },
         },
     }
 }

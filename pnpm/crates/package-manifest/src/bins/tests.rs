@@ -46,21 +46,23 @@ fn resolves_directories_bin_and_extension_fallback() {
     });
     let mut archive_files = BTreeMap::new();
     archive_files.insert(
-        "bin/alpha.js".to_string(),
+        "bin/alpha.JS".to_string(),
         parse_shebang_from_bytes(b"console.log(1);\n"),
     );
     archive_files.insert(
         "bin/sub/beta".to_string(),
         parse_shebang_from_bytes(b"#!/bin/sh\necho hi\n"),
     );
+    archive_files.insert("bin/.hidden/nested".to_string(), None);
+    archive_files.insert("bin/.gitkeep".to_string(), None);
     archive_files.insert("lib/ignored.js".to_string(), None);
 
     let bins = resolve_package_bins(&manifest, &archive_files).expect("bins should resolve");
     assert_eq!(bins.len(), 2);
     assert_eq!(
-        bins.get("alpha.js"),
+        bins.get("alpha.JS"),
         Some(&PackageBin {
-            path: "bin/alpha.js".to_string(),
+            path: "bin/alpha.JS".to_string(),
             prog: Some("node".to_string()),
             args: String::new(),
         }),

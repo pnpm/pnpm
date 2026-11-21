@@ -117,6 +117,14 @@ impl ProjectScriptRunner<'_> {
         if !self.run_without_bin_linking::<Reporter>(project_dir, stages)? {
             return Ok(());
         }
+        self.sync_injected_deps(project_dir, manifest)
+    }
+
+    fn sync_injected_deps(
+        &self,
+        project_dir: &Path,
+        manifest: &PackageManifest,
+    ) -> Result<(), InstallError> {
         // Injected copies are hardlinks of the files that existed when they
         // were materialized, so the output of a build script reaches them
         // only when they are re-synced.
@@ -137,8 +145,11 @@ impl ProjectScriptRunner<'_> {
             project_modules_dirs: &[],
             bin_links: BinLinkSettings {
                 modules_dir_name: self.config.modules_dir_name(),
-                extend_node_path: self.config.extend_node_path,
-                ignored_directories: self.config.managed_directories(),
+                link_options: self.link_options.clone(),
+                projects: pnpm_workspace::FindWorkspaceProjectsOpts {
+                    patterns: self.config.workspace_package_patterns.clone(),
+                    ignored_directories: self.config.managed_directories(),
+                },
             },
         })
         .map_err(InstallError::SyncInjectedDeps)

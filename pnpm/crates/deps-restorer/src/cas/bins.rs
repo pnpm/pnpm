@@ -115,12 +115,24 @@ fn package_bins(
         let Some(files) = &package.files else {
             return Host::walk_files(directory).map(Iterator::collect::<Vec<_>>);
         };
+        let directory = pnpm_fs::lexical_normalize(directory);
         Ok(files
             .keys()
             .map(|name| root.join(name))
-            .filter(|path| pnpm_fs::is_subdir(directory, path))
+            .filter(|path| is_visible_bin_entry(&directory, path))
             .collect::<Vec<_>>())
     })
+}
+
+fn is_visible_bin_entry(directory: &Path, path: &Path) -> bool {
+    pnpm_fs::lexical_normalize(path)
+        .strip_prefix(directory)
+        .is_ok_and(|relative| {
+            !relative.as_os_str().is_empty()
+                && relative
+                    .iter()
+                    .all(|part| !part.as_encoded_bytes().starts_with(b"."))
+        })
 }
 
 fn write_entry(loader_dir: &Path, path: &Path, target: &Path) -> io::Result<()> {
