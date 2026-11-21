@@ -429,6 +429,7 @@ impl CliCommand {
             self,
             CliCommand::Bin(_)
                 | CliCommand::Clean(_)
+                | CliCommand::Edit(_)
                 | CliCommand::Exec(_)
                 | CliCommand::External(_)
                 | CliCommand::Fund(_)

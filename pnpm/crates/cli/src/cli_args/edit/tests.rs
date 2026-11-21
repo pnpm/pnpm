@@ -1,6 +1,7 @@
 use super::{
     de_hardlink_dir,
     parse_package_path,
+    verify_package_dir_holds,
 };
 use std::fs;
 use tempfile::tempdir;
@@ -33,8 +34,10 @@ fn editor_arguments_preserve_empty_values_and_reject_unclosed_quotes() {
         arguments,
         vec![std::ffi::OsStr::new("--wait"), std::ffi::OsStr::new(""), root.path().as_os_str()],
     );
-    let error =
-        super::resolve_editor_command("/editor 'unfinished", root.path(), root.path()).unwrap_err();
+    let Err(error) = super::resolve_editor_command("/editor 'unfinished", root.path(), root.path())
+    else {
+        panic!("an unclosed quote must be rejected");
+    };
     assert!(error.to_string().contains("Invalid editor command"), "{error}");
 }
 
@@ -182,4 +185,15 @@ fn package_resolution_prefers_active_workspace_member_modules() {
         .unwrap(),
         dunce::canonicalize(member_package).unwrap(),
     );
+}
+
+#[test]
+fn package_dir_must_hold_the_selected_package() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("package.json"), r#"{"name":"child","version":"1.0.0"}"#).unwrap();
+    let holds = |key: &str| verify_package_dir_holds(dir.path(), &key.parse().unwrap()).is_ok();
+    assert!(holds("child@1.0.0"));
+    assert!(holds("child@1.0.0(peer@2.0.0)"));
+    assert!(!holds("child@2.0.0"));
+    assert!(!holds("other@1.0.0"));
 }

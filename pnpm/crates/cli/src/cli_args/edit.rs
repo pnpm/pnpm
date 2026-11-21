@@ -1,6 +1,8 @@
-use crate::state::State;
+use crate::{
+    process::Command,
+    state::State,
+};
 use clap::Args;
-use command_extra::CommandExtra;
 use miette::{
     Context,
     IntoDiagnostic,
@@ -20,7 +22,6 @@ use std::{
         Path,
         PathBuf,
     },
-    process::Command,
 };
 
 /// Opens an installed package's folder in the default text editor.
@@ -51,6 +52,7 @@ impl EditArgs {
             state.config.workspace_dir.as_deref().unwrap_or_else(|| state.project_dir());
         let mut command = resolve_editor_command(&editor, project_root, &real_pkg_path)?;
         let package_key = installed_package_key(&state, &parts)?;
+        verify_package_dir_holds(&real_pkg_path, &package_key)?;
         de_hardlink_dir(&real_pkg_path)
             .into_diagnostic()
             .wrap_err_with(|| {
@@ -149,6 +151,34 @@ fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<Pack
         return Err(miette!("The selected package is not an installed dependency"));
     };
     Ok(key)
+}
+
+/// Refuse a directory whose manifest is not the package `key` names, so the
+/// files the editor changes are the ones the rebuild selects. Only a registry
+/// version is compared, other resolutions carry no comparable version.
+fn verify_package_dir_holds(dir: &Path, key: &PackageKey) -> miette::Result<()> {
+    let manifest: serde_json::Value = fs::read(dir.join("package.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default();
+    let field = |name: &str| manifest.get(name).and_then(serde_json::Value::as_str);
+    let name_matches = field("name") == Some(key.name.to_string().as_str());
+    let version_matches = key.suffix
+        .registry_version()
+        .is_none_or(|version| {
+            field("version")
+                .and_then(|raw| raw.parse().ok())
+                .as_ref()
+                == Some(version)
+        });
+    if name_matches && version_matches {
+        return Ok(());
+    }
+    Err(miette!(
+        code = "ERR_PNPM_EDIT_PACKAGE_MISMATCH",
+        "'{}' does not hold {key}, the installed package selected for rebuild",
+        dir.display(),
+    ))
 }
 
 fn missing_from_lockfile(part: &str) -> miette::Report {
@@ -281,7 +311,9 @@ fn resolve_editor_command(
         return Err(miette!("No editor command specified"));
     };
     let program_path = find_safe_program_path(program, project_root)?;
-    Ok(Command::new(program_path).with_args(args).with_arg(real_pkg_path))
+    let mut command = Command::new(program_path);
+    command.args(args).arg(real_pkg_path);
+    Ok(command)
 }
 
 fn find_safe_program_path(

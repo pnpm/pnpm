@@ -1123,8 +1123,12 @@ fn permissions_approval_rebuilds_the_selected_dependency() {
         .assert()
         .success();
     assert!(marker.exists(), "permissions approval must run the install script");
-    let modules = fs::read_to_string(workspace.join("node_modules/.modules.yaml")).unwrap();
-    assert!(!modules.contains("pendingBuilds:"), "{modules}");
+    let modules = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("read .modules.yaml")
+    .expect(".modules.yaml exists");
+    assert!(modules.pending_builds.is_empty(), "{:?}", modules.pending_builds);
     drop(harness);
 }
 

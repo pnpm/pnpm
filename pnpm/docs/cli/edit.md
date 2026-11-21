@@ -3,7 +3,7 @@ id: edit
 title: "pnpm edit <pkg>"
 ---
 
-Open an installed dependency's folder in a text editor. After the editor exits successfully, pnpm rebuilds only the edited dependency.
+Opens an installed package's folder in the default text editor. After the editor exits successfully, pnpm rebuilds only the edited dependency.
 
 ```sh
 pnpm edit is-positive

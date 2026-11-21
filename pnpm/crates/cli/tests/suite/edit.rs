@@ -639,6 +639,8 @@ fn edit_rejects_shared_virtual_store_without_modifying_the_package() {
         .success();
     let package = workspace.join("node_modules/is-positive");
     let original = fs::read(package.join("index.js")).unwrap();
+    let known_link = workspace.join("index-link.js");
+    fs::hard_link(package.join("index.js"), &known_link).unwrap();
     let editor = r#"node -e "require('fs').writeFileSync(require('path').join(process.argv[1], 'index.js'), 'edited');""#;
     let output = pacquet(&workspace)
         .with_args(["edit", "is-positive", "--editor", editor])
@@ -649,6 +651,10 @@ fn edit_rejects_shared_virtual_store_without_modifying_the_package() {
     assert!(stderr.contains("shared virtual store"), "{stderr}");
     assert!(stderr.contains("pnpm patch"), "{stderr}");
     assert_eq!(fs::read(package.join("index.js")).unwrap(), original);
+    assert!(
+        same_file::is_same_file(package.join("index.js"), &known_link).unwrap(),
+        "the refusal must leave the file linked",
+    );
     drop(npmrc_info);
     drop(root);
 }
