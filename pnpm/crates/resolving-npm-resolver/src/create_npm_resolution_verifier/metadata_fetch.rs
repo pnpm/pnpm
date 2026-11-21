@@ -251,11 +251,15 @@ impl NpmResolutionVerifier {
         name: &PkgName,
     ) -> Result<Arc<TrustHistoryProjection>, String> {
         let key = package_key(registry, &name.to_string());
+        let mut lookup_key = key.clone();
+        if self.routing.is_pnpr_registry(registry) && !self.trust_window_fits_pnpr_doc() {
+            lookup_key.push_str("\0exact-time");
+        }
         let cell = {
             let mut cache = self.lookup_context.full_meta_for_trust.lock().await;
             Arc::clone(
                 cache
-                    .entry(key.clone())
+                    .entry(lookup_key)
                     .or_insert_with(|| Arc::new(OnceCell::new())),
             )
         };

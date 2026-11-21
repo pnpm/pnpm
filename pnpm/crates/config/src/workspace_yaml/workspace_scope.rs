@@ -224,6 +224,7 @@ impl WorkspaceSettings {
             minimum_release_age_exclude: self.minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time: self.minimum_release_age_ignore_missing_time,
             minimum_release_age_strict: self.minimum_release_age_strict,
+            reference_time: self.reference_time,
             trust_lockfile: self.trust_lockfile,
             trust_policy: self.trust_policy,
             trust_policy_exclude: self.trust_policy_exclude,
