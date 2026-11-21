@@ -1,3 +1,5 @@
+use command_extra::CommandExtra;
+
 use super::{
     CommandTempCwd,
     EXEC_NODE_VERSION,
@@ -25,7 +27,9 @@ fn dev_engines_runtime_with_on_fail_error_reports_a_node_version_mismatch() {
     let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
 
     assert_failure(&output);
-    assert_contains(&stderr(&output), "This project requires Node.js 99999.0.0");
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "ERR_PNPM_BAD_RUNTIME_VERSION");
+    assert_contains(&stderr, "This project requires Node.js 99999.0.0");
 }
 
 #[test]
@@ -130,6 +134,7 @@ fn an_invalid_node_version_range_fails_with_the_runtime_on_fail_hint() {
 
     assert_failure(&output);
     let stderr = stderr(&output);
+    assert_contains(&stderr, "ERR_PNPM_INVALID_RUNTIME_VERSION_RANGE");
     assert_contains(
         &stderr,
         "This project requires an invalid Node.js version range: invalid range",
@@ -191,9 +196,35 @@ fn a_runtime_without_a_version_range_fails() {
     let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
 
     assert_failure(&output);
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "ERR_PNPM_MISSING_RUNTIME_VERSION_RANGE");
     assert_contains(
-        &stderr(&output),
+        &stderr,
         "This project requires a Node.js runtime but does not specify a version range",
+    );
+}
+
+#[test]
+fn a_runtime_missing_from_the_system_fails_with_its_own_code() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_runtime(
+        &workspace,
+        "devEngines",
+        &serde_json::json!({
+            "name": "bun", "version": "1.0.0", "onFail": "error",
+        }),
+    );
+    let empty_path = root.path().join("empty-path");
+    std::fs::create_dir(&empty_path).expect("create an empty PATH directory");
+
+    let output = run(pacquet.with_env("PATH", &empty_path), root.path(), &EXEC_NODE_VERSION);
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert_contains(&stderr, "ERR_PNPM_RUNTIME_NOT_FOUND");
+    assert_contains(
+        &stderr,
+        "This project requires Bun 1.0.0, but Bun was not found on the system",
     );
 }
 
