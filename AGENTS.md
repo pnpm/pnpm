@@ -456,6 +456,34 @@ try {
 }
 ```
 
+## Worktrees
+
+Development happens in linked git worktrees, one directory per task,
+usually hanging off a bare clone. Multiple workers (agents and humans)
+run concurrently, each in its own worktree.
+
+**One worktree works on one branch for its whole life.** Never switch an
+existing worktree to another branch (`git switch <other>`,
+`git checkout -b`, …): the worktree you are in may be another worker's
+workspace tomorrow, and the branch you take it to may be someone else's
+task. Start every new branch in a fresh worktree instead:
+
+```bash
+git worktree add ../<dir-name> -b <branch-name> origin/main
+```
+
+Hooks (`post-checkout` and `pre-commit`, via
+`.config/githooks/reject-worktree-rebind.mjs`) enforce this for agent sessions:
+
+-   A checkout or commit binds the worktree to its branch. A first-observed
+    *switch* binds to the branch it left, so even that switch is checked.
+-   A branch switch away from the bound branch fails after git has already
+    switched. Switch back to the bound branch, which is always allowed.
+-   A commit on any other branch is rejected.
+-   Renaming the bound branch with `git branch -m` moves the binding.
+-   A human who genuinely wants to rebind a worktree can re-run with
+    `PNPM_ALLOW_WORKTREE_REBIND=1`.
+
 ## Working with GitHub PRs, Issues, and Comments
 
 The [`pull-requests`](./.agents/skills/pull-requests/SKILL.md) skill covers taking
