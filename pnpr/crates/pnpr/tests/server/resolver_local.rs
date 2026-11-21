@@ -253,7 +253,7 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
         (format!("file:{secret}"), "cannot be resolved on the server"),
         (format!("link:{secret}"), "cannot be resolved on the server"),
         (secret.to_string(), "isn't supported by any available resolver"),
-        (format!("git+file://localhost{secret}"), "is not allowed by this pnpr server"),
+        (git_file_localhost_url(secret), "is not allowed by this pnpr server"),
     ]
     .into_iter()
     .enumerate()
@@ -337,6 +337,15 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
         assert!(!text.contains("canary-pkg"), "leaked transitive dep: {text}");
     }
     canary.assert_async().await;
+}
+
+/// A `git+file://localhost` URL for `path`. A Windows path gets the leading `/`
+/// and forward slashes a URL path needs; pasting `C:\...` after the host would
+/// make `C` a port.
+fn git_file_localhost_url(path: &str) -> String {
+    let url_path = path.replace('\\', "/");
+    let separator = if url_path.starts_with('/') { "" } else { "/" };
+    format!("git+file://localhost{separator}{url_path}")
 }
 
 #[tokio::test]
