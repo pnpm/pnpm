@@ -234,7 +234,7 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
             .parent()
             .unwrap()
             .join(".bin")
-            .exists()
+            .exists(),
     );
     let shim = fs::read_to_string(stale_shim.with_file_name("current")).unwrap();
     assert!(shim.contains("NODE_PATH"));
