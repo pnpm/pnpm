@@ -495,13 +495,17 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
 }
 
 pub(super) fn local_registry_router(config: &Config, routing: &RoutingConfig) -> Router<AppState> {
-    if config.features.registry.enabled && routing.registries.has_ecosystem(Ecosystem::Npm) {
+    if !config.features.registry.enabled {
+        return Router::new();
+    }
+    let router = cargo::resolver_routes().merge(pypi::resolver_routes());
+    if routing.registries.has_ecosystem(Ecosystem::Npm) {
         let mut packages = Router::new();
         for base in ["", "/~{registry}"] {
             packages = npm_package_routes(packages, base);
         }
-        Router::new().nest(&Ecosystem::Npm.base_path(), packages)
+        router.nest(&Ecosystem::Npm.base_path(), packages)
     } else {
-        Router::new()
+        router
     }
 }

@@ -260,15 +260,9 @@ impl RouteContext {
     }
 
     /// Classify a single fetch to `url` for `package` (`None` for a
-    /// non-package fetch), for `identity`. Precedence follows the RFC:
-    /// public wins and suppresses auth; then pnpr-hosted; then an
-    /// authorized proxied alias; otherwise an anonymous public fetch (no
-    /// managed credential). The fetch allowlist ([`Self::allows_registry`])
-    /// runs first at the request boundary, so a route reaching here is a
-    /// configured registry: an anonymous fall-through either succeeds
-    /// (proving the content is public and globally shareable) or fails
-    /// closed upstream (`401`/`403`) when it actually needed a credential
-    /// the caller is not authorized for.
+    /// non-package fetch). Local registry grants decide own-origin access.
+    /// External public routes suppress credentials. Other external routes
+    /// select an authorized upstream alias or fetch anonymously.
     #[must_use]
     pub fn classify(&self, identity: &Identity, url: &str, package: Option<&str>) -> RouteClass {
         let fetch = nerf_dart(url);
@@ -276,14 +270,14 @@ impl RouteContext {
             return RouteClass::Public;
         }
 
-        if self.is_public_route(&fetch, package) {
-            return RouteClass::Public;
-        }
-
         if let Some(hosted) = self.hosted_origin.as_deref()
             && fetch.starts_with(hosted)
         {
             return self.classify_own_origin(identity, &fetch, hosted, package);
+        }
+
+        if self.is_public_route(&fetch, package) {
+            return RouteClass::Public;
         }
 
         if let Some(alias) = self.select_alias(identity, &fetch, package)

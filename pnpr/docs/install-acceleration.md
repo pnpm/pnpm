@@ -134,6 +134,9 @@ refused too, unless it is the `--public-url` origin or
 
 ## Private registries {#private-registries}
 
+When resolving from its own npm, Cargo, or PyPI registry, pnpr uses the caller's
+read grants for both registry reads and cached metadata.
+
 Clients never forward their upstream registry credentials to pnpr. Instead, a
 private registry is configured server-side as an
 [upstream registry](configuration.md#upstream-registries) with a server-owned

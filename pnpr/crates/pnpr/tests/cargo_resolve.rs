@@ -157,6 +157,39 @@ async fn resolved_lockfile(response: axum::response::Response) -> String {
 }
 
 #[tokio::test]
+async fn resolves_through_private_local_cargo_registry() {
+    let (index, mocks) = sparse_index(1).await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = crate::ecosystem::mixed_router_config(
+        tmp.path().to_owned(),
+        pnpr::Ecosystem::Cargo,
+        crate::ecosystem::HostedSource {
+            name: "hosted",
+            namespace: "hosted",
+            access: "$all",
+            packages: &["other"],
+        },
+        ("crates", &index.url()),
+    );
+    config.routing.upstreams
+        .get_mut("crates")
+        .unwrap()
+        .set_access(pnpr_policy::AccessList::from_tokens(["reader"]));
+    let registry = format!("{}/cargo/~crates/index", config.http.public_url);
+    let auth = crate::tokens::seeded_auth(&config, &[("reader", "password")]);
+    let token = issue_token(&auth, "reader").await;
+    let app = router_with_auth(config, auth);
+    let response = app
+        .oneshot(cargo_resolve_request(&registry, &token))
+        .await
+        .unwrap();
+    assert!(resolved_lockfile(response).await.contains(r#"name = "foo""#));
+    for mock in mocks {
+        mock.assert_async().await;
+    }
+}
+
+#[tokio::test]
 async fn cargo_resolve_walks_the_index_and_returns_a_lockfile() {
     let (index, mocks) = sparse_index(1).await;
     let tmp = TempDir::new().unwrap();

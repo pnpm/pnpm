@@ -25,6 +25,14 @@ impl PackageRoute {
 }
 
 impl UpstreamRouteHook for PackageRoute {
+    fn fetch_local(
+        &self,
+        url: &str,
+        headers: reqwest::header::HeaderMap,
+    ) -> Option<pnpm_network::LocalResponse> {
+        self.hook.fetch_local(url, headers)
+    }
+
     fn authorize(&self, url: &str, _package: Option<&str>) -> Option<String> {
         self.hook.authorize(url, Some(&self.canonical_name))
     }

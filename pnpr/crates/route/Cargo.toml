@@ -11,6 +11,7 @@ license-file = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
+pnpr-package-name = { workspace = true }
 pnpr-config = { workspace = true }
 pnpr-policy = { workspace = true }
 pnpr-registry = { workspace = true }

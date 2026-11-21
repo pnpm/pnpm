@@ -241,12 +241,7 @@ impl IndexReader {
     fn new(runtime: &Resolver, identity: pnpr_policy::Identity, index: url::Url) -> Self {
         Self {
             client: Arc::clone(&runtime.client),
-            hook: Arc::new(pnpr_route::RouteHook::new(
-                Arc::clone(&runtime.route_context),
-                identity,
-                Arc::new(Mutex::new(Footprint::default())),
-                Arc::clone(&runtime.cache.secret),
-            )),
+            hook: runtime.route_hook(identity, Arc::new(Mutex::new(Footprint::default()))),
             locks: Arc::clone(&runtime.index.python_locks),
             cache_dir: runtime.python_index_cache_dir(index.as_str()),
             ttl: runtime.index.ttl,

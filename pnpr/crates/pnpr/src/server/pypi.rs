@@ -140,15 +140,23 @@ const ECOSYSTEM: Ecosystem = Ecosystem::Pypi;
 /// The largest Simple API page accepted from an upstream.
 const PAGE_LIMIT: usize = 64 * 1024 * 1024;
 
-pub(super) fn routes() -> Router<AppState> {
+pub(super) fn resolver_routes() -> Router<AppState> {
     let mut router = Router::new();
+    for base in mount_bases(ECOSYSTEM) {
+        router = router
+            .route(&format!("{base}/{SIMPLE_PATH}/{{project}}"), get(get_project_page))
+            .route(&format!("{base}/{SIMPLE_PATH}/{{project}}/"), get(get_project_page))
+            .route(&format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"), get(get_file));
+    }
+    router
+}
+
+pub(super) fn routes() -> Router<AppState> {
+    let mut router = resolver_routes();
     for base in mount_bases(ECOSYSTEM) {
         router = router
             .route(&format!("{base}/{SIMPLE_PATH}"), get(get_project_list))
             .route(&format!("{base}/{SIMPLE_PATH}/"), get(get_project_list))
-            .route(&format!("{base}/{SIMPLE_PATH}/{{project}}"), get(get_project_page))
-            .route(&format!("{base}/{SIMPLE_PATH}/{{project}}/"), get(get_project_page))
-            .route(&format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"), get(get_file))
             .route(
                 &format!("{base}/{FILES_PATH}/{{project}}/{{filename}}/yank"),
                 put(management::yank)
