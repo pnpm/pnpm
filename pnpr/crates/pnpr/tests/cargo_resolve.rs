@@ -231,15 +231,15 @@ async fn cargo_resolve_sends_the_private_index_headers() {
     let mut config = config_for(tmp.path().to_path_buf());
     let mut upstream =
         pnpr_config::UpstreamConfig::with_defaults(index.url(), reqwest::header::HeaderMap::new());
-    upstream.set_access(pnpr_policy::AccessList::from_tokens(["reader"]));
+    upstream.set_access(pnpr_policy::AccessList::from_tokens(["$authenticated"]));
     upstream.headers.insert("x-api-key", "example-key".parse().unwrap());
     config.routing.upstreams.insert("cargo/mirror".to_string(), upstream);
     let response = router_with_auth(config, auth)
         .oneshot(cargo_resolve_request(&index.url(), &token))
         .await
         .unwrap();
-    assert!(resolved_lockfile(response).await.contains(r#"name = "foo""#));
     entry.assert_async().await;
+    assert!(resolved_lockfile(response).await.contains(r#"name = "foo""#));
 }
 
 #[tokio::test]
