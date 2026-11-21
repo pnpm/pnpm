@@ -11,6 +11,7 @@
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::{
+    ImporterPeerCheck,
     ProjectManifests,
     peer_issues_for_lockfile,
 };
@@ -65,16 +66,18 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         return Ok(());
     }
     importer_ids.sort();
-    let Some(report) = peer_issues_for_lockfile(
+    let project_manifests = workspace.manifests();
+    let check = ImporterPeerCheck {
         lockfile,
-        workspace.lockfile_dir,
-        &importer_ids,
-        &config.peer_dependency_rules,
-        workspace.catalogs,
-        config.resolve_peers_from_workspace_root,
-        &workspace.manifests(),
-    )
-    .map_err(InstallError::CatalogResolution)?
+        lockfile_dir: workspace.lockfile_dir,
+        workspace_dir: config.workspace_dir.as_deref(),
+        importer_ids: &importer_ids,
+        catalogs: workspace.catalogs,
+        resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+        project_manifests: &project_manifests,
+    };
+    let Some(report) = peer_issues_for_lockfile(check, &config.peer_dependency_rules)
+        .map_err(InstallError::CatalogResolution)?
     else {
         return Ok(());
     };

@@ -233,3 +233,46 @@ fn dedicated_lockfiles_satisfy_linked_sibling_peers_from_the_siblings_own_lockfi
 
     drop(root);
 }
+
+#[test]
+fn install_fails_on_a_missing_peer_of_a_linked_sibling_under_dedicated_lockfiles() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nautoInstallPeers: false\nstrictPeerDependencies: true\n",
+    )
+    .expect("write workspace manifest");
+    for (dir, manifest) in [
+        (
+            "lib",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "missing-peer": "^1.0.0" },
+            }),
+        ),
+        (
+            "app",
+            serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "lib": "workspace:*" },
+            }),
+        ),
+    ] {
+        let dir = workspace.join("packages").join(dir);
+        fs::create_dir_all(&dir).expect("create project dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    }
+
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
+    assert!(!output.status.success(), "the missing peer must fail the install: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"), "{stdout}");
+    assert!(stdout.contains("missing-peer"), "{stdout}");
+
+    drop(root);
+}

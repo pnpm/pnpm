@@ -12,6 +12,7 @@ use super::{
     LockfileResolution,
     MissingPeerIssue,
     PackageManifest,
+    PackageMetadata,
     ParentPkg,
     Path,
     PathBuf,
@@ -48,6 +49,7 @@ impl<'a> LinkRoots<'a> {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn same(lockfile: &'a Path) -> Self {
         Self::new(lockfile, None)
     }
@@ -103,6 +105,16 @@ fn resolve_locked_version(
 ) -> Option<String> {
     let key = spec.version.resolved_key(alias)?.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&key)?;
+    locked_package_version(metadata, lockfile_dir, roots)
+}
+
+/// The version a lockfile package records, read from the manifest of a
+/// directory package, whose entry carries none.
+pub(super) fn locked_package_version(
+    metadata: &PackageMetadata,
+    lockfile_dir: &Path,
+    roots: &LinkRoots<'_>,
+) -> Option<String> {
     if let Some(version) = &metadata.version {
         return Some(version.clone());
     }

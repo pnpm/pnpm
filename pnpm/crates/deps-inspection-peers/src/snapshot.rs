@@ -24,6 +24,7 @@ use crate::{
     PeerIssues,
     linked::{
         LinkRoots,
+        locked_package_version,
         record_bad_peer,
         record_missing_peer,
         resolve_link_version,
@@ -56,7 +57,7 @@ pub(super) fn walk_snapshot(
         let mut current_parents = parents;
         current_parents.push(ParentPkg {
             name: key.name.to_string(),
-            version: get_pkg_version(&key, packages),
+            version: get_pkg_version(&key, packages, roots),
         });
 
         let snapshot = snapshots.get(&key);
@@ -154,7 +155,7 @@ pub(crate) fn resolved_snapshot_version(
     roots: &LinkRoots<'_>,
 ) -> Option<String> {
     if let Some(key) = dep_ref.resolve(peer_name) {
-        return Some(get_pkg_version(&key, packages));
+        return Some(get_pkg_version(&key, packages, roots));
     }
     let link_target = dep_ref.as_link_target()?;
     Some(
@@ -180,11 +181,11 @@ pub(super) fn child_keys(
 fn get_pkg_version(
     key: &PkgNameVerPeer,
     packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
+    roots: &LinkRoots<'_>,
 ) -> String {
-    let base_key = key.without_peer();
     packages
-        .get(&base_key)
-        .and_then(|meta| meta.version.clone())
+        .get(&key.without_peer())
+        .and_then(|meta| locked_package_version(meta, roots.lockfile, roots))
         .unwrap_or_else(|| extract_peer_version(&key.suffix))
 }
 

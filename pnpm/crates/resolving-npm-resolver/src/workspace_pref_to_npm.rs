@@ -31,12 +31,21 @@ pub fn workspace_pref_to_npm(
         });
     };
     let WorkspaceSpec { alias, version } = parsed;
-    let version_part =
-        if version == "^" || version == "~" || version.is_empty() { "*" } else { version.as_str() };
+    let version_part = if matches_any_workspace_version(&version) { "*" } else { version.as_str() };
     Ok(match alias {
         Some(alias) => format!("npm:{alias}@{version_part}"),
         None => version_part.to_string(),
     })
+}
+
+/// `^`, `~`, and the empty string stand for the workspace package's own
+/// version, so a `||` union with one of them, such as `^ || ^2.0.0`,
+/// admits every workspace version.
+fn matches_any_workspace_version(version: &str) -> bool {
+    version
+        .split("||")
+        .map(str::trim)
+        .any(|branch| matches!(branch, "^" | "~" | "*" | ""))
 }
 
 #[cfg(test)]

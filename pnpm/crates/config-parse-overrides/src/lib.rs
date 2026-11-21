@@ -191,13 +191,19 @@ pub fn parse_pkg_and_parent_selector(
     selector: &str,
 ) -> Result<(Option<PackageSelector>, PackageSelector), ParseOverridesError> {
     let trimmed_selector = selector.trim();
-    if let Some(delimiter_idx) = find_parent_delimiter(trimmed_selector) {
-        let parent_selector = &trimmed_selector[..delimiter_idx];
-        let child_selector = &trimmed_selector[delimiter_idx + 1..];
+    if let Some((parent_selector, child_selector)) = split_parent_selector(trimmed_selector) {
         Ok((Some(parse_parent_selector(parent_selector)?), parse_target_selector(child_selector)?))
     } else {
         Ok((None, parse_target_selector(trimmed_selector)?))
     }
+}
+
+/// Split a `parent>child` selector at its delimiter, so a `>` inside the
+/// parent's range, as in `parent@>=1.0.0>child`, stays part of the parent.
+/// Returns `None` for a selector without a parent.
+pub fn split_parent_selector(selector: &str) -> Option<(&str, &str)> {
+    let delimiter_idx = find_parent_delimiter(selector)?;
+    Some((&selector[..delimiter_idx], &selector[delimiter_idx + 1..]))
 }
 
 /// Position of the `>` byte that separates parent from child, when

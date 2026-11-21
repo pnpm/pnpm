@@ -1,4 +1,5 @@
 use crate::{
+    ImporterPeerCheck,
     LockfilePeerCheck,
     ProjectManifests,
     check_peer_dependencies_from_lockfile,
@@ -53,13 +54,16 @@ fn linked_projects_are_checked_from_all_manifest_formats() {
         }))
         .expect("parse lockfile");
         let report = peer_issues_for_lockfile(
-            &lockfile,
-            temp.path(),
-            &["app".to_string()],
+            ImporterPeerCheck {
+                lockfile: &lockfile,
+                lockfile_dir: temp.path(),
+                workspace_dir: None,
+                importer_ids: &["app".to_string()],
+                catalogs: None,
+                resolve_peers_from_workspace_root: true,
+                project_manifests: &ProjectManifests::new(),
+            },
             &PeerDependencyRules::default(),
-            None,
-            true,
-            &ProjectManifests::new(),
         )
         .expect("inspect peers")
         .expect("the provider's version is outside the peer range");
@@ -127,13 +131,16 @@ fn linked_projects_are_checked_from_the_given_manifests() {
     .expect("parse lockfile");
 
     let report = peer_issues_for_lockfile(
-        &lockfile,
-        temp.path(),
-        &["packages/app".to_string()],
+        ImporterPeerCheck {
+            lockfile: &lockfile,
+            lockfile_dir: temp.path(),
+            workspace_dir: None,
+            importer_ids: &["packages/app".to_string()],
+            catalogs: None,
+            resolve_peers_from_workspace_root: true,
+            project_manifests: &project_manifests,
+        },
         &PeerDependencyRules::default(),
-        None,
-        true,
-        &project_manifests,
     )
     .expect("inspect peers")
     .expect("the provider's version is outside the peer range");
@@ -217,4 +224,45 @@ fn dedicated_sibling_lockfile_provides_tarball_peer_versions() {
 
     assert!(issues["."].missing.is_empty());
     assert_eq!(issues["."].bad["provider"][0].found_version, "2.0.0");
+}
+
+#[test]
+fn dedicated_lockfile_checks_peers_of_linked_workspace_sibling() {
+    let temp = tempfile::tempdir().unwrap();
+    let app_dir = temp.path().join("packages/app");
+    let lib_dir = temp.path().join("packages/lib");
+    std::fs::create_dir_all(&app_dir).unwrap();
+    std::fs::create_dir_all(&lib_dir).unwrap();
+    std::fs::write(
+        lib_dir.join("package.json"),
+        r#"{"name":"lib","version":"1.0.0","peerDependencies":{"provider":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let lockfile = serde_json::from_value(serde_json::json!({
+        "lockfileVersion": "9.0",
+        "importers": { ".": { "dependencies": {
+            "lib": { "specifier": "workspace:*", "version": "link:../lib" },
+        } } },
+    }))
+    .expect("parse lockfile");
+    let check = |workspace_dir| {
+        peer_issues_for_lockfile(
+            ImporterPeerCheck {
+                lockfile: &lockfile,
+                lockfile_dir: &app_dir,
+                workspace_dir,
+                importer_ids: &[".".to_string()],
+                catalogs: None,
+                resolve_peers_from_workspace_root: false,
+                project_manifests: &ProjectManifests::new(),
+            },
+            &PeerDependencyRules::default(),
+        )
+        .expect("inspect peers")
+    };
+
+    assert!(check(None).is_none(), "a sibling outside the lockfile dir is not read");
+    let report = check(Some(temp.path())).expect("the sibling's peer is missing");
+    let issue = &report.issues()["."].missing["provider"][0];
+    assert_eq!(issue.parents[0].name, "lib");
 }

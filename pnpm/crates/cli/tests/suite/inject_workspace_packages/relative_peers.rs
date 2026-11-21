@@ -204,3 +204,54 @@ fn relative_path_peer_uses_each_importers_directory_when_discovery_is_cached() {
         }
     }
 }
+
+/// An injected sibling is a directory package whose lockfile entry carries
+/// no version, so the peer check reads it from the sibling's manifest.
+#[test]
+fn injected_sibling_satisfies_the_peer_range_by_its_manifest_version() {
+    for (provider_version, satisfied) in [("1.0.0", true), ("2.0.0", false)] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            "packages:\n  - packages/*\nautoInstallPeers: false\nstrictPeerDependencies: true\n\
+             injectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
+        )
+        .expect("write workspace manifest");
+        for (dir, manifest) in [
+            ("provider", json!({ "name": "provider", "version": provider_version })),
+            (
+                "lib",
+                json!({
+                    "name": "lib",
+                    "version": "1.0.0",
+                    "peerDependencies": { "provider": "^1.0.0" },
+                }),
+            ),
+            (
+                "app",
+                json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "dependencies": { "lib": "workspace:*", "provider": "workspace:*" },
+                }),
+            ),
+        ] {
+            let dir = workspace.join("packages").join(dir);
+            fs::create_dir_all(&dir).expect("create project dir");
+            fs::write(dir.join("package.json"), manifest.to_string()).expect("write manifest");
+        }
+
+        let output = pacquet
+            .with_arg("install")
+            .output()
+            .expect("run pnpm install");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert_eq!(output.status.success(), satisfied, "{provider_version}: {output:?}");
+        if !satisfied {
+            assert!(stdout.contains("Installed: 2.0.0"), "{stdout}");
+            assert!(stdout.contains("lib@1.0.0"), "{stdout}");
+        }
+
+        drop(root);
+    }
+}
