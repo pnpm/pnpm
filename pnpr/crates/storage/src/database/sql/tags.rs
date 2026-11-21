@@ -17,9 +17,11 @@ use super::{
         PackageRow,
         package_row_from,
         package_row_query,
+        parse_optional_json,
     },
     packument::{
         PackumentRows,
+        Readme,
         TIME,
     },
     to_column,
@@ -157,18 +159,17 @@ pub(super) fn change_tag(
         return Ok(TagUpdate::Conflict);
     }
     let tags = tags_from_rows(results.next().unwrap_or_default())?;
-    validate_dist_tag_target(
-        &change.tag,
-        change.target.as_deref(),
-        !results
-            .next()
-            .unwrap_or_default()
-            .is_empty(),
-    )?;
-    if !move_tag(&batch.package(key), &package, &tags, change)? {
+    let target = results
+        .next()
+        .unwrap_or_default()
+        .into_iter()
+        .next();
+    validate_dist_tag_target(&change.tag, change.target.as_deref(), target.is_some())?;
+    if tags.get(&change.tag).map(String::as_str) == change.target.as_deref() {
         let generation = Some(key.generation(package.generation));
         return Ok(TagUpdate::Committed { generation, moved: false });
     }
+    move_tag(&batch.package(key), &package, &tags, change, target)?;
     batch.touch(key);
     let generation = batch
         .finish()?
@@ -182,6 +183,14 @@ fn tag_target_query<'query>(
 ) -> Query<'query> {
     let (namespace, name) = key.params_in(Ecosystem::Npm);
     match change.target.as_deref() {
+        Some(target) if change.tag == "latest" => query!(
+            "SELECT r.readme, r.readme_filename FROM npm_versions v
+             LEFT JOIN npm_readmes r USING (namespace, name, version)
+             WHERE v.namespace = ?1 AND v.name = ?2 AND v.version = ?3",
+            namespace,
+            name,
+            target,
+        ),
         Some(target) => query!(
             "SELECT version FROM npm_versions
              WHERE namespace = ?1 AND name = ?2 AND version = ?3 LIMIT 1",
@@ -211,18 +220,15 @@ pub(super) fn validate_packument_tags(
     Ok(())
 }
 
-/// Point a tag of the package where `change` says, reporting whether it
-/// pointed elsewhere.
+/// Commit the tag move and its package-level metadata together.
 fn move_tag(
     commit: &Commit<'_>,
     package: &PackageRow,
     tags: &BTreeMap<String, String>,
     change: &OwnedTagChange,
-) -> Result<bool> {
+    target: Option<Row>,
+) -> Result<()> {
     let previous = tags.get(&change.tag).map(String::as_str);
-    if previous == change.target.as_deref() {
-        return Ok(false);
-    }
     let tag_move = TagMove {
         tag: &change.tag,
         previous,
@@ -230,20 +236,30 @@ fn move_tag(
         principal: change.principal.as_deref(),
     };
     record_tag_move(commit, &tag_move)?;
-    commit.write_state(package.state_version, &stamp_modified(&package.state)?)?;
-    Ok(true)
+    let mut state = serde_json::from_slice(&package.state)?;
+    if change.tag == "latest" {
+        let readme = match target {
+            Some(mut row) => Readme {
+                text: parse_optional_json(row.get::<Option<String>>(0)?.as_deref())?,
+                filename: parse_optional_json(row.get::<Option<String>>(1)?.as_deref())?,
+            },
+            None => Readme::default(),
+        };
+        readme.replace_in(&mut state);
+    }
+    stamp_modified(&mut state);
+    commit.write_state(package.state_version, &serde_json::to_vec(&state)?)?;
+    Ok(())
 }
 
 /// The package-level fields with `time.modified` set to now.
-fn stamp_modified(state: &[u8]) -> Result<Vec<u8>> {
-    let mut state: Map<String, Value> = serde_json::from_slice(state)?;
+fn stamp_modified(state: &mut Map<String, Value>) {
     let time = state
         .entry(TIME)
         .or_insert_with(|| Value::Object(Map::new()));
     if let Some(time) = time.as_object_mut() {
         time.insert("modified".to_string(), Value::String(now_iso()));
     }
-    Ok(serde_json::to_vec(&state)?)
 }
 
 /// One recorded move of a tag.

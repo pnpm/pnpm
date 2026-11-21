@@ -2,6 +2,8 @@
 //! read, retag, deprecate, and unpublish, with no package document written
 //! to the hosted store.
 
+mod package_updates;
+
 use crate::npm::{
     npm_tgz,
     publish_doc,

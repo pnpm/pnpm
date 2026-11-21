@@ -366,11 +366,14 @@ fn apply_packument(
         BTreeMap<String, String>,
         BTreeSet<String>,
     ),
-    rows: PackumentRows,
+    mut rows: PackumentRows,
     principal: Option<&str>,
     records: &ReleaseRecords,
 ) -> Result<bool> {
     validate_packument_tags(&stored_tags, &rows)?;
+    if current_row.is_some() && stored_tags.get("latest") != rows.tags.get("latest") {
+        rows.replace_latest_readme();
+    }
     if stored_versions
         .keys()
         .any(|version| !rows.versions.contains_key(version))

@@ -43,16 +43,30 @@ mod version_documents;
 pub(super) async fn serve_packument(
     state: &AppState,
     identity: &Identity,
-    headers: &HeaderMap,
+    mut headers: HeaderMap,
     registry: Option<&str>,
     raw_name: &str,
+    query: Option<&str>,
 ) -> Response {
     let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
         return not_found();
     };
     let base = registry_endpoint(state, Ecosystem::Npm, registry);
+    let for_write = query.is_some_and(|query| {
+        url::form_urlencoded::parse(query.as_bytes())
+            .any(|(key, value)| key == "write" && value == "true")
+    });
+    if for_write {
+        headers.remove(axum::http::header::ACCEPT);
+        headers.remove(axum::http::header::IF_NONE_MATCH);
+        headers.remove(axum::http::header::IF_MODIFIED_SINCE);
+    }
+    let request = PackumentRequest { headers: &headers, for_write };
     let response =
-        serve_registry_packument(state, identity, headers, &target, raw_name, &base).await;
+        serve_registry_packument(state, identity, request, &target, raw_name, &base).await;
+    if for_write {
+        return super::private_no_cache(response);
+    }
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
@@ -175,11 +189,16 @@ pub(super) fn resolves_to_private_source(
     }
 }
 
+struct PackumentRequest<'a> {
+    headers: &'a HeaderMap,
+    for_write: bool,
+}
+
 /// Serve a packument addressed to `/~<name>/<pkg>` through the registry graph.
-pub(super) async fn serve_registry_packument(
+async fn serve_registry_packument(
     state: &AppState,
     identity: &Identity,
-    headers: &HeaderMap,
+    request: PackumentRequest<'_>,
     registry: &str,
     raw_name: &str,
     tarball_base: &str,
@@ -210,7 +229,7 @@ pub(super) async fn serve_registry_packument(
             serve_packument_via_upstream(
                 state,
                 identity,
-                headers,
+                request.headers,
                 source,
                 &name,
                 tarball_base,
@@ -222,7 +241,7 @@ pub(super) async fn serve_registry_packument(
         // for a caller who reads nothing in the registry, a loud denial
         // otherwise, so clients can prompt for auth.
         RegistrySource::Hosted(source) => {
-            serve_hosted_packument(state, identity, headers, source, &name, tarball_base, view)
+            serve_hosted_packument(state, identity, request, source, &name, tarball_base, view)
                 .await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
@@ -334,10 +353,10 @@ pub(super) fn hosted_read_namespace(
     }
 }
 
-pub(super) async fn serve_hosted_packument(
+async fn serve_hosted_packument(
     state: &AppState,
     identity: &Identity,
-    headers: &HeaderMap,
+    request: PackumentRequest<'_>,
     source: &str,
     name: &CanonicalPackageName,
     tarball_base: &str,
@@ -351,10 +370,12 @@ pub(super) async fn serve_hosted_packument(
     // A hosted registry has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from its storage namespace.
     let response = async {
-        let view = state.inner.storage
-            .for_hosted(&namespace, pnpr_registry::Ecosystem::Npm)
-            .read_hosted_package_view(name)
-            .await;
+        let storage = state.inner.storage.for_hosted(&namespace, pnpr_registry::Ecosystem::Npm);
+        let view = if request.for_write {
+            storage.read_current_hosted_package_view(name).await
+        } else {
+            storage.read_hosted_package_view(name).await
+        };
         let view = match view {
             Ok(Some(view)) => view,
             Ok(None) => return not_found(),
@@ -371,7 +392,7 @@ pub(super) async fn serve_hosted_packument(
             tarball_base,
             view_options,
             state,
-            headers,
+            request.headers,
             max_age,
         )
         .await

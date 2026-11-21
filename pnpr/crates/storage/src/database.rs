@@ -272,6 +272,14 @@ impl Storage {
         self.metadata.read_view(name).await
     }
 
+    /// Read the current document and generation for a client preparing a write.
+    pub async fn read_current_hosted_package_view(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<PackageView>> {
+        self.metadata.read_current_view(name).await
+    }
+
     /// [`Self::read_hosted_package_view`] at namespace generation `generation`
     /// or later, such as the generation a client has already seen. With an
     /// embedded replica behind it, the read waits for the replica to sync or

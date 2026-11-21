@@ -81,6 +81,13 @@ impl PackageMetadata {
         self.read_view_with(name, Freshness::Bounded).await
     }
 
+    pub(crate) async fn read_current_view(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<PackageView>> {
+        self.read_view_with(name, Freshness::Current).await
+    }
+
     /// [`Self::read_view`] at namespace generation `generation` or later, such
     /// as one a client has already seen.
     pub(crate) async fn read_view_at_least(
@@ -168,7 +175,7 @@ impl PackageMetadata {
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
-        let Some(view) = self.read_view_with(name, Freshness::Current).await? else {
+        let Some(view) = self.read_current_view(name).await? else {
             return Ok(None);
         };
         let generation = view.generation.value;

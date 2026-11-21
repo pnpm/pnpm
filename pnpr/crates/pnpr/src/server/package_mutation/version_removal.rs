@@ -27,8 +27,8 @@ use serde_json::{
 
 /// Remove `version` from `name`'s packument when it still lists it, and
 /// reclaim the archives only it mapped. Reports whether it was listed. The
-/// `latest` tag naming it moves to the highest version left, or goes when
-/// none is. Other tags naming it are removed. Concurrent commits cause a retry.
+/// `latest` tag prefers the highest remaining stable version, then the highest
+/// prerelease. Other tags naming the removed version are dropped.
 /// The removed version and former maintainers are recorded together.
 pub(super) async fn remove_listed_version(
     state: &AppState,
@@ -98,8 +98,9 @@ fn drop_version(packument: &mut Map<String, Value>, version: &str) -> bool {
         .keys()
         .map(node_semver::Version::parse)
         .filter_map(Result::ok)
+        .map(|version| (!version.is_prerelease(), version))
         .max()
-        .map(|highest| highest.to_string());
+        .map(|(_, highest)| highest.to_string());
     if let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) {
         time.shift_remove(version);
     }

@@ -112,6 +112,7 @@ pub(super) async fn get_packument(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
+    RawQuery(query): RawQuery,
     headers: HeaderMap,
     Path(path): Path<NamePath>,
 ) -> Response {
@@ -125,7 +126,8 @@ pub(super) async fn get_packument(
         )
         .await;
     }
-    serve_packument(&state, &identity, &headers, registry.as_deref(), &path.name).await
+    serve_packument(&state, &identity, headers, registry.as_deref(), &path.name, query.as_deref())
+        .await
 }
 
 /// `GET {base}/@{scope}/{pkg}` (a scoped package's packument) or
@@ -135,6 +137,7 @@ pub(super) async fn get_packument_or_version_manifest(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
+    RawQuery(query): RawQuery,
     headers: HeaderMap,
     Path(path): Path<TwoSegments>,
 ) -> Response {
@@ -152,7 +155,15 @@ pub(super) async fn get_packument_or_version_manifest(
             .await;
         }
         let name = format!("{first}/{second}");
-        return serve_packument(&state, &identity, &headers, registry.as_deref(), &name).await;
+        return serve_packument(
+            &state,
+            &identity,
+            headers,
+            registry.as_deref(),
+            &name,
+            query.as_deref(),
+        )
+        .await;
     }
     serve_version_manifest(&state, &identity, registry.as_deref(), &first, &second).await
 }
