@@ -237,6 +237,8 @@ pub(super) struct CarriedWorkspaceState {
     /// The previous run's `registryRoutes`, which an up-to-date tree, having
     /// resolved nothing, keeps while a plain key sits under a moved route.
     pub(super) recorded_registry_routes: Option<std::collections::BTreeMap<String, String>>,
+    /// See [`crate::install::CarriedSettings::private_prod_deps_checked`].
+    pub(super) private_prod_deps_checked: bool,
 }
 /// Up-to-date installs still enforce dependency-name verification and recorded build policy.
 pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
@@ -322,6 +324,7 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
                 crate::install_state::ResolvedImporters::None,
             )),
             kept_settings: None,
+            private_prod_deps_checked: context.carried_state.private_prod_deps_checked,
         },
         vouched: &crate::install_state::validation::Vouched::All,
     });

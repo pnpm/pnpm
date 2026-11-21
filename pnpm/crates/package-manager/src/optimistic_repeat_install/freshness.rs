@@ -539,6 +539,7 @@ fn refreshed_state(
             kept_settings: matches!(policy.recorded_groups, RecordedGroups::Kept).then_some(
                 &state.settings,
             ),
+            private_prod_deps_checked: state.settings.disallow_private_prod_deps.unwrap_or(false),
         },
         vouched: &Vouched::Projects { dirs: vouched, previous: Some(state) },
     })

@@ -64,10 +64,7 @@ pub use prefetch_downloads::{
 };
 pub use prefetching_resolver::*;
 pub use private_prod_deps::PrivateWorkspaceProdDepError;
-pub(crate) use private_prod_deps::{
-    private_prod_deps_block_short_circuit,
-    report_private_prod_deps,
-};
+pub(crate) use private_prod_deps::report_private_prod_deps;
 pub use rayon_pool::*;
 pub use remove::*;
 pub use resolution_observer::*;

@@ -1491,10 +1491,10 @@ pub struct Config {
     /// it: nothing is reported at all under that setting.
     pub disallow_workspace_cycles: bool,
 
-    /// `disallowPrivateProdDeps` — fail the install
-    /// (`ERR_PNPM_PRIVATE_WORKSPACE_PROD_DEP`) when a publishable
-    /// workspace project lists a private workspace project in
-    /// `dependencies`. Absent or `false` allows it. `devDependencies`,
+    /// `disallowPrivateProdDeps`. When `true`, the install fails with
+    /// `ERR_PNPM_PRIVATE_WORKSPACE_PROD_DEP` if a publishable workspace
+    /// project lists a private workspace project in `dependencies`.
+    /// Absent or `false` allows it. `devDependencies`,
     /// `optionalDependencies`, and `peerDependencies` are not checked.
     pub disallow_private_prod_deps: bool,
 

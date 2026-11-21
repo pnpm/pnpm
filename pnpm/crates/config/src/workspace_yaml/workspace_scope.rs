@@ -52,6 +52,7 @@ define_workspace_only_groups! {
         fail_if_no_match,
         ignore_workspace_cycles,
         disallow_workspace_cycles,
+        disallow_private_prod_deps,
         ignore_workspace,
         stream,
         aggregate_output,

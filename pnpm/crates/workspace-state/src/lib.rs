@@ -291,6 +291,11 @@ pub struct WorkspaceStateSettings {
     pub auto_dedupe: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dev: Option<bool>,
+    /// `disallowPrivateProdDeps`, recorded only while it is on and only by a
+    /// run that checked the workspace for private production dependencies.
+    /// pnpm v11 has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disallow_private_prod_deps: Option<bool>,
     /// `None` and `Some(false)` both mean "global virtual store off",
     /// pnpm omits the key for its `undefined` default and only writes a
     /// concrete value when `--global` (always `true`) or CI (`false`)

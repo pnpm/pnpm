@@ -55,6 +55,11 @@ pub(crate) struct CarriedSettings<'a> {
     pub(crate) registry_routes: Option<std::collections::BTreeMap<String, String>>,
     /// The install settings to carry forward when a run check ignores their drift.
     pub(crate) kept_settings: Option<&'a WorkspaceStateSettings>,
+    /// Whether the workspace passed the `disallowPrivateProdDeps` check, in
+    /// this run or in the run whose state a passing check refreshes. Only
+    /// then does the state record the setting, so a run that skipped the
+    /// check leaves the next install to run it.
+    pub(crate) private_prod_deps_checked: bool,
 }
 
 /// The workspace state `write` records. Every writer goes through here, so a
@@ -79,6 +84,9 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
             crate::install_state::recorded_default_registry(write.config);
     }
     state.settings.registry_routes.clone_from(&write.carried.registry_routes);
+    if !write.carried.private_prod_deps_checked {
+        state.settings.disallow_private_prod_deps = None;
+    }
     if let Some(kept) = write.carried.kept_settings {
         carry_run_ignored_settings(&mut state.settings, kept);
     }

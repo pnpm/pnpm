@@ -6,34 +6,26 @@
 //! publishable project uses a private package while it is built.
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_workspace::{GraphPkg, Project};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, WorkspaceCatalogs, create_projects_graph,
+    CreateProjectsGraphOptions,
+    ProjectGraph,
+    WorkspaceCatalogs,
+    create_projects_graph,
 };
 use std::path::Path;
-
-/// Whether a repeat-install shortcut must not claim the workspace is
-/// already up to date. `projects` is `None` when this shortcut does not
-/// have the project list; the full install then runs the check itself.
-pub(crate) fn private_prod_deps_block_short_circuit(
-    config: &Config,
-    workspace_dir: Option<&Path>,
-    projects: Option<&[Project]>,
-    catalogs: &Catalogs,
-) -> bool {
-    if !config.disallow_private_prod_deps {
-        return false;
-    }
-    let Some(workspace_dir) = workspace_dir else { return false };
-    let Some(projects) = projects else { return true };
-    !private_workspace_prod_deps(config, workspace_dir, projects, catalogs).is_empty()
-}
 
 /// Pairs of `(publishable, private)` package labels. Empty when the
 /// setting is off, or when no publishable project lists a private
 /// workspace project in `dependencies`.
-pub(crate) fn private_workspace_prod_deps<'a>(
+fn private_workspace_prod_deps<'a>(
     config: &Config,
     workspace_dir: &Path,
     projects: &'a [Project],
@@ -80,7 +72,7 @@ pub(crate) fn report_private_prod_deps(
     Err(PrivateWorkspaceProdDepError { message: render_private_prod_deps(&pairs) })
 }
 
-pub(crate) fn render_private_prod_deps(pairs: &[(String, String)]) -> String {
+fn render_private_prod_deps(pairs: &[(String, String)]) -> String {
     pairs
         .iter()
         .map(|(from, to)| format!("{from} depends on private workspace package {to}"))
@@ -134,7 +126,7 @@ fn project_is_private(project: &Project) -> bool {
         .value()
         .get("private")
         .and_then(serde_json::Value::as_bool)
-        == Some(true)
+        .unwrap_or(false)
 }
 
 fn project_label(project: &Project) -> String {
@@ -143,7 +135,8 @@ fn project_label(project: &Project) -> String {
         .get("name")
         .and_then(|name| name.as_str())
         .filter(|name| !name.is_empty())
-        .map_or_else(|| project.root_dir.display().to_string(), str::to_owned)
+        .map(str::to_owned)
+        .unwrap_or_else(|| project.root_dir.display().to_string())
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]

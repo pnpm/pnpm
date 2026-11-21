@@ -193,6 +193,8 @@ pub(crate) struct RepeatInstallPolicy<'a> {
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub(crate) rebuild: Option<&'a RebuildOptions>,
     pub(crate) effective_node_version: Option<&'a str>,
+    /// See [`crate::install::CarriedSettings::private_prod_deps_checked`].
+    pub(crate) private_prod_deps_checked: bool,
 }
 
 #[derive(Clone, Copy)]

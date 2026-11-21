@@ -65,6 +65,7 @@ impl fmt::Debug for CreateProjectsGraphOptions<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CreateProjectsGraphOptions")
             .field("ignore_dev_deps", &self.ignore_dev_deps)
+            .field("production_only", &self.production_only)
             .field("link_workspace_packages", &self.link_workspace_packages)
             .field("catalogs", &self.catalogs)
             .field("dependency_rewriter", &self.dependency_rewriter.map(|_| ".."))
@@ -187,15 +188,14 @@ fn project_dependencies<Pkg>(
 where
     Pkg: GraphProject,
 {
-    if opts.production_only {
-        return project.production_dependencies();
-    }
-    let Some(rewriter) = opts.dependency_rewriter else {
+    if opts.dependency_rewriter.is_none() && !opts.production_only {
         return project.merged_dependencies(opts.ignore_dev_deps);
-    };
-    let mut groups = project.dependency_groups(opts.ignore_dev_deps);
-    rewriter.rewrite_dependencies(project, &mut groups);
-    groups.merge()
+    }
+    let mut groups = project.dependency_groups(opts.ignore_dev_deps || opts.production_only);
+    if let Some(rewriter) = opts.dependency_rewriter {
+        rewriter.rewrite_dependencies(project, &mut groups);
+    }
+    if opts.production_only { groups.prod } else { groups.merge() }
 }
 
 /// Each importer's edges resolve against the immutable lookup tables only,

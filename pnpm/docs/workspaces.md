@@ -341,6 +341,18 @@ See [Workspace task orchestration](./workspace-task-orchestration.md#cycles).
 
 When set to `true`, installation will fail if the workspace has cycles.
 
+### disallowPrivateProdDeps
+
+* Default: **false**
+* Type: **Boolean**
+
+When set to `true`, `pnpm install` fails if a publishable workspace project
+lists a private workspace project in `dependencies`. A private project is not
+published, so the users of the publishable project could not install it.
+A dependency in `devDependencies`, `optionalDependencies`, or
+`peerDependencies` is allowed, and so is a private project that depends on
+another private project.
+
 ### workspaceConcurrency
 
 * Default: **the smaller of 4 and the number of available CPU cores**
