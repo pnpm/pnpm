@@ -415,17 +415,24 @@ function decodeIniValue (value: string): string {
 /**
  * Replaces `${NAME}`, and npm's `${NAME?}`, with the variable, or with nothing
  * when it is unset. `${NAME-fallback}` falls back when the variable is unset,
- * and `${NAME:-fallback}` also when it is empty, as in pnpm.
+ * and `${NAME:-fallback}` also when it is empty, as in pnpm. As in pnpm, an odd
+ * number of backslashes before `$` keeps the placeholder literal, and the
+ * backslashes are halved.
  */
 function expandEnv (value: string, env: NodeJS.ProcessEnv): string {
-  return value.replace(/\$\{([^${}]+)\}/g, (_match, expression: string) => {
-    const dash = expression.indexOf('-')
-    if (dash === -1) return env[expression.endsWith('?') ? expression.slice(0, -1) : expression] ?? ''
-    const fallbackOnEmpty = expression[dash - 1] === ':'
-    const variable = env[expression.slice(0, fallbackOnEmpty ? dash - 1 : dash)]
-    const fallback = expression.slice(dash + 1)
-    return (fallbackOnEmpty ? variable || undefined : variable) ?? fallback
+  return value.replace(/(?<!\\)(\\*)\$\{([^${}]+)\}/g, (match, escape: string, expression: string) => {
+    if (escape.length % 2 === 1) return match.slice((escape.length + 1) / 2)
+    return `${escape.slice(escape.length / 2)}${expandExpression(expression, env)}`
   })
+}
+
+function expandExpression (expression: string, env: NodeJS.ProcessEnv): string {
+  const dash = expression.indexOf('-')
+  if (dash === -1) return env[expression.endsWith('?') ? expression.slice(0, -1) : expression] ?? ''
+  const fallbackOnEmpty = expression[dash - 1] === ':'
+  const variable = env[expression.slice(0, fallbackOnEmpty ? dash - 1 : dash)]
+  const fallback = expression.slice(dash + 1)
+  return (fallbackOnEmpty ? variable || undefined : variable) ?? fallback
 }
 
 function npmrcAuth (settings: Map<string, string>, registry: string): Pick<PnpmRegistryConfig, 'headers' | 'authPath'> {

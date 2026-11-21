@@ -40,6 +40,8 @@ let proxy: http.Server
 let probe: http.Server
 /** How many requests reached `probe`. */
 let probeRequests = 0
+/** Statuses to answer the next requests to npm with, one per request, instead of serving them. */
+let npmStatuses: number[] = []
 let registry: string
 let mode: Mode = 'ok'
 let requests: Array<{ path: string, authorization?: string }> = []
@@ -125,6 +127,7 @@ describe('downloadPnpmExecutable', () => {
     registryEmptiesRemaining = 0
     tarballEmptiesRemaining = 0
     probeRequests = 0
+    npmStatuses = []
   })
 
   test('places the executable and nothing else', async () => {
@@ -468,6 +471,17 @@ describe('downloadPnpmExecutable', () => {
     assert.deepEqual(npmRequests, [{ path: `/${packageNameFor()}/${VERSION}`, authorization: undefined }])
   })
 
+  test('retries the lookup on npm that npm answered with a 503', async () => {
+    mode = 'npm-signatures'
+    npmStatuses = [503]
+    const destPath = destIn('npm-retried')
+
+    await downloadPnpmExecutableWithNpmRegistry({ version: VERSION, registry, destPath, keys: KEYS, npmRegistry: npmRegistryUrl() })
+
+    assert.equal(fs.readFileSync(destPath, 'utf8'), CONTENT)
+    assert.equal(npmRequests.length, 2)
+  })
+
   test('refuses npm signatures that do not cover the checksum served', async () => {
     mode = 'npm-bad-signature'
 
@@ -614,6 +628,12 @@ const STRIPS_ALL_SIGNATURES = new Set<Mode>(['npm-signatures', 'npm-bad-signatur
 function handleNpmRequest (req: http.IncomingMessage, res: http.ServerResponse): void {
   const url = decodeURIComponent(req.url!)
   npmRequests.push({ path: url, authorization: req.headers.authorization })
+  const status = npmStatuses.shift()
+  if (status != null) {
+    res.writeHead(status)
+    res.end('not now')
+    return
+  }
   const name = url.slice(1, url.lastIndexOf('/'))
   res.writeHead(200, { 'content-type': 'application/json' })
   res.end(JSON.stringify({ dist: { integrity: integrityOf(bytesFor(mode)), signatures: signaturesFor(name) } }))

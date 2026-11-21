@@ -161,6 +161,20 @@ describe('pnpmRegistryConfig', () => {
     })
   })
 
+  test('keeps a placeholder literal behind an odd number of backslashes', () => {
+    const { cwd, home } = layout()
+    const configHome = writeGlobalConfig(home, [
+      '_auth:',
+      '  "https://registry.example.test/":',
+      '    "@":',
+      '      authToken: \'\\${TOKEN}\'',
+    ].join('\n'))
+
+    const config = pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { XDG_CONFIG_HOME: configHome, TOKEN: 'secret' } })
+
+    assert.deepEqual(config.headers, { authorization: 'Bearer ${TOKEN}' })
+  })
+
   test('skips an _auth entry with a field pnpm does not accept', () => {
     const { cwd, home } = layout({
       user: ['registry=https://registry.example.test/', '//registry.example.test/:_authToken=user-token'],
