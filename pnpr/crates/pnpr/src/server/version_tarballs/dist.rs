@@ -133,8 +133,12 @@ impl VersionRequest<'_> {
         else {
             return Ok(None);
         };
-        if let Some(read) = self.packument_tgz(source, name, cached, packument, stamp).await? {
+        if let Some(read) = self.packument_tgz(source, name, cached, packument.bytes, stamp).await?
+        {
             return Ok(Some(read));
+        }
+        if let Some(err) = packument.stale_error {
+            return Err(RegistryError::Shared(err));
         }
         let Some(packument) =
             reload_source_packument_lacking_version(self.state, self.identity, source, name).await?

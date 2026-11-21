@@ -33,6 +33,7 @@ export interface FetchMetadataCachedOptions {
    * Use only pnpm's on-disk metadata mirror and never reach the registry.
    */
   offline?: boolean
+  cacheBypass?: boolean
 }
 
 export type FetchFullMetadataCachedOptions = FetchMetadataCachedOptions
@@ -79,6 +80,10 @@ async function fetchMetadataCached (
     : null
 
   if (opts.offline === true) return loadOfflineMeta(pkgMirror, pkgName, opts)
+
+  if (opts.cacheBypass === true) {
+    return persistFetchedMeta(pkgMirror, await refetchBypassingCache(fetchOpts, pkgName, opts), opts.fullMetadata)
+  }
 
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
   const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {

@@ -556,7 +556,7 @@ impl Upstream {
     }
 
     /// Refuse a request to the origin for a [`Self::cached_only`] caller.
-    pub(crate) fn ensure_may_fetch(&self) -> Result<()> {
+    pub fn ensure_may_fetch(&self) -> Result<()> {
         let Some(user) = &self.cached_only else {
             return Ok(());
         };

@@ -152,6 +152,8 @@ This setting is `true` by default in [CI environments]. pnpm detects a CI enviro
 
 [CI environments]: https://github.com/watson/ci-info#supported-ci-tools
 
+When verifying a locked tarball online, pnpm asks the registry for fresh package metadata once if the cached metadata omits the locked version.
+
 ### --no-frozen-lockfile
 
 Allows lockfile updates during installation. This is the inverse of `--frozen-lockfile`.

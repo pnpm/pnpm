@@ -318,14 +318,15 @@ async function tryAbbreviatedModifiedShortcut (
 export function fetchAbbreviatedMeta (
   context: PublishedAtLookupContext,
   registry: string,
-  name: string
+  name: string,
+  cacheBypass = false
 ): Promise<AbbreviatedMetaResult> {
-  const cacheKey = `${registry}\x00${name}`
+  const cacheKey = `${registry}\x00${name}${cacheBypass ? '\x00refetched' : ''}`
   let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
   if (cachedPromise == null) {
     // Fast path: the resolver's per-install LRU already holds this
     // packument from its own pickPackage pass, abbreviated or full.
-    const shared = readSharedMeta(context.sharedMetaCache, registry, name)
+    const shared = cacheBypass ? undefined : readSharedMeta(context.sharedMetaCache, registry, name)
     const sharedProjection = shared != null ? projectSharedMeta(shared) : undefined
     if (sharedProjection != null) {
       cachedPromise = Promise.resolve({ meta: sharedProjection })
@@ -333,6 +334,7 @@ export function fetchAbbreviatedMeta (
       cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
+        cacheBypass,
         cacheDir: context.cacheDir,
         offline: context.offline,
       }).then(

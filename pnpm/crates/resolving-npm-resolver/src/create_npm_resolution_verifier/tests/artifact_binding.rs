@@ -397,6 +397,38 @@ async fn binding_check_records_dist_stats_into_the_sink() {
     assert_eq!(recorded.file_count, Some(42));
 }
 
+#[tokio::test]
+async fn verifies_a_locked_tarball_after_revalidating_metadata_missing_its_version() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let name: PkgName = "example-widget".parse().unwrap();
+    let tarball = format!("{registry}example-widget@1.0.0");
+    let stale = server
+        .mock("GET", "/example-widget")
+        .match_header("cache-control", mockito::Matcher::Missing)
+        .with_body(r#"{"name":"example-widget","versions":{},"dist-tags":{}}"#)
+        .create_async()
+        .await;
+    let fresh = server.mock("GET", "/example-widget")
+        .match_header("cache-control", "no-cache")
+        .with_body(serde_json::json!({
+            "name": "example-widget", "dist-tags": {"latest": "1.0.0"},
+            "versions": {"1.0.0": {"name": "example-widget", "version": "1.0.0", "dist": {"tarball": tarball, "integrity": FAKE_INTEGRITY}}}
+        }).to_string()).create_async().await;
+    let verifier = create_npm_resolution_verifier(default_opts(&registry));
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball,
+        integrity: Some(fake_integrity()),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    assert!(matches!(result, ResolutionVerification::Ok), "{result:?}");
+    stale.assert_async().await;
+    fresh.assert_async().await;
+}
+
 /// The metadata fetch succeeds but does not list the pinned version. That is a
 /// genuine verification failure (not a transport error), so it stays
 /// `TARBALL_URL_MISMATCH` rather than aborting via `FetchFailed`.

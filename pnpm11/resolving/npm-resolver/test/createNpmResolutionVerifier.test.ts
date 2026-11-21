@@ -926,6 +926,19 @@ test('createNpmResolutionVerifier() propagates the registry fetch error instead 
   )).rejects.toMatchObject({ code: 'ERR_PNPM_FETCH_403' })
 })
 
+test('verifies a locked tarball after revalidating metadata missing its version', async () => {
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  const name = 'example-pkg'
+  const version = '1.0.0'
+  const resolution = makeTarballResolution(name, version)
+  pool.intercept({ path: `/${name}` }).reply(200, { name, versions: {}, 'dist-tags': {} })
+  pool.intercept({ path: `/${name}`, headers: { 'cache-control': 'no-cache' } }).reply(200, {
+    name, 'dist-tags': { latest: version }, versions: { [version]: { name, version, dist: resolution } },
+  })
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  expect(await verifier.verify(resolution, { name, version })).toMatchObject({ ok: true })
+})
+
 test('createNpmResolutionVerifier() still flags a version absent from fetched metadata as TARBALL_URL_MISMATCH', async () => {
   // The metadata fetch succeeds but does not list the pinned version. That is a
   // genuine verification failure (not a transport error), so it must stay

@@ -38,7 +38,11 @@ export async function runTarballUrlCheck (
   context: PublishedAtLookupContext,
   pin: RegistryPin & { tarballUrl: string }
 ): Promise<ResolutionViolation | undefined> {
-  const { meta, error } = await fetchAbbreviatedMeta(context, pin.registry, pin.name)
+  let lookup = await fetchAbbreviatedMeta(context, pin.registry, pin.name)
+  if (lookup.meta && !context.offline && !lookup.meta.versionTarballs?.has(pin.version)) {
+    lookup = await fetchAbbreviatedMeta(context, pin.registry, pin.name, true)
+  }
+  const { meta, error } = lookup
   if (error != null) {
     // Couldn't reach the registry to verify (auth/network/5xx). Propagate the
     // registry's own fetch error (e.g. ERR_PNPM_FETCH_403, which already

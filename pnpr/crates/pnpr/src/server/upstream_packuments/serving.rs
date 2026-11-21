@@ -8,9 +8,9 @@ use super::{
     CanonicalPackageName,
     DistView,
     DocumentSource,
-    Duration,
     HeaderMap,
     Identity,
+    PackumentRead,
     RegistryError,
     Response,
     Upstream,
@@ -35,12 +35,19 @@ pub(in crate::server) async fn serve_packument_via_upstream(
         Ok(client) => client,
         Err(err) => return err.into_response(),
     };
+    let revalidate = headers
+        .get_all(axum::http::header::CACHE_CONTROL)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .any(|directive| directive.trim().eq_ignore_ascii_case("no-cache"));
+    let ttl = client.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
     let document = UpstreamDocument {
         state,
         upstream: &client,
         namespace: upstream_cache_namespace(state, upstream),
         name,
-        ttl: client.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl),
+        read: if revalidate { PackumentRead::Revalidate } else { PackumentRead::Cached(ttl) },
         response: DocumentResponse { headers, tarball_base, view },
     };
     match document.cached().await {
@@ -55,7 +62,7 @@ struct UpstreamDocument<'a> {
     upstream: &'a Upstream,
     namespace: String,
     name: &'a CanonicalPackageName,
-    ttl: Duration,
+    read: PackumentRead,
     response: DocumentResponse<'a>,
 }
 
@@ -67,13 +74,15 @@ struct DocumentResponse<'a> {
 
 impl UpstreamDocument<'_> {
     async fn cached(&self) -> Result<Option<Response>, RegistryError> {
+        let Some(ttl) = self.read.ttl() else {
+            return Ok(None);
+        };
         if !self.upstream.caches() {
             return Ok(None);
         }
         let response = async {
             let Some(bytes) =
-                read_cached_upstream_packument(self.state, &self.namespace, self.name, self.ttl)
-                    .await?
+                read_cached_upstream_packument(self.state, &self.namespace, self.name, ttl).await?
             else {
                 return Ok(None);
             };
@@ -88,7 +97,7 @@ impl UpstreamDocument<'_> {
             &self.namespace,
             self.upstream,
             self.name,
-            self.ttl,
+            self.read,
         )
         .await
         {
