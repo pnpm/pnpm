@@ -56,3 +56,17 @@ fn package_copying_prevents_workspace_license_injection() {
     assert!(names.contains(&"package/COPYING.txt".to_string()));
     assert!(!names.contains(&"package/LICENSE".to_string()));
 }
+
+#[test]
+fn nested_copying_file_does_not_prevent_workspace_license_injection() {
+    let workspace = tempdir().unwrap();
+    std::fs::write(workspace.path().join("LICENSE"), "workspace license").unwrap();
+    let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    opts.workspace_dir = Some(workspace.path().to_path_buf());
+    touch(dir.path(), "src/copying.c", "int main() {}");
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    dbg!(&result.contents);
+    assert!(result.contents.contains(&"src/copying.c".to_string()));
+    assert!(result.contents.contains(&"LICENSE".to_string()));
+}

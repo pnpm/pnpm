@@ -55,7 +55,7 @@ pub(super) fn inject_workspace_license(
     files_map: &mut indexmap::IndexMap<String, PathBuf>,
 ) {
     let Some(workspace_dir) = &opts.workspace_dir else { return };
-    if dir == workspace_dir || files_map.values().any(|file| contains_license(file)) {
+    if dir == workspace_dir || files_map.keys().any(|entry| is_package_license(entry)) {
         return;
     }
     let Ok(entries) = std::fs::read_dir(workspace_dir) else { return };
@@ -154,22 +154,29 @@ pub fn sort_paths_en_locale(paths: &mut [String]) {
     paths.sort_by(|left, right| collator.compare(left, right));
 }
 
-/// Whether a packed path looks like a license file: a `LICENSE`,
-/// `LICENCE`, or `COPYING` file name, with or without an extension.
-fn contains_license(path: &Path) -> bool {
-    if let Some(file_name) = path.file_name() {
-        return is_license_filename(&file_name.to_string_lossy());
+/// Whether a `package/<path>` entry is the package's own license. A
+/// `LICENSE` or `LICENCE` name counts at any depth. A `COPYING` name counts
+/// only at the package root, since nested names such as `src/copying.c` are
+/// often source files.
+fn is_package_license(entry: &str) -> bool {
+    let path = entry.strip_prefix("package/").unwrap_or(entry);
+    match path.rsplit_once('/') {
+        Some((_, name)) => is_licence_or_license_filename(name),
+        None => is_license_filename(path),
     }
-    false
 }
 
-/// Whether a root filename matches a license pattern (`LICENSE`, `LICENCE`,
-/// or `COPYING` with optional extensions) pnpm uses to find a workspace-root
-/// license to inject.
+/// Whether a root filename is a `LICENSE`, `LICENCE`, or `COPYING` file,
+/// with or without an extension.
 fn is_license_filename(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    matches!(lower.as_str(), "license" | "licence" | "copying")
+    is_licence_or_license_filename(&lower) || lower == "copying" || lower.starts_with("copying.")
+}
+
+/// Whether a filename matches `LICEN{S,C}E{,.*}`, case-insensitively.
+fn is_licence_or_license_filename(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    matches!(lower.as_str(), "license" | "licence")
         || lower.starts_with("license.")
         || lower.starts_with("licence.")
-        || lower.starts_with("copying.")
 }
