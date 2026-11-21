@@ -59,6 +59,22 @@ const RELAYED_INTERRUPTS: usize = 2;
 /// [`interrupt_count`].
 static INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
 
+/// The signal the handler took last, published before it counts it in
+/// [`INTERRUPTS`], so a thread that sees the count change sees the signal
+/// behind it.
+#[cfg(unix)]
+static LAST_SIGNAL: AtomicI32 = AtomicI32::new(0);
+
+/// Children pnpm has spawned that have not joined the relay yet. The
+/// handler passes a signal on to the children that have, so these are
+/// children it cannot reach, and ending pnpm would leave them behind.
+static SPAWNING_CHILDREN: AtomicUsize = AtomicUsize::new(0);
+
+/// Signals pnpm took while it had a child being spawned, counted from the
+/// first such child. A spawn in flight absorbs no more of them than a
+/// child in the relay does, so spawning cannot hold the terminal.
+static SPAWNING_INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
+
 /// How many interrupts and terminations have reached pnpm so far: signals
 /// pnpm handles, or console control events on Windows. `pnpm run` reads
 /// it before and after a script, so it can tell a script the user ended
@@ -125,6 +141,26 @@ struct RelayEntry {
     /// later its own plain first interrupt, while still escalating for
     /// one that sits through them.
     relays: AtomicUsize,
+    /// [`INTERRUPTS`] up to which the child holding this entry has been
+    /// relayed its interrupts. The handler and [`SpawningChild::joined`]
+    /// each advance it before relaying what lies past it, so every
+    /// interrupt reaches the child through exactly one of them.
+    #[cfg(unix)]
+    relayed_through: AtomicUsize,
+    /// [`INTERRUPTS`] as it stood once the child existed. An interrupt
+    /// counted up to it was taken before the child could share pnpm's
+    /// process group.
+    #[cfg(unix)]
+    spawned_at: AtomicUsize,
+}
+
+/// Where a child's relay starts: the [`RelayEntry`] fields of the same
+/// names, set before the entry is published.
+#[cfg(unix)]
+#[derive(Clone, Copy)]
+struct Handover {
+    relayed_through: usize,
+    spawned_at: usize,
 }
 
 static RELAY_ENTRIES: SignalList<RelayEntry> = SignalList::new();
@@ -146,6 +182,192 @@ impl SignalRelay {
     }
 }
 
+/// Relay to the child holding `entry` the interrupts counted up to
+/// `taken` that it has not been relayed yet, `signal` being the last of
+/// them, and report whether pnpm keeps waiting for that child after the
+/// last of them.
+///
+/// The first interrupt is passed on as it arrived, unless
+/// [`kernel_gave_it_to_the_child`]. The second becomes `SIGTERM`. Past
+/// those, pnpm stops waiting.
+#[cfg(unix)]
+fn relay_through(entry: &RelayEntry, target: i32, taken: usize, signal: libc::c_int) -> bool {
+    let Some(relayed) = advance_relayed_through(entry, taken) else {
+        // Whoever advanced past `taken` relayed it.
+        return entry.relays.load(Ordering::Relaxed) <= RELAYED_INTERRUPTS;
+    };
+    let count = taken - relayed;
+    let first = entry.relays.fetch_add(count, Ordering::Relaxed);
+    for step in first..first.saturating_add(count).min(RELAYED_INTERRUPTS) {
+        let relayed_signal = if step > 0 {
+            libc::SIGTERM
+        } else if kernel_gave_it_to_the_child(
+            relayed < entry.spawned_at.load(Ordering::Relaxed),
+            target,
+            signal,
+            pnpm_ffi_signal::holds_the_terminal(),
+        ) {
+            continue;
+        } else {
+            signal
+        };
+        pnpm_ffi_signal::signal_target(aimed_at(target), relayed_signal);
+    }
+    // The last interrupt counted is the one being answered.
+    first + count <= RELAYED_INTERRUPTS
+}
+
+/// Move `entry`'s `relayed_through` up to `taken`, and return where it
+/// stood, or `None` when it already stood there or past it.
+#[cfg(unix)]
+fn advance_relayed_through(entry: &RelayEntry, taken: usize) -> Option<usize> {
+    let mut relayed = entry.relayed_through.load(Ordering::Acquire);
+    while relayed < taken {
+        match entry.relayed_through.compare_exchange_weak(
+            relayed,
+            taken,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => return Some(relayed),
+            Err(current) => relayed = current,
+        }
+    }
+    None
+}
+
+/// Whether the kernel has given `signal` to the child `target` names
+/// without the relay, which it does for a child that was already in
+/// pnpm's own process group when the terminal signalled that group.
+///
+/// `missed_the_child` says pnpm took the signal before the child existed,
+/// so no group the child is in carried it. A negative `target` is a group
+/// of the child's own, which the terminal never reaches.
+#[cfg(unix)]
+fn kernel_gave_it_to_the_child(
+    missed_the_child: bool,
+    target: i32,
+    signal: libc::c_int,
+    pnpm_holds_the_terminal: bool,
+) -> bool {
+    !missed_the_child && target > 0 && signal == libc::SIGINT && pnpm_holds_the_terminal
+}
+
+/// A child pnpm has spawned that has not joined the relay yet.
+///
+/// pnpm waits for every child it spawns, so a signal that arrives before
+/// the child joins must still reach it: nothing else would end that child,
+/// and pnpm would wait for it for as long as it ran. The handler therefore
+/// counts a child being spawned as one more to wait for, and
+/// [`Self::joined`] passes on what the handler could not.
+pub(crate) struct SpawningChild {
+    /// [`INTERRUPTS`] as it stood before the child was spawned.
+    #[cfg(unix)]
+    before_spawn: usize,
+    /// [`INTERRUPTS`] as it stood once the child existed.
+    #[cfg(unix)]
+    once_spawned: usize,
+}
+
+/// Account for a child pnpm is about to spawn, and take the signals that
+/// would otherwise end pnpm with their default disposition.
+///
+/// Call it before the spawn: a signal taken from here on is one the
+/// handler cannot pass on, and one pnpm must outlive, or the child would
+/// be left behind by the very spawn that created it.
+pub(crate) fn spawning_child() -> SpawningChild {
+    install_handler();
+    // Counted before the claim, never after: a signal the claim keeps pnpm
+    // alive for has to be one `SpawningChild::joined` can still see. Taken
+    // the other way round, a signal landing between the two would raise the
+    // count the claim is about to read, leave the claim holding a snapshot
+    // that already includes it, and so be relayed to nobody, while the claim
+    // kept pnpm waiting for the child it went on to spawn. The `Acquire` load
+    // keeps the claim below it.
+    #[cfg(unix)]
+    let taken = INTERRUPTS.load(Ordering::Acquire);
+    if SPAWNING_CHILDREN.fetch_add(1, Ordering::Release) == 0 {
+        SPAWNING_INTERRUPTS.store(0, Ordering::Release);
+    }
+    SpawningChild {
+        #[cfg(unix)]
+        before_spawn: taken,
+        #[cfg(unix)]
+        once_spawned: taken,
+    }
+}
+
+impl SpawningChild {
+    /// Record that the child now exists, so a signal counted from here on
+    /// reached whatever process group the child is already in.
+    #[cfg_attr(
+        not(unix),
+        expect(
+            clippy::unused_self,
+            clippy::needless_pass_by_ref_mut,
+            reason = "only Unix relays what a spawn missed",
+        )
+    )]
+    pub(crate) fn spawned(&mut self) {
+        #[cfg(unix)]
+        {
+            self.once_spawned = INTERRUPTS.load(Ordering::Acquire);
+        }
+    }
+
+    /// Relay the terminal signals pnpm receives to the spawned child `pid`
+    /// until the returned guard is dropped. The handler relays only what
+    /// [`Self::joined`] does not.
+    ///
+    /// `own_process_group` says the child leads a process group of its own
+    /// (see [`crate::ProcessTracker`]); the whole group is then signalled,
+    /// because the terminal's signals never reach it.
+    #[cfg_attr(
+        not(unix),
+        expect(clippy::unused_self, reason = "only Unix relays what a spawn missed")
+    )]
+    pub(crate) fn relay_to_child(&self, pid: u32, own_process_group: bool) -> SignalRelay {
+        register(
+            pid,
+            own_process_group,
+            #[cfg(unix)]
+            Handover { relayed_through: self.before_spawn, spawned_at: self.once_spawned },
+        )
+    }
+
+    /// Hand the child over to `relay`, passing on whatever pnpm took while
+    /// it was being spawned that the handler has not.
+    #[cfg(unix)]
+    pub(crate) fn joined(self, relay: &SignalRelay) {
+        if let Some(entry) = relay.entry {
+            // `SeqCst` pairs with the count in `count_signal`: a signal
+            // whose walk missed the entry published above is seen here.
+            let taken = INTERRUPTS.load(Ordering::SeqCst);
+            relay_through(
+                entry,
+                entry.target.load(Ordering::Acquire),
+                taken,
+                LAST_SIGNAL.load(Ordering::Relaxed),
+            );
+        }
+        // The spawn ends only once the child has what it missed.
+        drop(self);
+    }
+
+    /// The console delivers its event to every process attached to it, so a
+    /// child that joined the relay late has the event already.
+    #[cfg(not(unix))]
+    pub(crate) fn joined(self, _relay: &SignalRelay) {
+        drop(self);
+    }
+}
+
+impl Drop for SpawningChild {
+    fn drop(&mut self) {
+        SPAWNING_CHILDREN.fetch_sub(1, Ordering::Release);
+    }
+}
+
 impl Drop for SignalRelay {
     fn drop(&mut self) {
         if let Some(entry) = self.entry {
@@ -156,13 +378,8 @@ impl Drop for SignalRelay {
     }
 }
 
-/// Relay the terminal signals pnpm receives to `pid` until the returned
-/// guard is dropped.
-///
-/// `own_process_group` says the child leads a process group of its own
-/// (see [`crate::ProcessTracker`]); the whole group is then signalled,
-/// because the terminal's signals never reach it.
-pub(crate) fn relay_to_child(pid: u32, own_process_group: bool) -> SignalRelay {
+/// Claim a relay entry for `pid`, starting it at `handover`.
+fn register(pid: u32, own_process_group: bool, #[cfg(unix)] handover: Handover) -> SignalRelay {
     install_handler();
     let Ok(pid) = i32::try_from(pid) else {
         return SignalRelay { entry: None };
@@ -173,6 +390,8 @@ pub(crate) fn relay_to_child(pid: u32, own_process_group: bool) -> SignalRelay {
     SignalRelay {
         entry: Some(claim_entry(
             target,
+            #[cfg(unix)]
+            handover,
             #[cfg(windows)]
             handle,
         )),
@@ -193,6 +412,7 @@ fn open_child_handle(pid: i32) -> Option<pnpm_ffi_process::ProcessHandle> {
 /// Take the first free entry for `target`, or extend the list with one.
 fn claim_entry(
     target: i32,
+    #[cfg(unix)] handover: Handover,
     #[cfg(windows)] handle: Option<pnpm_ffi_process::ProcessHandle>,
 ) -> &'static RelayEntry {
     #[cfg(windows)]
@@ -215,6 +435,11 @@ fn claim_entry(
             // taking the entry would let a thread that lost the race wipe
             // the escalation of whichever child won it.
             entry.relays.store(0, Ordering::Relaxed);
+            #[cfg(unix)]
+            {
+                entry.relayed_through.store(handover.relayed_through, Ordering::Relaxed);
+                entry.spawned_at.store(handover.spawned_at, Ordering::Relaxed);
+            }
             // The handle the previous child left is dropped only now, with
             // the entry unpublished and the lock held, so no termination
             // can be using it.
@@ -222,7 +447,9 @@ fn claim_entry(
             {
                 *entry.handle.lock().expect("relay handle lock is not poisoned") = handle.take();
             }
-            entry.target.store(target, Ordering::Release);
+            // `SeqCst` pairs with the count in `count_signal`: a signal
+            // counted after the claim read its handover is seen by the walk.
+            entry.target.store(target, Ordering::SeqCst);
             true
         },
         || RelayEntry {
@@ -230,6 +457,10 @@ fn claim_entry(
             #[cfg(windows)]
             handle: std::sync::Mutex::new(handle.take()),
             relays: AtomicUsize::new(0),
+            #[cfg(unix)]
+            relayed_through: AtomicUsize::new(handover.relayed_through),
+            #[cfg(unix)]
+            spawned_at: AtomicUsize::new(handover.spawned_at),
         },
     )
 }
@@ -239,7 +470,7 @@ fn claim_entry(
 fn visit_targets(mut visit: impl FnMut(&'static RelayEntry, i32)) -> bool {
     let mut visited = false;
     RELAY_ENTRIES.for_each(|entry| {
-        let target = entry.target.load(Ordering::Acquire);
+        let target = entry.target.load(Ordering::SeqCst);
         if target != 0 && target != CLAIMING {
             visited = true;
             visit(entry, target);
@@ -309,17 +540,45 @@ fn install_handler() {
 /// `die_from_signal`, which ends the process itself.
 #[cfg(unix)]
 fn relay_signal(interrupt: pnpm_ffi_signal::Interrupt, _replaced: pnpm_ffi_signal::Replaced<'_>) {
-    let signal = signal_number(interrupt);
-    INTERRUPTS.fetch_add(1, Ordering::Relaxed);
-    let shared_with_group =
-        interrupt == pnpm_ffi_signal::Interrupt::Interrupt && pnpm_ffi_signal::holds_the_terminal();
-    let mut still_listening = false;
-    let reached = visit_targets(|entry, target| {
-        still_listening |= relay_to(entry, target, signal, shared_with_group);
+    take_signal(signal_number(interrupt));
+}
+
+/// Count and relay `signal` as the installed handler does.
+///
+/// A test that raised the signal for real would have the kernel deliver
+/// it process-wide: to the test runner's own process, and through
+/// [`visit_targets`] to the children of every test sharing that process.
+/// The kernel's part is to call the handler, so a test calls this and
+/// leaves both alone.
+#[cfg(unix)]
+pub(crate) fn take_signal(signal: libc::c_int) {
+    relay_counted(count_signal(signal), signal);
+}
+
+/// Count `signal` in [`INTERRUPTS`] and return the count it made.
+#[cfg(unix)]
+pub(crate) fn count_signal(signal: libc::c_int) -> usize {
+    LAST_SIGNAL.store(signal, Ordering::Relaxed);
+    // `SeqCst`, as the publication in `claim_entry` and the load in
+    // `SpawningChild::joined` are: a child published while this signal is
+    // in flight is either seen by the walk in `relay_counted` or sees
+    // this count when it joins.
+    INTERRUPTS.fetch_add(1, Ordering::SeqCst) + 1
+}
+
+/// The rest of [`take_signal`] for the signal [`count_signal`] counted as
+/// `taken`.
+#[cfg(unix)]
+pub(crate) fn relay_counted(taken: usize, signal: libc::c_int) {
+    let spawning = SPAWNING_CHILDREN.load(Ordering::Acquire) > 0
+        && SPAWNING_INTERRUPTS.fetch_add(1, Ordering::Relaxed) < RELAYED_INTERRUPTS;
+    let mut still_listening = spawning;
+    let registered = visit_targets(|entry, target| {
+        still_listening |= relay_to(entry, target, taken, signal);
     });
     // Nothing left to wait for, or every child has had its interrupt and
     // its `SIGTERM` and sat through both.
-    if !reached || !still_listening {
+    if !(registered || spawning) || !still_listening {
         pnpm_fs::die_from_signal(signal);
     }
 }
@@ -333,14 +592,10 @@ fn signal_number(interrupt: pnpm_ffi_signal::Interrupt) -> libc::c_int {
     }
 }
 
-/// Relay `signal`, or the escalation the child holding `entry` has
-/// reached, and report whether pnpm keeps waiting for that child.
-///
-/// `shared_with_group` says the terminal delivered `signal` to pnpm's
-/// whole process group. A positive target is a child in that group, so
-/// it has the signal already and only the escalation is passed on.
+/// [`relay_through`] for the handler, which read `target` from `entry`
+/// during its walk.
 #[cfg(unix)]
-fn relay_to(entry: &RelayEntry, target: i32, signal: libc::c_int, shared_with_group: bool) -> bool {
+fn relay_to(entry: &RelayEntry, target: i32, taken: usize, signal: libc::c_int) -> bool {
     // pnpm reaps a child before releasing its entry, so an entry that
     // has turned over since the walk read it names a process pnpm no
     // longer owns. Leave it alone, and leave the child that took the
@@ -348,23 +603,19 @@ fn relay_to(entry: &RelayEntry, target: i32, signal: libc::c_int, shared_with_gr
     if entry.target.load(Ordering::Acquire) != target {
         return false;
     }
-    let step = entry.relays.fetch_add(1, Ordering::Relaxed);
-    if step >= RELAYED_INTERRUPTS {
-        return false;
-    }
-    if step == 0 && target > 0 && shared_with_group {
-        return true;
-    }
-    let relayed = if step == 0 { signal } else { libc::SIGTERM };
-    // A negative target names the process group the child leads, which is
-    // the form `relay_to_child` stores for a child that leads one.
-    let aimed_at = if target < 0 {
+    relay_through(entry, target, taken, signal)
+}
+
+/// What a relay entry's `target` names. A negative target names the
+/// process group the child leads, which is the form [`register`]
+/// stores for a child that leads one.
+#[cfg(unix)]
+fn aimed_at(target: i32) -> pnpm_ffi_signal::Target {
+    if target < 0 {
         pnpm_ffi_signal::Target::Group(target.unsigned_abs())
     } else {
         pnpm_ffi_signal::Target::Process(target.unsigned_abs())
-    };
-    pnpm_ffi_signal::signal_target(aimed_at, relayed);
-    true
+    }
 }
 
 /// Whether pnpm has a controlling terminal. Without one, only `kill` can
