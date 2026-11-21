@@ -210,6 +210,7 @@ export type InstallCommandOptions = Pick<Config,
   /** See {@link InstallDepsOptions.excludeWorkspaceRootProject}. */
   excludeWorkspaceRootProject?: boolean
   deploy?: boolean
+  deployedWorkspaceDirs?: readonly string[]
   fixLockfile?: boolean
   updateChecksums?: boolean
   frozenLockfileIfExists?: boolean

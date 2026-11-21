@@ -23,6 +23,7 @@ mod auth;
 mod auto_dedupe;
 mod auto_dedupe_record;
 mod bin;
+mod block_exotic_subdeps;
 mod bugs;
 mod bundled_dependencies;
 mod cache;

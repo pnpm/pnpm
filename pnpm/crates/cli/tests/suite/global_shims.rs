@@ -760,12 +760,17 @@ fn write_lockfile_verified_record(root: &TempDir, project: &Path) {
         .unwrap()
         .as_nanos()
         .to_string();
+    let ctime_ns = (i128::from(metadata.ctime()) * 1_000_000_000
+        + i128::from(metadata.ctime_nsec()))
+    .max(0)
+    .to_string();
     let record = serde_json::json!({
         "lockfile": {
             "hash": "0000",
             "path": fs::canonicalize(&lockfile).unwrap(),
             "size": metadata.len(),
             "mtimeNs": mtime_ns,
+            "ctimeNs": ctime_ns,
             "inode": metadata.ino().to_string(),
         },
         "verifiedAt": "2026-01-01T00:00:00.000Z",

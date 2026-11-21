@@ -84,6 +84,20 @@ export function approveLegacyWorkspaceProjectBuilds (
   return approve(allowBuilds, keys)
 }
 
+/**
+ * Relative directory paths from `anchorDir` to every discovered workspace
+ * project, so `blockExoticSubdeps` lockfile verification continues to recognize
+ * sibling workspace projects after `pnpm deploy` rewrites them to `file:`.
+ */
+export function deployedWorkspaceProjectDirs (
+  allProjects: DeployAllProjects,
+  anchorDir: string
+): string[] {
+  return allProjects.flatMap(project =>
+    projectPackageDirs(project).map(packageDir => normalizePath(path.relative(anchorDir, packageDir)))
+  )
+}
+
 /** A key to approve, and the source workspace keys of the same project, a denial of which also applies to it. */
 interface ProjectBuildKey {
   key: string

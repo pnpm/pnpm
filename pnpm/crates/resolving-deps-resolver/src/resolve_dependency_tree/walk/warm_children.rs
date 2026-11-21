@@ -280,7 +280,7 @@ async fn warm_grandchildren<Chain>(
     let parent = WarmedParent {
         result: child,
         peer_shadowed: &child_peer_shadowed,
-        through_catalogs: resolves_children_through_catalogs(child),
+        through_catalogs: resolves_children_through_catalogs(ctx, child),
         claim_id: child.id.as_str(),
     };
     warm_result_children(

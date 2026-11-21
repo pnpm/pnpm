@@ -35,12 +35,16 @@ use pnpm_lockfile_verification::{
     VerifyLockfileResolutionsOptions,
     verify_lockfile_resolutions,
 };
-use pnpm_package_manager::build_resolution_verifiers;
+use pnpm_package_manager::{
+    build_resolution_verifiers,
+    config_exotic_subdeps_policy,
+};
 
 /// The source workspace lockfile whose pins a legacy deploy prefers.
 pub(super) struct LegacyDeploySource {
     pub(super) lockfile: Lockfile,
-    path: PathBuf,
+    source_lockfile: Option<Lockfile>,
+    path: Option<PathBuf>,
 }
 
 impl LegacyDeploySource {
@@ -53,12 +57,18 @@ impl LegacyDeploySource {
         if !config.lockfile {
             return None;
         }
-        match Lockfile::load_wanted(source_lockfile_dir, &config.wanted_lockfile_selection()) {
-            Ok(Some(lockfile)) => Some(Self {
-                lockfile,
-                path: source_lockfile_dir.join(config.wanted_lockfile_name()),
+        match Lockfile::load_wanted_detailed(
+            source_lockfile_dir,
+            &config.wanted_lockfile_selection(),
+        ) {
+            Ok(loaded) => loaded.lockfile.map(|shared| {
+                let lockfile = Arc::try_unwrap(shared).unwrap_or_else(|arc| (*arc).clone());
+                let path = (loaded.merged_conflict_files == 0
+                    && loaded.pre_merge_importers.is_none())
+                .then_some(loaded.loaded_path)
+                .flatten();
+                Self { lockfile, source_lockfile: None, path }
             }),
-            Ok(None) => None,
             Err(error) => {
                 warn::<ReporterT>(
                     source_lockfile_dir,
@@ -81,7 +91,12 @@ impl LegacyDeploySource {
 
     /// Applies the resolution policies to the source lockfile, as an install
     /// in the source workspace does.
-    pub(super) async fn verify<ReporterT: Reporter>(&self, state: &State) -> miette::Result<()> {
+    pub(super) async fn verify<ReporterT: Reporter>(
+        &self,
+        state: &State,
+        source_importer_ids: &[String],
+        source_workspace_dirs: &[String],
+    ) -> miette::Result<()> {
         let verifiers = build_resolution_verifiers(
             state.config,
             Arc::clone(&state.http_client),
@@ -92,15 +107,22 @@ impl LegacyDeploySource {
             None,
         )
         .map_err(miette::Report::new)?;
+        let exotic_subdeps = config_exotic_subdeps_policy(
+            state.config,
+            Some(source_importer_ids.iter().map(String::as_str)),
+            source_workspace_dirs.iter().map(String::as_str),
+        );
         verify_lockfile_resolutions::<ReporterT>(
-            &self.lockfile,
+            self.source_lockfile.as_ref().unwrap_or(&self.lockfile),
             &verifiers,
             &VerifyLockfileResolutionsOptions {
                 concurrency: None,
-                lockfile_path: Some(&self.path),
+                lockfile_path: self.path.as_deref(),
+                lockfile_stat: None,
                 cache_dir: Some(&state.config.cache_dir),
                 replaced: None,
                 repairs_lockfile: false,
+                exotic_subdeps,
             },
         )
         .await
@@ -115,6 +137,7 @@ impl LegacyDeploySource {
         deploy_dir: &Path,
         source_dir: &Path,
     ) -> miette::Result<()> {
+        self.source_lockfile.get_or_insert_with(|| self.lockfile.clone());
         let ctx = ConvertCtx {
             projects_by_path: &selected.projects_by_path,
             deploy_dir,

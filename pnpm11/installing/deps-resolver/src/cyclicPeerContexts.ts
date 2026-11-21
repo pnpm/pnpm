@@ -13,24 +13,47 @@ export function getPeerCacheOwner (owners: Map<NodeId, NodeId>, nodeId: NodeId):
   return nodeId
 }
 
-export function getCyclicPeerPredicate<Pkg extends PartialResolvedPackage> (
-  ctx: PeerContextGraph<Pkg>
-): ((nodeId: NodeId, alias: string, peerId: NodeId) => boolean) | undefined {
-  const nodeEdges = new Map<NodeId, Set<NodeId>>()
+export interface PeerGraphEntry<NodeKey> {
+  node: NodeKey
+  packageName: string
+  peers: Iterable<readonly [alias: string, target?: NodeKey]>
+}
+
+export function createCyclicPeerPredicate<NodeKey> (
+  entries: Iterable<PeerGraphEntry<NodeKey>>
+): ((node: NodeKey, alias: string, peerNode: NodeKey) => boolean) | undefined {
+  const nodeEdges = new Map<NodeKey, Set<NodeKey>>()
   const nameEdges = new Map<string, Set<string>>()
-  for (const [nodeId, { resolvedNode }] of ctx.peerNodes) {
-    const peers = resolvedNode.allResolvedPeers
-    nodeEdges.set(nodeId, new Set([...peers.values()].map((peer) => getPeerCacheOwner(ctx.peersCacheOwnerByNodeId, peer))))
-    const name = resolvedNode.resolvedPackage.name
-    const names = nameEdges.get(name) ?? new Set<string>()
-    for (const alias of peers.keys()) names.add(alias)
-    nameEdges.set(name, names)
+  for (const { node, packageName, peers } of entries) {
+    const targets = nodeEdges.get(node) ?? new Set<NodeKey>()
+    const names = nameEdges.get(packageName) ?? new Set<string>()
+    for (const [alias, target] of peers) {
+      names.add(alias)
+      if (target !== undefined) targets.add(target)
+    }
+    nodeEdges.set(node, targets)
+    nameEdges.set(packageName, names)
   }
   const nodeComponents = getComponents(nodeEdges)
   const cyclicNames = getCyclicKeys(nameEdges, getComponents(nameEdges))
   if (cyclicNames.size === 0 && getCyclicKeys(nodeEdges, nodeComponents).size === 0) return undefined
-  return (nodeId, alias, peerId) => cyclicNames.has(alias) ||
-    (nodeComponents.has(nodeId) && nodeComponents.get(nodeId) === nodeComponents.get(peerId))
+  return (node, alias, peerNode) => cyclicNames.has(alias) ||
+    (nodeComponents.has(node) && nodeComponents.get(node) === nodeComponents.get(peerNode))
+}
+
+export function getCyclicPeerPredicate<Pkg extends PartialResolvedPackage> (
+  ctx: PeerContextGraph<Pkg>
+): ((nodeId: NodeId, alias: string, peerId: NodeId) => boolean) | undefined {
+  return createCyclicPeerPredicate(
+    [...ctx.peerNodes].map(([nodeId, { resolvedNode }]) => ({
+      node: nodeId,
+      packageName: resolvedNode.resolvedPackage.name,
+      peers: [...resolvedNode.allResolvedPeers].map(([alias, peer]) => [
+        alias,
+        getPeerCacheOwner(ctx.peersCacheOwnerByNodeId, peer),
+      ] as const),
+    }))
+  )
 }
 
 function getCyclicKeys<Key> (edges: Map<Key, Set<Key>>, components: Map<Key, number>): Set<Key> {

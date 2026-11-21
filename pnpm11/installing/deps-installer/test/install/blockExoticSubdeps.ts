@@ -1,7 +1,8 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
-import { addDependenciesToPackage, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -147,4 +148,44 @@ test('blockExoticSubdeps allows exotic dependencies in workspace packages', asyn
     blockExoticSubdeps: true,
     workspacePackages,
   }))
+})
+
+test('blockExoticSubdeps rejects an existing lockfile with exotic subdependencies on frozen and warm installs', async () => {
+  prepareEmpty()
+
+  const { updatedManifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-aliased-git-dependency'],
+    testDefaults({ blockExoticSubdeps: false, fastUnpack: false, lockfileOnly: true })
+  )
+
+  await expect(
+    install(updatedManifest, testDefaults({ blockExoticSubdeps: true, frozenLockfile: true }))
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_EXOTIC_SUBDEP',
+  })
+
+  await expect(
+    install(updatedManifest, testDefaults({ blockExoticSubdeps: true }))
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_EXOTIC_SUBDEP',
+  })
+})
+
+test('blockExoticSubdeps allows direct git dependencies on subsequent frozenLockfile install', async () => {
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+    .reply(200)
+
+  const project = prepareEmpty()
+  const { updatedManifest } = await addDependenciesToPackage(
+    {},
+    ['kevva/is-negative#1.0.0'],
+    testDefaults({ blockExoticSubdeps: true })
+  )
+
+  fs.rmSync('node_modules', { recursive: true, force: true })
+
+  await install(updatedManifest, testDefaults({ blockExoticSubdeps: true, frozenLockfile: true }))
+  project.has('is-negative')
 })

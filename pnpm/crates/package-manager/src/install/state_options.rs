@@ -81,6 +81,7 @@ pub(crate) struct ApplyResolutionState<'a> {
     pub(crate) existing_wanted: Option<&'a Lockfile>,
     pub(crate) loaded: Option<&'a Lockfile>,
     pub(crate) frozen: bool,
+    pub(crate) trust_lockfile: bool,
     /// See `LoadedWorkspace::locked_registry_routes`.
     pub(crate) locked_registry_routes: Option<std::collections::BTreeMap<String, String>>,
 }
@@ -168,8 +169,10 @@ pub(crate) struct SelectedImporters<'a> {
 
 pub(crate) struct LockfileVerificationInputs<'a, 'install> {
     pub(crate) verifiers: &'a [Arc<dyn ResolutionVerifier>],
-    pub(crate) path: Option<&'a Path>,
+    pub(crate) exotic_subdeps: &'a pnpm_lockfile_verification::ExoticSubdepsPolicy,
+    pub(crate) source: Option<pnpm_lockfile_verification::LockfileCacheSource<'a>>,
     pub(crate) override_check: Option<super::LockfileVerificationOverride<'install>>,
+    pub(crate) trust_lockfile: bool,
 }
 
 #[derive(Clone, Copy)]

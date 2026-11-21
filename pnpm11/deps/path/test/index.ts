@@ -264,6 +264,6 @@ test('parsePeerBindings()', () => {
   })
   expect(getBoundPeerProviders(explicit)).toStrictEqual(new Set(['b@2.0.0', 'c@1.0.0']))
   const hashed = parsePeerBindings('a@1.0.0(0123456789abcdef0123456789abcdef)')!
-  expect(hashed).toStrictEqual({ kind: 'hashed' })
+  expect(hashed).toStrictEqual({ kind: 'hashed', hash: '0123456789abcdef0123456789abcdef' })
   expect(getBoundPeerProviders(hashed)).toBeUndefined()
 })

@@ -16,6 +16,7 @@ import { tryComposeFastUpdates } from './tryComposeFastUpdates.js'
 import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
 import { warnUnusedPatches } from './tryFastUpdatePatchedDependencies.js'
+import { buildExoticSubdepsScopeFromContext } from './verifyLockfileExoticSubdeps.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 const COMPOSABLE_CHANGED_FIELDS = new Set<ChangedField>([
@@ -67,7 +68,13 @@ export async function tryFastLockfileUpdate (
   const updated = await tryFastUpdateLockfile(ctx.wantedLockfile, {
     update: async (candidate) => tryComposeFastUpdates(candidate, createComposeOptions(run, { input, plan, rewriteOptions })),
     isLockfileUpToDate,
-    verifyLockfile: (lockfile) => verifyLockfileResolutions(lockfile, []),
+    verifyLockfile: (lockfile) => {
+      const blockExoticSubdeps = !run.opts.trustLockfile && Boolean(run.opts.blockExoticSubdeps)
+      return verifyLockfileResolutions(lockfile, [], {
+        blockExoticSubdeps,
+        exoticSubdepsScope: blockExoticSubdeps ? buildExoticSubdepsScopeFromContext(ctx, run.opts) : undefined,
+      })
+    },
   })
   if (!updated) return null
   ctx.wantedLockfileIsModified = true

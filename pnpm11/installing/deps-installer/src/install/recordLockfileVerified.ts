@@ -2,7 +2,11 @@ import { hashObject } from '@pnpm/crypto.object-hasher'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
-import { hasInvalidDependencyAliases, withOfflineCheckCacheIdentities } from './verifyLockfileResolutions.js'
+import {
+  type ExoticSubdepsScope,
+  hasInvalidDependencyAliases,
+  withOfflineCheckCacheIdentities,
+} from './verifyLockfileResolutions.js'
 import { recordVerification } from './verifyLockfileResolutionsCache.js'
 
 export interface RecordLockfileVerifiedOptions {
@@ -15,6 +19,8 @@ export interface RecordLockfileVerifiedOptions {
    *  next install can't match (YAML drops undefined fields). */
   lockfile: LockfileObject
   resolutionVerifiers: readonly ResolutionVerifier[] | undefined
+  blockExoticSubdeps?: boolean
+  exoticSubdepsScope?: ExoticSubdepsScope
 }
 
 /**
@@ -27,12 +33,15 @@ export interface RecordLockfileVerifiedOptions {
  */
 export function recordLockfileVerified (opts: RecordLockfileVerifiedOptions): void {
   if (!opts.cacheDir) return
-  if (!opts.resolutionVerifiers?.length) return
+  if (!opts.resolutionVerifiers?.length && !opts.blockExoticSubdeps) return
   if (!opts.lockfile.packages) return
   if (hasInvalidDependencyAliases(opts.lockfile)) return
   recordVerification(opts.cacheDir, {
     lockfilePath: opts.lockfilePath,
-    verifiers: withOfflineCheckCacheIdentities(opts.resolutionVerifiers),
+    verifiers: withOfflineCheckCacheIdentities(opts.resolutionVerifiers ?? [], {
+      blockExoticSubdeps: opts.blockExoticSubdeps,
+      exoticSubdepsScope: opts.exoticSubdepsScope,
+    }),
     hashLockfile: () => hashObject(opts.lockfile),
   })
 }

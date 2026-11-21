@@ -69,6 +69,14 @@ pub enum VerifyError {
         breakdown: String,
     },
 
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_EXOTIC_SUBDEP), help("{HINT}"))]
+    ExoticSubdep {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
+
     /// The registry couldn't be reached to verify an entry
     /// (auth/network/5xx). Surfaces the registry's own fetch error (which
     /// already explains the auth situation) rather than a tampering-style
@@ -227,6 +235,7 @@ impl VerifyError {
                 VerifyError::MinimumReleaseAgeViolation { count, breakdown }
             }
             codes::TRUST_DOWNGRADE => VerifyError::TrustDowngrade { count, breakdown },
+            crate::EXOTIC_SUBDEP_VIOLATION_CODE => VerifyError::ExoticSubdep { count, breakdown },
             codes::MISSING_TARBALL_INTEGRITY => {
                 VerifyError::MissingTarballIntegrity { count, breakdown }
             }
@@ -248,7 +257,8 @@ fn is_policy_violation(code: &str) -> bool {
     matches!(
         code,
         pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION
-            | pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE,
+            | pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE
+            | crate::EXOTIC_SUBDEP_VIOLATION_CODE,
     )
 }
 

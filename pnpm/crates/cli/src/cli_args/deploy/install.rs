@@ -3,9 +3,10 @@ use super::{
     Config,
     Context,
     DeployArgs,
-    DeployInstallMode,
+    DeployWorkspaceSettings,
     LazyLockfile,
     Lockfile,
+    NamedProjectRoot,
     NodeLinker,
     NodeLinkerArg,
     Path,
@@ -15,10 +16,33 @@ use super::{
     State,
     WantedLockfileSelection,
     approve_legacy_workspace_project_builds,
+    deployed_workspace_project_dirs,
     deployed_workspace_projects,
     legacy_source::LegacyDeploySource,
     resolve_bool_override,
 };
+
+pub(super) enum DeployInstallMode {
+    Legacy {
+        workspace_projects: Vec<NamedProjectRoot>,
+        project_root_dirs: Vec<PathBuf>,
+        project_package_dirs: Vec<PathBuf>,
+        source_lockfile_dir: PathBuf,
+    },
+    Shared {
+        workspace_config: Box<DeployWorkspaceSettings>,
+        project_package_dirs: Vec<PathBuf>,
+    },
+}
+
+impl DeployInstallMode {
+    fn project_package_dirs(&self) -> &[PathBuf] {
+        match self {
+            Self::Legacy { project_package_dirs, .. }
+            | Self::Shared { project_package_dirs, .. } => project_package_dirs,
+        }
+    }
+}
 
 /// The lockfile a shared deploy generates records no
 /// `pnpmfileChecksum`, so the pnpmfile behind these hooks must not
@@ -44,7 +68,7 @@ fn deploy_pnpmfile_hooks(
     )
 )]
 fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: DeployInstallMode) {
-    let DeployInstallMode::Shared { workspace_config } = mode else {
+    let DeployInstallMode::Shared { workspace_config, .. } = mode else {
         return;
     };
     workspace_config.apply_to_config(config, deploy_dir.to_path_buf());
@@ -121,6 +145,29 @@ struct DeployInstallContext<'a> {
     source_root: &'a Path,
     pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     preferred_versions_override: Option<PreferredVersions>,
+    extra_workspace_dirs: Vec<String>,
+}
+
+fn legacy_source_importer_ids(mode: &DeployInstallMode) -> Vec<String> {
+    match mode {
+        DeployInstallMode::Legacy {
+            project_root_dirs,
+            source_lockfile_dir,
+            ..
+        } => deployed_workspace_project_dirs(project_root_dirs, source_lockfile_dir),
+        DeployInstallMode::Shared { .. } => Vec::new(),
+    }
+}
+
+fn legacy_source_workspace_dirs(mode: &DeployInstallMode) -> Vec<String> {
+    match mode {
+        DeployInstallMode::Legacy {
+            project_package_dirs,
+            source_lockfile_dir,
+            ..
+        } => deployed_workspace_project_dirs(project_package_dirs, source_lockfile_dir),
+        DeployInstallMode::Shared { .. } => Vec::new(),
+    }
 }
 
 impl DeployArgs {
@@ -134,6 +181,10 @@ impl DeployArgs {
         legacy_source: Option<LegacyDeploySource>,
     ) -> miette::Result<()> {
         let legacy = matches!(&mode, DeployInstallMode::Legacy { .. });
+        let extra_workspace_dirs =
+            deployed_workspace_project_dirs(mode.project_package_dirs(), deploy_dir);
+        let source_importer_ids = legacy_source_importer_ids(&mode);
+        let source_workspace_dirs = legacy_source_workspace_dirs(&mode);
         let config = self.deploy_install_config(
             base_config,
             deploy_dir,
@@ -150,7 +201,7 @@ impl DeployArgs {
         if let Some(source) = &legacy_source
             && !self.trust_lockfile(config)
         {
-            source.verify::<ReporterT>(&state).await?;
+            source.verify::<ReporterT>(&state, &source_importer_ids, &source_workspace_dirs).await?;
         }
         let preferred_versions = legacy_source.as_ref().map(LegacyDeploySource::preferred_versions);
         if let Some(source) = legacy_source {
@@ -165,6 +216,7 @@ impl DeployArgs {
                 source_root: base_config.root_project_manifest_dir(deploy_dir),
                 pnpmfile_hook,
                 preferred_versions_override: preferred_versions,
+                extra_workspace_dirs,
             },
         )
         .await
@@ -184,50 +236,61 @@ impl DeployArgs {
         deploy_dir: &Path,
         legacy: bool,
         frozen_lockfile: bool,
-        context: DeployInstallContext<'_>,
+        mut context: DeployInstallContext<'_>,
     ) -> miette::Result<()> {
-        let DeployInstallContext {
-            source_root,
-            pnpmfile_hook,
-            preferred_versions_override,
-        } = context;
-        let config = state.config;
-        let workspace_projects_override = deployed_workspace_projects(state, deploy_dir, legacy);
-
-        let supported_architectures = self.install_args.supported_architectures.apply_to(
-            config.supported_architectures.clone(),
+        let source_root = context.source_root;
+        let extra_workspace_dirs = std::mem::take(&mut context.extra_workspace_dirs);
+        let lockfile_path = state.config.lockfile.then(|| deploy_dir.join(Lockfile::FILE_NAME));
+        let install = self.build_deployed_install(
+            state,
+            deploy_dir,
+            legacy,
+            frozen_lockfile,
+            lockfile_path.as_deref(),
+            context,
         );
-        let trust_lockfile = self.trust_lockfile(config);
-        let lockfile_path = config.lockfile.then(|| deploy_dir.join(Lockfile::FILE_NAME));
+        if legacy {
+            install.run_legacy_deploy::<ReporterT>(source_root, extra_workspace_dirs).await
+        } else {
+            install.run_shared_deploy::<ReporterT>(extra_workspace_dirs).await
+        }
+        .wrap_err("installing deployed dependencies")
+    }
+
+    fn build_deployed_install<'a>(
+        &self,
+        state: &'a State,
+        deploy_dir: &Path,
+        legacy: bool,
+        frozen_lockfile: bool,
+        lockfile_path: Option<&'a Path>,
+        context: DeployInstallContext<'a>,
+    ) -> pnpm_package_manager::Install<'a, Vec<pnpm_package_manifest::DependencyGroup>> {
+        let config = state.config;
         let dependency_groups = self.install_args.dependency_options
             .dependency_groups(config.optional)
             .collect::<Vec<_>>();
-
-        let install = {
-            let mut base_install = state.install(dependency_groups);
-            base_install.execution.mutation = pnpm_package_manager::ProjectMutation::Deploy;
-            base_install.lockfile_policy.frozen = frozen_lockfile;
-            base_install.lockfile_policy.prefer_frozen = frozen_lockfile
-                .then_some(true)
-                .or(Some(false));
-            base_install.lockfile_policy.trust = trust_lockfile;
-            base_install.lockfile_policy.disable_optimistic_repeat = true;
-            base_install.execution.skip_runtimes =
-                config.skip_runtimes || self.install_args.materialization.no_runtime;
-            base_install.resolution.preferred_versions_override =
-                preferred_versions_override.map(Into::into);
-            base_install.context.lockfile_path = lockfile_path.as_deref();
-            base_install.projects.supported_architectures = supported_architectures;
-            base_install.projects.pnpmfile_hook_override = pnpmfile_hook;
-            base_install.projects.workspace_projects_override = workspace_projects_override;
-            base_install
-        };
-        if legacy {
-            install.run_legacy_deploy::<ReporterT>(source_root).await
-        } else {
-            install.run::<ReporterT>().await
-        }
-        .wrap_err("installing deployed dependencies")
+        let mut base_install = state.install(dependency_groups);
+        base_install.execution.mutation = pnpm_package_manager::ProjectMutation::Deploy;
+        base_install.lockfile_policy.frozen = frozen_lockfile;
+        base_install.lockfile_policy.prefer_frozen = frozen_lockfile
+            .then_some(true)
+            .or(Some(false));
+        base_install.lockfile_policy.trust = self.trust_lockfile(config);
+        base_install.lockfile_policy.disable_optimistic_repeat = true;
+        base_install.execution.skip_runtimes =
+            config.skip_runtimes || self.install_args.materialization.no_runtime;
+        base_install.resolution.preferred_versions_override = context
+            .preferred_versions_override
+            .map(Into::into);
+        base_install.context.lockfile_path = lockfile_path;
+        base_install.projects.supported_architectures = self.install_args
+            .supported_architectures
+            .apply_to(config.supported_architectures.clone());
+        base_install.projects.pnpmfile_hook_override = context.pnpmfile_hook;
+        base_install.projects.workspace_projects_override =
+            deployed_workspace_projects(state, deploy_dir, legacy);
+        base_install
     }
 
     /// The deploy directory's own install config, with the install flags
@@ -265,6 +328,7 @@ impl DeployArgs {
         if let DeployInstallMode::Legacy {
             workspace_projects,
             source_lockfile_dir,
+            ..
         } = &mode
         {
             deploy_config.inject_workspace_packages = true;

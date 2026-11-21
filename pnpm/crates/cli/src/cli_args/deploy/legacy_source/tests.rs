@@ -90,7 +90,11 @@ fn rebase_ignores_escaping_publish_directory_absent_from_project_manifest() {
     }))
     .expect("parse lockfile");
 
-    let mut source = LegacyDeploySource { lockfile, path: workspace.join("pnpm-lock.yaml") };
+    let mut source = LegacyDeploySource {
+        lockfile,
+        source_lockfile: None,
+        path: Some(workspace.join("pnpm-lock.yaml")),
+    };
     source.rebase(&selected, &deploy_dir, &workspace).expect("rebase");
 
     let packages = source.lockfile.packages.as_ref().expect("packages");
@@ -134,7 +138,11 @@ fn rebase_keeps_manifest_declared_publish_directory_outside_the_project() {
     }))
     .expect("parse lockfile");
 
-    let mut source = LegacyDeploySource { lockfile, path: workspace.join("pnpm-lock.yaml") };
+    let mut source = LegacyDeploySource {
+        lockfile,
+        source_lockfile: None,
+        path: Some(workspace.join("pnpm-lock.yaml")),
+    };
     source.rebase(&selected, &deploy_dir, &workspace).expect("rebase");
 
     let keys: Vec<String> = source.lockfile.packages
@@ -179,7 +187,11 @@ fn rebase_ignores_publish_directory_absent_from_project_manifest_and_keeps_decla
     }))
     .expect("parse lockfile");
 
-    let mut source = LegacyDeploySource { lockfile, path: workspace.join("pnpm-lock.yaml") };
+    let mut source = LegacyDeploySource {
+        lockfile,
+        source_lockfile: None,
+        path: Some(workspace.join("pnpm-lock.yaml")),
+    };
     source.rebase(&selected, &deploy_dir, &workspace).expect("rebase");
 
     let keys: Vec<String> = source.lockfile.packages

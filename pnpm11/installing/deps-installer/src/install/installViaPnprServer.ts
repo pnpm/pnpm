@@ -32,7 +32,12 @@ import {
 import type { InstallResult, MutatedProject, SingleProjectInstallOptions } from './mutationTypes.js'
 import { applyResolvedSpecsFromLockfile, type PnprNewDep } from './pnpr.js'
 import { createRootHookOptions } from './rootProjectHooks.js'
-import { verifyLockfileFileOffline, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { buildExoticSubdepsScopeFromProjectDirs } from './verifyLockfileExoticSubdepsScope.js'
+import {
+  type ExoticSubdepsScope,
+  verifyLockfileFileOffline,
+  verifyLockfileResolutions,
+} from './verifyLockfileResolutions.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
 interface PnprInstallProjectOptions {
@@ -184,66 +189,69 @@ async function resolveLockfileViaPnpr (
   { existingLockfile, patchedDependencies }: { existingLockfile: LockfileFile | null, patchedDependencies: Record<string, string> | undefined }
 ): Promise<LockfileObject> {
   const { allInstallProjects, lockfileDir, opts, rootDir } = request
-  // Like the local install, `frozenLockfileIfExists` ignores a lockfile
-  // that records no dependencies.
   const frozenLockfile = opts.frozenLockfile === true || (
-    opts.frozenLockfileIfExists === true &&
-    existingLockfile != null &&
-    recordsDependencies(existingLockfile)
+    opts.frozenLockfileIfExists === true && existingLockfile != null && recordsDependencies(existingLockfile)
   )
+  const exoticSubdepsScope = buildPnprExoticSubdepsScope(request)
   const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
-  verifyExistingPnprLockfile({ existingLockfile, frozenLockfile, opts, pnpmfileChecksum })
+  await verifyExistingPnprLockfile({ existingLockfile, exoticSubdepsScope, frozenLockfile, opts, pnpmfileChecksum })
 
   logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
-
   const { lockfile, stats: pnprStats } = await request.resolveViaPnprServer(
     createResolveRequest(request, { existingLockfile, frozenLockfile, patchedDependencies })
   )
-  await verifyLockfileResolutions(lockfile, [])
-
-  // The server never sees the pnpmfile, so the fields a local resolution
-  // records for it are stamped here.
+  const blockExoticSubdeps = !opts.trustLockfile && Boolean(opts.blockExoticSubdeps)
+  await verifyLockfileResolutions(lockfile, [], { blockExoticSubdeps, exoticSubdepsScope })
   if (!frozenLockfile) {
     lockfile.pnpmfileChecksum = pnpmfileChecksum
     setUntrackedPnpmfileReadPackageHook(lockfile, getUntrackedPnpmfileReadPackageHook(opts.hooks ?? {}))
   }
-
   await writeWantedLockfileAndRecordVerified({
     lockfileDir,
     lockfile,
     cacheDir: opts.cacheDir,
     resolutionVerifiers: opts.resolutionVerifiers,
+    blockExoticSubdeps,
+    exoticSubdepsScope,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   })
-
-  if (allInstallProjects) {
-    applyResolvedSpecsToAddedProjects(allInstallProjects, { lockfile, lockfileDir })
-  }
-
-  logger.info({
-    message: `Resolved ${pnprStats.totalPackages} packages`,
-    prefix: rootDir,
-  })
+  if (allInstallProjects) applyResolvedSpecsToAddedProjects(allInstallProjects, { lockfile, lockfileDir })
+  logger.info({ message: `Resolved ${pnprStats.totalPackages} packages`, prefix: rootDir })
   return lockfile
 }
 
-function verifyExistingPnprLockfile ({
+async function verifyExistingPnprLockfile ({
   existingLockfile,
+  exoticSubdepsScope,
   frozenLockfile,
   opts,
   pnpmfileChecksum,
 }: {
   existingLockfile: LockfileFile | null
+  exoticSubdepsScope: ExoticSubdepsScope | undefined
   frozenLockfile: boolean
   opts: SingleProjectInstallOptions
   pnpmfileChecksum: string | undefined
-}): void {
+}): Promise<void> {
   if (existingLockfile == null) return
   verifyLockfileFileOffline(existingLockfile)
-  if (frozenLockfile) {
-    assertFrozenPnprPnpmfileChecksum(opts, existingLockfile.pnpmfileChecksum, pnpmfileChecksum)
+  if (!frozenLockfile) return
+  assertFrozenPnprPnpmfileChecksum(opts, existingLockfile.pnpmfileChecksum, pnpmfileChecksum)
+  if (!opts.trustLockfile && opts.blockExoticSubdeps) {
+    await verifyLockfileResolutions(convertToLockfileObject(existingLockfile), [], {
+      blockExoticSubdeps: true,
+      exoticSubdepsScope,
+    })
   }
+}
+
+function buildPnprExoticSubdepsScope (
+  { allInstallProjects, lockfileDir, opts, rootDir }: PnprRequestContext
+): ExoticSubdepsScope | undefined {
+  if (opts.trustLockfile || !opts.blockExoticSubdeps) return undefined
+  const projectDirs = (allInstallProjects ?? [{ rootDir }]).map((project) => project.rootDir)
+  return buildExoticSubdepsScopeFromProjectDirs(lockfileDir, projectDirs, opts)
 }
 
 /**
