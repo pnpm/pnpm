@@ -25,7 +25,7 @@ pub(super) async fn warn_stale_overrides<ReporterT: Reporter + 'static>(
             (setup.policy.published_by, setup.policy.published_by_exclude.as_ref()),
         )
         .await;
-        if install.drivers.config.warn_unused_overrides {
+        if install.drivers.config.warn_unused_overrides && resolves_the_workspace_graph(install) {
             warn_unused_overrides_if_any::<ReporterT>(
                 install.drivers.config,
                 resolved.overrides.parsed_overrides.as_deref(),
@@ -34,6 +34,14 @@ pub(super) async fn warn_stale_overrides<ReporterT: Reporter + 'static>(
             );
         }
     }
+}
+
+/// Whether the run resolves the graph `pnpm-lock.yaml` describes. A run that
+/// does not save the lockfile, such as `pnpm deploy --legacy`, resolves only
+/// part of the workspace, so an override can look unused only because it
+/// matches what the run skipped.
+fn resolves_the_workspace_graph(install: FreshInputs<'_>) -> bool {
+    install.execution.save_lockfile
 }
 
 /// No-op unless the run both parsed overrides and built an overrider for
