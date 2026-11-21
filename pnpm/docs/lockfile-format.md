@@ -9,8 +9,9 @@ It is for tools that parse the lockfile. [Reading `pnpm-lock.yaml`](./lockfile.m
 covers how to split the file into documents, which documents a tool needs, and
 which hash `integrity` pins.
 
-Every document in the file has the shape described here. The examples use
-made-up package names.
+This page covers the default `v9` format, including the boot and project
+documents. See [`lockfile.format`](./settings/store.md#lockfileformat) for the
+experimental `v13` format. The examples use made-up package names.
 
 ## Overview
 
@@ -71,11 +72,11 @@ snapshots:
 
 ## Top-level keys
 
-pnpm writes the keys in this order and omits a key that has no value.
+The project document can contain the following keys.
 
 | Key | Value |
 | --- | --- |
-| `lockfileVersion` | The format version, a string such as `'9.0'`. pnpm reads documents whose major version is `9` or `12`. |
+| `lockfileVersion` | The format version, a string such as `'9.0'`. A lockfile that uses named registry package keys uses `12.0`. |
 | `settings` | The settings the lockfile was resolved with. See [settings](#settings). |
 | `catalogs` | The resolved [catalog](./catalogs.md) entries. See [catalogs](#catalogs). |
 | `overrides` | The [`overrides`](./settings/dependency-resolution.md#overrides) in effect, in the order they are declared. |
@@ -94,7 +95,7 @@ configuration. If one differs, the lockfile is out of date, and
 `pnpm install --frozen-lockfile` fails.
 
 pnpm keeps top-level keys it does not define when it rewrites the file.
-They are written after the keys above.
+Readers can look up keys by name regardless of their order.
 
 ### settings
 
@@ -115,7 +116,7 @@ They are written after the keys above.
 ```yaml
 catalogs:
   default:
-    is-even:
+    example-even:
       specifier: ^1.0.0
       version: 1.0.0
 ```
@@ -134,15 +135,15 @@ importers:
 
   .:
     dependencies:
-      my-lodash:
-        specifier: npm:lodash@4.17.21
-        version: lodash@4.17.21
+      my-example-utils:
+        specifier: npm:example-utils@4.17.21
+        version: example-utils@4.17.21
     devDependencies:
-      is-odd:
+      example-odd:
         specifier: 3.0.1
         version: 3.0.1(patch_hash=580339f3...)
     optionalDependencies:
-      fsevents:
+      example-file-watcher:
         specifier: 2.3.3
         version: 2.3.3
 
@@ -168,13 +169,28 @@ Each dependency has two fields:
 | `version` form | Example | Meaning |
 | --- | --- | --- |
 | Version, with optional suffixes | `2.1.0(host@5.0.0)` | The snapshot key is `<dependency name>@<version>`. |
-| `<name>@<version>` | `lodash@4.17.21` | An aliased dependency. The snapshot key is the value itself. |
+| `<name>@<version>` | `example-utils@4.17.21` | An aliased dependency. The snapshot key is the value itself. |
 | `link:<path>` | `link:../lib` | A symlink to a directory, relative to the project directory. There is no snapshot. |
 | `file:<path>`, with optional suffixes | `file:packages/lib(host@5.0.0)` | An injected workspace project or a local directory. The path is relative to the lockfile's directory. The snapshot key is `<dependency name>@<version>`. |
 | URL | `https://codeload.github.com/...` | A package from a URL, such as a git host archive. The snapshot key is `<dependency name>@<version>`. |
 
 A value is an alias when a package name comes before the version: it starts
 with `@`, or it contains an `@` before any `(` or `:`.
+
+### Boot document importers
+
+The [boot document](./lockfile.md) has a single importer, `.`, with its own
+dependency groups.
+
+| Key | Value |
+| --- | --- |
+| `configDependencies` | Resolved [config dependencies](./config-dependencies.md). This map can be empty. |
+| `packageManagerDependencies` | Resolved package manager dependencies from `packageManager` or `devEngines.packageManager`. Omitted when absent. |
+
+Each group maps a dependency name to a `{specifier, version}` entry. The
+`specifier` records the requested version or range. The `version` records
+the selected version. These dependencies use the boot document's own
+`packages` and `snapshots` maps.
 
 ## Package keys
 
@@ -193,31 +209,52 @@ The keys of `snapshots` are full package keys:
 
 The keys of `packages` are the same keys without the patch hash and the peer
 suffixes. To find the `packages` entry of a snapshot, strip the trailing
-parenthesized groups:
+parenthesized groups. Older lockfiles can also have a
+[platform variant segment](#platform-variants-in-older-lockfiles).
 
 ```text
-snapshots:  eslint@9.39.5(supports-color@7.2.0)
-packages:   eslint@9.39.5
+snapshots:  example-linter@9.39.5(example-color@7.2.0)
+packages:   example-linter@9.39.5
 
-snapshots:  is-odd@3.0.1(patch_hash=580339f3...)
-packages:   is-odd@3.0.1
+snapshots:  example-odd@3.0.1(patch_hash=580339f3...)
+packages:   example-odd@3.0.1
 ```
+
+### Platform variants in older lockfiles
+
+Older lockfiles can contain keys such as
+`example-image@1.0.0/variants/linux-x64(example-host@2.0.0)`. The
+`/variants/<tag>` segment appears after the registry version and before any
+parenthesized suffixes. The metadata is under `example-image@1.0.0`. Packages
+using `file:` paths or URLs can contain `/variants/` as part of the path.
+
+For those lockfiles, pnpm used the target platform to choose a variant from
+the package's `resolution.variants`. If that variant had its own snapshot,
+pnpm used its dependency maps in place of the base snapshot's maps.
+A graph reader covering all targets needs to visit the variant snapshots
+as well. Current pnpm releases do not write these snapshots.
 
 ### Peer suffixes
 
-Each group is `(<name>@<version>)`, where `<version>` is the provider's own
-package key version, with its own suffixes. Groups can therefore nest:
+A peer group normally contains the provider's full package key, including
+its own suffixes. Groups can therefore nest.
 
 ```text
-@typescript-eslint/type-utils@8.0.0(eslint@9.39.5(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.6.3)
+@example/lint-plugin@8.0.0(example-compiler@5.6.3)(example-linter@9.39.5(example-color@7.2.0))
 ```
 
-The groups are sorted. When the groups joined together are longer than
-[`peersSuffixMaxLength`](./settings/store.md#peerssuffixmaxlength) characters,
-the whole suffix is replaced by a single group holding the first 32 hex
-characters of their SHA-256 digest. The key then no longer names the peers.
-[`transitivePeerDependencies`](#transitivepeerdependencies) and the snapshot's
-own dependencies still identify them.
+With [`dedupePeers`](./settings/peer-dependencies.md#dedupepeers), or when
+breaking a peer cycle, pnpm can use only the provider's name and version.
+For a linked provider, the group contains the dependency name and an encoded
+link path. For example, `example-host` linked as `link:packages/host` appears
+as `(example-host@packages+host)`.
+
+pnpm sorts the group contents and joins them with `)(`. This body includes any
+nested parentheses and excludes the outermost pair. If its UTF-8 byte length
+exceeds [`peersSuffixMaxLength`](./settings/store.md#peerssuffixmaxlength), pnpm
+replaces the body with the first 32 hex characters of its SHA-256 digest.
+pnpm wraps the resulting body in parentheses. Use the dependency maps to
+follow resolved edges, including when a peer group is shortened or hashed.
 
 A package that has no peer dependencies, and whose dependencies resolve none
 from outside it, has no suffix. The same package version has one snapshot for
@@ -230,16 +267,16 @@ Facts about a package version that are the same for every snapshot of it.
 ```yaml
 packages:
 
-  debug@4.4.3:
+  example-logger@4.4.3:
     resolution: {integrity: sha512-...}
     engines: {node: '>=6.0'}
     peerDependencies:
-      supports-color: '*'
+      example-color: '*'
     peerDependenciesMeta:
-      supports-color:
+      example-color:
         optional: true
 
-  fsevents@2.3.3:
+  example-file-watcher@2.3.3:
     resolution: {integrity: sha512-...}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
@@ -265,7 +302,7 @@ packages:
 | `type: directory` | `directory` | A local directory, relative to the lockfile's directory. |
 | `type: git` | `repo`, `commit`, optional `path` | A git repository cloned at `commit`. |
 | `type: binary` | `url`, `integrity`, `bin`, `archive`, optional `prefix` | A binary archive, such as a runtime. |
-| `type: variations` | `variants` | One resolution per platform. Each variant has a `resolution` and the `targets` it applies to. |
+| `type: variations` | `variants` | Platform-specific resolutions for a runtime or a registry package from an older lockfile. Each variant has a `resolution` and the `targets` it applies to. |
 
 A `type` value other than those above is a custom resolution, defined by a
 [resolver plugin](./pnpmfile.md). Its other fields belong to that resolver.
@@ -282,16 +319,16 @@ the snapshot into that directory's `node_modules`.
 ```yaml
 snapshots:
 
-  debug@4.4.3(supports-color@7.2.0):
+  example-logger@4.4.3(example-color@7.2.0):
     dependencies:
-      ms: 2.1.3
+      example-duration: 2.1.3
     optionalDependencies:
-      supports-color: 7.2.0
+      example-color: 7.2.0
 
-  fsevents@2.3.3:
+  example-file-watcher@2.3.3:
     optional: true
 
-  lodash@4.17.21: {}
+  example-utils@4.17.21: {}
 ```
 
 | Key | Value |
@@ -323,8 +360,8 @@ A reference has one of these forms:
 
 | Form | Example | Snapshot key |
 | --- | --- | --- |
-| Version, with optional suffixes | `ms: 2.1.3` | `<name>@<version>`, here `ms@2.1.3` |
-| `<name>@<version>` | `string-width-cjs: string-width@4.2.3` | The value itself. The dependency is an alias. |
+| Version, with optional suffixes | `example-duration: 2.1.3` | `<name>@<version>`, here `example-duration@2.1.3` |
+| `<name>@<version>` | `example-width-cjs: example-width@4.2.3` | The value itself. The dependency is an alias. |
 | `link:<path>` | `c: link:packages/c` | None. A symlink to a directory relative to the lockfile's directory. |
 | `link:<root>/<path>` | `types: link:<root>/typings/css` | None. A symlink to a directory inside this package. |
 
@@ -362,7 +399,8 @@ in a snapshot. pnpm reads them and does not write them.
 
 A worked example. `container` depends on `fs-impl` and `url-impl`. `fs-impl`
 declares `buffer-impl` as an optional peer dependency, and `url-impl` depends
-on `buffer-impl`:
+on `buffer-impl`. This example uses workspace-wide optional peer selection
+with `dedupePeerDependents: true` and `projectScopedOptionalPeers: false`.
 
 ```yaml
 snapshots:
@@ -396,9 +434,10 @@ snapshots:
    `transitivePeerDependencies`.
 4. `url-impl` has a regular dependency on `buffer-impl`, so it has no suffix.
 
-If `url-impl` is updated to a version that stops depending on `buffer-impl`,
-the peer is no longer resolved. The keys of `fs-impl` and `container` then lose
-their suffix, although neither package changed version.
+If `url-impl` is updated to a version that drops `buffer-impl` and pnpm finds
+no provider for the optional peer, the keys of `fs-impl` and `container` lose
+their suffix. An update targeting `url-impl` can leave `buffer-impl@3.7.1`
+pinned in the lockfile. If pnpm still selects that pin, the suffix remains.
 
 ## Invariants
 
@@ -406,6 +445,8 @@ A lockfile written by pnpm satisfies these:
 
 - Every `version` in `importers` and every reference in `snapshots` that is not
   a `link:` resolves to a key of `snapshots`.
-- Every key of `snapshots`, with its suffixes stripped, is a key of `packages`.
+- Every snapshot has a `packages` entry. Strip its parenthesized suffixes
+  and any [legacy platform variant segment](#platform-variants-in-older-lockfiles)
+  to find the metadata key.
 - The maps under `importers`, `packages`, `snapshots`, and their dependency
   maps are sorted by key. `overrides` keeps its declared order.
