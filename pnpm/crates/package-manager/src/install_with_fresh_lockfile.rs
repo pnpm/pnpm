@@ -627,18 +627,17 @@ impl DeprecationCollector {
     }
 }
 
-/// Whether `packages` has the deprecated package, under its id or its
-/// `name@version`.
+/// Whether `packages` has the deprecated package. Its id is the package's
+/// lockfile key, so a tarball or git resolution of the same version stays
+/// distinct from the registry one. An id that is no package key counts as
+/// not installed, which names the package rather than hiding it.
 fn is_installed(
     packages: &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>,
     deprecation: &pnpm_resolving_deps_resolver::Deprecation,
 ) -> bool {
-    let name_version = format!("{}@{}", deprecation.pkg_name, deprecation.pkg_version);
-    [deprecation.pkg_id.as_str(), name_version.as_str()]
-        .into_iter()
-        .map(str::parse::<pnpm_lockfile::PackageKey>)
-        .filter_map(Result::ok)
-        .any(|key| packages.contains_key(&key.without_peer()))
+    deprecation.pkg_id
+        .parse::<pnpm_lockfile::PackageKey>()
+        .is_ok_and(|key| packages.contains_key(&key.without_peer()))
 }
 
 /// The importer selection the patch-usage check is scoped by.
