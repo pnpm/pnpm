@@ -170,18 +170,56 @@ fn importer_scoped_update_full_resolution_requires_every_importer_to_disable_reu
     let importer_ids = ["selected", "unselected"];
     let mixed =
         std::collections::BTreeMap::from([("selected".to_string(), UpdateReuseScope::None)]);
-    assert!(!full_resolution_required(true, importer_ids, &UpdateReuseScope::All, &mixed,));
+    assert!(!full_resolution_required(
+        true,
+        pnpm_resolving_deps_resolver::UpdateDepth::UNLIMITED,
+        importer_ids,
+        &UpdateReuseScope::All,
+        &mixed,
+    ));
 
     let all_none = std::collections::BTreeMap::from([
         ("selected".to_string(), UpdateReuseScope::None),
         ("unselected".to_string(), UpdateReuseScope::None),
     ]);
-    assert!(full_resolution_required(true, importer_ids, &UpdateReuseScope::All, &all_none,));
+    assert!(full_resolution_required(
+        true,
+        pnpm_resolving_deps_resolver::UpdateDepth::UNLIMITED,
+        importer_ids,
+        &UpdateReuseScope::All,
+        &all_none,
+    ));
     assert!(full_resolution_required(
         false,
+        pnpm_resolving_deps_resolver::UpdateDepth::UNLIMITED,
         importer_ids,
         &UpdateReuseScope::All,
         &std::collections::BTreeMap::new(),
+    ));
+}
+
+#[test]
+fn a_depth_limited_update_is_not_a_full_resolution() {
+    use pnpm_resolving_deps_resolver::{
+        UpdateDepth,
+        UpdateReuseScope,
+    };
+
+    let no_scopes = std::collections::BTreeMap::new();
+    let depth_zero = UpdateDepth::new(0);
+    assert!(!full_resolution_required(
+        true,
+        depth_zero,
+        ["."],
+        &UpdateReuseScope::None,
+        &no_scopes
+    ));
+    assert!(full_resolution_required(
+        false,
+        depth_zero,
+        ["."],
+        &UpdateReuseScope::None,
+        &no_scopes
     ));
 }
 
@@ -195,6 +233,7 @@ fn importer_scoped_update_custom_refresh_widens_every_importer() {
     )]);
     assert!(full_resolution_required(
         true,
+        pnpm_resolving_deps_resolver::UpdateDepth::UNLIMITED,
         ["selected", "unselected"],
         &UpdateReuseScope::None,
         &scoped,

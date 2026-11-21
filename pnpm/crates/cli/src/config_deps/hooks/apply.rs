@@ -17,6 +17,7 @@ use super::{
     resolve_configured_state_dir,
 };
 use miette::WrapErr;
+use std::collections::HashSet;
 
 struct HookExecutionChanges {
     changed_extra_bin_paths: Option<Vec<PathBuf>>,
@@ -353,15 +354,24 @@ fn record_explicit_setting_changes(
     }
 }
 
+/// Selectors are compared and recorded trimmed, the form the overrides
+/// parser gives them.
 fn record_hook_added_overrides(config: &mut Config, input: &Value, delta: &Value) {
     let Some(overrides) = delta.get("overrides").and_then(Value::as_object) else {
         return;
     };
-    let declared = input.get("overrides").and_then(Value::as_object);
+    let declared: HashSet<&str> = input
+        .get("overrides")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(serde_json::Map::keys)
+        .map(|selector| selector.trim())
+        .collect();
     let added = overrides
         .keys()
-        .filter(|selector| declared.is_none_or(|declared| !declared.contains_key(*selector)));
-    config.hook_added_overrides.extend(added.cloned());
+        .map(|selector| selector.trim())
+        .filter(|selector| !declared.contains(selector));
+    config.hook_added_overrides.extend(added.map(str::to_string));
 }
 
 /// A setting the hook set to null is unset, as it is on pnpm 11, and

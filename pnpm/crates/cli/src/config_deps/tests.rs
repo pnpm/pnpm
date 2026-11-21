@@ -331,7 +331,7 @@ async fn update_config_records_the_overrides_it_adds() {
         .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
-        "module.exports = { hooks: { updateConfig (config) { config.overrides = { ...config.overrides, declared: '2.0.0', added: '1.0.0' }; return config } } }",
+        "module.exports = { hooks: { updateConfig (config) { config.overrides = { ...config.overrides, declared: '2.0.0', ' added ': '1.0.0' }; return config } } }",
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
