@@ -46,7 +46,7 @@ pub(crate) fn retry_delay(attempt: u32) -> Duration {
 }
 
 /// The latest schema version this pnpr creates and reads (`STEPS.len()`).
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 /// The table recording each applied migration step (`1..=SCHEMA_VERSION`).
 pub const MARKER: &str = "schema_migrations";
@@ -83,9 +83,15 @@ pub const TABLES: DialectSql = DialectSql {
     mysql: include_str!("schema/mysql.sql"),
 };
 
+const STARS: DialectSql = DialectSql {
+    sqlite: include_str!("schema/stars.sqlite.sql"),
+    postgres: include_str!("schema/stars.postgres.sql"),
+    mysql: include_str!("schema/stars.mysql.sql"),
+};
+
 /// The `SQLite` statements of every step, so a cache of databases can tell a
 /// layout that changed under one version apart.
-pub const SQLITE_STATEMENTS: &[&str] = &[TABLES.sqlite];
+pub const SQLITE_STATEMENTS: &[&str] = &[TABLES.sqlite, STARS.sqlite];
 
 /// One forward-only migration step.
 ///
@@ -96,7 +102,7 @@ pub const SQLITE_STATEMENTS: &[&str] = &[TABLES.sqlite];
 pub type Step = fn(&dyn Connection) -> Result<()>;
 
 /// Every numbered migration step in order (`1..=SCHEMA_VERSION`).
-pub const STEPS: &[Step] = &[step_1];
+pub const STEPS: &[Step] = &[step_1, step_2];
 
 const _: () = assert!(
     SCHEMA_VERSION > 0 && STEPS.len() == SCHEMA_VERSION.cast_unsigned() as usize,
@@ -105,7 +111,15 @@ const _: () = assert!(
 
 /// Step 1: the 1.0 metadata and auth schema.
 pub fn step_1(connection: &dyn Connection) -> Result<()> {
-    for statement in statements(TABLES.get(connection.dialect())) {
+    execute_schema(connection, &TABLES)
+}
+
+fn step_2(connection: &dyn Connection) -> Result<()> {
+    execute_schema(connection, &STARS)
+}
+
+fn execute_schema(connection: &dyn Connection, script: &DialectSql) -> Result<()> {
+    for statement in statements(script.get(connection.dialect())) {
         connection.execute_ddl(&statement)?;
     }
     Ok(())
@@ -350,7 +364,11 @@ fn inspect_without_marker(
     if has(LEGACY_AUTH_MARKER) {
         return Ok(Inspection::Refused(Stored::Pre1_0Auth));
     }
-    if table_names(TABLES.sqlite).iter().any(|table| has(table)) {
+    if SQLITE_STATEMENTS
+        .iter()
+        .flat_map(|script| table_names(script))
+        .any(|table| has(&table))
+    {
         return Ok(Inspection::Refused(Stored::Unmarked));
     }
     Ok(Inspection::Current(0))
@@ -375,7 +393,7 @@ fn inspect_marked(
     if max_version > target {
         return Ok(Inspection::Refused(Stored::FutureVersion(max_version)));
     }
-    if let Some(stored) = incomplete(has) {
+    if let Some(stored) = incomplete(max_version, has) {
         return Ok(Inspection::Refused(stored));
     }
     Ok(Inspection::Current(max_version))
@@ -428,9 +446,11 @@ fn stored_legacy(connection: &dyn Connection) -> Result<Stored> {
 
 /// The tables a database marked with [`MARKER`] lacks, given whether it `has`
 /// each table.
-fn incomplete(has: impl Fn(&str) -> bool) -> Option<Stored> {
-    let missing = table_names(TABLES.sqlite)
-        .into_iter()
+fn incomplete(version: i64, has: impl Fn(&str) -> bool) -> Option<Stored> {
+    let missing = SQLITE_STATEMENTS
+        .iter()
+        .take(version as usize)
+        .flat_map(|script| table_names(script))
         .filter(|table| !has(table))
         .collect::<Vec<_>>();
     (!missing.is_empty()).then_some(Stored::Incomplete(missing))

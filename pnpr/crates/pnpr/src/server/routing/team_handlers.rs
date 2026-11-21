@@ -68,7 +68,11 @@ pub(super) struct TeamPath {
     pub(super) team: String,
 }
 
-// Orgs and teams.
+#[derive(Deserialize)]
+struct ListQuery {
+    #[serde(default)]
+    format: crate::server::organizations::TeamListFormat,
+}
 
 /// `GET {base}/-/org/{scope}/team`: the teams of the registry claiming
 /// `scope`.
@@ -77,8 +81,15 @@ async fn get_teams(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopePath>,
+    axum::extract::Query(query): axum::extract::Query<ListQuery>,
 ) -> Response {
-    private_no_cache(get_org_teams(&state, &identity, registry.as_deref(), &path.scope))
+    private_no_cache(get_org_teams(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.scope,
+        query.format,
+    ))
 }
 
 /// `GET {base}/-/org/{scope}/package`: the packages of the registry claiming
@@ -121,9 +132,17 @@ async fn get_team_users(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<TeamPath>,
+    axum::extract::Query(query): axum::extract::Query<ListQuery>,
 ) -> Response {
     private_no_cache(
-        get_team_members(&state, &identity, registry.as_deref(), &path.scope, &path.team).await,
+        get_team_members(
+            &state,
+            &identity,
+            registry.as_deref(),
+            (&path.scope, &path.team),
+            query.format,
+        )
+        .await,
     )
 }
 

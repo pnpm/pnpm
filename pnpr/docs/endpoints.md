@@ -546,6 +546,10 @@ a hosted registry.
 | `DELETE` | `/@scope/{name}@{version}` | Unpublish a scoped version, as above. Requires `delete`. Legacy `/@scope/{name}@{version}/-rev/{rev}` is also accepted. |
 | `DELETE` | `/{name}/-/{filename}` | Unpublish the unscoped version the tarball belongs to, as above. Requires `delete`. Legacy `/{name}/-/{filename}/-rev/{rev}` is also accepted. |
 | `DELETE` | `/@scope/{name}/-/{filename}` | Unpublish the scoped version the tarball belongs to, as above. Requires `delete`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
+| `PUT` | `/-/package/{package}/owners` | Add a maintainer by username with `{"user":"<username>"}`. Requires an owner or administrator with the `annotate` grant. |
+| `DELETE` | `/-/package/{package}/owners/{user}` | Remove a maintainer under the same permissions. Each package must keep at least one maintainer. |
+| `PUT`, `DELETE` | `/-/user/v1/star` | Add or remove the signed-in user's star for a readable hosted package. The body is `{"name":"<package>"}`. |
+| `GET` | `/-/user/v1/star`, `/-/user/{user}/stars` | List the account's starred packages that the caller can read through this registry. |
 | `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string naming a published version, for example `"1.0.0"`. Names that parse as semver ranges and targets that are missing or unpublished return `400`. Requires `annotate`. |
 | `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Removing `latest` while published versions exist returns `400`. Requires `annotate`. |
 
@@ -574,10 +578,10 @@ way no writer's update is silently discarded. See
 
 ### Packument revisions
 
-A hosted package's full metadata document includes `_rev`. A partial unpublish
-PUT must use that value in `/{package}/-rev/{rev}`. If the body also includes
-`_rev`, it must match the path. A stale revision returns `409` without removing
-versions. Read the package metadata again before retrying.
+A hosted package's full metadata document includes `_rev`. Whole-package deletes, partial unpublishes, and maintainer updates
+through a revision URL must use that value in `/{package}/-rev/{rev}`. If the body also includes
+`_rev`, it must match the path. A stale revision returns `409` without changing
+the package. Read the package metadata again before retrying.
 
 A deprecation PUT to `/{package}` must include the current `_rev`. It changes
 only the versions' `deprecated` fields. Dist-tags and other package metadata
@@ -706,6 +710,8 @@ teams are the same under every scope.
 | `DELETE` | `/-/team/{scope}/{team}` | Destroy a team. Returns `200`. |
 | `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member by `{"user": "<username>"}` or `{"userId": "<account-id>"}`. Account IDs also remove deleted members. Returns `204`, also when the user was not a member. A username with no account returns `404`. |
+
+With `?format=cli`, the team list returns strings of the form `scope:team` and the member list returns usernames.
 
 [Changes](configuration.md#managing-teams-through-the-api) are accepted only
 under a scope that an npm hosted registry serves:

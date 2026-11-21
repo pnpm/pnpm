@@ -36,7 +36,7 @@ pub(crate) async fn delete_package(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
-    raw_name: &str,
+    (raw_name, revision): (&str, Option<&str>),
 ) -> Response {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(parsed) => parsed,
@@ -49,7 +49,7 @@ pub(crate) async fn delete_package(
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
 
     for attempt in 0..DOCUMENT_WRITE_RETRIES {
-        match try_delete_package(state, identity, &target, &name).await {
+        match try_delete_package(state, identity, &target, (&name, revision)).await {
             Ok(Some(response)) => return response,
             Ok(None) if attempt + 1 < DOCUMENT_WRITE_RETRIES => {
                 wait_after_document_write_conflict(attempt).await;
@@ -65,41 +65,42 @@ async fn try_delete_package(
     state: &AppState,
     identity: &Identity,
     target: &super::super::WriteTarget,
-    name: &CanonicalPackageName,
+    (name, revision): (&CanonicalPackageName, Option<&str>),
 ) -> Result<Option<Response>, Response> {
     let source = RegistrySource::Hosted(target.source.clone());
     let storage = hosted_storage(state, Some(&target.namespace));
-    match authorize_without_owners(state, identity, &source, name.as_str(), Action::Delete)
-        .map_err(IntoResponse::into_response)?
-    {
-        AuthorizationDecision::AllowedWithoutOwners => {
-            if storage
-                .remove_package(name, identity.user_id())
-                .await
-                .map_err(IntoResponse::into_response)?
-            {
-                log_package_deleted(identity, name, &target.source);
-            }
-            return Ok(Some(ok_created_response()));
+    let authorization =
+        authorize_without_owners(state, identity, &source, name.as_str(), Action::Delete)
+            .map_err(IntoResponse::into_response)?;
+    if revision.is_none() && matches!(authorization, AuthorizationDecision::AllowedWithoutOwners) {
+        if storage
+            .remove_package(name, identity.user_id())
+            .await
+            .map_err(IntoResponse::into_response)?
+        {
+            log_package_deleted(identity, name, &target.source);
         }
-        AuthorizationDecision::NeedsOwners => {}
+        return Ok(Some(ok_created_response()));
     }
-    remove_authorized_package(state, identity, target, (&storage, name)).await
+    remove_authorized_package(state, identity, target, (&storage, name, revision)).await
 }
 
 async fn remove_authorized_package(
     state: &AppState,
     identity: &Identity,
     target: &super::super::WriteTarget,
-    (storage, name): (&pnpr_storage::Storage, &CanonicalPackageName),
+    (storage, name, revision): (&pnpr_storage::Storage, &CanonicalPackageName, Option<&str>),
 ) -> Result<Option<Response>, Response> {
-    let Some((_, version)) =
+    let Some((hosted, version)) =
         read_authorized_packument(state, identity, (target, name), Action::Delete)
             .await
             .map_err(IntoResponse::into_response)?
     else {
         return Ok(Some(ok_created_response()));
     };
+    if revision.is_some() {
+        super::revisions::check(name, &hosted, revision).map_err(IntoResponse::into_response)?;
+    }
     match storage
         .remove_package_if_current(name, &version, identity.user_id())
         .await

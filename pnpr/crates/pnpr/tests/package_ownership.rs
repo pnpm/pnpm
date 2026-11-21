@@ -143,6 +143,24 @@ fn authed_get(path: &str, token: &str) -> Request<Body> {
         .unwrap()
 }
 
+async fn maintainer_request(
+    app: &axum::Router,
+    path: &str,
+    token: &str,
+    mut body: Value,
+) -> Request<Body> {
+    let response = app
+        .clone()
+        .oneshot(authed_get(path, token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let packument = body_json(response.into_body()).await;
+    let revision = packument["_rev"].as_str().unwrap();
+    body["_rev"] = json!(revision);
+    authed_put(&format!("{path}/-rev/{revision}"), token, body)
+}
+
 async fn app_router(config: Config, admins: &[&str]) -> axum::Router {
     let accounts: Vec<_> = admins
         .iter()
@@ -385,12 +403,11 @@ async fn organization_listing_reports_write_for_maintainers_under_the_default_ru
 
     let add_bob = json!({
         "_id": "@acme/lib",
-        "_rev": "1-abc",
         "maintainers": [{ "name": "alice" }, { "name": "bob" }],
     });
     let response = app
         .clone()
-        .oneshot(authed_put("/npm/@acme%2flib/-rev/1-abc", &alice_token, add_bob))
+        .oneshot(maintainer_request(&app, "/npm/@acme%2flib", &alice_token, add_bob).await)
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -430,12 +447,11 @@ async fn npm_owner_maintainer_mutation_flow() {
     // Non-owner Bob tries to mutate maintainers -> 403
     let mutation = json!({
         "_id": "team-pkg",
-        "_rev": "1-abc",
         "maintainers": [{ "name": "bob" }]
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/npm/team-pkg/-rev/1-abc", &bob_token, mutation))
+        .oneshot(maintainer_request(&app, "/npm/team-pkg", &bob_token, mutation).await)
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -443,12 +459,11 @@ async fn npm_owner_maintainer_mutation_flow() {
     // Owner Alice tries to empty maintainers -> 400 EmptyMaintainers
     let empty_mutation = json!({
         "_id": "team-pkg",
-        "_rev": "1-abc",
         "maintainers": []
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/npm/team-pkg/-rev/1-abc", &alice_token, empty_mutation))
+        .oneshot(maintainer_request(&app, "/npm/team-pkg", &alice_token, empty_mutation).await)
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
@@ -456,7 +471,6 @@ async fn npm_owner_maintainer_mutation_flow() {
     // Alice adds Bob as maintainer
     let add_bob_mutation = json!({
         "_id": "team-pkg",
-        "_rev": "1-abc",
         "maintainers": [
             { "name": "alice" },
             { "name": "bob" }
@@ -464,7 +478,7 @@ async fn npm_owner_maintainer_mutation_flow() {
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/npm/team-pkg/-rev/1-abc", &alice_token, add_bob_mutation))
+        .oneshot(maintainer_request(&app, "/npm/team-pkg", &alice_token, add_bob_mutation).await)
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -481,12 +495,11 @@ async fn npm_owner_maintainer_mutation_flow() {
     // Admin removes Alice, leaving only Bob
     let admin_mutation = json!({
         "_id": "team-pkg",
-        "_rev": "2-def",
         "maintainers": [{ "name": "bob" }]
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/npm/team-pkg/-rev/2-def", &admin_token, admin_mutation))
+        .oneshot(maintainer_request(&app, "/npm/team-pkg", &admin_token, admin_mutation).await)
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -523,7 +536,7 @@ async fn anonymous_caller_cannot_change_maintainers() {
     let dash_maintainer = json!({ "_id": "open-pkg", "maintainers": [{ "name": "-" }] });
     let res = app
         .clone()
-        .oneshot(authed_put("/npm/open-pkg/-rev/1-abc", &alice_token, dash_maintainer))
+        .oneshot(maintainer_request(&app, "/npm/open-pkg", &alice_token, dash_maintainer).await)
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -572,7 +585,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     // Alice unpublishes the entire package
     let res = app
         .clone()
-        .oneshot(authed_delete("/npm/tomb-pkg/-rev/1", &alice_token))
+        .oneshot(authed_delete("/npm/tomb-pkg", &alice_token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -662,12 +675,11 @@ async fn scoped_package_ownership_and_unpublish() {
     // Bob cannot update maintainers
     let mutation = json!({
         "_id": "@my-org/core",
-        "_rev": "1-abc",
         "maintainers": [{ "name": "bob" }]
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/npm/@my-org/core/-rev/1-abc", &bob_token, mutation))
+        .oneshot(maintainer_request(&app, "/npm/@my-org/core", &bob_token, mutation).await)
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -675,7 +687,6 @@ async fn scoped_package_ownership_and_unpublish() {
     // Alice adds Bob as maintainer
     let add_bob = json!({
         "_id": "@my-org/core",
-        "_rev": "1-abc",
         "maintainers": [
             { "name": "alice" },
             { "name": "bob" }
@@ -683,15 +694,21 @@ async fn scoped_package_ownership_and_unpublish() {
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/npm/@my-org/core/-rev/1-abc", &alice_token, add_bob))
+        .oneshot(maintainer_request(&app, "/npm/@my-org/core", &alice_token, add_bob).await)
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    // Bob unpublishes the scoped package
+    let document = app
+        .clone()
+        .oneshot(authed_get("/npm/@my-org/core", &bob_token))
+        .await
+        .unwrap();
+    let document = body_json(document.into_body()).await;
+    let revision = document["_rev"].as_str().unwrap();
     let res = app
         .clone()
-        .oneshot(authed_delete("/npm/@my-org/core/-rev/1", &bob_token))
+        .oneshot(authed_delete(&format!("/npm/@my-org/core/-rev/{revision}"), &bob_token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -949,11 +966,11 @@ async fn mutations_reauthorize_after_concurrent_package_update() {
         async move {
             let body = json!({
                 "_id": "race-pkg",
-                "_rev": "1-abc",
                 "maintainers": [{ "name": "alice" }, { "name": "bob" }],
             });
             let res = app
-                .oneshot(authed_put("/npm/race-pkg/-rev/1-abc", &bob_token, body))
+                .clone()
+                .oneshot(maintainer_request(&app, "/npm/race-pkg", &bob_token, body).await)
                 .await
                 .unwrap();
             assert_eq!(res.status(), StatusCode::CREATED);
@@ -961,12 +978,11 @@ async fn mutations_reauthorize_after_concurrent_package_update() {
     };
     let set_initial = json!({
         "_id": "race-pkg",
-        "_rev": "1-abc",
         "maintainers": [{ "name": "alice" }, { "name": "bob" }],
     });
     assert_eq!(
         app.clone()
-            .oneshot(authed_put("/npm/race-pkg/-rev/1-abc", &alice_token, set_initial))
+            .oneshot(maintainer_request(&app, "/npm/race-pkg", &alice_token, set_initial).await)
             .await
             .unwrap()
             .status(),
@@ -1024,12 +1040,8 @@ async fn mutations_reauthorize_after_concurrent_package_update() {
         authed_put("/npm/-/package/race-pkg/dist-tags/canary", &alice_token, json!("1.1.0")),
         authed_delete("/npm/-/package/race-pkg/dist-tags/next", &alice_token),
         authed_delete("/npm/race-pkg/-/race-pkg-1.1.0.tgz/-rev/1", &alice_token),
-        authed_delete("/npm/race-pkg/-rev/1", &alice_token),
-        authed_put(
-            "/npm/race-pkg/-rev/1",
-            &alice_token,
-            json!({ "_id": "race-pkg", "_rev": "1", "maintainers": [{ "name": "alice" }] }),
-        ),
+        authed_delete("/npm/race-pkg", &alice_token),
+        authed_delete("/npm/-/package/race-pkg/owners/bob", &alice_token),
     ];
     for request in requests {
         let uri = request.uri().to_string();
@@ -1060,7 +1072,7 @@ async fn mutations_reauthorize_after_concurrent_package_update() {
     primary.round_trips.pause_next_write();
     let unpublish_task = tokio::spawn({
         let app = app.clone();
-        let request = authed_delete("/npm/race-pkg/-rev/1", &alice_token);
+        let request = authed_delete("/npm/race-pkg", &alice_token);
         async move {
             app.oneshot(request).await
                 .unwrap()

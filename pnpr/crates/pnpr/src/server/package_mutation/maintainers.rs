@@ -1,13 +1,6 @@
-use axum::{
-    body::Body,
-    http::{
-        StatusCode,
-        header,
-    },
-    response::{
-        IntoResponse,
-        Response,
-    },
+use axum::response::{
+    IntoResponse,
+    Response,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
@@ -29,19 +22,25 @@ use super::{
         WriteTarget,
         hosted_storage,
     },
-    no_published_packument,
     read_authorized_packument,
 };
 
-pub(super) async fn update_package_maintainers(
+#[derive(Clone, Copy)]
+pub(in crate::server) enum OwnerEdit<'a> {
+    Replace(&'a Value),
+    Add(&'a str),
+    Remove(&'a str),
+}
+
+pub(in crate::server) async fn update_package_maintainers(
     state: &AppState,
     identity: &Identity,
     target: &WriteTarget,
-    (name, body): (&CanonicalPackageName, &Value),
+    (name, edit): (&CanonicalPackageName, OwnerEdit<'_>),
 ) -> Response {
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     for attempt in 0..DOCUMENT_WRITE_RETRIES {
-        match try_update_package_maintainers(state, identity, target, (name, body)).await {
+        match try_update_package_maintainers(state, identity, target, (name, edit)).await {
             Ok(Some(response)) => return response,
             Ok(None) if attempt + 1 < DOCUMENT_WRITE_RETRIES => {
                 wait_after_document_write_conflict(attempt).await;
@@ -57,20 +56,21 @@ async fn try_update_package_maintainers(
     state: &AppState,
     identity: &Identity,
     target: &WriteTarget,
-    (name, body): (&CanonicalPackageName, &Value),
+    (name, edit): (&CanonicalPackageName, OwnerEdit<'_>),
 ) -> Result<Option<Response>, Response> {
     let Some((mut hosted, version)) =
         read_authorized_packument(state, identity, (target, name), Action::Annotate)
             .await
             .map_err(IntoResponse::into_response)?
     else {
-        return Err(no_published_packument(name).into_response());
+        return Err(RegistryError::NotFound.into_response());
     };
     check_maintainer_authority(state, identity, &hosted, name)
         .map_err(IntoResponse::into_response)?;
-    let mut maintainers = extract_and_validate_maintainers(body, name)?;
-    bind_maintainer_ids(state, &hosted, &mut maintainers).await
-        .map_err(IntoResponse::into_response)?;
+    let maintainers = edit.apply(state, name, &hosted).await?;
+    if hosted.get("maintainers").and_then(Value::as_array) == Some(&maintainers) {
+        return Ok(Some(super::ok_created()));
+    }
     hosted["maintainers"] = Value::Array(maintainers);
     update_modified_time(&mut hosted);
     let bytes = serde_json::to_vec_pretty(&hosted)
@@ -84,27 +84,91 @@ async fn try_update_package_maintainers(
     {
         DocumentWrite::Written => {
             log_maintainers_updated(identity, name, &target.source);
-            Ok(Some(ok_created()))
+            Ok(Some(super::ok_created()))
         }
         DocumentWrite::Conflict => Ok(None),
     }
 }
 
-fn extract_and_validate_maintainers(
-    body: &Value,
-    name: &CanonicalPackageName,
-) -> Result<Vec<Value>, Response> {
+impl OwnerEdit<'_> {
+    async fn apply(
+        self,
+        state: &AppState,
+        name: &CanonicalPackageName,
+        hosted: &Value,
+    ) -> Result<Vec<Value>, Response> {
+        let current = || {
+            hosted["maintainers"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+        };
+        let maintainers = match self {
+            Self::Replace(body) => {
+                super::revisions::check(name, hosted, body.get("_rev").and_then(Value::as_str))
+                    .map_err(IntoResponse::into_response)?;
+                let mut entries = extract_and_validate_maintainers(body)?;
+                bind_maintainer_ids(state, hosted, &mut entries).await
+                    .map_err(IntoResponse::into_response)?;
+                entries
+            }
+            Self::Add(user) => {
+                let id = maintainer_id(state, user, None, None).await
+                    .map_err(IntoResponse::into_response)?;
+                let mut entries = current();
+                add_owner(state, &mut entries, user, &id).await
+                    .map_err(IntoResponse::into_response)?;
+                entries
+            }
+            Self::Remove(user) => {
+                let mut entries = current();
+                let id = state.inner.identity.auth.users
+                    .active_account_id(user)
+                    .await
+                    .map_err(IntoResponse::into_response)?;
+                let id = id.as_deref().unwrap_or(user);
+                entries.retain(|entry| entry["userId"] != id);
+                entries
+            }
+        };
+        if maintainers.is_empty() {
+            return Err(RegistryError::EmptyMaintainers { package: name.as_str().to_string() }
+                .into_response());
+        }
+        Ok(maintainers)
+    }
+}
+
+async fn add_owner(
+    state: &AppState,
+    entries: &mut Vec<Value>,
+    user: &str,
+    id: &str,
+) -> Result<(), RegistryError> {
+    let mut present = false;
+    for entry in entries.iter_mut() {
+        if entry["userId"] == id {
+            entry["name"] = json!(user);
+            present = true;
+        } else if entry["name"] == user {
+            let old_id = entry["userId"].as_str().ok_or(RegistryError::NotFound)?;
+            let current_name = state.inner.identity.auth.users.active_account_name(old_id).await?;
+            entry["name"] = json!(current_name.unwrap_or_else(|| format!("deleted:{old_id}")));
+        }
+    }
+    if !present {
+        entries.push(json!({"name": user, "userId": id}));
+    }
+    Ok(())
+}
+
+fn extract_and_validate_maintainers(body: &Value) -> Result<Vec<Value>, Response> {
     let Some(maintainers) = body.get("maintainers").and_then(Value::as_array) else {
         return Err(RegistryError::BadRequest {
             reason: "maintainers must be an array".to_string(),
         }
         .into_response());
     };
-    if maintainers.is_empty() {
-        return Err(
-            RegistryError::EmptyMaintainers { package: name.as_str().to_string() }.into_response()
-        );
-    }
     for entry in maintainers {
         validate_maintainer_entry(entry)?;
     }
@@ -166,14 +230,6 @@ fn log_maintainers_updated(identity: &Identity, name: &CanonicalPackageName, sou
         registry = %source,
         "package maintainers updated",
     );
-}
-
-fn ok_created() -> Response {
-    Response::builder()
-        .status(StatusCode::CREATED)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(r#"{"ok":true}"#))
-        .expect("static response builds")
 }
 
 async fn bind_maintainer_ids(

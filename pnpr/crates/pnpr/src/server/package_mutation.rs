@@ -1,3 +1,4 @@
+pub(super) mod maintainers;
 pub(super) mod revisions;
 
 pub(super) use dist_tags::{
@@ -12,7 +13,6 @@ pub(super) use unpublish::{
 
 mod dist_tags;
 mod immutability;
-mod maintainers;
 mod unpublish;
 mod version_removal;
 
@@ -73,14 +73,22 @@ pub(super) async fn update_packument(
         Ok(target) => target,
         Err(err) => return err.into_response(),
     };
-    let incoming_val: Value = match parse_json_body(body) {
+    let incoming_val: Value = match parse_json_body(body)
+        .and_then(|value| submitted_packument(value, (&name, revision)))
+    {
         Ok(val) => val,
         Err(err) => return err.into_response(),
     };
     if incoming_val.get("maintainers").is_some() && incoming_val.get("versions").is_none() {
-        return update_package_maintainers(state, identity, &target, (&name, &incoming_val)).await;
+        return update_package_maintainers(
+            state,
+            identity,
+            &target,
+            (&name, maintainers::OwnerEdit::Replace(&incoming_val)),
+        )
+        .await;
     }
-    rewrite_packument(state, identity, &target, (&name, revision, &incoming_val)).await
+    rewrite_packument(state, identity, &target, (&name, &incoming_val)).await
 }
 
 fn prepare_packument_rewrite(
@@ -127,11 +135,11 @@ async fn rewrite_packument(
     state: &AppState,
     identity: &Identity,
     target: &WriteTarget,
-    (name, revision, incoming_val): (&CanonicalPackageName, &str, &Value),
+    (name, incoming_val): (&CanonicalPackageName, &Value),
 ) -> Response {
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     for attempt in 0..DOCUMENT_WRITE_RETRIES {
-        match try_rewrite_packument(state, identity, target, (name, revision, incoming_val)).await {
+        match try_rewrite_packument(state, identity, target, (name, incoming_val)).await {
             Ok(Some(response)) => return response,
             Ok(None) if attempt + 1 < DOCUMENT_WRITE_RETRIES => {
                 wait_after_document_write_conflict(attempt).await;
@@ -147,11 +155,10 @@ async fn try_rewrite_packument(
     state: &AppState,
     identity: &Identity,
     target: &WriteTarget,
-    (name, revision, incoming_val): (&CanonicalPackageName, &str, &Value),
+    (name, incoming_val): (&CanonicalPackageName, &Value),
 ) -> Result<Option<Response>, Response> {
     let (hosted, version) = read_packument_for_rewrite(state, identity, target, name).await?;
-    let mut packument = submitted_packument(incoming_val.clone(), (name, revision))
-        .map_err(IntoResponse::into_response)?;
+    let mut packument = incoming_val.clone();
     let storage = hosted_storage(state, Some(&target.namespace));
     let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
     let removed = prepare_packument_rewrite(hosted, &tar_integrities, name, &mut packument)?;

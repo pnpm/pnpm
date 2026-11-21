@@ -169,7 +169,7 @@ async fn an_identical_publish_after_unpublish_is_refused() {
             StatusCode::CREATED,
         );
         let path = if whole_package {
-            "/npm/retry-removed/-rev/anything"
+            "/npm/retry-removed"
         } else {
             "/npm/retry-removed/-/retry-removed-1.1.0-beta.0.tgz/-rev/anything"
         };
@@ -205,12 +205,7 @@ async fn a_batch_retry_after_unpublishing_one_member_is_refused() {
     let committed =
         send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
     assert_eq!(committed.status, StatusCode::CREATED);
-    assert!(
-        send(&app, "DELETE", "/npm/batch-removed/-rev/anything", &token, None)
-            .await
-            .status
-            .is_success(),
-    );
+    assert!(send(&app, "DELETE", "/npm/batch-removed", &token, None).await.status.is_success());
     let retry =
         send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
     assert_eq!(retry.status, StatusCode::CONFLICT, "{}", retry.text);

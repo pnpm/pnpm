@@ -270,7 +270,7 @@ async fn a_first_publish_that_loses_the_race_to_a_tombstone_is_refused() {
         .await
         .expect("the slow publish reaches its tarball upload");
     assert_eq!(fast.publish("tombstoned-pkg", "2.0.0", b"two").await, StatusCode::CREATED);
-    let (deleted, _) = fast.send("DELETE", "/npm/tombstoned-pkg/-rev/1", Body::empty()).await;
+    let (deleted, _) = fast.send("DELETE", "/npm/tombstoned-pkg", Body::empty()).await;
     assert_eq!(deleted, StatusCode::CREATED);
     objects.resume.notify_one();
 

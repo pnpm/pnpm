@@ -62,6 +62,7 @@ pub use sql::{
     ScimUserRemoval,
     ScimUserWrite,
     SqlDatabase,
+    StarAction,
     StoredGrant,
     StoredGrants,
     StoredRegistryGraph,

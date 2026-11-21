@@ -725,8 +725,7 @@ async fn audit_log_unpublish_and_dist_tags() {
     assert_request_span(&ev, "DELETE");
 
     // 4. package.unpublish
-    let (status, _) =
-        send(&app, "DELETE", "/npm/audit-unpub-pkg/-rev/anything", Some(&publisher), None).await;
+    let (status, _) = send(&app, "DELETE", "/npm/audit-unpub-pkg", Some(&publisher), None).await;
     assert_eq!(status, StatusCode::CREATED);
     let ev = find_event(&logs, "package.unpublish", "package", "audit-unpub-pkg");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_publisher"));
@@ -734,8 +733,7 @@ async fn audit_log_unpublish_and_dist_tags() {
     assert_request_span(&ev, "DELETE");
 
     // Duplicate package unpublish does not emit duplicate audit record
-    let (status, _) =
-        send(&app, "DELETE", "/npm/audit-unpub-pkg/-rev/anything", Some(&publisher), None).await;
+    let (status, _) = send(&app, "DELETE", "/npm/audit-unpub-pkg", Some(&publisher), None).await;
     assert_eq!(status, StatusCode::CREATED);
     let count = logs
         .lock()

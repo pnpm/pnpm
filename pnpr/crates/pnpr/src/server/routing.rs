@@ -80,6 +80,8 @@ use team_handlers::team_routes;
 
 mod note_handlers;
 mod npm_handlers;
+mod owner_handlers;
+mod star_handlers;
 use npm_handlers::{
     delete_package_dist_tag,
     delete_scoped_package,
@@ -402,6 +404,24 @@ fn npm_registry_routes() -> Router<AppState> {
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
             .route(&path("/-/log/{*resource}"), get(super::log_routes::get_log_resource))
+            .route(
+                &path("/-/user/v1/star"),
+                get(star_handlers::own_stars)
+                    .put(star_handlers::set)
+                    .delete(star_handlers::set)
+                    .route_layer(DefaultBodyLimit::max(
+                        super::package_owners::MAX_OWNER_BODY_BYTES,
+                    )),
+            )
+            .route(&path("/-/user/{user}/stars"), get(star_handlers::user_stars))
+            .route(
+                &path("/-/package/{name}/owners"),
+                put(owner_handlers::add_owner)
+                    .route_layer(DefaultBodyLimit::max(
+                        super::package_owners::MAX_OWNER_BODY_BYTES,
+                    )),
+            )
+            .route(&path("/-/package/{name}/owners/{user}"), delete(owner_handlers::remove_owner))
             .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
             .route(
                 &path("/-/package/{name}/dist-tags/{tag}"),
