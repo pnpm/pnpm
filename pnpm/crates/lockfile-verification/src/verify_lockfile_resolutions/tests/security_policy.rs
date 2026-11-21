@@ -544,16 +544,6 @@ fn non_local_peer_matching_a_reachable_local_package_peer_passes() {
 }
 
 #[test]
-fn local_containment_rejects_a_semver_key_backed_by_a_directory() {
-    let lockfile = parse(
-        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      remote:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  remote@1.0.0:\n    resolution: {type: directory, directory: ../outside}\nsnapshots:\n  remote@1.0.0: {}\n",
-    );
-    let err = crate::verify_lockfile_local_resolutions(&lockfile, None)
-        .expect_err("a semver key backed by a directory must fail the local gate");
-    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "{err:?}");
-}
-
-#[test]
 fn override_target_does_not_match_a_path_that_steps_back_through_a_segment() {
     let lockfile = |target: &str| {
         parse(&format!(

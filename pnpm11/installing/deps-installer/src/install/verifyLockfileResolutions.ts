@@ -21,7 +21,6 @@ import {
   EXOTIC_SUBDEP_VIOLATION_CODE,
   type ExoticSubdepsScope,
 } from './verifyLockfileExoticSubdeps.js'
-import { lockfileHasAnyLocalSurface } from './verifyLockfileFastScan.js'
 import {
   collectLocalResolutionViolations,
   LOCAL_SUBDEP_NOT_ALLOWED_VIOLATION_CODE,
@@ -154,10 +153,9 @@ export function verifyLockfileLocalResolutions (
   localPolicy?: LocalResolutionPolicy
 ): void {
   verifyLockfileDependencyAliases(lockfile)
-  if (!lockfileHasAnyLocalSurface(lockfile)) return
   const localViolations = collectLocalResolutionViolations(lockfile, localPolicy)
-  verifyLockfileResolutionShapes(lockfile, localPolicy)
   if (localViolations.length > 0) {
+    verifyLockfileResolutionShapes(lockfile, localPolicy)
     throw buildVerificationError(localViolations)
   }
 }

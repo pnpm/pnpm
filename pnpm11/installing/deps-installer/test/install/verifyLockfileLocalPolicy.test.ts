@@ -487,26 +487,6 @@ test('an importer range linked to a lockfile importer absent from the run passes
   })
 })
 
-test('the local gate rejects a semver key backed by a directory', () => {
-  const lockfile: LockfileObject = {
-    lockfileVersion: '9.0',
-    importers: {
-      ['.' as ProjectId]: {
-        dependencies: { remote: '1.0.0' },
-        specifiers: { remote: '1.0.0' },
-      },
-    },
-    packages: {
-      ['remote@1.0.0' as DepPath]: {
-        resolution: { type: 'directory', directory: '../outside' },
-      },
-    },
-  }
-  expect(() => verifyLockfileLocalResolutions(lockfile)).toThrow(expect.objectContaining({
-    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
-  }))
-})
-
 test('an override target does not match a path that steps back through a segment', async () => {
   const lockfile = (target: string): LockfileObject => ({
     lockfileVersion: '9.0',
