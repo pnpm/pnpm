@@ -234,7 +234,7 @@ For those lockfiles, pnpm used the target platform to choose a variant from
 the package's `resolution.variants`. If that variant had its own snapshot,
 pnpm used its dependency maps in place of the base snapshot's maps.
 A graph reader covering all targets needs to visit the variant snapshots
-as well. Current pnpm releases do not write these snapshots.
+as well.
 
 ### Peer suffixes
 
