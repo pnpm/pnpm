@@ -497,6 +497,7 @@ impl PackManifestOptions {
         // dependency fields is honored. pnpm runs it inside
         // `createExportableManifest`; pacquet applies it here because
         // `create_exportable_manifest` is a pure, synchronous transform.
+        let exported = publish_manifest.clone();
         publish_manifest = apply_before_packing::<Reporter>(
             project_dir,
             dir,
@@ -506,7 +507,7 @@ impl PackManifestOptions {
         .await?;
         let bundled = root_bundle_dep_names(&publish_manifest);
         private_dependencies.retain(|dep_name| !bundled.contains(dep_name));
-        reject_private_workspace_dependencies(&publish_manifest, &private_dependencies)
+        reject_private_workspace_dependencies(&exported, &publish_manifest, &private_dependencies)
             .map_err(PackError::PrivateWorkspaceDependency)?;
 
         Ok(publish_manifest)

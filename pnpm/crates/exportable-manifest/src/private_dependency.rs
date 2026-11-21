@@ -66,10 +66,13 @@ pub fn private_workspace_dependencies(
 }
 
 /// Fail when the publishable manifest `published` still lists one of the
-/// `private_dependencies` in `dependencies`. A private manifest is never
-/// published, so it is not rejected. The caller leaves out the dependencies
-/// the tarball bundles.
+/// `private_dependencies` in `dependencies` with the specifier it had in
+/// `exported`, the manifest before the `beforePacking` hooks ran. A hook may
+/// drop such a dependency or point it at another package. A private manifest
+/// is never published, so it is not rejected. The caller leaves out the
+/// dependencies the tarball bundles.
 pub fn reject_private_workspace_dependencies(
+    exported: &Value,
     published: &Value,
     private_dependencies: &[String],
 ) -> Result<(), PrivateWorkspaceDependencyError> {
@@ -82,9 +85,13 @@ pub fn reject_private_workspace_dependencies(
     let Some(dependencies) = published.get("dependencies").and_then(Value::as_object) else {
         return Ok(());
     };
+    let exported = exported.get("dependencies");
     let rejected = private_dependencies
         .iter()
-        .find(|dep_name| dependencies.contains_key(*dep_name));
+        .find(|dep_name| {
+            let spec = dependencies.get(dep_name.as_str());
+            spec.is_some() && spec == exported.and_then(|exported| exported.get(dep_name.as_str()))
+        });
     let Some(dep_name) = rejected else {
         return Ok(());
     };

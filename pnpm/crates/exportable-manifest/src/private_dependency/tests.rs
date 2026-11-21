@@ -58,9 +58,10 @@ fn export_with(
         bumped_workspace_packages: None,
     };
     let private = private_workspace_dependencies(&dir, manifest, &opts).expect("find private");
-    let mut published = create_exportable_manifest(&dir, manifest, &opts).expect("exportable");
+    let exported = create_exportable_manifest(&dir, manifest, &opts).expect("exportable");
+    let mut published = exported.clone();
     before_packing(&mut published);
-    reject_private_workspace_dependencies(&published, &private)?;
+    reject_private_workspace_dependencies(&exported, &published, &private)?;
     Ok(published)
 }
 
@@ -135,15 +136,20 @@ fn ignores_a_registry_dependency_installed_from_elsewhere() {
 }
 
 #[test]
-fn allows_a_dependency_a_before_packing_hook_removes() {
+fn allows_a_dependency_a_before_packing_hook_removes_or_replaces() {
     let temp = fixture(true);
-    export_with(&temp, &app("dependencies", "workspace:*"), None, |published| {
+    let manifest = app("dependencies", "workspace:*");
+    export_with(&temp, &manifest, None, |published| {
         published["dependencies"]
             .as_object_mut()
             .unwrap()
             .remove("secret");
     })
     .expect("the hook removed the dependency");
+    export_with(&temp, &manifest, None, |published| {
+        published["dependencies"]["secret"] = json!("npm:public-secret@^1.0.0");
+    })
+    .expect("the hook pointed the dependency at a public package");
 }
 
 /// The check falls back to the workspace packages wherever the rewrite does:
