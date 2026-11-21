@@ -163,21 +163,17 @@ fn verify_package_dir_holds(dir: &Path, key: &PackageKey) -> miette::Result<()> 
         .unwrap_or_default();
     let field = |name: &str| manifest.get(name).and_then(serde_json::Value::as_str);
     let name_matches = field("name") == Some(key.name.to_string().as_str());
+    let installed_version = field("version").map(str::parse).and_then(Result::ok);
     let version_matches = key.suffix
         .registry_version()
-        .is_none_or(|version| {
-            field("version")
-                .and_then(|raw| raw.parse().ok())
-                .as_ref()
-                == Some(version)
-        });
+        .is_none_or(|version| installed_version.as_ref() == Some(version));
     if name_matches && version_matches {
         return Ok(());
     }
+    let dir = dir.display();
     Err(miette!(
         code = "ERR_PNPM_EDIT_PACKAGE_MISMATCH",
-        "'{}' does not hold {key}, the installed package selected for rebuild",
-        dir.display(),
+        "'{dir}' does not hold {key}, the installed package selected for rebuild",
     ))
 }
 
