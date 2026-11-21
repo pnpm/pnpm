@@ -320,7 +320,7 @@ impl PipelineResults {
 }
 
 fn cache_environment(config: &Config) -> HashMap<String, String> {
-    let mut environment = crate::env_file::loaded_environment();
+    let mut environment = crate::invocation_environment::env_file_values();
     environment.extend(config.extra_env_with_node_options());
     if !environment.contains_key("NODE_OPTIONS")
         && let Ok(value) = std::env::var("NODE_OPTIONS")

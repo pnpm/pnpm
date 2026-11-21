@@ -91,15 +91,7 @@ pub fn load_from_argv(
     let names = load(&scan(argv).0, |name: &str, value: &str| {
         single_threaded.set_var(name, value);
     })?;
-    let environment = names
-        .into_iter()
-        .filter_map(|name| {
-            std::env::var(&name)
-                .ok()
-                .map(|value| (name, value))
-        })
-        .collect();
-    let _ = LOADED_ENVIRONMENT.set(environment);
+    crate::invocation_environment::record_env_file(names);
     Ok(())
 }
 
@@ -264,13 +256,3 @@ fn token_width(token: &OsString, next: Option<&OsString>, arity: &ArgTable, rest
 
 #[cfg(test)]
 mod tests;
-
-static LOADED_ENVIRONMENT: std::sync::OnceLock<std::collections::HashMap<String, String>> =
-    std::sync::OnceLock::new();
-
-pub(crate) fn loaded_environment() -> std::collections::HashMap<String, String> {
-    LOADED_ENVIRONMENT
-        .get()
-        .cloned()
-        .unwrap_or_default()
-}
