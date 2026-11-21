@@ -133,13 +133,8 @@ test('records the load-equivalent hash — matches what the next install compute
   expect(record.lockfile.path).toBe('')
 })
 
-test('a file put at the lockfile path after the write does not inherit the verdict', async () => {
+test('a file put at the lockfile path between the write and the record does not inherit the verdict', async () => {
   const written = await writeWantedLockfile(lockfileDir, makeLockfile())
-  recordLockfileVerified({
-    cacheDir,
-    lockfile: written,
-    resolutionVerifiers: [mraVerifier(60)],
-  })
   const replacement = {
     ...makeLockfile(),
     packages: {
@@ -147,6 +142,11 @@ test('a file put at the lockfile path after the write does not inherit the verdi
     },
   } as unknown as LockfileObject
   await writeWantedLockfile(lockfileDir, replacement)
+  recordLockfileVerified({
+    cacheDir,
+    lockfile: written,
+    resolutionVerifiers: [mraVerifier(60)],
+  })
   const loaded = (await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }))!
 
   const result = tryLockfileVerificationCache(cacheDir, {
