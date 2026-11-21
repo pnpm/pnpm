@@ -210,3 +210,27 @@ fn pkg_meta_with_version(version: &str) -> PackageMetadata {
     ))
     .unwrap()
 }
+
+#[test]
+fn spent_cycle_probe_budget_does_not_make_leaf_providers_cuttable() {
+    let chain_len = 70_000;
+    let mut snapshots = HashMap::new();
+    for index in 0..chain_len {
+        let next = HashMap::from([(
+            format!("chain-{}", index + 1).parse().unwrap(),
+            SnapshotDepRef::Plain("1.0.0".parse().unwrap()),
+        )]);
+        snapshots.insert(
+            format!("chain-{index}@1.0.0").parse().unwrap(),
+            SnapshotEntry { dependencies: Some(next), ..SnapshotEntry::default() },
+        );
+    }
+    let leaf: PkgNameVerPeer = "leaf@1.0.0".parse().unwrap();
+    snapshots.insert(leaf.clone(), SnapshotEntry::default());
+    let consumer = "consumer@1.0.0".parse().unwrap();
+    let mut cycle_probe = super::CycleProbe::new(&snapshots, &consumer);
+
+    assert!(cycle_probe.may_be_cut(&"chain-0@1.0.0".parse().unwrap()));
+    assert!(!cycle_probe.may_be_cut(&leaf));
+    assert!(cycle_probe.may_be_cut(&"chain-1@1.0.0".parse().unwrap()));
+}
