@@ -96,6 +96,26 @@ fn exact_import_match_rejects_different_file_modes() {
 
 #[cfg(unix)]
 #[test]
+fn exact_import_match_ignores_special_mode_bits() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempdir().unwrap();
+    let store = root.path().join("store");
+    let target = root.path().join("package");
+    fs::create_dir(&store).unwrap();
+    fs::create_dir(&target).unwrap();
+    let manifest = store.join("package.json");
+    fs::write(&manifest, b"{}").unwrap();
+    fs::set_permissions(&manifest, fs::Permissions::from_mode(0o644)).unwrap();
+    fs::copy(&manifest, target.join("package.json")).unwrap();
+    fs::set_permissions(target.join("package.json"), fs::Permissions::from_mode(0o4644)).unwrap();
+    let cas_paths = HashMap::from([("package.json".to_string(), manifest.into())]);
+
+    assert!(all_imported_entries_match_exactly(&target, &cas_paths, false));
+}
+
+#[cfg(unix)]
+#[test]
 fn exact_import_match_accepts_linkable_cafs_hardlink_modes() {
     use std::os::unix::fs::PermissionsExt;
 
@@ -107,7 +127,7 @@ fn exact_import_match_accepts_linkable_cafs_hardlink_modes() {
     let source = store.join("a".repeat(40));
     fs::write(&source, b"{}").unwrap();
     let expected_mode =
-        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
     let linkable_mode = expected_mode ^ 0o020;
     fs::set_permissions(&source, fs::Permissions::from_mode(linkable_mode)).unwrap();
     fs::hard_link(&source, target.join("package.json")).unwrap();

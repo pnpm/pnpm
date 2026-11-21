@@ -158,7 +158,7 @@ impl VerifiedFileIntegrity {
 /// readers and writers. `DashMap` gives us that without any external
 /// locking. Race-window duplicate verifies are benign (the per-file verify
 /// path is idempotent) and rare in practice.
-pub type VerifiedFilesCache = DashMap<PathBuf, Option<u32>>;
+pub type VerifiedFilesCache = DashMap<PathBuf, Option<pnpm_fs::FileMode>>;
 
 /// Shared handle to a [`VerifiedFilesCache`], what every install-scope
 /// caller passes around. `Arc` so the same cache survives across the
@@ -464,7 +464,7 @@ fn verify_file(
     filename: &str,
     info: &CafsFileInfo,
     algo: &str,
-) -> Option<Option<u32>> {
+) -> Option<Option<pnpm_fs::FileMode>> {
     let Some((is_modified, metadata)) = check_file(path, info.checked_at) else {
         tracing::debug!(
             target: "pacquet::store_index",
@@ -485,7 +485,7 @@ fn verify_modified_file(
     filename: &str,
     info: &CafsFileInfo,
     algo: &str,
-) -> Option<Option<u32>> {
+) -> Option<Option<pnpm_fs::FileMode>> {
     let lock = pnpm_fs::cas_write_lock(path);
     let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 

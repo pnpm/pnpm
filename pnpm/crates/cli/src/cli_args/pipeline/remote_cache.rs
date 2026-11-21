@@ -16,6 +16,8 @@ use futures_util::{
     TryStreamExt as _,
     stream,
 };
+#[cfg(unix)]
+use pipe_trait::Pipe as _;
 use pnpm_config::Config;
 use pnpm_deps_restorer::{
     artifact_signer_settings,
@@ -344,8 +346,11 @@ fn artifact_file(entry_dir: &Path, path: String) -> io::Result<(ArtifactFile, Ar
 fn is_executable(path: &Path) -> io::Result<bool> {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt as _;
-        Ok(pnpm_fs::file_mode::is_executable(fs::metadata(path)?.permissions().mode()))
+        path.pipe(fs::metadata)?
+            .permissions()
+            .pipe_ref(pnpm_fs::FileMode::from_permissions)
+            .pipe(pnpm_fs::file_mode::is_executable)
+            .pipe(Ok)
     }
     #[cfg(not(unix))]
     {

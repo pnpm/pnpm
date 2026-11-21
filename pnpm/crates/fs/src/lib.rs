@@ -67,6 +67,8 @@ pub use pending_temp::{
     remove_pending_temp_files,
     track_temp_file,
 };
+/// Re-exported so a caller naming a mode need not depend on the FFI crate.
+pub use pnpm_ffi_fs::FileMode;
 pub use private_named_tempfile::private_named_tempfile_in;
 pub use read_modules_dir::read_modules_dir;
 pub use realpath_missing::{
