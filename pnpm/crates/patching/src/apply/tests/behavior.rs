@@ -930,3 +930,23 @@ fn applies_adjacent_unified_diff_records_after_no_newline_markers() {
     assert_eq!(fs::read_to_string(patched.path().join("first.txt")).unwrap(), "new");
     assert_eq!(fs::read_to_string(patched.path().join("second.txt")).unwrap(), "one\ntwo\n");
 }
+
+#[test]
+fn applies_a_unified_diff_hunk_whose_lines_look_like_file_headers() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("file.txt");
+    fs::write(&target, "-- old\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "--- a/file.txt"
+        "+++ b/file.txt"
+        "@@ -1 +1 @@"
+        "--- old"
+        "+++ new"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(fs::read_to_string(target).unwrap(), "++ new\n");
+}

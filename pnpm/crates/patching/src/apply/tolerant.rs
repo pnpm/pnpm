@@ -84,8 +84,8 @@ pub(super) fn mark_blank_crlf_context_lines(text: String) -> String {
 }
 
 /// Split a unified diff without `diff --git` lines into its file records,
-/// each starting at a `---` line that a `+++` line follows. The first record
-/// keeps any preamble.
+/// each starting at a `---` line that a `+++` line follows outside a hunk.
+/// The first record keeps any preamble.
 ///
 /// [`diffy`] parses such records one after another, but rejects a `---`
 /// header that follows a deletion marked `\ No newline at end of file`,
@@ -95,24 +95,76 @@ pub(super) fn unidiff_records(text: &str) -> Vec<&str> {
     let mut records = Vec::new();
     let mut record_start = 0;
     let mut seen_header = false;
-    let mut previous_line: Option<(usize, &str)> = None;
+    let mut header_start: Option<usize> = None;
+    let mut hunk = HunkLinesLeft::default();
     let mut offset = 0;
     for line in text.split_inclusive('\n') {
-        if let Some((header_start, header)) = previous_line
-            && header.starts_with("--- ")
+        let line_start = offset;
+        offset += line.len();
+        if hunk.consume(line) {
+            header_start = None;
+            continue;
+        }
+        if let Some(start) = header_start.take()
             && line.starts_with("+++ ")
         {
             if seen_header {
-                records.push(&text[record_start..header_start]);
-                record_start = header_start;
+                records.push(&text[record_start..start]);
+                record_start = start;
             }
             seen_header = true;
+        } else if line.starts_with("--- ") {
+            header_start = Some(line_start);
+        } else if line.starts_with("@@ ") {
+            hunk = HunkLinesLeft::of_header(line);
         }
-        previous_line = Some((offset, line));
-        offset += line.len();
     }
     records.push(&text[record_start..]);
     records
+}
+
+/// The pre-image and post-image lines a hunk header announces that its body
+/// has not yet supplied.
+#[derive(Default)]
+struct HunkLinesLeft {
+    old: usize,
+    new: usize,
+}
+
+impl HunkLinesLeft {
+    /// Read the counts of an `@@ -l,s +l,s @@` header. A count left out is
+    /// one; a header that does not parse announces no lines.
+    fn of_header(line: &str) -> Self {
+        let mut ranges = line.split_whitespace().skip(1);
+        let mut count = |sign: char| {
+            ranges
+                .next()
+                .and_then(|range| range.strip_prefix(sign))
+                .map(|range| range.split_once(',').map_or("1", |(_, len)| len))
+                .and_then(|len| len.parse().ok())
+                .unwrap_or(0)
+        };
+        let old = count('-');
+        let new = count('+');
+        HunkLinesLeft { old, new }
+    }
+
+    /// Count `line` against the hunk, returning whether it belongs to it.
+    fn consume(&mut self, line: &str) -> bool {
+        if self.old == 0 && self.new == 0 {
+            return false;
+        }
+        match line.as_bytes().first() {
+            Some(b'-') => self.old = self.old.saturating_sub(1),
+            Some(b'+') => self.new = self.new.saturating_sub(1),
+            Some(b'\\') => {}
+            _ => {
+                self.old = self.old.saturating_sub(1);
+                self.new = self.new.saturating_sub(1);
+            }
+        }
+        true
+    }
 }
 
 /// The git extended headers whose value [`diffy`] matches exactly: the
