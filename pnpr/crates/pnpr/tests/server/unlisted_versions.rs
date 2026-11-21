@@ -176,6 +176,36 @@ async fn a_version_manifest_published_after_the_packument_was_cached_is_served()
 }
 
 #[tokio::test]
+async fn a_new_literal_version_takes_precedence_over_the_cached_revision_address() {
+    let mut upstream = mockito::Server::new_async().await;
+    let tmp = TempDir::new().unwrap();
+    let app = app(&upstream.url(), tmp.path());
+    cache_first_version(&mut upstream, &app).await;
+    age_cached_packuments(tmp.path(), Duration::from_mins(2));
+    let updated = upstream
+        .mock("GET", "/foo")
+        .with_body(packument(&upstream.url(), &[("1.0.0", b"old"), ("1.0.0+r0", b"new")]))
+        .expect(1)
+        .create_async()
+        .await;
+    let response = get(&app, "/npm/foo/1.0.0+r0").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(super::body_json(response.into_body()).await["version"], "1.0.0+r0");
+    let record = get(&app, "/npm/foo/1.0.0+r0+r0").await;
+    assert_eq!(record.status(), StatusCode::OK);
+    assert!(
+        record
+            .headers()
+            .get(super::header::CACHE_CONTROL)
+            .is_none(),
+    );
+    let record = super::body_json(record.into_body()).await;
+    assert_eq!(record["version"], "1.0.0+r0");
+    assert!(record["manifest"].is_object());
+    updated.assert_async().await;
+}
+
+#[tokio::test]
 async fn a_recently_fetched_packument_is_not_refetched_for_an_unlisted_version() {
     let mut upstream = mockito::Server::new_async().await;
     let tmp = TempDir::new().unwrap();

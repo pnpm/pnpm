@@ -83,11 +83,10 @@ pub(super) fn document_anchor(packument: &Value) -> Option<Timestamp> {
 pub(super) fn install_v2_body(
     abbreviated: &Value,
     config: &PackageDocumentsConfig,
-    can_split: bool,
 ) -> serde_json::Result<Vec<u8>> {
     let mut document = install_v2(abbreviated, config);
     let whole = serde_json::to_vec(&document)?;
-    if !can_split || u64::try_from(whole.len()).is_ok_and(|len| len <= config.split_threshold) {
+    if u64::try_from(whole.len()).is_ok_and(|len| len <= config.split_threshold) {
         return Ok(whole);
     }
     leave_out_unlikely_picks(&mut document, &likely_picks(abbreviated));
@@ -115,7 +114,7 @@ fn leave_out_unlikely_picks(document: &mut Value, inline: &HashSet<String>) {
 }
 
 /// pnpr's document for an abbreviated packument, with every manifest inline.
-fn install_v2(abbreviated: &Value, config: &PackageDocumentsConfig) -> Value {
+pub(super) fn install_v2(abbreviated: &Value, config: &PackageDocumentsConfig) -> Value {
     let versions = object_field(abbreviated, "versions");
     let window = SignedDuration::try_from(config.publish_time_window).ok();
     let times_since = last_publish(versions, object_field(abbreviated, "time"))

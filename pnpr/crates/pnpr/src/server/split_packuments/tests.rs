@@ -160,8 +160,8 @@ fn a_publish_after_a_long_gap_can_take_a_document_back_below_the_threshold() {
         split_threshold: u64::try_from(whole_after.len()).expect("size"),
         ..PackageDocumentsConfig::default()
     };
-    let body_before = install_v2_body(&before, &config, true).expect("before");
-    let body_after = install_v2_body(&after, &config, true).expect("after");
+    let body_before = install_v2_body(&before, &config).expect("before");
+    let body_after = install_v2_body(&after, &config).expect("after");
 
     assert!(is_split(&body_before), "twenty publish times keep the document above the threshold");
     assert!(!is_split(&body_after), "the old publish times fell out of the window");

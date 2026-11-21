@@ -3,10 +3,7 @@
 //! and the npm-format views from which pnpr's facts are removed.
 
 use super::{
-    super::{
-        describe_tar,
-        has_settled_tar_facts,
-    },
+    super::describe_tar,
     DIST_FIELDS,
     PNPR_FIELDS,
 };
@@ -68,19 +65,15 @@ pub(in super::super) fn version_document_response(
     json_response(&manifest)
 }
 
-/// The release record of `revision`. It is cached forever only once pnpr
-/// has derived every fact about its archive: until then, a later read could
-/// add one.
+/// A synthesized record's URL can later name a literal upstream version or tag.
 fn release_record_response(manifest: &Value, revision: u64, tars: TarFacts<'_>) -> Response {
     let Some(mut source) = revision_source(manifest, revision) else {
         return super::super::not_found();
     };
-    let settled = tars.is_some_and(|(table, _)| has_settled_tar_facts(&source, table));
     if let Some((table, tar_registry)) = tars {
         describe_tar(&mut source, table, tar_registry);
     }
-    let response = json_response(&named_record(manifest, &source));
-    if settled { immutable(response) } else { response }
+    json_response(&named_record(manifest, &source))
 }
 
 /// The response for the release record a version was accepted with,

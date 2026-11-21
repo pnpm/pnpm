@@ -136,25 +136,6 @@ async fn a_release_record_names_its_version() {
 }
 
 #[tokio::test]
-async fn an_exact_upstream_version_takes_precedence_over_a_revision_address() {
-    let mut upstream = mockito::Server::new_async().await;
-    let mut packument = foo_packument(&upstream.url());
-    let mut literal = packument["versions"]["1.0.0"].clone();
-    literal["version"] = json!("1.0.0+r0");
-    packument["versions"]["1.0.0+r0"] = literal;
-    let _mock = upstream
-        .mock("GET", "/foo")
-        .with_body(packument.to_string())
-        .create_async()
-        .await;
-    let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
-    let response = get(&app, "/npm/foo/1.0.0+r0", None, None).await;
-    assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_json(response.into_body()).await["version"], "1.0.0+r0");
-}
-
-#[tokio::test]
 async fn caller_gated_documents_and_records_stay_out_of_shared_caches() {
     let upstream = upstream_with_foo().await;
     let tmp = TempDir::new().unwrap();

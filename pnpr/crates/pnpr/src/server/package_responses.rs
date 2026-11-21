@@ -255,8 +255,11 @@ impl Representation {
             let anchor = super::split_packuments::document_anchor(&doc).unwrap_or(now);
             let trimmed = abbreviate_packument(&doc, anchor);
             // A hosted tar route's archive digest differs from its accepted record's.
-            let can_split = !(view.hosted && view.tar_registry);
-            let body = super::split_packuments::install_v2_body(&trimmed, documents, can_split)?;
+            let body = if view.hosted && view.tar_registry {
+                serde_json::to_vec(&super::split_packuments::install_v2(&trimmed, documents))?
+            } else {
+                super::split_packuments::install_v2_body(&trimmed, documents)?
+            };
             return Ok((body, super::split_packuments::INSTALL_V2_CONTENT_TYPE));
         }
         super::split_packuments::without_pnpr_facts_in(&mut doc);

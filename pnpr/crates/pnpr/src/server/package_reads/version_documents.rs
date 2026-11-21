@@ -215,10 +215,7 @@ async fn read_whole_packument(
         return Ok(None);
     };
     let packument: Value = serde_json::from_slice(&bytes)?;
-    let (version, revision) = super::super::split_packuments::record_address(version_or_tag);
-    if lists_version(&packument, version_or_tag)
-        || revision.is_some() && lists_version(&packument, version)
-    {
+    if lists_version(&packument, version_or_tag) {
         return Ok(Some(packument));
     }
     match reload_source_packument_lacking_version(state, identity, source, name).await? {

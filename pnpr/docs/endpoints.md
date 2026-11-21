@@ -467,11 +467,10 @@ are the digests it was derived from: the `.tgz` as published, and its
 `dist.integrity` covers the served tar.
 
 Revision `0` is the original artifact, also of a version without registry
-revisions. A release record never changes once pnpr has verified the archive
-it describes, so from then on it is served with
-`Cache-Control: public, max-age=31536000, immutable`. Before that, it has no
-`Cache-Control` header, since verifying the archive can add `fileCount`,
-`unpackedSize`, `requiresBuild`, and `bins`. A package closed to anonymous
+revisions. Hosted records accepted at publish time are served with
+`Cache-Control: public, max-age=31536000, immutable`. Synthesized records
+can gain archive facts, and their URLs can later name an upstream version or
+tag. A package closed to anonymous
 callers gets `Cache-Control: private, no-store` for its records.
 An existing dist-tag or upstream version ending in `+r<N>` returns its npm
 version document.
