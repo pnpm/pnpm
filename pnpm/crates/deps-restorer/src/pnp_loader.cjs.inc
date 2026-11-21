@@ -2,15 +2,16 @@
 
 const Module = require('module')
 const path = require('path')
-const { fileURLToPath } = require('url')
+const { fileURLToPath, pathToFileURL } = require('url')
 
 const registry = __PNPM_PACKAGE_REGISTRY__.packages
 const modulesDir = path.resolve(__dirname, __PNPM_MODULES_DIR__)
+const modulesDirUrl = pathToFileURL(modulesDir + path.sep)
 const originalResolveFilename = Module._resolveFilename
 const topLevel = { name: null, reference: null }
 
 function packageLocation(pkg) {
-  return pkg.url.startsWith('file:') ? fileURLToPath(pkg.url) : path.resolve(modulesDir, pkg.url)
+  return path.resolve(fileURLToPath(new URL(pkg.url, modulesDirUrl)))
 }
 
 const locations = Object.entries(registry)

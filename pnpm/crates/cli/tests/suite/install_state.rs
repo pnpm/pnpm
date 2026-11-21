@@ -233,6 +233,7 @@ fn pnp_loader_is_preloaded_for_lifecycle_run_and_exec_commands() {
                 "check-pnp": r#"node -e "require('@pnpm.e2e/pkg-with-1-dep'); require('fs').writeFileSync('run-pnp', '')""#,
             },
             "dependencies": {
+                "member": "workspace:*",
                 "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
                 "@pnpm.e2e/write-lifecycle-env": "1.0.0",
             },
@@ -240,7 +241,7 @@ fn pnp_loader_is_preloaded_for_lifecycle_run_and_exec_commands() {
         .to_string(),
     )
     .expect("write package.json");
-    let member_dir = workspace.join("packages/member");
+    let member_dir = workspace.join("packages/member #%20");
     fs::create_dir_all(&member_dir).expect("create workspace member");
     fs::write(
         member_dir.join("package.json"),
@@ -329,7 +330,7 @@ fn pnp_loader_is_preloaded_for_lifecycle_run_and_exec_commands() {
             "exec",
             "node",
             "--eval",
-            "require('@pnpm.e2e/pkg-with-1-dep'); require('fs').writeFileSync('exec-pnp', '')",
+            "require('member/package.json'); require('@pnpm.e2e/pkg-with-1-dep'); require('fs').writeFileSync('exec-pnp', '')",
         ])
         .assert()
         .success();
