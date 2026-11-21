@@ -23,9 +23,6 @@ use std::{
     process::Command,
 };
 
-#[cfg(unix)]
-use std::os::unix::fs::MetadataExt;
-
 /// Opens an installed package's folder in the default text editor.
 #[derive(Debug, Args)]
 pub struct EditArgs {
@@ -345,14 +342,14 @@ fn de_hardlink_dir(dir: &Path) -> io::Result<()> {
         if metadata.file_type().is_dir() {
             de_hardlink_dir(&path)?;
         } else if metadata.file_type().is_file() {
-            de_hardlink_file(&path)?;
+            de_hardlink_file(&path, &metadata)?;
         }
     }
     Ok(())
 }
 
-fn de_hardlink_file(path: &Path) -> io::Result<()> {
-    if !is_file_hardlinked(path)? {
+fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
+    if !pnpm_fs::is_hardlinked(path, metadata) {
         return Ok(());
     }
     let permissions = pnpm_fs::copy_permissions(path)?;
@@ -361,22 +358,6 @@ fn de_hardlink_file(path: &Path) -> io::Result<()> {
     #[cfg(target_os = "wasi")]
     let permissions = pnpm_fs::CopyPermissions::from_mode(permissions.mode() | 0o200);
     pnpm_fs::copy_file_atomic_with_permissions(path, path, &permissions)
-}
-
-fn is_file_hardlinked(path: &Path) -> io::Result<bool> {
-    #[cfg(unix)]
-    {
-        fs::symlink_metadata(path).map(|metadata| metadata.nlink() > 1)
-    }
-    #[cfg(windows)]
-    {
-        pnpm_ffi_fs::file_information(path).map(|info| info.hard_links > 1)
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        let _ = path;
-        Ok(true)
-    }
 }
 
 fn is_bare_name(name: &str) -> bool {
