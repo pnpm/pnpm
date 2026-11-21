@@ -273,7 +273,7 @@ fn parse_prefixed_update_selector(
 ) -> Result<()> {
     let plan = PackageSpecifierPlan::parse([AddRequest::from(raw)])?;
     for node in plan.node_packages {
-        push_node_update_selector(node.selector(), mode, parsed);
+        push_node_update_selector(node.selector().to_owned(), mode, parsed);
     }
     for eco in plan.ecosystem_packages {
         push_ecosystem_update_selector(eco, mode, parsed)?;
@@ -282,11 +282,10 @@ fn parse_prefixed_update_selector(
 }
 
 fn push_node_update_selector(
-    selector: &str,
+    selector: String,
     mode: SelectorMode,
     parsed: &mut ParsedUpdateSelectors,
 ) {
-    let selector = selector.to_string();
     parsed.node_selectors.push(match mode {
         SelectorMode::Include => selector,
         SelectorMode::Exclude => format!("!{selector}"),

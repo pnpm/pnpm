@@ -21,16 +21,18 @@ pub(super) fn check_install_smoke_test(benchmark: bool) -> CheckResult {
     let started = Instant::now();
     let Ok(base) = tempfile::tempdir() else {
         return CheckResult::warn(
-            title,
+            title.to_owned(),
             "could not create a temporary directory",
             "Check that the system temp directory is writable.",
         );
     };
     match run_install_smoke_test(base.path()) {
-        Ok(()) => CheckResult::pass(title, r#"offline "file:" install linked its dependency"#)
-            .timed(benchmark, started),
+        Ok(()) => {
+            CheckResult::pass(title.to_owned(), r#"offline "file:" install linked its dependency"#)
+                .timed(benchmark, started)
+        }
         Err(detail) => CheckResult::fail(
-            title,
+            title.to_owned(),
             detail,
             r#"Run "pnpm install" in a scratch project to see the full error."#,
         ),

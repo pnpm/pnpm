@@ -264,7 +264,7 @@ fn collect_table_deps(
 ) {
     for (alias, value) in table {
         let resolved = if is_workspace_inherited(value) {
-            resolve_inherited_dep(alias, value, root_manifest_path, workspace_specs)
+            resolve_inherited_dep(alias, value, root_manifest_path.to_path_buf(), workspace_specs)
         } else {
             extract_registry_spec(alias, value)
                 .map(|(pkg_name, raw)| {
@@ -306,7 +306,7 @@ fn collect_table_deps(
 fn resolve_inherited_dep(
     alias: &str,
     value: &toml::Value,
-    root_manifest_path: &Path,
+    root_manifest_path: PathBuf,
     workspace_specs: &HashMap<String, (String, String)>,
 ) -> Option<(String, String, String, PathBuf, &'static str)> {
     let local_package = value
@@ -321,7 +321,7 @@ fn resolve_inherited_dep(
         ws_key.clone(),
         pkg_name.clone(),
         raw.clone(),
-        root_manifest_path.to_path_buf(),
+        root_manifest_path,
         "workspace.dependencies",
     ))
 }

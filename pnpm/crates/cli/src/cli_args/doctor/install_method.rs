@@ -8,7 +8,7 @@ pub(super) fn check_install_method(config: &Config) -> CheckResult {
     let title = "Install method";
     if std::env::var_os("COREPACK_ROOT").is_some() {
         return CheckResult::warn(
-            title,
+            title.to_owned(),
             "pnpm, run by Corepack",
             r#"Corepack manages the pnpm version itself; "pnpm self-update" is unavailable under it."#,
         );
@@ -17,7 +17,7 @@ pub(super) fn check_install_method(config: &Config) -> CheckResult {
         && let Some(shadowing) = find_shadowing_pnpm_on_path(global_bin)
     {
         return CheckResult::warn(
-            title,
+            title.to_owned(),
             format!(
                 r#""pnpm" on PATH is {}, not the pnpm in {}"#,
                 shadowing.executable.display(),
@@ -26,5 +26,5 @@ pub(super) fn check_install_method(config: &Config) -> CheckResult {
             shadowing.warning(global_bin),
         );
     }
-    CheckResult::pass(title, "pnpm")
+    CheckResult::pass(title.to_owned(), "pnpm")
 }

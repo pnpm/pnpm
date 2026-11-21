@@ -117,7 +117,7 @@ pub fn main() -> ExitCode {
     // Tracing reads `TRACE`/`TRACE_FORMAT`, which the files above may
     // define, so it starts only after the load.
     enable_tracing_by_env();
-    let result = run_on_big_stack(|| run_cli(&launch, &argv, single_threaded));
+    let result = run_on_big_stack(|| run_cli(&launch, argv, single_threaded));
     match result.and_then(|()| flush_stdout()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -202,10 +202,9 @@ fn is_reported_error(error: &miette::Report) -> bool {
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
 fn run_cli(
     launch: &shim_dispatch::ShimLaunch,
-    argv: &[OsString],
+    argv: Vec<OsString>,
     single_threaded: pnpm_ffi_process::SingleThreaded,
 ) -> miette::Result<()> {
-    let argv = argv.to_vec();
     if let Some(exit_code) = launch.dispatch(&argv) {
         // The shim dispatcher propagates the dispatched command's exit status.
         pnpm_executor::exit(exit_code);

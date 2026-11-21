@@ -26,7 +26,7 @@ fn stop_runs_declared_script() {
     );
     let config = test_config();
     ScriptShortcutArgs { args: vec![] }
-        .into_run_args("stop")
+        .into_run_args("stop".to_owned())
         .run(dir, &config, ReporterType::Silent)
         .expect("stop should succeed");
     assert!(marker.exists(), "stop script should have run");
@@ -38,7 +38,7 @@ fn stop_with_if_present_skips_missing_script() {
     let dir = tmp.path();
     setup_project(dir, &json!({}));
     let config = test_config();
-    let mut args = ScriptShortcutArgs { args: vec![] }.into_run_args("stop");
+    let mut args = ScriptShortcutArgs { args: vec![] }.into_run_args("stop".to_owned());
     args.if_present = true;
     args.run(dir, &config, ReporterType::Silent)
         .expect("--if-present should succeed when script is missing");
@@ -51,7 +51,7 @@ fn stop_fails_on_missing_script_without_if_present() {
     setup_project(dir, &json!({}));
     let config = test_config();
     let res = ScriptShortcutArgs { args: vec![] }
-        .into_run_args("stop")
+        .into_run_args("stop".to_owned())
         .run(dir, &config, ReporterType::Silent);
     assert!(res.is_err(), "should fail because script is missing");
 }
@@ -63,7 +63,7 @@ fn test_fails_on_missing_script_without_if_present() {
     setup_project(dir, &json!({}));
     let config = test_config();
     let res = ScriptShortcutArgs { args: vec![] }
-        .into_run_args("test")
+        .into_run_args("test".to_owned())
         .run(dir, &config, ReporterType::Silent);
     assert!(res.is_err(), "test shortcut should fail when scripts.test is missing");
 }
@@ -74,7 +74,7 @@ fn start_with_if_present_skips_when_script_and_server_js_are_missing() {
     let dir = tmp.path();
     setup_project(dir, &json!({}));
     let config = test_config();
-    let mut args = ScriptShortcutArgs { args: vec![] }.into_run_args("start");
+    let mut args = ScriptShortcutArgs { args: vec![] }.into_run_args("start".to_owned());
     args.if_present = true;
     args.run(dir, &config, ReporterType::Silent)
         .expect(

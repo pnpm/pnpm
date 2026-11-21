@@ -108,7 +108,8 @@ async fn registry_connectivity_ignores_fetch_timeout() {
 
 #[test]
 fn render_report_summarizes_a_clean_run() {
-    let output = render_report(&report(vec![CheckResult::pass("Versions", "pnpm 12.0.0")]));
+    let output =
+        render_report(&report(vec![CheckResult::pass("Versions".to_owned(), "pnpm 12.0.0")]));
     dbg!(&output);
     assert_eq!(output, "✓ Versions: pnpm 12.0.0\n\nAll checks passed");
 }
@@ -117,8 +118,11 @@ fn render_report_summarizes_a_clean_run() {
 /// a check nobody can act on is noise.
 #[test]
 fn render_report_shows_the_fix_for_a_warning() {
-    let output =
-        render_report(&report(vec![CheckResult::warn("Filesystem", "only copying", "Move it.")]));
+    let output = render_report(&report(vec![CheckResult::warn(
+        "Filesystem".to_owned(),
+        "only copying",
+        "Move it.",
+    )]));
     dbg!(&output);
     assert_eq!(
         output,
@@ -129,8 +133,8 @@ fn render_report_shows_the_fix_for_a_warning() {
 #[test]
 fn render_report_counts_failures() {
     let output = render_report(&report(vec![
-        CheckResult::pass("Versions", "pnpm 12.0.0"),
-        CheckResult::fail("Store directory", "no write access to /nope", "Fix it."),
+        CheckResult::pass("Versions".to_owned(), "pnpm 12.0.0"),
+        CheckResult::fail("Store directory".to_owned(), "no write access to /nope", "Fix it."),
     ]));
     dbg!(&output);
     assert!(output.ends_with("1 check(s) failed"), "{output}");
@@ -147,7 +151,7 @@ fn status_marks_are_distinct() {
 /// it is a contract: camelCase keys, and absent fields omitted rather than null.
 #[test]
 fn json_report_uses_camel_case_and_omits_empty_fields() {
-    let mut check = CheckResult::pass("Filesystem", "available: hardlink");
+    let mut check = CheckResult::pass("Filesystem".to_owned(), "available: hardlink");
     check.duration_ms = Some(3);
     let json = serde_json::to_string(&report(vec![check])).expect("serialize report");
     dbg!(&json);

@@ -33,12 +33,12 @@ where
     match create_probe_workspaces(config) {
         Ok(mut probes) => check_filesystem_capabilities_in_workspaces::<Sys>(&mut probes),
         Err(ProbeWorkspaceError::UnsafeAncestor) => CheckResult::warn(
-            "Filesystem",
+            "Filesystem".to_owned(),
             "cannot safely probe link support in a directory writable by other users",
             "Check ownership and permissions on the store and project ancestor directories.",
         ),
         Err(ProbeWorkspaceError::Unavailable) => CheckResult::warn(
-            "Filesystem",
+            "Filesystem".to_owned(),
             "could not create a probe directory",
             "Check that the store and project directories are writable.",
         ),
@@ -54,7 +54,7 @@ where
     let title = "Filesystem";
     let Ok(capabilities) = probe_link_capabilities::<Sys>(workspaces) else {
         return CheckResult::warn(
-            title,
+            title.to_owned(),
             "could not write a probe file",
             "Check that the store directory is writable.",
         );
@@ -67,10 +67,10 @@ where
         format!("available: {}", available.join(", "))
     };
     if capabilities.has_cheap_link() {
-        CheckResult::pass(title, detail)
+        CheckResult::pass(title.to_owned(), detail)
     } else {
         CheckResult::warn(
-            title,
+            title.to_owned(),
             detail,
             "Neither reflink nor hardlink works between the store and this project; installs will copy files and be slower. Put the store on the same filesystem as your projects.",
         )

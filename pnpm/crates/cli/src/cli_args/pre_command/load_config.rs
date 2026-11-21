@@ -79,7 +79,7 @@ pub(in crate::cli_args) fn apply_cli_layers(
     {
         config.pin_lockfile_dir(&dir.join(lockfile_dir), dir);
         if let Some(raw) = lockfile_dir.to_str() {
-            push_cli_token(config, "lockfile-dir", raw);
+            push_cli_token(config, "lockfile-dir", raw.to_owned());
         }
     }
     config.offline = resolve_bool_override(
@@ -119,14 +119,14 @@ fn apply_location_overrides(
         apply_store_dir_override::<Host>(cfg, store_dir, anchor)?;
         cfg.cli_settings.insert("storeDir".to_string());
         if let Some(raw) = store_dir.to_str() {
-            push_cli_token(cfg, "store-dir", raw);
+            push_cli_token(cfg, "store-dir", raw.to_owned());
         }
     }
     if let Some(state_dir) = state_dir {
         apply_state_dir_override::<Host>(cfg, state_dir, anchor);
         cfg.cli_settings.insert("stateDir".to_string());
         if let Some(raw) = state_dir.to_str() {
-            push_cli_token(cfg, "state-dir", raw);
+            push_cli_token(cfg, "state-dir", raw.to_owned());
         }
     }
     Ok(())

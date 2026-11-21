@@ -73,8 +73,8 @@ pub(super) fn check_node_on_path(path: Option<&OsStr>) -> CheckResult {
     let found = describe_usable_nodes(&usable);
     if unusable.is_empty() {
         return match found {
-            Some(found) => CheckResult::pass(title, found),
-            None => CheckResult::warn(title, "no node executable found", NODE_FIX),
+            Some(found) => CheckResult::pass(title.to_owned(), found),
+            None => CheckResult::warn(title.to_owned(), "no node executable found", NODE_FIX),
         };
     }
     let skipped: Vec<String> = unusable
@@ -83,7 +83,7 @@ pub(super) fn check_node_on_path(path: Option<&OsStr>) -> CheckResult {
         .collect();
     let found = found.unwrap_or_else(|| "no usable node executable".to_owned());
     CheckResult::warn(
-        title,
+        title.to_owned(),
         format!("{found}; skipped: {}", skipped.join(", ")),
         "Repair or remove the skipped entries. A version manager that relinks node while scripts run can make them fail with exit status 127.",
     )
@@ -159,7 +159,7 @@ pub(super) fn check_script_shell(config: &Config, project_dir: &Path) -> CheckRe
             Ok(resolved) => describe_resolved(&resolved),
             Err(detail) => {
                 return CheckResult::fail(
-                    title,
+                    title.to_owned(),
                     detail,
                     "Point scriptShell at a shell that can run scripts.",
                 );
@@ -167,10 +167,13 @@ pub(super) fn check_script_shell(config: &Config, project_dir: &Path) -> CheckRe
         }
     };
     if cfg!(windows) {
-        return CheckResult::pass(title, format!("scripts run in {scripts}"));
+        return CheckResult::pass(title.to_owned(), format!("scripts run in {scripts}"));
     }
     let shims = describe_program(Path::new("/bin/sh"));
-    CheckResult::pass(title, format!("scripts run in {scripts}, package executables in {shims}"))
+    CheckResult::pass(
+        title.to_owned(),
+        format!("scripts run in {scripts}, package executables in {shims}"),
+    )
 }
 
 fn describe_program(program: &Path) -> String {
@@ -213,11 +216,12 @@ pub(super) fn check_lifecycle_scripts(
     let title = "Lifecycle scripts";
     let started = Instant::now();
     if which::which("node").is_err() {
-        return CheckResult::pass(title, "skipped (no Node.js on PATH)").timed(benchmark, started);
+        return CheckResult::pass(title.to_owned(), "skipped (no Node.js on PATH)")
+            .timed(benchmark, started);
     }
     let Ok(base) = tempfile::tempdir() else {
         return CheckResult::warn(
-            title,
+            title.to_owned(),
             "could not create a temporary directory",
             "Check that the system temp directory is writable.",
         )
@@ -238,8 +242,8 @@ pub(super) fn check_lifecycle_scripts(
             run_script_probes(&probe, &consumer, project_dir)
         });
     match probes {
-        Ok(detail) => CheckResult::pass(title, detail),
-        Err(detail) => CheckResult::fail(title, detail, NODE_FIX),
+        Ok(detail) => CheckResult::pass(title.to_owned(), detail),
+        Err(detail) => CheckResult::fail(title.to_owned(), detail, NODE_FIX),
     }
     .timed(benchmark, started)
 }

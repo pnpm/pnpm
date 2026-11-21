@@ -46,8 +46,8 @@ fn detect_dep_types(
         importer_roots(lockfile, |importer| std::slice::from_ref(&importer.optional_dependencies));
     let prod_keys = [prod_keys, optional_keys].concat();
 
-    detect_dep_types_walk(snapshots, &mut dep_types, &mut walked, &dev_keys, true, transitive);
-    detect_dep_types_walk(snapshots, &mut dep_types, &mut walked, &prod_keys, false, transitive);
+    detect_dep_types_walk(snapshots, &mut dep_types, &mut walked, dev_keys, true, transitive);
+    detect_dep_types_walk(snapshots, &mut dep_types, &mut walked, prod_keys, false, transitive);
     dep_types
 }
 
@@ -72,11 +72,11 @@ fn detect_dep_types_walk(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     dep_types: &mut HashMap<PackageKey, DepType>,
     walked: &mut HashSet<(PackageKey, bool)>,
-    initial_keys: &[PackageKey],
+    initial_keys: Vec<PackageKey>,
     is_dev: bool,
     transitive: TransitiveEdges<'_>,
 ) {
-    let mut queue: Vec<PackageKey> = initial_keys.to_vec();
+    let mut queue = initial_keys;
 
     while let Some(key) = queue.pop() {
         if !walked.insert((key.clone(), is_dev)) {

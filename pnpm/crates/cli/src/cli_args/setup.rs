@@ -274,8 +274,8 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
     }
 
     info::<Reporter>(
-        &prefix_dir.to_string_lossy(),
-        &format!("Installing pnpm CLI globally from {}", exec_dir.display()),
+        prefix_dir.to_string_lossy().into_owned(),
+        format!("Installing pnpm CLI globally from {}", exec_dir.display()),
     );
 
     // The published `pnpm` package ships a preinstall/postinstall pair that
@@ -555,12 +555,8 @@ fn report_config_change(config_report: &ConfigReport) -> String {
     }
 }
 
-fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Info,
-        message: message.to_string(),
-        prefix: prefix.to_string(),
-    }));
+fn info<Reporter: self::Reporter>(prefix: String, message: String) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level: LogLevel::Info, message, prefix }));
 }
 
 #[cfg(test)]

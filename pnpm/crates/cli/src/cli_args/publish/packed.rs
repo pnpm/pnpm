@@ -134,7 +134,7 @@ impl PublishArgs {
         let manifest = crate::cli_args::workspace_packages::create_publish_pack_manifest_options(
             &self.flags.manifest,
             config,
-            before_packing_hooks,
+            before_packing_hooks.to_vec(),
             workspace_packages,
             scope.bumped(),
         )?;

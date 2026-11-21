@@ -213,6 +213,7 @@ fn execute_task_with_cargo_cache(
     let snapshot = cargo_cacheable
         .then(|| options.task_key())
         .flatten()
+        .map(str::to_owned)
         .and_then(|task_key| {
             cargo_cache::snapshot_entry(&options.config.cache_dir, root, task_key, &environment)
                 .inspect_err(|error| cargo_cache_warning(options, &error.to_string()))
@@ -279,7 +280,12 @@ fn publish_cargo_snapshot(
     environment: &std::collections::BTreeMap<String, String>,
 ) {
     let root = options.node.project.as_path();
-    match cargo_cache::snapshot_entry(&options.config.cache_dir, root, task_key, environment) {
+    match cargo_cache::snapshot_entry(
+        &options.config.cache_dir,
+        root,
+        task_key.to_owned(),
+        environment,
+    ) {
         Ok((_, after, _)) if after == *key => {
             if let Err(error) = cargo.publish(entry, key, local_packages) {
                 cargo_cache_warning(options, &error.to_string());

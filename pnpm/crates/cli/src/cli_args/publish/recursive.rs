@@ -190,7 +190,10 @@ impl PublishArgs {
             self.select_candidates::<Reporter>(graph, config, stage, (dir, workspace_root)).await?;
 
         if to_publish.is_empty() {
-            emit_info::<Reporter>("There are no new packages that should be published", dir);
+            emit_info::<Reporter>(
+                "There are no new packages that should be published".to_owned(),
+                dir,
+            );
             return self.finish_recursive_publish(workspace_root, &opts, Ok(Vec::new()));
         }
 
@@ -442,10 +445,10 @@ fn write_publish_summary(dir: &Path, published: &[PublishSummary]) -> miette::Re
 
 /// Emit on the generic `pnpm` channel with a project prefix (rather than the
 /// prefix-less `pnpm:global` channel), so the message carries the project dir.
-fn emit_info<Reporter: self::Reporter>(message: &str, prefix: &Path) {
+fn emit_info<Reporter: self::Reporter>(message: String, prefix: &Path) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
-        message: message.to_owned(),
+        message,
         prefix: prefix.display().to_string(),
     }));
 }

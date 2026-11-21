@@ -305,19 +305,19 @@ impl super::CliNetworkArgs {
         );
         if let Some(https_proxy) = &self.https_proxy {
             config.cli_settings.insert("httpsProxy".to_string());
-            push_cli_token(config, "https-proxy", https_proxy);
+            push_cli_token(config, "https-proxy", https_proxy.clone());
         }
         if let Some(http_proxy) = &self.http_proxy {
             config.cli_settings.insert("httpProxy".to_string());
-            push_cli_token(config, "http-proxy", http_proxy);
+            push_cli_token(config, "http-proxy", http_proxy.clone());
         }
         if let Some(no_proxy) = &self.no_proxy {
             config.cli_settings.insert("noProxy".to_string());
             config.cli_settings.insert("noproxy".to_string());
-            push_cli_token(config, "no-proxy", no_proxy);
+            push_cli_token(config, "no-proxy", no_proxy.clone());
         }
         if let Some(registry) = self.registry.as_deref() {
-            push_cli_token(config, "registry", registry);
+            push_cli_token(config, "registry", registry.to_owned());
         }
     }
 }
@@ -325,13 +325,13 @@ impl super::CliNetworkArgs {
 pub(in crate::cli_args) fn push_cli_token(
     config: &mut pnpm_config::Config,
     key: &str,
-    value: &str,
+    value: String,
 ) {
     config.cli.npmrc_tokens.retain(|(existing, _)| {
         let normalized = pnpm_config::naming_cases::to_kebab_case(existing);
         normalized != key && !(key == "no-proxy" && normalized == "noproxy")
     });
-    config.cli.npmrc_tokens.push((key.to_string(), value.to_string()));
+    config.cli.npmrc_tokens.push((key.to_string(), value));
 }
 
 pub(crate) fn find_workspace_root_dir(dir: &Path) -> Result<PathBuf, WorkspaceRootError> {

@@ -199,6 +199,13 @@ fn engine_failure(
     }))
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "The version is copied only for a broken install, and the callers hold a borrowed version on the passing path."
+    )
+)]
 fn reject_broken_install(
     reason: Option<String>,
     executable: &Path,

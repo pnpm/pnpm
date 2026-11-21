@@ -292,9 +292,9 @@ impl VersionArgs {
         let current_version = parse_current_version(pkg_dir, &current)?;
 
         self.preversion_hook::<Reporter>(
-            pkg_dir,
-            &manifest_path,
-            &name,
+            pkg_dir.to_path_buf(),
+            manifest_path.clone(),
+            name.clone(),
             &current,
             config,
             init_cwd,
@@ -302,7 +302,7 @@ impl VersionArgs {
 
         let new_version = self.next_package_version(&current_version, bump, &current)?;
 
-        set_manifest_version(&mut manifest, &new_version);
+        set_manifest_version(&mut manifest, new_version.clone());
         if !self.dry_run {
             manifest
                 .save()
@@ -322,19 +322,19 @@ impl VersionArgs {
 
     fn preversion_hook<Reporter: pnpm_reporter::Reporter>(
         &self,
-        pkg_dir: &Path,
-        manifest_path: &Path,
-        name: &str,
+        pkg_dir: PathBuf,
+        manifest_path: PathBuf,
+        name: String,
         current: &str,
         config: &Config,
         init_cwd: &Path,
     ) -> miette::Result<()> {
         let pre_change = VersionChange {
-            name: name.to_string(),
+            name,
             current_version: current.to_string(),
             new_version: current.to_string(),
-            path: pkg_dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            path: pkg_dir,
+            manifest_path,
         };
         run_version_lifecycle_hook::<Reporter>(
             "preversion",
@@ -469,12 +469,12 @@ fn package_version_identity(manifest: &PackageManifest) -> Option<(String, Strin
 
 /// Set `version` in `manifest` without saving it. The manifest must be an
 /// object, which it is once any of its fields were read.
-pub(crate) fn set_manifest_version(manifest: &mut PackageManifest, version: &str) {
+pub(crate) fn set_manifest_version(manifest: &mut PackageManifest, version: String) {
     manifest
         .value_mut()
         .as_object_mut()
         .expect("a manifest whose fields were read is a JSON object")
-        .insert("version".to_owned(), Value::String(version.to_owned()));
+        .insert("version".to_owned(), Value::String(version));
 }
 
 #[cfg(test)]

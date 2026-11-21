@@ -36,11 +36,18 @@ fn deploy_pnpmfile_hooks(
 /// A shared deploy installs the deployed project as a workspace of its
 /// own, so none of the source workspace's graph-level settings apply to
 /// it. The legacy path keeps them.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "Only a shared deploy copies the directory, and the legacy path returns before the conversion."
+    )
+)]
 fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: DeployInstallMode) {
     let DeployInstallMode::Shared { workspace_config } = mode else {
         return;
     };
-    workspace_config.apply_to_config(config, deploy_dir);
+    workspace_config.apply_to_config(config, deploy_dir.to_path_buf());
 }
 
 /// The deploy directory's lockfile when no source lockfile can seed resolution.

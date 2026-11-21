@@ -255,14 +255,14 @@ fn join_setting_path_ignores_root_and_current_dir_components() {
     let tmp = tempfile::tempdir().expect("temp dir");
 
     assert_eq!(
-        join_setting_path(tmp.path(), "./patches/./nested"),
+        join_setting_path(tmp.path().to_path_buf(), "./patches/./nested"),
         tmp.path()
             .join("patches")
             .join("nested"),
     );
 
     #[cfg(unix)]
-    assert_eq!(join_setting_path(tmp.path(), "/patches"), tmp.path().join("patches"));
+    assert_eq!(join_setting_path(tmp.path().to_path_buf(), "/patches"), tmp.path().join("patches"));
 }
 
 #[test]

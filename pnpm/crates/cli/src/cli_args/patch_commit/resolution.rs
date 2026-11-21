@@ -268,7 +268,7 @@ fn pick_from_bucket(
 }
 
 pub(super) fn format_candidates(candidates: &[PathBuf]) -> String {
-    let mut sorted = candidates.to_vec();
+    let mut sorted: Vec<&PathBuf> = candidates.iter().collect();
     sorted.sort();
     sorted
         .iter()

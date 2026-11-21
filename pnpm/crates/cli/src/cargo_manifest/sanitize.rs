@@ -69,17 +69,18 @@ pub(super) fn prepare_workspace_detach(
         Some(res) => PackageRetention::MatchExpected(res.expected_package.as_deref()),
         None => PackageRetention::KeepMember,
     };
-    let sanitized_contents = strip_ignored_member_fields(contents, table, name, retention)?;
+    let sanitized_contents =
+        strip_ignored_member_fields(contents.to_owned(), table, name, retention)?;
     Ok(Some(PreparedDetach { sanitized_contents, resolved_ws }))
 }
 
 fn strip_ignored_member_fields(
-    contents: &str,
+    contents: String,
     table: &str,
     name: &str,
     retention: PackageRetention<'_>,
 ) -> Result<String> {
-    let mut current = contents.to_string();
+    let mut current = contents;
     while let Some(range) = next_ignored_field_range(&current, table, name, retention)? {
         current.replace_range(range, "");
     }
