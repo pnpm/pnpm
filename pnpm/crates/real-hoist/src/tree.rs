@@ -218,7 +218,7 @@ fn build_dep_node(
         peers::peer_view(dep_key, snapshot, lockfile, opts, cache.regular_peers.get(dep_key));
     cache.bound_peers
         .entry(dep_key.to_string())
-        .or_insert_with(|| Rc::new(peers::bound_peers(dep_key, snapshot, &peers.names)));
+        .or_insert_with(|| Rc::new(peers::bound_peers(dep_key, snapshot, &peers.names, lockfile)));
     let node = Rc::new(HoisterTree {
         identity: peers.identity,
         name: alias.to_string(),

@@ -117,6 +117,45 @@ snapshots:
     assert!(names(&dependent).is_empty(), "c finds p's f@2 above it: {dependent:#?}");
 }
 
+/// With `dedupePeers`, `m`'s key names its transitive peer's provider as
+/// `f@2.0.0`, without the provider's own peer, and the snapshot is keyed
+/// `f@2.0.0(r@1.0.0)`. `c`, which declares the peer, records the full key,
+/// and `m` is linked to that provider.
+#[test]
+fn a_transitive_peer_is_traced_to_a_provider_with_peers_of_its_own() {
+    let yaml = "lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      f: {specifier: 1.0.0, version: 1.0.0}
+      p: {specifier: 1.0.0, version: 1.0.0}
+packages:
+  c@1.0.0: {resolution: {integrity: sha512-c}, peerDependencies: {f: '*'}}
+  f@1.0.0: {resolution: {integrity: sha512-f1}}
+  f@2.0.0: {resolution: {integrity: sha512-f2}, peerDependencies: {r: '*'}}
+  m@1.0.0: {resolution: {integrity: sha512-m}}
+  p@1.0.0: {resolution: {integrity: sha512-p}}
+  r@1.0.0: {resolution: {integrity: sha512-r}}
+snapshots:
+  c@1.0.0(f@2.0.0):
+    dependencies: {f: 2.0.0(r@1.0.0)}
+  f@1.0.0: {}
+  f@2.0.0(r@1.0.0):
+    dependencies: {r: 1.0.0}
+  m@1.0.0(f@2.0.0):
+    dependencies: {c: 1.0.0(f@2.0.0)}
+    transitivePeerDependencies: [f]
+  p@1.0.0:
+    dependencies: {f: 2.0.0(r@1.0.0), m: 1.0.0(f@2.0.0), r: 1.0.0}
+  r@1.0.0: {}
+";
+    assert_eq!(first_pass_misses(yaml), 0, "the first pass needs no repair");
+    let result = hoist_lockfile(yaml);
+    assert_eq!(names(&result), ["f", "p", "r"], "c must not reach the root's f@1: {result:#?}");
+    let dependent = serving(&result, "c@1.0.0(f@2.0.0)");
+    assert!(names(&dependent).is_empty(), "c finds p's f@2 above it: {dependent:#?}");
+}
+
 /// `b@1` provides `f@2` to `e`'s peer, then a nested pass hoists that
 /// `f@2` from `b` up into `a`. `b` no longer holds `f`, but the provider
 /// did not go away: it moved up. The peer check keeps walking to `a`, so

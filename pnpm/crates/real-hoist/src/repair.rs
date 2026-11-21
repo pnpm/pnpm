@@ -88,10 +88,11 @@ impl Check<'_> {
                 let snapshot = self.lockfile.snapshots.as_ref()?.get(&key)?;
                 let PeerView { names, .. } =
                     peer_view(&key, snapshot, self.lockfile, self.opts, None);
-                let peers: Vec<(String, String)> = bound_peers(&key, snapshot, &names)
-                    .into_iter()
-                    .map(|(peer, provider)| (peer, crate::pkg_id(&provider)))
-                    .collect();
+                let peers: Vec<(String, String)> =
+                    bound_peers(&key, snapshot, &names, self.lockfile)
+                        .into_iter()
+                        .map(|(peer, provider)| (peer, crate::pkg_id(&provider)))
+                        .collect();
                 Some((key, Rc::new(peers)))
             });
         self.bound.insert(reference.to_string(), bound.clone());

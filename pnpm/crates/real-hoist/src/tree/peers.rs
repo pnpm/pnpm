@@ -10,7 +10,11 @@ use crate::{
 };
 use pnpm_lockfile::PeerBindings;
 use std::{
-    collections::BTreeSet,
+    collections::{
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
     fmt::Write as _,
 };
 
@@ -40,7 +44,8 @@ pub(crate) fn peer_view(
     let mut names = base_peer_names(dep_key, snapshot, lockfile);
     let regular = regular.filter(|regular| !regular.is_empty());
     names.retain(|name| !regular.is_some_and(|regular| regular.contains(name)));
-    let identity = regular.map(|regular| identity_with_providers(dep_key, snapshot, regular));
+    let identity =
+        regular.map(|regular| identity_with_providers(dep_key, snapshot, regular, lockfile));
     PeerView { names, identity }
 }
 
@@ -50,10 +55,11 @@ fn identity_with_providers(
     dep_key: &PkgNameVerPeer,
     snapshot: &SnapshotEntry,
     regular: &BTreeSet<String>,
+    lockfile: &Lockfile,
 ) -> String {
     let mut identity = crate::pkg_id(dep_key);
     for peer in regular {
-        let provider = provider_of(dep_key, snapshot, peer).map(|key| key.to_string());
+        let provider = provider_of(dep_key, snapshot, peer, lockfile).map(|key| key.to_string());
         write!(identity, "({peer}={})", provider.unwrap_or_default()).expect(
             "writing to a String cannot fail",
         );
@@ -70,10 +76,11 @@ pub(crate) fn bound_peers(
     key: &PkgNameVerPeer,
     snapshot: &SnapshotEntry,
     names: &IndexSet<String>,
+    lockfile: &Lockfile,
 ) -> BoundPeers {
     names
         .iter()
-        .filter_map(|peer| Some((peer.clone(), provider_of(key, snapshot, peer)?)))
+        .filter_map(|peer| Some((peer.clone(), provider_of(key, snapshot, peer, lockfile)?)))
         .collect()
 }
 
@@ -83,12 +90,122 @@ pub(crate) fn provider_of(
     key: &PkgNameVerPeer,
     snapshot: &SnapshotEntry,
     peer: &str,
+    lockfile: &Lockfile,
 ) -> Option<PkgNameVerPeer> {
     own_dependency_key(snapshot, peer)
         .or_else(|| {
-            PeerBindings::from_key(key)?
+            let recorded = PeerBindings::from_key(key)?
                 .providers()
-                .find(|provider| provider.name.to_string() == peer)
+                .find(|provider| provider.name.to_string() == peer)?;
+            Some(snapshot_key_of(recorded, snapshot, peer, lockfile))
+        })
+}
+
+/// The snapshot key of the provider that a peer suffix records as
+/// `recorded`.
+///
+/// With `dedupePeers` the suffix leaves out the provider's own peers, and
+/// no snapshot has that key. A dependency that takes the peer records the
+/// full key: the nearest ones are asked first, and the smallest key wins
+/// among several. `recorded` is returned when none does.
+fn snapshot_key_of(
+    recorded: PkgNameVerPeer,
+    snapshot: &SnapshotEntry,
+    peer: &str,
+    lockfile: &Lockfile,
+) -> PkgNameVerPeer {
+    full_provider_key(&recorded, snapshot, peer, lockfile).unwrap_or(recorded)
+}
+
+fn full_provider_key(
+    recorded: &PkgNameVerPeer,
+    snapshot: &SnapshotEntry,
+    peer: &str,
+    lockfile: &Lockfile,
+) -> Option<PkgNameVerPeer> {
+    let snapshots = lockfile.snapshots.as_ref()?;
+    if snapshots.contains_key(recorded) {
+        return None;
+    }
+    let search = ProviderSearch {
+        alias: PkgName::parse(peer).ok()?,
+        peer,
+        package: recorded.without_peer(),
+        snapshots,
+    };
+    let mut seen: HashSet<PkgNameVerPeer> = HashSet::new();
+    let mut level = vec![snapshot];
+    while !level.is_empty() {
+        let (bound, carriers) = search.ask(&level, &mut seen);
+        if bound.is_some() {
+            return bound;
+        }
+        level = carriers;
+    }
+    None
+}
+
+/// What [`full_provider_key`] looks for.
+struct ProviderSearch<'search> {
+    alias: PkgName,
+    peer: &'search str,
+    /// The provider's key without its peers.
+    package: PkgNameVerPeer,
+    snapshots: &'search HashMap<PkgNameVerPeer, SnapshotEntry>,
+}
+
+impl<'search> ProviderSearch<'search> {
+    /// The smallest full key a dependency of `level` records, and the
+    /// dependencies that take the peer transitively, in key order.
+    fn ask(
+        &self,
+        level: &[&'search SnapshotEntry],
+        seen: &mut HashSet<PkgNameVerPeer>,
+    ) -> (Option<PkgNameVerPeer>, Vec<&'search SnapshotEntry>) {
+        let mut bound: Vec<PkgNameVerPeer> = Vec::new();
+        let mut carriers: Vec<(PkgNameVerPeer, &SnapshotEntry)> = Vec::new();
+        let dependencies =
+            level.iter().flat_map(|snapshot| dependencies_of(snapshot, self.snapshots));
+        for (key, dependency) in dependencies {
+            if let Some(full) = self.bound_in(dependency) {
+                bound.push(full);
+            } else if takes_transitively(dependency, self.peer) && seen.insert(key.clone()) {
+                carriers.push((key, dependency));
+            }
+        }
+        carriers.sort_by_cached_key(|(key, _)| key.to_string());
+        let carriers = carriers
+            .into_iter()
+            .map(|(_, dependency)| dependency)
+            .collect();
+        (bound.into_iter().min_by_key(ToString::to_string), carriers)
+    }
+
+    fn bound_in(&self, dependency: &SnapshotEntry) -> Option<PkgNameVerPeer> {
+        dependency_key(dependency, &self.alias).filter(|full| full.without_peer() == self.package)
+    }
+}
+
+fn takes_transitively(snapshot: &SnapshotEntry, peer: &str) -> bool {
+    snapshot.transitive_peer_dependencies
+        .iter()
+        .flatten()
+        .any(|name| name == peer)
+}
+
+/// The snapshot's dependencies that have a snapshot of their own.
+fn dependencies_of<'lockfile>(
+    snapshot: &'lockfile SnapshotEntry,
+    snapshots: &'lockfile HashMap<PkgNameVerPeer, SnapshotEntry>,
+) -> impl Iterator<Item = (PkgNameVerPeer, &'lockfile SnapshotEntry)> {
+    [&snapshot.dependencies, &snapshot.optional_dependencies]
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|(alias, dep_ref)| {
+            let key = dep_ref.resolve(alias)?;
+            let dependency = snapshots.get(&key)?;
+            Some((key, dependency))
         })
 }
 
@@ -106,10 +223,9 @@ pub(super) fn unlinked_peer_providers(
     let peers = base_peer_names(dep_key, snapshot, lockfile);
     bindings
         .providers()
-        .filter(|provider| {
-            let name = provider.name.to_string();
-            peers.contains(&name) && !has_edge(&name)
-        })
+        .map(|provider| (provider.name.to_string(), provider))
+        .filter(|(name, _)| peers.contains(name) && !has_edge(name))
+        .map(|(name, provider)| snapshot_key_of(provider, snapshot, &name, lockfile))
         .collect()
 }
 
@@ -164,7 +280,7 @@ fn own_dependencies_declared_as_peers(
     if declared.is_empty() || matches!(bindings, Some(PeerBindings::Hashed)) {
         return Vec::new();
     }
-    let bound: std::collections::HashSet<PkgNameVerPeer> = bindings
+    let bound: HashSet<PkgNameVerPeer> = bindings
         .iter()
         .flat_map(PeerBindings::providers)
         .map(|key| key.without_peer())
@@ -182,10 +298,13 @@ fn own_dependencies_declared_as_peers(
 /// The snapshot key `name` resolves to among the package's own
 /// dependencies, regular before optional.
 fn own_dependency_key(snapshot: &SnapshotEntry, name: &str) -> Option<PkgNameVerPeer> {
-    let alias = PkgName::parse(name).ok()?;
+    dependency_key(snapshot, &PkgName::parse(name).ok()?)
+}
+
+fn dependency_key(snapshot: &SnapshotEntry, alias: &PkgName) -> Option<PkgNameVerPeer> {
     [&snapshot.dependencies, &snapshot.optional_dependencies]
         .into_iter()
         .flatten()
-        .find_map(|deps| deps.get(&alias))
-        .and_then(|dep_ref| dep_ref.resolve(&alias))
+        .find_map(|deps| deps.get(alias))
+        .and_then(|dep_ref| dep_ref.resolve(alias))
 }
