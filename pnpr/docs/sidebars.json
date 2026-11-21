@@ -3,6 +3,7 @@
     "introduction",
     "installation",
     "quick-start",
+    "docker-compose",
     "cli",
     {
       "type": "category",

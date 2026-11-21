@@ -12,7 +12,8 @@ This crate ships the `pnpr` binary and the library behind it. It lives in the
   [`pnpr/docs/`](../../docs/).
 - Contributor guide: [`pnpr/AGENTS.md`](../../AGENTS.md) and
   [`pnpr/CONTRIBUTING.md`](../../CONTRIBUTING.md).
-- Self-hosting in a container: [`pnpr/DEPLOY.md`](../../DEPLOY.md).
+- Self-hosting with Docker Compose or Coolify:
+  [`pnpr/docs/docker-compose.md`](../../docs/docker-compose.md).
 - License: [PolyForm Shield 1.0.0](../../LICENSE.md).
 
 ## Extensibility

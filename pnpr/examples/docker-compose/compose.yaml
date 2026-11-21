@@ -1,0 +1,24 @@
+# Runs the official pnpr image with durable storage. See
+# https://pnpm.io/pnpr/docker-compose for the walkthrough, including Coolify.
+
+services:
+  pnpr:
+    image: ghcr.io/pnpm/pnpr:${PNPR_IMAGE_TAG:?set PNPR_IMAGE_TAG to a pnpr release, such as 0.1.0-alpha.21}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7677:7677"
+    environment:
+      PNPR_CONFIG: /pnpr/config.yaml
+      PNPR_PUBLIC_URL: ${PNPR_PUBLIC_URL:-http://localhost:7677}
+      PNPR_SECRET: ${PNPR_SECRET:?set PNPR_SECRET to a random value of at least 16 bytes}
+      PNPR_CACHE_MAX_SIZE: ${PNPR_CACHE_MAX_SIZE:-20GB}
+      PNPR_LOG_FORMAT: ${PNPR_LOG_FORMAT:-json}
+      PNPR_LOG_LEVEL: ${PNPR_LOG_LEVEL:-info}
+    volumes:
+      - ./pnpr.yaml:/pnpr/config.yaml:ro
+      - pnpr-storage:/pnpr/storage
+      - pnpr-cache:/pnpr/cache
+
+volumes:
+  pnpr-storage:
+  pnpr-cache:
