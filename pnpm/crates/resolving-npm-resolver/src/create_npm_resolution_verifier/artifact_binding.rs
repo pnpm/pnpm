@@ -207,11 +207,7 @@ pub(super) fn select_revision<'a>(
 }
 
 pub(super) fn lockfile_revision(resolution: &LockfileResolution) -> Option<u64> {
-    match resolution {
-        LockfileResolution::Registry(registry) => registry.revision.map(TarballRevision::get),
-        LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
-        _ => None,
-    }
+    resolution.revision().map(TarballRevision::get)
 }
 
 /// Canonicalize a tarball URL: parse-and-reserialize to drop default

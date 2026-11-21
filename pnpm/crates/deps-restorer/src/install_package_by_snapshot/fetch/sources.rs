@@ -39,14 +39,6 @@ use std::{
     sync::Arc,
 };
 
-fn is_revision_addressed(resolution: &LockfileResolution) -> bool {
-    match resolution {
-        LockfileResolution::Tarball(tarball) => tarball.revision.is_some(),
-        LockfileResolution::Registry(registry) => registry.revision.is_some(),
-        _ => false,
-    }
-}
-
 fn custom_fetch_options(
     package_key: &PackageKey,
     metadata: &PackageMetadata,
@@ -252,7 +244,7 @@ impl InstallPackageBySnapshot<'_> {
     ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
         let config = self.ctx.config;
-        let revision_addressed = is_revision_addressed(fetch.resolution);
+        let revision_addressed = fetch.resolution.revision().is_some();
         let (tarball_url, integrity) =
             tarball_url_and_integrity(fetch.resolution, fetch.package_key, config)?;
         let tarball_url = local_file_tarball_install_url(tarball_url, self.ctx.workspace_root);

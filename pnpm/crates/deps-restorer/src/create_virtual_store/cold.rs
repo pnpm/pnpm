@@ -401,6 +401,9 @@ async fn download_one<'a, Reporter: self::Reporter>(
     ))
 }
 fn is_version_addressed_tarball(key: &PackageKey, resolution: &LockfileResolution) -> bool {
+    if resolution.revision().is_some() {
+        return true;
+    }
     let LockfileResolution::Tarball(tarball) = resolution else {
         return false;
     };
