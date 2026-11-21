@@ -11,12 +11,12 @@ use crate::{
     RcByPtr,
 };
 use indexmap::IndexSet;
+use rustc_hash::{
+    FxHashMap,
+    FxHashSet,
+};
 use std::{
     cell::RefCell,
-    collections::{
-        HashMap,
-        HashSet,
-    },
     rc::Rc,
 };
 
@@ -26,7 +26,7 @@ use std::{
 ///
 /// Keyed by the parent's address: the run's arena keeps every work node
 /// alive, so an address names one node for the whole run.
-pub(super) type ShadowedNodes = HashMap<*const WorkNode, HashSet<String>>;
+pub(super) type ShadowedNodes = FxHashMap<*const WorkNode, FxHashSet<Rc<str>>>;
 
 /// Upstream's `Hoistable`, with `dependsOn` folded into the variant.
 pub(super) enum Hoistable {
@@ -39,8 +39,8 @@ pub(super) enum Hoistable {
 /// What [`node_hoist_info`] reads about the current hoisting root.
 pub(super) struct RootContext<'ctx> {
     pub(super) root: &'ctx Rc<WorkNode>,
-    pub(super) used: &'ctx HashMap<String, Rc<WorkNode>>,
-    pub(super) hoist_idents: &'ctx HashMap<String, Rc<str>>,
+    pub(super) used: &'ctx FxHashMap<Rc<str>, Rc<WorkNode>>,
+    pub(super) hoist_idents: &'ctx FxHashMap<Rc<str>, Rc<str>>,
     pub(super) shadowed: &'ctx RefCell<ShadowedNodes>,
     pub(super) fast_lookup_possible: bool,
     pub(super) arena: &'ctx super::Arena,
@@ -115,8 +115,9 @@ fn is_name_available(ctx: &RootContext<'_>, node_path: &[Rc<WorkNode>], node: &W
         .iter()
         .rev()
         .any(|ancestor| {
-            ancestor
-                .dependency(name)
+            ancestor.dependencies
+                .borrow()
+                .get(name)
                 .is_some_and(|dep| dep.input.ident != *ident)
         });
     if filled && let Some(parent) = node_path.last() {
@@ -124,7 +125,7 @@ fn is_name_available(ctx: &RootContext<'_>, node_path: &[Rc<WorkNode>], node: &W
         shadowed
             .entry(Rc::as_ptr(parent))
             .or_default()
-            .insert(name.clone());
+            .insert(Rc::clone(name));
     }
     !filled
 }
@@ -150,7 +151,10 @@ fn peer_providers_to_hoist(
     node_path: &[Rc<WorkNode>],
     node: &WorkNode,
 ) -> Option<Vec<Rc<WorkNode>>> {
-    let mut unchecked: IndexSet<String> = node.input.peer_names.clone();
+    if node.input.peer_names.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut unchecked: IndexSet<Rc<str>> = node.input.peer_names.clone();
     let mut nearest_first = node_path
         .get(1..)
         .unwrap_or_default()
@@ -171,9 +175,9 @@ fn peer_providers_to_hoist(
 fn unhoisted_providers(
     ctx: &RootContext<'_>,
     ancestor: &WorkNode,
-    unchecked: &mut IndexSet<String>,
+    unchecked: &mut IndexSet<Rc<str>>,
 ) -> Vec<Rc<WorkNode>> {
-    let settled: Vec<String> = unchecked
+    let settled: Vec<Rc<str>> = unchecked
         .iter()
         .filter(|name| !passes_through(ancestor, name))
         .cloned()
@@ -200,7 +204,7 @@ fn passes_through(ancestor: &WorkNode, name: &str) -> bool {
         && ancestor.original_dependencies.borrow().contains_key(name);
     let found_higher = !ancestor.dependencies.borrow().contains_key(name)
         && (ancestor.hoisted_dependencies.borrow().contains_key(name)
-            || ancestor.input.name == name);
+            || &*ancestor.input.name == name);
     takes_as_peer || found_higher
 }
 
@@ -233,10 +237,16 @@ fn has_unhoisted_dependencies(node: &WorkNode) -> bool {
 
 /// Upstream's `getSortedRegularDependencies`: the children that are not
 /// peer edges, each after the siblings that provide its peers.
+///
+/// Without a child that takes a peer there is nothing to reorder.
 pub(super) fn sorted_regular_dependencies(node: &WorkNode) -> Vec<Rc<WorkNode>> {
+    let regular = super::graph::regular_dependencies(node);
+    if regular.iter().all(|dep| dep.input.peer_names.is_empty()) {
+        return regular;
+    }
     let mut sorted: IndexSet<RcByPtr<WorkNode>> = IndexSet::new();
-    for dep in super::graph::regular_dependencies(node) {
-        add_after_peers(node, &dep, &mut sorted, &mut HashSet::new());
+    for dep in regular {
+        add_after_peers(node, &dep, &mut sorted, &mut FxHashSet::default());
     }
     sorted
         .into_iter()
@@ -248,7 +258,7 @@ fn add_after_peers(
     node: &WorkNode,
     dep: &Rc<WorkNode>,
     sorted: &mut IndexSet<RcByPtr<WorkNode>>,
-    seen: &mut HashSet<*const WorkNode>,
+    seen: &mut FxHashSet<*const WorkNode>,
 ) {
     if !seen.insert(Rc::as_ptr(dep)) {
         return;

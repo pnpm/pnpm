@@ -6620,6 +6620,7 @@ dependencies = [
  "pnpm-local-spec",
  "pnpm-lockfile",
  "pretty_assertions",
+ "rustc-hash 2.1.3",
 ]
 
 [[package]]

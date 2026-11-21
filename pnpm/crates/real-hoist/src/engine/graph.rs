@@ -14,18 +14,15 @@ use crate::{
     HoisterTree,
     RcByPtr,
 };
-use indexmap::{
-    IndexMap,
-    IndexSet,
+use indexmap::IndexSet;
+use rustc_hash::{
+    FxHashMap,
+    FxHashSet,
 };
 use std::{
     cell::{
         Cell,
         RefCell,
-    },
-    collections::{
-        HashMap,
-        HashSet,
     },
     rc::Rc,
 };
@@ -51,11 +48,11 @@ pub(crate) fn tree_ident(tree: &HoisterTree) -> String {
 /// the copy would then resolve. A lockfile gives every peer variant the
 /// same declared and transitive peer names, so this only fills gaps in a
 /// hand-built input.
-pub(super) type PeerNamesByIdent = HashMap<String, IndexSet<String>>;
+pub(super) type PeerNamesByIdent = FxHashMap<String, IndexSet<String>>;
 
 pub(super) fn peer_names_by_ident(tree: &HoisterTree) -> PeerNamesByIdent {
-    let mut by_ident = PeerNamesByIdent::new();
-    let mut seen: HashSet<*const HoisterTree> = HashSet::new();
+    let mut by_ident = PeerNamesByIdent::default();
+    let mut seen: FxHashSet<*const HoisterTree> = FxHashSet::default();
     let mut pending: Vec<Rc<HoisterTree>> = tree.dependencies
         .borrow()
         .iter()
@@ -108,19 +105,24 @@ fn work_node(
     (by_ident, arena): (&PeerNamesByIdent, &Arena),
 ) -> Rc<WorkNode> {
     let reference = tree.reference.clone();
+    let ident = tree_ident(tree);
     let input = NodeInput {
-        name: tree.name.clone(),
+        name: tree.name.as_str().into(),
         ident_name: tree.ident_name.clone(),
-        ident: tree_ident(tree).into(),
-        peer_names: peer_names_of(tree, by_ident),
+        aliased_locator: format!("{}@{ident}", tree.name).into(),
+        ident: ident.into(),
+        peer_names: peer_names_of(tree, by_ident)
+            .into_iter()
+            .map(Rc::from)
+            .collect(),
         hoist_priority: tree.hoist_priority,
         dependency_kind: tree.dependency_kind,
     };
     let node = Rc::new(WorkNode {
         input: Rc::new(input),
-        references: RefCell::new(IndexSet::from([reference])),
+        references: RefCell::new(IndexSet::from([Rc::from(reference)])),
         dependencies: RefCell::default(),
-        original_dependencies: RefCell::default(),
+        original_dependencies: Rc::default(),
         hoisted_dependencies: RefCell::default(),
         decoupled: Cell::new(true),
         is_hoist_border: Cell::new(is_hoist_border),
@@ -141,11 +143,11 @@ struct CloneFrame {
 /// What upstream's `cloneTree` knows about the work nodes made so far.
 #[derive(Default)]
 struct Cloned {
-    by_input: HashMap<*const HoisterTree, Rc<WorkNode>>,
+    by_input: FxHashMap<*const HoisterTree, Rc<WorkNode>>,
     /// The nodes whose children are still being added.
-    open: HashSet<*const WorkNode>,
+    open: FxHashSet<*const WorkNode>,
     /// See [`mark_coupled`].
-    sealed: HashSet<*const WorkNode>,
+    sealed: FxHashSet<*const WorkNode>,
 }
 
 /// Upstream's `cloneTree`. The root is a workspace and a hoist border,
@@ -197,15 +199,15 @@ fn add_node(
     cloned.by_input.entry(key).or_insert_with(|| Rc::clone(&node));
     let name = &node.input.name;
     let parent_limits = options.hoisting_limits.get(parent.input.ident.as_ref());
-    if parent_limits.is_some_and(|names| names.contains(name)) {
+    if parent_limits.is_some_and(|names| names.contains(&**name)) {
         node.is_hoist_border.set(true);
     }
     parent.dependencies
         .borrow_mut()
-        .insert(name.clone(), Rc::clone(&node));
+        .insert(Rc::clone(name), Rc::clone(&node));
     parent.original_dependencies
         .borrow_mut()
-        .insert(name.clone(), Rc::clone(&node));
+        .insert(Rc::clone(name), Rc::clone(&node));
     if is_seen {
         mark_coupled(&node, cloned);
         return None;
@@ -220,7 +222,7 @@ fn add_node(
 /// with no open node in it cannot grow, so once a walk has marked all of
 /// one, its nodes are sealed and later walks stop at them.
 fn mark_coupled(node: &Rc<WorkNode>, cloned: &mut Cloned) {
-    let mut marked: HashSet<*const WorkNode> = HashSet::new();
+    let mut marked: FxHashSet<*const WorkNode> = FxHashSet::default();
     let mut can_grow = false;
     let mut pending = vec![Rc::clone(node)];
     while let Some(node) = pending.pop() {
@@ -253,13 +255,12 @@ pub(super) fn decouple(parent: &WorkNode, node: &Rc<WorkNode>, arena: &Arena) ->
     if node.decoupled.get() {
         return Rc::clone(node);
     }
-    let copy = |cell: &RefCell<IndexMap<String, Rc<WorkNode>>>| RefCell::new(cell.borrow().clone());
     let clone = Rc::new(WorkNode {
         input: Rc::clone(&node.input),
         references: RefCell::new(node.references.borrow().clone()),
-        dependencies: copy(&node.dependencies),
-        original_dependencies: copy(&node.original_dependencies),
-        hoisted_dependencies: copy(&node.hoisted_dependencies),
+        dependencies: node.dependencies.clone(),
+        original_dependencies: Rc::clone(&node.original_dependencies),
+        hoisted_dependencies: node.hoisted_dependencies.clone(),
         decoupled: Cell::new(true),
         is_hoist_border: Cell::new(node.is_hoist_border.get()),
     });
@@ -269,11 +270,11 @@ pub(super) fn decouple(parent: &WorkNode, node: &Rc<WorkNode>, arena: &Arena) ->
     if self_dependency.is_some_and(|dep| dep.input.ident == clone.input.ident) {
         clone.dependencies
             .borrow_mut()
-            .insert(name.clone(), Rc::clone(&clone));
+            .insert(Rc::clone(name), Rc::clone(&clone));
     }
     parent.dependencies
         .borrow_mut()
-        .insert(name.clone(), Rc::clone(&clone));
+        .insert(Rc::clone(name), Rc::clone(&clone));
     clone
 }
 
@@ -293,7 +294,7 @@ struct ShrinkFrame {
 /// which only makes the result cyclic.
 pub(super) fn shrink_tree(root: &Rc<WorkNode>) -> HoisterResult {
     let top = result_node(root);
-    let mut on_path: HashSet<*const WorkNode> = HashSet::from([Rc::as_ptr(root)]);
+    let mut on_path: FxHashSet<*const WorkNode> = FxHashSet::from_iter([Rc::as_ptr(root)]);
     let mut stack = vec![shrink_frame(root, &top)];
     while let Some(frame) = stack.last_mut() {
         let Some(child) = frame.children.get(frame.next).map(Rc::clone) else {
@@ -328,9 +329,15 @@ fn shrink_frame(node: &Rc<WorkNode>, result: &Rc<HoisterResult>) -> ShrinkFrame 
 
 fn result_node(node: &WorkNode) -> Rc<HoisterResult> {
     Rc::new(HoisterResult {
-        name: node.input.name.clone(),
+        name: node.input.name.to_string(),
         ident_name: node.input.ident_name.clone(),
-        references: RefCell::new(node.references.borrow().clone()),
+        references: RefCell::new(
+            node.references
+                .borrow()
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        ),
         dependencies: RefCell::default(),
     })
 }

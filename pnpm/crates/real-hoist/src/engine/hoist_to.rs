@@ -19,34 +19,36 @@ use super::{
         shift_unplaced,
     },
 };
+use rustc_hash::{
+    FxHashMap,
+    FxHashSet,
+};
 use std::{
     cell::RefCell,
-    collections::{
-        HashMap,
-        HashSet,
-    },
     rc::Rc,
 };
 
+type Names = FxHashSet<Rc<str>>;
+
 /// One round of upstream's `hoist` loop: `hoistTo` from the top root.
 pub(super) fn hoist_to(top: &Rc<WorkNode>, options: &EngineOptions<'_>) -> PassOutcome {
-    let mut path_locators: HashSet<Rc<str>> = HashSet::from([Rc::clone(&top.input.ident)]);
-    hoist_to_root(&[Rc::clone(top)], &mut path_locators, &ShadowedNodes::new(), options)
+    let mut path_locators: FxHashSet<Rc<str>> = FxHashSet::from_iter([Rc::clone(&top.input.ident)]);
+    hoist_to_root(&[Rc::clone(top)], &mut path_locators, &ShadowedNodes::default(), options)
 }
 
 /// Upstream's `hoistTo`. `root_path` ends with the hoisting root;
 /// `path_locators` holds the locators of every root on it.
 fn hoist_to_root(
     root_path: &[Rc<WorkNode>],
-    path_locators: &mut HashSet<Rc<str>>,
+    path_locators: &mut FxHashSet<Rc<str>>,
     parent_shadowed: &ShadowedNodes,
     options: &EngineOptions<'_>,
 ) -> PassOutcome {
     let Some(root) = root_path.last() else { return PassOutcome::default() };
-    let shadowed = RefCell::new(ShadowedNodes::new());
+    let shadowed = RefCell::new(ShadowedNodes::default());
     let mut outcome = hoist_into(root, root_path, parent_shadowed, &shadowed, options);
     let shadowed = shadowed.into_inner();
-    let names: Vec<String> = root.dependencies
+    let names: Vec<Rc<str>> = root.dependencies
         .borrow()
         .keys()
         .cloned()
@@ -82,7 +84,7 @@ fn hoist_into(
     let is_top = root_path.len() == 1;
     let fast_lookup_possible = options.fast_lookup_possible.get();
     let used = match (is_top, fast_lookup_possible) {
-        (true, _) => HashMap::new(),
+        (true, _) => FxHashMap::default(),
         (false, true) => zero_round_used_dependencies(root),
         (false, false) => used_dependencies(root_path),
     };
@@ -105,11 +107,11 @@ fn hoist_into(
 
 /// Upstream's `getZeroRoundUsedDependencies`: every name the root's
 /// subtree has had hoisted out of it, so resolves from above.
-fn zero_round_used_dependencies(root: &Rc<WorkNode>) -> HashMap<String, Rc<WorkNode>> {
-    let mut used = HashMap::new();
+fn zero_round_used_dependencies(root: &Rc<WorkNode>) -> FxHashMap<Rc<str>, Rc<WorkNode>> {
+    let mut used = FxHashMap::default();
     for node in preorder(root) {
         for (name, dep) in node.hoisted_dependencies.borrow().iter() {
-            used.insert(name.clone(), Rc::clone(dep));
+            used.insert(Rc::clone(name), Rc::clone(dep));
         }
     }
     used
@@ -118,7 +120,7 @@ fn zero_round_used_dependencies(root: &Rc<WorkNode>) -> HashMap<String, Rc<WorkN
 /// Every node reachable from `root` through regular edges, each once, in
 /// the preorder of upstream's recursive walks.
 fn preorder(root: &Rc<WorkNode>) -> Vec<Rc<WorkNode>> {
-    let mut seen: HashSet<*const WorkNode> = HashSet::new();
+    let mut seen: FxHashSet<*const WorkNode> = FxHashSet::default();
     let mut order = Vec::new();
     let mut pending = vec![Rc::clone(root)];
     while let Some(node) = pending.pop() {
@@ -134,18 +136,17 @@ fn preorder(root: &Rc<WorkNode>) -> Vec<Rc<WorkNode>> {
 /// Upstream's `getUsedDependencies`: for each name hoisted out of the
 /// root's subtree and not shadowed by a sibling of the node it left, the
 /// copies the root path provides.
-fn used_dependencies(root_path: &[Rc<WorkNode>]) -> HashMap<String, Rc<WorkNode>> {
-    let mut used = HashMap::new();
+fn used_dependencies(root_path: &[Rc<WorkNode>]) -> FxHashMap<Rc<str>, Rc<WorkNode>> {
+    let mut used = FxHashMap::default();
     let Some(root) = root_path.last() else { return used };
-    let mut seen: HashSet<*const WorkNode> = HashSet::new();
-    let mut pending: Vec<(Rc<WorkNode>, Rc<HashSet<String>>)> =
-        vec![(Rc::clone(root), Rc::default())];
+    let mut seen: FxHashSet<*const WorkNode> = FxHashSet::default();
+    let mut pending: Vec<(Rc<WorkNode>, Rc<Names>)> = vec![(Rc::clone(root), Rc::default())];
     while let Some((node, hidden)) = pending.pop() {
         if !seen.insert(Rc::as_ptr(&node)) {
             continue;
         }
         add_reachable(&mut used, root_path, &node, &hidden);
-        let children_hidden: Rc<HashSet<String>> = Rc::new(
+        let children_hidden: Rc<Names> = Rc::new(
             node.dependencies
                 .borrow()
                 .keys()
@@ -166,10 +167,10 @@ fn used_dependencies(root_path: &[Rc<WorkNode>]) -> HashMap<String, Rc<WorkNode>
 /// nearest the end of `root_path`. Upstream walks the path from the top
 /// and lets each holder overwrite the last.
 fn add_reachable(
-    used: &mut HashMap<String, Rc<WorkNode>>,
+    used: &mut FxHashMap<Rc<str>, Rc<WorkNode>>,
     root_path: &[Rc<WorkNode>],
     node: &WorkNode,
-    hidden: &HashSet<String>,
+    hidden: &Names,
 ) {
     let hoisted = node.hoisted_dependencies.borrow();
     let visible = hoisted
@@ -181,7 +182,7 @@ fn add_reachable(
             .rev()
             .find_map(|ancestor| ancestor.dependency(name));
         if let Some(reachable) = reachable {
-            used.insert(name.clone(), reachable);
+            used.insert(Rc::clone(name), reachable);
         }
     }
 }

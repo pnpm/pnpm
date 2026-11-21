@@ -34,6 +34,7 @@ use indexmap::{
     IndexMap,
     IndexSet,
 };
+use rustc_hash::FxBuildHasher;
 use std::{
     cell::{
         Cell,
@@ -44,18 +45,20 @@ use std::{
 
 /// Children keyed by the name they are installed under, in insertion
 /// order, as upstream's `Map<PackageName, HoisterWorkTree>`.
-type Children = RefCell<IndexMap<String, Rc<WorkNode>>>;
+type Children = RefCell<IndexMap<Rc<str>, Rc<WorkNode>, FxBuildHasher>>;
 
 /// What a work node takes from the input tree. No pass changes it, so a
 /// decoupled copy shares it.
 pub(crate) struct NodeInput {
-    name: String,
+    name: Rc<str>,
     ident_name: String,
     /// `ident_name@<collapsed reference>`. Upstream's `ident`, and also
     /// its `locator`, which pnpm v11's wrapper makes equal by collapsing
     /// the reference itself.
     ident: Rc<str>,
-    peer_names: IndexSet<String>,
+    /// `name@ident`, upstream's `getAliasedLocator`.
+    aliased_locator: Rc<str>,
+    peer_names: IndexSet<Rc<str>>,
     hoist_priority: u32,
     dependency_kind: HoisterDependencyKind,
 }
@@ -66,9 +69,11 @@ pub(crate) struct WorkNode {
     input: Rc<NodeInput>,
     /// Every snapshot key served by this directory. The first is the
     /// node's own; dedups append the keys of the copies they absorb.
-    references: RefCell<IndexSet<String>>,
+    references: RefCell<IndexSet<Rc<str>>>,
     dependencies: Children,
-    original_dependencies: Children,
+    /// Filled while the graph is cloned and never changed after, so a
+    /// decoupled copy shares it.
+    original_dependencies: Rc<Children>,
     hoisted_dependencies: Children,
     decoupled: Cell<bool>,
     is_hoist_border: Cell<bool>,
@@ -90,11 +95,6 @@ impl WorkNode {
             .values()
             .map(Rc::clone)
             .collect()
-    }
-
-    /// Upstream's `getAliasedLocator`.
-    fn aliased_locator(&self) -> String {
-        format!("{}@{}", self.input.name, self.input.ident)
     }
 }
 

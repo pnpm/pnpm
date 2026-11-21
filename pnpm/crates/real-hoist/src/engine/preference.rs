@@ -3,22 +3,22 @@
 
 use super::WorkNode;
 use indexmap::IndexMap;
+use rustc_hash::{
+    FxHashMap,
+    FxHashSet,
+};
 use std::{
-    collections::{
-        HashMap,
-        HashSet,
-        VecDeque,
-    },
+    collections::VecDeque,
     rc::Rc,
 };
 
 /// Candidate idents per name, most preferred first.
-pub(super) type HoistIdentMap = IndexMap<String, VecDeque<Rc<str>>>;
+pub(super) type HoistIdentMap = IndexMap<Rc<str>, VecDeque<Rc<str>>>;
 
 #[derive(Default)]
 struct PreferenceEntry {
-    dependents: HashSet<Rc<str>>,
-    peer_dependents: HashSet<Rc<str>>,
+    dependents: FxHashSet<Rc<str>>,
+    peer_dependents: FxHashSet<Rc<str>>,
     hoist_priority: u32,
 }
 
@@ -29,10 +29,12 @@ impl PreferenceEntry {
 }
 
 /// Keyed by `(name, ident)`, in the order upstream's map inserts them.
-type PreferenceMap = IndexMap<(String, Rc<str>), PreferenceEntry>;
+type PreferenceMap = IndexMap<NameAndIdent, PreferenceEntry>;
+
+type NameAndIdent = (Rc<str>, Rc<str>);
 
 fn entry<'map>(map: &'map mut PreferenceMap, node: &WorkNode) -> &'map mut PreferenceEntry {
-    map.entry((node.input.name.clone(), Rc::clone(&node.input.ident)))
+    map.entry((Rc::clone(&node.input.name), Rc::clone(&node.input.ident)))
         .or_default()
 }
 
@@ -47,7 +49,7 @@ struct Frame {
 /// Upstream's `buildPreferenceMap`.
 fn build_preference_map(root: &Rc<WorkNode>) -> PreferenceMap {
     let mut map = PreferenceMap::new();
-    let mut seen: HashSet<*const WorkNode> = HashSet::from([Rc::as_ptr(root)]);
+    let mut seen: FxHashSet<*const WorkNode> = FxHashSet::from_iter([Rc::as_ptr(root)]);
     for dep in super::graph::regular_dependencies(root) {
         if let Some(frame) = add_dependent(&mut map, &mut seen, root, &dep) {
             walk_dependents(&mut map, &mut seen, frame);
@@ -60,7 +62,7 @@ fn build_preference_map(root: &Rc<WorkNode>) -> PreferenceMap {
 /// loop when `node` is seen for the first time.
 fn add_dependent(
     map: &mut PreferenceMap,
-    seen: &mut HashSet<*const WorkNode>,
+    seen: &mut FxHashSet<*const WorkNode>,
     dependent: &WorkNode,
     node: &Rc<WorkNode>,
 ) -> Option<Frame> {
@@ -70,7 +72,7 @@ fn add_dependent(
 }
 
 /// `addDependent`'s loop, run on an explicit stack in recursion order.
-fn walk_dependents(map: &mut PreferenceMap, seen: &mut HashSet<*const WorkNode>, first: Frame) {
+fn walk_dependents(map: &mut PreferenceMap, seen: &mut FxHashSet<*const WorkNode>, first: Frame) {
     let mut stack = vec![first];
     while let Some(frame) = stack.last_mut() {
         let Some(dep) = frame.children.get(frame.next).map(Rc::clone) else {
@@ -95,11 +97,11 @@ fn walk_dependents(map: &mut PreferenceMap, seen: &mut HashSet<*const WorkNode>,
 pub(super) fn hoist_ident_map(root: &Rc<WorkNode>) -> HoistIdentMap {
     let preferences = build_preference_map(root);
     let mut idents = HoistIdentMap::new();
-    idents.insert(root.input.name.clone(), VecDeque::from([Rc::clone(&root.input.ident)]));
+    idents.insert(Rc::clone(&root.input.name), VecDeque::from([Rc::clone(&root.input.ident)]));
     for dep in super::graph::regular_dependencies(root) {
-        idents.insert(dep.input.name.clone(), VecDeque::from([Rc::clone(&dep.input.ident)]));
+        idents.insert(Rc::clone(&dep.input.name), VecDeque::from([Rc::clone(&dep.input.ident)]));
     }
-    let mut ranked: Vec<(&(String, Rc<str>), &PreferenceEntry)> = preferences.iter().collect();
+    let mut ranked: Vec<(&NameAndIdent, &PreferenceEntry)> = preferences.iter().collect();
     // A stable sort, as JavaScript's `Array.prototype.sort` is.
     ranked.sort_by(|(_, left), (_, right)| {
         right.hoist_priority
@@ -110,7 +112,9 @@ pub(super) fn hoist_ident_map(root: &Rc<WorkNode>) -> HoistIdentMap {
         if root.input.peer_names.contains(name) {
             continue;
         }
-        let candidates = idents.entry(name.clone()).or_default();
+        let candidates = idents
+            .entry(Rc::clone(name))
+            .or_default();
         if !candidates.contains(ident) {
             candidates.push_back(Rc::clone(ident));
         }
@@ -119,12 +123,12 @@ pub(super) fn hoist_ident_map(root: &Rc<WorkNode>) -> HoistIdentMap {
 }
 
 /// The front ident of each name, upstream's `hoistIdents`.
-pub(super) fn front_idents(map: &HoistIdentMap) -> HashMap<String, Rc<str>> {
+pub(super) fn front_idents(map: &HoistIdentMap) -> FxHashMap<Rc<str>, Rc<str>> {
     map.iter()
         .filter_map(|(name, idents)| {
             idents
                 .front()
-                .map(|ident| (name.clone(), Rc::clone(ident)))
+                .map(|ident| (Rc::clone(name), Rc::clone(ident)))
         })
         .collect()
 }
@@ -135,14 +139,14 @@ pub(super) fn front_idents(map: &HoistIdentMap) -> HashMap<String, Rc<str>> {
 pub(super) fn shift_unplaced(
     map: &mut HoistIdentMap,
     root: &WorkNode,
-    front: &mut HashMap<String, Rc<str>>,
+    front: &mut FxHashMap<Rc<str>, Rc<str>>,
 ) -> bool {
     let mut shifted = false;
     for (name, idents) in map.iter_mut() {
         if idents.len() > 1 && !root.dependencies.borrow().contains_key(name) {
             idents.pop_front();
             if let Some(next) = idents.front() {
-                front.insert(name.clone(), Rc::clone(next));
+                front.insert(Rc::clone(name), Rc::clone(next));
             }
             shifted = true;
         }
