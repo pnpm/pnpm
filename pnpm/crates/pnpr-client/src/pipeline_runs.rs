@@ -45,7 +45,12 @@ impl PnprClient {
             put = put.header("authorization", authorization);
         }
         let response = put.send().await.map_err(reqwest::Error::without_url)?;
-        super::check_status(response, "/-/pnpr/v0/pipeline/runs").await?;
+        let status = response.status();
+        if !status.is_success() {
+            // Server error bodies can echo credentials from the request.
+            let message = format!("PUT /-/pnpr/v0/pipeline/runs returned {status}");
+            return Err(PnprClientError::server(message));
+        }
         Ok(())
     }
 }
