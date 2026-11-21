@@ -138,22 +138,35 @@ struct CloneFrame {
     next: usize,
 }
 
+/// What upstream's `cloneTree` knows about the work nodes made so far.
+#[derive(Default)]
+struct Cloned {
+    by_input: HashMap<*const HoisterTree, Rc<WorkNode>>,
+    /// The nodes whose children are still being added.
+    open: HashSet<*const WorkNode>,
+    /// See [`mark_coupled`].
+    sealed: HashSet<*const WorkNode>,
+}
+
 /// Upstream's `cloneTree`. The root is a workspace and a hoist border,
 /// as upstream makes it, whatever the input says.
 pub(super) fn clone_tree(tree: &HoisterTree, options: &EngineOptions<'_>) -> Rc<WorkNode> {
     let by_ident = peer_names_by_ident(tree);
     let root = work_node(tree, true, (&by_ident, &options.nodes));
-    let mut seen: HashMap<*const HoisterTree, Rc<WorkNode>> =
-        HashMap::from([(std::ptr::from_ref(tree), Rc::clone(&root))]);
+    let mut cloned = Cloned::default();
+    cloned.by_input.insert(std::ptr::from_ref(tree), Rc::clone(&root));
+    cloned.open.insert(Rc::as_ptr(&root));
     let mut stack = vec![clone_frame(tree, &root)];
     while let Some(frame) = stack.last_mut() {
         let Some(child) = frame.children.get(frame.next).map(Rc::clone) else {
+            cloned.open.remove(&Rc::as_ptr(&frame.parent));
             stack.pop();
             continue;
         };
         frame.next += 1;
         let parent = Rc::clone(&frame.parent);
-        if let Some(added) = add_node(&child, &parent, &mut seen, (options, &by_ident)) {
+        if let Some(added) = add_node(&child, &parent, &mut cloned, (options, &by_ident)) {
+            cloned.open.insert(Rc::as_ptr(&added));
             stack.push(clone_frame(&child, &added));
         }
     }
@@ -174,14 +187,14 @@ fn clone_frame(tree: &HoisterTree, parent: &Rc<WorkNode>) -> CloneFrame {
 fn add_node(
     tree: &Rc<HoisterTree>,
     parent: &Rc<WorkNode>,
-    seen: &mut HashMap<*const HoisterTree, Rc<WorkNode>>,
+    cloned: &mut Cloned,
     (options, by_ident): (&EngineOptions<'_>, &PeerNamesByIdent),
 ) -> Option<Rc<WorkNode>> {
     let key = Rc::as_ptr(tree);
-    let existing = seen.get(&key).map(Rc::clone);
+    let existing = cloned.by_input.get(&key).map(Rc::clone);
     let is_seen = existing.is_some();
     let node = existing.unwrap_or_else(|| work_node(tree, false, (by_ident, &options.nodes)));
-    seen.entry(key).or_insert_with(|| Rc::clone(&node));
+    cloned.by_input.entry(key).or_insert_with(|| Rc::clone(&node));
     let name = &node.input.name;
     let parent_limits = options.hoisting_limits.get(parent.input.ident.as_ref());
     if parent_limits.is_some_and(|names| names.contains(name)) {
@@ -194,7 +207,7 @@ fn add_node(
         .borrow_mut()
         .insert(name.clone(), Rc::clone(&node));
     if is_seen {
-        mark_coupled(&node);
+        mark_coupled(&node, cloned);
         return None;
     }
     Some(node)
@@ -202,15 +215,25 @@ fn add_node(
 
 /// Upstream's `markNodeCoupled`: a node reached through a second parent,
 /// and everything below it, may no longer be mutated in place.
-fn mark_coupled(node: &Rc<WorkNode>) {
-    let mut seen: HashSet<*const WorkNode> = HashSet::new();
+///
+/// Upstream walks the whole subtree on every further sighting. A subtree
+/// with no open node in it cannot grow, so once a walk has marked all of
+/// one, its nodes are sealed and later walks stop at them.
+fn mark_coupled(node: &Rc<WorkNode>, cloned: &mut Cloned) {
+    let mut marked: HashSet<*const WorkNode> = HashSet::new();
+    let mut can_grow = false;
     let mut pending = vec![Rc::clone(node)];
     while let Some(node) = pending.pop() {
-        if !seen.insert(Rc::as_ptr(&node)) {
+        let key = Rc::as_ptr(&node);
+        if cloned.sealed.contains(&key) || !marked.insert(key) {
             continue;
         }
+        can_grow |= cloned.open.contains(&key);
         node.decoupled.set(false);
         pending.extend(regular_dependencies(&node));
+    }
+    if !can_grow {
+        cloned.sealed.extend(marked);
     }
 }
 
@@ -326,3 +349,6 @@ pub(super) fn tear_down(arena: &Arena) {
 pub(super) fn is_workspace(node: &WorkNode) -> bool {
     node.input.dependency_kind == HoisterDependencyKind::Workspace
 }
+
+#[cfg(test)]
+mod tests;
