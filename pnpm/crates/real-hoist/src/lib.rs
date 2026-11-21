@@ -287,26 +287,7 @@ impl<Inner> From<Rc<Inner>> for RcByPtr<Inner> {
 /// convergence over the result graph (peer-aware, with
 /// `hoistingLimits` enforced as `Border` decisions).
 pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, HoistError> {
-    // See `repair`: each pass hands the peers the layout failed to resolve
-    // to the next as regular dependencies. The set only grows, so the loop
-    // ends.
-    let mut regular_peers = RegularPeers::new();
-    let (tree, result) = loop {
-        let tree = build_tree(lockfile, opts, &regular_peers)?;
-        let result = engine::hoist(&tree, opts);
-        let misresolved = repair::misresolved_peers(&result, lockfile, opts);
-        let mut added = false;
-        for (key, peer) in misresolved {
-            added |= regular_peers
-                .entry(key)
-                .or_default()
-                .insert(peer);
-        }
-        if !added {
-            break (tree, result);
-        }
-        tree::tear_down(&tree);
-    };
+    let (tree, result) = hoist_until_peers_resolve(lockfile, opts)?;
     #[cfg(test)]
     tests::resolution::assert_resolves_as_declared(&tree, &result);
     tree::tear_down(&tree);
@@ -320,6 +301,32 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     }
 
     Ok(result)
+}
+
+/// The layout, and the input tree of the pass that gave it. See [`repair`]:
+/// each pass hands the peers the layout failed to resolve to the next as
+/// regular dependencies. The set only grows, so the loop ends.
+fn hoist_until_peers_resolve(
+    lockfile: &Lockfile,
+    opts: &HoistOpts,
+) -> Result<(Rc<HoisterTree>, HoisterResult), HoistError> {
+    let mut regular_peers = RegularPeers::new();
+    loop {
+        let tree = build_tree(lockfile, opts, &regular_peers)?;
+        let result = engine::hoist(&tree, opts);
+        let misresolved = repair::misresolved_peers(&result, lockfile, opts);
+        let mut added = false;
+        for (key, peer) in misresolved {
+            added |= regular_peers
+                .entry(key)
+                .or_default()
+                .insert(peer);
+        }
+        if !added {
+            return Ok((tree, result));
+        }
+        tree::tear_down(&tree);
+    }
 }
 
 /// The hoister's input for `lockfile`: the root project's dependencies
