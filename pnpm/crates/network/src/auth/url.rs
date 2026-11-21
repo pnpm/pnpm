@@ -112,6 +112,7 @@ fn is_loopback_host(host: &str) -> bool {
         || host
             .trim_matches(['[', ']'])
             .parse::<std::net::IpAddr>()
+            .map(|address| address.to_canonical())
             .is_ok_and(|address| address.is_loopback())
 }
 
@@ -119,10 +120,11 @@ fn is_loopback_host(host: &str) -> bool {
 /// network link. HTTPS and loopback HTTP endpoints are accepted.
 #[must_use]
 pub fn is_url_secure_for_credentials(url: &str) -> bool {
-    ParsedUrl::parse(url)
-        .is_some_and(|parsed| {
-            parsed.scheme.eq_ignore_ascii_case("https")
-                || (parsed.scheme.eq_ignore_ascii_case("http") && is_loopback_host(parsed.host))
+    reqwest::Url::parse(url)
+        .is_ok_and(|url| match url.scheme() {
+            "https" => true,
+            "http" => url.host_str().is_some_and(is_loopback_host),
+            _ => false,
         })
 }
 

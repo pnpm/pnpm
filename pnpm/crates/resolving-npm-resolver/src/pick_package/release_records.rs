@@ -14,9 +14,9 @@ use std::{
 
 use pnpm_network::{
     LocalResponse,
+    PackageRequest,
     read_limited_body,
     retry_async,
-    send_with_retry,
     should_retry_status,
 };
 use pnpm_registry::{
@@ -175,13 +175,18 @@ impl ReleaseRecordRequest<'_> {
     {
         let http = self.http;
         let name = self.name;
-        send_with_retry(http.http_client, self.url, http.retry_opts, |client| {
-            let request = client.get(self.url).header(header::ACCEPT, "application/json");
-            match http.auth_headers.for_url_with_package(self.url, Some(name)) {
-                Some(value) => request.header(header::AUTHORIZATION, value),
-                None => request,
-            }
-        })
+        PackageRequest {
+            url: self.url,
+            package: name,
+            auth: http.auth_headers,
+            headers: header::HeaderMap::from_iter([(
+                header::ACCEPT,
+                header::HeaderValue::from_static("application/json"),
+            )]),
+            method: reqwest::Method::GET,
+            priority: pnpm_network::UNPRIORITIZED,
+        }
+        .send(http.http_client, http.retry_opts)
         .await
         .map_err(|error| error.to_string())
         .map_err(ReleaseRecordError::Other)

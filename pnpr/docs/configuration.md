@@ -280,8 +280,11 @@ authenticate to pnpr with their own tokens and never see the upstream
 credential. Declaring a `packages:` map on a private upstream also
 bounds what that credential can be used for: a caller can't pull arbitrary
 public names through it. pnpr never forwards a client's credentials upstream,
-and the server-owned credential is only ever attached over the upstream's own
-scheme (an `https://` registry's token is never sent over plain `http://`).
+and sends configured headers only to the selected upstream.
+Upstreams with `auth` or `headers` require HTTPS or loopback HTTP.
+This also applies to networks listed in `routes.allowedPrivateNetworks`.
+The resolver uses custom headers when it fetches npm metadata for resolution
+and lockfile verification.
 
 Each upstream gets its own cache namespace: a `public` upstream uses a stable,
 secret-free namespace shared across restarts, while a private upstream's cache

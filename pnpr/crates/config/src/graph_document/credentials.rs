@@ -76,6 +76,11 @@ fn check_stored_upstream(
             "`url` must not carry a user name, password, or query string; use `auth` or `headers` with a `${VAR}` reference",
         ));
     }
+    if (upstream.auth.is_some() || !upstream.headers.is_empty())
+        && !pnpm_network::is_url_secure_for_credentials(&upstream.url)
+    {
+        return Err(invalid_stored(name, "`auth` and `headers` require HTTPS or loopback HTTP"));
+    }
     if let Some(auth) = &upstream.auth {
         if let Some(token) = &auth.token {
             let variable = whole_reference(token)

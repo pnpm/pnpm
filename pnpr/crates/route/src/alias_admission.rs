@@ -53,7 +53,7 @@ impl RouteContext {
                 if candidate.outgrew(package) {
                     return false;
                 }
-                if candidate.authorization.is_none() {
+                if candidate.headers.is_empty() {
                     return candidate.admits(identity)
                         && candidate.credential_digest == credential_digest
                         && self.upstream_admits(alias, identity, package);
@@ -121,7 +121,7 @@ impl RouteContext {
         self.aliases
             .iter()
             .find(|alias| {
-                alias.authorization.is_some()
+                !alias.headers.is_empty()
                     && fetch.starts_with(&alias.origin)
                     && alias.admits(identity)
                     && self.upstream_admits(&alias.name, identity, package)

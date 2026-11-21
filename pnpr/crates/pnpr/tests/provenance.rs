@@ -336,7 +336,7 @@ async fn upstream_attestations_and_keys_proxy() {
         .await;
 
     let attest_mock = upstream
-        .mock("GET", "/-/npm/v1/attestations/proxied-pkg@1.0.0")
+        .mock("GET", "/-/npm/v1/attestations/@example%2Fproxied-pkg@1.0.0")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(
@@ -356,7 +356,7 @@ async fn upstream_attestations_and_keys_proxy() {
     assert_eq!(keys_payload["keys"][0]["keyid"], "sigstore-root");
 
     // Attestations proxied
-    let attest_res = get_req(&app, "/npm/-/npm/v1/attestations/proxied-pkg@1.0.0").await;
+    let attest_res = get_req(&app, "/npm/-/npm/v1/attestations/@example%2Fproxied-pkg@1.0.0").await;
     assert_eq!(attest_res.status(), StatusCode::OK);
     let attest_payload = body_json(attest_res.into_body()).await;
     assert_eq!(

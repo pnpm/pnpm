@@ -82,26 +82,36 @@ impl UpstreamRouteHook for RouteHook {
     }
 
     fn authorize(&self, url: &str, package: Option<&str>) -> Option<String> {
+        self.request_headers(url, package)
+            .get(AUTHORIZATION)?
+            .to_str()
+            .ok()
+            .map(str::to_owned)
+    }
+
+    fn request_headers(&self, url: &str, package: Option<&str>) -> reqwest::header::HeaderMap {
         let local_package = self.context.local_package(url);
         let package = local_package.as_deref().or(package);
         match self.context.classify(&self.identity, url, package) {
-            RouteClass::Public => None,
+            RouteClass::Public => reqwest::header::HeaderMap::new(),
             RouteClass::Hosted { policy_id } => {
                 self.record(PrivateAccessDescriptor::Hosted { policy_id });
                 // Hosted packages are served by pnpr itself; no upstream
                 // credential is involved.
-                None
+                reqwest::header::HeaderMap::new()
             }
             RouteClass::Proxied { alias, credential_digest } => {
-                let authorization = self.context.aliases
+                let upstream = self.context.aliases
                     .iter()
-                    .find(|candidate| candidate.name == alias)
-                    .and_then(|candidate| candidate.authorization.clone());
+                    .find(|candidate| candidate.name == alias);
                 // Package-qualified only when the upstream's rules explicitly
                 // refine this name, so replay re-checks the refinement.
                 let package = self.context.alias_package_qualifier(&alias, package);
                 self.record(PrivateAccessDescriptor::Alias { alias, credential_digest, package });
-                authorization.filter(|_| !self.context.is_own_url(url))
+                upstream
+                    .filter(|_| !self.context.is_own_url(url))
+                    .map(|candidate| candidate.headers.clone())
+                    .unwrap_or_default()
             }
         }
     }
@@ -164,19 +174,17 @@ impl RouteHook {
 impl ResolvedAlias {
     /// Resolve upstream access and credential state for route classification.
     pub(super) fn from_upstream(name: String, upstream: &UpstreamConfig) -> Option<Self> {
-        let authorization = upstream.headers
-            .get(AUTHORIZATION)
-            .filter(|_| !upstream.public)
-            .map(reqwest::header::HeaderValue::to_str)
-            .and_then(Result::ok)
-            .map(str::to_string);
         Some(Self {
             name,
             credential_digest: headers_credential_digest(&upstream.headers),
             registry: upstream.url.clone(),
             origin: nerf_prefix(&upstream.url)?,
             scheme: scheme_of(&upstream.url)?.to_string(),
-            authorization,
+            headers: if upstream.public {
+                reqwest::header::HeaderMap::new()
+            } else {
+                upstream.headers.clone()
+            },
             rules: upstream.rules.clone(),
         })
     }

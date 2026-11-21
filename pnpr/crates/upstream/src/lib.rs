@@ -356,7 +356,8 @@ impl Upstream {
         sent_conditional: bool,
     ) -> Result<PackumentFetch> {
         self.ensure_available()?;
-        let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
+        let name = pnpm_network::encode_package_name(name.as_str());
+        let url = format!("{}/{name}", self.base.trim_end_matches('/'));
         let (response, _guard) =
             self.get_with_scoped_headers(&url, headers, Deadline::Whole).await?;
         if response.status() == StatusCode::NOT_FOUND {
@@ -461,6 +462,19 @@ impl Upstream {
         self.fetch_artifact_document(&url, accept, limit).await
     }
 
+    /// Fetch an optional npm version manifest. Some registries implement only packuments.
+    pub async fn fetch_version_manifest(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+        limit: usize,
+    ) -> Result<FetchOutcome<FetchedDocument>> {
+        let base = self.base.trim_end_matches('/');
+        let name = pnpm_network::encode_package_name(name.as_str());
+        let url = format!("{base}/{name}/{version}");
+        self.read_document(&url, Some("application/json"), limit, true).await
+    }
+
     /// Fetch a bounded document at an absolute artifact URL with the same
     /// credential scoping and download-host restrictions as artifact downloads.
     pub async fn fetch_artifact_document(
@@ -468,6 +482,16 @@ impl Upstream {
         url: &str,
         accept: Option<&str>,
         limit: usize,
+    ) -> Result<FetchOutcome<FetchedDocument>> {
+        self.read_document(url, accept, limit, false).await
+    }
+
+    async fn read_document(
+        &self,
+        url: &str,
+        accept: Option<&str>,
+        limit: usize,
+        optional_manifest: bool,
     ) -> Result<FetchOutcome<FetchedDocument>> {
         self.ensure_available()?;
         let mut headers = HeaderMap::new();
@@ -478,7 +502,9 @@ impl Upstream {
         }
         let (response, _guard) =
             self.get_with_scoped_headers(url, &headers, Deadline::Whole).await?;
-        if response.status() == StatusCode::NOT_FOUND {
+        if response.status() == StatusCode::NOT_FOUND
+            || (optional_manifest && response.status() == StatusCode::NOT_IMPLEMENTED)
+        {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }

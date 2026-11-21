@@ -153,52 +153,56 @@ pub async fn send_with_retry_at_priority<'client>(
     retry_opts: RetryOpts,
     mut build_request: impl FnMut(&Client) -> RequestBuilder,
 ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
-    let mut attempt = 0;
+    let mut retry = RequestRetry::new(http_client, url, retry_opts);
     loop {
         let client = http_client.acquire_for_url_with_priority(url, priority).await;
-        let response = build_request(&client).send().await;
-        match classify_response(http_client, url, attempt, retry_opts, response) {
-            AttemptOutcome::Success(response) => return Ok((client, response)),
-            AttemptOutcome::Fatal(error) => return Err(error),
-            AttemptOutcome::Retry(delay) => {
-                drop(client);
-                tokio::time::sleep(delay).await;
-                attempt += 1;
-            }
+        let result = build_request(&client)
+            .send()
+            .await
+            .map(|response| (client, response));
+        if let Some(result) = retry.finish_attempt(result).await {
+            return result;
         }
     }
 }
 
-enum AttemptOutcome {
-    Success(Response),
-    Fatal(reqwest::Error),
-    Retry(std::time::Duration),
+pub(super) struct RequestRetry<'a> {
+    client: &'a ThrottledClient,
+    url: &'a str,
+    opts: RetryOpts,
+    attempt: u32,
 }
 
-fn classify_response(
-    http_client: &ThrottledClient,
-    url: &str,
-    attempt: u32,
-    retry_opts: RetryOpts,
-    response: Result<Response, reqwest::Error>,
-) -> AttemptOutcome {
-    match response {
-        Ok(res) if should_retry_status(res.status()) && attempt < retry_opts.retries => {
-            let delay = retry_opts.delay_for(attempt);
-            warn_retry_status(url, res.status(), attempt, retry_opts, delay);
-            AttemptOutcome::Retry(delay)
-        }
-        Ok(res) => AttemptOutcome::Success(res),
-        Err(err) => {
-            http_client.downscale_on_timeout(url, &err);
-            if attempt >= retry_opts.retries || is_permanent_error(&err) {
-                AttemptOutcome::Fatal(err)
-            } else {
-                let delay = retry_opts.delay_for(attempt);
-                warn_retry_error(url, err, attempt, retry_opts, delay);
-                AttemptOutcome::Retry(delay)
+impl<'a> RequestRetry<'a> {
+    pub(super) fn new(client: &'a ThrottledClient, url: &'a str, opts: RetryOpts) -> Self {
+        Self { client, url, opts, attempt: 0 }
+    }
+
+    pub(super) async fn finish_attempt<'client>(
+        &mut self,
+        result: Result<(ThrottledClientGuard<'client>, Response), reqwest::Error>,
+    ) -> Option<Result<(ThrottledClientGuard<'client>, Response), reqwest::Error>> {
+        let delay = self.opts.delay_for(self.attempt);
+        match result {
+            Ok((guard, response))
+                if should_retry_status(response.status())
+                    && self.attempt < self.opts.retries =>
+            {
+                warn_retry_status(self.url, response.status(), self.attempt, self.opts, delay);
+                drop((guard, response));
+            }
+            Ok(result) => return Some(Ok(result)),
+            Err(error) => {
+                self.client.downscale_on_timeout(self.url, &error);
+                if self.attempt >= self.opts.retries || is_permanent_error(&error) {
+                    return Some(Err(error));
+                }
+                warn_retry_error(self.url, error, self.attempt, self.opts, delay);
             }
         }
+        tokio::time::sleep(delay).await;
+        self.attempt += 1;
+        None
     }
 }
 

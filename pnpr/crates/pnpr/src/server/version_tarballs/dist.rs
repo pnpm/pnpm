@@ -253,11 +253,10 @@ impl VersionRequest<'_> {
         upstream: &Upstream,
         name: &CanonicalPackageName,
     ) -> ManifestRead {
-        let path = format!("{}/{}", name.as_str(), self.version);
         let fetched = timed(
             "version_manifest:upstream_fetch",
             name.as_str(),
-            upstream.fetch_document(&path, Some("application/json"), MAX_VERSION_MANIFEST_BYTES),
+            upstream.fetch_version_manifest(name, self.version, MAX_VERSION_MANIFEST_BYTES),
         )
         .await;
         match fetched {

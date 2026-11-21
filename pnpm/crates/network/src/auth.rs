@@ -94,6 +94,11 @@ pub trait UpstreamRouteHook: Send + Sync {
     /// route the decision selected. `None` means fetch anonymously.
     fn authorize(&self, url: &str, package: Option<&str>) -> Option<String>;
 
+    /// Headers owned by the selected route. Callers reselect them for each redirect.
+    fn request_headers(&self, url: &str, package: Option<&str>) -> reqwest::header::HeaderMap {
+        authorization_headers(self.authorize(url, package).as_deref())
+    }
+
     /// Whether this deployment may fetch `url` at all.
     ///
     /// A server resolves on behalf of callers who describe their own
@@ -502,6 +507,19 @@ impl AuthHeaders {
         self.for_url_with_package(url, pkg_name)
     }
 
+    /// Headers selected by a server route, including an empty map for an anonymous route.
+    pub(crate) fn managed_request_headers(
+        &self,
+        url: &str,
+        package: &str,
+    ) -> Option<reqwest::header::HeaderMap> {
+        let hook = self.route_hook.as_ref()?;
+        if self.require_secure_transport && !is_url_secure_for_credentials(url) {
+            return Some(reqwest::header::HeaderMap::new());
+        }
+        Some(hook.request_headers(url, Some(package)))
+    }
+
     /// Dispatch a GET locally when the route hook owns its destination.
     #[must_use]
     pub fn fetch_local(
@@ -573,6 +591,14 @@ impl AuthHeaders {
             None => MetadataCacheScope::Public,
         }
     }
+}
+
+fn authorization_headers(authorization: Option<&str>) -> reqwest::header::HeaderMap {
+    let mut headers = reqwest::header::HeaderMap::new();
+    if let Some(value) = authorization.map(str::parse).and_then(Result::ok) {
+        headers.insert(reqwest::header::AUTHORIZATION, value);
+    }
+    headers
 }
 
 /// Canonicalize an auth-map key to the trailing-slash form the lookup

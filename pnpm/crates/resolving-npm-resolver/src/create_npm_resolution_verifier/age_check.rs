@@ -139,22 +139,24 @@ impl NpmResolutionVerifier {
 
     async fn fetch_head_modified(&self, registry: &str, name: &PkgName) -> Option<String> {
         let url = to_registry_url(registry, &name.to_string());
-        let guard =
-            self.metadata.http_client.acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
-                .await;
-        let mut request = guard.head(&url);
-        if let Some(value) =
-            self.metadata.auth_headers.for_url_with_package(&url, Some(&name.to_string()))
-        {
-            request = request.header("authorization", value);
-        }
+        let package = name.to_string();
         let sent = match self.metadata.auth_headers.fetch_local(
             &url,
-            Some(&name.to_string()),
+            Some(&package),
             reqwest::header::HeaderMap::new(),
         ) {
             Some(response) => Ok(response.await),
-            None => request.send().await,
+            None => pnpm_network::PackageRequest {
+                url: &url,
+                package: &package,
+                auth: &self.metadata.auth_headers,
+                headers: reqwest::header::HeaderMap::new(),
+                method: reqwest::Method::HEAD,
+                priority: pnpm_network::BACKGROUND,
+            }
+            .send_once(&self.metadata.http_client)
+            .await
+            .map(|(_, response)| response),
         };
         let response = match sent {
             Ok(response) if response.status().is_success() => response,

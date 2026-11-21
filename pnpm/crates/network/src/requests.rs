@@ -153,9 +153,13 @@ impl ThrottledClient {
         url: &str,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
-        self.response_with_scoped_headers(reqwest::Method::GET, url, None, None, configure)
-            .await
-            .map_err(HeadError::into_request_error)
+        self.package_response_with_scoped_headers(
+            reqwest::Method::GET,
+            url,
+            UNPRIORITIZED,
+            configure,
+        )
+        .await
     }
 
     /// Like [`Self::get_response_with_scoped_headers`], validating the initial
@@ -166,7 +170,15 @@ impl ThrottledClient {
         guard: Option<&RedirectGuard>,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), HeadError> {
-        self.response_with_scoped_headers(reqwest::Method::GET, url, None, guard, configure).await
+        self.response_with_scoped_headers(
+            reqwest::Method::GET,
+            url,
+            None,
+            guard,
+            UNPRIORITIZED,
+            configure,
+        )
+        .await
     }
 
     /// Like [`Self::get_response_with_scoped_headers`], failing with
@@ -180,8 +192,15 @@ impl ThrottledClient {
         timeout: Duration,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), HeadError> {
-        self.response_with_scoped_headers(reqwest::Method::GET, url, Some(timeout), None, configure)
-            .await
+        self.response_with_scoped_headers(
+            reqwest::Method::GET,
+            url,
+            Some(timeout),
+            None,
+            UNPRIORITIZED,
+            configure,
+        )
+        .await
     }
 
     /// Like [`Self::get_response_head_within`], validating the initial URL and
@@ -198,6 +217,7 @@ impl ThrottledClient {
             url,
             Some(timeout),
             guard,
+            UNPRIORITIZED,
             configure,
         )
         .await
@@ -210,7 +230,23 @@ impl ThrottledClient {
         url: &str,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
-        self.response_with_scoped_headers(reqwest::Method::HEAD, url, None, None, configure)
+        self.package_response_with_scoped_headers(
+            reqwest::Method::HEAD,
+            url,
+            UNPRIORITIZED,
+            configure,
+        )
+        .await
+    }
+
+    pub(super) async fn package_response_with_scoped_headers(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        priority: u64,
+        configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
+        self.response_with_scoped_headers(method, url, None, None, priority, configure)
             .await
             .map_err(HeadError::into_request_error)
     }
@@ -221,6 +257,7 @@ impl ThrottledClient {
         url: &str,
         head_timeout: Option<Duration>,
         guard: Option<&RedirectGuard>,
+        priority: u64,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), HeadError> {
         let mut current_url = url.to_string();
@@ -228,8 +265,7 @@ impl ThrottledClient {
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
             ensure_hop_url_allowed(&current_url, guard)?;
             let client =
-                self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
-                    .await;
+                self.acquire_for_url_without_redirects_with_priority(&current_url, priority).await;
             let hop_started = client.acquired_at();
             let deadline = head_budget.map(|budget| hop_started + budget);
             let request = configure(client.request(method.clone(), &current_url), &current_url);
