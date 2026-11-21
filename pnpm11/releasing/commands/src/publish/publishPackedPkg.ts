@@ -16,7 +16,7 @@ import { getIdToken, IdTokenError } from './oidc/idToken.js'
 import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
 import { type OtpContext, type PublishOptionsWithDefaultAccess, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
-import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
+import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl, type SupportedRegistryUrlInfo } from './registryConfigKeys.js'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
 export type { PublishSummary }
@@ -241,15 +241,10 @@ export function findRegistryInfo (
   const registryName = scopedMatches?.groups ? `@${scopedMatches.groups.scope}` : 'default'
   const nonNormalizedRegistry = publishConfigRegistry ?? registriesByScope[registryName] ?? registriesByScope.default
 
-  const supportedRegistryInfo = parseSupportedRegistryUrl(nonNormalizedRegistry)
-  if (!supportedRegistryInfo) {
-    throw new PublishUnsupportedRegistryProtocolError(nonNormalizedRegistry)
-  }
-
   const {
     normalizedUrl: registry,
     longestConfigKey: initialRegistryConfigKey,
-  } = supportedRegistryInfo
+  } = requireSupportedRegistryUrl(nonNormalizedRegistry)
 
   const credsScope: `@${string}` = registryName === 'default' ? DEFAULT_REGISTRY_SCOPE : registryName as `@${string}`
   let creds: Creds | undefined
@@ -282,6 +277,12 @@ function extractToken ({
     return executeTokenHelper(tokenHelper, { globalWarn })
   }
   return undefined
+}
+
+export function requireSupportedRegistryUrl (registry: string): SupportedRegistryUrlInfo {
+  const info = parseSupportedRegistryUrl(registry)
+  if (!info) throw new PublishUnsupportedRegistryProtocolError(registry)
+  return info
 }
 
 export class PublishUnsupportedRegistryProtocolError extends PnpmError {

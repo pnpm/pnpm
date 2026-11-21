@@ -69,7 +69,6 @@ use super::{
     RegistrySource,
     TargetRegistry,
     authorize_package,
-    commit_publishes,
     json_response,
     not_found,
     parse_json_body,
@@ -78,6 +77,7 @@ use super::{
         ValidatedPublish,
         check_body_name,
         cleanup_tmp_slots,
+        single_publish_notes,
         validate_staged_publish_name,
     },
     resolve_write_target,
@@ -118,6 +118,8 @@ struct StagedRecord {
     tag: Option<String>,
     created_at: String,
     actor: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    actor_id: Option<String>,
     actor_type: String,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     shasum: Option<String>,
@@ -160,6 +162,7 @@ impl StagedRecord {
         let mut value = serde_json::to_value(self).expect("a staged record serializes");
         if let Some(object) = value.as_object_mut() {
             object.remove("registry");
+            object.remove("actorId");
         }
         value
     }
@@ -254,11 +257,15 @@ async fn serve_staged_publish(
         Ok(name) => name,
         Err(err) => return err.into_response(),
     };
-    let incoming: Value = match parse_json_body(body) {
+    let mut incoming: Value = match parse_json_body(body) {
         Ok(value) => value,
         Err(err) => return err.into_response(),
     };
     if let Err(err) = check_body_name(&name, &incoming) {
+        return err.into_response();
+    }
+
+    if let Err(err) = single_publish_notes(&mut incoming) {
         return err.into_response();
     }
 
@@ -413,7 +420,11 @@ async fn serve_staged_tarball(
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let mut incoming: Value = match serde_json::from_slice(&body) {
+    staged_tarball_response(&body)
+}
+
+fn staged_tarball_response(body: &[u8]) -> Response {
+    let mut incoming: Value = match serde_json::from_slice(body) {
         Ok(value) => value,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
@@ -421,7 +432,10 @@ async fn serve_staged_tarball(
         Ok(attachments) => attachments,
         Err(err) => return err.into_response(),
     };
-    let Some(attachment) = attachments.into_iter().next() else {
+    let Some(attachment) = attachments
+        .into_iter()
+        .find(|attachment| attachment.filename.ends_with(".tgz"))
+    else {
         return not_found();
     };
     let Some(data) = attachment.inline_data() else {

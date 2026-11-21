@@ -13,7 +13,7 @@ import type { StageOptions } from './types.js'
 
 export async function stageDownload (opts: StageOptions, params: string[]): Promise<string> {
   const stageId = requireStageId(params, 'download')
-  const context = createStageContext(opts)
+  const context = await createStageContext(opts)
   const tarballData = await fetchStageTarball(context, stageId)
   const summary = await summarizeTarball(tarballData)
   const filename = createTarballFilename({ name: summary.name, version: summary.version, suffix: stageId })

@@ -169,6 +169,7 @@ fn list_uses_package_scoped_auth_for_package_filters() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
+    fs::write(dir.path().join("package.json"), "{").expect("write invalid manifest");
     let host = registry.strip_prefix("http://").unwrap_or(&registry);
     let auth_file = dir.path().join("auth-npmrc");
     fs::write(
@@ -181,7 +182,7 @@ fn list_uses_package_scoped_auth_for_package_filters() {
         .match_query(Matcher::Any)
         .match_header("authorization", "Bearer scoped-token")
         .with_body(json!({ "items": [], "page": 0, "perPage": 100, "total": 0 }).to_string())
-        .expect(1)
+        .expect(2)
         .create();
 
     let mut command = pacquet(dir.path());
@@ -189,13 +190,20 @@ fn list_uses_package_scoped_auth_for_package_filters() {
     let output = command
         .with_arg("--npmrc-auth-file")
         .with_arg(&auth_file)
-        .with_arg("stage")
-        .with_args(["list", "@scope/example-package"])
+        .with_args(["stage", "list", "--registry", &registry, "@scope/example-package"])
         .output()
         .expect("spawn pacquet stage");
 
-    mock.assert();
     assert_success(&output);
+    write_project(dir.path(), &registry, &json!({ "name": "@scope/example-package" }));
+    let unfiltered = pacquet(dir.path())
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_args(["stage", "list", "--registry", &registry])
+        .output()
+        .expect("list with local package credentials");
+    assert_success(&unfiltered);
+    mock.assert();
 }
 
 #[test]
@@ -484,8 +492,12 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         &json!({ "name": "@stage-e2e/lifecycle", "version": "1.0.0" }),
     );
 
-    let publish =
-        stage_with_auth(dir.path(), &auth_file, &["publish", "--json", "--no-git-checks"]);
+    write_registry_config(dir.path(), "http://127.0.0.1:1/");
+    let publish = stage_with_auth(
+        dir.path(),
+        &auth_file,
+        &["publish", "--json", "--no-git-checks", "--registry", &registry],
+    );
     assert_success(&publish);
     let keyed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&publish.stdout)).expect("keyed JSON output");
@@ -499,6 +511,11 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
     // Held back: not installable until approved.
     assert_eq!(packument_status(&registry, &token, "@stage-e2e/lifecycle"), 404);
 
+    fs::write(
+        dir.path().join(".npmrc"),
+        format!("registry=http://127.0.0.1:1/\n@stage-e2e:registry={registry}\n"),
+    )
+    .unwrap();
     let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json"]);
     assert_success(&list);
     let listed: Value =
@@ -514,6 +531,11 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
     assert!(stdout.contains("package name: @stage-e2e/lifecycle"), "stdout: {stdout}");
     assert!(stdout.contains("staged by: alice (user)"), "stdout: {stdout}");
 
+    write_project(
+        dir.path(),
+        "http://127.0.0.1:1/",
+        &json!({ "name": "@stage-e2e/lifecycle", "publishConfig": { "registry": registry } }),
+    );
     let download = stage_with_auth(dir.path(), &auth_file, &["download", &stage_id, "--json"]);
     assert_success(&download);
     let downloaded: Value = serde_json::from_str(&String::from_utf8_lossy(&download.stdout))
@@ -530,6 +552,10 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         "the tarball must be written",
     );
 
+    assert_success(&stage_with_auth(dir.path(), &auth_file, &["list", "@stage-e2e/lifecycle"]));
+    let unconfirmed =
+        stage_with_auth(dir.path(), &auth_file, &["approve", &stage_id, "--otp", "123456"]);
+    assert_failure_with_code(&unconfirmed, "ERR_PNPM_STAGE_OTP_REGISTRY_REQUIRED");
     let approve = stage_with_auth(dir.path(), &auth_file, &["approve", &stage_id]);
     assert_success(&approve);
     assert_eq!(

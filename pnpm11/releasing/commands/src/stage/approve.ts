@@ -29,7 +29,7 @@ export type StageApproveResult = string | { output: string, exitCode: number }
  * downloaded first, and its published manifest determines dependency order.
  */
 export async function stageApprove (opts: StageOptions, params: string[]): Promise<StageApproveResult> {
-  const context = createStageContext(opts)
+  const context = await createStageContext(opts)
   if (params.length === 0) {
     requireInteractiveSelection()
     const stagedPackages = (await fetchStageItems(context)).map(toApprovalItem).filter((item) => item != null)

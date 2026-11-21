@@ -668,6 +668,10 @@ then, and is where a version conflict is caught. pnpr raises no
 one-time-password challenge of its own at either point. The `--otp` flag on
 `pnpm stage approve` is for registries that do.
 
+When different authenticated accounts stage and approve a version, pnpr records
+the approver and reports `stagedPublish` trust. The same account can complete
+both steps. In that case the version retains its other trust evidence.
+
 A stage id is a v4 UUID drawn from the OS CSPRNG, so the id itself acts as an
 unguessable handle. Held publish bodies live under a reserved `.staged/` namespace in
 the hosted store (both the filesystem and S3 backends). Approval records live
@@ -680,7 +684,7 @@ in the database. A record is only visible through the same base it was created w
 | `GET` | `/-/stage` | List held records, oldest first. Accepts `page` (zero-based, defaults to `0`), `perPage` (defaults to `100`, clamped to `1` to `100`), and `package` (exact name filter). Returns `{"items":[...],"page":...,"perPage":...,"total":...}`. |
 | `GET` | `/-/stage/{id}` | One held record. Requires `publish` on the record's package. |
 | `GET` | `/-/stage/{id}/tarball` | The held tarball as `application/octet-stream`, for inspection before approval. Requires `publish`. |
-| `POST` | `/-/stage/{id}/approve` | Publish the held document and drop the record. Empty body; returns `201` with `{"ok":true}`. Requires `publish`. |
+| `POST` | `/-/stage/{id}/approve` | Publish the held document and its version notes, then drop the record. Empty body; returns `201` with `{"ok":true}`. Requires `publish`. |
 | `DELETE` | `/-/stage/{id}` | Reject: delete the record and its tarball without publishing. Returns `204`. Requires `publish`. |
 
 Each record carries `id`, `packageName`, `version`, `tag`, `createdAt`,

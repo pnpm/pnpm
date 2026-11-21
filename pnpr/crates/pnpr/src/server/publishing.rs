@@ -11,6 +11,7 @@ pub(super) use atomic::{
     single_namespace,
 };
 pub(super) use attachments::{
+    AttachmentKind,
     StagedBase,
     StagedPublish,
     ValidatedPublish,
@@ -355,7 +356,7 @@ pub(super) fn is_valid_semver(raw: &str) -> bool {
 }
 
 /// The version note at the top of a single npm publish document.
-fn single_publish_notes(incoming: &mut Value) -> Result<PublishNotes, RegistryError> {
+pub(super) fn single_publish_notes(incoming: &mut Value) -> Result<PublishNotes, RegistryError> {
     let versions = take_version_note(incoming, Ecosystem::Npm)?.into_iter().collect();
     Ok(PublishNotes { publication: None, versions })
 }

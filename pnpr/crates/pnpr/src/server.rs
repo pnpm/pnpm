@@ -304,7 +304,6 @@ use self::{
     publishing::{
         PublishTarget,
         check_publish_tombstone,
-        commit_publishes,
         publish_package,
         resolve_publish_target_for,
         routes_to_upstream,

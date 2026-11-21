@@ -49,6 +49,30 @@ describe('stage command against the registry mock', () => {
   // instance the with-registry jest preset boots; the ad-hoc mock registry
   // below is kept only for faults a well-behaved registry cannot produce.
 
+  test('stage management resolves the local package registry', async () => {
+    const registry = await createRegistry(request => ({ body: request.url.pathname === '/-/stage' ? { items: [], total: 0 } : { id: STAGE_ID } }))
+    try {
+      const dir = temporaryDirectory()
+      const opts = { ...stageOpts('http://127.0.0.1:1/'), dir, json: true }
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: '@fixture/pkg' }))
+      const scoped = { ...opts, registriesByScope: { ...opts.registriesByScope, '@fixture': registry.url } }
+      await stage.handler(scoped, ['view', STAGE_ID])
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pkg', publishConfig: { registry: registry.url } }))
+      await stage.handler(opts, ['view', STAGE_ID])
+      await expect(stage.handler({ ...opts, otp: '123456' }, ['approve', STAGE_ID]))
+        .rejects.toMatchObject({ code: 'ERR_PNPM_STAGE_OTP_REGISTRY_REQUIRED' })
+      await stage.handler(opts, ['list', 'pkg'])
+      expect(registry.requests.map(request => request.url.pathname)).toEqual([`/-/stage/${STAGE_ID}`, `/-/stage/${STAGE_ID}`, '/-/stage'])
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pkg', publishConfig: { registry: 'ftp://example.test/' } }))
+      await expect(stage.handler(opts, ['view', STAGE_ID]))
+        .rejects.toMatchObject({ code: 'ERR_PNPM_PUBLISH_UNSUPPORTED_REGISTRY_PROTOCOL' })
+      fs.writeFileSync(path.join(dir, 'package.json'), '{')
+      await stage.handler({ ...opts, cliOptions: { registry: registry.url } }, ['view', STAGE_ID])
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage publish holds the package back until it is approved', async () => {
     const pkgName = '@pnpmtest/stage-e2e-lifecycle'
     prepare({ name: pkgName, version: '1.0.0' })
@@ -186,8 +210,11 @@ describe('stage command against the registry mock', () => {
     })
     try {
       const registryUrl = new URL(registry.url)
-      const result = await stage.handler({
+      const dir = temporaryDirectory()
+      const opts = {
         ...stageOpts(registry.url),
+        dir,
+        cliOptions: { registry: registry.url },
         argv: { original: ['stage', 'list'] },
         configByUri: {
           [`//${registryUrl.host}/`]: {
@@ -195,7 +222,10 @@ describe('stage command against the registry mock', () => {
             '@scope': { authToken: 'scoped-token' },
           },
         },
-      }, ['list', '@scope/example-package'])
+      }
+      const result = await stage.handler(opts, ['list', '@scope/example-package'])
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: '@scope/example-package' }))
+      await stage.handler(opts, ['list'])
 
       expect(result).toBe('No staged versions of package name "@scope/example-package".')
     } finally {

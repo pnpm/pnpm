@@ -193,9 +193,10 @@ impl StageApprovalItem {
 
 pub(super) async fn stage_approve<Reporter: self::Reporter>(
     args: &StageArgs,
+    dir: &std::path::Path,
     config: &Config,
 ) -> miette::Result<Option<String>> {
-    let context = args.stage_context(config, None)?;
+    let context = args.stage_context(dir, config, None)?;
     let stage_ids = parse_stage_ids(&args.params)?;
     if let [stage_id] = stage_ids.as_slice() {
         let mut session = OtpSession::new(context.web_auth_fetch_options.clone());

@@ -11,15 +11,18 @@ use super::{
     StoredStagedRecord,
     Value,
     cleanup_tmp_slots,
-    commit_publishes,
     json,
     json_response,
     load_authorized_record,
     parse_json_body,
+    single_publish_notes,
     stage_publish,
     validate_publish_doc,
 };
-use crate::server::publishing::add_npm_notices;
+use crate::server::publishing::{
+    add_npm_notices,
+    commit_publication,
+};
 use axum::response::IntoResponse;
 use pnpr_storage::publish::now_iso;
 
@@ -154,25 +157,26 @@ pub(super) async fn approve_claimed(
             "staged publish {stage_id} has no stored body",
         ))));
     };
-    let incoming: Value = serde_json::from_slice(&stored_body).map_err(RegistryError::Json)?;
+    let mut incoming: Value = serde_json::from_slice(&stored_body).map_err(RegistryError::Json)?;
+    let notes = single_publish_notes(&mut incoming)?;
     let name =
         CanonicalPackageName::parse(&record.package_name, pnpr_package_name::Ecosystem::Npm)?;
     // Re-validate against the registry state of *now*: rules may have
     // changed since staging, and the version may have been published in
     // the meantime (which surfaces as the usual 409).
-    let (validated, target) =
+    let (mut validated, target) =
         validate_publish_doc(state, identity, record.registry.as_deref(), name, incoming).await?;
 
+    record.record_approval(&mut validated);
     let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
-    let mut staged = stage_publish(state, validated, &now_iso(), Some(&target.namespace)).await?;
-    let notices = std::mem::take(&mut staged.verification.notices);
+    let staged = stage_publish(state, validated, &now_iso(), Some(&target.namespace)).await?;
     // Nothing is visible yet, which is the last moment a rejection can still
     // take the stage back. Past the commit it cannot: the publish is served.
     if let Err(err) = still_claimed(state, stage_id, claim).await {
         cleanup_tmp_slots(staged.slots).await;
         return Err(err);
     }
-    commit_publishes(state, vec![staged]).await?;
+    let receipt = commit_publication(state, vec![staged], notes, None).await?;
     // Past the commit the stage is spent.
     if let Err(err) = state.inner.storage.remove_staged(stage_id).await {
         // The publish is already committed and visible; a failed record
@@ -180,6 +184,6 @@ pub(super) async fn approve_claimed(
         tracing::warn!(error = %err, stage_id, "approved staged publish but its record cleanup failed");
     }
     let mut response = json_response(StatusCode::CREATED, &json!({ "ok": true }));
-    add_npm_notices(&mut response, &notices);
+    add_npm_notices(&mut response, &receipt.notices);
     Ok(response)
 }

@@ -82,7 +82,7 @@ async fn get_req(app: &axum::Router, path: &str) -> axum::response::Response {
         .unwrap()
 }
 
-fn sample_sigstore_bundle(predicate_type: &str) -> Value {
+pub(super) fn sample_sigstore_bundle(predicate_type: &str) -> Value {
     let statement = json!({
         "_type": "https://in-toto.io/Statement/v0.1",
         "predicateType": predicate_type,
@@ -126,7 +126,7 @@ fn naming(bundle: &Value, subjects: &[(&str, &str)]) -> Value {
 
 /// A publish document of `tarball` with `sig_bundle` attached, its
 /// statement naming the published archive.
-fn doc_with_sigstore(
+pub(super) fn doc_with_sigstore(
     name: &str,
     version: &str,
     tarball: &[u8],

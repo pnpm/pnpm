@@ -9,7 +9,7 @@ import type { StageOptions } from './types.js'
 export async function stageList (opts: StageOptions, params: string[]): Promise<string> {
   const packageFilter = parsePackageFilter(params[0])
 
-  const context = createStageContext(opts, packageFilter)
+  const context = await createStageContext(opts, packageFilter)
   const items = await fetchStageItems(context, packageFilter)
 
   if (opts.json) return JSON.stringify(items, null, 2)

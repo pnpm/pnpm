@@ -7,7 +7,7 @@ import type { StageOptions } from './types.js'
 
 export async function stageReject (opts: StageOptions, params: string[]): Promise<string> {
   const stageId = requireStageId(params, 'reject')
-  const context = createStageContext(opts)
+  const context = await createStageContext(opts)
   globalWarn('Rejecting will permanently delete this staged publish record and tarball from the registry.')
   await stageRequestWithOtp(context, {
     url: new URL(`-/stage/${stageId}`, context.registry).href,
