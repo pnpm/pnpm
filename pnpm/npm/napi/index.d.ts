@@ -117,13 +117,18 @@ export interface PackageExtension {
 export interface InstallOptions extends SharedEngineOptions {
   /** Lockfile / workspace root directory. */
   dir: string
+  /**
+   * The importers to install, replacing the workspace's own project list.
+   * Must include the project at `dir`, unless an `install` call sets
+   * `ignorePackageManifest`.
+   */
   projects: NodeApiProject[]
   storeDir?: string
   /** Slow metadata-request warning threshold in milliseconds. Overrides `networkConfig`. */
   fetchWarnTimeoutMs?: number
   /** Minimum average tarball download speed in KiB/s. Overrides `networkConfig`. */
   fetchMinSpeedKiBps?: number
-  nodeLinker?: 'hoisted' | 'isolated'
+  nodeLinker?: 'isolated' | 'hoisted' | 'pnp' | 'loaded'
   /**
    * pnpm's `linkWorkspacePackages`. When `true`/`'deep'`, a bare-semver
    * dependency (including an auto-installed peer) may resolve to a workspace
@@ -149,7 +154,7 @@ export interface InstallOptions extends SharedEngineOptions {
    * `pnpm-workspace.yaml` applies, which defaults to `'v9'`.
    */
   lockfileFormat?: 'v9' | 'v13'
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   preferOffline?: boolean
   offline?: boolean
   virtualStoreDirMaxLength?: number
@@ -479,7 +484,7 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   latest?: string
-  resolution?: Record<string, unknown>
+  resolution: Record<string, unknown>
 }
 
 export function resolveDependency(wanted: WantedDependency, options: ResolveOptions): Promise<ResolveResult>

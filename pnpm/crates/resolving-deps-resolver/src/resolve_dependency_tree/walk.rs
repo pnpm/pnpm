@@ -102,17 +102,11 @@ use pnpm_lockfile::{
     SnapshotEntry,
     TarballRevision,
 };
-use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
     CurrentPkg,
-    GitResolveError,
-    NoMatchingVersionError,
     PreferredVersionsOverlay,
-    RegistryResponseError,
-    ResolveError,
     ResolveOptions,
     Resolver,
-    UnsupportedProtocolError,
     UpdateBehavior,
     WantedDependency,
 };

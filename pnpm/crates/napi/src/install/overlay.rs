@@ -15,31 +15,30 @@ use super::{
     ProxyConfigInput,
     ThrottledClient,
     TlsConfig,
+    invalid_option_error,
     to_napi_error,
     unsupported_option_error,
 };
 
+/// The caller's projects replace the workspace walk, so the engine reads no
+/// project `package.json` from disk. An empty list is accepted only by an
+/// `ignorePackageManifest` install, which reads the lockfile alone.
 pub(super) fn build_workspace_projects_override(
     projects: &[NodeApiProject],
-) -> Option<Vec<pnpm_workspace::Project>> {
-    if projects.len() <= 1 {
-        return None;
-    }
-    Some(
-        projects
-            .iter()
-            .map(|project| {
-                let root_dir = PathBuf::from(&project.root_dir);
-                let manifest_path = root_dir.join("package.json");
-                let manifest =
-                    PackageManifest::from_value(manifest_path.clone(), project.manifest.clone());
-                let dependency_manifest = project.dependency_manifest
-                    .as_ref()
-                    .map(|value| PackageManifest::from_value(manifest_path.clone(), value.clone()));
-                pnpm_workspace::Project { root_dir, manifest, dependency_manifest }
-            })
-            .collect(),
-    )
+) -> Vec<pnpm_workspace::Project> {
+    projects
+        .iter()
+        .map(|project| {
+            let root_dir = PathBuf::from(&project.root_dir);
+            let manifest_path = root_dir.join("package.json");
+            let manifest =
+                PackageManifest::from_value(manifest_path.clone(), project.manifest.clone());
+            let dependency_manifest = project.dependency_manifest
+                .as_ref()
+                .map(|value| PackageManifest::from_value(manifest_path.clone(), value.clone()));
+            pnpm_workspace::Project { root_dir, manifest, dependency_manifest }
+        })
+        .collect()
 }
 
 /// Map the install options onto the config overlay. `fetch_shaped` is the
@@ -50,7 +49,11 @@ pub(super) fn build_overlay(
     options: &InstallOptions,
     fetch_shaped: bool,
 ) -> napi::Result<ConfigOverlay> {
-    let overlay = ConfigOverlay::default();
+    let overlay = shared_network_overlay(
+        "install",
+        options.proxy_config.as_ref(),
+        options.network_config.as_ref(),
+    )?;
     let overlay = build_layout_overlay(options, fetch_shaped, overlay)?;
     let overlay = build_dependencies_overlay(options, fetch_shaped, overlay);
     let overlay = build_network_overlay(options, overlay);
@@ -64,7 +67,6 @@ fn build_layout_overlay(
     fetch_shaped: bool,
     overlay: ConfigOverlay,
 ) -> napi::Result<ConfigOverlay> {
-    let network_config = options.network_config.as_ref();
     Ok(ConfigOverlay {
         store_dir: options.store_dir.as_ref().map(PathBuf::from),
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
@@ -78,18 +80,17 @@ fn build_layout_overlay(
             .clone()
             .map(std::iter::IntoIterator::into_iter)
             .map(std::iter::Iterator::collect),
-        proxy: options.proxy_config
-            .as_ref()
-            .map(build_proxy_config)
+        node_linker: options.node_linker
+            .as_deref()
+            .map(parse_node_linker)
             .transpose()?,
-        tls: network_config.map(build_tls_config).transpose()?,
-        node_linker: options.node_linker.as_deref().and_then(parse_node_linker),
         link_workspace_packages: parse_link_workspace_packages(
             options.link_workspace_packages.as_ref(),
         )?,
         package_import_method: options.package_import_method
             .as_deref()
-            .and_then(parse_import_method),
+            .map(parse_package_import_method_option)
+            .transpose()?,
         virtual_store_dir_max_length: options.virtual_store_dir_max_length.map(u64::from),
         enable_global_virtual_store: options.enable_global_virtual_store,
         global_virtual_store_dir: options.global_virtual_store_dir.as_ref().map(PathBuf::from),
@@ -153,48 +154,66 @@ fn build_dependencies_overlay(
     }
 }
 
+/// The top-level install options win over the `networkConfig` values
+/// [`shared_network_overlay`] already applied.
 fn build_network_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> ConfigOverlay {
-    let network_config = options.network_config.as_ref();
     ConfigOverlay {
         network_concurrency: options.network_concurrency
-            .or_else(|| network_config.and_then(|config| config.network_concurrency))
-            .map(|value| value as usize),
-        max_sockets: network_config
-            .and_then(|config| config.max_sockets)
-            .map(|value| value as usize),
-        fetch_retries: options.fetch_retries.or_else(|| {
-            network_config.and_then(|config| config.fetch_retries)
-        }),
-        fetch_retry_factor: options.fetch_retry_factor.or_else(|| {
-            network_config.and_then(|config| config.fetch_retry_factor)
-        }),
+            .map(|value| value as usize)
+            .or(overlay.network_concurrency),
+        fetch_retries: options.fetch_retries.or(overlay.fetch_retries),
+        fetch_retry_factor: options.fetch_retry_factor.or(overlay.fetch_retry_factor),
         ..overlay
     }
 }
 
 fn build_fetch_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> ConfigOverlay {
-    let network_config = options.network_config.as_ref();
     ConfigOverlay {
         fetch_retry_mintimeout: options.fetch_retry_mintimeout
-            .or_else(|| network_config.and_then(|config| config.fetch_retry_mintimeout))
-            .map(u64::from),
+            .map(u64::from)
+            .or(overlay.fetch_retry_mintimeout),
         fetch_retry_maxtimeout: options.fetch_retry_maxtimeout
-            .or_else(|| network_config.and_then(|config| config.fetch_retry_maxtimeout))
-            .map(u64::from),
-        fetch_timeout: options.fetch_timeout
-            .or_else(|| network_config.and_then(|config| config.fetch_timeout))
-            .map(u64::from),
+            .map(u64::from)
+            .or(overlay.fetch_retry_maxtimeout),
+        fetch_timeout: options.fetch_timeout.map(u64::from).or(overlay.fetch_timeout),
         fetch_warn_timeout_ms: options.fetch_warn_timeout_ms
-            .or_else(|| network_config.and_then(|config| config.fetch_warn_timeout_ms))
-            .map(u64::from),
+            .map(u64::from)
+            .or(overlay.fetch_warn_timeout_ms),
         fetch_min_speed_ki_bps: options.fetch_min_speed_ki_bps
-            .or_else(|| network_config.and_then(|config| config.fetch_min_speed_ki_bps))
-            .map(u64::from),
-        user_agent: options.user_agent
-            .clone()
-            .or_else(|| network_config.and_then(|config| config.user_agent.clone())),
+            .map(u64::from)
+            .or(overlay.fetch_min_speed_ki_bps),
+        user_agent: options.user_agent.clone().or(overlay.user_agent),
         ..overlay
     }
+}
+
+/// The `proxyConfig` and `networkConfig` options every engine call accepts.
+/// `operation` names the call in an unsupported-option error.
+pub(crate) fn shared_network_overlay(
+    operation: &str,
+    proxy_config: Option<&ProxyConfigInput>,
+    network_config: Option<&NetworkConfigInput>,
+) -> napi::Result<ConfigOverlay> {
+    let proxy = proxy_config.map(|input| build_proxy_config(operation, input)).transpose()?;
+    let tls = network_config.map(|input| build_tls_config(operation, input)).transpose()?;
+    let Some(config) = network_config else {
+        return Ok(ConfigOverlay { proxy, ..ConfigOverlay::default() });
+    };
+    Ok(ConfigOverlay {
+        proxy,
+        tls,
+        network_concurrency: config.network_concurrency.map(|value| value as usize),
+        max_sockets: config.max_sockets.map(|value| value as usize),
+        fetch_retries: config.fetch_retries,
+        fetch_retry_factor: config.fetch_retry_factor,
+        fetch_retry_mintimeout: config.fetch_retry_mintimeout.map(u64::from),
+        fetch_retry_maxtimeout: config.fetch_retry_maxtimeout.map(u64::from),
+        fetch_timeout: config.fetch_timeout.map(u64::from),
+        fetch_warn_timeout_ms: config.fetch_warn_timeout_ms.map(u64::from),
+        fetch_min_speed_ki_bps: config.fetch_min_speed_ki_bps.map(u64::from),
+        user_agent: config.user_agent.clone(),
+        ..ConfigOverlay::default()
+    })
 }
 
 fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> ConfigOverlay {
@@ -255,19 +274,22 @@ fn package_extension(input: &PackageExtensionInput) -> pnpm_config::PackageExten
     }
 }
 
-fn build_proxy_config(input: &ProxyConfigInput) -> napi::Result<ProxyConfig> {
+fn build_proxy_config(operation: &str, input: &ProxyConfigInput) -> napi::Result<ProxyConfig> {
     Ok(ProxyConfig {
         https_proxy: input.https_proxy.clone(),
         http_proxy: input.http_proxy.clone(),
         no_proxy: input.no_proxy
             .as_ref()
-            .map(parse_no_proxy)
+            .map(|value| parse_no_proxy(operation, value))
             .transpose()?
             .flatten(),
     })
 }
 
-fn parse_no_proxy(value: &serde_json::Value) -> napi::Result<Option<NoProxySetting>> {
+fn parse_no_proxy(
+    operation: &str,
+    value: &serde_json::Value,
+) -> napi::Result<Option<NoProxySetting>> {
     match value {
         serde_json::Value::Bool(true) => Ok(Some(NoProxySetting::Bypass)),
         serde_json::Value::Bool(false) | serde_json::Value::Null => Ok(None),
@@ -279,60 +301,70 @@ fn parse_no_proxy(value: &serde_json::Value) -> napi::Result<Option<NoProxySetti
                 .map(ToOwned::to_owned)
                 .collect(),
         ))),
-        _ => Err(unsupported_option_error("install", "proxyConfig.noProxy")),
+        _ => Err(unsupported_option_error(operation, "proxyConfig.noProxy")),
     }
 }
 
-fn build_tls_config(input: &NetworkConfigInput) -> napi::Result<TlsConfig> {
+fn build_tls_config(operation: &str, input: &NetworkConfigInput) -> napi::Result<TlsConfig> {
     Ok(TlsConfig {
         ca: input.ca
             .as_ref()
-            .map(parse_string_list)
+            .map(|value| parse_string_list(operation, value))
             .transpose()?
             .unwrap_or_default(),
         cert: input.cert
             .as_ref()
-            .map(parse_single_string)
+            .map(|value| parse_single_string(operation, value))
             .transpose()?
             .flatten(),
         key: input.key.clone(),
         strict_ssl: input.strict_ssl,
         local_address: input.local_address
             .as_deref()
-            .map(str::parse::<IpAddr>)
-            .and_then(Result::ok),
+            .map(parse_local_address)
+            .transpose()?,
     })
 }
 
-fn parse_string_list(value: &serde_json::Value) -> napi::Result<Vec<String>> {
+fn parse_local_address(value: &str) -> napi::Result<IpAddr> {
+    value
+        .parse()
+        .map_err(|_| invalid_option_error("networkConfig.localAddress", value, "an IP address"))
+}
+
+fn parse_string_list(operation: &str, value: &serde_json::Value) -> napi::Result<Vec<String>> {
     match value {
         serde_json::Value::String(item) => Ok(vec![item.clone()]),
         serde_json::Value::Array(items) => items
             .iter()
             .map(|item| match item {
                 serde_json::Value::String(value) => Ok(value.clone()),
-                _ => Err(unsupported_option_error("install", "networkConfig.ca")),
+                _ => Err(unsupported_option_error(operation, "networkConfig.ca")),
             })
             .collect(),
-        _ => Err(unsupported_option_error("install", "networkConfig.ca")),
+        _ => Err(unsupported_option_error(operation, "networkConfig.ca")),
     }
 }
 
-fn parse_single_string(value: &serde_json::Value) -> napi::Result<Option<String>> {
+fn parse_single_string(operation: &str, value: &serde_json::Value) -> napi::Result<Option<String>> {
     match value {
         serde_json::Value::Null => Ok(None),
         serde_json::Value::String(item) => Ok(Some(item.clone())),
-        _ => Err(unsupported_option_error("install", "networkConfig.cert")),
+        _ => Err(unsupported_option_error(operation, "networkConfig.cert")),
     }
 }
 
-fn parse_node_linker(value: &str) -> Option<pnpm_config::NodeLinker> {
+fn parse_node_linker(value: &str) -> napi::Result<pnpm_config::NodeLinker> {
     match value {
-        "hoisted" => Some(pnpm_config::NodeLinker::Hoisted),
-        "isolated" => Some(pnpm_config::NodeLinker::Isolated),
-        "pnp" => Some(pnpm_config::NodeLinker::Pnp),
-        "loaded" => Some(pnpm_config::NodeLinker::Loaded),
-        _ => None,
+        "hoisted" => Ok(pnpm_config::NodeLinker::Hoisted),
+        "isolated" => Ok(pnpm_config::NodeLinker::Isolated),
+        "pnp" => Ok(pnpm_config::NodeLinker::Pnp),
+        "loaded" => Ok(pnpm_config::NodeLinker::Loaded),
+        _ => Err(invalid_option_error(
+            "nodeLinker",
+            value,
+            r#""isolated", "hoisted", "pnp", or "loaded""#,
+        )),
     }
 }
 
@@ -367,6 +399,19 @@ fn parse_lockfile_format(
             ))),
         })
         .transpose()
+}
+
+fn parse_package_import_method_option(
+    value: &str,
+) -> napi::Result<pnpm_config::PackageImportMethod> {
+    parse_import_method(value)
+        .ok_or_else(|| {
+            invalid_option_error(
+                "packageImportMethod",
+                value,
+                r#""auto", "hardlink", "copy", "clone", or "clone-or-copy""#,
+            )
+        })
 }
 
 pub(crate) fn parse_import_method(value: &str) -> Option<pnpm_config::PackageImportMethod> {

@@ -61,17 +61,33 @@ pub fn report_to_napi_error(report: &miette::Report) -> napi::Error {
 /// Reuses pnpm's canonical `ERR_PNPM_INVALID_PACKAGE_JSON` (rather than a new
 /// `ERR_PNPM_NAPI_*` code) so consumers translate it like any other pnpm error.
 pub fn invalid_manifest_error(root_dir: &str) -> napi::Error {
-    let envelope = ErrorEnvelope {
+    structured_error(ErrorEnvelope {
         code: Some("ERR_PNPM_INVALID_PACKAGE_JSON".to_string()),
         message: format!("the `manifest` for project `{root_dir}` is not a JSON object"),
         hint: Some(
             "Each project's `manifest` must be a plain object with the package.json shape.".into(),
         ),
-    };
-    match serde_json::to_string(&envelope) {
-        Ok(json) => napi::Error::from_reason(format!("{ENVELOPE_PREFIX}{json}")),
-        Err(_) => napi::Error::from_reason(envelope.message),
-    }
+    })
+}
+
+/// Build a structured [`napi::Error`] for an install whose `projects` carry no
+/// entry for the install `dir`.
+pub fn missing_root_project_error(dir: &str) -> napi::Error {
+    structured_error(ErrorEnvelope {
+        code: Some("ERR_PNPM_INVALID_OPTION".to_string()),
+        message: format!("`projects` has no entry whose `rootDir` is the install dir `{dir}`"),
+        hint: Some("Add the project at `dir` to `projects`, or set `ignorePackageManifest`.".into()),
+    })
+}
+
+/// Build a structured [`napi::Error`] for an option value outside the set the
+/// option accepts.
+pub fn invalid_option_error(option: &str, value: &str, expected: &str) -> napi::Error {
+    structured_error(ErrorEnvelope {
+        code: Some("ERR_PNPM_INVALID_OPTION".to_string()),
+        message: format!("invalid `{option}` value {value:?}"),
+        hint: Some(format!("Expected {expected}.")),
+    })
 }
 
 /// Build a structured [`napi::Error`] for an option that the binding does not
@@ -79,13 +95,16 @@ pub fn invalid_manifest_error(root_dir: &str) -> napi::Error {
 /// ignored, because many install options affect script execution, auth,
 /// registry policy, or lockfile shape.
 pub fn unsupported_option_error(operation: &str, option: &str) -> napi::Error {
-    let envelope = ErrorEnvelope {
+    structured_error(ErrorEnvelope {
         code: Some("ERR_PNPM_NAPI_UNSUPPORTED_OPTION".to_string()),
         message: format!(
             "`{option}` is not supported by `{operation}` in the pnpm Rust engine binding yet.",
         ),
         hint: Some("Remove the option or keep using the TypeScript engine for this call.".into()),
-    };
+    })
+}
+
+fn structured_error(envelope: ErrorEnvelope) -> napi::Error {
     match serde_json::to_string(&envelope) {
         Ok(json) => napi::Error::from_reason(format!("{ENVELOPE_PREFIX}{json}")),
         Err(_) => napi::Error::from_reason(envelope.message),

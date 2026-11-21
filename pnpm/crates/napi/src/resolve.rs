@@ -22,12 +22,18 @@ use std::{
 };
 
 use napi_derive::napi;
-use pnpm_resolving_default_resolver::standalone::{
-    LocalTarballResolution,
-    StandaloneChainOptions,
-    build_standalone_chain,
+use pnpm_resolving_default_resolver::{
+    SpecNotSupportedByAnyResolverError,
+    standalone::{
+        LocalTarballResolution,
+        StandaloneChainOptions,
+        build_standalone_chain,
+    },
 };
+use pnpm_resolving_deps_resolver::ResolveDependencyTreeError;
+use pnpm_resolving_local_resolver::ResolveLocalError;
 use pnpm_resolving_resolver_base::{
+    ResolveError,
     ResolveOptions,
     WantedDependency,
 };
@@ -38,6 +44,11 @@ use crate::{
         resolve_config,
     },
     error::to_napi_error,
+    install::{
+        NetworkConfigInput,
+        ProxyConfigInput,
+        shared_network_overlay,
+    },
 };
 
 /// The `(alias, bareSpecifier)` a resolve is requested for.
@@ -49,6 +60,13 @@ pub struct WantedDependencyInput {
 
 /// Options for [`resolve_dependency`].
 #[napi(object)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct ResolveDependencyOptions {
     pub dir: String,
     pub store_dir: Option<String>,
@@ -61,6 +79,8 @@ pub struct ResolveDependencyOptions {
     /// (`""` for the default registry, pinned to the `registries` passed
     /// alongside it).
     pub auth_header_by_uri: Option<HashMap<String, String>>,
+    pub proxy_config: Option<ProxyConfigInput>,
+    pub network_config: Option<NetworkConfigInput>,
 }
 
 /// Result of [`resolve_dependency`].
@@ -71,6 +91,8 @@ pub struct ResolveDependencyResult {
     pub resolved_via: String,
     pub normalized_bare_specifier: Option<String>,
     pub latest: Option<String>,
+    /// The lockfile `resolution` object of the resolved package.
+    pub resolution: serde_json::Value,
 }
 
 #[napi(js_name = "resolveDependency")]
@@ -112,7 +134,7 @@ fn run_resolve_blocking(
 ) -> napi::Result<ResolveDependencyResult> {
     let dir = PathBuf::from(&options.dir);
     let config =
-        resolve_config(&dir, &resolve_overlay(options)).map_err(|error| to_napi_error(&error))?;
+        resolve_config(&dir, &resolve_overlay(options)?).map_err(|error| to_napi_error(&error))?;
 
     let http_client = crate::install::install_http_client(config)?;
 
@@ -141,31 +163,18 @@ fn run_resolve_blocking(
         ..ResolveOptions::default()
     };
 
-    // A single dependency resolve is one packument fetch (no task parallelism
-    // to exploit) and this already runs on a dedicated worker thread. Use a
-    // current-thread runtime so a `resolveDependency` call spawns no extra
-    // worker-thread pool (a per-call multi-thread runtime would multiply threads
-    // under concurrent resolves). The install path keeps a multi-thread runtime
-    // because it fetches packages in parallel.
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|error| {
-            napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
-        })?;
-
+    let runtime = current_thread_runtime()?;
     // The inherent [`DefaultResolver::resolve`] (not the `Resolver`-trait
     // method) is chosen here: it raises `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`
     // when no resolver in the chain claims the spec, rather than the
     // trait's `Ok(None)`.
     let resolved = runtime
         .block_on(async { resolver.resolve(&wanted_dependency, &resolve_options).await })
-        // `Resolver::resolve` erases its error to `ResolveError`
-        // (`Box<dyn Error>`), so the underlying miette `Diagnostic` (and its
-        // `ERR_PNPM_*` code / hint) is already gone by the time it reaches
-        // here; only the message survives.
-        .map_err(|error| error.to_string())
-        .map_err(napi::Error::from_reason)?;
+        .map_err(resolve_error_to_napi)?;
+    let resolution = serde_json::to_value(&resolved.resolution)
+        .map_err(|error| {
+            napi::Error::from_reason(format!("serializing the resolution: {error}"))
+        })?;
 
     Ok(ResolveDependencyResult {
         id: resolved.id.to_string(),
@@ -173,14 +182,51 @@ fn run_resolve_blocking(
         resolved_via: resolved.resolved_via,
         normalized_bare_specifier: resolved.normalized_bare_specifier,
         latest: resolved.package.latest,
+        resolution,
     })
+}
+
+/// A single dependency resolve is one packument fetch (no task parallelism to
+/// exploit) and already runs on a dedicated worker thread. A current-thread
+/// runtime spawns no extra worker-thread pool, which a per-call multi-thread
+/// runtime would multiply under concurrent resolves. The install path keeps a
+/// multi-thread runtime because it fetches packages in parallel.
+fn current_thread_runtime() -> napi::Result<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| {
+            napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
+        })
+}
+
+/// Recover the `ERR_PNPM_*` code that [`ResolveError`]'s type erasure hides.
+/// An error that carries none keeps its plain message.
+fn resolve_error_to_napi(error: ResolveError) -> napi::Error {
+    let error = match error.downcast::<SpecNotSupportedByAnyResolverError>() {
+        Ok(not_supported) => return to_napi_error(&*not_supported),
+        Err(error) => error,
+    };
+    let error = match error.downcast::<ResolveLocalError>() {
+        Ok(local) => return to_napi_error(&*local),
+        Err(error) => error,
+    };
+    match ResolveDependencyTreeError::from_resolve_error(error) {
+        ResolveDependencyTreeError::Resolve(error) => napi::Error::from_reason(error.to_string()),
+        coded => to_napi_error(&coded),
+    }
 }
 
 #[cfg(test)]
 mod tests;
 
-fn resolve_overlay(options: &ResolveDependencyOptions) -> ConfigOverlay {
-    ConfigOverlay {
+fn resolve_overlay(options: &ResolveDependencyOptions) -> napi::Result<ConfigOverlay> {
+    let overlay = shared_network_overlay(
+        "resolveDependency",
+        options.proxy_config.as_ref(),
+        options.network_config.as_ref(),
+    )?;
+    Ok(ConfigOverlay {
         store_dir: options.store_dir.as_ref().map(PathBuf::from),
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
         registries: options.registries
@@ -193,6 +239,6 @@ fn resolve_overlay(options: &ResolveDependencyOptions) -> ConfigOverlay {
             .clone()
             .map(std::iter::IntoIterator::into_iter)
             .map(std::iter::Iterator::collect),
-        ..ConfigOverlay::default()
-    }
+        ..overlay
+    })
 }
