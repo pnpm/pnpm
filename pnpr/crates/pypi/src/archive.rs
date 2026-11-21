@@ -19,72 +19,96 @@ pub fn metadata_from_zip(
     filename: &str,
     kind: DistributionKind,
 ) -> Result<Vec<u8>, String> {
-    metadata_from_zip_with_limit(bytes, filename, kind, ARCHIVE_LIMIT)
+    zip_metadata(bytes, filename, kind, Some(ARCHIVE_LIMIT))
 }
 
-fn metadata_from_zip_with_limit(
+/// Read only the metadata document when resolving a wheel from an upstream index.
+pub fn metadata_from_wheel(bytes: &[u8], filename: &str) -> Result<Vec<u8>, String> {
+    zip_metadata(bytes, filename, DistributionKind::Wheel, None)
+}
+
+fn zip_metadata(
     bytes: &[u8],
     filename: &str,
     kind: DistributionKind,
-    limit: u64,
+    limit: Option<u64>,
 ) -> Result<Vec<u8>, String> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes))
         .map_err(|err| format!("read archive {filename}: {err}"))?;
-    let mut remaining = limit;
-    archive.validate_header_consistency().map_err(|err| err.to_string())?;
-    let mut paths = pnpr_package_name::ArchivePaths::default();
-    let mut document = None;
-    for index in 0..archive.len() {
-        let entry = archive.by_index(index).map_err(|err| err.to_string())?;
-        let size = entry.size();
-        remaining = remaining
-            .checked_sub(size)
-            .ok_or_else(|| format!("{filename} exceeds {limit} decompressed bytes"))?;
-        inspect_zip_entry(entry, &mut paths, filename, kind, &mut document)?;
+    let index = metadata_index(&archive, filename, kind)?;
+    if let Some(limit) = limit {
+        validate_zip(&mut archive, index, limit)?;
     }
-    document.ok_or_else(|| {
-        format!(
-            "{filename} has no {}",
-            match kind {
-                DistributionKind::Wheel => "dist-info METADATA",
-                DistributionKind::Sdist => "PKG-INFO",
-            },
-        )
+    let entry = archive.by_index(index).map_err(|err| err.to_string())?;
+    if !entry.is_file() {
+        return Err(format!("{filename} must carry a regular metadata file"));
+    }
+    let size = entry.size();
+    let bytes = read_metadata(entry)?;
+    if bytes.len() as u64 != size {
+        return Err(format!("incorrect metadata size in {filename}"));
+    }
+    Ok(bytes)
+}
+
+fn metadata_index(
+    archive: &zip::ZipArchive<Cursor<&[u8]>>,
+    filename: &str,
+    kind: DistributionKind,
+) -> Result<usize, String> {
+    let mut found = None;
+    for (index, name) in archive.file_names().enumerate() {
+        let name = name.map_err(|err| err.to_string())?;
+        if !is_metadata(&name, kind) {
+            continue;
+        }
+        if found.replace(index).is_some() {
+            return Err(format!("multiple metadata files in {filename}"));
+        }
+        verify_metadata_directory(&name, filename, kind)?;
+    }
+    found.ok_or_else(|| {
+        let expected = match kind {
+            DistributionKind::Wheel => "dist-info METADATA",
+            DistributionKind::Sdist => "PKG-INFO",
+        };
+        format!("{filename} has no {expected}")
     })
 }
 
-fn inspect_zip_entry(
-    entry: zip::read::ZipFile<'_, Cursor<&[u8]>>,
-    paths: &mut pnpr_package_name::ArchivePaths,
-    filename: &str,
-    kind: DistributionKind,
-    document: &mut Option<Vec<u8>>,
+fn validate_zip(
+    archive: &mut zip::ZipArchive<Cursor<&[u8]>>,
+    metadata_index: usize,
+    limit: u64,
 ) -> Result<(), String> {
-    let size = entry.size();
-    let name = entry.name().map_err(|err| err.to_string())?;
-    let path = paths
-        .insert(&name, entry.is_dir())
-        .ok_or_else(|| format!("invalid or duplicate archive path {name:?}"))?;
-    if entry.is_symlink() {
-        return Err(format!("unsupported archive entry {name:?}"));
-    }
-    if !is_metadata(path, kind) {
-        let actual = std::io::copy(&mut entry.take(size + 1), &mut std::io::sink())
-            .map_err(|err| err.to_string())?;
-        if actual != size {
-            return Err(format!("incorrect uncompressed size in {filename}"));
+    archive.validate_header_consistency().map_err(|err| err.to_string())?;
+    let mut paths = pnpr_package_name::ArchivePaths::default();
+    let mut remaining = limit;
+    for index in 0..archive.len() {
+        let entry = archive.by_index(index).map_err(|err| err.to_string())?;
+        let name = entry.name().map_err(|err| err.to_string())?;
+        remaining = remaining
+            .checked_sub(entry.size())
+            .ok_or_else(|| format!("ZIP exceeds {limit} decompressed bytes"))?;
+        if entry.is_symlink() {
+            return Err(format!("unsupported archive entry {name:?}"));
         }
-        return Ok(());
+        let path = if entry.is_dir() { paths.insert_directory(&name) } else { paths.insert(&name) };
+        path.ok_or_else(|| format!("invalid or duplicate archive path {name:?}"))?;
+        if index != metadata_index {
+            verify_zip_size(entry)?;
+        }
     }
-    if document.is_some() || !entry.is_file() {
-        return Err(format!("multiple metadata files in {filename}"));
+    Ok(())
+}
+
+fn verify_zip_size(entry: zip::read::ZipFile<'_, Cursor<&[u8]>>) -> Result<(), String> {
+    let size = entry.size();
+    let actual = std::io::copy(&mut entry.take(size + 1), &mut std::io::sink())
+        .map_err(|err| err.to_string())?;
+    if actual != size {
+        return Err("incorrect uncompressed ZIP entry size".to_string());
     }
-    verify_metadata_directory(&name, filename, kind)?;
-    let metadata = read_metadata(entry.take(size + 1))?;
-    if metadata.len() as u64 != size {
-        return Err(format!("incorrect metadata size in {filename}"));
-    }
-    *document = Some(metadata);
     Ok(())
 }
 
@@ -125,12 +149,7 @@ pub fn metadata_from_sdist(bytes: &[u8], filename: &str) -> Result<Vec<u8>, Stri
         let raw = entry.path_bytes();
         let name = std::str::from_utf8(&raw).map_err(|err| err.to_string())?;
         let entry_type = entry.header().entry_type();
-        let path = paths
-            .insert(name, entry_type.is_dir())
-            .ok_or_else(|| format!("invalid or duplicate archive path {name:?}"))?;
-        if !entry_type.is_dir() && !entry_type.is_file() {
-            return Err(format!("unsupported archive entry {name:?}"));
-        }
+        let path = sdist_entry_path(&mut paths, name, entry_type)?;
         if !is_metadata(path, DistributionKind::Sdist) {
             continue;
         }
@@ -146,6 +165,21 @@ pub fn metadata_from_sdist(bytes: &[u8], filename: &str) -> Result<Vec<u8>, Stri
         return Err(format!("sdist exceeds {ARCHIVE_LIMIT} decompressed bytes"));
     }
     document.ok_or_else(|| "sdist has no root PKG-INFO".to_string())
+}
+
+fn sdist_entry_path<'a>(
+    paths: &mut pnpr_package_name::ArchivePaths,
+    name: &'a str,
+    entry_type: tar::EntryType,
+) -> Result<&'a str, String> {
+    let path = if entry_type.is_dir() {
+        paths.insert_directory(name)
+    } else if entry_type.is_file() {
+        paths.insert(name)
+    } else {
+        return Err(format!("unsupported archive entry {name:?}"));
+    };
+    path.ok_or_else(|| format!("invalid or duplicate archive path {name:?}"))
 }
 
 fn verify_metadata_directory(

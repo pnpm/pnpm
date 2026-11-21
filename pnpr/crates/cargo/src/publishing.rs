@@ -298,8 +298,7 @@ pub(super) fn crate_entry_path<Reader: io::Read>(
     let path = std::str::from_utf8(&raw)
         .map_err(|err| CrateArchiveError::Read(io::Error::new(io::ErrorKind::InvalidData, err)))?;
     let entry_type = entry.header().entry_type();
-    let path = paths
-        .insert(path, entry_type.is_dir())
+    let path = if entry_type.is_dir() { paths.insert_directory(path) } else { paths.insert(path) }
         .ok_or_else(|| CrateArchiveError::InvalidPath { path: path.to_string() })?;
     if path == expected && entry_type.is_dir() {
         return Ok(None);

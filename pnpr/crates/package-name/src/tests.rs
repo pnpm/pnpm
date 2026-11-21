@@ -217,9 +217,9 @@ fn cargo_keys_fold_case_and_separators_without_collapsing_them() {
 #[test]
 fn archive_entries_have_unique_relative_paths() {
     let mut paths = super::ArchivePaths::default();
-    assert_eq!(paths.insert("assets/", true), Some("assets"));
-    assert_eq!(paths.insert("assets/.keep", false), Some("assets/.keep"));
+    assert_eq!(paths.insert_directory("assets/"), Some("assets"));
+    assert_eq!(paths.insert("assets/.keep"), Some("assets/.keep"));
     for name in ["Assets/.keep", "a/./b", "a//b", "../b", "/b", "b/", "C:/b", r"a\b"] {
-        assert_eq!(paths.insert(name, false), None, "{name}");
+        assert_eq!(paths.insert(name), None, "{name}");
     }
 }

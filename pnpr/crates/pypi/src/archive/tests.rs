@@ -133,8 +133,7 @@ fn refuses_source_distributions_with_another_releases_root_directory() {
 fn zip_size_limit_includes_package_files() {
     let filename = "sample-1.0.zip";
     let zip = zip_metadata(&[("sample-1.0/PKG-INFO", "abc"), ("sample-1.0/module.py", "def")]);
-    let read =
-        |limit| super::metadata_from_zip_with_limit(&zip, filename, DistributionKind::Sdist, limit);
+    let read = |limit| super::zip_metadata(&zip, filename, DistributionKind::Sdist, Some(limit));
     assert_eq!(read(6).unwrap(), b"abc");
     assert!(read(5).unwrap_err().contains("exceeds"));
 }
@@ -153,4 +152,16 @@ fn sdist_paths_are_unique_after_reading_metadata() {
             .unwrap_err()
             .contains("duplicate"),
     );
+}
+
+#[test]
+fn resolving_an_upstream_wheel_only_reads_its_metadata() {
+    let zip = zip_metadata(&[
+        ("sample-1.0.dist-info/METADATA", "Name: sample"),
+        ("README", ""),
+        ("Readme", ""),
+    ]);
+    let filename = "sample-1.0-py3-none-any.whl";
+    assert_eq!(super::metadata_from_wheel(&zip, filename).unwrap(), b"Name: sample");
+    assert!(metadata_from_zip(&zip, filename, DistributionKind::Wheel).is_err());
 }
