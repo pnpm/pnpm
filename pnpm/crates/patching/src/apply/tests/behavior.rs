@@ -880,3 +880,25 @@ fn rejects_a_patch_that_creates_a_symlink() {
             .is_err(),
     );
 }
+
+#[test]
+fn create_over_a_file_whose_bytes_differ_from_the_created_content_errors() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("file.txt");
+    fs::write(&target, b"\xff\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/file.txt b/file.txt"
+        "new file mode 100644"
+        "--- /dev/null"
+        "+++ b/file.txt"
+        "@@ -0,0 +1 @@"
+        "+\u{FFFD}"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("apply must fail");
+
+    assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
+    assert_eq!(fs::read(&target).unwrap(), b"\xff\n");
+}

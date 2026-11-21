@@ -309,4 +309,44 @@ new file mode 100644
     expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
     expect(fs.readFileSync(path.join(patchedDir, 'file.txt'), 'utf8')).toBe('created\n')
   })
+  it('should not take an empty file the patch creates as applied over a nonempty file', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'file.txt'), 'existing\n')
+    const patchFilePath = path.join(patchedDir, '..', 'create-empty.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/file.txt b/file.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+`)
+    expect(() => applyPatchToDir({ patchFilePath, patchedDir })).toThrow(`Could not apply patch ${patchFilePath} to ${patchedDir}`)
+    expect(fs.readFileSync(path.join(patchedDir, 'file.txt'), 'utf8')).toBe('existing\n')
+  })
+  it('should not take a file whose bytes differ from the created content as applied', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'file.txt'), Buffer.from([0xff, 0x0a]))
+    const patchFilePath = path.join(patchedDir, '..', 'create.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/file.txt b/file.txt
+new file mode 100644
+--- /dev/null
++++ b/file.txt
+@@ -0,0 +1 @@
++\uFFFD
+`)
+    expect(() => applyPatchToDir({ patchFilePath, patchedDir })).toThrow(`Could not apply patch ${patchFilePath} to ${patchedDir}`)
+    expect(fs.readFileSync(path.join(patchedDir, 'file.txt'))).toStrictEqual(Buffer.from([0xff, 0x0a]))
+  })
+  itWithExecutableBits('should give an already created file the mode the patch creates it with', () => {
+    const patchedDir = tempDir()
+    const scriptPath = path.join(patchedDir, 'run.sh')
+    fs.writeFileSync(scriptPath, 'echo 1\n', { mode: 0o644 })
+    const patchFilePath = path.join(patchedDir, '..', 'create-executable.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/run.sh b/run.sh
+new file mode 100755
+--- /dev/null
++++ b/run.sh
+@@ -0,0 +1 @@
++echo 1
+`)
+    expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
+    expect(fs.statSync(scriptPath).mode & 0o777).toBe(0o755)
+  })
 })

@@ -154,6 +154,13 @@ fn normalize_patches_dir_name_rejects_a_dir_outside_the_project() {
     assert_eq!(normalize_patches_dir_name("patches/../../outside"), None);
 }
 
+#[cfg(windows)]
+#[test]
+fn normalize_patches_dir_name_rejects_a_dir_outside_the_project_with_backslashes() {
+    assert_eq!(normalize_patches_dir_name(r"..\outside"), None);
+    assert_eq!(normalize_patches_dir_name(r"patches\..\..\outside"), None);
+}
+
 #[cfg(unix)]
 #[test]
 fn normalize_patches_dir_name_ignores_root_component() {

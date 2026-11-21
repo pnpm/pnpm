@@ -444,7 +444,7 @@ impl FileApply<'_> {
         }
         let existing = fs::read(target)
             .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
-        if String::from_utf8_lossy(&existing) != created {
+        if existing != created.as_bytes() {
             let target = target.display();
             return Err(self.failed(format!("cannot create {target}: target already exists")));
         }

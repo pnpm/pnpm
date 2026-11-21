@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { applyHunks } from './applyHunks.js'
-import type { FileCreation, FileDeletion, FileModeChange, FileRename, Hunk, PatchFilePart } from './parsePatch.js'
+import type { FileCreation, FileDeletion, FileModeChange, FileRename, PatchFilePart } from './parsePatch.js'
 
 export interface ExecuteEffectsOpts {
   /** The directory the patch's paths are relative to. */
@@ -39,16 +39,17 @@ export function executeEffects (effects: PatchFilePart[], opts: ExecuteEffectsOp
 }
 
 /**
- * The dry run also checks a deletion that carries its file's content against
- * the file. The reverse of a file creation is such a deletion, and it must
- * not confirm a creation over a different file as applied.
+ * The dry run also checks the file's content. It only runs on a reversed
+ * patch, whose deletions are reversed creations, so a deletion without a hunk
+ * stands for an empty file. A creation over a different file must not be
+ * confirmed as applied.
  */
 function deleteFile (effect: FileDeletion, filePath: string, dryRun: boolean): void {
   if (!dryRun) {
     fs.unlinkSync(filePath)
   } else if (!fs.existsSync(filePath)) {
     throw new Error(`Trying to delete file that doesn't exist: ${effect.path}`)
-  } else if (effect.hunk != null && !holdsContents(filePath, hunkFileContents(effect.hunk))) {
+  } else if (!holdsContents(filePath, wholeFileContents(effect))) {
     throw new Error(`Trying to delete file whose content differs from the patch: ${effect.path}`)
   }
 }
@@ -97,32 +98,35 @@ function normalizeName (name: string): string {
 }
 
 /**
- * Never overwrites an existing file: a patch authored against another base
- * would destroy it. A file that already holds the created content is left as
- * is, because the patch is already applied there.
+ * Never overwrites a file with different content: a patch authored against
+ * another base would destroy it. A file that already holds the created
+ * content is written again, so that it gets the patch's mode.
  */
 function createFile (effect: FileCreation, filePath: string, dryRun: boolean): void {
-  const contents = effect.hunk == null ? '' : hunkFileContents(effect.hunk)
+  const contents = wholeFileContents(effect)
   if (entryExists(filePath)) {
     if (dryRun || !holdsContents(filePath, contents)) {
       throw new Error(`Trying to create file that already exists: ${effect.path}`)
     }
+    // Writing through a hardlink would change every other link to the file,
+    // such as its copy in the store. Unlinking first gives the file a new inode.
+    fs.unlinkSync(filePath)
+  } else if (dryRun) {
     return
   }
-  if (dryRun) return
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, contents, { mode: effect.mode })
 }
 
-/** The whole content of a file that a hunk creates or deletes. */
-function hunkFileContents (hunk: Hunk): string {
-  const firstPart = hunk.parts[0]
+/** The whole content of the file a creation or deletion carries. */
+function wholeFileContents ({ hunk }: FileCreation | FileDeletion): string {
+  const firstPart = hunk?.parts[0]
   if (firstPart == null) return ''
   return firstPart.lines.join('\n') + (firstPart.noNewlineAtEndOfFile ? '' : '\n')
 }
 
 function holdsContents (filePath: string, contents: string): boolean {
-  return fs.lstatSync(filePath).isFile() && fs.readFileSync(filePath, 'utf8') === contents
+  return fs.lstatSync(filePath).isFile() && fs.readFileSync(filePath).equals(Buffer.from(contents))
 }
 
 function changeMode (effect: FileModeChange, filePath: string, dryRun: boolean): void {
