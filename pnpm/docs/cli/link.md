@@ -8,7 +8,7 @@ Aliases: `ln`
 Links a local package to the current project's `node_modules`.
 
 ```sh
-pnpm link <dir>...
+pnpm link [--hard] <dir>...
 ```
 
 ## Usage
@@ -25,6 +25,22 @@ Links the package from each `<dir>` directory to `node_modules` of the package f
 * an [`overrides`](../settings/dependency-resolution.md#overrides) entry `<name>: link:<path>` in the root `pnpm-workspace.yaml`, so the link applies throughout the workspace.
 
 pnpm warns about peer dependencies of the linked package. [`pnpm unlink`](./unlink.md) removes the overrides.
+
+## Options
+
+### --hard
+
+Added in: v12.23.0
+
+Writes both entries with the `file:` protocol instead of `link:`. pnpm then installs the package like any `file:` dependency. It hard links the package's files into `node_modules` and resolves its dependencies and peer dependencies from your project. See [the difference between `pnpm link` and the `file:` protocol](#whats-the-difference-between-pnpm-link-and-using-the-file-protocol).
+
+```sh
+pnpm link --hard ../foo
+```
+
+Edits to existing files of the linked package show up in your project while the files stay hard linked. Run `pnpm install` to pick up new or deleted files. Also run it after edits if pnpm had to copy the files, for example because the package is on another drive.
+
+If the linked directory is a project of the same workspace, pnpm may still symlink it when [`dedupeInjectedDeps`](../workspaces.md#dedupeinjecteddeps) is enabled.
 
 ## Use cases
 
@@ -59,7 +75,7 @@ When you use the `file:` protocol in `dependencies`, the linked package is hard-
 
 :::info
 
-When dealing with **peer dependencies** it is recommended to use the `file:` protocol. It better resolves the peer dependencies from the project dependencies, ensuring that the linked dependency correctly uses the versions of the dependencies specified in your main project, leading to more consistent and expected behaviors.
+When dealing with **peer dependencies** it is recommended to use the `file:` protocol, for example with `pnpm link --hard`. It better resolves the peer dependencies from the project dependencies, ensuring that the linked dependency correctly uses the versions of the dependencies specified in your main project, leading to more consistent and expected behaviors.
 
 :::
 

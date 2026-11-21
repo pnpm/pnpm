@@ -34,6 +34,13 @@ use std::{
 #[derive(Debug, Args)]
 pub struct LinkArgs {
     pub package_paths: Vec<String>,
+
+    /// Hard link the files of each package with the `file:` protocol instead
+    /// of symlinking its directory with `link:`. The package's dependencies
+    /// and peer dependencies are then resolved from the project that links
+    /// it.
+    #[clap(long)]
+    pub hard: bool,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -71,10 +78,10 @@ fn is_filespec(input: &str) -> bool {
     }
 }
 
-fn link_spec(base: &Path, target: &Path) -> String {
+fn link_spec(protocol: &str, base: &Path, target: &Path) -> String {
     let rel = pathdiff::diff_paths(target, base).unwrap_or_else(|| target.to_path_buf());
     format!(
-        "link:{}",
+        "{protocol}{}",
         rel.display()
             .to_string()
             .replace('\\', "/"),
@@ -116,6 +123,7 @@ impl LinkArgs {
 
         let root_dir = config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.clone());
 
+        let protocol = if self.hard { "file:" } else { "link:" };
         let mut new_overrides = IndexMap::<String, String>::new();
         for path_str in &self.package_paths {
             let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
@@ -124,13 +132,16 @@ impl LinkArgs {
                 manifest
                     .add_dependency(
                         &package_name,
-                        &link_spec(&manifest_dir, &target_dir),
+                        &link_spec(protocol, &manifest_dir, &target_dir),
                         DependencyGroup::Prod,
                     )
                     .wrap_err("adding linked dependency to package.json")?;
             }
-            new_overrides.insert(package_name.clone(), link_spec(&root_dir, &target_dir));
-            check_peer_deps::<Reporter>(&package_name, &target_manifest, &manifest_dir);
+            new_overrides.insert(package_name.clone(), link_spec(protocol, &root_dir, &target_dir));
+            // A hard-linked package resolves its peers from this project.
+            if !self.hard {
+                check_peer_deps::<Reporter>(&package_name, &target_manifest, &manifest_dir);
+            }
         }
 
         manifest.save().wrap_err("saving package.json with linked dependencies")?;

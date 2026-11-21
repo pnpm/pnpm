@@ -4,6 +4,7 @@ use indexmap::IndexMap;
 use miette::Context;
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
+use pnpm_local_spec::is_tarball_filename;
 use pnpm_package_manifest::{
     PackageManifest,
     PackageManifestError,
@@ -39,15 +40,15 @@ impl UnlinkArgs {
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
     }
 
-    /// Revert what `pnpm link` wrote: strip the matching `link:` overrides
+    /// Revert what `pnpm link` wrote: strip the matching link overrides
     /// from `config` (in memory) and from `pnpm-workspace.yaml`, and drop the
-    /// `link:` dependencies that point at the same directories from the
+    /// link dependencies that point at the same directories from the
     /// manifests of the projects this run reinstalls. Returns whether the
     /// caller should reinstall.
     ///
     /// Mirrors pnpm: when no overrides are configured it prints "Nothing to
     /// unlink" and returns `false` so the caller stops; otherwise it removes
-    /// the `link:` overrides (the ones named, or all of them) and returns
+    /// the link overrides (the ones named, or all of them) and returns
     /// `true` so the caller reinstalls, even when nothing matched.
     pub(crate) fn remove_links(
         &self,
@@ -82,7 +83,7 @@ impl UnlinkArgs {
 
             let selectors: Vec<String> = removed.into_keys().collect();
             remove_overrides(root_dir, &selectors)
-                .wrap_err("removing link: overrides from pnpm-workspace.yaml")?;
+                .wrap_err("removing link overrides from pnpm-workspace.yaml")?;
             for mut manifest in unlinked_manifests {
                 manifest
                     .save()
@@ -93,7 +94,7 @@ impl UnlinkArgs {
         Ok(true)
     }
 
-    /// Remove the `link:` overrides this run unlinks (the named ones, or all
+    /// Remove the link overrides this run unlinks (the named ones, or all
     /// of them) from `overrides` and return them.
     fn take_link_overrides(
         &self,
@@ -102,7 +103,7 @@ impl UnlinkArgs {
         let removed: IndexMap<String, String> = overrides
             .iter()
             .filter(|(selector, specifier)| {
-                specifier.starts_with("link:")
+                is_link_specifier(specifier)
                     && (self.package_names.is_empty()
                         || self.package_names
                             .iter()
@@ -136,15 +137,29 @@ fn selected_manifest_paths(
         .collect())
 }
 
+/// Whether `specifier` is one `pnpm link` writes: `link:<dir>`, or
+/// `file:<dir>` with `--hard`. A `file:` tarball is never a link. The
+/// directory does not have to exist, so a link to a moved or deleted package
+/// can still be removed.
+fn is_link_specifier(specifier: &str) -> bool {
+    specifier.starts_with("link:")
+        || specifier
+            .strip_prefix("file:")
+            .is_some_and(|path| !is_tarball_filename(path))
+}
+
 fn link_target_dir(base_dir: &Path, specifier: &str) -> PathBuf {
-    let path = specifier.strip_prefix("link:").unwrap_or(specifier);
+    let path = specifier
+        .strip_prefix("link:")
+        .or_else(|| specifier.strip_prefix("file:"))
+        .unwrap_or(specifier);
     lexical_normalize(&base_dir.join(path))
 }
 
 /// The manifest at `manifest_path` with the dependencies `pnpm link` added
 /// for the removed overrides dropped, unsaved, or `None` when it has none.
-/// `pnpm link` only writes `dependencies`, and only a `link:` dependency that
-/// points at the same directory as its override is dropped, so a `link:`
+/// `pnpm link` only writes `dependencies`, and only a link dependency that
+/// points at the same directory as its override is dropped, so a link
 /// dependency declared to another directory is kept.
 fn remove_linked_dependencies(
     manifest_path: &Path,
@@ -172,7 +187,7 @@ fn remove_linked_dependencies(
             .get(*name)
             .and_then(Value::as_str)
             .is_some_and(|specifier| {
-                specifier.starts_with("link:")
+                is_link_specifier(specifier)
                     && link_target_dir(manifest_dir, specifier) == *linked_dir
             });
         if points_at_linked_dir {
