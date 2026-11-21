@@ -35,9 +35,13 @@ pub(crate) fn is_enabled(config: &Config) -> bool {
 /// The directories a script or command run for the project in `dir` finds
 /// executables in before `PATH`: the toolchains pnpm installed for it, then
 /// `extraBinPaths`.
-pub(crate) fn execution_paths<'a>(config: &'a Config, dir: &Path) -> Cow<'a, [PathBuf]> {
-    let paths = pnpm_python_installer::execution_paths(config, dir);
-    match rust_bin_dir(config, dir) {
+pub(crate) fn execution_paths<'a>(
+    config: &'a Config,
+    project: &Path,
+    run_dir: &Path,
+) -> Cow<'a, [PathBuf]> {
+    let paths = pnpm_python_installer::execution_paths(config, run_dir);
+    match rust_bin_dir(config, project) {
         Some(rust) => Cow::Owned(
             std::iter::once(rust)
                 .chain(paths.iter().cloned())
