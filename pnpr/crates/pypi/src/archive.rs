@@ -123,7 +123,7 @@ pub fn metadata_from_sdist(bytes: &[u8], filename: &str) -> Result<Vec<u8>, Stri
     for entry in archive.entries().map_err(|err| err.to_string())? {
         let entry = entry.map_err(|err| err.to_string())?;
         let raw = entry.path_bytes();
-        let name = core::str::from_utf8(&raw).map_err(|err| err.to_string())?;
+        let name = std::str::from_utf8(&raw).map_err(|err| err.to_string())?;
         let entry_type = entry.header().entry_type();
         let path = paths
             .insert(name, entry_type.is_dir())

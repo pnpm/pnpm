@@ -151,6 +151,6 @@ fn sdist_paths_are_unique_after_reading_metadata() {
     assert!(
         metadata_from_zip(&zip_metadata(&files), "sample-1.0.zip", DistributionKind::Sdist)
             .unwrap_err()
-            .contains("duplicate")
+            .contains("duplicate"),
     );
 }

@@ -219,7 +219,7 @@ fn archive_entries_have_unique_relative_paths() {
     let mut paths = super::ArchivePaths::default();
     assert_eq!(paths.insert("assets/", true), Some("assets"));
     assert_eq!(paths.insert("assets/.keep", false), Some("assets/.keep"));
-    for name in ["Assets/.keep", "a/./b", "a//b", "../b", "/b", "b/", "C:/b", "a\\b"] {
+    for name in ["Assets/.keep", "a/./b", "a//b", "../b", "/b", "b/", "C:/b", r"a\b"] {
         assert_eq!(paths.insert(name, false), None, "{name}");
     }
 }

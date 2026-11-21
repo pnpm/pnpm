@@ -295,7 +295,7 @@ pub(super) fn crate_entry_path<Reader: io::Read>(
     paths: &mut pnpr_package_name::ArchivePaths,
 ) -> Result<Option<String>, CrateArchiveError> {
     let raw = entry.path_bytes();
-    let path = core::str::from_utf8(&raw)
+    let path = std::str::from_utf8(&raw)
         .map_err(|err| CrateArchiveError::Read(io::Error::new(io::ErrorKind::InvalidData, err)))?;
     let entry_type = entry.header().entry_type();
     let path = paths

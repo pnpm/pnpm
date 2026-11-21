@@ -1,5 +1,3 @@
-mod archive_paths;
-
 pub use archive_paths::ArchivePaths;
 pub use pnpm_package_name::{
     PythonNameError,
@@ -20,6 +18,8 @@ use strum::{
     EnumIter,
     IntoEnumIterator as _,
 };
+
+mod archive_paths;
 
 /// The protocol whose naming rules a registry surface follows.
 #[derive(
