@@ -82,17 +82,22 @@ async fn request_attestation(
 ) -> Result<reqwest::Response, reqwest::Error> {
     // Verification-only lookup: queue in the background class so it
     // never outranks resolution-gating fetches.
-    let mut request = opts.http_client
-        .acquire_for_url_with_priority(url, pnpm_network::BACKGROUND)
-        .await
-        .get(url);
-    if let Some(value) = opts.auth_headers.for_url_with_package(url, Some(pkg_name)) {
-        request = request.header("authorization", value);
+    if let Some(response) =
+        opts.auth_headers.fetch_local(url, Some(pkg_name), reqwest::header::HeaderMap::new())
+    {
+        return Ok(response.await);
     }
-    match opts.auth_headers.fetch_local(url, Some(pkg_name), reqwest::header::HeaderMap::new()) {
-        Some(response) => Ok(response.await),
-        None => request.send().await,
+    let (_, response) = pnpm_network::PackageRequest {
+        url,
+        package: pkg_name,
+        auth: opts.auth_headers,
+        headers: reqwest::header::HeaderMap::new(),
+        method: reqwest::Method::GET,
+        priority: pnpm_network::BACKGROUND,
     }
+    .send_once(opts.http_client)
+    .await?;
+    Ok(response)
 }
 
 fn extract_published_at(body: &serde_json::Value) -> Option<String> {

@@ -37,6 +37,10 @@ impl UpstreamRouteHook for PackageRoute {
         self.hook.authorize(url, Some(&self.canonical_name))
     }
 
+    fn request_headers(&self, url: &str, _package: Option<&str>) -> reqwest::header::HeaderMap {
+        self.hook.request_headers(url, Some(&self.canonical_name))
+    }
+
     fn allows_fetch(&self, url: &str) -> bool {
         self.hook.allows_fetch(url)
     }

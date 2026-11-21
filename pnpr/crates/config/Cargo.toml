@@ -18,6 +18,7 @@ pnpr-registry = { workspace = true }
 pnpm-config-dir = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-env-replace = { workspace = true }
+pnpm-network = { workspace = true }
 pnpm-transparency-log = { workspace = true }
 derive_more = { workspace = true }
 getrandom = { workspace = true }

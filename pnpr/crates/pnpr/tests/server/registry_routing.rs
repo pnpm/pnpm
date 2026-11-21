@@ -32,7 +32,7 @@ async fn scoped_packument_is_served() {
     let mut upstream = mockito::Server::new_async().await;
     let packument = json!({ "name": "@types/node", "versions": {} });
     let mock = upstream
-        .mock("GET", "/@types/node")
+        .mock("GET", "/@types%2Fnode")
         .with_status(200)
         .with_body(packument.to_string())
         .expect(1)

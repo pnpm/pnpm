@@ -970,7 +970,7 @@ async fn upstream_pnpr_version_route_tarball_is_proxied() {
         },
     });
     let packument_mock = upstream
-        .mock("GET", "/@scope/foo")
+        .mock("GET", "/@scope%2Ffoo")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(packument.to_string())

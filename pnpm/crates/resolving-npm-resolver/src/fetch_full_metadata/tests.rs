@@ -314,6 +314,77 @@ async fn fetch_full_metadata_uses_package_scope_auth() {
 }
 
 #[tokio::test]
+async fn custom_registry_headers_are_scoped_to_the_metadata_origin() {
+    struct PrivateRegistry;
+    impl pnpm_network::UpstreamRouteHook for PrivateRegistry {
+        fn authorize(&self, _: &str, _: Option<&str>) -> Option<String> {
+            None
+        }
+
+        fn request_headers(&self, _: &str, _: Option<&str>) -> reqwest::header::HeaderMap {
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert("x-api-key", reqwest::header::HeaderValue::from_static("example-key"));
+            headers
+        }
+    }
+
+    let mut registry = mockito::Server::new_async().await;
+    let mut mirror = mockito::Server::new_async().await;
+    let destination = mirror
+        .mock("GET", "/pkg")
+        .match_header("x-api-key", mockito::Matcher::Missing)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+    let source = registry
+        .mock("GET", "/pkg")
+        .match_header("x-api-key", "example-key")
+        .with_status(302)
+        .with_header("location", "/metadata/pkg")
+        .expect(2)
+        .create_async()
+        .await;
+    let metadata = registry
+        .mock("GET", "/metadata/pkg")
+        .match_header("x-api-key", "example-key")
+        .with_status(302)
+        .with_header("location", &format!("{}/pkg", mirror.url()))
+        .expect(2)
+        .create_async()
+        .await;
+    let auth = AuthHeaders::default().with_route_hook(std::sync::Arc::new(PrivateRegistry));
+    for allow_mirror in [false, true] {
+        let registry_origin = reqwest::Url::parse(&registry.url()).unwrap().origin();
+        let http = ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+            allow_mirror || url.origin() == registry_origin
+        });
+        let options = FetchFullMetadataOptions {
+            registry: &registry.url(),
+            full_metadata: false,
+            etag: Some("example"),
+            modified: None,
+            http: crate::MetadataHttpClient {
+                http_client: &http,
+                auth_headers: &auth,
+                retry_opts: no_retry_opts(),
+            },
+        };
+        let result = fetch_full_metadata("pkg", &options).await;
+        if allow_mirror {
+            assert!(matches!(result, Ok(FetchFullMetadataOutcome::NotModified)));
+        } else {
+            assert!(
+                matches!(result, Err(crate::FetchMetadataError::Network { error, .. }) if error.is_redirect()),
+            );
+        }
+    }
+    metadata.assert_async().await;
+    source.assert_async().await;
+    destination.assert_async().await;
+}
+
+#[tokio::test]
 async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
     let mut server = mockito::Server::new_async().await;
     let mock = server

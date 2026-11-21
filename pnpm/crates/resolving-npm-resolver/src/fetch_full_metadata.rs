@@ -19,6 +19,7 @@
 
 use pnpm_network::{
     AuthHeaders,
+    PackageRequest,
     RetryOpts,
     ThrottledClient,
     ThrottledClientGuard,
@@ -26,7 +27,6 @@ use pnpm_network::{
     redact_url_credentials,
     redact_url_for_display,
     retry_async,
-    send_with_retry_at_priority,
 };
 use pnpm_registry::Package;
 use reqwest::{
@@ -320,23 +320,15 @@ async fn send_remote_once<'a>(
     validators: &Validators<'_>,
     bypass_cache: bool,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
-    send_with_retry_at_priority(
-        opts.http.http_client,
-        opts.url,
-        opts.priority,
-        opts.http.retry_opts,
-        |client| {
-            let mut request = client
-                .get(opts.url)
-                .headers(metadata_headers(opts.accept, validators, bypass_cache));
-            if let Some(value) =
-                opts.http.auth_headers.for_url_with_package(opts.url, Some(opts.pkg_name))
-            {
-                request = request.header(header::AUTHORIZATION, value);
-            }
-            request
-        },
-    )
+    PackageRequest {
+        url: opts.url,
+        package: opts.pkg_name,
+        auth: opts.http.auth_headers,
+        headers: metadata_headers(opts.accept, validators, bypass_cache),
+        method: reqwest::Method::GET,
+        priority: opts.priority,
+    }
+    .send(opts.http.http_client, opts.http.retry_opts)
     .await
     .map_err(|error| FetchMetadataError::Network {
         url: redact_url_credentials(opts.url),

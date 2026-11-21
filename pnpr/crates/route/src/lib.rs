@@ -186,16 +186,14 @@ struct ResolvedAlias {
     /// scheme from [`Self::origin`], so without this check an `http://host`
     /// fetch would match an `https://host` upstream and send its token in clear.
     scheme: String,
-    /// The fully-formed `Authorization` header value the alias sends
-    /// upstream (`Bearer ...` / `Basic ...`).
-    authorization: Option<String>,
+    headers: HeaderMap,
     /// The upstream's grants, which decide which pnpr callers may select this
     /// alias.
     rules: pnpr_policy::PackageRules,
 }
 
 impl fmt::Debug for ResolvedAlias {
-    /// Redacts [`Self::authorization`]; it carries the upstream's server-owned
+    /// Redacts [`Self::headers`]; it carries the upstream's server-owned
     /// upstream credential, which must never reach a log line or panic dump.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ResolvedAlias")
@@ -204,7 +202,7 @@ impl fmt::Debug for ResolvedAlias {
             .field("registry", &self.registry)
             .field("origin", &self.origin)
             .field("scheme", &self.scheme)
-            .field("authorization", &"<redacted>")
+            .field("headers", &"<redacted>")
             .field("rules", &self.rules)
             .finish()
     }
@@ -338,7 +336,7 @@ impl RouteContext {
             .filter(|alias| self.upstream_admits(&alias.name, identity, Some(package)));
         match admitted {
             Some(alias)
-                if alias.authorization.is_some()
+                if !alias.headers.is_empty()
                     || !alias.admits(&Identity::Anonymous)
                     || !self.upstream_admits(registry, &Identity::Anonymous, Some(package)) =>
             {

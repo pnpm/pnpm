@@ -479,7 +479,7 @@ async fn mock_packument_for_tarball(
         "dist-tags": { "latest": version },
         "versions": versions,
     });
-    let path = format!("/{package}");
+    let path = format!("/{}", pnpm_network::encode_package_name(package));
     upstream
         .mock("GET", path.as_str())
         .with_status(200)
@@ -645,7 +645,7 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
         } } },
     });
     server
-        .mock("GET", format!("/{pkg}").as_str())
+        .mock("GET", format!("/{}", pnpm_network::encode_package_name(pkg)).as_str())
         .with_body(packument.to_string())
         .create_async()
         .await;

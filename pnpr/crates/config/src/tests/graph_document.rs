@@ -359,3 +359,21 @@ fn a_stored_url_must_not_carry_credentials() {
         .check_stored(&[])
         .unwrap();
 }
+
+#[test]
+fn stored_upstream_credentials_require_https_or_loopback() {
+    for setting in ["headers: { X-Api-Key: '${KEY}' }", "auth: { type: bearer, tokenEnv: KEY }"] {
+        for (url, allowed) in [
+            ("http://10.0.0.1/", false),
+            ("http://[::ffff:127.0.0.2]/", true),
+            ("https://mirror.example/", true),
+        ] {
+            let yaml = format!(
+                "registries:\n  mirror:\n    type: upstream\n    url: {url}\n    {setting}\n",
+            );
+            let document = RegistryGraphDocument::from_yaml(&yaml).unwrap();
+            let checked = document.check_stored(&env(&["KEY"]));
+            assert_eq!(checked.is_ok(), allowed, "{url} {setting}: {checked:?}");
+        }
+    }
+}

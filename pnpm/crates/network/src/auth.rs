@@ -94,6 +94,11 @@ pub trait UpstreamRouteHook: Send + Sync {
     /// route the decision selected. `None` means fetch anonymously.
     fn authorize(&self, url: &str, package: Option<&str>) -> Option<String>;
 
+    /// Headers owned by the selected route. Callers reselect them for each redirect.
+    fn request_headers(&self, url: &str, package: Option<&str>) -> reqwest::header::HeaderMap {
+        authorization_headers(self.authorize(url, package).as_deref())
+    }
+
     /// Whether this deployment may fetch `url` at all.
     ///
     /// A server resolves on behalf of callers who describe their own
@@ -502,6 +507,49 @@ impl AuthHeaders {
         self.for_url_with_package(url, pkg_name)
     }
 
+    /// Select the deployment's headers for each hop within the original credential scope.
+    pub(crate) fn managed_request_headers<'a>(
+        &'a self,
+        start: &'a str,
+        package: Option<&'a str>,
+    ) -> Option<impl Fn(&str) -> reqwest::header::HeaderMap + 'a> {
+        let hook = self.route_hook.as_ref()?;
+        let origin = reqwest::Url::parse(start).ok().map(|url| url.origin());
+        let headers = if self.require_secure_transport && !is_url_secure_for_credentials(start) {
+            reqwest::header::HeaderMap::new()
+        } else {
+            hook.request_headers(start, package)
+        };
+        Some(move |url: &str| {
+            if url == start {
+                return headers.clone();
+            }
+            if !headers.is_empty()
+                && reqwest::Url::parse(url).is_ok_and(|url| Some(url.origin()) == origin)
+                && self.metadata_scope(start, package) == self.metadata_scope(url, package)
+            {
+                return hook.request_headers(url, package);
+            }
+            reqwest::header::HeaderMap::new()
+        })
+    }
+
+    pub(crate) fn secure_request_auth<'a>(
+        &'a self,
+        start: &'a str,
+    ) -> impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder + 'a {
+        let managed = self.managed_request_headers(start, None);
+        move |request, url| {
+            if !is_url_secure_for_credentials(url) {
+                return request;
+            }
+            match &managed {
+                Some(headers) => request.headers(headers(url)),
+                None => apply_authorization(request, self.for_url(url)),
+            }
+        }
+    }
+
     /// Dispatch a GET locally when the route hook owns its destination.
     #[must_use]
     pub fn fetch_local(
@@ -573,6 +621,24 @@ impl AuthHeaders {
             None => MetadataCacheScope::Public,
         }
     }
+}
+
+pub(super) fn apply_authorization(
+    request: reqwest::RequestBuilder,
+    value: Option<String>,
+) -> reqwest::RequestBuilder {
+    match value {
+        Some(value) => request.header(reqwest::header::AUTHORIZATION, value),
+        None => request,
+    }
+}
+
+fn authorization_headers(authorization: Option<&str>) -> reqwest::header::HeaderMap {
+    let mut headers = reqwest::header::HeaderMap::new();
+    if let Some(value) = authorization.map(str::parse).and_then(Result::ok) {
+        headers.insert(reqwest::header::AUTHORIZATION, value);
+    }
+    headers
 }
 
 /// Canonicalize an auth-map key to the trailing-slash form the lookup

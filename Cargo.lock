@@ -7511,6 +7511,7 @@ dependencies = [
  "pnpm-config-dir",
  "pnpm-deps-path",
  "pnpm-env-replace",
+ "pnpm-network",
  "pnpm-testing-utils",
  "pnpm-transparency-log",
  "pnpr-error",

@@ -411,7 +411,7 @@ async fn declared_tarball_errors_never_expose_presigned_query_credentials_and_is
         .create_async()
         .await;
     let blocked_packument_redirect = reg
-        .mock("GET", "/@corp/split")
+        .mock("GET", "/@corp%2Fsplit")
         .with_status(302)
         .with_header("location", &format!("{}/off-origin-packument", cdn.url()))
         .expect(1)

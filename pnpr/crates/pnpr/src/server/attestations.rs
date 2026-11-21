@@ -92,7 +92,8 @@ async fn serve_attestations(
             {
                 return err.into_response();
             }
-            let upstream_spec = format!("{}@{version}", name.as_str());
+            let upstream_spec =
+                format!("{}@{version}", pnpm_network::encode_package_name(name.as_str()));
             serve_upstream_attestations(state, identity, source, &upstream_spec).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),

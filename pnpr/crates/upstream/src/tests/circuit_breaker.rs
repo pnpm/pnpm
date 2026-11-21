@@ -230,3 +230,22 @@ async fn document_fetch_recovers_after_the_circuit_cools_down() {
     }
     recovered.assert_async().await;
 }
+
+#[tokio::test]
+async fn unsupported_version_manifest_leaves_the_packument_available() {
+    let mut server = mockito::Server::new_async().await;
+    let probe = server
+        .mock("GET", "/@scope%2Fexample/1.0.0")
+        .with_status(501)
+        .create_async()
+        .await;
+    let upstream = breaking_upstream(server.url(), 1);
+    let name =
+        CanonicalPackageName::parse("@scope/example", pnpr_package_name::Ecosystem::Npm).unwrap();
+    assert!(matches!(
+        upstream.fetch_version_manifest(&name, "1.0.0", 1024).await.unwrap(),
+        super::FetchOutcome::NotFound,
+    ));
+    probe.assert_async().await;
+    assert!(upstream.ensure_available().is_ok());
+}

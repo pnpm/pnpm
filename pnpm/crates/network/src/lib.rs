@@ -44,6 +44,7 @@ pub use limited_body::{
     read_limited_self_delimiting_body,
     read_self_delimiting_body,
 };
+pub use package_request::PackageRequest;
 pub use proxy::{
     NoProxySetting,
     ProxyConfig,
@@ -87,6 +88,7 @@ mod error_chain;
 mod host_socket_limit;
 mod limited_body;
 mod origin_gate;
+mod package_request;
 mod priority_semaphore;
 mod proxy;
 mod redirect_guard;

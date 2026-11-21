@@ -920,6 +920,31 @@ fn route_hook_records_routes_and_returns_alias_credential() {
 }
 
 #[test]
+fn custom_headers_alone_select_a_private_route() {
+    let mut config = base_config();
+    let mut upstream = upstream_with_access("https://mirror.example/", "$authenticated");
+    upstream.headers.clear();
+    upstream.headers.insert("x-api-key", HeaderValue::from_static("example-key"));
+    config.routing.upstreams.insert("mirror".into(), upstream);
+    let footprint = Arc::new(std::sync::Mutex::new(Footprint::default()));
+    let hook = RouteHook::new(
+        Arc::new(RouteContext::from_config(&config)),
+        user("reader"),
+        Arc::clone(&footprint),
+        Arc::from(b"secret".as_slice()),
+    );
+    assert_eq!(
+        hook.request_headers("https://mirror.example/pkg", Some("pkg"))["x-api-key"],
+        "example-key",
+    );
+    assert!(!footprint.lock().unwrap().is_public());
+    assert!(
+        hook.request_headers("https://other.example/pkg", Some("pkg"))
+            .is_empty(),
+    );
+}
+
+#[test]
 fn metadata_scope_maps_route_classes() {
     let mut config = base_config();
     config.routing.upstreams.insert(

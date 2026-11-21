@@ -217,6 +217,32 @@ async fn cargo_resolve_walks_the_index_and_returns_a_lockfile() {
 }
 
 #[tokio::test]
+async fn cargo_resolve_sends_the_private_index_headers() {
+    let mut index = mockito::Server::new_async().await;
+    let entry = index
+        .mock("GET", "/3/f/foo")
+        .match_header("x-api-key", "example-key")
+        .with_body(index_entry("foo", "1.0.0", &json!([])))
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "reader").await;
+    let mut config = config_for(tmp.path().to_path_buf());
+    let mut upstream =
+        pnpr_config::UpstreamConfig::with_defaults(index.url(), reqwest::header::HeaderMap::new());
+    upstream.set_access(pnpr_policy::AccessList::from_tokens(["$authenticated"]));
+    upstream.headers.insert("x-api-key", "example-key".parse().unwrap());
+    config.routing.upstreams.insert("cargo/mirror".to_string(), upstream);
+    let response = router_with_auth(config, auth)
+        .oneshot(cargo_resolve_request(&index.url(), &token))
+        .await
+        .unwrap();
+    entry.assert_async().await;
+    assert!(resolved_lockfile(response).await.contains(r#"name = "foo""#));
+}
+
+#[tokio::test]
 async fn cargo_resolve_reuses_cached_index_files() {
     let (index, mocks) = sparse_index(1).await;
     let tmp = TempDir::new().unwrap();

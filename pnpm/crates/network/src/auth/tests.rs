@@ -54,7 +54,7 @@ fn registry_alias_does_not_change_outbound_credential_scope() {
 #[test]
 fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
     let mut headers = AuthHeaders::default().with_secure_transport();
-    for host in ["registry.example", "127.0.0.1", "localhost", "[::1]"] {
+    for host in ["registry.example", "127.0.0.1", "localhost", "[::1]", "[::ffff:127.0.0.2]"] {
         headers.insert_url_header(&format!("https://{host}/simple/"), "Basic secret".to_string());
     }
     for headers in [headers.clone(), headers] {
@@ -65,6 +65,7 @@ fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
             ("http://127.0.0.1/simple/pkg.whl", true),
             ("http://localhost/simple/pkg.whl", true),
             ("http://[::1]/simple/pkg.whl", true),
+            ("http://[::ffff:127.0.0.2]/simple/pkg.whl", true),
         ] {
             eprintln!("url={url}, allowed={allowed}");
             assert_eq!(headers.for_url(url).is_some(), allowed);
