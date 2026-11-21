@@ -284,6 +284,48 @@ fn git_dependency_patch_applies_on_fresh_and_frozen_install() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn wildcard_patch_applies_to_a_local_directory_on_fresh_and_frozen_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let local_dir = workspace.join("local-pkg");
+    fs::create_dir_all(&local_dir).expect("create local package");
+    fs::write(
+        local_dir.join("package.json"),
+        serde_json::json!({ "name": "is-positive", "version": "3.1.0" }).to_string(),
+    )
+    .expect("write local package.json");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "file:./local-pkg" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/is-positive.patch"), MARKER_PATCH).expect("write patch file");
+    append_workspace_yaml_key(
+        &workspace,
+        "patchedDependencies",
+        "\n  is-positive: patches/is-positive.patch",
+    );
+
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    let marker = workspace.join("node_modules/is-positive/patched-marker.txt");
+    assert_eq!(fs::read_to_string(&marker).expect("read fresh marker"), "patched\n");
+    let patch_hash = patch_file_hash(&workspace, "is-positive.patch");
+    let snapshots = snapshot_keys(&read_wanted_lockfile(&workspace));
+    assert!(
+        snapshots.contains(&format!("is-positive@file:local-pkg(patch_hash={patch_hash})")),
+        "snapshots: {snapshots:?}",
+    );
+
+    remove_dir_if_exists(&workspace.join("node_modules"));
+    pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
+    assert_eq!(fs::read_to_string(&marker).expect("read frozen marker"), "patched\n");
+
+    drop((root, mock_instance));
+}
+
 /// TS: `the patched package is updated if the patch is modified`
 /// (`patch.ts:269`).
 #[test]
