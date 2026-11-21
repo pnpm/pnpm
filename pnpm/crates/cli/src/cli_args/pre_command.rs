@@ -447,14 +447,14 @@ pub(crate) enum PreCommandError {
     #[diagnostic(code(ERR_PNPM_BAD_RUNTIME_VERSION), help("{RUNTIME_ON_FAIL_HINT}"))]
     BadRuntimeVersion { message: String },
 
-    #[diagnostic(code(ERR_PNPM_INVALID_RUNTIME_VERSION), help("{RUNTIME_ON_FAIL_HINT}"))]
-    InvalidRuntimeVersion { message: String },
+    #[diagnostic(code(ERR_PNPM_RUNTIME_NOT_FOUND), help("{RUNTIME_ON_FAIL_HINT}"))]
+    RuntimeNotFound { message: String },
 
-    #[diagnostic(code(ERR_PNPM_MISSING_RUNTIME_RANGE_VERSION), help("{RUNTIME_ON_FAIL_HINT}"))]
-    MissingRuntimeRangeVersion { message: String },
+    #[diagnostic(code(ERR_PNPM_MISSING_RUNTIME_VERSION_RANGE), help("{RUNTIME_ON_FAIL_HINT}"))]
+    MissingRuntimeVersionRange { message: String },
 
-    #[diagnostic(code(ERR_PNPM_INVALID_RUNTIME_RANGE_VERSION), help("{RUNTIME_ON_FAIL_HINT}"))]
-    InvalidRuntimeRangeVersion { message: String },
+    #[diagnostic(code(ERR_PNPM_INVALID_RUNTIME_VERSION_RANGE), help("{RUNTIME_ON_FAIL_HINT}"))]
+    InvalidRuntimeVersionRange { message: String },
 }
 
 #[derive(Clone, Copy)]
