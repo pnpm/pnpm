@@ -202,7 +202,7 @@ pub(super) async fn fetch_coalesced_upstream_packument(
                     namespace,
                     upstream,
                     name,
-                    RegistryError::Shared(err.clone()),
+                    RegistryError::Shared(Arc::clone(&err)),
                 )
                 .await?;
                 Ok(stale.map(|bytes| {

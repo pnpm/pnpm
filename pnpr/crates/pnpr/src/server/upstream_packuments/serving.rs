@@ -38,9 +38,7 @@ pub(in crate::server) async fn serve_packument_via_upstream(
     let revalidate = headers
         .get_all(axum::http::header::CACHE_CONTROL)
         .iter()
-        .filter_map(|value| value.to_str().ok())
-        .flat_map(|value| value.split(','))
-        .any(|directive| directive.trim().eq_ignore_ascii_case("no-cache"));
+        .any(requests_revalidation);
     let ttl = client.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
     let document = UpstreamDocument {
         state,
@@ -55,6 +53,14 @@ pub(in crate::server) async fn serve_packument_via_upstream(
         Ok(None) => document.fetched().await,
         Err(err) => err.into_response(),
     }
+}
+
+fn requests_revalidation(value: &axum::http::HeaderValue) -> bool {
+    value
+        .as_bytes()
+        .split(|&byte| byte == b',')
+        .map(<[u8]>::trim_ascii)
+        .any(|directive| directive.eq_ignore_ascii_case(b"no-cache"))
 }
 
 struct UpstreamDocument<'a> {
