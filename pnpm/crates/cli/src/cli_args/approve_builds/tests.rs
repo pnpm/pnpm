@@ -286,8 +286,6 @@ fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
     assert_eq!(overlaid.allow_builds.get("pending-pkg"), Some(&true));
 }
 
-/// A `name@version` denial drops a key only when it denies every ignored dep
-/// path recorded under that key.
 #[test]
 fn a_version_denial_drops_only_the_keys_it_fully_covers() {
     let mut config = pnpm_config::Config::default();

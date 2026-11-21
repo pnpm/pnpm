@@ -29,7 +29,7 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
     let global_pkg_dir = base_config.global_pkg_dir.as_ref().ok_or(GlobalError::NoGlobalBinDir)?;
     warn_about_legacy_global_settings::<Reporter>(base_config, global_pkg_dir)?;
     let (groups, pending) =
-        scan_global_ignored_builds(base_config, global_pkg_dir, args.packages.is_empty())?;
+        scan_global_ignored_builds(base_config, global_pkg_dir, ScanMode::of(&args))?;
     if pending.is_empty() && args.packages.is_empty() {
         pnpm_diagnostics::println!("There are no packages awaiting approval");
         return Ok(());
@@ -62,15 +62,28 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
 /// Each global group's install dir with its ignored builds.
 type IgnoredBuildGroups = Vec<(PathBuf, IgnoredBuildsScan)>;
 
+/// Which ignored builds a global scan reports.
+#[derive(Clone, Copy)]
+enum ScanMode {
+    /// Every ignored build: a run that names its packages may decide any.
+    All,
+    /// Only the builds no policy denies, see [`exclude_disallowed_builds`].
+    Undecided,
+}
+
+impl ScanMode {
+    fn of(args: &ApproveBuildsArgs) -> Self {
+        if args.packages.is_empty() { Self::Undecided } else { Self::All }
+    }
+}
+
 /// Each global group's ignored builds, with the union of their names. A
 /// group whose install dir resolves outside the global packages directory is
-/// not this pnpm home's to approve builds for. With `undecided_only`, the
-/// builds a group's policy denies are left out, see
-/// [`exclude_disallowed_builds`].
+/// not this pnpm home's to approve builds for.
 fn scan_global_ignored_builds(
     base_config: &Config,
     global_pkg_dir: &Path,
-    undecided_only: bool,
+    mode: ScanMode,
 ) -> miette::Result<(IgnoredBuildGroups, BTreeSet<String>)> {
     let packages =
         scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
@@ -96,7 +109,7 @@ fn scan_global_ignored_builds(
             base_config.supported_architectures.clone(),
         )?;
         let mut scan = get_automatically_ignored_builds(&config)?;
-        if undecided_only {
+        if matches!(mode, ScanMode::Undecided) {
             exclude_disallowed_builds(&mut scan, &config)?;
         }
         pending.extend(scan.names.iter().flatten().cloned());
