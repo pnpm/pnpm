@@ -1,13 +1,13 @@
 use super::ImporterModulesDirs;
 use std::{
-    ffi::OsStr,
+    ffi::OsString,
     path::Path,
 };
 
 #[test]
 fn the_root_gets_the_configured_modules_dir() {
     let dirs =
-        ImporterModulesDirs::new(Path::new("/ws"), Path::new("vendor"), OsStr::new("vendor"));
+        ImporterModulesDirs::new(Path::new("/ws"), Path::new("vendor"), OsString::from("vendor"));
     assert_eq!(dirs.of(Path::new("/ws")), Path::new("/ws/vendor"));
     assert_eq!(dirs.of(Path::new("/ws/.")), Path::new("/ws/vendor"));
     assert_eq!(dirs.of_importer_id("."), Path::new("/ws/vendor"));
@@ -18,7 +18,7 @@ fn a_project_gets_the_project_relative_name() {
     let dirs = ImporterModulesDirs::new(
         Path::new("/ws"),
         Path::new("/elsewhere/mods"),
-        OsStr::new("mods"),
+        OsString::from("mods"),
     );
     assert_eq!(dirs.of(Path::new("/ws")), Path::new("/elsewhere/mods"));
     assert_eq!(dirs.of(Path::new("/ws/packages/foo")), Path::new("/ws/packages/foo/mods"));
@@ -41,7 +41,7 @@ fn removals_inside_the_root_modules_dir_are_bound_by_it() {
     let dirs = ImporterModulesDirs::new(
         Path::new("/ws"),
         Path::new("/elsewhere/mods"),
-        OsStr::new("mods"),
+        OsString::from("mods"),
     );
     assert_eq!(dirs.removal_bound(Path::new("/elsewhere/mods")), Path::new("/elsewhere/mods"));
     assert_eq!(
@@ -57,7 +57,7 @@ fn removals_inside_the_workspace_are_bound_by_it_when_the_root_modules_dir_conta
     let dirs = ImporterModulesDirs::new(
         Path::new("/parent/ws"),
         Path::new(".."),
-        OsStr::new("node_modules"),
+        OsString::from("node_modules"),
     );
     assert_eq!(
         dirs.removal_bound(Path::new("/parent/ws/packages/foo/node_modules")),
@@ -69,7 +69,7 @@ fn removals_inside_the_workspace_are_bound_by_it_when_the_root_modules_dir_conta
 #[test]
 fn removals_inside_a_root_modules_dir_in_the_workspace_are_bound_by_the_workspace() {
     let dirs =
-        ImporterModulesDirs::new(Path::new("/ws"), Path::new("vendor"), OsStr::new("vendor"));
+        ImporterModulesDirs::new(Path::new("/ws"), Path::new("vendor"), OsString::from("vendor"));
     assert_eq!(dirs.removal_bound(Path::new("/ws/vendor")), Path::new("/ws"));
     assert_eq!(dirs.removal_bound(Path::new("/ws/vendor/.pnpm")), Path::new("/ws"));
 }
@@ -80,7 +80,7 @@ fn removal_bounds_use_windows_paths() {
     let external = ImporterModulesDirs::new(
         Path::new(r"C:\ws"),
         Path::new(r"D:\elsewhere\mods"),
-        OsStr::new("mods"),
+        OsString::from("mods"),
     );
     assert_eq!(
         external.removal_bound(Path::new(r"D:\elsewhere\mods\.pnpm")),
@@ -92,7 +92,7 @@ fn removal_bounds_use_windows_paths() {
     let containing = ImporterModulesDirs::new(
         Path::new(r"C:\parent\ws"),
         Path::new(".."),
-        OsStr::new("node_modules"),
+        OsString::from("node_modules"),
     );
     assert_eq!(
         containing.removal_bound(Path::new(r"C:\parent\ws\packages\foo\node_modules")),

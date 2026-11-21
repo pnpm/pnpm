@@ -209,6 +209,13 @@ fn importer_dep<'a>(
 ///   and the leaf classifier behave identically to a fresh resolve.
 ///   `dependencies` are deliberately omitted, the children come from
 ///   the snapshot graph, not this manifest.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`alias` is copied only after the early returns for entries that cannot be reused, and the subtree check calls this with a borrowed name only to test reusability, so an owned parameter would allocate on every call."
+    )
+)]
 pub(crate) fn synthesize_reused_result(
     lockfile: &Lockfile,
     key: &PkgNameVerPeer,

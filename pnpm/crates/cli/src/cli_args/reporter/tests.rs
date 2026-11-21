@@ -21,7 +21,11 @@ use pnpm_reporter::{
 };
 
 fn summary() -> LogEvent {
-    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: "/project".to_string() })
+    LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix: "/project".to_string(),
+        new_projects: None,
+    })
 }
 
 fn stats() -> LogEvent {

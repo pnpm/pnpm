@@ -277,6 +277,7 @@ export interface WhyOptions {
   modulesDir?: string
   finders?: Finder[]
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  excludePeerDependencies?: boolean
 }
 
 export async function getDependentsTrees (
@@ -312,6 +313,7 @@ export async function getDependentsTrees (
     registriesByScope: opts.registriesByScope,
     registriesByPrefix: opts.registriesByPrefix,
     finders: opts.finders,
+    excludePeerDependencies: opts.excludePeerDependencies,
     importerInfoMap,
     lockfile,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,

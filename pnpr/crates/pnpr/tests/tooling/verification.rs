@@ -42,7 +42,7 @@ async fn corrupted_attestations_are_reported_without_stopping_the_audit() {
         );
     }
     let key = BlobId::of_bytes(Ecosystem::Npm, b"first-package").key(1);
-    let path = local_archive_path(hosted, "", Ecosystem::Npm, &key);
+    let path = local_archive_path(hosted.clone(), "", Ecosystem::Npm, &key);
     std::fs::write(path, b"corrupted").unwrap();
     let report = verify_storage(&config, &VerifyOptions { check_hashes: true })
         .await

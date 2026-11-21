@@ -27,7 +27,7 @@ async fn text_with_a_nul_is_refused_on_every_database(db: Db) {
             assert_bad_request(&connection.query(sql, &nul).map(drop));
             assert_bad_request(
                 &connection
-                    .query_all(&[Query::new(sql, &nul)])
+                    .query_all(&[Query::new(sql, nul.to_vec())])
                     .map(drop),
             );
             Ok(())

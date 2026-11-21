@@ -746,7 +746,7 @@ fn orphan_removal_does_not_delete_through_a_symlinked_scope() {
         let modules_dirs = crate::ImporterModulesDirs::new(
             &lockfile_dir,
             &modules,
-            std::ffi::OsStr::new("node_modules"),
+            std::ffi::OsString::from("node_modules"),
         );
 
         let outside = tmp.path().join("outside");

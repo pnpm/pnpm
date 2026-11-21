@@ -432,7 +432,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         verification_override: Option<LockfileVerificationOverride<'_>>,
         known_requires_build: Option<&crate::RequiresBuildBySnapshot>,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
-        let swap_lock = crate::ModulesSwapLock::new(&self.drivers.config.modules_dir);
+        let swap_lock = crate::ModulesSwapLock::new(self.drivers.config.modules_dir.clone());
         let ctx = crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: self.logged_methods,

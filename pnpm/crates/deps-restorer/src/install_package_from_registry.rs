@@ -198,13 +198,10 @@ impl InstallPackageFromRegistry<'_> {
         }
     }
 
-    fn report_resolved<Reporter: self::Reporter>(&self, package_id: &str) {
+    fn report_resolved<Reporter: self::Reporter>(&self, package_id: String) {
         Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
-            message: ProgressMessage::Resolved {
-                package_id: package_id.to_owned(),
-                requester: self.requester.to_owned(),
-            },
+            message: ProgressMessage::Resolved { package_id, requester: self.requester.to_owned() },
         }));
     }
 
@@ -220,7 +217,7 @@ impl InstallPackageFromRegistry<'_> {
         );
         let (tarball_url, integrity) = extract_tarball(&self.resolution.resolution)?;
 
-        self.report_resolved::<Reporter>(package_id);
+        self.report_resolved::<Reporter>(package_id.to_owned());
 
         let download = self.tarball_download(package_id, tarball_url, &integrity);
         let cas_paths = if revision_addressed {

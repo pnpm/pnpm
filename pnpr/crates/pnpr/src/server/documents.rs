@@ -98,7 +98,7 @@ impl HostedDocument for CrateDocument {
     }
 
     fn empty(name: &str) -> Self {
-        CrateDocument::new(name)
+        CrateDocument::new(name.to_owned())
     }
 
     fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -153,7 +153,7 @@ impl HostedDocument for ProjectDocument {
     }
 
     fn empty(name: &str) -> Self {
-        ProjectDocument::new(name)
+        ProjectDocument::new(name.to_owned())
     }
 
     fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -200,7 +200,7 @@ impl HostedDocument for ImageDocument {
     }
 
     fn empty(name: &str) -> Self {
-        ImageDocument::new(name)
+        ImageDocument::new(name.to_owned())
     }
 
     fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {

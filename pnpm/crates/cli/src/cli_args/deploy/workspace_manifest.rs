@@ -246,8 +246,8 @@ impl DeployWorkspaceSettings {
         }
     }
 
-    pub(super) fn apply_to_config(&self, config: &mut Config, deploy_dir: &Path) {
-        config.workspace_dir = Some(deploy_dir.to_path_buf());
+    pub(super) fn apply_to_config(&self, config: &mut Config, deploy_dir: PathBuf) {
+        config.workspace_dir = Some(deploy_dir);
         config.allow_builds.clone_from(&self.allow_builds);
         config.ignore_pnpmfile = self.ignore_pnpmfile;
         config.ignored_optional_dependencies = Some(self.ignored_optional_dependencies.clone());

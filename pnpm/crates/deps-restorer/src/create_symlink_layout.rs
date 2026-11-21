@@ -111,7 +111,7 @@ fn link_into_package(
         .map_err(SymlinkPackageError::InvalidAlias)?;
     let symlink_path = safe_join_modules_dir(virtual_node_modules_dir, &alias_name.to_string())
         .map_err(SymlinkPackageError::InvalidAlias)?;
-    symlink_package(&join_package_root_link(&package_dir, target), &symlink_path).map(drop)
+    symlink_package(&join_package_root_link(package_dir, target), &symlink_path).map(drop)
 }
 
 #[cfg(test)]

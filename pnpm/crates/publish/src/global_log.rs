@@ -7,16 +7,10 @@ use pnpm_reporter::{
     Reporter,
 };
 
-pub(crate) fn global_info<Reporter: self::Reporter>(message: &str) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Info,
-        message: message.to_owned(),
-    }));
+pub(crate) fn global_info<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
 }
 
-pub(crate) fn global_warn<Reporter: self::Reporter>(message: &str) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Warn,
-        message: message.to_owned(),
-    }));
+pub(crate) fn global_warn<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }

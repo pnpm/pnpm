@@ -160,7 +160,7 @@ impl OpenDir {
     }
 }
 
-pub(in crate::open_dir) fn unique_child_tmp_name(name: &OsStr) -> OsString {
+pub(in crate::open_dir) fn unique_child_tmp_name(name: OsString) -> OsString {
     let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = crate::process_id();
     let mut random = [0u8; 8];
@@ -168,7 +168,7 @@ pub(in crate::open_dir) fn unique_child_tmp_name(name: &OsStr) -> OsString {
         Ok(()) => u64::from_ne_bytes(random),
         Err(_) => 0,
     };
-    let mut tmp = name.to_os_string();
+    let mut tmp = name;
     tmp.push(format!(".tmp.{pid}.{counter}.{random:016x}"));
     tmp
 }
@@ -238,7 +238,7 @@ fn create_temp_child_in_pinned_dir(
     use std::io::Write as _;
 
     for _ in 0..16 {
-        let candidate = dir_path.join(unique_child_tmp_name(name));
+        let candidate = dir_path.join(unique_child_tmp_name(name.to_os_string()));
         match std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)

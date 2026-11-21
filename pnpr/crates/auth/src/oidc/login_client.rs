@@ -50,7 +50,7 @@ impl OidcState {
             AuthType::RequestBody
         } else {
             return Err(invalid_config(
-                "OIDC provider does not support client secret authentication",
+                "OIDC provider does not support client secret authentication".to_owned(),
             ));
         };
         Ok(CoreClient::from_provider_metadata(
@@ -64,7 +64,7 @@ impl OidcState {
         .set_auth_type(auth_type)
         .set_redirect_uri(
             RedirectUrl::new(format!("{}/-/oidc/{}/callback", self.public_url, config.name))
-                .map_err(|_| invalid_config("invalid OIDC callback URL"))?,
+                .map_err(|_| invalid_config("invalid OIDC callback URL".to_owned()))?,
         ))
     }
 }

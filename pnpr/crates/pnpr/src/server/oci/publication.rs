@@ -171,7 +171,7 @@ impl OciPublication {
             .map_err(Into::into)
     }
     fn document_addition(&self, children: Vec<Digest>) -> ImageDocument {
-        let mut addition = ImageDocument::new(self.key.as_str());
+        let mut addition = ImageDocument::new(self.key.as_str().to_owned());
         addition.insert_manifest(ManifestEntry {
             digest: self.digest.clone(),
             media_type: self.manifest.media_type().to_string(),

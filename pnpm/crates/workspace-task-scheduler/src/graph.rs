@@ -135,7 +135,7 @@ pub fn reverse_task_graph(graph: &TaskGraph) -> TaskGraph {
 pub fn resume_task_graph_from(
     graph: TaskGraph,
     anchor_project: &Path,
-    task_name: &str,
+    task_name: String,
     completed_tasks: Option<&HashSet<TaskKey>>,
 ) -> TaskGraph {
     let anchors = resume_anchor_keys(&graph, anchor_project, task_name);
@@ -170,9 +170,9 @@ pub fn resume_task_graph_from(
 fn resume_anchor_keys(
     graph: &TaskGraph,
     anchor_project: &Path,
-    task_name: &str,
+    task_name: String,
 ) -> HashSet<TaskKey> {
-    let key = TaskKey { project: anchor_project.to_path_buf(), task_name: task_name.to_string() };
+    let key = TaskKey { project: anchor_project.to_path_buf(), task_name };
     if graph.contains_key(&key) {
         return HashSet::from([key]);
     }

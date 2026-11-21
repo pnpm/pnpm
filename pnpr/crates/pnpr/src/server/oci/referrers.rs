@@ -55,9 +55,10 @@ impl Request {
         )
         .await
         {
-            Ok(document) => document.unwrap_or_else(|| ImageDocument::new(repo.key.as_str())),
+            Ok(document) => document,
             Err(err) => return registry_error(err),
-        };
+        }
+        .unwrap_or_else(|| ImageDocument::new(repo.key.as_str().to_owned()));
         let filter = ReferrerFilter::new(digest, &self.query);
         let page =
             match self.scan_referrers(&repo.storage, &repo.key, &document, &filter, last).await {

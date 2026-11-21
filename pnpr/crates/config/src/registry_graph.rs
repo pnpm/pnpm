@@ -72,7 +72,7 @@ pub(super) fn build_registries<Sys: EnvVar>(
         .iter()
         .filter(|(_, ecosystem)| **ecosystem != Ecosystem::Npm)
         .fold(Registries::new(builder.graph, default_registry), |registries, (name, ecosystem)| {
-            registries.with_ecosystem(name, *ecosystem)
+            registries.with_ecosystem(name.to_owned(), *ecosystem)
         });
     let registries = registries.with_defaults(defaults);
     registries.validate().map_err(|err| registry_err(&err))?;

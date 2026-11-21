@@ -11,6 +11,13 @@ use pnpm_text_sanitize::sanitize_inline;
 /// A `link:` dependency is a symlink, so Node resolves the package's imports
 /// from its own directory and never sees the peers installed in the project
 /// that links it.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the prefix is copied only when the package declares peer dependencies, and callers borrow it"
+    )
+)]
 pub fn linked_peer_dependencies_warning(
     package_name: &str,
     package_manifest: &serde_json::Value,

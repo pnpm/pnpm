@@ -264,7 +264,7 @@ impl ApproveBuildsArgs {
         if !prompt.is_available() {
             return Err(ApproveBuildsError::NonInteractive.into());
         }
-        prompt_for_builds(pending)
+        prompt_for_builds(pending.to_vec())
     }
 
     pub(crate) fn validate(&self) -> miette::Result<()> {

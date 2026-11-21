@@ -42,7 +42,6 @@ ignore = [
 
 [perfectionist]
 enable = ["unordered_derives", "core_instead_of_std", "overly_long_method_chain"]
-disable = ["needless_borrowed_parameters"]
 
 # Code spans read fine in `--help` and stay useful as `cargo doc` docs, so
 # keep them; links and HTML remain forbidden and are cleaned from help text.

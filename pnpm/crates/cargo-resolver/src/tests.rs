@@ -92,13 +92,19 @@ const WORKSPACE_OPTIONAL_METADATA: &str = r#"{
 #[test]
 fn discovers_transitive_sparse_index_files() {
     let mut files = BTreeMap::new();
-    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["foo"]);
+    assert_eq!(
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
+        ["foo"],
+    );
 
     files.insert("foo".to_string(), FOO_INDEX.to_string());
-    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["bar"]);
+    assert_eq!(
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
+        ["bar"],
+    );
 
     files.insert("bar".to_string(), BAR_INDEX.to_string());
-    assert!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap().is_empty());
+    assert!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap().is_empty());
 }
 
 #[test]
@@ -108,7 +114,7 @@ fn discovers_dependencies_from_every_viable_version() {
     let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
 
     assert_eq!(
-        missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
         ["new-dependency", "old-dependency"],
     );
 }
@@ -126,8 +132,9 @@ fn validates_registry_metadata_before_deduplicating_dependencies() {
         1,
     );
 
-    let error =
-        missing_index_names(&metadata, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap_err().to_string();
+    let error = missing_index_names(&metadata, &BTreeMap::new(), CRATES_IO_SOURCE.to_owned())
+        .unwrap_err()
+        .to_string();
 
     assert!(error.contains("cannot be resolved from"), "{error}");
 }
@@ -265,7 +272,8 @@ fn discovers_and_resolves_a_preferred_yanked_version_without_other_line_candidat
     let preferences = BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]);
     let foo_file = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
     let mut discovery =
-        IndexDiscovery::new_with_preferences(METADATA, CRATES_IO_SOURCE, &preferences).unwrap();
+        IndexDiscovery::new_with_preferences(METADATA, CRATES_IO_SOURCE.to_owned(), &preferences)
+            .unwrap();
 
     discovery.add_entries(&foo_file).unwrap();
 
@@ -335,15 +343,22 @@ fn locks_a_dependency_naming_the_configured_registry_against_it() {
 #[test]
 fn resolves_the_feature_unified_lock_graph() {
     let files = BTreeMap::from([("foo".to_string(), OPTIONAL_FOO_INDEX.to_string())]);
-    assert!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap().is_empty());
+    assert!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap().is_empty());
     assert_eq!(
-        missing_index_names(WORKSPACE_OPTIONAL_METADATA, &BTreeMap::new(), CRATES_IO_SOURCE)
-            .unwrap(),
+        missing_index_names(
+            WORKSPACE_OPTIONAL_METADATA,
+            &BTreeMap::new(),
+            CRATES_IO_SOURCE.to_owned()
+        )
+        .unwrap(),
         ["foo"],
     );
 
     let files = BTreeMap::from([("foo".to_string(), DEFAULT_FEATURE_FOO_INDEX.to_string())]);
-    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["bar"]);
+    assert_eq!(
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
+        ["bar"],
+    );
 
     let files = BTreeMap::from([
         ("bar".to_string(), BAR_INDEX.to_string()),
@@ -357,7 +372,10 @@ fn resolves_the_feature_unified_lock_graph() {
 #[test]
 fn merges_duplicate_feature_names_across_index_feature_maps() {
     let files = BTreeMap::from([("foo".to_string(), SPLIT_DEFAULT_FEATURE_FOO_INDEX.to_string())]);
-    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["bar", "baz"]);
+    assert_eq!(
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
+        ["bar", "baz"],
+    );
 
     let files = BTreeMap::from([
         ("bar".to_string(), BAR_INDEX.to_string()),
@@ -526,7 +544,9 @@ fn dep_activation_suppresses_the_implicit_optional_feature() {
     let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"codec","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"full":["dep:codec"]},"yanked":false}"#;
     let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
 
-    assert!(missing_index_names(&metadata, &files, CRATES_IO_SOURCE).unwrap().is_empty());
+    assert!(
+        missing_index_names(&metadata, &files, CRATES_IO_SOURCE.to_owned()).unwrap().is_empty(),
+    );
     assert!(resolve_lockfile(&metadata, &files, CRATES_IO_SOURCE).is_err());
 }
 
@@ -858,7 +878,7 @@ fn fetches_what_every_admissible_line_needs() {
     let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
 
     assert_eq!(
-        missing_index_names(SPANNING_METADATA, &files, CRATES_IO_SOURCE).unwrap(),
+        missing_index_names(SPANNING_METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
         ["legacy", "modern"],
     );
 }
@@ -1221,7 +1241,7 @@ fn fetches_what_each_requirement_activates_on_its_own_line() {
     let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
 
     assert_eq!(
-        missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
         ["reader", "writer"],
     );
 }
@@ -1230,11 +1250,14 @@ fn fetches_what_each_requirement_activates_on_its_own_line() {
 /// each wave asks for what [`missing_index_names`] asks for given every file
 /// fetched so far, and return the fetched files.
 fn fetch_in_waves(metadata: &str, index: &BTreeMap<&str, &str>) -> BTreeMap<String, String> {
-    let mut discovery = IndexDiscovery::new(metadata, CRATES_IO_SOURCE).unwrap();
+    let mut discovery = IndexDiscovery::new(metadata, CRATES_IO_SOURCE.to_owned()).unwrap();
     let mut files = BTreeMap::new();
     loop {
         let missing = discovery.missing_names().unwrap();
-        assert_eq!(missing, missing_index_names(metadata, &files, CRATES_IO_SOURCE).unwrap());
+        assert_eq!(
+            missing,
+            missing_index_names(metadata, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
+        );
         if missing.is_empty() {
             return files;
         }
@@ -1315,9 +1338,11 @@ fn retain_offered_drops_versions_and_crates_the_index_lacks() {
         "\n",
         r#"{"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":true}"#,
     );
-    let registry =
-        Registry::new(&BTreeMap::from([("foo".to_string(), index.to_string())]), CRATES_IO_SOURCE)
-            .unwrap();
+    let registry = Registry::new(
+        &BTreeMap::from([("foo".to_string(), index.to_string())]),
+        CRATES_IO_SOURCE.to_owned(),
+    )
+    .unwrap();
     let mut preferred = parse_preferred_versions(&BTreeMap::from([
         ("foo".to_string(), vec!["1.1.0".to_string(), "1.0.0".to_string(), "9.9.9".to_string()]),
         ("bar".to_string(), vec!["1.0.0".to_string()]),

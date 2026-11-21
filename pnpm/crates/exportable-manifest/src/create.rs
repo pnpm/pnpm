@@ -274,7 +274,7 @@ fn convert_dependency_for_publish(
     opts: &CreateExportableManifestOptions<'_>,
     kind: DependencyKind,
 ) -> Result<String, CreateExportableManifestError> {
-    let after_catalog = replace_catalog_protocol(dep_name, spec, dir, opts)?;
+    let after_catalog = replace_catalog_protocol(dep_name.to_owned(), spec, dir, opts)?;
     let lookup = WorkspacePackageLookup {
         packages: opts.workspace_packages,
         prefer_workspace_for: opts.bumped_workspace_packages,
@@ -303,12 +303,12 @@ fn convert_dependency_for_publish(
 /// dependency written directly in that package's manifest would. Both
 /// are read relative to the exported manifest.
 fn replace_catalog_protocol(
-    alias: &str,
+    alias: String,
     spec: &str,
     dir: &Path,
     opts: &CreateExportableManifestOptions<'_>,
 ) -> Result<String, CreateExportableManifestError> {
-    let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
+    let wanted = WantedDependency { alias, bare_specifier: spec.to_string() };
     let anchor = match opts.workspace_dir {
         Some(workspace_dir) => CatalogAnchor::Reanchor { workspace_dir, consumer_dir: Some(dir) },
         None => CatalogAnchor::AsWritten,

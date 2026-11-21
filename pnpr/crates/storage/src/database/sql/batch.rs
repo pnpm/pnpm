@@ -60,10 +60,10 @@ impl<'conn> Batch<'conn> {
         let mut queries = vec![Query::new(
             "SELECT COALESCE((SELECT generation FROM namespaces WHERE namespace = ?1), 0),
              EXISTS (SELECT 1 FROM cdn_subscriptions WHERE singleton = 1)",
-            params![namespace],
+            params![namespace].to_vec(),
         )];
         if retired == Retired::Refused {
-            queries.push(Query::new(RETIRED_ECOSYSTEMS, params![namespace]));
+            queries.push(Query::new(RETIRED_ECOSYSTEMS, params![namespace].to_vec()));
         }
         queries.extend_from_slice(reads);
         let mut results = transaction.query_all(&queries)?.into_iter();

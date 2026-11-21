@@ -41,8 +41,14 @@ fn set_get_and_delete_global_tools_round_trip() {
             "mirror": "https://mirror.example.com/python"
         }
     });
-    config_set(&config, tmp.path(), flags(true, None, true), "tools", Some(tools.to_string()))
-        .unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, true),
+        "tools".to_owned(),
+        Some(tools.to_string()),
+    )
+    .unwrap();
 
     assert_eq!(read_yaml(&config_dir.join("config.yaml")).unwrap(), json!({ "tools": tools }));
 
@@ -61,7 +67,7 @@ fn set_get_and_delete_global_tools_round_trip() {
     let listed: Value = serde_json::from_str(&config_list(&loaded)).unwrap();
     assert_eq!(listed["tools"]["node"]["mirror"], got["node"]["mirror"]);
 
-    config_set(&config, tmp.path(), flags(true, None, false), "tools", None).unwrap();
+    config_set(&config, tmp.path(), flags(true, None, false), "tools".to_owned(), None).unwrap();
     assert!(!config_dir.join("config.yaml").exists());
 }
 
@@ -75,7 +81,7 @@ fn set_global_tools_rejects_invalid_values_without_writing_config_yaml() {
         &config,
         tmp.path(),
         flags(true, None, false),
-        "tools",
+        "tools".to_owned(),
         Some("https://mirror.example.com".into()),
     )
     .unwrap_err();
@@ -92,7 +98,7 @@ fn set_global_tools_rejects_invalid_values_without_writing_config_yaml() {
             &config,
             tmp.path(),
             flags(true, None, true),
-            "tools",
+            "tools".to_owned(),
             Some(invalid_json.into()),
         )
         .unwrap_err();
@@ -114,7 +120,7 @@ fn set_project_tools_refuses_and_points_to_global_config_set() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), true),
-        "tools",
+        "tools".to_owned(),
         Some(r#"{"node":{"mirror":"https://mirror.example.com/node/download"}}"#.into()),
     )
     .unwrap_err();
@@ -142,7 +148,7 @@ fn global_block_exotic_subdeps_and_exclude_links_from_lockfile_round_trip() {
         &config,
         tmp.path(),
         flags(true, None, false),
-        "blockExoticSubdeps",
+        "blockExoticSubdeps".to_owned(),
         Some("true".into()),
     )
     .unwrap();
@@ -150,7 +156,7 @@ fn global_block_exotic_subdeps_and_exclude_links_from_lockfile_round_trip() {
         &config,
         tmp.path(),
         flags(true, None, false),
-        "excludeLinksFromLockfile",
+        "excludeLinksFromLockfile".to_owned(),
         Some("true".into()),
     )
     .unwrap();
@@ -177,13 +183,19 @@ fn global_pm_on_fail_and_runtime_on_fail_round_trip() {
     let config_dir = tmp.path().join("global-config");
     let config = config_with_dir(&config_dir);
 
-    config_set(&config, tmp.path(), flags(true, None, false), "pm-on-fail", Some("ignore".into()))
-        .unwrap();
     config_set(
         &config,
         tmp.path(),
         flags(true, None, false),
-        "runtime-on-fail",
+        "pm-on-fail".to_owned(),
+        Some("ignore".into()),
+    )
+    .unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "runtime-on-fail".to_owned(),
         Some("error".into()),
     )
     .unwrap();
@@ -209,8 +221,14 @@ fn max_sockets_coerces_to_number_and_round_trips_in_both_spellings() {
     let config_dir = tmp.path().join("global-config");
     let config = config_with_dir(&config_dir);
 
-    config_set(&config, tmp.path(), flags(true, None, false), "maxSockets", Some("5".into()))
-        .unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "maxSockets".to_owned(),
+        Some("5".into()),
+    )
+    .unwrap();
     assert_eq!(read_yaml(&config_dir.join("config.yaml")).unwrap(), json!({ "maxSockets": 5 }));
 
     let loaded_global = load_global_only_config(&config_dir);
@@ -223,7 +241,7 @@ fn max_sockets_coerces_to_number_and_round_trips_in_both_spellings() {
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "maxSockets",
+        "maxSockets".to_owned(),
         Some("8".into()),
     )
     .unwrap();
@@ -246,7 +264,7 @@ fn delete_global_clears_unsupported_and_refused_keys_without_failing() {
     let config = config_with_dir(&config_dir);
 
     for key in ["node-linker", "autoInstallPeers", "config-dir"] {
-        config_set(&config, tmp.path(), flags(true, None, false), key, None).unwrap();
+        config_set(&config, tmp.path(), flags(true, None, false), key.to_owned(), None).unwrap();
     }
 
     assert_eq!(read_yaml(&config_dir.join("config.yaml")), Some(json!({ "storeDir": "~/store" })));
@@ -257,9 +275,14 @@ fn set_global_unsupported_key_gives_accurate_hint_for_refused_vs_workspace_keys(
     let tmp = TempDir::new().unwrap();
     let config = config_with_dir(&tmp.path().join("global-config"));
 
-    let dir_err =
-        config_set(&config, tmp.path(), flags(true, None, false), "dir", Some("/tmp/x".into()))
-            .unwrap_err();
+    let dir_err = config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "dir".to_owned(),
+        Some("/tmp/x".into()),
+    )
+    .unwrap_err();
     assert_eq!(
         dir_err.code().unwrap().to_string(),
         "ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY",
@@ -270,7 +293,7 @@ fn set_global_unsupported_key_gives_accurate_hint_for_refused_vs_workspace_keys(
         &config,
         tmp.path(),
         flags(true, None, false),
-        "config-dir",
+        "config-dir".to_owned(),
         Some("/tmp/x".into()),
     )
     .unwrap_err();
@@ -280,7 +303,7 @@ fn set_global_unsupported_key_gives_accurate_hint_for_refused_vs_workspace_keys(
         &config,
         tmp.path(),
         flags(true, None, false),
-        "node-linker",
+        "node-linker".to_owned(),
         Some("hoisted".into()),
     )
     .unwrap_err();
@@ -299,7 +322,7 @@ fn set_structured_setting_with_env_placeholder_preserves_placeholder_and_loads()
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), true),
-        "nodePackageMap",
+        "nodePackageMap".to_owned(),
         Some(r#"{"mode":"${PNPM_TEST_UNSET_MAP_MODE:-load}"}"#.into()),
     )
     .unwrap();
@@ -325,7 +348,7 @@ fn set_registry_maps_with_env_placeholder_rejected_in_project_and_allowed_global
             &config,
             tmp.path(),
             flags(false, Some(ConfigLocation::Project), true),
-            key,
+            key.to_owned(),
             Some(payload.into()),
         )
         .unwrap_err();
@@ -336,8 +359,14 @@ fn set_registry_maps_with_env_placeholder_rejected_in_project_and_allowed_global
                 .exists(),
         );
 
-        config_set(&config, tmp.path(), flags(true, None, true), key, Some(payload.into()))
-            .unwrap();
+        config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, true),
+            key.to_owned(),
+            Some(payload.into()),
+        )
+        .unwrap();
     }
     assert!(TrustedSettings::load_global(&config_dir).unwrap().is_some());
 }
@@ -356,7 +385,7 @@ fn set_structured_string_with_multiple_trailing_newlines_round_trips() {
         &config,
         tmp.path(),
         flags(true, None, true),
-        "remote-cache",
+        "remote-cache".to_owned(),
         Some(payload.to_string()),
     )
     .unwrap();
@@ -390,7 +419,7 @@ fn set_side_effects_cache_rejects_project_trust_material_and_allows_global_and_b
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), true),
-        "sideEffectsCache",
+        "sideEffectsCache".to_owned(),
         Some(signed.to_string()),
     )
     .unwrap_err();
@@ -406,7 +435,7 @@ fn set_side_effects_cache_rejects_project_trust_material_and_allows_global_and_b
         &config,
         tmp.path(),
         flags(false, Some(ConfigLocation::Project), false),
-        "sideEffectsCache",
+        "sideEffectsCache".to_owned(),
         Some("true".into()),
     )
     .unwrap();
@@ -419,7 +448,7 @@ fn set_side_effects_cache_rejects_project_trust_material_and_allows_global_and_b
         &config,
         tmp.path(),
         flags(true, None, true),
-        "sideEffectsCache",
+        "sideEffectsCache".to_owned(),
         Some(signed.to_string()),
     )
     .unwrap();
@@ -450,8 +479,14 @@ fn list_and_get_censor_global_cache_signing_keys() {
             json!({ "remoteCache": { "url": "https://cache.example.com", "privateKey": "sec-gp" } }),
         ),
     ] {
-        config_set(&config, tmp.path(), flags(true, None, true), key, Some(payload.to_string()))
-            .unwrap();
+        config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, true),
+            key.to_owned(),
+            Some(payload.to_string()),
+        )
+        .unwrap();
     }
 
     let loaded = load_global_only_config(&config_dir);
@@ -518,8 +553,14 @@ fn set_global_remote_cache_sections_writes_owner_only_permissions() {
         let config_path = config_dir.join("config.yaml");
         let config = config_with_dir(&config_dir);
 
-        config_set(&config, tmp.path(), flags(true, None, true), key, Some(payload.to_string()))
-            .unwrap();
+        config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, true),
+            key.to_owned(),
+            Some(payload.to_string()),
+        )
+        .unwrap();
         let mode = std::fs::metadata(&config_path)
             .unwrap()
             .permissions()
@@ -529,8 +570,14 @@ fn set_global_remote_cache_sections_writes_owner_only_permissions() {
 
         // Tightens an existing world-readable config.yaml and keeps 0600 on later edits.
         std::fs::set_permissions(&config_path, std::fs::Permissions::from_mode(0o644)).unwrap();
-        config_set(&config, tmp.path(), flags(true, None, true), key, Some(payload.to_string()))
-            .unwrap();
+        config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, true),
+            key.to_owned(),
+            Some(payload.to_string()),
+        )
+        .unwrap();
         let tightened = std::fs::metadata(&config_path)
             .unwrap()
             .permissions()
@@ -538,8 +585,14 @@ fn set_global_remote_cache_sections_writes_owner_only_permissions() {
             & 0o777;
         assert_eq!(tightened, 0o600, "existing 0644 config.yaml for {key} got {tightened:o}");
 
-        config_set(&config, tmp.path(), flags(true, None, false), "store-dir", Some("/s".into()))
-            .unwrap();
+        config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, false),
+            "store-dir".to_owned(),
+            Some("/s".into()),
+        )
+        .unwrap();
         let preserved = std::fs::metadata(&config_path)
             .unwrap()
             .permissions()

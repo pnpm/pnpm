@@ -634,3 +634,167 @@ fn filtered_unlink_keeps_link_dependency_of_unselected_project() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn unlink_reverts_a_hard_link() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+
+    run_pnpm(&workspace, &["link", "--hard", "./linked-foo"]);
+    assert!(workspace.join("node_modules/linked-foo").exists(), "link must install linked-foo");
+
+    run_pnpm(&workspace, &["unlink", "linked-foo"]);
+
+    assert_eq!(
+        read_manifest(&workspace),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
+    );
+    let workspace_yaml = read_workspace_yaml(&workspace);
+    assert!(!workspace_yaml.contains("linked-foo"), "override must be removed: {workspace_yaml}");
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/linked-foo")).is_err(),
+        "linked-foo must be removed from node_modules",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The directory a hard link pointed at may be gone by the time the user
+/// unlinks it. The override is still removed.
+#[test]
+fn unlink_removes_file_override_to_a_missing_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
+    add_overrides(&workspace, "overrides:\n  foo: file:../missing-foo\n  baz: 1.0.0\n");
+
+    pacquet
+        .with_args(["unlink", "foo"])
+        .assert()
+        .success();
+
+    let workspace_yaml = read_workspace_yaml(&workspace);
+    assert!(!workspace_yaml.contains("foo"), "foo override must be removed: {workspace_yaml}");
+    assert!(
+        workspace_yaml.contains("baz: 1.0.0"),
+        "non-link override must remain: {workspace_yaml}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn unlink_keeps_file_tarball_overrides() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
+    add_overrides(
+        &workspace,
+        "overrides:\n  foo: link:../foo\n  bar: file:../bar.tgz\n  qux: file:../qux.tar.gz\n",
+    );
+
+    pacquet
+        .with_arg("unlink")
+        .assert()
+        .success();
+
+    let workspace_yaml = read_workspace_yaml(&workspace);
+    assert!(!workspace_yaml.contains("foo"), "foo override must be removed: {workspace_yaml}");
+    assert!(
+        workspace_yaml.contains("bar: file:../bar.tgz"),
+        "tarball override must remain: {workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("qux: file:../qux.tar.gz"),
+        "tarball override must remain: {workspace_yaml}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `pnpm link` without `--hard` keeps a dependency that is already declared
+/// and only adds a `link:` override. Unlinking must keep that `file:`
+/// dependency, although it points at the same directory.
+#[test]
+fn unlink_keeps_file_dependency_replaced_by_a_link_override() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+    let manifest = serde_json::json!({
+        "name": "test-project",
+        "version": "1.0.0",
+        "dependencies": { "linked-foo": "file:linked-foo" },
+    });
+    write_manifest(&workspace, &manifest);
+
+    run_pnpm(&workspace, &["link", "./linked-foo"]);
+    assert!(
+        read_workspace_yaml(&workspace).contains("linked-foo: link:linked-foo"),
+        "link must add a link: override",
+    );
+
+    run_pnpm(&workspace, &["unlink", "linked-foo"]);
+
+    assert_eq!(read_manifest(&workspace), manifest);
+    assert!(!read_workspace_yaml(&workspace).contains("link:"), "override must be removed");
+
+    drop((root, mock_instance));
+}
+
+/// The override and the dependency name the same directory in different
+/// forms, one through `~/`. `unlink` resolves both the way the installer does
+/// and drops the dependency.
+#[test]
+#[cfg_attr(not(unix), ignore = "sets HOME, which the home directory lookup reads only on Unix")]
+fn unlink_matches_equivalent_file_specifiers() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+    let absolute = workspace.join("linked-foo");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "name": "test-project",
+            "version": "1.0.0",
+            "dependencies": { "linked-foo": format!("file:{}", absolute.display()) },
+        }),
+    );
+    add_overrides(&workspace, "overrides:\n  linked-foo: file:~/linked-foo\n");
+
+    std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace)
+        .with_env("HOME", &workspace)
+        .with_args(["unlink", "linked-foo"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        read_manifest(&workspace),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
+    );
+
+    drop((root, mock_instance));
+}

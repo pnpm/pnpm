@@ -407,11 +407,11 @@ pub(super) fn ndjson_line(value: &serde_json::Value) -> Result<Vec<u8>, serde_js
 /// A 200 NDJSON response carrying a single, already-serialized terminal
 /// frame (the short-circuit and violation paths, which never stream
 /// `package` frames).
-pub(super) fn ndjson_single_frame(frame: &[u8]) -> Response {
+pub(super) fn ndjson_single_frame(frame: Vec<u8>) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .body(Body::from(frame.to_vec()))
+        .body(Body::from(frame))
         .expect("binary response is always valid")
 }
 

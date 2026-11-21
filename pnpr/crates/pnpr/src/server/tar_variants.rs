@@ -129,11 +129,11 @@ impl TarVariantQueue {
     }
 
     /// Claim the copy for `variant`, unless another request is making it.
-    fn claim(&self, variant: &str) -> bool {
+    fn claim(&self, variant: String) -> bool {
         self.copies.variants
             .lock()
             .expect("copy quota lock poisoned")
-            .insert(variant.to_string())
+            .insert(variant)
     }
 }
 
@@ -179,7 +179,7 @@ impl TarCopy {
         sender: mpsc::Sender<VariantJob>,
     ) -> Option<Self> {
         let variant = variant_filename(tgz_integrity);
-        if !queue.claim(&variant) {
+        if !queue.claim(variant.clone()) {
             return None;
         }
         let mut copy = CopyReservation {

@@ -39,11 +39,11 @@ impl Admissions {
         }
     }
 
-    pub(super) fn upstream(&self, namespace: &str) -> Arc<Semaphore> {
+    pub(super) fn upstream(&self, namespace: String) -> Arc<Semaphore> {
         let mut upstreams = self.upstreams.lock().expect("document admission poisoned");
         Arc::clone(
             upstreams
-                .entry(namespace.to_string())
+                .entry(namespace)
                 .or_insert_with(|| Arc::new(Semaphore::new(self.capacity.div_ceil(2)))),
         )
     }
@@ -51,7 +51,7 @@ impl Admissions {
     pub(crate) async fn acquire(&self, source: DocumentSource<'_>) -> SourceAdmission {
         let admission = match source {
             DocumentSource::Stored => Arc::clone(&self.stored),
-            DocumentSource::Upstream(namespace) => self.upstream(namespace),
+            DocumentSource::Upstream(namespace) => self.upstream(namespace.to_owned()),
         };
         let source_permit =
             admission.acquire_owned().await.expect("document admission never closes");

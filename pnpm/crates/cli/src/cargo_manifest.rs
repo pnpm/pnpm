@@ -302,7 +302,7 @@ fn replace_workspace_entry(
     if let Some(feat_edit) = detached.merged_features_edit {
         edits.push(feat_edit);
     }
-    Ok(apply_edits(ctx.contents, edits))
+    Ok(apply_edits(ctx.contents.to_owned(), edits))
 }
 
 fn replace_version_and_workspace(
@@ -331,7 +331,7 @@ fn replace_version_and_workspace(
     if let Some(feat_edit) = detached.merged_features_edit {
         edits.push(feat_edit);
     }
-    Ok(apply_edits(ctx.contents, edits))
+    Ok(apply_edits(ctx.contents.to_owned(), edits))
 }
 
 fn workspace_removal_range(

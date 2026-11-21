@@ -44,7 +44,7 @@ pub(crate) async fn open_local_tarball(
         Err(source) => {
             if path.is_dir() {
                 return Err(read_local_tarball_error(
-                    path,
+                    path.to_path_buf(),
                     io::ErrorKind::InvalidInput,
                     "local tarball path is not a regular file",
                 ));
@@ -80,6 +80,13 @@ pub(crate) async fn open_local_tarball(
     })?
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the path is copied only into the error for a non-file, and callers keep using their own"
+    )
+)]
 pub(crate) fn reject_non_file_local_tarball(
     path: &Path,
     metadata: &std::fs::Metadata,
@@ -88,7 +95,7 @@ pub(crate) fn reject_non_file_local_tarball(
         return Ok(());
     }
     Err(read_local_tarball_error(
-        path,
+        path.to_path_buf(),
         io::ErrorKind::InvalidInput,
         "local tarball path is not a regular file",
     ))
@@ -106,7 +113,7 @@ pub(crate) async fn read_local_tarball_buffer(
         .checked_add(1)
         .ok_or_else(|| {
             read_local_tarball_error(
-                path,
+                path.to_path_buf(),
                 io::ErrorKind::InvalidData,
                 format!("local tarball is too large to read into memory ({size} bytes)"),
             )
@@ -119,7 +126,7 @@ pub(crate) async fn read_local_tarball_buffer(
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     if u64::try_from(buffer.len()).unwrap_or(u64::MAX) > size {
         return Err(read_local_tarball_error(
-            path,
+            path.to_path_buf(),
             io::ErrorKind::InvalidData,
             format!("local tarball changed while reading; refused to read past {size} bytes"),
         ));
@@ -135,7 +142,7 @@ pub(crate) fn allocate_local_tarball_buffer(
     allocate_tarball_buffer(Some(size), package_url)
         .map_err(|error| match error {
             TarballError::TarballTooLarge { .. } => read_local_tarball_error(
-                path,
+                path.to_path_buf(),
                 io::ErrorKind::InvalidData,
                 format!("local tarball is too large to read into memory ({size} bytes)"),
             ),
@@ -144,14 +151,11 @@ pub(crate) fn allocate_local_tarball_buffer(
 }
 
 pub(crate) fn read_local_tarball_error(
-    path: &Path,
+    path: PathBuf,
     kind: io::ErrorKind,
     message: impl Into<String>,
 ) -> TarballError {
-    TarballError::ReadLocalTarball {
-        path: path.to_path_buf(),
-        source: io::Error::new(kind, message.into()),
-    }
+    TarballError::ReadLocalTarball { path, source: io::Error::new(kind, message.into()) }
 }
 
 /// Decode a local archive URL without probing the filesystem. Network paths are excluded.
@@ -465,7 +469,7 @@ fn open_local_file_sync(path: &Path) -> Result<std::fs::File, TarballError> {
         Err(source) => {
             if path.is_dir() {
                 return Err(read_local_tarball_error(
-                    path,
+                    path.to_path_buf(),
                     io::ErrorKind::InvalidInput,
                     "local tarball path is not a regular file",
                 ));

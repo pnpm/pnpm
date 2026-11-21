@@ -79,6 +79,7 @@ fn options(dir: &Path, packages: &[&str]) -> DependentsOptions {
         manifest_fields: None,
         include_requires: None,
         resolve_peers_from_workspace_root: None,
+        exclude_peer_dependencies: None,
     }
 }
 
@@ -112,6 +113,54 @@ fn excluded_importers_are_not_walked() {
 
     let trees = build_trees(&opts).unwrap();
 
+    assert!(trees.is_empty());
+}
+
+/// `parent` receives `peer` only as a resolved peer: the root project does
+/// not depend on `peer` itself.
+#[test]
+fn exclude_peer_dependencies_leaves_out_a_package_reached_only_as_a_peer() {
+    let workspace = tempfile::tempdir().unwrap();
+    std::fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      parent:
+        specifier: 1.0.0
+        version: 1.0.0(peer@1.0.0)
+
+packages:
+
+  parent@1.0.0:
+    resolution: {integrity: sha512-parent}
+    peerDependencies:
+      peer: ^1.0.0
+
+  peer@1.0.0:
+    resolution: {integrity: sha512-peer}
+
+snapshots:
+
+  parent@1.0.0(peer@1.0.0):
+    dependencies:
+      peer: 1.0.0
+
+  peer@1.0.0: {}
+",
+    )
+    .unwrap();
+    let mut opts = options(workspace.path(), &["peer"]);
+
+    let with_peers = build_trees(&opts).unwrap();
+    dbg!(&with_peers);
+    assert_eq!(with_peers.len(), 1);
+    opts.exclude_peer_dependencies = Some(true);
+    let trees = build_trees(&opts).unwrap();
+    dbg!(&trees);
     assert!(trees.is_empty());
 }
 

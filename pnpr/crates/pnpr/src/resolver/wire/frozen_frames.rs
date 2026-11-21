@@ -155,6 +155,13 @@ fn frozen_package_coordinates(package_key: &PackageKey) -> (String, String, Stri
     (name, id, bare_version)
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the stats key is built only for an entry routed to a verified registry, and the caller keeps using both values"
+    )
+)]
 fn frozen_dist_stats(inputs: FrozenFrameInputs<'_>, name: &str, version: &str) -> DistStats {
     let Some(registry) = inputs.router.verified_entry_registry(
         inputs.routes,
@@ -164,7 +171,7 @@ fn frozen_dist_stats(inputs: FrozenFrameInputs<'_>, name: &str, version: &str) -
         return DistStats::default();
     };
     inputs.dist_stats
-        .get(&observed_dist_stats_key(&registry, name, version))
+        .get(&observed_dist_stats_key(&registry, name.to_owned(), version.to_owned()))
         .map(|entry| *entry)
         .unwrap_or_default()
 }

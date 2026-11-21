@@ -17,7 +17,6 @@ use super::{
     unix_millis,
     with_auth_timeout,
 };
-use async_trait::async_trait;
 use pnpr_config::{
     MaxUsers,
     SqlBackendSettings,
@@ -82,7 +81,6 @@ impl SqlAuth<PostgresDatabase> {
     }
 }
 
-#[async_trait]
 impl AuthSqlBackend for PostgresDatabase {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
         self.stored_user_impl(username).await

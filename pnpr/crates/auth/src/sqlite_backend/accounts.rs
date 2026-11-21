@@ -132,7 +132,7 @@ impl SqliteAuth {
         stored: StoredAccount,
     ) -> Result<(UpsertOutcome, String)> {
         if stored.status == AccountStatus::Deactivated {
-            return Err(deprovisioned_login_error(username));
+            return Err(deprovisioned_login_error(username.to_owned()));
         }
         if stored.status.is_deleted() {
             dummy_verify(password, self.bcrypt_cost).await;

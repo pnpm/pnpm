@@ -64,9 +64,9 @@ pub(super) fn drop_broken_optional_dependencies(
                 return true;
             }
             report.skip_direct(
-                &dep.alias,
+                dep.alias.clone(),
                 &optional_names[&dep.alias],
-                &root_dir,
+                root_dir.clone(),
                 details(&dep.id),
             );
             false
@@ -145,14 +145,14 @@ pub(super) fn forget_left_out(
 }
 
 impl SkipReport<'_> {
-    fn skip_direct(&self, alias: &str, specifier: &str, prefix: &str, details: String) {
+    fn skip_direct(&self, alias: String, specifier: &str, prefix: String, details: String) {
         self.skip(SkippedOptionalDependency {
             details,
-            name: Some(alias.to_string()),
+            name: Some(alias),
             version: Some(specifier.to_string()),
             bare_specifier: specifier.to_string(),
             parents: Vec::new(),
-            prefix: prefix.to_string(),
+            prefix,
         });
     }
 

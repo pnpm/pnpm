@@ -58,7 +58,14 @@ pub(super) async fn build<Report: Reporter>(
             path: std::env::temp_dir(),
             source,
         })?;
-    Box::pin(build_in::<Report>(installer, selected, fetched, &temporary, root.path())).await
+    Box::pin(build_in::<Report>(
+        installer,
+        selected,
+        fetched,
+        &temporary,
+        root.path().to_path_buf(),
+    ))
+    .await
 }
 
 async fn build_in<Report: Reporter>(
@@ -66,7 +73,7 @@ async fn build_in<Report: Reporter>(
     selected: &mut Snapshots,
     fetched: &mut CreateVirtualStoreOutput,
     temporary: &Snapshots,
-    root: &std::path::Path,
+    root: std::path::PathBuf,
 ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
     let layout = installer.ctx.linker.layout.relocated(root);
     let context = crate::InstallContext {

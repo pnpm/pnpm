@@ -90,7 +90,7 @@ impl LinkedEdges<'_> {
             .into_iter()
             .flatten()
             .filter_map(|(dep_name, spec)| {
-                let resolved = resolve_catalog_spec(parent_dir, &dep_name, &spec, self.catalogs);
+                let resolved = resolve_catalog_spec(parent_dir, dep_name, &spec, self.catalogs);
                 let rel = resolved
                     .as_deref()
                     .unwrap_or(&spec)
@@ -103,7 +103,7 @@ impl LinkedEdges<'_> {
 
 fn resolve_catalog_spec(
     consumer_dir: &Path,
-    dep_name: &str,
+    dep_name: String,
     raw_spec: &str,
     catalogs: Option<WorkspaceCatalogs<'_>>,
 ) -> Option<String> {
@@ -111,8 +111,7 @@ fn resolve_catalog_spec(
     if !raw_spec.starts_with("catalog:") {
         return None;
     }
-    let wanted =
-        WantedDependency { alias: dep_name.to_string(), bare_specifier: raw_spec.to_string() };
+    let wanted = WantedDependency { alias: dep_name, bare_specifier: raw_spec.to_string() };
     let anchor = CatalogAnchor::Reanchor {
         workspace_dir: catalogs.workspace_dir,
         consumer_dir: Some(consumer_dir),

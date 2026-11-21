@@ -137,6 +137,107 @@ invalidWorkspaceManifests.forEach((filename) => {
   })
 })
 
+const nestedOnlyInstall = {
+  rootNodeModules: undefined,
+  rootLockfile: undefined,
+  nestedNodeModules: expect.arrayContaining(['.pnpm', 'is-negative']),
+  nestedLockfile: expect.objectContaining({
+    importers: {
+      '.': {
+        dependencies: {
+          'is-negative': { specifier: '1.0.0', version: '1.0.0' },
+        },
+      },
+    },
+  }),
+}
+
+const parentWorkspaceInstall = {
+  rootNodeModules: expect.arrayContaining(['.pnpm', 'is-positive']),
+  rootLockfile: expect.objectContaining({
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+        },
+      },
+      nested: {
+        dependencies: {
+          'is-negative': { specifier: '1.0.0', version: '1.0.0' },
+        },
+      },
+    },
+  }),
+  nestedNodeModules: expect.arrayContaining(['is-negative']),
+  nestedLockfile: undefined,
+}
+
+test.each([
+  {
+    description: 'installs only the nested project when there is no parent workspace file',
+    workspaceManifest: undefined,
+    expected: nestedOnlyInstall,
+  },
+  {
+    description: 'installs both projects when the parent workspace sets packages to "*"',
+    workspaceManifest: { packages: ['*'] },
+    expected: parentWorkspaceInstall,
+  },
+  {
+    description: 'installs only the nested project when the parent workspace uses the default package selection',
+    workspaceManifest: {},
+    expected: nestedOnlyInstall,
+  },
+  {
+    description: 'installs only the nested project when the parent workspace sets packages to "."',
+    workspaceManifest: { packages: ['.'] },
+    expected: nestedOnlyInstall,
+  },
+])('install from a nested directory $description', async ({ workspaceManifest, expected }) => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'nested',
+      package: {
+        name: 'nested',
+        version: '1.0.0',
+        private: true,
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+  if (workspaceManifest) {
+    writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
+  }
+
+  const cwd = process.cwd()
+  process.chdir('nested')
+  try {
+    await execPnpm(['install'])
+  } finally {
+    process.chdir(cwd)
+  }
+
+  expect({
+    rootNodeModules: readDirOrUndefined('node_modules'),
+    rootLockfile: readLockfileOrUndefined(WANTED_LOCKFILE),
+    nestedNodeModules: readDirOrUndefined('nested/node_modules'),
+    nestedLockfile: readLockfileOrUndefined(path.join('nested', WANTED_LOCKFILE)),
+  }).toStrictEqual(expected)
+})
+
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
   const projects = preparePackages([
     {
@@ -2947,3 +3048,11 @@ test('pnpm:devPreinstall is skipped when shared-workspace-lockfile is false and 
 
   expect(fs.existsSync('order.txt')).toBe(false)
 })
+
+function readDirOrUndefined (dir: string): string[] | undefined {
+  return fs.existsSync(dir) ? fs.readdirSync(dir).sort() : undefined
+}
+
+function readLockfileOrUndefined (lockfilePath: string): LockfileFile | undefined {
+  return fs.existsSync(lockfilePath) ? readYamlFileSync<LockfileFile>(lockfilePath) : undefined
+}

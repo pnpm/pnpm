@@ -147,7 +147,7 @@ fn clear_repository(
 fn validate_incoming(stored: &StoredOci, incoming: &OciRows) -> Result<()> {
     for (tag, (digest, _)) in &incoming.tags {
         if !incoming.manifests.contains_key(digest) {
-            return Err(bad_request(&format!(
+            return Err(bad_request(format!(
                 "OCI tag {tag:?} points to missing manifest {digest:?}",
             )));
         }
@@ -155,7 +155,7 @@ fn validate_incoming(stored: &StoredOci, incoming: &OciRows) -> Result<()> {
     for (digest, manifest) in &incoming.manifests {
         for child in &manifest.children {
             if stored.manifests.contains_key(child) && !incoming.manifests.contains_key(child) {
-                return Err(bad_request(&format!(
+                return Err(bad_request(format!(
                     "OCI index {digest:?} references removed child manifest {child:?}",
                 )));
             }
@@ -277,7 +277,7 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<OciRows>> {
         return Ok(None);
     }
     let Value::Object(mut doc) = serde_json::from_slice(bytes)? else {
-        return Err(bad_request("an OCI image document must be an object"));
+        return Err(bad_request("an OCI image document must be an object".to_owned()));
     };
     let state_version = check_format_version(key, &doc, OCI_STATE_VERSION)?;
     let name =
@@ -292,13 +292,13 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<OciRows>> {
 fn parse_manifests(raw: Option<Value>) -> Result<BTreeMap<String, IncomingManifest>> {
     let Some(raw) = raw else { return Ok(BTreeMap::new()) };
     let Value::Array(items) = raw else {
-        return Err(bad_request("OCI `manifests` must be an array"));
+        return Err(bad_request("OCI `manifests` must be an array".to_owned()));
     };
     let mut manifests = BTreeMap::new();
     for item in items {
         let (digest, parsed) = parse_manifest_entry(item)?;
         if manifests.insert(digest.clone(), parsed).is_some() {
-            return Err(bad_request(&format!("duplicate OCI manifest {digest:?}")));
+            return Err(bad_request(format!("duplicate OCI manifest {digest:?}")));
         }
     }
     Ok(manifests)
@@ -306,23 +306,25 @@ fn parse_manifests(raw: Option<Value>) -> Result<BTreeMap<String, IncomingManife
 
 fn parse_manifest_entry(item: Value) -> Result<(String, IncomingManifest)> {
     let Value::Object(entry) = item else {
-        return Err(bad_request("each OCI manifest must be an object"));
+        return Err(bad_request("each OCI manifest must be an object".to_owned()));
     };
     let digest = entry
         .get("digest")
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| bad_request("OCI manifest must carry a `digest` string"))?
+        .ok_or_else(|| bad_request("OCI manifest must carry a `digest` string".to_owned()))?
         .to_string();
     let mut children = Vec::new();
     if let Some(raw_children) = entry.get("children") {
         let list = raw_children
             .as_array()
-            .ok_or_else(|| bad_request("OCI manifest `children` must be an array"))?;
+            .ok_or_else(|| bad_request("OCI manifest `children` must be an array".to_owned()))?;
         for child in list {
             let child = child
                 .as_str()
-                .ok_or_else(|| bad_request("OCI manifest child must be a digest string"))?;
+                .ok_or_else(|| {
+                    bad_request("OCI manifest child must be a digest string".to_owned())
+                })?;
             children.push(child.to_string());
         }
     }
@@ -332,24 +334,24 @@ fn parse_manifest_entry(item: Value) -> Result<(String, IncomingManifest)> {
 fn parse_tags(raw: Option<Value>) -> Result<BTreeMap<String, (String, u64)>> {
     let Some(raw) = raw else { return Ok(BTreeMap::new()) };
     let Value::Array(items) = raw else {
-        return Err(bad_request("OCI `tags` must be an array"));
+        return Err(bad_request("OCI `tags` must be an array".to_owned()));
     };
     let mut tags = BTreeMap::new();
     for item in items {
         let Value::Object(entry) = item else {
-            return Err(bad_request("each OCI tag must be an object"));
+            return Err(bad_request("each OCI tag must be an object".to_owned()));
         };
         let tag = required_str(&entry, "tag")?.to_string();
         let digest = required_str(&entry, "digest")?.to_string();
         let updated = entry
             .get("updated")
             .and_then(Value::as_u64)
-            .ok_or_else(|| bad_request("OCI tag must carry an `updated` timestamp"))?;
+            .ok_or_else(|| bad_request("OCI tag must carry an `updated` timestamp".to_owned()))?;
         if tags
             .insert(tag.clone(), (digest, updated))
             .is_some()
         {
-            return Err(bad_request(&format!("duplicate OCI tag {tag:?}")));
+            return Err(bad_request(format!("duplicate OCI tag {tag:?}")));
         }
     }
     Ok(tags)
@@ -360,7 +362,7 @@ fn required_str<'entry>(entry: &'entry Map<String, Value>, field: &str) -> Resul
         .get(field)
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| bad_request(&format!("OCI tag must carry a `{field}` string")))
+        .ok_or_else(|| bad_request(format!("OCI tag must carry a `{field}` string")))
 }
 
 pub(super) fn view_queries<'query>(

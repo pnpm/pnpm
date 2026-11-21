@@ -63,7 +63,7 @@ fn database_cold_mock_imports_its_upstream_and_allows_loopback() {
     assert_eq!(config["routes"], json!({"allowedPrivateNetworks": ["127.0.0.0/8", "::1"]}));
     assert_eq!(config["storage"], "cold-mock-storage");
 
-    let document = parse(&cold_mock_registries_yaml("http://127.0.0.1:4874/"));
+    let document = parse(&cold_mock_registries_yaml("http://127.0.0.1:4874/".to_owned()));
     assert_eq!(
         document,
         json!({
@@ -147,11 +147,11 @@ fn only_a_database_pnpr_server_gets_a_public_url_of_its_own_host() {
     let registries = directory.path().join("pnpr-registries.yaml");
     for document in [None, Some(registries.as_path())] {
         let command = pnpr_server_command(&super::PnprServerPaths {
-            bench_dir: directory.path(),
-            binary: Path::new("pnpr"),
-            config: Path::new("pnpr-config.yaml"),
-            registries: document,
-            storage: Path::new("pnpr-storage"),
+            bench_dir: directory.path().to_path_buf(),
+            binary: "pnpr".into(),
+            config: "pnpr-config.yaml".into(),
+            registries: document.map(Path::to_path_buf),
+            storage: "pnpr-storage".into(),
             port: 4321,
         });
         let args: Vec<_> = command
@@ -163,6 +163,11 @@ fn only_a_database_pnpr_server_gets_a_public_url_of_its_own_host() {
             .windows(2)
             .find(|pair| pair[0] == "--public-url")
             .map(|pair| pair[1]);
+        let cache = args
+            .windows(2)
+            .find(|pair| pair[0] == "--cache")
+            .map(|pair| Path::new(pair[1]));
+        assert_eq!(cache, Some(Path::new("pnpr-storage/cache")));
         dbg!(&args);
         match document {
             None => assert_eq!(public_url, None),

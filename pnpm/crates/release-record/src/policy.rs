@@ -133,7 +133,7 @@ impl LogPolicy {
         {
             return Err(LogPolicyError::InvalidStatementKey { key: key.key_name() });
         }
-        let authority = Authority::new(&document.log, first_root_digest);
+        let authority = Authority::new(document.log, first_root_digest);
         Ok(LogPolicy { authority, checkpoints, statement_keys })
     }
 

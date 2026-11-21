@@ -52,8 +52,7 @@ pub(crate) enum EngineError {
 }
 
 impl EngineError {
-    pub(crate) fn cannot_resolve(pm: PackageManager, version_spec: &str) -> Self {
-        let spec = version_spec.to_string();
+    pub(crate) fn cannot_resolve(pm: PackageManager, spec: String) -> Self {
         match pm {
             PackageManager::Pnpm => EngineError::CannotResolvePnpm { spec },
             _ => EngineError::CannotResolvePackageManager { name: pm.name(), spec },

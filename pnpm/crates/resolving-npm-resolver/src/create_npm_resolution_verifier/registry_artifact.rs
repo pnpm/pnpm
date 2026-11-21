@@ -216,7 +216,10 @@ impl NpmResolutionVerifier {
             || stats.file_count.is_some()
             || stats.requires_build.is_some()
         {
-            sink.insert(crate::observed_dist_stats_key(registry, name, version), stats);
+            sink.insert(
+                crate::observed_dist_stats_key(registry, name.to_owned(), version.to_owned()),
+                stats,
+            );
         }
     }
 
@@ -244,7 +247,7 @@ impl NpmResolutionVerifier {
                 .and_then(|stats| stats.get(version))
         {
             sink.insert(
-                crate::observed_dist_stats_key(registry, &name.to_string(), version),
+                crate::observed_dist_stats_key(registry, name.to_string(), version.to_owned()),
                 *stats,
             );
         }

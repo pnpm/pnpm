@@ -245,8 +245,8 @@ pub(crate) fn open_path_node(
         let first_from_importer = walk.importer_findings.insert((name.clone(), version.clone()));
         if record_path(
             paths,
-            &name,
-            &version,
+            name.clone(),
+            version.clone(),
             join_trail(&trail),
             PathClass {
                 is_dev: class.dev_only,
@@ -280,14 +280,14 @@ pub(crate) struct PathClass {
 /// the finding just became saturated, or its saturated classification changed.
 pub(crate) fn record_path(
     paths: &mut AuditPathIndex,
-    name: &str,
-    version: &str,
+    name: String,
+    version: String,
     joined: String,
     PathClass { is_dev, is_optional, exceeds_cap }: PathClass,
 ) -> bool {
-    let by_version = paths.entry(name.to_string()).or_default();
+    let by_version = paths.entry(name).or_default();
     let info = by_version
-        .entry(version.to_string())
+        .entry(version)
         .or_insert_with(|| PathInfo { paths: Vec::new(), dev: is_dev, optional: is_optional });
     let previous_count = info.paths.len();
     let previous_dev = info.dev;

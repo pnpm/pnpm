@@ -18,6 +18,7 @@ use std::{
         BTreeMap,
         BTreeSet,
         HashMap,
+        HashSet,
     },
     path::{
         Component,
@@ -56,6 +57,7 @@ use pnpm_reporter::{
     SkippedOptionalReason,
     Stage,
     StatsMessage,
+    SummaryLog,
     UpdateCheckLog,
 };
 use serde_json::Value;
@@ -134,6 +136,9 @@ struct PackageDiff {
 struct ManifestDiff {
     initial: Option<Value>,
     updated: Option<Value>,
+    /// Whether the edit from `initial` to `updated` is already folded into
+    /// the summary's changes.
+    applied: bool,
 }
 
 /// The five dependency buckets, in summary render order.
@@ -230,9 +235,20 @@ struct InstallProgress {
     stats_slot: BlockSlot,
 }
 
+/// [`PackageDiff`]s keyed by [`diff_key`], then by sign and name.
+type DiffBuckets = HashMap<&'static str, HashMap<String, PackageDiff>>;
+
 struct SummaryState {
-    diff: HashMap<&'static str, HashMap<String, PackageDiff>>,
+    /// The changes of the current project, or of every project under
+    /// [`SummaryScope::AllPrefixes`].
+    diff: DiffBuckets,
+    /// The changes of the other projects, keyed by normalized prefix. Only
+    /// a workspace summary renders them.
+    other_projects: HashMap<String, DiffBuckets>,
+    /// Keyed by normalized prefix.
     manifest_diffs: HashMap<String, ManifestDiff>,
+    /// Set by a `pnpm:summary` that covers a workspace of several projects.
+    workspace: Option<WorkspaceSummary>,
     slot: BlockSlot,
     seen: bool,
     rendered: bool,
@@ -253,7 +269,12 @@ struct LifecycleState {
 struct NoticeState {
     warnings: usize,
     collapsed_slot: BlockSlot,
-    deprecated_subdeps: Vec<DeprecationLog>,
+    /// Every `pnpm:deprecation` not printed yet. pnpm reports each
+    /// deprecated package once, for whichever project reached it first.
+    deprecations: Vec<DeprecationLog>,
+    /// The index in `deprecations` of the first notice of each package, by
+    /// name and then version.
+    deprecation_index: HashMap<String, HashMap<String, usize>>,
     deprecated_slot: BlockSlot,
     reported_peer_issues: bool,
     approvals: PendingApprovals,
@@ -376,7 +397,7 @@ impl ReporterState {
             LogEvent::Stats(log) => self.on_stats(&log.message),
             LogEvent::Root(log) => self.on_root(&log.message),
             LogEvent::PackageManifest(log) => self.on_manifest(&log.message),
-            LogEvent::Summary(log) => self.on_summary(&log.prefix),
+            LogEvent::Summary(log) => self.on_summary(log),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
             LogEvent::PendingSkills(log) => self.on_pending_skills(log),
@@ -478,6 +499,11 @@ mod progress;
 
 mod summary;
 
+mod deprecations;
+
+mod workspace_summary;
+use workspace_summary::WorkspaceSummary;
+
 mod manifest_diff;
 use manifest_diff::{
     added_diff,
@@ -535,14 +561,20 @@ impl Frame {
     }
 }
 
+fn empty_diff_buckets() -> DiffBuckets {
+    SUMMARY_ORDER
+        .into_iter()
+        .map(|kind| (diff_key(kind), HashMap::new()))
+        .collect()
+}
+
 impl Default for SummaryState {
     fn default() -> Self {
         Self {
-            diff: SUMMARY_ORDER
-                .into_iter()
-                .map(|kind| (diff_key(kind), HashMap::new()))
-                .collect(),
+            diff: empty_diff_buckets(),
+            other_projects: HashMap::new(),
             manifest_diffs: HashMap::new(),
+            workspace: None,
             slot: BlockSlot::default(),
             seen: false,
             rendered: false,

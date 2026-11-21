@@ -75,10 +75,10 @@ fn refuses_a_bundle_that_is_not_an_in_toto_statement() {
 #[test]
 fn names_an_archive_by_any_spelling_of_its_name() {
     let legacy = Purl::npm("legacy!pkg", "1.0.0").unwrap();
-    assert!(names("pkg:npm/legacy!pkg@1.0.0", &legacy));
-    assert!(names("pkg:npm/legacy%21pkg@1.0.0", &legacy));
-    assert!(!names("pkg:npm/legacy!pkg@1.0.1", &legacy));
-    assert!(!names("pkg:npm/legacy!pkg@1.0.0?vcs_url=x", &legacy));
+    assert!(names("pkg:npm/legacy!pkg@1.0.0".to_owned(), &legacy));
+    assert!(names("pkg:npm/legacy%21pkg@1.0.0".to_owned(), &legacy));
+    assert!(!names("pkg:npm/legacy!pkg@1.0.1".to_owned(), &legacy));
+    assert!(!names("pkg:npm/legacy!pkg@1.0.0?vcs_url=x".to_owned(), &legacy));
 }
 
 #[test]

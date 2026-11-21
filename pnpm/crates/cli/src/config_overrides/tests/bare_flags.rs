@@ -248,6 +248,48 @@ fn a_setting_flag_does_not_swallow_the_command_it_precedes() {
     assert_eq!(remaining, argv(["pacquet", "run", "build", "--hoist-pattern=eslint"]));
 }
 
+#[test]
+fn camel_case_dotted_settings_validate_values_like_kebab_case() {
+    for flag in [
+        "--config.trustPolicy=typo",
+        "--config.shamefullyHoist=yes",
+        "--config.childConcurrency=lots",
+        "--config.linkWorkspacePackages=shallow",
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", "install", flag]));
+        assert_eq!(remaining, argv(["pacquet", "install", flag]), "{flag}");
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert!(config.explicit_settings.is_empty(), "{flag}");
+        assert_eq!(config.trust_policy, Config::default().trust_policy, "{flag}");
+        assert_eq!(config.shamefully_hoist, Config::default().shamefully_hoist, "{flag}");
+        assert_eq!(config.child_concurrency, Config::default().child_concurrency, "{flag}");
+        assert_eq!(
+            config.link_workspace_packages,
+            Config::default().link_workspace_packages,
+            "{flag}",
+        );
+    }
+
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--config.trustPolicy=no-downgrade",
+        "--config.shamefullyHoist=true",
+        "--config.childConcurrency=3",
+        "--config.linkWorkspacePackages=deep",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.trust_policy, super::super::TrustPolicy::NoDowngrade);
+    assert!(config.shamefully_hoist);
+    assert_eq!(config.child_concurrency, 3);
+    assert_eq!(config.link_workspace_packages, super::super::LinkWorkspacePackages::Deep);
+}
+
 /// A setting is stripped from argv before clap runs, so one spelled like
 /// a *global* option would claim that option on every command line, a
 /// command's own option is left for clap instead, and can collide.

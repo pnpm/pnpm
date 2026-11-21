@@ -50,7 +50,7 @@ fn gvs_root(store_dir: &Path) -> PathBuf {
 fn pkg_version_dir(store_dir: &Path, name: &str, version: &str) -> PathBuf {
     let prefix = if name.starts_with('@') { "" } else { "@/" };
     let rel = format!("{prefix}{name}/{version}");
-    pnpm_fs::join_slash_separated_path(&gvs_root(store_dir), &rel)
+    pnpm_fs::join_slash_separated_path(gvs_root(store_dir), &rel)
 }
 
 /// Sorted hash-directory names under a `<name>/<version>` directory.
@@ -86,7 +86,7 @@ fn sole_hash_dir(pkg_version_dir: &Path) -> PathBuf {
 
 /// `<hash>/node_modules/<name>`: where the package's files actually live.
 fn pkg_in_slot(hash_dir: &Path, name: &str) -> PathBuf {
-    pnpm_fs::join_slash_separated_path(&hash_dir.join("node_modules"), name)
+    pnpm_fs::join_slash_separated_path(hash_dir.join("node_modules"), name)
 }
 
 /// Rewrite `pnpm-workspace.yaml` as the harness's `storeDir` / `cacheDir`

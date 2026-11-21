@@ -237,8 +237,8 @@ impl PackumentIntegrityResolver<'_> {
             && !self.upstream.is_same_origin(url)
         {
             return Err(tarball_integrity_error(
-                self.name.as_str(),
-                &candidate.filename,
+                self.name.as_str().to_owned(),
+                candidate.filename.clone(),
                 format!(
                     "off-origin dist.tarball for version {:?} has no declared shasum or integrity",
                     candidate.version,
@@ -267,8 +267,8 @@ impl PackumentIntegrityResolver<'_> {
             FetchOutcome::Ok(response) => response,
             FetchOutcome::NotFound => {
                 return Err(tarball_integrity_error(
-                    self.name.as_str(),
-                    &candidate.filename,
+                    self.name.as_str().to_owned(),
+                    candidate.filename.clone(),
                     format!("upstream has no tarball for version {:?}", candidate.version),
                 ));
             }

@@ -4,6 +4,7 @@ use super::{
     compute_package_extensions_checksum,
     importers_consuming_linked_peers,
     include_transitive_optional_dependencies,
+    is_installed,
     is_partial_workspace_selection,
     manifest_transforms::build_manifest_transforms,
 };
@@ -567,4 +568,31 @@ fn deps_requiring_build_include_loaded_builds() {
     super::on_disk::publish_deps_requiring_build(Some(&sink), &output);
     let published = sink.lock().unwrap().clone().unwrap();
     assert_eq!(published.into_iter().collect::<Vec<_>>(), ["loaded@1.0.0", "materialized@1.0.0"]);
+}
+
+fn deprecation(pkg_id: &str) -> pnpm_resolving_deps_resolver::Deprecation {
+    pnpm_resolving_deps_resolver::Deprecation {
+        pkg_name: "foo".to_string(),
+        pkg_version: "1.0.0".to_string(),
+        pkg_id: pkg_id.to_string(),
+        prefix: "/repo".to_string(),
+        depth: 1,
+        non_deprecated_alternative: None,
+    }
+}
+
+/// A tarball of the same version is a different package from the registry
+/// one the lockfile has, so its deprecation is news.
+#[test]
+fn a_deprecated_package_is_installed_only_under_its_own_id() {
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\n\
+         importers:\n  .: {}\n\
+         packages:\n  foo@1.0.0:\n    resolution: {integrity: sha512-AAAA}\n",
+    )
+    .expect("parse the lockfile");
+    let packages = lockfile.packages.as_ref().expect("the lockfile has packages");
+    assert!(is_installed(packages, &deprecation("foo@1.0.0")));
+    assert!(!is_installed(packages, &deprecation("foo@https://example.test/foo.tgz")));
+    assert!(!is_installed(packages, &deprecation("foo@1.0.1")));
 }

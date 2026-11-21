@@ -151,7 +151,7 @@ fn write_package_version(
     new_version: &str,
 ) -> miette::Result<Option<String>> {
     let Some(name) = package_name(manifest) else { return Ok(None) };
-    set_manifest_version(manifest, new_version);
+    set_manifest_version(manifest, new_version.to_owned());
     save_manifest(manifest)?;
     let publish_dir = manifest
         .value()
@@ -166,7 +166,7 @@ fn write_package_version(
         if manifest_path.exists() {
             let mut published = PackageManifest::from_path(manifest_path.clone())
                 .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
-            set_manifest_version(&mut published, new_version);
+            set_manifest_version(&mut published, new_version.to_owned());
             save_manifest(&mut published)?;
         }
     }

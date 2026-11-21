@@ -27,6 +27,8 @@ use miette::{
     Result,
     WrapErr,
 };
+#[cfg(unix)]
+use pipe_trait::Pipe as _;
 use pnpm_config::PackageImportMethod;
 use pnpm_deps_restorer::{
     ImportIndexedDirOpts,
@@ -429,9 +431,10 @@ fn entry_kind(root: &Path, entry: &fs::DirEntry) -> Result<Option<EntryKind>> {
 
 #[cfg(unix)]
 fn is_executable(metadata: &fs::Metadata) -> bool {
-    use std::os::unix::fs::PermissionsExt as _;
-
-    pnpm_fs::file_mode::is_executable(metadata.permissions().mode())
+    metadata
+        .permissions()
+        .pipe_ref(pnpm_fs::FileMode::from_permissions)
+        .pipe(pnpm_fs::file_mode::is_executable)
 }
 
 #[cfg(not(unix))]

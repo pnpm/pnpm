@@ -52,7 +52,7 @@ fn stored_archive(dir: &std::path::Path) -> Option<std::path::PathBuf> {
     let mut stored = crate::storage::stored_archives(dir, "acme", Ecosystem::Npm);
     assert!(stored.len() <= 1, "{stored:?}");
     let key = stored.pop()?;
-    Some(pnpr_storage::layout::local_archive_path(dir, "acme", Ecosystem::Npm, &key))
+    Some(pnpr_storage::layout::local_archive_path(dir.to_path_buf(), "acme", Ecosystem::Npm, &key))
 }
 
 /// What the `acme` registry's store serves as `file` of `@acme/widget`.

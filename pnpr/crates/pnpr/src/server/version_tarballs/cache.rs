@@ -127,14 +127,14 @@ struct CachedVersionTgz {
 impl VersionTgzCache {
     pub(super) fn get(
         &self,
-        namespace: &str,
+        namespace: String,
         name: &CanonicalPackageName,
-        version: &str,
+        version: String,
         packument: Option<DocumentStamp>,
         ttl: Duration,
     ) -> Option<Arc<VersionTgz>> {
         let entries = self.entries.lock().expect("version dist cache lock poisoned");
-        let key = (namespace.to_string(), name.as_str().to_string(), version.to_string());
+        let key = (namespace, name.as_str().to_string(), version);
         let cached = entries.get(&key)?;
         let fresh = match cached.origin {
             DistOrigin::Packument(stamp) => packument == Some(stamp),
@@ -147,7 +147,7 @@ impl VersionTgzCache {
         &self,
         namespace: String,
         name: &CanonicalPackageName,
-        version: &str,
+        version: String,
         origin: DistOrigin,
         tgz: Arc<VersionTgz>,
     ) {
@@ -164,18 +164,18 @@ impl VersionTgzCache {
                 entries.remove(&key);
             }
         }
-        let key = (namespace, name.as_str().to_string(), version.to_string());
+        let key = (namespace, name.as_str().to_string(), version);
         entries.insert(key, CachedVersionTgz { origin, tgz });
     }
 
     pub(in super::super) fn invalidate_version(
         &self,
-        namespace: &str,
+        namespace: String,
         name: &CanonicalPackageName,
-        version: &str,
+        version: String,
     ) {
         let mut entries = self.entries.lock().expect("version dist cache lock poisoned");
-        entries.remove(&(namespace.to_string(), name.as_str().to_string(), version.to_string()));
+        entries.remove(&(namespace, name.as_str().to_string(), version));
     }
 }
 

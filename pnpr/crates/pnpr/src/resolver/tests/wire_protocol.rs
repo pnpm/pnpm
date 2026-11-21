@@ -265,7 +265,11 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
 
     let stats = observed_dist_stats_sink();
     stats.insert(
-        observed_dist_stats_key("https://registry.example.test/", "acme", "1.0.0"),
+        observed_dist_stats_key(
+            "https://registry.example.test/",
+            "acme".to_owned(),
+            "1.0.0".to_owned(),
+        ),
         DistStats {
             unpacked_size: Some(123_456),
             file_count: Some(42),
@@ -756,11 +760,19 @@ fn frozen_frames_and_lockfile_routing_isolate_multi_registry_stats_and_routed_en
     .unwrap();
     let stats = observed_dist_stats_sink();
     stats.insert(
-        observed_dist_stats_key("https://east.corp.example/", "acme", "1.0.0"),
+        observed_dist_stats_key(
+            "https://east.corp.example/",
+            "acme".to_owned(),
+            "1.0.0".to_owned(),
+        ),
         DistStats { unpacked_size: Some(1_111), file_count: Some(10), requires_build: Some(true) },
     );
     stats.insert(
-        observed_dist_stats_key("https://west.corp.example/", "acme", "1.0.0"),
+        observed_dist_stats_key(
+            "https://west.corp.example/",
+            "acme".to_owned(),
+            "1.0.0".to_owned(),
+        ),
         DistStats { unpacked_size: Some(2_222), file_count: Some(20), requires_build: Some(false) },
     );
     let frames = super::super::wire::frozen_package_frames_until(

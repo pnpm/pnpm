@@ -229,7 +229,7 @@ pub fn resolve_lockfile_until_with_preferences(
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<String> {
     let metadata = parse_metadata(metadata)?;
-    let registry = Registry::new_until(index_files, source, should_cancel)?;
+    let registry = Registry::new_until(index_files, source.to_owned(), should_cancel)?;
     let mut preferred_versions = parse_preferred_versions(preferred_versions)?;
     registry.retain_offered(&mut preferred_versions);
     let root_dependencies = root_dependencies(&metadata)?;
@@ -252,7 +252,7 @@ fn resolve_with_feature_convergence(
     should_cancel: &(dyn Fn() -> bool + Send + Sync),
 ) -> Result<String> {
     let mut feature_selections =
-        root_feature_selections(registry, root_dependencies, preferred_versions)?;
+        root_feature_selections(registry, root_dependencies.to_vec(), preferred_versions)?;
     let mut previous_selections = Vec::new();
 
     loop {
@@ -295,13 +295,13 @@ fn resolve_feature_iteration(
     )?;
     let selected_features = feature_selections_for_solution(
         registry,
-        root_dependencies,
+        root_dependencies.to_vec(),
         &solution,
         preferred_versions,
     )?;
     let lockfile = validate_selected_graph(
         registry,
-        root_dependencies,
+        root_dependencies.to_vec(),
         &solution,
         &selected_features,
         preferred_versions,
@@ -332,7 +332,7 @@ fn package_name(package: &PackageKey) -> Option<&str> {
 
 fn validate_selected_graph(
     registry: &Registry,
-    root_dependencies: &[RegistryDependency],
+    root_dependencies: Vec<RegistryDependency>,
     solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
     preferred_versions: &PreferredVersions,
@@ -340,7 +340,7 @@ fn validate_selected_graph(
 ) -> Result<Option<pubgrub::SelectedDependencies<PackageKey, Version>>> {
     let Some(root_version) = solution.get(&PackageKey::Root) else { return Ok(None) };
     let mut validated = BTreeMap::from([(PackageKey::Root, root_version.clone())]);
-    let mut pending = VecDeque::from(root_dependencies.to_vec());
+    let mut pending = VecDeque::from(root_dependencies);
 
     while let Some(dependency) = pending.pop_front() {
         ensure_not_cancelled(should_cancel)?;
@@ -399,7 +399,7 @@ fn validated_package(
         choice @ PackageKey::Requirement { .. } => solution
             .get(&choice)
             .map(|representative| {
-                let line = chosen_line(&dependency.name, representative);
+                let line = chosen_line(dependency.name.clone(), representative);
                 validated.insert(choice.clone(), representative.clone());
                 line
             }),

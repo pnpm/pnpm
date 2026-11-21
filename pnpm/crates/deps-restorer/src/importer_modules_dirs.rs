@@ -1,10 +1,7 @@
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use std::{
-    ffi::{
-        OsStr,
-        OsString,
-    },
+    ffi::OsString,
     path::{
         Path,
         PathBuf,
@@ -27,11 +24,11 @@ impl ImporterModulesDirs {
     /// `root` is resolved against `lockfile_dir` when relative, and
     /// normalized.
     #[must_use]
-    pub fn new(lockfile_dir: &Path, root: &Path, project_relative: &OsStr) -> Self {
+    pub fn new(lockfile_dir: &Path, root: &Path, project_relative: OsString) -> Self {
         ImporterModulesDirs {
             lockfile_dir: lockfile_dir.to_path_buf(),
             root: lexical_normalize(&lockfile_dir.join(root)),
-            project_relative: project_relative.to_os_string(),
+            project_relative,
             importer_dirs: vec![lexical_normalize(lockfile_dir)],
         }
     }
@@ -39,12 +36,12 @@ impl ImporterModulesDirs {
     /// Every importer keeps its dependencies in `node_modules`.
     #[must_use]
     pub fn node_modules(lockfile_dir: &Path) -> Self {
-        Self::new(lockfile_dir, Path::new("node_modules"), OsStr::new("node_modules"))
+        Self::new(lockfile_dir, Path::new("node_modules"), OsString::from("node_modules"))
     }
 
     #[must_use]
     pub fn from_config(config: &Config, lockfile_dir: &Path) -> Self {
-        Self::new(lockfile_dir, &config.modules_dir, config.modules_dir_name())
+        Self::new(lockfile_dir, &config.modules_dir, config.modules_dir_name().to_os_string())
     }
 
     /// Records the directories of the lockfile's importers, so

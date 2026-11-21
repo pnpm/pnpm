@@ -108,7 +108,7 @@ impl Request {
     ) -> Result<ImageDocument, RegistryError> {
         let Some(stored) = stored else {
             self.authorize_unpublish(repo).await?;
-            return Ok(ImageDocument::new(repo.key.as_str()));
+            return Ok(ImageDocument::new(repo.key.as_str().to_owned()));
         };
         let document = ImageDocument::parse(&stored.bytes)?;
         let source = RegistrySource::Hosted(repo.source.clone());

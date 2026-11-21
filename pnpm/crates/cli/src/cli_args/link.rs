@@ -10,6 +10,7 @@ use miette::{
     Diagnostic,
 };
 use pnpm_config::Config;
+use pnpm_local_spec::is_tarball_filename;
 use pnpm_package_manager::{
     Install,
     ProjectMutation,
@@ -34,6 +35,13 @@ use std::{
 #[derive(Debug, Args)]
 pub struct LinkArgs {
     pub package_paths: Vec<String>,
+
+    /// Hard link the files of each package with the `file:` protocol instead
+    /// of symlinking its directory with `link:`. The package's dependencies
+    /// and peer dependencies are then resolved from the project that links
+    /// it.
+    #[clap(long)]
+    pub hard: bool,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -56,6 +64,18 @@ pub enum LinkError {
         help(r#"A package is linked under the "name" field of its package.json. That name must be a valid npm package name."#)
     )]
     InvalidName { dir: String, name: String },
+
+    #[display(r#"Cannot hard link "{dir}" because its name ends like a tarball file name"#)]
+    #[diagnostic(
+        code(ERR_PNPM_LINK_HARD_TARBALL_NAME),
+        help(
+            "A `file:` specifier that ends in .tgz, .tar.gz, or .tar refers to a tarball. Link this directory without --hard, or rename it."
+        )
+    )]
+    HardTarballName {
+        #[error(not(source))]
+        dir: String,
+    },
 }
 
 const DEPENDENCY_FIELDS: [&str; 3] = ["optionalDependencies", "dependencies", "devDependencies"];
@@ -71,10 +91,10 @@ fn is_filespec(input: &str) -> bool {
     }
 }
 
-fn link_spec(base: &Path, target: &Path) -> String {
+fn link_spec(protocol: &str, base: &Path, target: &Path) -> String {
     let rel = pathdiff::diff_paths(target, base).unwrap_or_else(|| target.to_path_buf());
     format!(
-        "link:{}",
+        "{protocol}{}",
         rel.display()
             .to_string()
             .replace('\\', "/"),
@@ -116,22 +136,8 @@ impl LinkArgs {
 
         let root_dir = config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.clone());
 
-        let mut new_overrides = IndexMap::<String, String>::new();
-        for path_str in &self.package_paths {
-            let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
-
-            if !already_declared(&manifest, &package_name) {
-                manifest
-                    .add_dependency(
-                        &package_name,
-                        &link_spec(&manifest_dir, &target_dir),
-                        DependencyGroup::Prod,
-                    )
-                    .wrap_err("adding linked dependency to package.json")?;
-            }
-            new_overrides.insert(package_name.clone(), link_spec(&root_dir, &target_dir));
-            check_peer_deps::<Reporter>(&package_name, &target_manifest, &manifest_dir);
-        }
+        let new_overrides =
+            self.add_links::<Reporter>(&mut manifest, &manifest_dir, &root_dir, cli_dir)?;
 
         manifest.save().wrap_err("saving package.json with linked dependencies")?;
 
@@ -153,6 +159,45 @@ impl LinkArgs {
 
         let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
         install_linked::<Reporter>(&state).await
+    }
+
+    /// Declare each linked package in `manifest`, unless it is declared
+    /// already, and return the overrides that point the workspace at them.
+    fn add_links<Reporter: self::Reporter>(
+        &self,
+        manifest: &mut PackageManifest,
+        manifest_dir: &Path,
+        root_dir: &Path,
+        cli_dir: &Path,
+    ) -> miette::Result<IndexMap<String, String>> {
+        let protocol = if self.hard { "file:" } else { "link:" };
+        let mut new_overrides = IndexMap::<String, String>::new();
+        for path_str in &self.package_paths {
+            let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
+            let dependency_spec = link_spec(protocol, manifest_dir, &target_dir);
+            let override_spec = link_spec(protocol, root_dir, &target_dir);
+            // Check the specs as written, since rendering drops a trailing
+            // separator: `../foo.tgz/` becomes `file:../foo.tgz`.
+            if self.hard
+                && [&dependency_spec, &override_spec]
+                    .into_iter()
+                    .any(|spec| is_tarball_filename(spec))
+            {
+                return Err(LinkError::HardTarballName { dir: path_str.clone() }.into());
+            }
+
+            if !already_declared(manifest, &package_name) {
+                manifest
+                    .add_dependency(&package_name, &dependency_spec, DependencyGroup::Prod)
+                    .wrap_err("adding linked dependency to package.json")?;
+            }
+            new_overrides.insert(package_name.clone(), override_spec);
+            // A hard-linked package resolves its peers from this project.
+            if !self.hard {
+                check_peer_deps::<Reporter>(&package_name, &target_manifest, manifest_dir);
+            }
+        }
+        Ok(new_overrides)
     }
 
     fn validate_package_paths(&self) -> miette::Result<()> {

@@ -24,7 +24,7 @@ fn parse_unscoped_key() {
 fn bin_dirs_scoped_pkg_pushes_every_step() {
     let lockfile_dir = PathBuf::from("/repo");
     let pkg_root = PathBuf::from("/repo/node_modules/@scope/pkg");
-    let dirs = super::super::bin_dirs_in_all_parent_dirs(&pkg_root, &lockfile_dir);
+    let dirs = super::super::bin_dirs_in_all_parent_dirs(pkg_root, &lockfile_dir);
     assert_eq!(
         dirs,
         vec![

@@ -224,6 +224,13 @@ fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
 }
 
 /// An unresolved peer is an issue unless the declaration marks it optional.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "The parameters are copied only after the optional-peer early return, and callers hold borrows, so owned parameters would allocate on every call."
+    )
+)]
 pub(super) fn record_missing_peer(
     issues: &mut PeerIssues,
     peer_name: &str,
@@ -245,6 +252,13 @@ pub(super) fn record_missing_peer(
 }
 
 /// A resolved peer outside the wanted range is an issue, optional or not.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "The parameters are copied only after the satisfied-range early return, and callers hold borrows, so owned parameters would allocate on every call."
+    )
+)]
 pub(super) fn record_bad_peer(
     issues: &mut PeerIssues,
     peer_name: &str,
@@ -339,6 +353,13 @@ fn project_dependency<'a>(
         })
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`peer_name` is copied only after the no-catalogs early return, and callers borrow it from a map, so an owned parameter would allocate on every call."
+    )
+)]
 pub(super) fn resolve_peer_range(
     peer_name: &str,
     peer_range: &str,

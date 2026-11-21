@@ -73,7 +73,7 @@ pub struct ChangeIntent {
 
 pub fn parse_change_intent(
     content: &str,
-    id: &str,
+    id: String,
     file_path: &Path,
 ) -> Result<ChangeIntent, VersioningError> {
     let lines: Vec<&str> = content
@@ -101,7 +101,7 @@ pub fn parse_change_intent(
     let releases = parse_intent_releases(frontmatter, file_path)?;
 
     Ok(ChangeIntent {
-        id: id.to_string(),
+        id,
         file_path: file_path.to_path_buf(),
         releases,
         summary: lines[closing_index + 1..]
@@ -155,7 +155,7 @@ pub fn read_change_intents(workspace_dir: &Path) -> Result<Vec<ChangeIntent>, Ve
             let file_path = changes_dir.join(&file_name);
             let content = fs::read_to_string(&file_path)
                 .map_err(|source| VersioningError::Read { path: file_path.clone(), source })?;
-            let id = file_name.trim_end_matches(".md");
+            let id = file_name.trim_end_matches(".md").to_owned();
             parse_change_intent(&content, id, &file_path)
         })
         .collect()

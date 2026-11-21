@@ -181,8 +181,8 @@ impl VerifyError {
 
     /// Constructs [`VerifyError::MissingDependency`].
     #[must_use]
-    pub fn missing_dependency(dep_path: &str) -> Self {
-        VerifyError::MissingDependency { dep_path: dep_path.to_string() }
+    pub fn missing_dependency(dep_path: String) -> Self {
+        VerifyError::MissingDependency { dep_path }
     }
 
     /// Build the appropriate variant from a list of rendered

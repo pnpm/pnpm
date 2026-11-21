@@ -12,6 +12,7 @@ use crate::cli_args::{
         },
         get_tree::MaxDepth,
         graph::{
+            BoundPeerEdges,
             BuildGraphOptions,
             DependencyGraph,
             build_dependency_graph,
@@ -94,12 +95,13 @@ fn load_hierarchies(
     };
     let root_ids = importer_root_ids(env.current_lockfile, lockfile_dir, project_dirs);
     let graph = build_dependency_graph(
-        &root_ids,
+        root_ids,
         &BuildGraphOptions {
             lockfile: env.current_lockfile,
             include,
             only_projects: false,
             peer_edges: config.peer_edge_options(),
+            bound_peer_edges: BoundPeerEdges::Follow,
         },
     );
     let options = BuildTreeOptions {

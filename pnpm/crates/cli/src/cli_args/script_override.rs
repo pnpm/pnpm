@@ -57,7 +57,7 @@ pub(crate) fn resolve(
     if declares_script(safe_read_project_manifest_only(dir)?.as_ref(), command_name) {
         ctx.builtin_replaced_by_script.store(true, Ordering::Relaxed);
         return Ok(Some(RunArgs {
-            script: RunArgs::script(command_name, script_args),
+            script: RunArgs::script(command_name.to_owned(), script_args),
             if_present: false,
             sequential: false,
             dry_run: false,

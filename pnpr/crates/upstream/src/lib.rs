@@ -202,11 +202,11 @@ impl Upstream {
     /// `timeout`/`packument_ttl`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
     #[must_use]
-    pub fn new(name: &str, config: &UpstreamConfig) -> Self {
+    pub fn new(name: String, config: &UpstreamConfig) -> Self {
         Self {
             http: UpstreamHttp::new(config),
             base: config.url.clone(),
-            name: name.to_string(),
+            name,
             packument_ttl: config.packument_ttl,
             cache: config.cache,
             breaker: Arc::new(CircuitBreaker::new(
@@ -299,8 +299,8 @@ impl Upstream {
     /// more: a cached packument never goes stale for it, and every request to
     /// the origin is refused.
     #[must_use]
-    pub fn cached_only(mut self, user: &str) -> Self {
-        self.cached_only = Some(user.to_string());
+    pub fn cached_only(mut self, user: String) -> Self {
+        self.cached_only = Some(user);
         self
     }
 

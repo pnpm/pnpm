@@ -141,7 +141,7 @@ impl GlobalInstallTarget<'_> {
         let mut changed = false;
         for pkg in groups {
             if let Some(warning) = missing_file_source_warning(pkg) {
-                warn_global::<Reporter>(&warning);
+                warn_global::<Reporter>(warning);
                 continue;
             }
             checked = true;
@@ -448,7 +448,7 @@ fn lockfiles_are_equal(active_dir: &Path, candidate_dir: &Path) -> bool {
 
 fn warn_on_leftover<Reporter: self::Reporter>(leftover: Option<&ArtifactCleanupError>) {
     if let Some(leftover) = leftover {
-        warn_global::<Reporter>(&leftover.to_string());
+        warn_global::<Reporter>(leftover.to_string());
     }
 }
 

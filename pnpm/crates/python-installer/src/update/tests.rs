@@ -125,7 +125,14 @@ fn sample_lock(environments: Vec<&str>, packages: Vec<LockedPackage>) -> Lockfil
             .collect(),
         requires_python: None,
         packages,
-        tool: ToolMetadata { pnpm: Inputs::declared(&[], &[], &[], "https://pypi.org/simple/") },
+        tool: ToolMetadata {
+            pnpm: Inputs::declared(
+                &[],
+                Vec::new(),
+                Vec::new(),
+                "https://pypi.org/simple/".to_owned(),
+            ),
+        },
     }
 }
 

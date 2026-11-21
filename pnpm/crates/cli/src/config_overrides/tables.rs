@@ -69,7 +69,7 @@ impl ConfigOverrides {
             "color" => {
                 self.color = parse_bool(value)
                     .map(|enabled| if enabled { ColorMode::Always } else { ColorMode::Never })
-                    .or_else(|| parse_enum(value));
+                    .or_else(|| parse_enum(value.to_owned()));
             }
             "embed-readme" => self.embed_readme = parse_bool(value),
             "ignore-workspace-root-check" => {
@@ -139,16 +139,16 @@ impl ConfigOverrides {
                 self.minimum_release_age_strict = parse_bool(value);
             }
             "pm-on-fail" => {
-                self.pm_on_fail = parse_enum(value);
+                self.pm_on_fail = parse_enum(value.to_owned());
             }
             "runtime-on-fail" => {
-                self.runtime_on_fail = parse_enum(value);
+                self.runtime_on_fail = parse_enum(value.to_owned());
             }
             "verify-deps-before-run" => {
                 self.verify_deps_before_run = value.parse().ok();
             }
             "trust-policy" => {
-                self.trust_policy = parse_enum(value);
+                self.trust_policy = parse_enum(value.to_owned());
             }
             "trust-policy-exclude" => {
                 self.trust_policy_exclude.get_or_insert_default().push(value.to_string());
@@ -173,7 +173,8 @@ impl ConfigOverrides {
                 self.modules_dir = Some(value.to_string());
             }
             "node-linker" => {
-                self.node_linker = serde_json::from_str(value).ok().or_else(|| parse_enum(value));
+                self.node_linker =
+                    serde_json::from_str(value).ok().or_else(|| parse_enum(value.to_owned()));
             }
             "public-hoist-pattern" => {
                 self.public_hoist_pattern.get_or_insert_default().push(value.to_string());
@@ -204,7 +205,7 @@ impl ConfigOverrides {
                 self.inject_workspace_packages = parse_bool(value);
             }
             "package-import-method" => {
-                self.package_import_method = parse_enum(value);
+                self.package_import_method = parse_enum(value.to_owned());
             }
             "shared-workspace-lockfile" => {
                 self.shared_workspace_lockfile = parse_bool(value);

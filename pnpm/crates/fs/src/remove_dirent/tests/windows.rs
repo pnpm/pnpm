@@ -38,7 +38,7 @@ fn assert_removal_recovers(
     let mut first_failure = None;
     let (sender, receiver) = mpsc::channel();
     let result = with_retry_observer(
-        target,
+        target.to_path_buf(),
         move |attempt| {
             sender
                 .send(

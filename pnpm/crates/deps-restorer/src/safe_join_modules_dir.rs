@@ -42,7 +42,7 @@ pub fn safe_join_modules_dir(
             alias: alias.to_owned(),
         });
     }
-    Ok(pnpm_fs::join_slash_separated_path(modules, alias))
+    Ok(pnpm_fs::join_slash_separated_path(modules.to_path_buf(), alias))
 }
 
 pub fn safe_join_workspace_modules_dir(

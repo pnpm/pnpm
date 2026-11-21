@@ -1,3 +1,4 @@
+use pnpm_ffi_fs::FileMode;
 use std::{
     fs::File,
     io,
@@ -10,7 +11,7 @@ pub(super) struct FileCreation<'parent> {
     #[cfg(unix)]
     mode: crate::file_mode::UnixCreationMode,
     #[cfg(target_os = "wasi")]
-    mode: Option<u32>,
+    mode: Option<FileMode>,
     #[cfg(target_os = "wasi")]
     parent: &'parent Path,
     #[cfg(not(target_os = "wasi"))]
@@ -19,7 +20,7 @@ pub(super) struct FileCreation<'parent> {
 
 impl<'parent> FileCreation<'parent> {
     #[inline]
-    pub(super) fn new(parent: &'parent Path, requested: Option<u32>) -> Self {
+    pub(super) fn new(parent: &'parent Path, requested: Option<FileMode>) -> Self {
         #[cfg(not(target_os = "wasi"))]
         let mut options = std::fs::OpenOptions::new();
         #[cfg(not(target_os = "wasi"))]
@@ -55,7 +56,7 @@ impl<'parent> FileCreation<'parent> {
 
     #[cfg(unix)]
     #[inline]
-    pub(super) fn grant(&self, file: &File) -> io::Result<Option<u32>> {
+    pub(super) fn grant(&self, file: &File) -> io::Result<Option<FileMode>> {
         self.mode.grant(file)
     }
 }

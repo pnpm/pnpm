@@ -141,16 +141,16 @@ struct DsmArgs {
 fn main() -> ExitCode {
     let args = CliArgs::parse();
     let result = match &args.command {
-        Command::Check => check(&args.root),
+        Command::Check => check(args.root),
         Command::Diff { base } => diff(&args.root, base),
         Command::Modules { crate_name, baseline } => {
-            modules(&args.root, &View::new(crate_name.as_deref(), *baseline))
+            modules(args.root, &View::new(crate_name.as_deref(), *baseline))
         }
         Command::Leaks { crate_name, baseline } => {
-            leaks(&args.root, &View::new(crate_name.as_deref(), *baseline))
+            leaks(args.root, &View::new(crate_name.as_deref(), *baseline))
         }
         Command::Dependencies { crate_name, baseline } => {
-            dependencies(&args.root, &View::new(crate_name.as_deref(), *baseline))
+            dependencies(args.root, &View::new(crate_name.as_deref(), *baseline))
         }
         Command::Dsm(dsm_args) => dsm(&args.root, dsm_args),
     };
@@ -160,8 +160,8 @@ fn main() -> ExitCode {
     })
 }
 
-fn check(root: &Path) -> Result<ExitCode, String> {
-    let working_tree = WorkingTree { root: root.to_path_buf() };
+fn check(root: PathBuf) -> Result<ExitCode, String> {
+    let working_tree = WorkingTree { root };
     let layers = load_layers(&working_tree)?;
     let graph = graph::read(&working_tree)?;
     let mut problems = layers.check(&graph);
@@ -226,8 +226,8 @@ impl<'name> View<'name> {
     }
 }
 
-fn modules(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
-    let working_tree = WorkingTree { root: root.to_path_buf() };
+fn modules(root: PathBuf, view: &View<'_>) -> Result<ExitCode, String> {
+    let working_tree = WorkingTree { root };
     let reports =
         report::read_all(&modules::read_workspace(&working_tree, &graph::read(&working_tree)?)?);
     let output = match view {
@@ -248,8 +248,8 @@ fn modules(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn dependencies(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
-    let working_tree = WorkingTree { root: root.to_path_buf() };
+fn dependencies(root: PathBuf, view: &View<'_>) -> Result<ExitCode, String> {
+    let working_tree = WorkingTree { root };
     let reach = Reach::new(&graph::read(&working_tree)?);
     let output = match view {
         View::Crate(name) => reach
@@ -264,8 +264,8 @@ fn dependencies(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn leaks(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
-    let working_tree = WorkingTree { root: root.to_path_buf() };
+fn leaks(root: PathBuf, view: &View<'_>) -> Result<ExitCode, String> {
+    let working_tree = WorkingTree { root };
     let graph = graph::read(&working_tree)?;
     let modules = modules::read_workspace(&working_tree, &graph)?;
     let found = leaks::find(&Reach::new(&graph), &modules);

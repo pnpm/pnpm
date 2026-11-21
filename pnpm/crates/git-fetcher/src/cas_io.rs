@@ -5,6 +5,7 @@
 use crate::error::GitFetcherError;
 use pnpm_fs::file_mode::{
     cas_path_is_executable,
+    file_mode_of,
     is_executable,
     restore_exec_bit_from_cas_suffix,
 };
@@ -43,7 +44,7 @@ pub(crate) struct ImportedFiles {
 /// `pnpm-tarball`, but defense-in-depth at this layer means a
 /// future caller (or a bug in that earlier sanitiser) can't turn
 /// a malformed entry into a write outside the working tree.
-fn join_checked(root: &Path, rel: &str) -> Result<PathBuf, GitFetcherError> {
+fn join_checked(root: PathBuf, rel: &str) -> Result<PathBuf, GitFetcherError> {
     let rel_path = Path::new(rel);
     if rel_path.is_absolute() {
         return Err(GitFetcherError::Io(io::Error::new(
@@ -51,7 +52,7 @@ fn join_checked(root: &Path, rel: &str) -> Result<PathBuf, GitFetcherError> {
             format!("absolute path is not allowed in CAS entry: {rel}"),
         )));
     }
-    let mut out = root.to_path_buf();
+    let mut out = root;
     for c in rel_path.components() {
         match c {
             Component::Normal(seg) => out.push(seg),
@@ -87,7 +88,7 @@ pub(crate) fn materialize_into(
         // recognises both `/` and `\` as separators on Windows, so we
         // can hand `rel` over directly and avoid a per-file `String`
         // allocation.
-        let target = join_checked(target_dir, rel)?;
+        let target = join_checked(target_dir.to_path_buf(), rel)?;
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(GitFetcherError::Io)?;
         }
@@ -113,14 +114,14 @@ pub(crate) fn import_into_cas(
     for rel in files {
         // See the matching note in `materialize_into`: `join_checked`
         // accepts forward-slash relative paths verbatim on every host.
-        let source = join_checked(pkg_dir, rel)?;
+        let source = join_checked(pkg_dir.to_path_buf(), rel)?;
         let metadata = match fs::metadata(&source) {
             Ok(metadata) if metadata.is_file() => metadata,
             Ok(_) => continue,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
             Err(err) => return Err(GitFetcherError::Io(err)),
         };
-        let mode = file_mode_from(&metadata);
+        let mode = file_mode_of(&metadata);
         // `add_files_from_dir` reads the full POSIX mode and routes
         // the executable bit through `is_executable(mode)`. Match
         // that so a git-hosted snapshot's `PackageFilesIndex.files`
@@ -134,24 +135,10 @@ pub(crate) fn import_into_cas(
         // integrity-check pass populates it, so the warm prefetch's
         // verify logic exercises the same code path it does for
         // tarball entries.
-        files_index.insert(rel.clone(), written.index_entry(mode, None));
+        files_index.insert(rel.clone(), written.index_entry(mode.mode(), None));
         cas_paths.insert(rel.clone(), written.file);
     }
     Ok(ImportedFiles { cas_paths, files_index })
-}
-
-/// POSIX file mode (`meta.mode() & 0o777`) on Unix; a fixed `0o644`
-/// on Windows where the OS has no analog. Mirrors
-/// `pnpm_store_dir::add_files_from_dir::file_mode_from`.
-#[cfg(unix)]
-fn file_mode_from(meta: &fs::Metadata) -> u32 {
-    use std::os::unix::fs::PermissionsExt;
-    meta.permissions().mode() & 0o777
-}
-
-#[cfg(not(unix))]
-fn file_mode_from(_meta: &fs::Metadata) -> u32 {
-    0o644
 }
 
 /// Synthesize the [`PackageFilesIndex::files`](pnpm_store_dir::PackageFilesIndex::files)

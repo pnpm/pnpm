@@ -14,7 +14,6 @@ use super::{
     PasswordChange,
     TokenRecord,
     UpsertOutcome,
-    UserBackend,
     UserCreation,
     UserRemoval,
     account::{
@@ -29,13 +28,13 @@ use super::{
     verify_returning_user,
     with_auth_timeout,
 };
+mod dyn_backends;
 mod request_pool;
 mod tokens;
 mod users;
 use request_pool::RequestPool;
 
 use crate::validation::validate_username;
-use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{
     RegistryError,
@@ -119,7 +118,7 @@ impl<Db> SqlAuth<Db> {
         Db: AuthSqlBackend,
     {
         if stored.status == AccountStatus::Deactivated {
-            return Err(deprovisioned_login_error(&stored.username));
+            return Err(deprovisioned_login_error(stored.username));
         }
         if stored.status.is_deleted() {
             dummy_verify(password, DEFAULT_BCRYPT_COST).await;
@@ -148,8 +147,7 @@ impl<Db> SqlAuth<Db> {
     }
 }
 
-#[async_trait]
-trait AuthSqlBackend: Send + Sync {
+trait AuthSqlBackend: Sync {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>>;
     async fn account_name(&self, user_id: &str) -> Result<Option<String>>;
     async fn active_account_name(&self, user_id: &str) -> Result<Option<String>> {

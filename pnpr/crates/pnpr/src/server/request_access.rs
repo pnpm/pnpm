@@ -50,7 +50,12 @@ pub(super) fn authorized_upstream(
     if config.rules.any_admits(Action::Cache, identity) {
         return Ok(client);
     }
-    Ok(client.cached_only(identity.username().unwrap_or("<anonymous>")))
+    Ok(client.cached_only(
+        identity
+            .username()
+            .unwrap_or("<anonymous>")
+            .to_owned(),
+    ))
 }
 
 pub(super) fn revision_source_registry(state: &AppState, source: &str) -> Option<String> {
@@ -123,7 +128,7 @@ pub(crate) fn compute_upstream_cache_namespace(
             "{url}\0{}",
             pnpr_route::headers_credential_digest(&upstream_config.headers),
         ));
-        let digest = pnpr_route::upstream_cache_digest(&canonical, epoch, cache_secret);
+        let digest = pnpr_route::upstream_cache_digest(canonical, epoch, cache_secret);
         return format!("~upstreams/{digest}");
     }
     // Public registry: a stable, secret-free namespace keyed by the registry name

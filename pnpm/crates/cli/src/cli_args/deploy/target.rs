@@ -58,6 +58,13 @@ pub(super) fn real_deploy_dir(deploy_dir: &Path) -> miette::Result<PathBuf> {
 }
 
 #[cfg(not(unix))]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the `cfg(unix)` twin canonicalizes from a borrow of this parameter, and both must offer one signature to the shared call site"
+    )
+)]
 pub(super) fn real_deploy_dir(deploy_dir: &Path) -> miette::Result<PathBuf> {
     Ok(deploy_dir.to_path_buf())
 }
@@ -75,25 +82,25 @@ pub(super) fn validate_deploy_target(
     let dir = lexical_normalize(dir);
 
     if same_path(&deploy_dir, &workspace_dir) {
-        return unsafe_deploy_target(&deploy_dir, "target is the workspace root");
+        return unsafe_deploy_target(deploy_dir, "target is the workspace root");
     }
     if is_ancestor_path(&deploy_dir, &workspace_dir) {
-        return unsafe_deploy_target(&deploy_dir, "target contains the workspace root");
+        return unsafe_deploy_target(deploy_dir, "target contains the workspace root");
     }
     if same_path(&deploy_dir, &project_dir) {
-        return unsafe_deploy_target(&deploy_dir, "target is the selected project root");
+        return unsafe_deploy_target(deploy_dir, "target is the selected project root");
     }
     if is_ancestor_path(&deploy_dir, &project_dir) {
-        return unsafe_deploy_target(&deploy_dir, "target contains the selected project");
+        return unsafe_deploy_target(deploy_dir, "target contains the selected project");
     }
     if same_path(&deploy_dir, &dir) {
-        return unsafe_deploy_target(&deploy_dir, "target is the current directory");
+        return unsafe_deploy_target(deploy_dir, "target is the current directory");
     }
     if is_ancestor_path(&deploy_dir, &dir) {
-        return unsafe_deploy_target(&deploy_dir, "target contains the current directory");
+        return unsafe_deploy_target(deploy_dir, "target contains the current directory");
     }
     if force && !is_child_path(&deploy_dir, &workspace_dir) {
-        return unsafe_deploy_target(&deploy_dir, "target is outside the workspace");
+        return unsafe_deploy_target(deploy_dir, "target is outside the workspace");
     }
     if is_child_path(&deploy_dir, &workspace_dir) {
         validate_workspace_child_target_components(&workspace_dir, &deploy_dir)?;
@@ -119,14 +126,17 @@ fn validate_workspace_child_target_components(
             }
         };
         if is_unsafe_deploy_link(&metadata) {
-            return unsafe_deploy_target(&current, "target path contains a symlink or junction");
+            return unsafe_deploy_target(current, "target path contains a symlink or junction");
         }
     }
     Ok(())
 }
 
-fn unsafe_deploy_target<Output>(deploy_dir: &Path, reason: &'static str) -> miette::Result<Output> {
-    Err(DeployError::UnsafeDeployTarget { deploy_dir: deploy_dir.to_path_buf(), reason }.into())
+fn unsafe_deploy_target<Output>(
+    deploy_dir: PathBuf,
+    reason: &'static str,
+) -> miette::Result<Output> {
+    Err(DeployError::UnsafeDeployTarget { deploy_dir, reason }.into())
 }
 
 pub(super) fn prepare_deploy_dir<ReporterT: Reporter>(
@@ -185,7 +195,10 @@ fn create_workspace_child_target_dir(
     match fs::create_dir(deploy_dir) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            return unsafe_deploy_target(deploy_dir, "target changed during deploy preparation");
+            return unsafe_deploy_target(
+                deploy_dir.to_path_buf(),
+                "target changed during deploy preparation",
+            );
         }
         Err(error) => {
             return Err(error)
@@ -212,10 +225,16 @@ fn create_workspace_child_target_component(component: &Path) -> miette::Result<(
         .into_diagnostic()
         .wrap_err_with(|| format!("inspect deploy target {}", component.display()))?;
     if is_unsafe_deploy_link(&metadata) {
-        return unsafe_deploy_target(component, "target path contains a symlink or junction");
+        return unsafe_deploy_target(
+            component.to_path_buf(),
+            "target path contains a symlink or junction",
+        );
     }
     if !metadata.is_dir() {
-        return unsafe_deploy_target(component, "target path contains a non-directory");
+        return unsafe_deploy_target(
+            component.to_path_buf(),
+            "target path contains a non-directory",
+        );
     }
     Ok(())
 }
@@ -255,7 +274,7 @@ fn is_unsafe_deploy_link(metadata: &fs::Metadata) -> bool {
     }
 }
 
-pub(super) fn copy_project(src: &Path, dest: &Path, files: CopyFiles) -> miette::Result<()> {
+pub(super) fn copy_project(src: PathBuf, dest: &Path, files: CopyFiles) -> miette::Result<()> {
     let output = files
         .fetcher(src)
         .run()

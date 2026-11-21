@@ -89,9 +89,7 @@ impl ReporterState {
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
         match stage {
-            Stage::ResolutionDone => {
-                self.flush_deprecated_subdeps();
-            }
+            Stage::ResolutionDone => {}
             Stage::ImportingDone => {
                 if !self.downloads.progress.contains_key(prefix) {
                     return;

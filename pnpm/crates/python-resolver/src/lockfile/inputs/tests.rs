@@ -4,19 +4,29 @@ use pep508_rs::Requirement;
 #[test]
 fn lockfile_resolution_settings_invalidate_replay() {
     let requirements = vec!["demo".parse::<Requirement>().unwrap()];
-    let mut previous = Inputs::declared(&requirements, &[], &[], "https://example.test/simple/");
-    let mut wanted = Inputs::declared(&requirements, &[], &[], "https://example.test/simple/");
-    wanted.set_resolution_settings(&["https://extra.test/simple/".to_string()], &[], &[]);
+    let mut previous = Inputs::declared(
+        &requirements,
+        Vec::new(),
+        Vec::new(),
+        "https://example.test/simple/".to_owned(),
+    );
+    let mut wanted = Inputs::declared(
+        &requirements,
+        Vec::new(),
+        Vec::new(),
+        "https://example.test/simple/".to_owned(),
+    );
+    wanted.set_resolution_settings(vec!["https://extra.test/simple/".to_string()], &[], &[]);
     assert_eq!(previous.differs_from(&wanted), Some("the Python index changed"));
-    previous.set_resolution_settings(&["https://extra.test/simple/".to_string()], &[], &[]);
+    previous.set_resolution_settings(vec!["https://extra.test/simple/".to_string()], &[], &[]);
     wanted.set_resolution_settings(
-        &["https://extra.test/simple/".to_string()],
+        vec!["https://extra.test/simple/".to_string()],
         &["demo==2".parse().unwrap()],
         &[],
     );
     assert_eq!(previous.differs_from(&wanted), Some("the Python overrides or constraints changed"));
     wanted.set_resolution_settings(
-        &["https://extra.test/simple/".to_string()],
+        vec!["https://extra.test/simple/".to_string()],
         &[],
         &["demo<2".parse().unwrap()],
     );
@@ -26,8 +36,18 @@ fn lockfile_resolution_settings_invalidate_replay() {
 #[test]
 fn the_members_sharing_an_environment_invalidate_replay() {
     let requirements = vec!["demo".parse::<Requirement>().unwrap()];
-    let previous = Inputs::declared(&requirements, &[], &[], "https://example.test/simple/");
-    let mut wanted = Inputs::declared(&requirements, &[], &[], "https://example.test/simple/");
+    let previous = Inputs::declared(
+        &requirements,
+        Vec::new(),
+        Vec::new(),
+        "https://example.test/simple/".to_owned(),
+    );
+    let mut wanted = Inputs::declared(
+        &requirements,
+        Vec::new(),
+        Vec::new(),
+        "https://example.test/simple/".to_owned(),
+    );
     assert_eq!(previous.differs_from(&wanted), None);
     wanted.set_members(vec!["packages/a".to_string()]);
     assert_eq!(
@@ -39,8 +59,18 @@ fn the_members_sharing_an_environment_invalidate_replay() {
 #[test]
 fn changing_package_routes_invalidates_lockfile_replay() {
     let requirements = vec!["alpha".parse::<Requirement>().unwrap()];
-    let mut previous = Inputs::declared(&requirements, &[], &[], "https://public.test/simple/");
-    let mut wanted = Inputs::declared(&requirements, &[], &[], "https://public.test/simple/");
+    let mut previous = Inputs::declared(
+        &requirements,
+        Vec::new(),
+        Vec::new(),
+        "https://public.test/simple/".to_owned(),
+    );
+    let mut wanted = Inputs::declared(
+        &requirements,
+        Vec::new(),
+        Vec::new(),
+        "https://public.test/simple/".to_owned(),
+    );
     previous.set_registry_packages(std::collections::BTreeMap::from([(
         "https://private.test/simple/".to_string(),
         vec!["alpha".to_string()],

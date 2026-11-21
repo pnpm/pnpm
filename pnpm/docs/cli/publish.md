@@ -21,9 +21,9 @@ manifest.
 When publishing a pre-built tarball, pnpm rejects manifests, README files, and
 archive metadata larger than 64 MiB.
 
-When publishing a package inside a [workspace](../workspaces.md), the LICENSE file
-from the root of the workspace is packed with the package (unless the package
-has a license of its own).
+When publishing a package inside a [workspace](../workspaces.md), the `LICENSE`,
+`LICENCE`, or `COPYING` file from the root of the workspace is packed with the
+package (unless the package has a license file of its own).
 
 You may override some fields before publish, using the
 [publishConfig] field in `package.json`.

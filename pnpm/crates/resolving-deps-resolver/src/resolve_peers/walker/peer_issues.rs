@@ -140,6 +140,13 @@ impl Walker<'_> {
 
     /// Report that `parent` provides `peer_name` at a version outside
     /// `comparable_range`.
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "`peer_name` is copied only after the canonical-drain early return, and the caller borrows it, so an owned parameter would allocate on every call."
+        )
+    )]
     fn record_bad_peer(
         &mut self,
         peer_name: &str,

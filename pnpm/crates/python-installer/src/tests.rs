@@ -166,14 +166,18 @@ async fn an_offline_install_does_not_reach_the_pnpr_server() {
 #[test]
 fn a_lockfile_answering_another_question_is_refused() {
     let index = "https://index.example.test/simple/";
-    let inputs = pnpm_python_resolver::Inputs::new(&requirements(&["demo"]), &target(), index);
+    let inputs =
+        pnpm_python_resolver::Inputs::new(&requirements(&["demo"]), &target(), index.to_owned());
     let answered: pnpm_python_resolver::Lockfile =
         serde_json::from_value(server_lockfile(index)).expect("lockfile fixture");
 
     accept_server_lockfile(&answered, &inputs, None).expect("the same question");
 
-    let other_requirements =
-        pnpm_python_resolver::Inputs::new(&requirements(&["demo", "extra"]), &target(), index);
+    let other_requirements = pnpm_python_resolver::Inputs::new(
+        &requirements(&["demo", "extra"]),
+        &target(),
+        index.to_owned(),
+    );
     let error = accept_server_lockfile(&answered, &other_requirements, None)
         .expect_err("other requirements");
     assert!(error.to_string().contains("for other inputs"), "{error}");
@@ -188,7 +192,8 @@ fn a_lockfile_answering_another_question_is_refused() {
 #[test]
 fn a_server_lockfile_is_accepted_once_the_members_are_recorded() {
     let index = "https://index.example.test/simple/";
-    let mut inputs = pnpm_python_resolver::Inputs::new(&requirements(&["demo"]), &target(), index);
+    let mut inputs =
+        pnpm_python_resolver::Inputs::new(&requirements(&["demo"]), &target(), index.to_owned());
     inputs.set_members(vec!["packages/a".to_string(), "packages/b".to_string()]);
     let mut answered: pnpm_python_resolver::Lockfile =
         serde_json::from_value(server_lockfile(index)).expect("lockfile fixture");

@@ -26,7 +26,10 @@ use std::{
     },
     fs,
     io,
-    path::Path,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::atomic::AtomicU8,
 };
 use symlinks::{
@@ -182,7 +185,7 @@ pub(super) fn create_indexed_dirs(
     ordered.sort_by_key(|s| s.len());
     for rel in ordered {
         if placement == Placement::Repair {
-            clear_dirent_blocking_dir::<Host>(dir_path, rel)?;
+            clear_dirent_blocking_dir::<Host>(dir_path.to_path_buf(), rel)?;
         }
         let abs = dir_path.join(rel);
         pnpm_fs::create_dir_all_with_retry(&abs)
@@ -338,10 +341,10 @@ pub(super) fn clear_dir_blocking_file<Sys: FsRemoveDirAll>(
 /// never stat-ed: the parent is cleared first, and everything below a
 /// missing component is missing too.
 pub(super) fn clear_dirent_blocking_dir<Sys: FsRemoveNonDirDirent>(
-    root: &Path,
+    root: PathBuf,
     rel: &str,
 ) -> Result<(), ImportIndexedDirError> {
-    let mut abs = root.to_path_buf();
+    let mut abs = root;
     for component in Path::new(rel).components() {
         abs.push(component);
         match pnpm_fs::symlink_metadata_with_retry(&abs) {
@@ -441,7 +444,6 @@ fn file_mode_matches_store_entry(
     store: (&Path, &fs::Metadata),
     same_identity: bool,
 ) -> bool {
-    use std::os::unix::fs::PermissionsExt;
     let (store_path, store_meta) = store;
     let is_store_entry = pnpm_fs::file_mode::is_cas_file_path(store_path);
     let expected_mode = if is_store_entry {
@@ -450,10 +452,12 @@ fn file_mode_matches_store_entry(
             pnpm_fs::file_mode::current_umask(),
         )
     } else {
-        store_meta.permissions().mode() & 0o777
+        pnpm_fs::FileMode::from_permissions(&store_meta.permissions())
     };
-    let target_mode = target_meta.permissions().mode() & 0o777;
-    target_mode == expected_mode
+    let target_mode = pnpm_fs::FileMode::from_permissions(&target_meta.permissions());
+    // Setuid, setgid and sticky are not part of what an import places.
+    let access_bits = |mode: pnpm_fs::FileMode| mode.mode() & 0o777;
+    access_bits(target_mode) == access_bits(expected_mode)
         || same_identity
             && is_store_entry
             && pnpm_fs::file_mode::store_inode_mode_is_linkable(target_mode, expected_mode)

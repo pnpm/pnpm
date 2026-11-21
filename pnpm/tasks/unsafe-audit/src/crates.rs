@@ -98,7 +98,7 @@ fn member(directory: &Path) -> Member {
         directory: directory.to_path_buf(),
         inherits_workspace_lints,
         roots,
-        sources: sources(directory),
+        sources: sources(directory.to_path_buf()),
     }
 }
 
@@ -152,9 +152,9 @@ fn discovered(directory: &Path, subdirectory: &str) -> Vec<PathBuf> {
 }
 
 /// Every `.rs` file under `directory`, skipping anything Cargo generated.
-fn sources(directory: &Path) -> Vec<PathBuf> {
+fn sources(directory: PathBuf) -> Vec<PathBuf> {
     let mut sources = Vec::new();
-    let mut pending = vec![directory.to_path_buf()];
+    let mut pending = vec![directory];
     while let Some(current) = pending.pop() {
         let entries = read_entries(&current);
         pending.extend(entries.directories);

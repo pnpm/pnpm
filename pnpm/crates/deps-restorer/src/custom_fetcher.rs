@@ -189,6 +189,13 @@ impl CustomFetcherSession {
         decode_fetch_outcome(result, verified, selected_resolution, locked, package_id)
     }
 
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "`package_id` is copied only after the `fetch_identity` early return, and the caller reuses it for an uncached fetch, so an owned parameter would allocate on every call."
+        )
+    )]
     fn completed_fetch(
         &self,
         package_id: &str,

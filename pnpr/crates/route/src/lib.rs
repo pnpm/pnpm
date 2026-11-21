@@ -233,7 +233,7 @@ impl RouteContext {
         let public_routes = public_route_matchers(&routing.route_policy);
         let aliases = routing.upstreams
             .iter()
-            .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name, upstream))
+            .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name.to_owned(), upstream))
             .collect();
         let upstream_origins = routing.upstreams
             .values()

@@ -94,7 +94,7 @@ impl CustomFetcherSession {
         let Some(identity) = fetch_identity(&metadata.resolution, Some(&tarball.integrity)) else {
             return;
         };
-        self.cache_resolved_tarball(package_id, &identity, Arc::clone(&tarball));
+        self.cache_resolved_tarball(package_id.to_owned(), identity.clone(), Arc::clone(&tarball));
         let Some(manifest) = &metadata.manifest else { return };
         let (Some(name), Some(version)) = (
             manifest.get("name").and_then(Value::as_str),
@@ -104,23 +104,20 @@ impl CustomFetcherSession {
         };
         let name_ver = format!("{name}@{version}");
         if name_ver != package_id {
-            self.cache_resolved_tarball(&name_ver, &identity, tarball);
+            self.cache_resolved_tarball(name_ver, identity, tarball);
         }
     }
 
     fn cache_resolved_tarball(
         &self,
-        package_id: &str,
-        identity: &str,
+        package_id: String,
+        identity: String,
         tarball: Arc<FetchedTarball>,
     ) {
         self.completed
             .lock()
             .unwrap()
-            .insert(
-                (package_id.to_owned(), identity.to_owned()),
-                super::CompletedFetch::Tarball(tarball),
-            );
+            .insert((package_id, identity), super::CompletedFetch::Tarball(tarball));
     }
 }
 

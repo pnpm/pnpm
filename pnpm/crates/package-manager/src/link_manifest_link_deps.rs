@@ -320,6 +320,13 @@ pub(crate) fn workspace_link_target(
 }
 
 /// `None` for a `catalog:` spec whose catalog has no usable entry.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the alias is copied only for a catalog: spec, and the caller borrows it"
+    )
+)]
 fn dereference_catalog<'spec>(
     catalogs: &Catalogs,
     alias: &str,

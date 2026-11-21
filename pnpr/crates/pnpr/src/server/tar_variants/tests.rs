@@ -11,7 +11,7 @@ use std::{
 };
 
 fn reservation(queue: &TarVariantQueue, variant: &str) -> CopyReservation {
-    assert!(queue.claim(variant), "{variant} is free to claim");
+    assert!(queue.claim(variant.to_owned()), "{variant} is free to claim");
     CopyReservation {
         quota: Arc::clone(&queue.copies),
         variant: variant.to_string(),
@@ -24,9 +24,9 @@ fn reservation(queue: &TarVariantQueue, variant: &str) -> CopyReservation {
 fn one_copy_per_variant_is_in_flight_at_a_time() {
     let queue = TarVariantQueue::new();
     let copy = reservation(&queue, "a.tar.zst");
-    assert!(!queue.claim("a.tar.zst"), "a concurrent miss shares the copy in flight");
+    assert!(!queue.claim("a.tar.zst".to_owned()), "a concurrent miss shares the copy in flight");
     drop(copy);
-    assert!(queue.claim("a.tar.zst"), "a dropped copy frees its variant");
+    assert!(queue.claim("a.tar.zst".to_owned()), "a dropped copy frees its variant");
 }
 
 #[test]

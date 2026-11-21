@@ -326,7 +326,6 @@ pub(super) fn walk_dep(
     let Some(resolved) = resolve_reference(state, &reference)? else {
         return Ok(None);
     };
-    let optional = resolved.snapshot.is_some_and(|snapshot| snapshot.optional);
 
     if installability_skip(state, &resolved.pkg_key, resolved.metadata, resolved.snapshot)? {
         state.result.skipped.insert(reference);
@@ -343,7 +342,7 @@ pub(super) fn walk_dep(
     // `fill_children` after the whole walk is done.
     state.result.graph.insert(
         dir.clone(),
-        graph_node(dep, &reference, &resolved, optional, present, &dir, modules),
+        graph_node(dep, reference.clone(), &resolved, present, dir.clone(), modules.to_path_buf()),
     );
     record_package_location(state, &resolved.pkg_key, &dir);
 
@@ -482,16 +481,15 @@ pub(super) fn resolve_reference<'l>(
 }
 pub(super) fn graph_node(
     dep: &RcByPtr<HoisterResult>,
-    reference: &str,
+    reference: String,
     resolved: &ResolvedReference<'_>,
-    optional: bool,
     present: bool,
-    dir: &Path,
-    modules: &Path,
+    dir: PathBuf,
+    modules: PathBuf,
 ) -> DependenciesGraphNode {
     DependenciesGraphNode {
         package: crate::HoistedPackageMetadata {
-            dep_path: DepPath::from(reference.to_string()),
+            dep_path: DepPath::from(reference),
             pkg_id_with_patch_hash: PkgIdWithPatchHash::from(
                 get_pkg_id_with_patch_hash(&resolved.pkg_key.to_string()).to_string(),
             ),
@@ -505,9 +503,9 @@ pub(super) fn graph_node(
         alias: Some(dep.0.name.clone()),
         // `pkgIdWithPatchHash` strips peer-graph hashes but keeps
         // `(patch_hash=...)`.
-        dir: dir.to_path_buf(),
-        modules: modules.to_path_buf(),
-        optional,
+        dir,
+        modules,
+        optional: resolved.snapshot.is_some_and(|snapshot| snapshot.optional),
         optional_dependencies: resolved.snapshot
             .and_then(|snap| snap.optional_dependencies.as_ref())
             .map(|map| {

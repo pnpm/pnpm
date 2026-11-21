@@ -502,7 +502,7 @@ fn resume_drops_only_the_anchors_transitive_dependencies() {
         None,
     );
 
-    let resumed = resume_task_graph_from(graph, &dir("b"), "build", None);
+    let resumed = resume_task_graph_from(graph, &dir("b"), "build".to_owned(), None);
 
     assert_eq!(resumed.len(), 3);
     assert!(!resumed.contains_key(&key("a", "build")));
@@ -525,7 +525,8 @@ fn resume_drops_exact_completed_tasks_when_state_is_available() {
     );
     let completed = HashSet::from([key("anchor", "build"), key("completed", "build")]);
 
-    let resumed = resume_task_graph_from(graph, &dir("anchor"), "build", Some(&completed));
+    let resumed =
+        resume_task_graph_from(graph, &dir("anchor"), "build".to_owned(), Some(&completed));
 
     assert_eq!(resumed.len(), 2);
     assert!(resumed.contains_key(&key("anchor", "build")));
@@ -543,7 +544,7 @@ fn resume_anchors_every_task_an_expanded_selector_requested_in_the_project() {
         Some(&settings),
     );
 
-    let resumed = resume_task_graph_from(graph, &dir("a"), "/^(build|test)$/", None);
+    let resumed = resume_task_graph_from(graph, &dir("a"), "/^(build|test)$/".to_owned(), None);
 
     assert!(!resumed.contains_key(&key("b", "build")));
     assert!(resumed.contains_key(&key("a", "build")));

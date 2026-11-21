@@ -159,14 +159,14 @@ async fn verify_trusted_lockfile(
     .await
     {
         Ok(osv_violations) if shape_violations.is_empty() && osv_violations.is_empty() => {
-            let response = within_verify_deadline(ndjson_single_frame(&done), deadline);
+            let response = within_verify_deadline(ndjson_single_frame(done), deadline);
             drop(permit);
             response
         }
         Ok(osv_violations) => {
             let rendered = render_violations(&shape_violations, osv_violations);
             let response =
-                within_verify_deadline(ndjson_single_frame(&violations_frame(&rendered)), deadline);
+                within_verify_deadline(ndjson_single_frame(violations_frame(&rendered)), deadline);
             drop(permit);
             response
         }
@@ -266,10 +266,10 @@ fn finish_verified_lockfile(
     outcome: Result<Option<ObservedDistStats>, VerifyFailure>,
 ) -> Response {
     match outcome {
-        Ok(_) => within_verify_deadline(ndjson_single_frame(&verify_done_frame(request)), deadline),
+        Ok(_) => within_verify_deadline(ndjson_single_frame(verify_done_frame(request)), deadline),
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
-            within_verify_deadline(ndjson_single_frame(&violations_frame(&violations)), deadline)
+            within_verify_deadline(ndjson_single_frame(violations_frame(&violations)), deadline)
         }
     }
 }
@@ -296,7 +296,7 @@ pub(super) async fn verify_request_lockfile(
         }
         let rendered = render_violations(&shape_violations, Vec::new());
         return Err(within_verify_deadline(
-            ndjson_single_frame(&violations_frame(&rendered)),
+            ndjson_single_frame(violations_frame(&rendered)),
             inputs.deadline,
         ));
     }
@@ -318,7 +318,7 @@ pub(super) async fn verify_request_lockfile(
         Ok(stats) => Ok(stats),
         Err(VerifyFailure::Internal(response)) => Err(response),
         Err(VerifyFailure::Violations(violations)) => Err(within_verify_deadline(
-            ndjson_single_frame(&violations_frame(&violations)),
+            ndjson_single_frame(violations_frame(&violations)),
             inputs.deadline,
         )),
     }

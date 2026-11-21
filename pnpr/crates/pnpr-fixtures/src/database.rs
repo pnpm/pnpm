@@ -36,7 +36,10 @@ use serde_json::{
 };
 use std::{
     future::Future,
-    path::Path,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -122,11 +125,11 @@ fn move_dist_tags(packument_object: &mut Map<String, Value>, from: &str, to: &st
 /// `storage` in one transaction, whatever it held for them before. A
 /// packument the store already holds as it is commits nothing.
 pub fn write_packuments(storage: &Path, packuments: Vec<(String, Value)>) {
-    write_packuments_into(&default_database_path(storage), packuments);
+    write_packuments_into(default_database_path(storage), packuments);
 }
 
 /// [`write_packuments`] into the database at `database`.
-pub fn write_packuments_into(database: &Path, packuments: Vec<(String, Value)>) {
+pub fn write_packuments_into(database: PathBuf, packuments: Vec<(String, Value)>) {
     commit_packuments(database, packuments, Vec::new());
 }
 
@@ -137,15 +140,10 @@ pub(crate) fn write_packuments_with_archives(
     packuments: Vec<(String, Value)>,
     archives: Vec<ArtifactBlob>,
 ) {
-    commit_packuments(&default_database_path(storage), packuments, archives);
+    commit_packuments(default_database_path(storage), packuments, archives);
 }
 
-fn commit_packuments(
-    database: &Path,
-    packuments: Vec<(String, Value)>,
-    archives: Vec<ArtifactBlob>,
-) {
-    let path = database.to_path_buf();
+fn commit_packuments(path: PathBuf, packuments: Vec<(String, Value)>, archives: Vec<ArtifactBlob>) {
     let documents = packuments
         .into_iter()
         .map(|(name, packument)| BatchDocument {
@@ -193,7 +191,7 @@ pub fn tarball_path(storage: &Path, package: &str, version: &str) -> std::path::
             .unwrap_or_else(|error| panic!("read the tarball mapping of {package}: {error}"))
     })
     .unwrap_or_else(|| panic!("no fixture tarball of {package}@{version}"));
-    pnpr_storage::layout::local_archive_path(storage, "", Ecosystem::Npm, &blob.key())
+    pnpr_storage::layout::local_archive_path(storage.to_path_buf(), "", Ecosystem::Npm, &blob.key())
 }
 
 /// The bytes the storage at `storage` serves for the file `file` of `name` in
@@ -240,7 +238,7 @@ pub fn write_hosted_file(
             .reserve_hosted_blob(&name, file)
             .await
             .unwrap_or_else(|error| fail(&error))
-            .for_version(version);
+            .for_version(version.to_owned());
         tokio::fs::write(&slot.tmp_path, bytes).await.unwrap_or_else(|error| fail(&error));
         let (id, size) = store.identify_blob_slot(&slot).await.unwrap_or_else(|error| fail(&error));
         let rows = store

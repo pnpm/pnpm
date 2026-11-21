@@ -11,7 +11,7 @@ pub(super) fn staged_record(
     validated: &ValidatedPublish,
     identity: &Identity,
     registry: Option<&str>,
-    stage_id: &str,
+    stage_id: String,
 ) -> StagedRecord {
     let (version, dist) = validated.prepared
         .first()
@@ -20,7 +20,7 @@ pub(super) fn staged_record(
     let (actor, actor_type) = actor_of(identity);
     StagedRecord {
         format_version: STAGED_RECORD_FORMAT_VERSION,
-        id: stage_id.to_string(),
+        id: stage_id,
         package_name: validated.name.as_str().to_string(),
         tag: staged_tag(&validated.incoming, version.as_deref()),
         version,
