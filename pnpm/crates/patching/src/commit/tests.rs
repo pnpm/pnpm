@@ -340,6 +340,17 @@ fn patch_commit_diff_dirs_returns_empty_for_equal_dirs() {
 }
 
 #[test]
+fn patch_commit_diff_dirs_keeps_the_missing_final_newline_of_the_last_file() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::write(after.path().join("version.json"), "\"1.2.3\"").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    assert!(diff.ends_with("+\"1.2.3\"\n\\ No newline at end of file\n"), "diff: {diff}");
+}
+
+#[test]
 fn patch_commit_diff_normalization_leaves_hunk_content_untouched() {
     let diff = "\
 diff --git a/tmp/before/index.js b/tmp/after/index.js

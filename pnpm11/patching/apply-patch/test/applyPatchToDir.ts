@@ -202,8 +202,8 @@ new file mode 100644
     expect(fs.readFileSync(path.join(patchedDir, 'index.js'), 'utf-8'))
       .toBe('function f() {\n  return 1;\n}\nmodule.exports = f;\nfunction g() {\n  return 2;\n}')
   })
-  // `pnpm patch-commit` strips the patch's final "No newline at end of file"
-  // marker, so an append that keeps the file without a final newline arrives unmarked.
+  // Patches written by hand or by older `pnpm patch-commit` versions can lack
+  // the final "No newline at end of file" marker of such an append.
   it('should keep a file without a final newline unterminated after an unmarked append', () => {
     const patchedDir = tempDir()
     fs.writeFileSync(path.join(patchedDir, 'file.txt'), 'one\ntwo')
@@ -240,5 +240,73 @@ new mode 100755
     expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
     expect(fs.statSync(scriptPath).mode & 0o777).toBe(0o755)
     expect(fs.readFileSync(scriptPath, 'utf8')).toBe('echo 2\n')
+  })
+  it('should delete a file whose name contains " b/" without touching another file', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'foo'), 'keep\n')
+    fs.mkdirSync(path.join(patchedDir, 'foo b'))
+    fs.writeFileSync(path.join(patchedDir, 'foo b/bar.js'), 'gone\n')
+    const patchFilePath = path.join(patchedDir, '..', 'delete.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/foo b/bar.js b/foo b/bar.js
+deleted file mode 100644
+index 1111111111111111111111111111111111111111..0000000000000000000000000000000000000000
+`)
+    applyPatchToDir({ patchFilePath, patchedDir })
+    expect(fs.existsSync(path.join(patchedDir, 'foo b/bar.js'))).toBe(false)
+    expect(fs.readFileSync(path.join(patchedDir, 'foo'), 'utf8')).toBe('keep\n')
+  })
+  it('should insert the lines of a zero-context hunk after the line its header names', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'file.txt'), 'one\ntwo\n')
+    const patchFilePath = path.join(patchedDir, '..', 'insert.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+@@ -1,0 +2 @@
++added
+`)
+    applyPatchToDir({ patchFilePath, patchedDir })
+    expect(fs.readFileSync(path.join(patchedDir, 'file.txt'), 'utf8')).toBe('one\nadded\ntwo\n')
+  })
+  it('should insert the lines of a zero-context hunk at the start of the file', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'file.txt'), 'one\ntwo\n')
+    const patchFilePath = path.join(patchedDir, '..', 'insert.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+@@ -0,0 +1 @@
++added
+`)
+    applyPatchToDir({ patchFilePath, patchedDir })
+    expect(fs.readFileSync(path.join(patchedDir, 'file.txt'), 'utf8')).toBe('added\none\ntwo\n')
+  })
+  it('should not overwrite an existing file with a file the patch creates', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'file.txt'), 'existing\n')
+    const patchFilePath = path.join(patchedDir, '..', 'create.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/file.txt b/file.txt
+new file mode 100644
+--- /dev/null
++++ b/file.txt
+@@ -0,0 +1 @@
++created
+`)
+    expect(() => applyPatchToDir({ patchFilePath, patchedDir })).toThrow(`Could not apply patch ${patchFilePath} to ${patchedDir}`)
+    expect(fs.readFileSync(path.join(patchedDir, 'file.txt'), 'utf8')).toBe('existing\n')
+  })
+  it('should take a created file that already holds the created content as applied', () => {
+    const patchedDir = tempDir()
+    fs.writeFileSync(path.join(patchedDir, 'file.txt'), 'created\n')
+    const patchFilePath = path.join(patchedDir, '..', 'create.patch')
+    fs.writeFileSync(patchFilePath, `diff --git a/file.txt b/file.txt
+new file mode 100644
+--- /dev/null
++++ b/file.txt
+@@ -0,0 +1 @@
++created
+`)
+    expect(applyPatchToDir({ patchFilePath, patchedDir })).toBe(true)
+    expect(fs.readFileSync(path.join(patchedDir, 'file.txt'), 'utf8')).toBe('created\n')
   })
 })

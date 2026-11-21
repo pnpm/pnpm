@@ -140,16 +140,24 @@ fn patch_target_from_state_uses_persisted_package_key_for_same_version_candidate
 
 #[test]
 fn normalize_patches_dir_name_removes_dot_and_parent_components() {
-    assert_eq!(normalize_patches_dir_name("./patches"), "patches");
-    assert_eq!(normalize_patches_dir_name("patches/nested/../final"), "patches/final");
-    assert_eq!(normalize_patches_dir_name("../outside"), "outside");
-    assert_eq!(normalize_patches_dir_name("."), ".");
+    assert_eq!(normalize_patches_dir_name("./patches").as_deref(), Some("patches"));
+    assert_eq!(
+        normalize_patches_dir_name("patches/nested/../final").as_deref(),
+        Some("patches/final"),
+    );
+    assert_eq!(normalize_patches_dir_name(".").as_deref(), Some("."));
+}
+
+#[test]
+fn normalize_patches_dir_name_rejects_a_dir_outside_the_project() {
+    assert_eq!(normalize_patches_dir_name("../outside"), None);
+    assert_eq!(normalize_patches_dir_name("patches/../../outside"), None);
 }
 
 #[cfg(unix)]
 #[test]
 fn normalize_patches_dir_name_ignores_root_component() {
-    assert_eq!(normalize_patches_dir_name("/tmp/patches"), "tmp/patches");
+    assert_eq!(normalize_patches_dir_name("/tmp/patches").as_deref(), Some("tmp/patches"));
 }
 
 #[test]

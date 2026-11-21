@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { applyHunks } from './applyHunks.js'
-import type { FileCreation, FileDeletion, FileModeChange, FileRename, PatchFilePart } from './parsePatch.js'
+import type { FileCreation, FileDeletion, FileModeChange, FileRename, Hunk, PatchFilePart } from './parsePatch.js'
 
 export interface ExecuteEffectsOpts {
   /** The directory the patch's paths are relative to. */
@@ -38,11 +38,18 @@ export function executeEffects (effects: PatchFilePart[], opts: ExecuteEffectsOp
   }
 }
 
+/**
+ * The dry run also checks a deletion that carries its file's content against
+ * the file. The reverse of a file creation is such a deletion, and it must
+ * not confirm a creation over a different file as applied.
+ */
 function deleteFile (effect: FileDeletion, filePath: string, dryRun: boolean): void {
   if (!dryRun) {
     fs.unlinkSync(filePath)
   } else if (!fs.existsSync(filePath)) {
     throw new Error(`Trying to delete file that doesn't exist: ${effect.path}`)
+  } else if (effect.hunk != null && !holdsContents(filePath, hunkFileContents(effect.hunk))) {
+    throw new Error(`Trying to delete file whose content differs from the patch: ${effect.path}`)
   }
 }
 
@@ -89,19 +96,33 @@ function normalizeName (name: string): string {
   return name.toLowerCase().normalize('NFC')
 }
 
+/**
+ * Never overwrites an existing file: a patch authored against another base
+ * would destroy it. A file that already holds the created content is left as
+ * is, because the patch is already applied there.
+ */
 function createFile (effect: FileCreation, filePath: string, dryRun: boolean): void {
-  if (dryRun) {
-    if (fs.existsSync(filePath)) {
+  const contents = effect.hunk == null ? '' : hunkFileContents(effect.hunk)
+  if (entryExists(filePath)) {
+    if (dryRun || !holdsContents(filePath, contents)) {
       throw new Error(`Trying to create file that already exists: ${effect.path}`)
     }
     return
   }
-  const firstPart = effect.hunk?.parts[0]
-  const contents = firstPart == null
-    ? ''
-    : firstPart.lines.join('\n') + (firstPart.noNewlineAtEndOfFile ? '' : '\n')
+  if (dryRun) return
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, contents, { mode: effect.mode })
+}
+
+/** The whole content of a file that a hunk creates or deletes. */
+function hunkFileContents (hunk: Hunk): string {
+  const firstPart = hunk.parts[0]
+  if (firstPart == null) return ''
+  return firstPart.lines.join('\n') + (firstPart.noNewlineAtEndOfFile ? '' : '\n')
+}
+
+function holdsContents (filePath: string, contents: string): boolean {
+  return fs.lstatSync(filePath).isFile() && fs.readFileSync(filePath, 'utf8') === contents
 }
 
 function changeMode (effect: FileModeChange, filePath: string, dryRun: boolean): void {

@@ -59,6 +59,30 @@ pub(super) fn drop_context_no_newline_markers(text: String) -> String {
     kept
 }
 
+/// Give a space prefix to each hunk line that is only a CRLF line break.
+///
+/// Editors strip the space from a blank context line. [`diffy`] reads the
+/// resulting `\n` line as context, but rejects the `\r\n` one a CRLF patch
+/// file has. pnpm 11's parser reads both as context.
+pub(super) fn mark_blank_crlf_context_lines(text: String) -> String {
+    if !text.contains("\n\r\n") {
+        return text;
+    }
+    let mut kept = String::with_capacity(text.len());
+    let mut in_hunk = false;
+    for line in text.split_inclusive('\n') {
+        if line.starts_with("@@") {
+            in_hunk = true;
+        } else if line.starts_with("diff --git ") {
+            in_hunk = false;
+        } else if in_hunk && line == "\r\n" {
+            kept.push(' ');
+        }
+        kept.push_str(line);
+    }
+    kept
+}
+
 /// The git extended headers whose value [`diffy`] matches exactly: the
 /// file modes, the rename and copy paths, and the `diff --git` line the
 /// path fallback reads. No hunk line can begin with one of these, so a

@@ -187,6 +187,11 @@ describe('parsePatchFile()', () => {
     expect(part).toStrictEqual({ type: 'file creation', path: 'y b/z', mode: 0o644, hunk: null, hash: null })
   })
 
+  it('splits a diff --git line between two equal paths that contain " b/"', () => {
+    const [part] = parsePatchFile('diff --git a/foo b/bar.js b/foo b/bar.js\ndeleted file mode 100644\n')
+    expect(part).toStrictEqual({ type: 'file deletion', path: 'foo b/bar.js', mode: 0o644, hunk: null, hash: null })
+  })
+
   it('rejects a diff --git line without " b/"', () => {
     expect(() => parsePatchFile('diff --git a/x c/y\n')).toThrow('Bad diff line: diff --git a/x c/y')
   })

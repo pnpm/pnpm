@@ -234,18 +234,31 @@ const DIFF_LINE_SEPARATOR = ' b/'
 const LINE_TERMINATORS = ['\r', '\u2028', '\u2029']
 
 /**
- * Split a `diff --git a/<from> b/<to>` line at its first ` b/`, without the
+ * Split a `diff --git a/<from> b/<to>` line into its paths, without the
  * trailing whitespace. Neither path may contain a line terminator.
+ *
+ * Git writes the same path on both sides unless the file is renamed, so a
+ * line whose halves match is split between them, even when the path holds a
+ * ` b/`. Any other line is split at its first ` b/`.
  */
 function parseDiffLinePaths (line: string): { fromPath: string, toPath: string } | null {
   if (!line.startsWith(DIFF_LINE_PREFIX)) return null
-  const paths = line.slice(DIFF_LINE_PREFIX.length)
-  const separatorIndex = paths.indexOf(DIFF_LINE_SEPARATOR)
+  const paths = line.slice(DIFF_LINE_PREFIX.length).trimEnd()
+  const separatorIndex = findSameNameSeparator(paths) ?? paths.indexOf(DIFF_LINE_SEPARATOR)
   if (separatorIndex === -1) return null
   const fromPath = paths.slice(0, separatorIndex)
   const toPath = paths.slice(separatorIndex + DIFF_LINE_SEPARATOR.length).trimEnd()
   if ([fromPath, toPath].some(containsLineTerminator)) return null
   return { fromPath, toPath }
+}
+
+function findSameNameSeparator (paths: string): number | null {
+  const pathLength = (paths.length - DIFF_LINE_SEPARATOR.length) / 2
+  if (!Number.isInteger(pathLength) || pathLength <= 0) return null
+  const fromPath = paths.slice(0, pathLength)
+  const sameName = paths.slice(pathLength, pathLength + DIFF_LINE_SEPARATOR.length) === DIFF_LINE_SEPARATOR &&
+    paths.slice(pathLength + DIFF_LINE_SEPARATOR.length) === fromPath
+  return sameName ? pathLength : null
 }
 
 function containsLineTerminator (text: string): boolean {
@@ -330,8 +343,8 @@ function parseHunkHeaderLine (headerLine: string): HunkHeader {
     throw new Error(`Bad header line: '${headerLine}'`)
   }
   return {
-    original: { start: Math.max(Number(match[1]), 1), length: Number(match[3] || 1) },
-    patched: { start: Math.max(Number(match[4]), 1), length: Number(match[6] || 1) },
+    original: { start: Number(match[1]), length: Number(match[3] || 1) },
+    patched: { start: Number(match[4]), length: Number(match[6] || 1) },
   }
 }
 
