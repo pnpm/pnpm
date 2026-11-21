@@ -13,7 +13,7 @@ import {
   stripFileUrlPrefix,
   targetEscapesWorkspace,
 } from './verifyLockfileLocalPolicy.js'
-import { isSnapshotBackedByLocalResolution } from './verifyLockfileLocalRoots.js'
+import { type ImporterScope, isSnapshotBackedByLocalResolution } from './verifyLockfileLocalRoots.js'
 import {
   extractLocalGitTarget,
   fileKeyMismatchesLocalTarget,
@@ -35,8 +35,9 @@ export interface PackageEntryScan {
   reachableFilter?: Set<string>
   /** Snapshots the selected importers reach. Peers resolved only elsewhere do not count. */
   selectedSnapshots?: Set<DepPath>
-  /** Built by `authorizedLocalPackageDeclaresPeer` on first use. */
-  authorizedPeerDeclarations?: Set<string>
+  importers: Array<Pick<ImporterScope, 'reachableBaseKeys'>>
+  /** Built by `authorizedLocalPackageDeclaresPeer` on first use, in `importers` order. */
+  authorizedPeerDeclarations?: Array<Set<string>>
 }
 
 export function collectPackageEntryViolations (scan: PackageEntryScan, violations: ResolutionPolicyViolation[]): void {
@@ -169,27 +170,41 @@ function isUnauthorizedPeerSpec (
   if (dp.packageRootLinkTarget(spec) != null) return false
   return isNonLocalFilesystemSubdepSpec(spec, () => false) &&
     !policyAuthorizesPeerSpec(scan, pkg, { alias, rawSpec: spec }) &&
-    !authorizedLocalPackageDeclaresPeer(scan, alias, spec)
+    !authorizedLocalPackageDeclaresPeer(scan, pkg.baseKey, { alias, spec })
 }
 
 /**
- * Whether an authorized local package declares the same peer, which lets
- * resolution hoist that local peer for a non-local package too.
+ * Whether an authorized local package declares the same peer within an
+ * importer that reaches `baseKey`. Resolution hoists that local peer for the
+ * importer's non-local packages too, never for another importer's.
  */
-function authorizedLocalPackageDeclaresPeer (scan: PackageEntryScan, alias: string, spec: string): boolean {
-  scan.authorizedPeerDeclarations ??= indexAuthorizedPeerDeclarations(scan)
-  return scan.authorizedPeerDeclarations.has(peerDeclarationKey(alias, spec))
+function authorizedLocalPackageDeclaresPeer (
+  scan: PackageEntryScan,
+  baseKey: string,
+  { alias, spec }: { alias: string, spec: string }
+): boolean {
+  const declarations = scan.authorizedPeerDeclarations ??= indexAuthorizedPeerDeclarations(scan)
+  const key = peerDeclarationKey(alias, spec)
+  return scan.importers.some((importer, idx) => importer.reachableBaseKeys.has(baseKey) && declarations[idx].has(key))
 }
 
-function indexAuthorizedPeerDeclarations (scan: PackageEntryScan): Set<string> {
-  const declarations = new Set<string>()
+function indexAuthorizedPeerDeclarations (scan: PackageEntryScan): Array<Set<string>> {
+  const peersByBaseKey = new Map<string, Record<string, string>>()
   for (const [depPath, snapshot] of Object.entries(scan.lockfile.packages ?? {})) {
-    if (snapshot.peerDependencies == null || !scan.authorizedPackages.has(dp.removeSuffix(depPath as DepPath))) continue
-    for (const [alias, spec] of Object.entries(snapshot.peerDependencies) as Array<[string, string]>) {
-      declarations.add(peerDeclarationKey(alias, spec))
+    const baseKey = dp.removeSuffix(depPath as DepPath)
+    if (snapshot.peerDependencies != null && scan.authorizedPackages.has(baseKey)) {
+      peersByBaseKey.set(baseKey, snapshot.peerDependencies)
     }
   }
-  return declarations
+  return scan.importers.map((importer) => {
+    const declarations = new Set<string>()
+    for (const baseKey of importer.reachableBaseKeys) {
+      for (const [alias, spec] of Object.entries(peersByBaseKey.get(baseKey) ?? {})) {
+        declarations.add(peerDeclarationKey(alias, spec))
+      }
+    }
+    return declarations
+  })
 }
 
 function peerDeclarationKey (alias: string, spec: string): string {
