@@ -44,6 +44,7 @@ use crate::{
             ApproveBuildsArgs,
             GlobalPackagesStore,
             clear_decided_ignored_builds,
+            exclude_disallowed_builds,
             load_global_packages_config,
             load_legacy_global_settings,
             prompt_approve_install_builds,

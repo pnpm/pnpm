@@ -264,7 +264,7 @@ fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
         modules_dir: dir.path().join("node_modules"),
         modules_manifest: None,
     };
-    super::exclude_disallowed_builds(&mut scan, &config);
+    super::exclude_disallowed_builds(&mut scan, &config).expect("exclude denied builds");
     assert_eq!(scan.names.as_deref(), Some(["pending-pkg".to_string()].as_slice()));
 
     let (_, build_packages) = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
@@ -284,6 +284,66 @@ fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
         .expect("overlay approvals");
     assert_eq!(overlaid.allow_builds.get("denied-pkg"), Some(&false));
     assert_eq!(overlaid.allow_builds.get("pending-pkg"), Some(&true));
+}
+
+#[test]
+fn a_version_denial_drops_only_the_keys_it_fully_covers() {
+    let mut config = pnpm_config::Config::default();
+    config.allow_builds.insert("pinned@1.0.0".to_string(), false);
+    config.allow_builds.insert("only@1.0.0".to_string(), false);
+    let ignored = ["pinned@1.0.0", "pinned@2.0.0", "only@1.0.0"].map(|dep_path| {
+        pnpm_modules_yaml::DepPath::from(dep_path.to_string())
+    });
+    let mut scan = crate::cli_args::ignored_builds::IgnoredBuildsScan {
+        names: Some(vec!["pinned".to_string(), "only".to_string()]),
+        modules_dir: std::path::PathBuf::new(),
+        modules_manifest: Some(pnpm_modules_yaml::Modules {
+            ignored_builds: Some(indexmap::IndexSet::from(ignored)),
+            ..Default::default()
+        }),
+    };
+
+    super::exclude_disallowed_builds(&mut scan, &config).expect("exclude denied builds");
+
+    assert_eq!(scan.names, Some(vec!["pinned".to_string()]));
+}
+
+/// `--all` decides only the builds awaiting a decision; a recorded denial
+/// stays a denial even when the stale `.modules.yaml` still lists it.
+#[test]
+fn approve_all_keeps_explicitly_denied_builds_denied() {
+    let dir = tempfile::TempDir::new().expect("create temp dir");
+    let manifest_path = dir.path().join("package.json");
+    std::fs::write(&manifest_path, r#"{"name":"app","version":"1.0.0"}"#).expect("write manifest");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "allowBuilds:\n  denied-pkg: false\n")
+        .expect("write workspace manifest");
+
+    let mut config = pnpm_config::Config {
+        workspace_dir: Some(dir.path().to_path_buf()),
+        ..pnpm_config::Config::default()
+    };
+    config.allow_builds.insert("denied-pkg".to_string(), false);
+    let scan = crate::cli_args::ignored_builds::IgnoredBuildsScan {
+        names: Some(vec!["denied-pkg".to_string()]),
+        modules_dir: dir.path().join("node_modules"),
+        modules_manifest: None,
+    };
+
+    let rebuild = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
+        .prepare_with_scan::<SilentReporter>(
+            super::ApprovalStore::Workspace(dir.path()),
+            &config,
+            &config,
+            &manifest_path,
+            scan,
+        )
+        .expect("prepare approvals");
+
+    assert!(rebuild.is_none(), "a denied build must not be rebuilt");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml")).expect("read manifest"),
+        "allowBuilds:\n  denied-pkg: false\n",
+    );
 }
 
 /// The legacy decisions move out of the file that holds them, which may be

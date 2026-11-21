@@ -4,6 +4,7 @@ pub use pnpm_package_name::{
     git_repo_allow_build_key_from_dep_path,
     is_git_hosted_dep_path,
     parse_dep_path_name_version,
+    registry_version,
     short_package_label,
 };
 
@@ -185,7 +186,9 @@ impl AllowBuildPolicy {
         let git_repo_key = git_repo_allow_build_key_from_dep_path(&normalized_dep_path);
         let git_repo_key = git_repo_key.as_deref();
         let (name, version) = parse_name_version_from_key(&normalized_dep_path);
-        let name_at_version = format!("{name}@{version}");
+        // A `name@version` denial also blocks the same version from a named
+        // registry. Approvals stay registry-exact, see below.
+        let name_at_version = format!("{name}@{}", registry_version(&version).unwrap_or(&version));
         if self.denies(&normalized_dep_path, git_repo_key, (&name, &name_at_version)) {
             return Some(false);
         }
@@ -198,10 +201,13 @@ impl AllowBuildPolicy {
             return Some(true);
         }
         // Package-name rules require a trusted package identity. A
-        // registry-style dep path (`name@semver`) is the trust signal: the
+        // default-registry dep path (`name@semver`) is the trust signal: the
         // lockfile verification gate rejects lockfiles where such a key is
         // backed by a non-registry resolution, so by the time scripts can
-        // run, the shape proves the artifact came from a registry.
+        // run, the shape proves the artifact came from a registry. A
+        // named-registry package (`name@<registry>:semver`) may be a
+        // different artifact under the same name, so it is approved by its
+        // exact key only.
         if node_semver::Version::parse(&version).is_err() {
             return None;
         }
@@ -249,7 +255,8 @@ pub fn normalize_build_dep_path(dep_path: &str) -> String {
 }
 
 /// The `allowBuilds` key under which an ignored build should be approved:
-/// the package name for registry packages, the peer-suffix-free depPath for
+/// the package name for default-registry packages, the peer-suffix-free
+/// depPath for
 /// git/tarball artifacts (whose name alone must not approve builds).
 #[must_use]
 pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {

@@ -7,6 +7,7 @@ pub use dep_path::{
     is_git_repo_dep_path,
     is_local_directory_version,
     parse_dep_path_name_version,
+    registry_version,
     short_package_label,
 };
 pub use is_valid_old_npm_package_name as is_valid_dependency_alias;

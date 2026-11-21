@@ -9,6 +9,7 @@ use super::{
         is_git_repo_allow_build_key,
         normalize_build_dep_path,
         parse_dep_path_name_version,
+        registry_version,
     },
     expand_package_version_spec,
     get_pkg_id_with_patch_hash,
@@ -124,9 +125,11 @@ impl SkillsPolicy {
     /// `None` when nothing is decided and the skills await approval.
     ///
     /// A `permissions` dep-path or git-repo rule matches any dep path of the
-    /// same shape. A bare-name rule matches registry (`name@semver`) and local
-    /// directory (`link:` and non-tarball `file:`) dep paths, while git and
-    /// tarball dep paths stay pending unless matched by source or git repo. A
+    /// same shape. A bare-name rule matches default-registry (`name@semver`)
+    /// and local directory (`link:` and non-tarball `file:`) dep paths, and a
+    /// bare-name or `name@version` denial also matches a named-registry
+    /// (`name@<registry>:semver`) dep path. Git, tarball, and named-registry
+    /// dep paths otherwise stay pending unless matched by source or git repo. A
     /// `name@version` rule outranks a bare-name one.
     #[must_use]
     pub fn check(&self, dep_path: &str) -> Option<SkillsPermission> {
@@ -136,12 +139,14 @@ impl SkillsPolicy {
         let (name, version) = parse_dep_path_name_version(&normalized_dep_path)
             .unwrap_or((normalized_dep_path.as_str(), ""));
         let name_at_version = format!("{name}@{version}");
+        let denial_name_at_version =
+            format!("{name}@{}", registry_version(version).unwrap_or(version));
 
         let matches = [
             self.dep_paths.get(&normalized_dep_path),
             git_repo_key.and_then(|key| self.git_repos.get(key)),
             self.expanded.get(name),
-            self.expanded.get(&name_at_version),
+            self.expanded.get(&denial_name_at_version),
         ];
         if matches
             .into_iter()

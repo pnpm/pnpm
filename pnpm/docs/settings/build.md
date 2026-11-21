@@ -333,6 +333,8 @@ allowBuilds:
   nx@21.6.0: false
 ```
 
+A denial also covers a package from a [named registry](../package-sources.md#named-registries), so `nx@21.6.0: false` blocks `nx@work:21.6.0` too. An approval by name or version covers the default registry only. Approve a named-registry package by its exact key, such as `nx@work:21.6.5: true`.
+
 **Git-hosted packages:** a package name on its own never approves builds for a git or tarball dependency, because the name alone does not identify the artifact. Approve one either by its exact resolved path (including the commit) or by its repository URL:
 
 ```yaml title="pnpm-workspace.yaml"

@@ -60,6 +60,7 @@ use prompt::{
 use std::{
     collections::{
         BTreeMap,
+        HashMap,
         HashSet,
     },
     path::Path,
@@ -162,9 +163,12 @@ impl ApproveBuildsArgs {
         config: &Config,
         rebuild_config: &Config,
         manifest_path: &Path,
-        scan: IgnoredBuildsScan,
+        mut scan: IgnoredBuildsScan,
     ) -> miette::Result<Option<(State, Vec<String>)>> {
         self.validate()?;
+        if self.packages.is_empty() {
+            exclude_disallowed_builds(&mut scan, config)?;
+        }
         let pending = scan.names.unwrap_or_default();
         if pending.is_empty() && self.packages.is_empty() {
             pnpm_diagnostics::println!("There are no packages awaiting approval");
@@ -442,15 +446,44 @@ fn sort_unique(mut names: Vec<String>) -> Vec<String> {
 #[cfg(test)]
 mod tests;
 
-pub(crate) fn exclude_disallowed_builds(scan: &mut IgnoredBuildsScan, config: &Config) {
-    if let Some(names) = scan.names.as_mut() {
-        names.retain(|name| {
-            config.allow_builds
-                .get(name)
-                .copied()
-                .unwrap_or(true)
-        });
+/// Drop the builds `config` denies from `scan`. A run that names no
+/// packages decides only the builds awaiting a decision, so it never turns a
+/// denial into an approval. A key stays while one of its ignored dep paths is
+/// not denied, so a `name@version` denial drops only the key of that version.
+pub(crate) fn exclude_disallowed_builds(
+    scan: &mut IgnoredBuildsScan,
+    config: &Config,
+) -> miette::Result<()> {
+    let Some(names) = scan.names.as_mut() else { return Ok(()) };
+    retain_undecided_builds(names, scan.modules_manifest.as_ref(), config)
+}
+
+/// Keep the `allowBuilds` keys in `names` that `config` does not deny for
+/// every dep path `modules` records as ignored under that key.
+pub(crate) fn retain_undecided_builds(
+    names: &mut Vec<String>,
+    modules: Option<&pnpm_modules_yaml::Modules>,
+    config: &Config,
+) -> miette::Result<()> {
+    let policy = pnpm_deps_restorer::AllowBuildPolicy::from_config(config).into_diagnostic()?;
+    let mut undecided_by_key: HashMap<String, bool> = HashMap::new();
+    let ignored = modules
+        .iter()
+        .flat_map(|modules| modules.ignored_builds.iter().flatten())
+        .map(pnpm_modules_yaml::DepPath::as_str);
+    for dep_path in ignored {
+        let undecided = policy.check(dep_path).unwrap_or(true);
+        *undecided_by_key
+            .entry(allow_build_key_from_ignored_build(dep_path))
+            .or_default() |= undecided;
     }
+    names.retain(|name| {
+        undecided_by_key
+            .get(name)
+            .copied()
+            .unwrap_or_else(|| policy.check(name).unwrap_or(true))
+    });
+    Ok(())
 }
 
 /// Run the interactive build-approval flow against the just-installed
@@ -461,13 +494,13 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
     install_dir: &Path,
     store: ApprovalStore<'_>,
 ) -> miette::Result<()> {
-    let mut scan = get_automatically_ignored_builds(config)?;
-    exclude_disallowed_builds(&mut scan, config);
-    if scan.names.as_ref().is_none_or(Vec::is_empty) {
-        return Ok(());
-    }
     let auto_approve = std::env::var("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS").as_deref() == Ok("1");
     if !auto_approve && !PromptAvailability::detect(config.ci).is_available() {
+        return Ok(());
+    }
+    let mut scan = get_automatically_ignored_builds(config)?;
+    exclude_disallowed_builds(&mut scan, config)?;
+    if scan.names.as_ref().is_none_or(Vec::is_empty) {
         return Ok(());
     }
 

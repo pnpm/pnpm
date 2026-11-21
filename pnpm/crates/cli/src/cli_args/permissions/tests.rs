@@ -467,3 +467,21 @@ fn pending_permissions_and_clear_decided_key_local_directory_skills_by_package_n
         )])),
     );
 }
+
+/// A run that names no packages leaves a recorded build denial alone, even
+/// when the stale `.modules.yaml` still lists the build as ignored.
+#[test]
+fn a_denied_build_is_not_awaiting_approval_for_an_unnamed_run() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = config_awaiting(&dir, &["drizzle-kit@1.0.0"]);
+    config.allow_builds.insert("drizzle-kit".to_string(), false);
+    config.allow_builds.insert("esbuild".to_string(), false);
+    let mut pending = super::PendingPermissions {
+        by_package: pending(&[("drizzle-kit", &[Build, Skills]), ("esbuild", &[Build])]),
+        scan: crate::cli_args::ignored_builds::get_automatically_ignored_builds(&config).unwrap(),
+    };
+
+    pending.exclude_denied_builds(&config).unwrap();
+
+    assert_eq!(pending.by_package, self::pending(&[("drizzle-kit", &[Skills])]));
+}

@@ -31,8 +31,13 @@ pub enum PermissionValue {
 /// Upsert `name → bool` entries into `dir`'s `pnpm-workspace.yaml`
 /// `allowBuilds:` block (creating the file/block if absent), preserving the
 /// rest of the document's formatting, and write the file back only when
-/// something actually changed. Used by `pnpm approve-builds` to record
-/// which dependencies may (`true`) or may not (`false`) run build scripts.
+/// something actually changed. Records which dependencies may (`true`) or
+/// may not (`false`) run build scripts.
+///
+/// When the file has a `permissions` block, each decision lands there as
+/// [`set_permissions`] places a [`PermissionValue::Build`]: a
+/// `permissions.<name>.build` entry outranks `allowBuilds.<name>`, so an
+/// `allowBuilds` write would not take effect.
 ///
 /// `entries` is iterated in its own order; pass an ordered map for a
 /// deterministic result.
@@ -125,12 +130,20 @@ where
     let path = target.path.clone();
 
     let entries: Vec<(&str, bool)> = entries.into_iter().collect();
-    validate_allow_build_entries(&manifest, &path, &entries, &[&["allowBuilds"]])?;
+    let blocks = permission_blocks(entries.iter().map(|(name, _)| *name));
+    let blocks: Vec<&[&str]> = blocks
+        .iter()
+        .map(Vec::as_slice)
+        .collect();
+    validate_allow_build_entries(&manifest, &path, &entries, &blocks)?;
 
-    let mut changed = false;
-    for (name, value) in entries {
-        changed |= edit::add_allow_build(&mut manifest, name, value);
-    }
+    let mut changed = record_permissions(
+        &mut manifest,
+        entries
+            .into_iter()
+            .map(|(name, allowed)| (name, PermissionValue::Build(allowed)))
+            .collect(),
+    );
     if clear_legacy_settings {
         for key in LEGACY_BUILD_SETTINGS {
             changed |= edit::remove_top_level_field(&mut manifest, key);
@@ -202,15 +215,28 @@ where
     write_or_remove_manifest(&target, manifest)
 }
 
+/// The blocks a build or permission decision for `names` may be spliced
+/// into: `allowBuilds`, `permissions`, and each named package's
+/// `permissions` entry.
+fn permission_blocks<'a>(names: impl Iterator<Item = &'a str>) -> Vec<Vec<&'a str>> {
+    let mut blocks = vec![vec!["allowBuilds"], vec!["permissions"]];
+    blocks.extend(names.map(|name| vec!["permissions", name]));
+    blocks
+}
+
 /// Refuse a write the line-based splices cannot make safely.
 fn validate_permission_entries(
     manifest: &Manifest,
     path: &Path,
     entries: &[(&str, PermissionValue)],
 ) -> Result<(), UpdateWorkspaceManifestError> {
+    let blocks = permission_blocks(entries.iter().map(|(name, _)| *name));
+    let blocks: Vec<&[&str]> = blocks
+        .iter()
+        .map(Vec::as_slice)
+        .collect();
     if !entries.is_empty()
-        && let Some(key) =
-            unsupported_inline_key(manifest.document.text(), &[&["allowBuilds"], &["permissions"]])
+        && let Some(key) = unsupported_inline_key(manifest.document.text(), &blocks)
     {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
             path: path.to_path_buf(),

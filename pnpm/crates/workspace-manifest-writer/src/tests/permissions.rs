@@ -266,3 +266,38 @@ fn ends_an_unterminated_last_line_before_appending() {
     let out = run(Some("allowBuilds:\n  esbuild: true"), &[("sharp", build(false))]);
     assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n  sharp: false\n"));
 }
+
+/// `permissions.<name>.build` outranks `allowBuilds.<name>`, so an
+/// `allowBuilds` write next to a `permissions` block updates the
+/// `permissions` entry and drops the outranked `allowBuilds` one.
+#[test]
+fn allow_builds_writes_go_to_an_existing_permissions_block() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::write(&path, "allowBuilds:\n  sharp: true\npermissions:\n  sharp:\n    build: true\n")
+        .expect("seed manifest");
+
+    crate::set_allow_builds(dir.path(), [("sharp", false), ("esbuild", true)])
+        .expect("update succeeds");
+
+    assert_eq!(
+        fs::read_to_string(&path).expect("read manifest"),
+        "permissions:\n  esbuild:\n    build: true\n  sharp:\n    build: false\n",
+    );
+}
+
+/// A package's multi-line flow `permissions` entry is refused, not shadowed by a
+/// duplicate block-style key.
+#[test]
+fn a_flow_style_package_entry_refuses_the_write() {
+    let original = "permissions:\n  sharp: {\n    build: true\n  }\n";
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::write(&path, original).expect("seed manifest");
+
+    let err = crate::set_allow_builds(dir.path(), [("sharp", false)]).unwrap_err();
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+    let err = crate::set_permissions(dir.path(), [("sharp", build(false))]).unwrap_err();
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+    assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+}
