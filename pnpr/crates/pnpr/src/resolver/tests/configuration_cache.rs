@@ -826,6 +826,7 @@ fn every_request_field_is_keyed_or_listed_as_unkeyed() {
     const UNKEYED_FIELDS: &[&str] = &[
         // These bypass the resolution cache.
         "updatePatches",
+        "updateChecksums",
         "fixLockfile",
         // The server picks upstream credentials itself.
         "authHeaders",

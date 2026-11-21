@@ -218,6 +218,45 @@ pub struct ResolutionSettings {
     /// The client's `resolutionMode`. The server picks versions the way
     /// the client would, instead of falling back to its own default.
     pub resolution_mode: ResolutionMode,
+    #[serde(flatten)]
+    pub dependency_graph: DependencyGraphSettings,
+}
+
+/// Settings that decide which dependencies the resolved graph holds and how
+/// workspace projects join it. Each is omitted at its default, so a request
+/// that does not change them is accepted by servers that predate them.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DependencyGraphSettings {
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub inject_workspace_packages: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dedupe_injected_deps: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignored_optional_dependencies: Option<Vec<String>>,
+    /// pnpr refuses `false`: it does not fetch exotic subdependencies, and the
+    /// client resolves locally instead.
+    #[serde(skip_serializing_if = "is_true")]
+    pub block_exotic_subdeps: bool,
+}
+
+impl Default for DependencyGraphSettings {
+    fn default() -> Self {
+        Self {
+            inject_workspace_packages: false,
+            dedupe_injected_deps: None,
+            ignored_optional_dependencies: None,
+            block_exotic_subdeps: true,
+        }
+    }
+}
+
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde's skip_serializing_if passes a reference"
+)]
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 #[derive(Clone, Serialize)]
@@ -235,6 +274,10 @@ pub struct LockfileReuseOptions {
     /// Refresh registry artifacts while retaining every locked package
     /// version.
     pub update_patches: bool,
+    /// `--update-checksums`. Omitted when off, like the settings of
+    /// [`ResolutionSettings`].
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub update_checksums: bool,
     /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
     /// comparison during the frozen resolve.
     pub ignore_manifest_check: bool,
@@ -272,6 +315,13 @@ pub struct PublishConfig {
 /// One workspace project sent to the pnpr resolver.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "mirrors the flat project object of the pnpr resolve request"
+    )
+)]
 pub struct ResolveProject {
     /// Importer directory relative to the lockfile directory, in POSIX form.
     pub dir: String,
@@ -291,6 +341,8 @@ pub struct ResolveProject {
     /// servers that predate the field.
     #[serde(skip_serializing_if = "DepMap::is_empty")]
     pub peer_dependencies: DepMap,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependencies_meta: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 /// Inputs for a multi-project workspace resolution.
@@ -324,6 +376,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
                 dev_dependencies: opts.dev_dependencies,
                 optional_dependencies: opts.optional_dependencies,
                 peer_dependencies: DepMap::new(),
+                dependencies_meta: None,
             }],
             fix_lockfile: false,
             routing: opts.routing,

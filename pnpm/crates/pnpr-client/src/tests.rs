@@ -148,6 +148,45 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
     resolve_mock.assert_async().await;
 }
 
+/// A server that predates these fields refuses a request naming them, so
+/// they are sent only when they differ from the defaults.
+#[test]
+fn the_resolve_request_omits_workspace_settings_at_their_defaults() {
+    let body = serde_json::to_value(resolve_projects_options()).expect("request serializes");
+    for field in [
+        "injectWorkspacePackages",
+        "dedupeInjectedDeps",
+        "ignoredOptionalDependencies",
+        "blockExoticSubdeps",
+        "updateChecksums",
+    ] {
+        assert!(body.get(field).is_none(), "{field} is sent at its default");
+    }
+    assert!(body["projects"][0].get("dependenciesMeta").is_none());
+}
+
+#[test]
+fn the_resolve_request_carries_changed_workspace_settings() {
+    let mut options = resolve_projects_options();
+    options.resolution.dependency_graph.inject_workspace_packages = true;
+    options.resolution.dependency_graph.dedupe_injected_deps = Some(false);
+    options.resolution.dependency_graph.ignored_optional_dependencies =
+        Some(vec!["fsevents".to_string()]);
+    options.resolution.dependency_graph.block_exotic_subdeps = false;
+    options.reuse.update_checksums = true;
+    options.projects[0].dependencies_meta =
+        json!({ "lib": { "injected": true } }).as_object().cloned();
+
+    let body = serde_json::to_value(options).expect("request serializes");
+
+    assert_eq!(body["injectWorkspacePackages"], json!(true));
+    assert_eq!(body["dedupeInjectedDeps"], json!(false));
+    assert_eq!(body["ignoredOptionalDependencies"], json!(["fsevents"]));
+    assert_eq!(body["blockExoticSubdeps"], json!(false));
+    assert_eq!(body["updateChecksums"], json!(true));
+    assert_eq!(body["projects"][0]["dependenciesMeta"], json!({ "lib": { "injected": true } }));
+}
+
 #[tokio::test]
 async fn rejects_a_server_that_omits_or_changes_patch_metadata() {
     let options = resolve_projects_options();
@@ -279,6 +318,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             dev_dependencies: BTreeMap::new(),
             optional_dependencies: BTreeMap::new(),
             peer_dependencies: BTreeMap::new(),
+            dependencies_meta: None,
         }],
         fix_lockfile: false,
         routing: crate::RegistryRouting {
@@ -315,12 +355,14 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             add_missing_peer_types: Some(true),
             project_scoped_optional_peers: Some(false),
             resolution_mode: ResolutionMode::TimeBased,
+            dependency_graph: crate::DependencyGraphSettings::default(),
         },
         reuse: crate::LockfileReuseOptions {
             lockfile: None,
             frozen_lockfile: false,
             prefer_frozen_lockfile: None,
             update_patches: true,
+            update_checksums: false,
             ignore_manifest_check: false,
             trust_lockfile: true,
         },

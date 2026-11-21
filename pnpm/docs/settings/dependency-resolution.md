@@ -517,6 +517,8 @@ Exotic sources include:
 * Git repositories (`git+ssh://...`)
 * Direct URL links to tarballs (`https://.../package.tgz`)
 
+A pnpr server does not fetch exotic subdependencies. With [`pnprServer`](#pnprserver) set and `blockExoticSubdeps: false`, pnpm resolves locally.
+
 ### registries
 
 * Default: **undefined**

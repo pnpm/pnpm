@@ -368,6 +368,7 @@ impl InstallArgs {
                     .prefer_frozen_override()
                     .unwrap_or(config.prefer_frozen_lockfile),
                 update_patches: false,
+                update_checksums: self.lockfile_updates.update_checksums,
                 fix: self.lockfile.fix,
                 only: self.lockfile.only,
                 ignore_manifest_check: self.lockfile.ignore_manifest_check,

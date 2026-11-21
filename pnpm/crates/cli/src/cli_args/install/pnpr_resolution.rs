@@ -136,6 +136,9 @@ async fn prepare_pnpr_session<'a, Reporter: self::Reporter + 'static>(
     link: &PnprLink<'_>,
     lockfile_dir: &std::path::Path,
 ) -> miette::Result<PnprSession<'a>> {
+    if link.lockfile.frozen && link.lockfile.update_checksums {
+        return Err(pnpm_package_manager::InstallError::FrozenLockfileWithUpdateChecksums.into());
+    }
     let projects = resolve_projects_for_pnpr(state, selection, link.use_state_lockfile)?;
     let catalogs = pnpr_catalogs(state)?;
     check_pnpr_project_specs_and_config(state.config, &projects, catalogs.as_ref(), link)?;
@@ -406,6 +409,7 @@ async fn satisfied_without_server(
 ) -> bool {
     let exchange_free = !link.lockfile.frozen
         && !link.lockfile.update_patches
+        && !link.lockfile.update_checksums
         && !link.lockfile.fix
         && !link.lockfile.only
         && link.lockfile.prefer_frozen

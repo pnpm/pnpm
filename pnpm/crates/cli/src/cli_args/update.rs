@@ -439,6 +439,7 @@ impl UpdateArgs {
                 frozen: false,
                 prefer_frozen: false,
                 update_patches: true,
+                update_checksums: false,
                 fix: false,
                 only: self.install.lockfile_only,
                 ignore_manifest_check: false,
