@@ -93,7 +93,7 @@ Installs a temporary project whose `postinstall` script calls a dependency's exe
 
 If a run fails, the report includes the error and, outside Windows, the end of an `sh -x` trace of the shim. The trace shows the `PATH` the shim searched and the command it ran. A shim that finds no `node` is the usual cause of a script failing with exit status 127.
 
-The run in the current project goes through `pnpm exec`, so the project's pnpmfile and `nodeOptions` apply to it as they do to `pnpm exec`. It does not install the project's dependencies. With `--offline`, it runs offline too. The whole check is skipped when there is no `node` on `PATH`.
+The run in the current project goes through `pnpm exec`, so the project's pnpmfile and `nodeOptions` apply to it as they do to `pnpm exec`. So do the settings passed to `pnpm doctor` on the command line. It does not install the project's dependencies. With `--offline`, it runs offline too. The whole check is skipped when there is no `node` on `PATH`.
 
 ## Options
 

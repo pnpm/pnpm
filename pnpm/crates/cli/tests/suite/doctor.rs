@@ -280,6 +280,27 @@ fn the_probe_install_ignores_a_configured_modules_dir() {
     assert_eq!(scripts["status"], "pass");
 }
 
+/// A setting given to `pnpm doctor` on the command line reaches the run in the
+/// current project, as it would reach `pnpm exec` there.
+#[test]
+fn the_project_probe_gets_the_command_line_settings() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"doctor-project","version":"1.0.0"}"#)
+        .expect("write package.json");
+    let missing = root.path().join("missing-preload.js");
+
+    let report = doctor(
+        pacquet.with_arg(format!("--config.node-options=--require={}", missing.display())),
+        root.path(),
+    );
+
+    let scripts = find_check(&report, "Lifecycle scripts");
+    dbg!(scripts);
+    assert_eq!(scripts["status"], "fail");
+    let detail = scripts["detail"].as_str().expect("detail");
+    assert!(detail.starts_with("a script in "), "{detail}");
+}
+
 /// `verifyDepsBeforeRun` set in the environment outranks the command line, so
 /// the probe has to override it there to keep from installing the project.
 #[test]

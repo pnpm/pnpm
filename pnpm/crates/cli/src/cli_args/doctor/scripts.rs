@@ -10,10 +10,13 @@ use super::{
     DoctorArgs,
     install_probe::last_message,
 };
-use crate::process::{
-    Command,
-    Output,
-    Stdio,
+use crate::{
+    cli_args::verify_deps::install_config_args,
+    process::{
+        Command,
+        Output,
+        Stdio,
+    },
 };
 use pnpm_config::Config;
 use pnpm_executor::{
@@ -229,6 +232,7 @@ pub(super) fn check_lifecycle_scripts(
                 base: base.path(),
                 shim: consumer.join("node_modules/.bin").join(PROBE_BIN),
                 shell_settings: shell_settings(config),
+                cli_settings: install_config_args(config).collect(),
                 offline: args.offline,
             };
             run_script_probes(&probe, &consumer, project_dir)
@@ -297,8 +301,6 @@ fn run_script_probes(
     Ok(detail)
 }
 
-/// Write a `file:` dependency with the probe executable and a project whose
-/// `postinstall` calls it, and return the project's directory.
 fn write_probe_fixture(base: &Path) -> std::io::Result<PathBuf> {
     let provider = base.join("provider");
     let consumer = base.join("consumer");
@@ -322,14 +324,12 @@ fn write_probe_fixture(base: &Path) -> std::io::Result<PathBuf> {
     Ok(consumer)
 }
 
-/// The pnpm under test, the temporary directory the probes write to, the
-/// shim of the probe executable, the script shell flags of the install, and
-/// whether `pnpm doctor` runs with `--offline`.
 struct Probe<'a> {
     pnpm: &'a Path,
     base: &'a Path,
     shim: PathBuf,
     shell_settings: Vec<String>,
+    cli_settings: Vec<String>,
     offline: bool,
 }
 
@@ -366,8 +366,8 @@ impl Probe<'_> {
         read_probe_result(output, &result, &format!("a script in {}", project_dir.display()))
     }
 
-    /// `pnpm exec` in `dir`, offline when `pnpm doctor` is, and kept from
-    /// installing the project. The variable
+    /// `pnpm exec` in `dir` with the command line's settings, offline when
+    /// `pnpm doctor` is, and kept from installing the project. The variable
     /// outranks every other source of `verifyDepsBeforeRun`, and the
     /// uppercase spelling is removed so it cannot take precedence.
     fn exec_in(&self, dir: &Path) -> Command {
@@ -375,7 +375,8 @@ impl Probe<'_> {
         command
             .current_dir(dir)
             .env_remove("PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN")
-            .env(VERIFY_DEPS_BEFORE_RUN_ENV, "false");
+            .env(VERIFY_DEPS_BEFORE_RUN_ENV, "false")
+            .args(&self.cli_settings);
         if self.offline {
             command.arg("--config.offline=true");
         }
