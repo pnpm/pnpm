@@ -76,7 +76,11 @@ impl StagedRecord {
             let approver = manifest.remove("_npmUser");
             let Some(id) = &self.actor_id else { continue };
             let mut user = serde_json::json!({ "name": self.actor, "userId": id });
-            if let Some(approver) = approver {
+            if let Some(approver) = approver
+                && validated.publisher
+                    .user_id()
+                    .is_some_and(|approver_id| approver_id != id)
+            {
                 user["approver"] = approver;
             }
             manifest.insert("_npmUser".to_string(), user);

@@ -779,15 +779,26 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    // Verify 1.1.0 is published
     let res = app
         .clone()
         .oneshot(authed_get("/npm/staged-owner-pkg", &alice_token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
-    let packument: Value = serde_json::from_slice(&body_bytes(res.into_body()).await).unwrap();
-    assert!(packument["versions"]["1.1.0"].is_object());
+    let packument = body_json(res.into_body()).await;
+    let publisher = &packument["versions"]["1.1.0"]["_npmUser"];
+    assert_eq!(publisher["name"], "alice");
+    assert!(publisher.get("approver").is_none());
+
+    let mut request = authed_get("/npm/staged-owner-pkg", &alice_token);
+    request
+        .headers_mut()
+        .insert("accept", "application/vnd.pnpr.install-v2+json".parse().unwrap());
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let document = body_json(response.into_body()).await;
+    assert!(document["versions"]["1.1.0"].is_object());
+    assert!(document["versions"]["1.1.0"].get("trust").is_none());
 }
 
 #[tokio::test]
