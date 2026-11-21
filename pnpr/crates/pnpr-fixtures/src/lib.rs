@@ -307,7 +307,7 @@ fn fixture_fingerprint(root: &Path) -> String {
         hasher.update([0]);
     }
     hasher.update(
-        local_archive_path(Path::new(""), "", Ecosystem::Npm, "sha512-00.1")
+        local_archive_path(PathBuf::new(), "", Ecosystem::Npm, "sha512-00.1")
             .to_string_lossy()
             .as_bytes(),
     );
@@ -400,7 +400,8 @@ impl Package {
         for version in self.versions.values() {
             let blob =
                 BlobRef { id: BlobId::of_bytes(Ecosystem::Npm, &version.tarball), incarnation: 1 };
-            let path = local_archive_path(storage_root, "", Ecosystem::Npm, &blob.key());
+            let path =
+                local_archive_path(storage_root.to_path_buf(), "", Ecosystem::Npm, &blob.key());
             fs::create_dir_all(path.parent().expect("an archive has a directory"))
                 .expect("create test registry archive dir");
             fs::write(&path, &version.tarball)

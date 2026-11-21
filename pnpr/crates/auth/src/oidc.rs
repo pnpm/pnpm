@@ -297,8 +297,8 @@ fn random_secret() -> Result<String> {
     Ok(BASE64_URL_SAFE_NO_PAD.encode(bytes))
 }
 
-fn invalid_config(reason: &str) -> RegistryError {
-    RegistryError::InvalidConfig { reason: reason.to_string() }
+fn invalid_config(reason: String) -> RegistryError {
+    RegistryError::InvalidConfig { reason }
 }
 
 fn rejected() -> RegistryError {

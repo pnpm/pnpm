@@ -210,17 +210,17 @@ impl RuleTable {
 
     /// Who may do `action` on `package`.
     #[must_use]
-    pub fn permission(&self, package: &str, action: Action) -> Permission<'_> {
-        Permission { table: self, package: package.to_string(), action }
+    pub fn permission(&self, package: String, action: Action) -> Permission<'_> {
+        Permission { table: self, package, action }
     }
 
     /// Who may read, publish and unpublish `package`.
     #[must_use]
     pub fn for_package(&self, package: &str) -> Effective<'_> {
         Effective {
-            access: self.permission(package, Action::Read),
-            publish: self.permission(package, Action::Publish),
-            unpublish: self.permission(package, Action::Delete),
+            access: self.permission(package.to_owned(), Action::Read),
+            publish: self.permission(package.to_owned(), Action::Publish),
+            unpublish: self.permission(package.to_owned(), Action::Delete),
         }
     }
 

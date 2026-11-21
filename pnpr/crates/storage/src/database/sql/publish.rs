@@ -71,7 +71,9 @@ pub(super) fn commit_publication(
         &reads.queries(connection.dialect()),
     )?;
     let read = match reads.answer(&batch, results)? {
-        Answer::Replayed(outcome) => return Ok(replayed(submission.namespace, &outcome)),
+        Answer::Replayed(outcome) => {
+            return Ok(replayed(submission.namespace.to_owned(), &outcome));
+        }
         Answer::Read(read) => read,
     };
     for ((document, key), stored) in submission.documents
@@ -122,8 +124,8 @@ fn record(
     Ok(publication)
 }
 
-fn replayed(namespace: &str, outcome: &RecordedOutcome) -> PublicationCommit {
-    let generation = Generation { namespace: namespace.to_string(), value: outcome.generation };
+fn replayed(namespace: String, outcome: &RecordedOutcome) -> PublicationCommit {
+    let generation = Generation { namespace, value: outcome.generation };
     PublicationCommit { generation, publication: outcome.publication, replayed: true }
 }
 

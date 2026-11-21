@@ -74,10 +74,10 @@ impl BackgroundTarScans {
     fn try_claim(
         self: &Arc<Self>,
         name: &CanonicalPackageName,
-        tgz_key: &str,
+        tgz_key: String,
         deferred_file: Option<(&str, &str)>,
     ) -> Option<InFlightScanGuard> {
-        let key = (name.as_str().to_string(), tgz_key.to_string());
+        let key = (name.as_str().to_string(), tgz_key);
         {
             let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
             if state.in_flight.contains(&key) {
@@ -107,6 +107,13 @@ impl BackgroundTarScans {
         Some(InFlightScanGuard { scans: Arc::clone(self), key: Some(key) })
     }
 
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "the key is built only past the empty-queue and full-capacity early returns"
+        )
+    )]
     fn take_deferred_file(
         &self,
         namespace: &str,
@@ -213,7 +220,7 @@ impl PromotedTarballScan {
     pub(super) fn spawn(self, cached_path: PathBuf) {
         let Some(in_flight_guard) = self.background_scans.try_claim(
             &self.name,
-            &self.tgz_key,
+            self.tgz_key.clone(),
             Some((&self.namespace, &self.filename)),
         ) else {
             return;
@@ -244,7 +251,7 @@ pub(super) fn schedule_cached_tarball_scan(state: &AppState, tarball: UpstreamTa
     }
     let Some(in_flight_guard) = state.inner.proxy.background_tar_scans.try_claim(
         tarball.name,
-        &tgz_key,
+        tgz_key.clone(),
         Some((tarball.namespace, tarball.filename)),
     ) else {
         return;
@@ -289,7 +296,7 @@ pub(super) fn schedule_deferred_cached_tarball_scan(
             return;
         }
         let Some(in_flight_guard) =
-            background_scans.try_claim(&name, &tgz_key, Some((&namespace, &filename)))
+            background_scans.try_claim(&name, tgz_key.clone(), Some((&namespace, &filename)))
         else {
             return;
         };

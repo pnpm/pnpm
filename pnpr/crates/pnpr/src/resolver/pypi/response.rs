@@ -122,15 +122,15 @@ pub(super) async fn resolve_request(
                 inputs,
                 request.requires_python,
             ) {
-                Ok(lockfile) => ndjson_single_frame(&pypi_done_frame(&lockfile)),
-                Err(err) => ndjson_single_frame(&error_frame(&super::super::report_message(&err))),
+                Ok(lockfile) => ndjson_single_frame(pypi_done_frame(&lockfile)),
+                Err(err) => ndjson_single_frame(error_frame(&super::super::report_message(&err))),
             }
         }
         Err(err) => {
             let code = err
                 .contains("must be resolved by the client")
                 .then_some("ERR_PNPR_PYPI_CLIENT_RESOLVE_REQUIRED");
-            ndjson_single_frame(&error_frame_with_code(&err, code))
+            ndjson_single_frame(error_frame_with_code(&err, code))
         }
     }
 }

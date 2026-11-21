@@ -113,6 +113,13 @@ impl EffectiveResolverSettings {
 
 /// Reuse a request configuration, evicting the least recently used entry at capacity.
 /// Active requests retain their own reference across eviction.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the cache directory is copied only on a cache miss, past the early returns"
+    )
+)]
 pub(super) fn intern_config(
     configs: &Mutex<HashMap<String, CachedConfig>>,
     store_dir: &StoreDir,
@@ -141,7 +148,7 @@ pub(super) fn intern_config(
         configs.remove(&oldest);
     }
 
-    let config = build_config(store_dir, cache_dir, request, inputs);
+    let config = build_config(store_dir, cache_dir.to_path_buf(), request, inputs);
     let config = Arc::new(config);
     if max_cached > 0 {
         configs.insert(
@@ -154,7 +161,7 @@ pub(super) fn intern_config(
 
 fn build_config(
     store_dir: &StoreDir,
-    cache_dir: &Path,
+    cache_dir: PathBuf,
     request: &ResolveRequest,
     inputs: ConfigKeyInputs,
 ) -> PacquetConfig {
@@ -165,7 +172,7 @@ fn build_config(
     } = inputs;
     let mut config = PacquetConfig::new();
     config.store_dir = store_dir.clone();
-    config.cache_dir = cache_dir.to_path_buf();
+    config.cache_dir = cache_dir;
     config.registry = registry;
     apply_registry_declarations(&mut config, request);
     config.overrides = overrides;

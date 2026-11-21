@@ -67,13 +67,13 @@ pub struct PublishNotes {
 /// [`RegistryError::BadRequest`] naming the first rule the note breaks.
 pub fn validate_note(text: &str) -> Result<()> {
     if text.len() > MAX_NOTE_BYTES {
-        return Err(rejected(&format!("a note is at most {MAX_NOTE_BYTES} bytes")));
+        return Err(rejected(format!("a note is at most {MAX_NOTE_BYTES} bytes")));
     }
     match text
         .chars()
         .find(|character| !allowed(*character))
     {
-        Some(character) => Err(rejected(&format!(
+        Some(character) => Err(rejected(format!(
             "a note must not contain the character U+{:04X}",
             u32::from(character),
         ))),
@@ -87,8 +87,8 @@ fn allowed(character: char) -> bool {
     !bidi_override && !control
 }
 
-fn rejected(reason: &str) -> RegistryError {
-    RegistryError::BadRequest { reason: reason.to_string() }
+fn rejected(reason: String) -> RegistryError {
+    RegistryError::BadRequest { reason }
 }
 
 /// The `sha256-` digest of a note's text.

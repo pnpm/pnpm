@@ -54,7 +54,7 @@ async fn admission_precedes_polling_the_source_loader() {
 #[tokio::test]
 async fn slow_origins_do_not_hold_stored_or_other_upstream_admission() {
     let admissions = super::super::admission::Admissions::new(1);
-    let slow = admissions.upstream("slow-example");
+    let slow = admissions.upstream("slow-example".to_owned());
     let permit = slow.acquire().await.unwrap();
     let stored =
         admissions.serve(super::super::admission::DocumentSource::Stored, async { "stored" });
@@ -117,7 +117,7 @@ async fn slow_upstream_misses_do_not_block_a_fresh_cached_package() {
         .await
         .unwrap();
     let admissions = &state.inner.packuments.admissions;
-    let slots = admissions.upstream(&namespace);
+    let slots = admissions.upstream(namespace.clone());
     let mut requests = Vec::new();
     for index in 0..admissions.capacity {
         let app = app.clone();
@@ -257,7 +257,7 @@ async fn shared_upstream_readers_admit_sources_before_waiting_for_workers() {
     tokio::time::timeout(std::time::Duration::from_secs(5), readers_queued)
         .await
         .unwrap();
-    let slots = state.inner.packuments.admissions.upstream(&namespace);
+    let slots = state.inner.packuments.admissions.upstream(namespace.clone());
     assert_eq!(slots.available_permits(), 0);
     assert!(upstream.fetched.try_recv().is_err());
     for request in requests {
@@ -393,7 +393,7 @@ async fn duplicate_fetch_followers_leave_admission_for_other_packages() {
         })
         .await;
         let namespace = crate::server::upstream_cache_namespace(&upstream.state, "npmjs");
-        let slots = upstream.state.inner.packuments.admissions.upstream(&namespace);
+        let slots = upstream.state.inner.packuments.admissions.upstream(namespace.clone());
         assert_eq!(slots.available_permits(), 1);
         let other = tokio::time::timeout(
             std::time::Duration::from_secs(5),
@@ -441,7 +441,7 @@ async fn rendered_cache_and_response_bytes_do_not_retain_fetch_admission() {
     .await;
     assert_eq!(response.status(), axum::http::StatusCode::OK);
     let namespace = crate::server::upstream_cache_namespace(&upstream.state, "npmjs");
-    let slots = upstream.state.inner.packuments.admissions.upstream(&namespace);
+    let slots = upstream.state.inner.packuments.admissions.upstream(namespace.clone());
     assert_eq!(slots.available_permits(), 2);
     drop(response);
     stop_upstream(upstream).await;

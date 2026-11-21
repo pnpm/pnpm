@@ -86,7 +86,7 @@ struct GrantBody {
 }
 
 impl GrantBody {
-    fn into_content(self, name: &str) -> GrantContent {
+    fn into_content(self, name: String) -> GrantContent {
         let mut subjects: Vec<(String, String)> = self.subjects
             .into_iter()
             .flat_map(|(subject, actions)| {
@@ -103,7 +103,7 @@ impl GrantBody {
             list
         };
         GrantContent {
-            name: name.to_string(),
+            name,
             registries: sorted(self.registries),
             include: sorted(self.include),
             exclude: sorted(self.exclude),
@@ -195,7 +195,7 @@ async fn put_grant(
 ) -> Response {
     let result = async {
         require_caller(&identity, "the grants")?;
-        let content = parse_json_body::<GrantBody>(&body)?.into_content(&name);
+        let content = parse_json_body::<GrantBody>(&body)?.into_content(name.clone());
         let grants = current(&state).await?;
         let expected = expected_generation(&headers, &grants)?;
         let existing = grants.named(&name);

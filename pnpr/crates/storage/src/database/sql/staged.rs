@@ -102,7 +102,7 @@ fn read_one(connection: &dyn Connection, id: &StagedId) -> Result<Option<StagedR
     let read = Query::new(
         "SELECT principal, blob_id, incarnation, staged_at, size, state
          FROM staged_archives WHERE principal = ?1 AND blob_id = ?2",
-        params![id.principal, blob_id],
+        params![id.principal, blob_id].to_vec(),
     );
     connection
         .query_all(&[read])?

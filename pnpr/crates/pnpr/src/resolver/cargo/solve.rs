@@ -111,7 +111,7 @@ pub(in crate::resolver) async fn solve_cargo(
             return if cancel.deadline_expired() {
                 request_timeout_response()
             } else {
-                ndjson_single_frame(&error_frame(&err))
+                ndjson_single_frame(error_frame(&err))
             };
         }
     };
@@ -130,14 +130,14 @@ pub(in crate::resolver) async fn solve_cargo(
     })
     .await;
     match solved {
-        Ok(Ok(Some(frame))) => ndjson_single_frame(&frame),
+        Ok(Ok(Some(frame))) => ndjson_single_frame(frame),
         Ok(Ok(None)) => request_timeout_response(),
         Ok(Err(err))
             if cancel.deadline_expired() || err.is::<pnpm_cargo_resolver::CancelError>() =>
         {
             request_timeout_response()
         }
-        Ok(Err(err)) => ndjson_single_frame(&error_frame(&report_message(&err))),
-        Err(err) => ndjson_single_frame(&error_frame(&err.to_string())),
+        Ok(Err(err)) => ndjson_single_frame(error_frame(&report_message(&err))),
+        Err(err) => ndjson_single_frame(error_frame(&err.to_string())),
     }
 }

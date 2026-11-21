@@ -163,7 +163,7 @@ async fn suppress_if_purged(
     namespace: &str,
     name: &CanonicalPackageName,
 ) -> Result<bool, RegistryError> {
-    if !state.inner.proxy.packument_writes.is_purged(namespace, name)
+    if !state.inner.proxy.packument_writes.is_purged(namespace.to_owned(), name)
         && !state.inner.storage.is_upstream_package_purged(namespace, name).await?
     {
         return Ok(false);
@@ -179,11 +179,11 @@ async fn suppress_if_purged_slow(
     let _guard = lock_upstream_package(state, namespace, name).await;
     if state.inner.storage.is_upstream_package_purged(namespace, name).await? {
         if state.inner.storage.remove_upstream_package(namespace, name).await.is_ok() {
-            state.inner.proxy.packument_writes.resolve_purge(namespace, name);
+            state.inner.proxy.packument_writes.resolve_purge(namespace.to_owned(), name);
         }
         return Ok(true);
     }
-    Ok(state.inner.proxy.packument_writes.is_purged(namespace, name))
+    Ok(state.inner.proxy.packument_writes.is_purged(namespace.to_owned(), name))
 }
 
 pub(super) async fn purge_cached_package(
@@ -234,7 +234,7 @@ where
     Fut: Future<Output = Result<bool, RegistryError>>,
 {
     let _guard = lock_upstream_package(state, namespace, name).await;
-    match state.inner.proxy.packument_writes.check(namespace, name, fetch_seq) {
+    match state.inner.proxy.packument_writes.check(namespace.to_owned(), name, fetch_seq) {
         WriteVerdict::SupersededByPurge => return Ok(PurgeOutcome::Purged),
         WriteVerdict::SupersededByStored => {
             let cached = state.inner.storage.read_upstream_document_any(namespace, name).await?;
@@ -247,7 +247,12 @@ where
     }
     invalidate_upstream_package(state, namespace, name);
     let removal = complete_upstream_purge(state, namespace, name, remove).await;
-    state.inner.proxy.packument_writes.commit_purged(namespace, name, fetch_seq, removal);
+    state.inner.proxy.packument_writes.commit_purged(
+        namespace.to_owned(),
+        name,
+        fetch_seq,
+        removal,
+    );
     Ok(PurgeOutcome::Purged)
 }
 

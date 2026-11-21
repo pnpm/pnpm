@@ -31,14 +31,14 @@ use serde_json::{
     Value,
     json,
 };
-use std::path::Path;
+use std::path::PathBuf;
 
 const PUBLISHED_AT: &str = "2020-01-01T00:00:00.000Z";
 
 /// Commit the peer-heavy packages to the registry's database at
 /// `database`. Their archives are never fetched, so none is written; their
 /// integrity is the one a publish over HTTP stores.
-pub(crate) fn seed_peer_heavy_registry(database: &Path) {
+pub(crate) fn seed_peer_heavy_registry(database: PathBuf) {
     let packuments = peer_heavy_packages()
         .into_iter()
         .map(|(name, manifest)| {

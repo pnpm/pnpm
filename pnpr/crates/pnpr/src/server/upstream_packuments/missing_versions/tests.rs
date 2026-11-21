@@ -23,19 +23,19 @@ fn package(name: &str) -> CanonicalPackageName {
 #[test]
 fn a_package_is_claimed_once_per_interval() {
     let refetches = PackumentRefetches::default();
-    assert!(refetches.claim("npmjs", &package("example-widget")));
-    assert!(!refetches.claim("npmjs", &package("example-widget")));
-    assert!(refetches.claim("npmjs", &package("example-gadget")));
-    assert!(refetches.claim("mirror", &package("example-widget")));
+    assert!(refetches.claim("npmjs".to_owned(), &package("example-widget")));
+    assert!(!refetches.claim("npmjs".to_owned(), &package("example-widget")));
+    assert!(refetches.claim("npmjs".to_owned(), &package("example-gadget")));
+    assert!(refetches.claim("mirror".to_owned(), &package("example-widget")));
 }
 
 #[test]
 fn a_new_package_is_claimed_when_recent_attempts_fill_the_table() {
     let refetches = PackumentRefetches::default();
     for index in 0..CAPACITY {
-        assert!(refetches.claim("npmjs", &package(&format!("example-widget-{index}"))));
+        assert!(refetches.claim("npmjs".to_owned(), &package(&format!("example-widget-{index}"))));
     }
-    assert!(refetches.claim("npmjs", &package("example-gadget")));
+    assert!(refetches.claim("npmjs".to_owned(), &package("example-gadget")));
     assert!(refetches.attempts.lock().unwrap().len() <= CAPACITY);
 }
 

@@ -70,7 +70,13 @@ impl VersionRequest<'_> {
         };
         let cache = &self.state.inner.proxy.version_tgzs;
         if let Some(cached) = &cached
-            && let Some(tgz) = cache.get(&cached.namespace, name, self.version, stamp, cached.ttl)
+            && let Some(tgz) = cache.get(
+                cached.namespace.clone(),
+                name,
+                self.version.to_owned(),
+                stamp,
+                cached.ttl,
+            )
             && generation.is_some_and(|generation| tgz.is_current(generation))
         {
             return Ok(Some(tgz));
@@ -85,7 +91,7 @@ impl VersionRequest<'_> {
         }
         let tgz = Arc::new(tgz);
         if let (Some(cached), Some(origin)) = (cached, origin) {
-            cache.put(cached.namespace, name, self.version, origin, Arc::clone(&tgz));
+            cache.put(cached.namespace, name, self.version.to_owned(), origin, Arc::clone(&tgz));
         }
         Ok(Some(tgz))
     }

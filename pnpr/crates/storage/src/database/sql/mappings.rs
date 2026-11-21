@@ -278,7 +278,7 @@ fn unmap(
     let transaction = WriteTransaction::begin(connection)?;
     let scanned = SCANNED_MAPPINGS.get(transaction.dialect());
     let select = format!("SELECT DISTINCT blob_id FROM artifact_blobs WHERE {scanned}");
-    let mapped = Query::new(&select, params![namespace, ecosystem, name, any, exact]);
+    let mapped = Query::new(&select, params![namespace, ecosystem, name, any, exact].to_vec());
     let mut results = transaction
         .query_all(&[package_row_query(key), mapped])?
         .into_iter();

@@ -76,7 +76,7 @@ async fn negotiates_pull_scope_and_reuses_token_without_forwarding_client_scope(
         .create_async()
         .await;
     let upstream = Upstream::new(
-        "registry",
+        "registry".to_owned(),
         &UpstreamConfig::with_defaults(format!("{}/", server.url()), HeaderMap::new()),
     );
     for _ in 0..2 {
@@ -117,7 +117,7 @@ async fn rejects_an_untrusted_token_realm_without_contacting_it() {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Basic secret"));
     let upstream = Upstream::new(
-        "registry",
+        "registry".to_owned(),
         &UpstreamConfig::with_defaults(format!("{}/", server.url()), headers),
     );
     assert!(upstream.fetch_oci("acme/app", "manifests/latest", "application/json").await.is_err());
@@ -172,7 +172,7 @@ async fn spawn_token_registry(
 fn token_upstream(base: &str, timeout: Duration) -> Upstream {
     let mut config = UpstreamConfig::with_defaults(format!("{base}/"), HeaderMap::new());
     config.requests.timeout = timeout;
-    let mut upstream = Upstream::new("registry", &config);
+    let mut upstream = Upstream::new("registry".to_owned(), &config);
     upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
@@ -217,7 +217,7 @@ async fn a_token_timeout_counts_against_the_breaker() {
     let mut config = UpstreamConfig::with_defaults(format!("{base}/"), HeaderMap::new());
     config.requests.timeout = Duration::from_millis(200);
     config.requests.max_fails = 1;
-    let upstream = Upstream::new("registry", &config);
+    let upstream = Upstream::new("registry".to_owned(), &config);
     let first = upstream.fetch_oci("acme/app", "blobs/sha256:abc", "*/*").await;
     assert!(
         matches!(first, Err(pnpr_error::RegistryError::Upstream { ref source, .. }) if source.is_timeout()),
@@ -238,7 +238,7 @@ async fn token_body_timeouts_do_not_open_the_circuit() {
     let mut config = UpstreamConfig::with_defaults(format!("{base}/"), HeaderMap::new());
     config.requests.timeout = Duration::from_millis(200);
     config.requests.max_fails = 1;
-    let upstream = Upstream::new("registry", &config);
+    let upstream = Upstream::new("registry".to_owned(), &config);
     for _ in 0..2 {
         let result = upstream.fetch_oci("example/image", "blobs/sha256:abc", "*/*").await;
         assert!(

@@ -30,7 +30,7 @@ const DAY: Duration = Duration::from_hours(24);
 /// as a publish does before its commit.
 fn store(root: &Path, bytes: &[u8], incarnation: u64) -> BlobRef {
     let blob = BlobRef { id: BlobId::of_bytes(Ecosystem::Oci, bytes), incarnation };
-    let path = local_archive_path(root, "", Ecosystem::Oci, &blob.key());
+    let path = local_archive_path(root.to_path_buf(), "", Ecosystem::Oci, &blob.key());
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(path, bytes).unwrap();
     blob

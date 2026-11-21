@@ -68,7 +68,7 @@ impl PurgedUpstreamPackages {
         namespace: &str,
         name: &CanonicalPackageName,
     ) -> Result<bool> {
-        if let Some(state) = self.cached_state(namespace, name) {
+        if let Some(state) = self.cached_state(namespace.to_owned(), name) {
             return Ok(matches!(state, MarkerState::Purged));
         }
         if self.dir_state.load(Ordering::Acquire) == DIR_ABSENT {
@@ -88,11 +88,11 @@ impl PurgedUpstreamPackages {
         if let Err(err) = fs::metadata(&package_dir).await
             && err.kind() == ErrorKind::NotFound
         {
-            self.set_state(namespace, name, MarkerState::Clean);
+            self.set_state(namespace.to_owned(), name, MarkerState::Clean);
             return remove_marker_if_present(&marker_path(&store.root, namespace, name)).await;
         }
         self.dir_state.store(DIR_PRESENT, Ordering::Release);
-        self.set_state(namespace, name, MarkerState::Purged);
+        self.set_state(namespace.to_owned(), name, MarkerState::Purged);
         let marker = PurgedMarker {
             namespace: namespace.to_string(),
             ecosystem: name.ecosystem(),
@@ -108,7 +108,7 @@ impl PurgedUpstreamPackages {
         namespace: &str,
         name: &CanonicalPackageName,
     ) -> Result<()> {
-        let cached = self.cached_state(namespace, name);
+        let cached = self.cached_state(namespace.to_owned(), name);
         if cached == Some(MarkerState::Clean)
             || (cached.is_none() && self.dir_state.load(Ordering::Acquire) == DIR_ABSENT)
         {
@@ -116,7 +116,7 @@ impl PurgedUpstreamPackages {
         }
         let _write_guard = store.record_write_lock.lock().await;
         remove_marker_if_present(&marker_path(&store.root, namespace, name)).await?;
-        self.set_state(namespace, name, MarkerState::Clean);
+        self.set_state(namespace.to_owned(), name, MarkerState::Clean);
         Ok(())
     }
 
@@ -136,10 +136,11 @@ impl PurgedUpstreamPackages {
         if self.dir_state.load(Ordering::Acquire) == DIR_UNKNOWN
             && !ensure_dir_present(&store.root, &self.dir_state).await?
         {
-            return Ok(self.cached_state(namespace, name) == Some(MarkerState::Purged));
+            return Ok(self.cached_state(namespace.to_owned(), name) == Some(MarkerState::Purged));
         }
         let disk_state = self.inspect_package_marker(store, namespace, name).await;
-        let effective = self.record_observed_state(namespace, name, observed_gen, disk_state);
+        let effective =
+            self.record_observed_state(namespace.to_owned(), name, observed_gen, disk_state);
         Ok(matches!(effective, MarkerState::Purged))
     }
 
@@ -148,18 +149,18 @@ impl PurgedUpstreamPackages {
         state.generation
     }
 
-    fn cached_state(&self, namespace: &str, name: &CanonicalPackageName) -> Option<MarkerState> {
+    fn cached_state(&self, namespace: String, name: &CanonicalPackageName) -> Option<MarkerState> {
         let state = self.state.lock().expect("purged upstream lock poisoned");
-        let key = (namespace.to_string(), name.clone());
+        let key = (namespace, name.clone());
         if state.active_purged.contains(&key) {
             return Some(MarkerState::Purged);
         }
         state.observed.get(&key).copied()
     }
 
-    fn set_state(&self, namespace: &str, name: &CanonicalPackageName, marker_state: MarkerState) {
+    fn set_state(&self, namespace: String, name: &CanonicalPackageName, marker_state: MarkerState) {
         let mut state = self.state.lock().expect("purged upstream lock poisoned");
-        let key = (namespace.to_string(), name.clone());
+        let key = (namespace, name.clone());
         state.generation += 1;
         match marker_state {
             MarkerState::Purged => {
@@ -174,13 +175,13 @@ impl PurgedUpstreamPackages {
 
     fn record_observed_state(
         &self,
-        namespace: &str,
+        namespace: String,
         name: &CanonicalPackageName,
         observed_gen: u64,
         disk_state: MarkerState,
     ) -> MarkerState {
         let mut state = self.state.lock().expect("purged upstream lock poisoned");
-        let key = (namespace.to_string(), name.clone());
+        let key = (namespace, name.clone());
         if state.active_purged.contains(&key) {
             return MarkerState::Purged;
         }
@@ -236,7 +237,7 @@ impl PurgedUpstreamPackages {
         marker: &Path,
     ) -> MarkerState {
         let _write_guard = store.record_write_lock.lock().await;
-        if self.is_active_purged(namespace, name) {
+        if self.is_active_purged(namespace.to_owned(), name) {
             return MarkerState::Purged;
         }
         match fs::metadata(package_dir).await {
@@ -248,9 +249,9 @@ impl PurgedUpstreamPackages {
         }
     }
 
-    fn is_active_purged(&self, namespace: &str, name: &CanonicalPackageName) -> bool {
+    fn is_active_purged(&self, namespace: String, name: &CanonicalPackageName) -> bool {
         let state = self.state.lock().expect("purged upstream lock poisoned");
-        state.active_purged.contains(&(namespace.to_string(), name.clone()))
+        state.active_purged.contains(&(namespace, name.clone()))
     }
 }
 

@@ -98,7 +98,7 @@ impl Upstream {
             }
             return self.finish_oci_fetch(response, guard, &url).await;
         }
-        Err(self.oci_error("too many OCI redirects"))
+        Err(self.oci_error("too many OCI redirects".to_owned()))
     }
 
     async fn finish_oci_fetch(
@@ -117,10 +117,11 @@ impl Upstream {
     }
 
     fn oci_object_url(&self, repository: &str, endpoint: &str) -> Result<(Url, Url)> {
-        let base = Url::parse(&self.base).map_err(|_| self.oci_error("invalid registry URL"))?;
+        let base =
+            Url::parse(&self.base).map_err(|_| self.oci_error("invalid registry URL".to_owned()))?;
         let url = base
             .join(&format!("v2/{repository}/{endpoint}"))
-            .map_err(|_| self.oci_error("invalid OCI object URL"))?;
+            .map_err(|_| self.oci_error("invalid OCI object URL".to_owned()))?;
         Ok((base, url))
     }
 
@@ -131,7 +132,7 @@ impl Upstream {
             .map(reqwest::header::HeaderValue::to_str)
             .and_then(Result::ok)
             .and_then(parse_challenge)
-            .ok_or_else(|| self.oci_error("unsupported OCI authentication challenge"))
+            .ok_or_else(|| self.oci_error("unsupported OCI authentication challenge".to_owned()))
     }
 
     fn cached_oci_token(&self, repository: &str) -> Option<String> {
@@ -176,9 +177,9 @@ impl Upstream {
             .map(reqwest::header::HeaderValue::to_str)
             .and_then(Result::ok)
             .and_then(|value| url.join(value).ok())
-            .ok_or_else(|| self.oci_error("invalid OCI redirect"))?;
+            .ok_or_else(|| self.oci_error("invalid OCI redirect".to_owned()))?;
         if !oci_download_allowed(base, &target) {
-            return Err(self.oci_error("OCI redirect is outside the download allowlist"));
+            return Err(self.oci_error("OCI redirect is outside the download allowlist".to_owned()));
         }
         Ok(target)
     }
@@ -192,10 +193,10 @@ impl Upstream {
         challenge: Challenge,
         budget: &mut Duration,
     ) -> Result<String> {
-        let mut realm =
-            Url::parse(&challenge.realm).map_err(|_| self.oci_error("invalid OCI token realm"))?;
+        let mut realm = Url::parse(&challenge.realm)
+            .map_err(|_| self.oci_error("invalid OCI token realm".to_owned()))?;
         if !token_realm_allowed(base, &realm) {
-            return Err(self.oci_error("OCI token realm is not trusted"));
+            return Err(self.oci_error("OCI token realm is not trusted".to_owned()));
         }
         realm.set_query(None);
         realm
@@ -217,7 +218,7 @@ impl Upstream {
             .await
             .map_err(|source| self.token_request_failed(source))?;
         if !response.status().is_success() {
-            return Err(self.oci_error("OCI token service refused authentication"));
+            return Err(self.oci_error("OCI token service refused authentication".to_owned()));
         }
         let body = read_limited_body(response, 64 * 1024).await
             .map_err(|source| {
@@ -226,10 +227,10 @@ impl Upstream {
             })?;
         *budget = budget.saturating_sub(started.elapsed());
         if body.truncated {
-            return Err(self.oci_error("OCI token response is too large"));
+            return Err(self.oci_error("OCI token response is too large".to_owned()));
         }
         let token: TokenResponse = serde_json::from_slice(&body.bytes)
-            .map_err(|_| self.oci_error("invalid OCI token response"))?;
+            .map_err(|_| self.oci_error("invalid OCI token response".to_owned()))?;
         self.cache_oci_token(repository, token)
     }
 
@@ -256,7 +257,7 @@ impl Upstream {
         let token = token.token
             .or(token.access_token)
             .filter(|token| !token.is_empty())
-            .ok_or_else(|| self.oci_error("OCI token response contains no token"))?;
+            .ok_or_else(|| self.oci_error("OCI token response contains no token".to_owned()))?;
         let mut cache = self.oci_tokens.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         cache.retain(|_, token| token.expires > Instant::now());
         if cache.len() >= 256 {
@@ -274,8 +275,8 @@ impl Upstream {
         Ok(token)
     }
 
-    fn oci_error(&self, reason: &str) -> RegistryError {
-        RegistryError::UpstreamResponse { url: self.base.clone(), reason: reason.to_string() }
+    fn oci_error(&self, reason: String) -> RegistryError {
+        RegistryError::UpstreamResponse { url: self.base.clone(), reason }
     }
 }
 

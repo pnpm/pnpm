@@ -153,7 +153,7 @@ async fn spawn_slow_body(chunks: usize, gap: Duration) -> (Upstream, tokio::task
     });
     let mut config = UpstreamConfig::with_defaults(url, HeaderMap::new());
     config.requests.timeout = Duration::from_millis(300);
-    (Upstream::new("test", &config), server)
+    (Upstream::new("test".to_owned(), &config), server)
 }
 
 async fn read_tarball(upstream: &Upstream, expected_chunks: usize) -> std::io::Result<usize> {
@@ -197,7 +197,7 @@ async fn tarball_head_deadline_starts_after_waiting_for_a_permit() {
     });
     let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
     config.requests.timeout = Duration::from_millis(250);
-    let mut upstream = Upstream::new("test", &config);
+    let mut upstream = Upstream::new("test".to_owned(), &config);
     upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
@@ -235,7 +235,7 @@ async fn a_redirect_hops_permit_wait_does_not_count_toward_the_head_deadline() {
     });
     let mut config = UpstreamConfig::with_defaults(origin_url.clone(), HeaderMap::new());
     config.requests.timeout = Duration::from_millis(250);
-    let mut upstream = Upstream::new("test", &config);
+    let mut upstream = Upstream::new("test".to_owned(), &config);
     upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
@@ -268,7 +268,7 @@ async fn a_stalled_error_body_is_bounded_by_the_timeout() {
     });
     let mut config = UpstreamConfig::with_defaults(url, HeaderMap::new());
     config.requests.timeout = Duration::from_millis(300);
-    let upstream = Upstream::new("test", &config);
+    let upstream = Upstream::new("test".to_owned(), &config);
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let started = std::time::Instant::now();
     let result = upstream.fetch_tarball_response(&name, "foo.tgz").await;
@@ -354,7 +354,7 @@ async fn revision_download_budget_starts_after_waiting_for_a_permit() {
     });
     let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
     config.requests.timeout = Duration::from_millis(250);
-    let mut upstream = Upstream::new("test", &config);
+    let mut upstream = Upstream::new("test".to_owned(), &config);
     upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
@@ -490,7 +490,7 @@ async fn declared_tarball_redirect_to_disallowed_target_is_blocked_without_conta
         pnpr_config::UpstreamConfig::with_defaults(reg.url(), reqwest::header::HeaderMap::new());
     cfg.requests.max_fails = 1;
     let cdn_origin = reqwest::Url::parse(&cdn.url()).unwrap().origin();
-    let client = crate::Upstream::new("corp", &cfg)
+    let client = crate::Upstream::new("corp".to_owned(), &cfg)
         .with_declared_tarball_guards(
             std::sync::Arc::new(move |url| url.origin() == cdn_origin),
             std::sync::Arc::new(|_, _| true),

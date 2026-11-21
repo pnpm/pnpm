@@ -190,7 +190,7 @@ fn choose_provider(
         {
             Ok(provider)
         }
-        (Some(_), _) => Err(bad_request("unknown sign-in provider")),
+        (Some(_), _) => Err(bad_request("unknown sign-in provider".to_owned())),
     }
 }
 
@@ -205,7 +205,7 @@ fn admit_device_request(
 ) -> Result<(), Response> {
     if !is_same_origin_request(headers) {
         return Err(bad_request(
-            "submit the code from the sign-in page, opened over HTTPS or on localhost",
+            "submit the code from the sign-in page, opened over HTTPS or on localhost".to_owned(),
         ));
     }
     state.inner.identity.login_rate_limiter
@@ -301,6 +301,6 @@ pub(crate) async fn get_v1_login_poll(
     }
 }
 
-fn bad_request(reason: &str) -> Response {
-    protect(pnpr_error::RegistryError::BadRequest { reason: reason.to_string() }.into_response())
+fn bad_request(reason: String) -> Response {
+    protect(pnpr_error::RegistryError::BadRequest { reason }.into_response())
 }

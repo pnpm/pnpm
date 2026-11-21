@@ -128,9 +128,9 @@ impl AccountCredential {
     }
 }
 
-pub(crate) fn deprovisioned_login_error(username: &str) -> RegistryError {
+pub(crate) fn deprovisioned_login_error(username: String) -> RegistryError {
     RegistryError::Forbidden {
-        user: username.to_string(),
+        user: username,
         action: "sign in to",
         resource: "this account, which an identity provider deprovisioned".to_string(),
     }

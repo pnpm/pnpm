@@ -148,11 +148,11 @@ pub async fn local_search_entry(storage: &Storage, name: &str) -> Option<Value> 
     let parsed = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm).ok()?;
     let bytes = storage.read_hosted_document(&parsed).await.ok()??;
     let packument = serde_json::from_slice::<Value>(&bytes).ok()?;
-    build_search_entry(name, &packument)
+    build_search_entry(name.to_owned(), &packument)
 }
 
 /// Construct one entry for the `objects` array.
-fn build_search_entry(name: &str, packument: &Value) -> Option<Value> {
+fn build_search_entry(name: String, packument: &Value) -> Option<Value> {
     Some(json!({
         "package": build_search_package(name, packument)?,
         "score": {"final": 1.0, "detail": {"quality": 1.0, "popularity": 1.0, "maintenance": 1.0}},
@@ -162,13 +162,13 @@ fn build_search_entry(name: &str, packument: &Value) -> Option<Value> {
 
 /// Project a packument into the subset of fields npm's search
 /// endpoint returns per result.
-fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
+fn build_search_package(name: String, packument: &Value) -> Option<Value> {
     let obj = packument.as_object()?;
     let versions = obj.get("versions").and_then(Value::as_object)?;
     let version_id = latest_version_id(obj, versions)?;
     let version_obj = versions.get(version_id).and_then(Value::as_object);
     let mut pkg = Map::new();
-    pkg.insert("name".to_string(), Value::String(name.to_string()));
+    pkg.insert("name".to_string(), Value::String(name));
     pkg.insert("version".to_string(), Value::String(version_id.to_string()));
     insert_version_fields(&mut pkg, version_obj);
     let maintainers = obj

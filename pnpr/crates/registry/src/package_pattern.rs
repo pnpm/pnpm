@@ -41,7 +41,7 @@ impl PackagePattern {
     /// matches and lets the scope land on a later router source.
     pub fn parse(pattern: &str, ecosystem: Ecosystem) -> Result<Self, RegistryConfigError> {
         if pattern.is_empty() {
-            return Err(invalid_pattern(pattern, ecosystem));
+            return Err(invalid_pattern(pattern.to_owned(), ecosystem));
         }
         if pattern == "**" {
             return Ok(PackagePattern::All);
@@ -71,7 +71,7 @@ impl PackagePattern {
             // that request parsing would reject (`@.acme`, `@..`, a
             // separator) is a claim no valid package name can ever match.
             if scope.contains('*') {
-                return Err(invalid_pattern(pattern, Ecosystem::Npm));
+                return Err(invalid_pattern(pattern.to_owned(), Ecosystem::Npm));
             }
             if !pnpr_package_name::is_safe_path_segment(scope) {
                 return Err(RegistryConfigError::ScopePatternNotAScope {
@@ -91,7 +91,7 @@ impl PackagePattern {
             return Self::parse_exact(pattern, Ecosystem::Oci);
         };
         if namespace.contains('*') || namespace.contains('/') {
-            return Err(invalid_pattern(pattern, Ecosystem::Oci));
+            return Err(invalid_pattern(pattern.to_owned(), Ecosystem::Oci));
         }
         pnpr_package_name::canonicalize_oci_name(namespace)
             .map(PackagePattern::Namespace)
@@ -106,7 +106,7 @@ impl PackagePattern {
         ecosystem: Ecosystem,
     ) -> Result<Self, RegistryConfigError> {
         if pattern.contains('*') {
-            return Err(invalid_pattern(pattern, ecosystem));
+            return Err(invalid_pattern(pattern.to_owned(), ecosystem));
         }
         CanonicalPackageName::parse(pattern, ecosystem)
             .map(|name| PackagePattern::Exact(name.as_str().to_string()))
@@ -236,8 +236,8 @@ pub(super) fn wildcard_shapes(ecosystem: Ecosystem) -> &'static str {
     }
 }
 
-pub(super) fn invalid_pattern(pattern: &str, ecosystem: Ecosystem) -> RegistryConfigError {
-    RegistryConfigError::InvalidPattern { pattern: pattern.to_string(), ecosystem }
+pub(super) fn invalid_pattern(pattern: String, ecosystem: Ecosystem) -> RegistryConfigError {
+    RegistryConfigError::InvalidPattern { pattern, ecosystem }
 }
 
 /// Reject a router source whose claims an earlier source already covers.

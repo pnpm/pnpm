@@ -159,7 +159,7 @@ async fn each_namespace_stores_an_archive_under_its_key() {
     assert_eq!(keys[0], keys[1], "the same bytes have one key");
     for namespace in ["", "npm~internal"] {
         let path = crate::layout::local_archive_path(
-            &tmp.path().join("storage"),
+            tmp.path().join("storage"),
             namespace,
             pnpr_package_name::Ecosystem::Npm,
             &keys[0],
