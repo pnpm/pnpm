@@ -67,14 +67,15 @@ const { values: opts } = parseArgs({
     'wasm-global': { type: 'string' },
     'wasm-package': { type: 'string' },
     'wasm-package-registry': { type: 'string' },
+    'wasm-package-frontend': { type: 'string' },
     'host-probe': { type: 'string' },
   },
 })
 const pnpmDir = path.resolve(opts['pnpm-dir'])
 if (Object.values(opts).some(value => value === '')) throw new Error('Probe artifact paths cannot be empty')
-if ([opts['wasm-probe'], opts['wasm-runtime'], opts['wasm-cli'], opts['wasm-inspection'], opts['wasm-hoisted'], opts['wasm-registry'], opts['wasm-network'], opts['wasm-global'], opts['wasm-package'], opts['wasm-package-registry'], opts['host-probe']].filter(Boolean).length > 1) throw new Error('Select one probe mode')
+if ([opts['wasm-probe'], opts['wasm-runtime'], opts['wasm-cli'], opts['wasm-inspection'], opts['wasm-hoisted'], opts['wasm-registry'], opts['wasm-network'], opts['wasm-global'], opts['wasm-package'], opts['wasm-package-registry'], opts['wasm-package-frontend'], opts['host-probe']].filter(Boolean).length > 1) throw new Error('Select one probe mode')
 const wasmCliArtifact = opts['wasm-cli'] ?? opts['wasm-inspection'] ?? opts['wasm-hoisted'] ?? opts['wasm-registry'] ?? opts['wasm-network'] ?? opts['wasm-global']
-const packageArtifact = opts['wasm-package'] ?? opts['wasm-package-registry']
+const packageArtifact = opts['wasm-package'] ?? opts['wasm-package-registry'] ?? opts['wasm-package-frontend']
 const servedFiles = packageArtifact ? new Map([['pnpm-wasm.tgz', path.resolve(packageArtifact)]]) : wasmCliArtifact ? runtimeFiles().set('runtime/pnpm.wasm', path.resolve(wasmCliArtifact)) : opts['host-probe'] ? runtimeFiles().set('probe.mjs', path.resolve(opts['host-probe'])) : opts['wasm-runtime'] ? runtimeFiles(opts['wasm-runtime']) : opts['wasm-probe']
   ? new Map([
     ['probe.wasm', path.resolve(opts['wasm-probe'])],
@@ -98,6 +99,9 @@ const steps = opts['wasm-package'] ? [
 ] : opts['wasm-package-registry'] ? [
   ...packageInstallSteps(),
   { name: 'registry workflows through the installed package', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--registry-workflow', '../installed/node_modules/.bin/pnpm'], expectOutput: 'Mock registry view, search, ping, audit, outdated, stars, staged publish, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed' },
+] : opts['wasm-package-frontend'] ? [
+  ...packageInstallSteps().slice(0, 1),
+  ...runInstalledEntry(frontendBuildSteps('../installed/node_modules/.bin/pnpm'), '../installed/node_modules/.bin/pnpm'),
 ] : opts['wasm-cli'] ? wasmCliSteps() : opts['wasm-registry'] ? [
   { name: 'prepare mounted executable launcher', command: 'node', args: ['-e', "require('node:fs').chmodSync('../pnpm/runtime/pnpm.mjs', 0o755)"] },
   { name: 'mock registry command workflows', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--registry-workflow', '../pnpm/runtime/pnpm.mjs'], expectOutput: 'Mock registry view, search, ping, audit, outdated, stars, staged publish, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed' },
@@ -246,10 +250,8 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
     },
     { name: 'verify approved dependency build', command: 'node', args: ['-e', "if (require('node:fs').readFileSync('node_modules/fixture-needs-build/built', 'utf8') !== 'yes') throw new Error('approved build did not run')"] },
     ...packageWorkflowSteps(entry),
-    { name: 'create frontend fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--frontend'] },
-    { name: 'install frontend toolchain', command: 'node', args: [entry, 'install'] },
-    { name: 'build a Vite app', command: 'node', args: [entry, 'exec', 'vite', 'build'] },
-    { name: 'verify frontend build', command: 'node', args: ['-e', "if (!require('node:fs').existsSync('dist/index.html')) throw new Error('Vite build output is missing')"] },
+    // --wasm-package-frontend runs these in a fresh session; see the ecosystem-e2e README.
+    ...(opts['wasm-package'] ? [] : frontendBuildSteps(entry)),
     { name: 'pin the running WASM version', command: 'node', args: ['-e', `const fs = require('node:fs'); const manifest = require('./package.json'); manifest.packageManager = 'pnpm@' + require('node:child_process').execFileSync('node', [${JSON.stringify(entry)}, '--version'], { encoding: 'utf8' }).trim(); fs.writeFileSync('package.json', JSON.stringify(manifest))`] },
     { name: 'install with matching package manager pin', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--matching-pin', entry] },
     { name: 'pin a different pnpm release', command: 'node', args: ['-e', "const fs = require('node:fs'); const manifest = require('./package.json'); manifest.packageManager = 'pnpm@12.8.1'; fs.writeFileSync('package.json', JSON.stringify(manifest))"] },
@@ -259,8 +261,21 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
   ]
 }
 
+function frontendBuildSteps (entry) {
+  return [
+    { name: 'create frontend fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--frontend'] },
+    { name: 'install frontend toolchain', command: 'node', args: [entry, 'install'] },
+    { name: 'build a Vite app', command: 'node', args: [entry, 'exec', 'vite', 'build'] },
+    { name: 'verify frontend build', command: 'node', args: ['-e', "if (!require('node:fs').existsSync('dist/index.html')) throw new Error('Vite build output is missing')"] },
+  ]
+}
+
 function installedCliSteps (entry) {
-  return wasmCliSteps(entry).map(step => step.command === 'node' && step.args[0] === entry
+  return runInstalledEntry(wasmCliSteps(entry), entry)
+}
+
+function runInstalledEntry (steps, entry) {
+  return steps.map(step => step.command === 'node' && step.args[0] === entry
     ? { ...step, command: entry, args: step.args.slice(1) }
     : step)
 }
