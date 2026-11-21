@@ -155,9 +155,13 @@ snapshots:
     .unwrap();
     let mut opts = options(workspace.path(), &["peer"]);
 
-    assert_eq!(build_trees(&opts).unwrap().len(), 1);
+    let with_peers = build_trees(&opts).unwrap();
+    dbg!(&with_peers);
+    assert_eq!(with_peers.len(), 1);
     opts.exclude_peer_dependencies = Some(true);
-    assert!(build_trees(&opts).unwrap().is_empty());
+    let trees = build_trees(&opts).unwrap();
+    dbg!(&trees);
+    assert!(trees.is_empty());
 }
 
 #[test]

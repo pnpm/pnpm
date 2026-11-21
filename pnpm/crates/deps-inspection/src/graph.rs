@@ -168,13 +168,30 @@ fn graph_node(
         TreeNodeId::Package(dep_path) => peer_names(opts.lockfile, dep_path),
         TreeNodeId::Importer(_) => HashSet::new(),
     };
-    if let (BoundPeerEdges::Skip, TreeNodeId::Package(dep_path)) = (opts.bound_peer_edges, node_id)
-        && !peers.is_empty()
-    {
-        let providers = BoundProviders::of_snapshot(opts.lockfile.into(), dep_path);
-        edges.retain(|edge| !is_bound_peer_edge(edge, &peers, &providers));
+    match opts.bound_peer_edges {
+        BoundPeerEdges::Follow => {}
+        BoundPeerEdges::Skip => {
+            if let TreeNodeId::Package(dep_path) = node_id {
+                drop_bound_peer_edges(&mut edges, dep_path, &peers, opts.lockfile);
+            }
+        }
     }
     GraphNode { edges, peers }
+}
+
+/// A key without a peer suffix binds nothing, so every dependency of that
+/// package is its own, even one whose name it also declares as a peer.
+fn drop_bound_peer_edges(
+    edges: &mut Vec<GraphEdge>,
+    dep_path: &PkgNameVerPeer,
+    peers: &HashSet<String>,
+    lockfile: &Lockfile,
+) {
+    if peers.is_empty() || dep_path.suffix.peer().is_empty() {
+        return;
+    }
+    let providers = BoundProviders::of_snapshot(lockfile.into(), dep_path);
+    edges.retain(|edge| !is_bound_peer_edge(edge, peers, &providers));
 }
 
 /// An edge without a virtual-store target counts as bound when its alias is a

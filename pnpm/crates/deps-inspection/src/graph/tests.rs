@@ -164,3 +164,60 @@ snapshots:
     dbg!(&skipped);
     assert_eq!(skipped, BTreeSet::from(["mid@1.0.0".to_string(), "wrapper@1.0.0".to_string()]));
 }
+
+/// `wrapper`'s key has no peer suffix, so its `link:` dependency on `mid`
+/// is its own even though it also declares `mid` as a peer.
+#[test]
+fn skipping_bound_peer_edges_keeps_a_linked_own_dependency_of_an_unsuffixed_key() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      wrapper:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  wrapper@1.0.0:
+    resolution: {integrity: sha512-wrapper}
+    peerDependencies:
+      mid: ^1.0.0
+
+snapshots:
+
+  wrapper@1.0.0:
+    dependencies:
+      mid: link:../mid
+",
+    )
+    .unwrap();
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap();
+    let graph = build_dependency_graph(
+        &[TreeNodeId::Importer(".".to_string())],
+        &BuildGraphOptions {
+            lockfile: &lockfile,
+            include: IncludedDependencies {
+                dependencies: true,
+                dev_dependencies: true,
+                optional_dependencies: true,
+            },
+            only_projects: false,
+            peer_edges: PeerEdgeOptions::default(),
+            bound_peer_edges: BoundPeerEdges::Skip,
+        },
+    );
+
+    let wrapper = &graph.nodes[&TreeNodeId::Package("wrapper@1.0.0".parse().unwrap())];
+    let aliases: Vec<&str> = wrapper.edges
+        .iter()
+        .map(|edge| edge.alias.as_str())
+        .collect();
+    dbg!(&aliases);
+    assert_eq!(aliases, ["mid"]);
+}
