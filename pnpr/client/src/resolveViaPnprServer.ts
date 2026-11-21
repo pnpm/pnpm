@@ -108,6 +108,7 @@ export interface ResolveViaPnprServerOptions {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeIgnoreMissingTime?: boolean
+  minimumReleaseAgeStrict?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
@@ -135,6 +136,7 @@ export interface ResolveViaPnprServerOptions {
 export interface ResolveViaPnprServerResult {
   lockfile: LockfileObject
   stats: ResponseMetadata['stats']
+  allowedPicks: string[]
 }
 
 /**
@@ -144,7 +146,7 @@ export interface ResolveViaPnprServerResult {
  */
 type ResolveFrame =
   | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string }
-  | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'], appliedPolicies: Record<string, unknown> }
+  | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'], appliedPolicies: Record<string, unknown>, allowedPicks?: string[] }
   | { type: 'error', message: string, code?: string }
   | { type: 'violations', violations: PnprViolation[] }
 
@@ -179,6 +181,7 @@ export async function resolveViaPnprServer (
     // in-memory `LockfileObject` the rest of pnpm consumes.
     lockfile: convertToLockfileObject(terminal.lockfile),
     stats: terminal.stats,
+    allowedPicks: terminal.allowedPicks ?? [],
   }
 }
 
@@ -215,6 +218,7 @@ function serializeResolveRequest (opts: ResolveViaPnprServerOptions, projects: P
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
+    minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
@@ -258,6 +262,7 @@ function expectedPolicies (opts: ResolveViaPnprServerOptions): Record<string, un
     minimumReleaseAge: opts.minimumReleaseAge ?? null,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude ?? [],
     minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime ?? true,
+    minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict ?? false,
     trustPolicy: opts.trustPolicy === 'no-downgrade' ? 'no-downgrade' : null,
     trustPolicyExclude: opts.trustPolicyExclude ?? [],
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter ?? null,

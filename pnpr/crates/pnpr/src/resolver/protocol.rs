@@ -266,6 +266,9 @@ pub struct ResolveRequest {
     /// client default (`true`).
     #[serde(default)]
     pub minimum_release_age_ignore_missing_time: Option<bool>,
+    /// Whether an immature fallback is rejected instead of being returned.
+    #[serde(default)]
+    pub minimum_release_age_strict: Option<bool>,
     /// The client's supply-chain trust policy. Defaults to `off`.
     #[serde(default)]
     pub trust_policy: pnpm_config::TrustPolicy,
@@ -347,6 +350,7 @@ pub struct AppliedPolicies {
     pub minimum_release_age: Option<u64>,
     pub minimum_release_age_exclude: Vec<String>,
     pub minimum_release_age_ignore_missing_time: bool,
+    pub minimum_release_age_strict: bool,
     pub trust_policy: Option<String>,
     pub trust_policy_exclude: Vec<String>,
     pub trust_policy_ignore_after: Option<u64>,
@@ -372,6 +376,7 @@ impl AppliedPolicies {
             minimum_release_age_ignore_missing_time: request
                 .minimum_release_age_ignore_missing_time
                 .unwrap_or(true),
+            minimum_release_age_strict: request.minimum_release_age_strict.unwrap_or(false),
             trust_policy_exclude: request.trust_policy_exclude.clone().unwrap_or_default(),
             trust_policy_ignore_after: request.trust_policy_ignore_after,
             trust_lockfile: request.trust_lockfile,

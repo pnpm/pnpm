@@ -406,6 +406,7 @@ pub(super) fn verification_policy(
         minimum_release_age: config.minimum_release_age,
         minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
         minimum_release_age_ignore_missing_time: config.minimum_release_age_ignore_missing_time,
+        minimum_release_age_strict: config.resolved_minimum_release_age_strict(),
         trust_policy: config.trust_policy,
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
