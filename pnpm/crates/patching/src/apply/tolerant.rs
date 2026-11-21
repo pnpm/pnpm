@@ -92,34 +92,41 @@ pub(super) fn mark_blank_crlf_context_lines(text: String) -> String {
 /// taking it for one more deleted line. pnpm 11's parser starts a new record
 /// at each `--- a/` line.
 pub(super) fn unidiff_records(text: &str) -> Vec<&str> {
-    let mut records = Vec::new();
-    let mut record_start = 0;
-    let mut seen_header = false;
-    let mut header_start: Option<usize> = None;
+    let mut header_starts = Vec::new();
+    let mut pending_header: Option<usize> = None;
     let mut hunk = HunkLinesLeft::default();
     let mut offset = 0;
     for line in text.split_inclusive('\n') {
         let line_start = offset;
         offset += line.len();
+        let header = pending_header.take();
         if hunk.consume(line) {
-            header_start = None;
             continue;
         }
-        if let Some(start) = header_start.take()
-            && line.starts_with("+++ ")
-        {
-            if seen_header {
-                records.push(&text[record_start..start]);
-                record_start = start;
-            }
-            seen_header = true;
-        } else if line.starts_with("--- ") {
-            header_start = Some(line_start);
-        } else if line.starts_with("@@ ") {
+        match header {
+            Some(start) if line.starts_with("+++ ") => header_starts.push(start),
+            _ => pending_header = line.starts_with("--- ").then_some(line_start),
+        }
+        if line.starts_with("@@ ") {
             hunk = HunkLinesLeft::of_header(line);
         }
     }
-    records.push(&text[record_start..]);
+    split_before(
+        text,
+        header_starts
+            .get(1..)
+            .unwrap_or_default(),
+    )
+}
+
+fn split_before<'a>(text: &'a str, starts: &[usize]) -> Vec<&'a str> {
+    let mut records = Vec::with_capacity(starts.len() + 1);
+    let mut from = 0;
+    for &start in starts {
+        records.push(&text[from..start]);
+        from = start;
+    }
+    records.push(&text[from..]);
     records
 }
 
@@ -131,6 +138,11 @@ struct HunkLinesLeft {
     new: usize,
 }
 
+/// The length of a `start,len` range, which is one when it is left out.
+fn range_len(range: &str) -> &str {
+    range.split_once(',').map_or("1", |(_, len)| len)
+}
+
 impl HunkLinesLeft {
     /// Read the counts of an `@@ -l,s +l,s @@` header. A count left out is
     /// one; a header that does not parse announces no lines.
@@ -140,8 +152,9 @@ impl HunkLinesLeft {
             ranges
                 .next()
                 .and_then(|range| range.strip_prefix(sign))
-                .map(|range| range.split_once(',').map_or("1", |(_, len)| len))
-                .and_then(|len| len.parse().ok())
+                .map(range_len)
+                .map(str::parse)
+                .and_then(Result::ok)
                 .unwrap_or(0)
         };
         let old = count('-');
