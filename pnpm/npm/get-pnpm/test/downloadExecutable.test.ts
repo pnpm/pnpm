@@ -38,6 +38,8 @@ let cdn: http.Server
 let proxy: http.Server
 /** An origin nothing downloads from, to probe the route a request takes. */
 let probe: http.Server
+/** How many requests reached `probe`. */
+let probeRequests = 0
 let registry: string
 let mode: Mode = 'ok'
 let requests: Array<{ path: string, authorization?: string }> = []
@@ -81,6 +83,7 @@ describe('downloadPnpmExecutable', () => {
     await listen(cdn)
 
     probe = http.createServer((req, res) => {
+      probeRequests++
       res.end()
     })
     await listen(probe)
@@ -121,6 +124,7 @@ describe('downloadPnpmExecutable', () => {
     registryStatuses = []
     registryEmptiesRemaining = 0
     tarballEmptiesRemaining = 0
+    probeRequests = 0
   })
 
   test('places the executable and nothing else', async () => {
@@ -477,6 +481,7 @@ describe('downloadPnpmExecutable', () => {
       downloadPnpmExecutableWithNpmRegistry({ version: VERSION, registry, destPath: destIn('npm-unreachable'), keys: KEYS, npmRegistry: `${addressOf(probe)}/` }),
       /carries no npm registry signature/
     )
+    assert.equal(probeRequests, 1, 'the lookup on npm is not retried')
   })
 
   test('does not request the package document when the version document is signed', async () => {

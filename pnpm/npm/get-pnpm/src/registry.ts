@@ -245,11 +245,12 @@ export async function fetchSignatures (
  * npm's signatures for `pkgName@version`, or `undefined` when npm cannot be
  * reached (from an air-gapped network, say), so the caller reports the
  * package as unsigned rather than the failed request. No credentials are sent:
- * they belong to the registry the package is downloaded from.
+ * they belong to the registry the package is downloaded from. Tried once, so
+ * a network that drops requests to npm waits out one timeout, not three.
  */
 async function fetchNpmSignatures (npmRegistry: string, pkgName: string, version: string): Promise<PackageSignature[] | undefined> {
   try {
-    const meta = await fetchJson<VersionMeta>(new URL(`${pkgName}/${version}`, npmRegistry), 'application/json')
+    const meta = await fetchJsonOnce<VersionMeta>(new URL(`${pkgName}/${version}`, npmRegistry), 'application/json')
     return meta.dist?.signatures
   } catch (err) {
     if (err instanceof RequestFailure) return undefined
@@ -376,14 +377,16 @@ function checksum (meta: VersionMeta): [algorithm: string, expected: string] {
 }
 
 async function fetchJson<Result> (url: URL, accept: string, opts: ScopedHeadersOptions = {}): Promise<Result> {
-  return withRetries(async () => {
-    const response = await request(url, accept, METADATA_TIMEOUT_MS, opts)
-    const chunks: Uint8Array[] = []
-    for await (const chunk of readBody(response, url, METADATA_TIMEOUT_MS)) chunks.push(chunk)
-    // Malformed JSON is what the server sent, and would be sent again, so a
-    // parse failure is not retried.
-    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as Result
-  })
+  return withRetries(async () => fetchJsonOnce<Result>(url, accept, opts))
+}
+
+async function fetchJsonOnce<Result> (url: URL, accept: string, opts: ScopedHeadersOptions = {}): Promise<Result> {
+  const response = await request(url, accept, METADATA_TIMEOUT_MS, opts)
+  const chunks: Uint8Array[] = []
+  for await (const chunk of readBody(response, url, METADATA_TIMEOUT_MS)) chunks.push(chunk)
+  // Malformed JSON is what the server sent, and would be sent again, so a
+  // parse failure is not retried.
+  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as Result
 }
 
 /** A request failure, marked so `withRetries` knows whether retrying it can help. */

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { certificateAuthorities, type ConfigSource, stripQuotes } from './npmConfig.js'
+import { certificateAuthorities, type ConfigSource } from './npmConfig.js'
 import { findUp } from './projectPin.js'
 import { DEFAULT_REGISTRY, isUrlSecureForCredentials, normalizeRegistry, type ProxyEnv, type RequestHeaders } from './registry.js'
 import { parseYamlDocument } from './yaml.js'
@@ -367,11 +367,42 @@ function topLevelSettings (text: string): Array<[string, string]> {
     const line = rawLine.trim()
     // Settings under a `[section]` are not top-level ones.
     if (line.startsWith('[')) break
-    const separator = line.indexOf('=')
-    if (separator === -1 || line.startsWith(';') || line.startsWith('#')) continue
-    settings.push([line.slice(0, separator).trim(), stripQuotes(line.slice(separator + 1).trim())])
+    const setting = line.startsWith(';') || line.startsWith('#') ? undefined : splitSetting(line)
+    if (setting != null) settings.push(setting)
   }
   return settings
+}
+
+/**
+ * The key and value of a `key=value` line. A JSON-quoted key may hold `=`,
+ * as `pnpm login` writes one that does.
+ */
+function splitSetting (line: string): [string, string] | undefined {
+  const keyEnd = line.startsWith('"') ? jsonStringEnd(line) : undefined
+  const separator = keyEnd == null ? line.indexOf('=') : line.indexOf('=', keyEnd)
+  if (separator === -1 || (keyEnd != null && line.slice(keyEnd, separator).trim() !== '')) return undefined
+  return [decodeIniValue(line.slice(0, separator).trim()), decodeIniValue(line.slice(separator + 1).trim())]
+}
+
+/** The index just past the JSON string `line` starts with, if it is closed. */
+function jsonStringEnd (line: string): number | undefined {
+  for (let index = 1; index < line.length; index++) {
+    if (line[index] === '\\') index++
+    else if (line[index] === '"') return index + 1
+  }
+  return undefined
+}
+
+/** Unwraps a single-quoted value and decodes a JSON-quoted one, as pnpm does. */
+function decodeIniValue (value: string): string {
+  if (value.length < 2) return value
+  if (value.startsWith("'") && value.endsWith("'")) return value.slice(1, -1)
+  if (!value.startsWith('"') || !value.endsWith('"')) return value
+  try {
+    return JSON.parse(value) as string
+  } catch {
+    return value
+  }
 }
 
 /**

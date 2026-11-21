@@ -119,6 +119,20 @@ describe('pnpmRegistryConfig', () => {
     })
   })
 
+  test('reads a key that pnpm login quoted because it holds =', () => {
+    const { cwd, home } = layout()
+    const configHome = writeGlobalConfigFile(home, 'auth.ini', [
+      'registry=https://registry.example.test/team=one/npm/',
+      '"//registry.example.test/team=one/npm/:_authToken"="login-token"',
+    ].join('\n'))
+
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { XDG_CONFIG_HOME: configHome } }), {
+      registry: 'https://registry.example.test/team=one/npm/',
+      headers: { authorization: 'Bearer login-token' },
+      authPath: '/team=one/npm/',
+    })
+  })
+
   test('reads the project .npmrc over the global auth.ini', () => {
     const { cwd, home, project } = layout({ project: ['registry=https://project.example.test/'] })
     fs.writeFileSync(path.join(project, 'pnpm-workspace.yaml'), '')
