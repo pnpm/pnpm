@@ -139,16 +139,9 @@ impl NodeLinkerSetting {
 
     pub(crate) fn from_resolved(config: &Config) -> Self {
         match config.node_linker {
-            NodeLinker::Isolated => Self::Options(NodeLinkerOptions::Isolated {
-                hoist: Some(if config.hoist {
-                    HoistSetting::Patterns(NodeLinkerHoistPatterns {
-                        public: config.public_hoist_pattern.clone(),
-                        private: config.hoist_pattern.clone(),
-                    })
-                } else {
-                    HoistSetting::Enabled(false)
-                }),
-            }),
+            NodeLinker::Isolated => {
+                Self::Options(NodeLinkerOptions::Isolated { hoist: Some(resolved_hoist(config)) })
+            }
             NodeLinker::Hoisted => Self::Options(NodeLinkerOptions::Hoisted {
                 hoisting_limits: Some(config.hoisting_limits),
             }),
@@ -165,28 +158,55 @@ fn select_linker(config: &mut Config, linker: NodeLinker) {
     config.node_linker_excluded.clear();
 }
 
+/// The patterns that `virtualStoreOnly` restores when it ends, and
+/// `hoist: false` only when public hoisting is off too, so a round trip
+/// keeps public-only hoisting.
+fn resolved_hoist(config: &Config) -> HoistSetting {
+    let (private, public) = match &config.hoist_patterns_before_virtual_store_only {
+        Some(saved) => (&saved.hoist_pattern, &saved.public_hoist_pattern),
+        None => (&config.hoist_pattern, &config.public_hoist_pattern),
+    };
+    let hoists_publicly = public
+        .as_ref()
+        .is_some_and(|patterns| !patterns.is_empty());
+    if !config.hoist && !hoists_publicly {
+        return HoistSetting::Enabled(false);
+    }
+    HoistSetting::Patterns(NodeLinkerHoistPatterns {
+        public: public.clone(),
+        private: if config.hoist { private.clone() } else { Some(Vec::new()) },
+    })
+}
+
+/// While `virtualStoreOnly` keeps the active patterns empty, the patterns
+/// go to the snapshot it restores when it ends.
 fn apply_isolated_hoist(config: &mut Config, hoist: Option<HoistSetting>) {
+    let Some(hoist) = hoist else { return };
+    let (private, public) =
+        match config.hoist_patterns_before_virtual_store_only.as_mut() {
+            Some(saved) => (&mut saved.hoist_pattern, &mut saved.public_hoist_pattern),
+            None => (&mut config.hoist_pattern, &mut config.public_hoist_pattern),
+        };
     match hoist {
-        Some(HoistSetting::Enabled(false)) => {
+        HoistSetting::Enabled(false) => {
             config.hoist = false;
-            config.hoist_pattern = None;
-            config.public_hoist_pattern = None;
+            *private = None;
+            *public = None;
         }
-        Some(HoistSetting::Enabled(true)) => {
+        HoistSetting::Enabled(true) => {
             config.hoist = true;
-            config.hoist_pattern = Some(crate::default_hoist_pattern());
-            config.public_hoist_pattern = Some(crate::default_public_hoist_pattern());
+            *private = Some(crate::default_hoist_pattern());
+            *public = Some(crate::default_public_hoist_pattern());
         }
-        Some(HoistSetting::Patterns(patterns)) => {
-            config.hoist = true;
-            if let Some(private) = patterns.private {
-                config.hoist_pattern = Some(private);
+        HoistSetting::Patterns(patterns) => {
+            if let Some(patterns) = patterns.private {
+                config.hoist = true;
+                *private = Some(patterns);
             }
-            if let Some(public) = patterns.public {
-                config.public_hoist_pattern = Some(public);
+            if let Some(patterns) = patterns.public {
+                *public = Some(patterns);
             }
         }
-        None => {}
     }
 }
 

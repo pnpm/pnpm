@@ -87,6 +87,7 @@ fn filter_hook_delta(config: &Config, mut delta: Value) -> Value {
             !config.cli_settings.contains(key)
                 && !config.cli_settings.contains(&pnpm_config::naming_cases::to_camel_case(key))
         });
+        super::node_linker_aliases::drop_cli_linker_aliases(config, delta);
     }
     delta
 }
@@ -137,6 +138,7 @@ pub(super) fn apply_hook_delta(
     config.apply_cli_registries();
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
+    super::node_linker_aliases::reapply_linker_options(config, &delta);
     let node_path_refresh = lockfile_dir_paths_before_hook.map(|paths_before_hook| {
         apply_lockfile_dir_change(config, paths_before_hook)
     });

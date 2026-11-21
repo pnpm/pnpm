@@ -297,16 +297,13 @@ impl ConfigOverrides {
             || self.public_hoist_pattern.is_some()
         {
             // `hoist: false` nullifies the private pattern whichever layer
-            // supplied either. `shamefullyHoist` only wins over
-            // `publicHoistPattern` when both come from this command line.
+            // supplied either, so the two derivations below re-run over the
+            // command line's contribution the way `WorkspaceSettings::apply_to`
+            // runs them over yaml's.
             if !config.hoist {
                 config.hoist_pattern = None;
             }
-            match self.shamefully_hoist {
-                Some(true) => config.public_hoist_pattern = Some(vec!["*".to_string()]),
-                Some(false) => config.public_hoist_pattern = None,
-                None => {}
-            }
+            config.apply_shamefully_hoist_derivation();
             config.apply_virtual_store_only_derivation();
         }
     }
@@ -357,6 +354,10 @@ impl ConfigOverrides {
         if let Some(value) = &self.node_linker {
             value.clone().apply_to(config);
             config.explicit_settings.insert("nodeLinker".to_string(), setting_value(value));
+            // The linker's hoist patterns land after the hoist overrides
+            // ran these derivations.
+            config.apply_shamefully_hoist_derivation();
+            config.apply_virtual_store_only_derivation();
             // A CLI-selected hoisted linker turns the default on just
             // like a yaml-selected one, pnpm merges CLI options before
             // its `nodeLinker` switch, so the derivation must see this

@@ -53,13 +53,19 @@ fn reset_node_linker(config: &mut Config, defaults: &Config, key: &str) -> bool 
     config.node_linker_excluded.clone_from(&defaults.node_linker_excluded);
     config.hoisting_limits = config.explicit_settings
         .get("hoistingLimits")
-        .and_then(|value| serde_json::from_value(value.clone()).ok())
+        .cloned()
+        .map(serde_json::from_value)
+        .and_then(Result::ok)
         .unwrap_or(defaults.hoisting_limits);
     config.hoist = config.explicit_settings
         .get("hoist")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(defaults.hoist);
-    reset_hoist_pattern(config, defaults);
+    // The `virtualStoreOnly` snapshot may hold the linker's patterns.
+    config.hoist_patterns_before_virtual_store_only = None;
+    config.hoist_pattern = config.hoist
+        .then(|| explicit_or_default(config, "hoistPattern", defaults.hoist_pattern.as_deref()))
+        .flatten();
     reset_public_hoist_pattern(config, defaults);
     config.apply_prefer_symlinked_executables_derivation();
     true

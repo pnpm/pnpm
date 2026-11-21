@@ -127,9 +127,61 @@ fn linker_options_round_trip_through_resolved_settings() {
 }
 
 #[test]
+fn public_only_hoisting_survives_a_resolved_settings_round_trip() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("hoist: false\npublicHoistPattern: ['eslint']\n").unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("."));
+    let reported = serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap();
+    let mut restored = Config::default();
+    serde_json::from_value::<WorkspaceSettings>(reported)
+        .unwrap()
+        .apply_to(&mut restored, Path::new("."));
+    assert_eq!(restored.public_hoist_pattern, Some(vec!["eslint".to_string()]));
+    assert!(restored.hoist_pattern.unwrap_or_default().is_empty());
+}
+
+#[test]
+fn linker_options_under_virtual_store_only_go_to_the_restored_patterns() {
+    let mut config = Config { virtual_store_only: true, ..Config::default() };
+    config.apply_virtual_store_only_derivation();
+    serde_saphyr::from_str::<WorkspaceSettings>(
+        "nodeLinker:\n  type: isolated\n  hoist:\n    public: ['eslint']\n",
+    )
+    .unwrap()
+    .apply_to(&mut config, Path::new("."));
+    assert_eq!(config.public_hoist_pattern, Some(vec![]));
+    config.virtual_store_only = false;
+    config.restore_hoist_patterns_after_virtual_store_only();
+    assert_eq!(config.public_hoist_pattern, Some(vec!["eslint".to_string()]));
+}
+
+#[test]
+fn resetting_node_linker_drops_its_patterns_from_the_virtual_store_only_snapshot() {
+    let defaults = Config::default();
+    let mut config = Config { virtual_store_only: true, ..Config::default() };
+    serde_saphyr::from_str::<WorkspaceSettings>(
+        "nodeLinker:\n  type: isolated\n  hoist:\n    public: ['eslint']\n",
+    )
+    .unwrap()
+    .apply_to(&mut config, Path::new("."));
+    config.apply_virtual_store_only_derivation();
+    config.explicit_settings.remove("nodeLinker");
+    WorkspaceSettings::reset_setting_to_default::<crate::Host>(
+        &mut config,
+        &defaults,
+        "nodeLinker",
+        Path::new("."),
+    );
+    config.virtual_store_only = false;
+    config.restore_hoist_patterns_after_virtual_store_only();
+    assert_eq!(config.public_hoist_pattern, defaults.public_hoist_pattern);
+}
+
+#[test]
 fn object_options_win_over_flat_aliases_from_the_same_source() {
     let settings: WorkspaceSettings = serde_saphyr::from_str(
-        "nodeLinker:\n  type: isolated\n  hoist: false\nhoistPattern: ['legacy']\npublicHoistPattern: ['legacy']\nshamefullyHoist: true\n",
+        "nodeLinker:\n  type: isolated\n  hoist: false\nhoistPattern: ['legacy']\npublicHoistPattern: ['legacy']\n",
     )
     .unwrap();
     let mut config = Config::default();
@@ -142,7 +194,7 @@ fn object_options_win_over_flat_aliases_from_the_same_source() {
 fn higher_priority_flat_setting_overrides_a_lower_priority_linker_option() {
     let mut config = Config::default();
     serde_saphyr::from_str::<WorkspaceSettings>(
-        "shamefullyHoist: true\nnodeLinker:\n  type: isolated\n  hoist:\n    public: ['lower']\n",
+        "nodeLinker:\n  type: isolated\n  hoist:\n    public: ['lower']\n",
     )
     .unwrap()
     .apply_to(&mut config, Path::new("."));
