@@ -121,9 +121,7 @@ pub(in super::super) fn policy_authorizes_link(
     let base_parent = parent_key.without_peer();
     let parent_name = base_parent.name.to_string();
     let parent_ver = parent_semver_or_version(&base_parent, parent_meta);
-    let declared = policy
-        .pristine_declared_spec(&base_parent, field, alias.to_owned())
-        .map(|spec| policy.resolve_catalog_spec(alias, spec));
+    let declared = declared_child_spec(policy, (&base_parent, parent_meta), field, alias);
     let normalized = normalize_target_for_match(target);
     matching_edges(policy, (&base_parent, &parent_name, parent_ver.as_deref()), (alias, declared))
         .any(|edge| edge.targets.contains(&normalized))
@@ -149,12 +147,40 @@ pub(in super::super) fn policy_authorizes_package(
     let base_parent = parent_key.without_peer();
     let parent_name = base_parent.name.to_string();
     let parent_ver = parent_semver_or_version(&base_parent, parent_meta);
-    let declared = policy
-        .pristine_declared_spec(&base_parent, field, alias.to_owned())
-        .map(|spec| policy.resolve_catalog_spec(alias, spec));
+    let declared = declared_child_spec(policy, (&base_parent, parent_meta), field, alias);
     let normalized = normalize_target_for_match(&target);
     matching_edges(policy, (&base_parent, &parent_name, parent_ver.as_deref()), (alias, declared))
         .any(|edge| edge.targets.contains(&normalized))
+}
+
+/// The parent's pristine range for `alias` under `field`. A resolved peer is
+/// recorded among the snapshot's dependencies, so a parent that declares
+/// `alias` only as a peer falls back to its `peerDependencies` range.
+fn declared_child_spec<'p>(
+    policy: &'p LocalResolutionPolicy,
+    (base_parent, parent_meta): (&PkgNameVerPeer, Option<&PackageMetadata>),
+    field: LocalDepField,
+    alias: &str,
+) -> Option<&'p str> {
+    let declared_peer = || {
+        parent_meta
+            .and_then(|meta| meta.peer_dependencies.as_ref())
+            .is_some_and(|peers| peers.contains_key(alias))
+    };
+    policy
+        .pristine_declared_spec(base_parent, field, alias.to_owned())
+        .or_else(|| {
+            declared_peer()
+                .then(|| {
+                    policy.pristine_declared_spec(
+                        base_parent,
+                        LocalDepField::PeerDependencies,
+                        alias.to_owned(),
+                    )
+                })
+                .flatten()
+        })
+        .map(|spec| policy.resolve_catalog_spec(alias, spec))
 }
 
 pub(in super::super) fn policy_authorizes_peer_spec(

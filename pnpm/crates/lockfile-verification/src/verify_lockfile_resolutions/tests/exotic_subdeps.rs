@@ -262,6 +262,7 @@ snapshots:
             err,
             VerifyError::ExoticSubdep { count: 1, .. }
                 | VerifyError::LocalSubdepNotAllowed { count: 1, .. }
+                | VerifyError::ResolutionShapeMismatch { count: 1, .. }
         ),
         "got: {err:?}",
     );

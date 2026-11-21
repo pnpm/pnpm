@@ -72,16 +72,27 @@ export function collectLocalResolutionViolations (
   if (policy.selectedImporterIds == null) {
     scanUnreachableSnapshots(lockfile, policy, roots, visitedSnapshots, rawViolations)
   }
-  const reachableFilter = policy.selectedImporterIds != null ? reachableBaseKeys : undefined
   collectPackageEntryViolations({
     lockfile,
     policy,
     workspaceDirs: roots.workspaceDirs,
     authorizedPackages,
     authorizedGitPackages,
-    reachableFilter,
+    ...selectedImporterFilters(policy, roots, reachableBaseKeys),
   }, rawViolations)
   return dedupeViolations(rawViolations)
+}
+
+function selectedImporterFilters (
+  policy: LocalResolutionPolicy,
+  roots: { importers: Array<{ reachableSnapshots: Set<DepPath> }> },
+  reachableBaseKeys: Set<string>
+): { reachableFilter?: Set<string>, selectedSnapshots?: Set<DepPath> } {
+  if (policy.selectedImporterIds == null) return {}
+  return {
+    reachableFilter: reachableBaseKeys,
+    selectedSnapshots: new Set(roots.importers.flatMap((imp) => [...imp.reachableSnapshots])),
+  }
 }
 
 interface ScopedScan {

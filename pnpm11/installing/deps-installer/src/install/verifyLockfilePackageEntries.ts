@@ -33,6 +33,8 @@ export interface PackageEntryScan {
   authorizedPackages: Set<string>
   authorizedGitPackages: Set<string>
   reachableFilter?: Set<string>
+  /** Snapshots the selected importers reach. Peers resolved only elsewhere do not count. */
+  selectedSnapshots?: Set<DepPath>
   /** Built by `authorizedLocalPackageDeclaresPeer` on first use. */
   authorizedPeerDeclarations?: Set<string>
 }
@@ -59,7 +61,9 @@ function inspectPackageEntry (
   const pkgName = parsed.name ?? snapshot.name ?? depPath
   const pkgVer = parsed.version ?? snapshot.version
   const displayVer = pkgVer ?? parsed.nonSemverVersion ?? '0.0.0'
-  checkSnapshotPeerSpecs(scan, { name: pkgName, version: pkgVer, displayVer, baseKey, nonSemverVersion: parsed.nonSemverVersion, snapshot }, violations)
+  if (scan.selectedSnapshots == null || scan.selectedSnapshots.has(depPath)) {
+    checkSnapshotPeerSpecs(scan, { name: pkgName, version: pkgVer, displayVer, baseKey, nonSemverVersion: parsed.nonSemverVersion, snapshot }, violations)
+  }
   if (parsed.nonSemverVersion?.startsWith('file:')) {
     checkFilePackageEntry(scan, shapeCtx, { pkgName, baseKey, nonSemverVersion: parsed.nonSemverVersion, snapshot }, violations)
     return

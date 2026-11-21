@@ -107,7 +107,11 @@ export function canonicalSlashPath (raw: string): string {
   const slash = raw.replace(/\\/g, '/')
   if (isDriveLetterPrefix(slash)) {
     const drive = slash[0].toUpperCase()
-    const rest = normalizeRelDir(slash.slice(2).replace(/^\/+/, ''))
+    const afterDrive = slash.slice(2)
+    // `C:dir` resolves against the drive's current directory, so it keeps a
+    // prefix distinct from the anchored `C:/dir`.
+    if (!afterDrive.startsWith('/')) return `${drive}:${normalizeRelDir(afterDrive)}`
+    const rest = normalizeRelDir(afterDrive.replace(/^\/+/, ''))
     return rest === '.' ? `${drive}:/` : `${drive}:/${rest}`
   }
   if (slash.startsWith('//') && !slash.startsWith('///')) {
@@ -148,6 +152,7 @@ export function fileKeyMismatchesLocalTarget (
       ctx
     ))
   }
+  if (type === 'git') return true
   return typeof tarball === 'string' && tarballTargetMismatches(keyPath, tarball, ctx)
 }
 
@@ -196,7 +201,9 @@ function tarballTargetMismatches (
   ctx?: FileShapeContext
 ): boolean {
   const tarPath = stripFileUrlPrefix(tarball)
-  if (tarPath == null) return false
+  // A remote tarball has its own URL key, so one behind a `file:` key
+  // disguises its source.
+  if (tarPath == null) return true
   if (!keyPath.startsWith('//')) {
     return normalizeRelDir(keyPath) !== normalizeRelDir(tarPath)
   }

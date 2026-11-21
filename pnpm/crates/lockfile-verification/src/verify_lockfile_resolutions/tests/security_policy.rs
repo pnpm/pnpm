@@ -608,3 +608,52 @@ async fn localhost_git_file_url_matches_its_repository_target() {
         .expect_err("a file://localhost/ key must not match a different repository");
     assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "{err:?}");
 }
+
+#[test]
+fn drive_relative_path_stays_distinct_from_the_anchored_path() {
+    use super::super::file_url_shape::canonical_slash_path;
+    assert_eq!(canonical_slash_path("c:/allowed/helper"), "C:/allowed/helper");
+    assert_eq!(canonical_slash_path("C:allowed/helper"), "C:allowed/helper");
+    assert_ne!(canonical_slash_path("C:allowed/helper"), canonical_slash_path("C:/allowed/helper"));
+    assert_eq!(canonical_slash_path("C:../helper"), "C:../helper");
+}
+
+#[test]
+fn a_peer_resolved_only_for_an_unselected_importer_does_not_count() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\nimporters:\n  app-a:\n    dependencies:\n      plugin:\n        specifier: 1.0.0\n        version: 1.0.0\n  app-b:\n    dependencies:\n      plugin:\n        specifier: 1.0.0\n        version: 1.0.0(helper@file:helper)\npackages:\n  plugin@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n    peerDependencies:\n      helper: file:../helper\n  helper@file:helper:\n    resolution: {type: directory, directory: helper}\nsnapshots:\n  plugin@1.0.0: {}\n  plugin@1.0.0(helper@file:helper):\n    dependencies:\n      helper: file:helper\n  helper@file:helper: {}\n",
+    );
+    let selected =
+        LocalResolutionPolicy::default().with_selected_importer_ids(["app-a".to_string()]);
+    crate::verify_lockfile_local_resolutions(&lockfile, Some(selected))
+        .expect("app-a never resolves the local peer");
+    let err = crate::verify_lockfile_local_resolutions(&lockfile, None)
+        .expect_err("app-b resolves the unauthorized local peer");
+    assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{err:?}");
+}
+
+#[test]
+fn ranged_override_covers_a_peer_only_declaration() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      plugin:\n        specifier: 1.0.0\n        version: 1.0.0(helper@helper)\npackages:\n  plugin@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n    peerDependencies:\n      helper: ^1.0.0\nsnapshots:\n  plugin@1.0.0(helper@helper):\n    dependencies:\n      helper: link:helper\n",
+    );
+    let policy = |peer_range: &str| {
+        let mut specs: PristineDeclaredSpecs = std::collections::HashMap::new();
+        specs.insert(
+            (pkg_key("plugin@1.0.0"), LocalDepField::PeerDependencies, "helper".to_string()),
+            peer_range.to_string(),
+        );
+        LocalResolutionPolicy::from_scoped_inputs(
+            [("plugin>helper@^1.0.0", "link:./helper")],
+            [],
+            false,
+            None,
+        )
+        .with_pristine_declared_specs(specs)
+    };
+    crate::verify_lockfile_local_resolutions(&lockfile, Some(policy("^1.0.0")))
+        .expect("a peer declared at ^1.0.0 is covered by the ^1.0.0 override");
+    let err = crate::verify_lockfile_local_resolutions(&lockfile, Some(policy("^2.0.0")))
+        .expect_err("a peer declared at ^2.0.0 is not covered");
+    assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{err:?}");
+}

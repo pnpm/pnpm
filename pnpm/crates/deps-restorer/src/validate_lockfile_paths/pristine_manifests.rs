@@ -157,5 +157,23 @@ async fn fetch_manifest_from_registry(
     };
     let packument = fetch_full_metadata_cached(&parent.name, &opts).await.ok()?;
     let pkg_version = packument.versions.get(version)?;
-    serde_json::to_value(pkg_version.as_ref()).ok()
+    let manifest = serde_json::to_value(pkg_version.as_ref()).ok()?;
+    describes_locked_artifact(parent, &manifest).then_some(manifest)
 }
+
+/// Whether registry metadata describes the artifact the lockfile pins. A
+/// republished version or a locked revision has different declared specs,
+/// so only an exact integrity match without a revision counts as evidence.
+fn describes_locked_artifact(parent: &LocalResolutionProbeParent, manifest: &Value) -> bool {
+    let Some(LockfileResolution::Registry(locked)) = &parent.resolution else {
+        return false;
+    };
+    locked.revision.is_none()
+        && manifest
+            .pointer("/dist/integrity")
+            .and_then(Value::as_str)
+            .is_some_and(|integrity| integrity == locked.integrity.to_string())
+}
+
+#[cfg(test)]
+mod tests;

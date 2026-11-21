@@ -48,6 +48,9 @@ pub(super) struct PackageEntryScan<'a> {
     pub(super) authorized_packages: &'a HashSet<PkgNameVerPeer>,
     pub(super) authorized_git_packages: &'a HashSet<PkgNameVerPeer>,
     pub(super) reachable_filter: Option<&'a HashSet<PkgNameVerPeer>>,
+    /// Snapshots the selected importers reach, when an importer selection
+    /// narrows the scan. Peers resolved only elsewhere do not count.
+    pub(super) selected_snapshots: Option<&'a HashSet<&'a PkgNameVerPeer>>,
     /// Built by [`is_peer_resolved`] on first use.
     pub(super) resolved_aliases: OnceCell<HashMap<PkgNameVerPeer, HashSet<String>>>,
 }
@@ -206,14 +209,23 @@ fn is_unauthorized_peer_spec(
 /// so its declaration reaches nothing on disk.
 fn is_peer_resolved(scan: &PackageEntryScan<'_>, pkg_key: &PkgNameVerPeer, alias: &str) -> bool {
     scan.resolved_aliases
-        .get_or_init(|| index_resolved_aliases(scan.lockfile))
+        .get_or_init(|| index_resolved_aliases(scan.lockfile, scan.selected_snapshots))
         .get(pkg_key)
         .is_some_and(|aliases| aliases.contains(alias))
 }
 
-fn index_resolved_aliases(lockfile: &Lockfile) -> HashMap<PkgNameVerPeer, HashSet<String>> {
+fn index_resolved_aliases(
+    lockfile: &Lockfile,
+    selected_snapshots: Option<&HashSet<&PkgNameVerPeer>>,
+) -> HashMap<PkgNameVerPeer, HashSet<String>> {
     let mut by_base: HashMap<PkgNameVerPeer, HashSet<String>> = HashMap::new();
-    for (snap_key, snapshot) in lockfile.snapshots.iter().flatten() {
+    let snapshots = lockfile.snapshots
+        .iter()
+        .flatten()
+        .filter(|(snap_key, _)| {
+            selected_snapshots.is_none_or(|selected| selected.contains(snap_key))
+        });
+    for (snap_key, snapshot) in snapshots {
         let names = [&snapshot.dependencies, &snapshot.optional_dependencies]
             .into_iter()
             .flatten()

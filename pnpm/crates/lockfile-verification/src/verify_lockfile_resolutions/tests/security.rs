@@ -414,10 +414,6 @@ async fn rejects_root_slash_links_deploy_keys_outside_deploy_and_unscoped_borrow
             "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      peer-c:\n        specifier: link:../peer-c\n        version: link:../peer-c\n      remote:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  remote@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\nsnapshots:\n  remote@1.0.0:\n    dependencies:\n      peer-c: link:../peer-c\n",
         ),
         (
-            "file-key-with-https-tarball-and-link-child",
-            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n       disguised:\n        specifier: https://example.com/disguised.tgz\n        version: file:./disguised\npackages:\n  disguised@file:./disguised:\n    resolution: {tarball: https://example.com/disguised.tgz}\nsnapshots:\n  disguised@file:./disguised:\n    dependencies:\n      leak: link:../secret\n",
-        ),
-        (
             "unreachable-decoy-local-peer",
             "lockfileVersion: '9.0'\nimporters:\n  .: {}\npackages:\n  decoy@file:./decoy:\n    resolution: {type: directory, directory: ./decoy}\n    peerDependencies:\n      secret: file:../secret\nsnapshots:\n  decoy@file:./decoy:\n    dependencies:\n      secret: file:../secret\n",
         ),
@@ -449,6 +445,10 @@ async fn rejects_escaping_file_key_target_substitution_and_variations_escape() {
         (
             "substituted-importer-file-target",
             "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      vendor-lib:\n        specifier: file:../vendor/lib\n        version: file:../vendor/lib\npackages:\n  vendor-lib@file:../vendor/lib:\n    resolution: {type: directory, directory: /etc}\nsnapshots:\n  vendor-lib@file:../vendor/lib: {}\n",
+        ),
+        (
+            "file-key-with-https-tarball-and-link-child",
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n       disguised:\n        specifier: https://example.com/disguised.tgz\n        version: file:./disguised\npackages:\n  disguised@file:./disguised:\n    resolution: {tarball: https://example.com/disguised.tgz}\nsnapshots:\n  disguised@file:./disguised:\n    dependencies:\n      leak: link:../secret\n",
         ),
         (
             "variations-escaping-directory",

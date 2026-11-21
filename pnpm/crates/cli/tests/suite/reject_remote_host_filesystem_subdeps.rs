@@ -650,3 +650,58 @@ fn isolates_hoisted_local_peer_authorizations_by_declaring_parent_and_importer()
 
     drop((root, server));
 }
+
+#[test]
+fn optional_local_peer_declarer_must_authorize_a_hoisted_peer() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (home, auth_file) = setup_host_secrets(root.path());
+    let mut server = mockito::Server::new();
+
+    let peer_dir = root.path().join("shared-peer");
+    fs::create_dir_all(&peer_dir).expect("create shared-peer");
+    fs::write(
+        peer_dir.join("package.json"),
+        json!({ "name": "peer-x", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write peer-x");
+    let peer_spec = format!("file:{}", peer_dir.to_string_lossy().replace('\\', "/"));
+
+    let trusted_manifest = json!({ "name": "trusted-parent", "version": "1.0.0" });
+    let evil_manifest = json!({
+        "name": "evil-parent",
+        "version": "1.0.0",
+        "peerDependencies": { "peer-x": peer_spec },
+        "peerDependenciesMeta": { "peer-x": { "optional": true } },
+    });
+    let _m1 = serve_remote_pkg(&mut server, "trusted-parent", "1.0.0", &trusted_manifest);
+    let _m2 = serve_remote_pkg(&mut server, "evil-parent", "1.0.0", &evil_manifest);
+
+    fs::write(workspace.join(".npmrc"), format!("registry={}/\n", server.url()))
+        .expect("write .npmrc");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "autoInstallPeers: true\npackageExtensions:\n  trusted-parent:\n    peerDependencies:\n      peer-x: '{peer_spec}'\n",
+        ),
+    )
+    .expect("write workspace yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "trusted-parent": "1.0.0", "evil-parent": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let out = pnpm_cmd(&workspace, &home, &auth_file)
+        .with_arg("install")
+        .output()
+        .expect("run install");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "the optional declarer must not share the hoisted peer");
+    assert!(stderr.contains("ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED"), "stderr: {stderr}");
+
+    drop((root, server));
+}

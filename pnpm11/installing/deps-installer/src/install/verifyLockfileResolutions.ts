@@ -122,8 +122,8 @@ export function verifyLockfileDependencyAliases (lockfile: LockfileObject): void
   }
 }
 
-export function verifyLockfileFileOffline (lockfile: LockfileFile): void {
-  const { invalidAliases, shapeViolations } = collectLockfileFileOfflineViolations(lockfile)
+export function verifyLockfileFileOffline (lockfile: LockfileFile, shapeCtx?: FileShapeContext): void {
+  const { invalidAliases, shapeViolations } = collectLockfileFileOfflineViolations(lockfile, shapeCtx)
   if (invalidAliases.length > 0) {
     throw buildInvalidAliasError(invalidAliases)
   }

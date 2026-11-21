@@ -97,6 +97,15 @@ fn collect_local_resolution_violations(
     let (reachable_packages, authorized_packages, authorized_git_packages) =
         scan_all_scopes(lockfile, policy, &roots, &mut raw_violations);
     let reachable_filter = policy.scope.selected_importer_ids.as_ref().map(|_| &reachable_packages);
+    let selected_snapshots: Option<HashSet<&PkgNameVerPeer>> = policy.scope
+        .selected_importer_ids
+        .as_ref()
+        .map(|_| {
+            roots.importers
+                .iter()
+                .flat_map(|imp| imp.reachable_snapshots.iter())
+                .collect()
+        });
     let pkg_scan = PackageEntryScan {
         lockfile,
         policy,
@@ -104,6 +113,7 @@ fn collect_local_resolution_violations(
         authorized_packages: &authorized_packages,
         authorized_git_packages: &authorized_git_packages,
         reachable_filter,
+        selected_snapshots: selected_snapshots.as_ref(),
         resolved_aliases: std::cell::OnceCell::new(),
     };
     collect_package_entry_violations(&pkg_scan, &mut raw_violations);

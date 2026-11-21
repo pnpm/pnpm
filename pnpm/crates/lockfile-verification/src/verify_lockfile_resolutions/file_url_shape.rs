@@ -97,7 +97,7 @@ pub(super) fn canonical_slash_path(raw: &str) -> String {
     let (prefix, rest) = split_path_prefix(&normalized);
     let mut stack: Vec<&str> = Vec::new();
     for segment in rest.split('/') {
-        apply_path_segment(&mut stack, segment, prefix.is_empty());
+        apply_path_segment(&mut stack, segment, prefix.is_empty() || prefix.ends_with(':'));
     }
     if prefix.is_empty() {
         return if stack.is_empty() { ".".to_string() } else { stack.join("/") };
@@ -108,7 +108,13 @@ pub(super) fn canonical_slash_path(raw: &str) -> String {
 fn split_path_prefix(slash_path: &str) -> (String, &str) {
     if is_drive_letter_prefix(slash_path) {
         let drive = slash_path.as_bytes()[0].to_ascii_uppercase() as char;
-        return (format!("{drive}:/"), slash_path[2..].trim_start_matches('/'));
+        let rest = &slash_path[2..];
+        // `C:dir` resolves against the drive's current directory, so it
+        // keeps a prefix distinct from the anchored `C:/dir`.
+        return match rest.strip_prefix('/') {
+            Some(anchored) => (format!("{drive}:/"), anchored.trim_start_matches('/')),
+            None => (format!("{drive}:"), rest),
+        };
     }
     if let Some(rest) = slash_path.strip_prefix("//")
         && !rest.starts_with('/')

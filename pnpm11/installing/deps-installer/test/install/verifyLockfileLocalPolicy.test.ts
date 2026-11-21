@@ -1,5 +1,5 @@
 import { expect, jest, test } from '@jest/globals'
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { BaseManifest, DepPath, ProjectId, ReadPackageHook } from '@pnpm/types'
 
@@ -13,7 +13,13 @@ import {
   type LocalHookInputs,
   resolveLocalPolicyForInstall,
 } from '../../src/install/verifyLockfileLocalResolutions.js'
-import { verifyLockfileLocalResolutions, verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
+import {
+  verifyLockfileFileOffline,
+  verifyLockfileLocalResolutions,
+  verifyLockfileResolutions,
+  verifyLockfileResolutionShapes,
+} from '../../src/install/verifyLockfileResolutions.js'
+import { canonicalSlashPath } from '../../src/install/verifyLockfileShape.js'
 
 function buildPolicy (inputs: LocalHookInputs) {
   return createLocalResolutionPolicy(inputs)
@@ -588,4 +594,128 @@ test('a file://localhost/ git key matches its file://localhost/ repository', asy
     },
   }
   await expect(verifyLockfileResolutions(lockfile, [], { localPolicy: buildPolicy({ lockfileDir: '/work/app' }) })).resolves.toBeUndefined()
+})
+
+test('a drive-relative path stays distinct from the anchored path', () => {
+  expect(canonicalSlashPath('c:/allowed/helper')).toBe('C:/allowed/helper')
+  expect(canonicalSlashPath('C:allowed/helper')).toBe('C:allowed/helper')
+  expect(canonicalSlashPath('C:../helper')).toBe('C:../helper')
+})
+
+test('a peer resolved only for an unselected importer does not count', () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['app-a' as ProjectId]: {
+        dependencies: { plugin: '1.0.0' },
+        specifiers: { plugin: '1.0.0' },
+      },
+      ['app-b' as ProjectId]: {
+        dependencies: { plugin: '1.0.0(helper@file:helper)' },
+        specifiers: { plugin: '1.0.0' },
+      },
+    },
+    packages: {
+      ['plugin@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        peerDependencies: { helper: 'file:../helper' },
+      },
+      ['plugin@1.0.0(helper@file:helper)' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { helper: 'file:helper' },
+        peerDependencies: { helper: 'file:../helper' },
+      },
+      ['helper@file:helper' as DepPath]: {
+        resolution: { type: 'directory', directory: 'helper' },
+      },
+    },
+  }
+  expect(() => verifyLockfileLocalResolutions(lockfile, buildPolicy({ selectedImporterIds: new Set(['app-a']) }))).not.toThrow()
+  expect(() => verifyLockfileLocalResolutions(lockfile, buildPolicy({}))).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+  }))
+})
+
+test('a ranged override covers a peer-only declaration', async () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { plugin: '1.0.0(helper@helper)' },
+        specifiers: { plugin: '1.0.0' },
+      },
+    },
+    packages: {
+      ['plugin@1.0.0(helper@helper)' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { helper: 'link:helper' },
+        peerDependencies: { helper: '^1.0.0' },
+      },
+    },
+  }
+  const policy = (peerRange: string) => appendPristineDeclaredSpecs(
+    buildPolicy({ overrides: { 'plugin>helper@^1.0.0': 'link:./helper' } }),
+    new Map([[pristineSpecMapKey('plugin@1.0.0', 'peerDependencies'), { helper: peerRange }]])
+  )
+  await expect(verifyLockfileResolutions(lockfile, [], { localPolicy: policy('^1.0.0') })).resolves.toBeUndefined()
+  await expect(verifyLockfileResolutions(lockfile, [], { localPolicy: policy('^2.0.0') })).rejects.toMatchObject({
+    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+  })
+})
+
+test('an importer link without a specifier is not trusted on its own', async () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { helper: 'link:../private' },
+        specifiers: {},
+      },
+    },
+  }
+  await expect(verifyLockfileResolutions(lockfile, [], { localPolicy: buildPolicy({}) })).rejects.toMatchObject({
+    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+  })
+})
+
+const posixOnly = process.platform === 'win32' ? test.skip : test
+
+posixOnly('the raw lockfile shape check resolves a file URL key against the lockfile directory', () => {
+  const lockfile = (directory: string): LockfileFile => ({
+    lockfileVersion: '9.0',
+    importers: {},
+    packages: {
+      'helper@file:///work/helper': {
+        resolution: { type: 'directory', directory },
+      },
+    },
+  })
+  expect(() => verifyLockfileFileOffline(lockfile('../helper'), { lockfileDir: '/work/app' })).not.toThrow()
+  expect(() => verifyLockfileFileOffline(lockfile('../other'), { lockfileDir: '/work/app' })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  }))
+})
+
+test('a file key backed by a remote tarball or git resolution is a shape mismatch', () => {
+  const lockfile = (resolution: Record<string, unknown>): LockfileObject => ({
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { disguised: 'file:disguised' },
+        specifiers: { disguised: 'file:./disguised' },
+      },
+    },
+    packages: {
+      ['disguised@file:disguised' as DepPath]: { resolution: resolution as never },
+    },
+  })
+  for (const resolution of [
+    { tarball: 'https://example.com/disguised.tgz' },
+    { type: 'git', repo: 'https://example.com/disguised.git', commit: '0123456789abcdef0123456789abcdef01234567' },
+  ]) {
+    expect(() => verifyLockfileResolutionShapes(lockfile(resolution))).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+    }))
+  }
+  expect(() => verifyLockfileResolutionShapes(lockfile({ type: 'directory', directory: 'disguised' }))).not.toThrow()
 })

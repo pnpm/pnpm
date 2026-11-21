@@ -34,6 +34,12 @@ pub(crate) struct HoistedPeerReachability<'a> {
 }
 
 impl<'a> HoistedPeerReachability<'a> {
+    /// Whether `spec` reads the host filesystem, which only an authorized
+    /// declarer may hoist.
+    pub(crate) fn is_forbidden_spec(&self, spec: &str) -> bool {
+        super::super::is_forbidden_manifest_spec(self.ctx, spec)
+    }
+
     pub(crate) const fn new(ctx: &'a TreeCtx, direct_deps: &'a [DirectDep]) -> Self {
         Self {
             ctx,

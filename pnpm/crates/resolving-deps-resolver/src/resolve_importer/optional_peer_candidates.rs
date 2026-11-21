@@ -193,7 +193,8 @@ impl ImporterHoistState {
                 }
                 MissingPeerKind::Unhoistable => return None,
             };
-            let parents = collect_declaring_wave_parents(wave, missing_of_wave, name);
+            let parents =
+                collect_declaring_wave_parents(wave, missing_of_wave, name, &picker.reachability);
             let pick = picker.get_or_pick(name.to_string(), range.clone(), &parents, || {
                 self.hoisted_required_peer_version(name, range.clone(), &parents, picker)
             });
@@ -443,17 +444,24 @@ fn group_missing_wave_declarations(
     declarations_by_name
 }
 
+/// The wave's packages that must authorize the hoisted peer: every required
+/// declarer, and every optional declarer whose declared spec reads the host
+/// filesystem, since it shares the hoisted read.
 fn collect_declaring_wave_parents<'w>(
     wave: &'w [(String, String)],
     missing_of_wave: &[Vec<CandidatePeer>],
     peer_name: &str,
+    reachability: &crate::resolve_dependency_tree::HoistedPeerReachability<'_>,
 ) -> Vec<(&'w str, &'w str)> {
     wave.iter()
         .zip(missing_of_wave.iter())
         .filter(|(_, missing)| {
             missing
                 .iter()
-                .any(|peer| peer.name == peer_name && !peer.optional)
+                .any(|peer| {
+                    peer.name == peer_name
+                        && (!peer.optional || reachability.is_forbidden_spec(&peer.range))
+                })
         })
         .map(|((pkg_name, pkg_ver), _)| (pkg_name.as_str(), pkg_ver.as_str()))
         .collect()

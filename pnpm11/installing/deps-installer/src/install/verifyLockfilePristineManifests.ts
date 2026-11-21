@@ -94,11 +94,22 @@ async function tryRequestPristineManifest (
         skipFetch: true,
       }
     )
+    if (!describesLockedArtifact(candidate.resolution, response.body.resolution)) return undefined
     const raw = response.body.unhookedManifest ?? response.body.manifest
     return raw as PackageManifest | undefined
   } catch {
     return undefined
   }
+}
+
+/**
+ * Registry metadata for a republished version declares different specs, so a
+ * requested manifest counts as evidence only for the exact locked integrity.
+ */
+function describesLockedArtifact (locked: unknown, requested: unknown): boolean {
+  const lockedIntegrity = (locked as { integrity?: unknown } | undefined)?.integrity
+  const requestedIntegrity = (requested as { integrity?: unknown } | undefined)?.integrity
+  return typeof lockedIntegrity === 'string' && lockedIntegrity === requestedIntegrity
 }
 
 async function tryFetchPristineManifest (

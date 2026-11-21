@@ -162,8 +162,10 @@ pub(super) fn file_key_mismatches_local_target(
                 || !file_url_matches_target(key_path, &dir.directory, shape_ctx)
         }
         LockfileResolution::Tarball(tarball) => {
+            // A remote tarball has its own URL key, so one behind a `file:`
+            // key disguises its source.
             let Some(tar_path) = strip_file_url_prefix(&tarball.tarball) else {
-                return false;
+                return true;
             };
             if !key_path.starts_with("//") {
                 return normalize_rel_dir(key_path) != normalize_rel_dir(tar_path);
@@ -175,6 +177,7 @@ pub(super) fn file_key_mismatches_local_target(
             .any(|variant| {
                 file_key_mismatches_local_target(key_path, &variant.resolution, shape_ctx)
             }),
+        LockfileResolution::Git(_) => true,
         _ => false,
     }
 }

@@ -229,7 +229,7 @@ export function policyAuthorizesLink (
   child: { field: LocalDepField, alias: string, target: string }
 ): boolean {
   if (afterAllResolvedAllows(policy, lockfile, child.target)) return true
-  const declared = lookupPristineDeclaredSpec(policy, parent.baseKey, child.field, child.alias)
+  const declared = lookupDeclaredChildSpec(policy, parent.baseKey, child)
   const normalized = normalizeTargetForMatch(child.target)
   return matchingEdges(policy, parent, child.alias, declared).some((edge) => edge.targets.includes(normalized))
 }
@@ -243,7 +243,7 @@ export function policyAuthorizesPackage (
   const target = extractLocalPackageTarget(child.nonSemverVersion, child.snapshot)
   if (target == null) return false
   if (afterAllResolvedAllows(policy, lockfile, target)) return true
-  const declared = lookupPristineDeclaredSpec(policy, parent.baseKey, child.field, child.alias)
+  const declared = lookupDeclaredChildSpec(policy, parent.baseKey, child)
   const normalized = normalizeTargetForMatch(target)
   return matchingEdges(policy, parent, child.alias, declared).some((edge) => edge.targets.includes(normalized))
 }
@@ -298,6 +298,20 @@ export function hasInnerParentSegment (target: string): boolean {
     }
   }
   return false
+}
+
+/**
+ * The parent's pristine range for a child edge. A resolved peer is recorded
+ * among the snapshot's dependencies, so a child declared only as a peer falls
+ * back to the parent's `peerDependencies` range.
+ */
+function lookupDeclaredChildSpec (
+  policy: LocalResolutionPolicy,
+  baseKey: string,
+  { field, alias }: { field: LocalDepField, alias: string }
+): string | undefined {
+  return lookupPristineDeclaredSpec(policy, baseKey, field, alias) ??
+    lookupPristineDeclaredSpec(policy, baseKey, 'peerDependencies', alias)
 }
 
 function lookupPristineDeclaredSpec (

@@ -46,7 +46,7 @@ export function collectShapeViolations (
   return shapeViolations
 }
 
-export function collectLockfileFileOfflineViolations (lockfile: LockfileFile): {
+export function collectLockfileFileOfflineViolations (lockfile: LockfileFile, shapeCtx?: FileShapeContext): {
   invalidAliases: string[]
   shapeViolations: ResolutionPolicyViolation[]
 } {
@@ -57,15 +57,15 @@ export function collectLockfileFileOfflineViolations (lockfile: LockfileFile): {
     pushInvalidAliases(importer.devDependencies, invalidAliases)
     pushInvalidAliases(importer.optionalDependencies, invalidAliases)
   }
-  collectLockfileFilePackageViolations(lockfile.packages, invalidAliases, shapeViolations)
+  collectLockfileFilePackageViolations(lockfile.packages, { invalidAliases, shapeViolations }, shapeCtx)
   collectLockfileFileSnapshotAliases(lockfile.snapshots, invalidAliases)
   return { invalidAliases: Array.from(invalidAliases), shapeViolations }
 }
 
 function collectLockfileFilePackageViolations (
   packages: LockfileFile['packages'],
-  invalidAliases: Set<string>,
-  shapeViolations: ResolutionPolicyViolation[]
+  { invalidAliases, shapeViolations }: { invalidAliases: Set<string>, shapeViolations: ResolutionPolicyViolation[] },
+  shapeCtx: FileShapeContext | undefined
 ): void {
   for (const [depPath, pkgInfo] of Object.entries(packages ?? {})) {
     const parsed = parseLockfileDepPath(depPath)
@@ -74,7 +74,7 @@ function collectLockfileFilePackageViolations (
     }
     const displayVersion = pkgInfo.version ?? parsed.version ?? parsed.nonSemverVersion
     if (!parsed.name || !displayVersion) continue
-    const reason = shapeMismatchReason(pkgInfo.resolution, parsed.nonSemverVersion)
+    const reason = shapeMismatchReason(pkgInfo.resolution, parsed.nonSemverVersion, shapeCtx)
     if (reason != null) {
       shapeViolations.push(createShapeViolation(parsed.name, displayVersion, pkgInfo.resolution, reason))
     }
