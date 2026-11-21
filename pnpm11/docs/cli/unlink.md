@@ -14,7 +14,7 @@ removing the external link.
 Since v11.28.0, if `pnpm link <dir>` added a `link:` dependency to `package.json`,
 `pnpm unlink` removes that entry too, along with the package in `node_modules`
 and its lockfile entry. A `link:` dependency that points to another directory is
-kept.
+kept. In a workspace, pnpm updates the manifests of the selected projects.
 
 ## Options
 

@@ -493,7 +493,7 @@ async function findUnplannedDirsIn (modulesDir: string, isUnplanned: (dir: strin
   return checked.filter((candidate) => candidate != null)
 }
 
-function holdsAnyOf (importerDirs: string[]): (dir: string) => boolean {
+export function holdsAnyOf (importerDirs: string[]): (dir: string) => boolean {
   const resolvedImporterDirs = importerDirs.map((importerDir) => path.resolve(importerDir))
   return (dir) => {
     const resolvedDir = path.resolve(dir)

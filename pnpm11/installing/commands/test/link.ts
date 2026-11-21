@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
@@ -52,6 +53,18 @@ test('linking multiple packages', async () => {
     'linked-foo': 'link:../linked-foo',
     'linked-bar': 'link:../linked-bar',
   })
+})
+
+test('link resolves a quoted home path before reading the target name', async () => {
+  const project = prepare()
+  writePackageSync('../target', { name: 'example-linked', version: '1.0.0' })
+  const home = jest.spyOn(os, 'homedir').mockReturnValue(path.resolve('..'))
+  try {
+    await link.handler({ ...DEFAULT_OPTS, dir: process.cwd(), rootProjectManifestDir: process.cwd() }, ['~/target'])
+  } finally {
+    home.mockRestore()
+  }
+  project.has('example-linked')
 })
 
 test('link global bin', async function () {

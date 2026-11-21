@@ -235,7 +235,7 @@ fn link_succeeds_with_multiple_targets() {
 }
 
 #[test]
-fn link_fails_target_no_name() {
+fn link_expands_home_and_uses_directory_name_for_unnamed_package() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -259,16 +259,17 @@ fn link_fails_target_no_name() {
     )
     .expect("write target package.json");
 
-    let output = pacquet
-        .with_arg("link")
-        .with_arg("../target-project-no-name")
-        .output()
-        .expect("spawn");
-    assert!(!output.status.success(), "link to target without name must fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("does not have a name"),
-        "stderr should contain error message: {stderr}",
+    pacquet
+        .with_env("HOME", root.path())
+        .with_env("USERPROFILE", root.path())
+        .with_args(["link", "~/target-project-no-name"])
+        .assert()
+        .success();
+    let manifest =
+        pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json")).unwrap();
+    assert_eq!(
+        manifest.value()["dependencies"]["target-project-no-name"],
+        "link:../target-project-no-name"
     );
 
     drop((root, mock_instance));
@@ -336,18 +337,19 @@ fn link_resolves_relative_path_from_current_directory() {
     )
     .expect("write package.json");
     let tools_dir = workspace.join("tools");
-    let target_dir = tools_dir.join("lib");
+    fs::create_dir_all(&tools_dir).unwrap();
+    let target_dir = workspace.join("tools-lib");
     fs::create_dir_all(&target_dir).expect("create target dir");
     fs::write(
         target_dir.join("package.json"),
-        serde_json::json!({ "name": "tools-lib", "version": "1.0.0" }).to_string(),
+        serde_json::json!({ "version": "1.0.0" }).to_string(),
     )
     .expect("write target package.json");
 
     pacquet
         .with_current_dir(&tools_dir)
         .with_arg("link")
-        .with_arg("./lib")
+        .with_arg("../tools-lib")
         .assert()
         .success();
 
@@ -355,7 +357,8 @@ fn link_resolves_relative_path_from_current_directory() {
         pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
             .expect("read manifest");
     let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
-    assert_eq!(deps["tools-lib"], "link:tools/lib");
+    assert_eq!(deps["tools-lib"], "link:tools-lib");
+    assert!(!tools_dir.join("package.json").exists());
 
     drop((root, mock_instance));
 }

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import url from 'node:url'
 import { createGzip } from 'node:zlib'
@@ -145,6 +146,23 @@ test.each([
     version: '1.0.0',
   })
   expect(fs.readFileSync(path.join(deployedFooDir, 'index.js'), 'utf-8')).toBe('module.exports = 1')
+})
+
+test('deploy copies a linked package outside the workspace', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', private: true } },
+    { location: 'packages/app', package: { name: 'app', dependencies: { external: 'link:../../../external' } } },
+  ])
+  const external = path.resolve('../external')
+  fs.mkdirSync(external)
+  fs.writeFileSync(path.join(external, 'package.json'), JSON.stringify({ name: 'external', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } }))
+  fs.writeFileSync(path.join(external, 'index.js'), "module.exports = require('is-positive/package.json').version")
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+  const opts = { ...DEFAULT_OPTS, allProjects, allProjectsGraph, dir: process.cwd(), recursive: true, lockfileDir: process.cwd(), workspaceDir: process.cwd(), sharedWorkspaceLockfile: true }
+  await install.handler({ ...opts, selectedProjectsGraph: allProjectsGraph })
+  await deploy.handler({ ...opts, selectedProjectsGraph }, [path.resolve('deploy')])
+  fs.renameSync(external, external + '-moved')
+  expect(createRequire(path.resolve('deploy/package.json'))('external')).toBe('1.0.0')
 })
 
 test('deploy with a shared lockfile after full install', async () => {

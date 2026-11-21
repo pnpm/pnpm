@@ -404,6 +404,17 @@ impl DeployArgs {
         let dependency_groups = self.install_args.dependency_options
             .dependency_groups(config.optional)
             .collect::<Vec<_>>();
+        if lockfile::has_external_link(
+            &lockfile,
+            selected,
+            lockfile_dir,
+            &project_id,
+            &dependency_groups,
+        ) {
+            return Ok(SharedDeployOutcome::Fallback(
+                "Resolving dependencies for a linked package outside the workspace.".to_owned(),
+            ));
+        }
         let deploy_files = create_deploy_files(
             &lockfile,
             selected,

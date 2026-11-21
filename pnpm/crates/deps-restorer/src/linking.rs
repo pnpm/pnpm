@@ -229,6 +229,9 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     let claimed_importer_bins = if has_virtual_store && !inputs.ctx.config.virtual_store_only {
         relink_importer_tree::<Reporter>(&inputs, skipped, &hoist)?
     } else {
+        if !inputs.ctx.config.virtual_store_only {
+            prune::prune_extraneous_entries::<Reporter>(&inputs, &hoist)?;
+        }
         crate::ClaimedCommands::default()
     };
     if has_virtual_store {

@@ -3,12 +3,15 @@ import path from 'node:path'
 
 import { removeBinsOfDependency, safeReadDependencyManifest } from '@pnpm/bins.remover'
 import { rootLogger } from '@pnpm/core-loggers'
+import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { isProvidedByRoot } from '@pnpm/installing.linking.modules-cleaner'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
+import { isStrictlyInside } from '@pnpm/workspace.state'
 
 import type { HeadlessContext } from './context.js'
+import { holdsAnyOf } from './linkHoistedModules.js'
 import { isSymlink, unlinkIfSymlink } from './unlinkIfSymlink.js'
 
 /**
@@ -26,20 +29,26 @@ export async function unlinkStaleDirectLinks (
   { currentLockfile, lockfileDir, opts, selectedProjects }: HeadlessContext,
   wantedLockfile: LockfileObject
 ): Promise<void> {
-  if (currentLockfile == null) return
   // The link pass dedupes only against a selected root.
   const wantedRootDeps = opts.dedupeDirectDeps && selectedProjects.some(({ id }) => id === '.')
     ? mergeDependencies(wantedLockfile.importers['.' as ProjectId])
     : undefined
+  const holdsImporter = selectedProjects.some(project => project.pruneDirectDependencies)
+    ? holdsAnyOf([lockfileDir, ...Object.keys(wantedLockfile.importers).map(id => path.resolve(lockfileDir, id))])
+    : undefined
   await Promise.all(selectedProjects.map(async (project) => {
     const wantedImporter = wantedLockfile.importers[project.id]
     if (wantedImporter == null) return
+    const wantedDeps = mergeDependencies(wantedImporter)
     await unlinkStaleLinksOfProject(project, {
-      currentImporter: currentLockfile.importers[project.id],
+      currentImporter: currentLockfile?.importers[project.id],
       lockfileDir,
-      wantedDeps: mergeDependencies(wantedImporter),
+      wantedDeps,
       wantedRootDeps: project.id === '.' ? undefined : wantedRootDeps,
     })
+    if (project.pruneDirectDependencies && !holdsImporter?.(project.modulesDir)) {
+      await unlinkExtraneousLinks(project, wantedDeps)
+    }
   }))
 }
 
@@ -66,6 +75,21 @@ async function unlinkStaleLinksOfProject (
       prefix: rootDir,
       removed: { dependencyType: dependencyType(opts.currentImporter, alias), name: alias, version: unlinked.version },
     })
+  }))
+}
+
+async function unlinkExtraneousLinks (
+  { modulesDir, rootDir, binsDir, manifest }: HeadlessContext['selectedProjects'][number],
+  wantedDeps: Record<string, string>
+): Promise<void> {
+  if (!isStrictlyInside(modulesDir, rootDir) || !await isRealDir(modulesDir)) return
+  const dir = await fs.realpath(modulesDir)
+  if (!isStrictlyInside(dir, await fs.realpath(rootDir))) return
+  const declared = new Set(DEPENDENCIES_FIELDS.flatMap(field => Object.keys(manifest[field] ?? {})))
+  const extra = (await readModulesDir(dir) ?? []).filter(alias => !Object.hasOwn(wantedDeps, alias) && !declared.has(alias))
+  await Promise.all(extra.map(async name => {
+    const unlinked = await unlinkDirectLink(dir, name, binsDir)
+    if (unlinked) rootLogger.debug({ prefix: rootDir, removed: { name, version: unlinked.version } })
   }))
 }
 

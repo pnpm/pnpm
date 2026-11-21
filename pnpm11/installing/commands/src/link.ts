@@ -13,6 +13,7 @@ import type {
   WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
 import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
+import { localSpecPath } from '@pnpm/resolving.local-resolver'
 import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { isSubdir } from 'is-subdir'
@@ -126,7 +127,7 @@ export async function handler (
   const { projectDir, manifest } = await findCurrentProject(opts)
   const writeProjectManifest = await createProjectManifestWriter(projectDir)
   const newManifest = manifest ?? {}
-  await addLinksToManifest(opts, projectDir, newManifest, pkgPaths)
+  await addLinksToManifest(opts, projectDir, newManifest, pkgPaths.map(dir => dir.startsWith('~/') ? localSpecPath(dir, opts.dir) : dir))
   await writeProjectManifest(newManifest)
   await install.handler({
     ...linkOpts,

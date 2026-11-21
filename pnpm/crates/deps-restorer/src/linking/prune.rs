@@ -6,7 +6,10 @@ use super::{
     LinkPhaseInputs,
     hoist_links::PlannedHoist,
 };
-use crate::SkippedSnapshots;
+use crate::{
+    SkippedSnapshots,
+    prune_extraneous_deps::PruneLayout,
+};
 use pnpm_reporter::{
     LogEvent,
     LogLevel,
@@ -38,20 +41,7 @@ pub(super) fn prune_importer_tree<Reporter: self::Reporter>(
     }
     .run::<Reporter>()
     .map_err(LinkPhaseError::PruneStaleModules)?;
-    if inputs.prior.prune.direct_dependencies {
-        crate::prune_extraneous_deps::PruneExtraneousDirectDeps {
-            config,
-            workspace_root: inputs.ctx.workspace_root,
-            wanted_lockfile: inputs.graph.lockfile,
-            wanted_hoisted_dependencies: wanted_hoisted,
-            public_hoist_targets: hoist.public_targets.as_ref(),
-            manifests: inputs.projects.manifests,
-            included_groups: inputs.projects.dependency_groups,
-            selected_importer_ids: inputs.prior.prune.importer_ids,
-        }
-        .run::<Reporter>()
-        .map_err(LinkPhaseError::PruneStaleModules)?;
-    }
+    prune_extraneous_entries::<Reporter>(inputs, hoist)?;
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
         message: StatsMessage::Removed {
@@ -60,5 +50,32 @@ pub(super) fn prune_importer_tree<Reporter: self::Reporter>(
         },
     }));
 
+    Ok(())
+}
+
+pub(super) fn prune_extraneous_entries<Reporter: self::Reporter>(
+    inputs: &LinkPhaseInputs<'_>,
+    hoist: &PlannedHoist,
+) -> Result<(), LinkPhaseError> {
+    if inputs.prior.prune.direct_dependencies {
+        crate::prune_extraneous_deps::PruneExtraneousDirectDeps {
+            config: inputs.ctx.config,
+            workspace_root: inputs.ctx.workspace_root,
+            wanted_lockfile: inputs.graph.lockfile,
+            layout: if inputs.ctx.is_hoisted() {
+                PruneLayout::Hoisted
+            } else {
+                PruneLayout::VirtualStore {
+                    hoisted: hoist.plan.as_ref().map(|plan| &plan.result.hoisted_dependencies),
+                    public_targets: hoist.public_targets.as_ref(),
+                }
+            },
+            manifests: inputs.projects.manifests,
+            included_groups: inputs.projects.dependency_groups,
+            selected_importer_ids: inputs.prior.prune.importer_ids,
+        }
+        .run::<Reporter>()
+        .map_err(LinkPhaseError::PruneStaleModules)?;
+    }
     Ok(())
 }

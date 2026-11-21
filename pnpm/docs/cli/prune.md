@@ -9,6 +9,8 @@ Removes extraneous packages from `node_modules`: packages that are no longer in 
 pnpm prune
 ```
 
+With `nodeLinker: hoisted`, pnpm removes extraneous package links from the selected projects' `node_modules` directories. The link targets stay on disk.
+
 ## Options
 
 ### --prod, -P, --production

@@ -11,6 +11,8 @@ Links a local package to the current project's `node_modules`.
 pnpm link <dir>
 ```
 
+A quoted path beginning with `~/` is relative to your home directory. If the target's manifest omits `name`, pnpm uses its directory name.
+
 ## Options
 
 ### `pnpm link <dir>`

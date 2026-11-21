@@ -76,6 +76,43 @@ export interface DeployFiles {
   workspaceManifest: DeployWorkspaceManifest
 }
 
+export function hasExternalLink (opts: CreateDeployFilesOptions): boolean {
+  let projectsByDir: Map<string, ProjectId> | undefined
+  const pending = new Set([opts.projectId])
+  for (const id of pending) {
+    for (const target of linkedDirectories(opts, id)) {
+      projectsByDir ??= indexImporterDirs(opts)
+      const linkedId = projectsByDir.get(target)
+      if (linkedId == null) return true
+      pending.add(linkedId)
+    }
+  }
+  return false
+}
+
+function * linkedDirectories (opts: CreateDeployFilesOptions, id: ProjectId): Iterable<string> {
+  const snapshot = opts.lockfile.importers[id]
+  if (snapshot == null) return
+  const fields = DEPENDENCIES_FIELD.filter(field => opts.include[field] && (field !== 'devDependencies' || id === opts.projectId))
+  for (const field of fields) {
+    for (const ref of Object.values(snapshot[field] ?? {})) {
+      if (ref.startsWith('link:')) yield path.resolve(opts.lockfileDir, id, ref.slice('link:'.length))
+    }
+  }
+}
+
+function indexImporterDirs (opts: CreateDeployFilesOptions): Map<string, ProjectId> {
+  const publishing = indexProjects(opts.allProjects, manifest => manifest.publishConfig?.directory != null)
+  const dirs = new Map<string, ProjectId>()
+  for (const id of Object.keys(opts.lockfile.importers) as ProjectId[]) {
+    const projectRootDir = path.resolve(opts.lockfileDir, id)
+    dirs.set(projectRootDir, id)
+    const publishDir = getImporterLinkedPublishDir(opts.lockfile.importers[id], { manifest: publishing.get(projectRootDir), projectRootDir })
+    if (publishDir != null) dirs.set(publishDir, id)
+  }
+  return dirs
+}
+
 export function createDeployFiles (opts: CreateDeployFilesOptions): DeployFiles {
   const deployedProjectRealPath = path.resolve(opts.lockfileDir, opts.projectId)
   const { peerSatisfactionEdges, targetPackageSnapshots } = convertLockfilePackages(opts, deployedProjectRealPath)
