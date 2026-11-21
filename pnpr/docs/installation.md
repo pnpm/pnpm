@@ -32,7 +32,8 @@ pnpr is also published as the `ghcr.io/pnpm/pnpr` container image:
 docker run --rm -v pnpr-storage:/pnpr/storage --entrypoint sh ghcr.io/pnpm/pnpr:<version> -c '
   test -f /pnpr/storage/pnpr.yaml || (umask 077 &&
     printf "secret: \"%s\"\nstorage: /pnpr/storage\ncache: /pnpr/cache\n" \
-      "$(od -An -N32 -tx1 /dev/urandom | tr -d " \n")" > /pnpr/storage/pnpr.yaml)'
+      "$(od -An -N32 -tx1 /dev/urandom | tr -d " \n")" > /pnpr/storage/pnpr.yaml.tmp &&
+    mv /pnpr/storage/pnpr.yaml.tmp /pnpr/storage/pnpr.yaml)'
 docker run -p 127.0.0.1:7677:7677 \
   -e PNPR_CONFIG=/pnpr/storage/pnpr.yaml \
   -v pnpr-storage:/pnpr/storage \
