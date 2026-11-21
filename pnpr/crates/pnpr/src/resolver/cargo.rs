@@ -224,12 +224,7 @@ impl IndexFetcher {
     ) -> Self {
         Self {
             client: Arc::clone(&runtime.client),
-            hook: Arc::new(pnpr_route::RouteHook::new(
-                Arc::clone(&runtime.route_context),
-                identity,
-                Arc::new(Mutex::new(Footprint::default())),
-                Arc::clone(&runtime.cache.secret),
-            )),
+            hook: runtime.route_hook(&identity, Arc::new(Mutex::new(Footprint::default()))),
             locks: Arc::clone(&runtime.index.cargo_locks),
             cache_dir: runtime.cargo_index_cache_dir(&registry),
             ttl: runtime.index.ttl,

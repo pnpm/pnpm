@@ -53,7 +53,7 @@ impl RouteContext {
         let Some(hosted) = self.hosted_origin.as_deref() else {
             return false;
         };
-        if !fetch.starts_with(hosted) || self.is_public_route(&fetch, Some(package)) {
+        if !fetch.starts_with(hosted) {
             return false;
         }
         match self.resolve_own_origin(&fetch, hosted, package) {
@@ -84,10 +84,12 @@ impl RouteContext {
     pub(super) fn local_package(&self, url: &str) -> Option<String> {
         let url = url.split(['?', '#']).next()?;
         let fetch = nerf_dart(&format!("{url}/"));
-        let tail = fetch
-            .strip_prefix(self.hosted_origin.as_deref()?)?
-            .strip_prefix("npm/")?;
-        let decoded = pnpm_network::percent_decode_str(tail);
+        let tail = fetch.strip_prefix(self.hosted_origin.as_deref()?)?;
+        let (ecosystem, path) = tail.split_once('/')?;
+        if ecosystem != "npm" {
+            return index_package(ecosystem, path);
+        }
+        let decoded = pnpm_network::percent_decode_str(path);
         let mut segments = decoded.split('/');
         let mut first = segments.next()?;
         if first.starts_with('~') {
@@ -106,6 +108,20 @@ impl RouteContext {
                 .unwrap_or_else(|| identifier.clone()),
         )
     }
+}
+
+fn index_package(ecosystem: &str, path: &str) -> Option<String> {
+    let path = if path.starts_with('~') { path.split_once('/')?.1 } else { path };
+    let (endpoint, rest) = path.trim_end_matches('/').split_once('/')?;
+    let (ecosystem, raw_name) = match (ecosystem, endpoint) {
+        ("cargo", "index") => (Ecosystem::Cargo, rest.rsplit('/').next()?),
+        ("pypi", "simple" | "files") => (Ecosystem::Pypi, rest.split('/').next()?),
+        _ => return None,
+    };
+    let name = pnpm_network::percent_decode_str(raw_name);
+    pnpr_package_name::CanonicalPackageName::parse(&name, ecosystem)
+        .ok()
+        .map(|package| package.as_str().to_owned())
 }
 
 /// Split `<name>@<version>` into its parts. A package name holds `@` only as

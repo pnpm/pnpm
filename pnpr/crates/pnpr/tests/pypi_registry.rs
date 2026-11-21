@@ -127,6 +127,41 @@ fn get(path: &str, accept: Option<&str>) -> Request<Body> {
 }
 
 #[tokio::test]
+async fn resolves_a_wheel_from_the_private_local_index() {
+    let tmp = TempDir::new().unwrap();
+    let config = mixed_router_config(
+        tmp.path().to_owned(),
+        Ecosystem::Pypi,
+        HostedSource {
+            name: "internal",
+            namespace: "python",
+            access: "reader",
+            packages: &["demo-pkg"],
+        },
+        ("upstream", "http://upstream.invalid/"),
+    );
+    let auth = crate::tokens::seeded_auth(&config, &[("reader", "password")]);
+    let token = issue_token(&auth, "reader").await;
+    let app = router_with_auth(config, auth);
+    let wheel = common::python_wheel("demo-pkg", "1.0.0");
+    let body = wheel_upload("demo-pkg", "1.0.0", "demo_pkg-1.0.0-py3-none-any.whl", &wheel);
+    let published = app
+        .clone()
+        .oneshot(upload_request(Some(&token), body))
+        .await
+        .unwrap();
+    assert_eq!(published.status(), StatusCode::OK);
+    let request = crate::pypi_resolve::resolve_request(
+        &format!("{PUBLIC_URL}/pypi/simple/"),
+        &token,
+        &json!(["demo-pkg"]),
+    );
+    let lockfile =
+        crate::pypi_resolve::resolved_lockfile(app.oneshot(request).await.unwrap()).await;
+    assert!(lockfile.to_string().contains("demo-pkg"));
+}
+
+#[tokio::test]
 async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();

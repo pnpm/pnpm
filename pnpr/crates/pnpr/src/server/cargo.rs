@@ -152,13 +152,21 @@ const INDEX_CONFIG_LIMIT: usize = 64 * 1024;
 /// `.`, so it can never collide with a crate's own entry.
 const INDEX_CONFIG_KEY: &str = "config.json";
 
-pub(super) fn routes() -> Router<AppState> {
+pub(super) fn resolver_routes() -> Router<AppState> {
     let mut router = Router::new();
     for base in mount_bases(ECOSYSTEM) {
         router = router
-            .route(&format!("{base}/index/config.json"), get(get_index_config))
             .route(&format!("{base}/index/{{a}}/{{b}}"), get(get_index_file))
-            .route(&format!("{base}/index/{{a}}/{{b}}/{{c}}"), get(get_index_file))
+            .route(&format!("{base}/index/{{a}}/{{b}}/{{c}}"), get(get_index_file));
+    }
+    router
+}
+
+pub(super) fn routes() -> Router<AppState> {
+    let mut router = resolver_routes();
+    for base in mount_bases(ECOSYSTEM) {
+        router = router
+            .route(&format!("{base}/index/config.json"), get(get_index_config))
             .route(&format!("{base}/api/v1/crates"), get(get_search))
             .route(&format!("{base}/api/v1/crates/new"), put(put_publish))
             .route(

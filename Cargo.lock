@@ -7690,6 +7690,7 @@ dependencies = [
  "pnpm-network",
  "pnpr-config",
  "pnpr-fixtures",
+ "pnpr-package-name",
  "pnpr-policy",
  "pnpr-registry",
  "reqwest",

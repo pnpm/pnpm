@@ -101,7 +101,7 @@ fn project_page(files: &Value) -> String {
     json!({ "files": files }).to_string()
 }
 
-fn resolve_request(index: &str, token: &str, requirements: &Value) -> Request<Body> {
+pub(super) fn resolve_request(index: &str, token: &str, requirements: &Value) -> Request<Body> {
     let body = json!({
         "ecosystem": "pypi",
         "requirements": requirements,
@@ -143,7 +143,7 @@ async fn frames(body: Body) -> Vec<Value> {
         .collect()
 }
 
-async fn resolved_lockfile(response: axum::response::Response) -> Value {
+pub(super) async fn resolved_lockfile(response: axum::response::Response) -> Value {
     assert_eq!(response.status(), StatusCode::OK);
     let frames = frames(response.into_body()).await;
     assert_eq!(frames.len(), 1, "{frames:?}");

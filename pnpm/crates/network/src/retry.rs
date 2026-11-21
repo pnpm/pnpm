@@ -303,6 +303,22 @@ pub(crate) async fn get_secure_bytes(
     retry_opts: RetryOpts,
     body_limit: usize,
 ) -> Result<SecureAuthResponse, reqwest::Error> {
+    let mut headers = reqwest::header::HeaderMap::new();
+    if let Some(value) = accept.and_then(|value| value.parse().ok()) {
+        headers.insert(reqwest::header::ACCEPT, value);
+    }
+    if let Some(response) = auth.fetch_local(url, None, headers) {
+        let response = response.await;
+        let status = response.status();
+        let url = response.url().to_string();
+        let body = crate::read_limited_body(response, body_limit).await?;
+        return Ok(SecureAuthResponse {
+            status,
+            url,
+            body: body.bytes,
+            body_truncated: body.truncated,
+        });
+    }
     let authorize = |url: &str| auth.for_secure_url(url);
     get_bytes(client, url, authorize, accept, retry_opts, body_limit).await
 }
