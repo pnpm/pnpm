@@ -8,10 +8,15 @@ use pnpm_deps_restorer::{
     parse_dep_path_name_version,
     validate_importer_id,
 };
+use pnpm_lockfile::PackageKey;
 use serde_json::Value;
 use std::{
-    collections::HashMap,
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     fs,
+    ops::Bound,
     path::{
         Path,
         PathBuf,
@@ -66,8 +71,11 @@ impl Locator {
         if input.config.node_linker != NodeLinker::Hoisted {
             return Some(self.modules_dirs.of_importer_id(importer_id).join(alias));
         }
-        let recorded = input.hoisted_locations?.get(dep_path)?;
-        self.hoisted_package_dir(input, importer_id, alias, recorded)
+        let recorded = recorded_locations(input.hoisted_locations?, dep_path);
+        if recorded.is_empty() {
+            return None;
+        }
+        self.hoisted_package_dir(input, importer_id, alias, &recorded)
     }
 
     /// The installed symlink and expected target directory of a `link:` direct
@@ -135,6 +143,31 @@ impl Locator {
             .or_insert_with(|| fs::canonicalize(workspace_root.join(loc)).ok())
             .clone()
     }
+}
+
+/// The directories recorded for the package version of `dep_path`.
+///
+/// The hoisted linker records a directory under the key of the copy that
+/// holds it. Peer variants of one package version can share a directory,
+/// so the one a project resolves may be recorded under another variant's
+/// key.
+fn recorded_locations(locations: &BTreeMap<String, Vec<String>>, dep_path: &str) -> Vec<String> {
+    let Ok(key) = dep_path.parse::<PackageKey>() else {
+        return locations
+            .get(dep_path)
+            .cloned()
+            .unwrap_or_default();
+    };
+    let package = key.without_peer().to_string();
+    locations
+        .range::<str, _>((Bound::Included(package.as_str()), Bound::Unbounded))
+        .take_while(|(recorded, _)| recorded.starts_with(&package))
+        .filter(|(recorded, _)| {
+            let suffix = &recorded[package.len()..];
+            suffix.is_empty() || suffix.starts_with('(')
+        })
+        .flat_map(|(_, dirs)| dirs.iter().cloned())
+        .collect()
 }
 
 /// Whether `alias` names a package, `name` or `@scope/name`, and so stays

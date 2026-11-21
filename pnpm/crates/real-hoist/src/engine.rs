@@ -145,7 +145,7 @@ pub(crate) fn hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
     loop {
         let round = hoist_to::hoist_to(&root, &options);
         options.fast_lookup_possible.set(false);
-        if !round.another_round_needed && !round.is_graph_changed {
+        if !round.is_graph_changed {
             break;
         }
     }

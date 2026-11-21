@@ -513,6 +513,36 @@ fn finds_a_dependency_hoisted_to_the_workspace_root() {
     assert_eq!(state.pending, ["foo@1.0.0"]);
 }
 
+/// `packages/b` depends on the `react@18` variant of `foo@1.0.0`. The
+/// hoisted linker deduplicated it into the directory of the `react@17`
+/// variant and recorded the directory under that variant's key.
+#[test]
+fn finds_a_dependency_recorded_under_another_peer_variant() {
+    let (root, _) = hoisted_workspace("1.0.0");
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/b:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0(react@18.0.0)\n",
+    )
+    .expect("parse lockfile");
+    let locations = BTreeMap::from([
+        ("foo@1.0.0(react@17.0.0)".to_string(), vec!["node_modules/foo".to_string()]),
+        ("foo@1.0.0-beta".to_string(), vec!["node_modules/other".to_string()]),
+    ]);
+    let config = Config { node_linker: pnpm_config::NodeLinker::Hoisted, ..config(&[], None) };
+
+    let state = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root.path(),
+        lockfile: &lockfile,
+        included: ALL_GROUPS,
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: Some(&locations),
+    })
+    .unwrap();
+
+    assert_eq!(state.pending, ["foo@1.0.0"]);
+}
+
 #[test]
 fn a_custom_modules_dir_names_only_the_root_one() {
     let root = tempfile::tempdir().expect("create workspace");

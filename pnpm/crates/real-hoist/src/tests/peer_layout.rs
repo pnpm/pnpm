@@ -16,6 +16,7 @@ use crate::{
     build_tree,
     engine,
     repair,
+    tree,
 };
 use std::{
     collections::VecDeque,
@@ -36,9 +37,10 @@ fn first_pass_misses(yaml: &str) -> usize {
         .expect("parse the lockfile")
         .expect("the lockfile is not empty");
     let opts = HoistOpts::default();
-    let tree = build_tree(&lockfile, &opts, &RegularPeers::new()).expect("build the tree");
+    let (tree, bound_peers) =
+        build_tree(&lockfile, &opts, &RegularPeers::new()).expect("build the tree");
     let result = engine::hoist(&tree, &opts);
-    repair::misresolved_peers(&result, &lockfile, &opts).len()
+    repair::misresolved_peers(&result, &bound_peers).len()
 }
 
 fn references(node: &HoisterResult) -> Vec<String> {
@@ -369,4 +371,73 @@ snapshots:
     let aliased = child_of(&result, "webpack-5");
     let minimizer = serving(&aliased, "minimizer@1.0.0(webpack@5.0.0)");
     assert_eq!(references(&child_of(&minimizer, "webpack")), ["webpack@5.0.0"], "{result:#?}");
+}
+
+/// The key `peer` of the snapshot `key` is bound to.
+fn provider(yaml: &str, key: &str, peer: &str) -> Option<String> {
+    let lockfile = Lockfile::parse(yaml, Path::new("pnpm-lock.yaml"))
+        .expect("parse the lockfile")
+        .expect("the lockfile is not empty");
+    let key = key.parse().expect("parse the key");
+    let snapshot = &lockfile.snapshots.as_ref().expect("snapshots")[&key];
+    tree::peers::provider_of(&key, snapshot, peer, &lockfile).map(|provider| provider.to_string())
+}
+
+/// `m`'s key names its transitive peer's provider as `f@1.0.0`. `a` holds
+/// `f@1.0.0(r@1.0.0)` as a dependency of its own, and `c` takes `f` as a
+/// peer bound to `f@1.0.0(r@2.0.0)`. Only `c` says what the peer is bound
+/// to, though `a`'s key sorts first.
+#[test]
+fn a_dependency_of_its_own_is_not_taken_for_a_peer_binding() {
+    let yaml = "lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      m: {specifier: 1.0.0, version: 1.0.0(f@1.0.0)}
+packages:
+  a@1.0.0: {resolution: {integrity: sha512-a}}
+  c@1.0.0: {resolution: {integrity: sha512-c}, peerDependencies: {f: '*'}}
+  f@1.0.0: {resolution: {integrity: sha512-f}, peerDependencies: {r: '*'}}
+  m@1.0.0: {resolution: {integrity: sha512-m}}
+  r@1.0.0: {resolution: {integrity: sha512-r1}}
+  r@2.0.0: {resolution: {integrity: sha512-r2}}
+snapshots:
+  a@1.0.0:
+    dependencies: {f: 1.0.0(r@1.0.0), r: 1.0.0}
+  c@1.0.0(f@1.0.0):
+    dependencies: {f: 1.0.0(r@2.0.0)}
+  f@1.0.0(r@1.0.0):
+    dependencies: {r: 1.0.0}
+  f@1.0.0(r@2.0.0):
+    dependencies: {r: 2.0.0}
+  m@1.0.0(f@1.0.0):
+    dependencies: {a: 1.0.0, c: 1.0.0(f@1.0.0)}
+    transitivePeerDependencies: [f]
+  r@1.0.0: {}
+  r@2.0.0: {}
+";
+    assert_eq!(provider(yaml, "m@1.0.0(f@1.0.0)", "f").as_deref(), Some("f@1.0.0(r@2.0.0)"));
+}
+
+/// The tree is built from the optional entry of an alias listed in both
+/// dependency groups, so that entry is also the one a peer is read from.
+#[test]
+fn a_peer_listed_in_both_dependency_groups_is_read_from_the_optional_one() {
+    let yaml = "lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      k: {specifier: 1.0.0, version: 1.0.0(f@2.0.0)}
+packages:
+  f@1.0.0: {resolution: {integrity: sha512-f1}}
+  f@2.0.0: {resolution: {integrity: sha512-f2}}
+  k@1.0.0: {resolution: {integrity: sha512-k}, peerDependencies: {f: '*'}}
+snapshots:
+  f@1.0.0: {}
+  f@2.0.0: {}
+  k@1.0.0(f@2.0.0):
+    dependencies: {f: 1.0.0}
+    optionalDependencies: {f: 2.0.0}
+";
+    assert_eq!(provider(yaml, "k@1.0.0(f@2.0.0)", "f").as_deref(), Some("f@2.0.0"));
 }

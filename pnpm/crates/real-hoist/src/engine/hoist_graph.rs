@@ -7,15 +7,11 @@ use super::{
     hoist_info::{
         Hoistable,
         RootContext,
-        ShadowedNodes,
         node_hoist_info,
         sorted_regular_dependencies,
     },
 };
-use crate::{
-    HoisterDependencyKind,
-    RcByPtr,
-};
+use crate::RcByPtr;
 use indexmap::IndexSet;
 use rustc_hash::{
     FxHashMap,
@@ -23,16 +19,17 @@ use rustc_hash::{
 };
 use std::rc::Rc;
 
-/// Upstream's `{ anotherRoundNeeded, isGraphChanged }`.
+/// Upstream's `{ anotherRoundNeeded, isGraphChanged }`, without the first.
+/// Upstream sets it only where it also sets `isGraphChanged`, and runs
+/// another round on either, so the names each hoist shadows, which feed
+/// nothing else, are not tracked.
 #[derive(Default, Clone, Copy)]
 pub(super) struct PassOutcome {
-    pub(super) another_round_needed: bool,
     pub(super) is_graph_changed: bool,
 }
 
 impl PassOutcome {
     pub(super) fn absorb(&mut self, other: PassOutcome) {
-        self.another_round_needed |= other.another_round_needed;
         self.is_graph_changed |= other.is_graph_changed;
     }
 }
@@ -40,7 +37,6 @@ impl PassOutcome {
 /// State shared by every `hoistNodeDependencies` call of one pass.
 struct Pass<'pass> {
     ctx: &'pass RootContext<'pass>,
-    parent_shadowed: &'pass ShadowedNodes,
     /// Parents on the current recursion path, upstream's `seenNodes`.
     on_path: FxHashSet<*const WorkNode>,
     /// The hoisting root, then the nodes from it down to the parent
@@ -55,14 +51,9 @@ struct Pass<'pass> {
 
 /// Upstream's `hoistGraph`. `root_path` runs from the top of the tree to
 /// the hoisting root, which is its last entry.
-pub(super) fn hoist_graph(
-    ctx: &RootContext<'_>,
-    root_path: &[Rc<WorkNode>],
-    parent_shadowed: &ShadowedNodes,
-) -> PassOutcome {
+pub(super) fn hoist_graph(ctx: &RootContext<'_>, root_path: &[Rc<WorkNode>]) -> PassOutcome {
     let mut pass = Pass {
         ctx,
-        parent_shadowed,
         on_path: FxHashSet::default(),
         node_path: vec![Rc::clone(ctx.root)],
         aliased_path: root_path
@@ -204,26 +195,17 @@ fn move_hoistable(
     children: &[Rc<WorkNode>],
     unhoistable: &IndexSet<RcByPtr<WorkNode>>,
 ) {
-    let mut moved = false;
     for child in children {
         if unhoistable.contains(&RcByPtr(Rc::clone(child))) {
             continue;
         }
         let name = &child.input.name;
-        moved = true;
         pass.outcome.is_graph_changed = true;
-        let shadowed = pass.parent_shadowed.get(&Rc::as_ptr(parent));
-        if shadowed.is_some_and(|names| names.contains(name)) {
-            pass.outcome.another_round_needed = true;
-        }
         parent.dependencies.borrow_mut().shift_remove(name);
         parent.hoisted_dependencies
             .borrow_mut()
             .insert(Rc::clone(name), Rc::clone(child));
         place_at_root(pass, child);
-    }
-    if moved && parent.input.dependency_kind == HoisterDependencyKind::ExternalSoftLink {
-        pass.outcome.another_round_needed = true;
     }
 }
 
@@ -242,5 +224,12 @@ fn place_at_root(pass: &mut Pass<'_>, child: &Rc<WorkNode>) {
             .borrow_mut()
             .insert(Rc::clone(name), Rc::clone(child));
         pass.next_wave.insert(RcByPtr(Rc::clone(child)));
+    } else {
+        // The root is this package under this name, so it serves the
+        // child's snapshot keys itself.
+        let references = child.references.borrow();
+        root.references
+            .borrow_mut()
+            .extend(references.iter().map(Rc::clone));
     }
 }

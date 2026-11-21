@@ -9,10 +9,7 @@ use super::{
         PassOutcome,
         hoist_graph,
     },
-    hoist_info::{
-        RootContext,
-        ShadowedNodes,
-    },
+    hoist_info::RootContext,
     preference::{
         front_idents,
         hoist_ident_map,
@@ -23,17 +20,14 @@ use rustc_hash::{
     FxHashMap,
     FxHashSet,
 };
-use std::{
-    cell::RefCell,
-    rc::Rc,
-};
+use std::rc::Rc;
 
 type Names = FxHashSet<Rc<str>>;
 
 /// One round of upstream's `hoist` loop: `hoistTo` from the top root.
 pub(super) fn hoist_to(top: &Rc<WorkNode>, options: &EngineOptions<'_>) -> PassOutcome {
     let mut path_locators: FxHashSet<Rc<str>> = FxHashSet::from_iter([Rc::clone(&top.input.ident)]);
-    hoist_to_root(&[Rc::clone(top)], &mut path_locators, &ShadowedNodes::default(), options)
+    hoist_to_root(&[Rc::clone(top)], &mut path_locators, options)
 }
 
 /// Upstream's `hoistTo`. `root_path` ends with the hoisting root;
@@ -41,13 +35,10 @@ pub(super) fn hoist_to(top: &Rc<WorkNode>, options: &EngineOptions<'_>) -> PassO
 fn hoist_to_root(
     root_path: &[Rc<WorkNode>],
     path_locators: &mut FxHashSet<Rc<str>>,
-    parent_shadowed: &ShadowedNodes,
     options: &EngineOptions<'_>,
 ) -> PassOutcome {
     let Some(root) = root_path.last() else { return PassOutcome::default() };
-    let shadowed = RefCell::new(ShadowedNodes::default());
-    let mut outcome = hoist_into(root, root_path, parent_shadowed, &shadowed, options);
-    let shadowed = shadowed.into_inner();
+    let mut outcome = hoist_into(root, root_path, options);
     let names: Vec<Rc<str>> = root.dependencies
         .borrow()
         .keys()
@@ -64,7 +55,7 @@ fn hoist_to_root(
         path_locators.insert(Rc::clone(locator));
         let mut child_path = root_path.to_vec();
         child_path.push(Rc::clone(&dependency));
-        outcome.absorb(hoist_to_root(&child_path, path_locators, &shadowed, options));
+        outcome.absorb(hoist_to_root(&child_path, path_locators, options));
         path_locators.remove(locator);
     }
     outcome
@@ -75,8 +66,6 @@ fn hoist_to_root(
 fn hoist_into(
     root: &Rc<WorkNode>,
     root_path: &[Rc<WorkNode>],
-    parent_shadowed: &ShadowedNodes,
-    shadowed: &RefCell<ShadowedNodes>,
     options: &EngineOptions<'_>,
 ) -> PassOutcome {
     let mut ident_map = hoist_ident_map(root);
@@ -94,11 +83,10 @@ fn hoist_into(
             root,
             used: &used,
             hoist_idents: &hoist_idents,
-            shadowed,
             fast_lookup_possible,
             arena: &options.nodes,
         };
-        outcome.absorb(hoist_graph(&ctx, root_path, parent_shadowed));
+        outcome.absorb(hoist_graph(&ctx, root_path));
         if !shift_unplaced(&mut ident_map, root, &mut hoist_idents) {
             return outcome;
         }

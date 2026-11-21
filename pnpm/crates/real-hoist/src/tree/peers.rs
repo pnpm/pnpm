@@ -16,6 +16,7 @@ use std::{
         HashSet,
     },
     fmt::Write as _,
+    rc::Rc,
 };
 
 /// How the hoister sees a package's peers.
@@ -70,6 +71,9 @@ fn identity_with_providers(
 /// The peers a snapshot binds: each peer name with the key of its
 /// provider.
 pub(crate) type BoundPeers = Vec<(String, PkgNameVerPeer)>;
+
+/// The peers each snapshot of a hoisted tree binds, by snapshot key.
+pub(crate) type BoundPeersByKey = HashMap<String, Rc<BoundPeers>>;
 
 /// The provider of each of `names` that `key` binds.
 pub(crate) fn bound_peers(
@@ -132,6 +136,7 @@ fn full_provider_key(
         peer,
         package: recorded.without_peer(),
         snapshots,
+        lockfile,
     };
     let mut seen: HashSet<PkgNameVerPeer> = HashSet::new();
     let mut level = vec![snapshot];
@@ -152,6 +157,7 @@ struct ProviderSearch<'search> {
     /// The provider's key without its peers.
     package: PkgNameVerPeer,
     snapshots: &'search HashMap<PkgNameVerPeer, SnapshotEntry>,
+    lockfile: &'search Lockfile,
 }
 
 impl<'search> ProviderSearch<'search> {
@@ -167,7 +173,7 @@ impl<'search> ProviderSearch<'search> {
         let dependencies =
             level.iter().flat_map(|snapshot| dependencies_of(snapshot, self.snapshots));
         for (key, dependency) in dependencies {
-            if let Some(full) = self.bound_in(dependency) {
+            if let Some(full) = self.bound_in(&key, dependency) {
                 bound.push(full);
             } else if takes_transitively(dependency, self.peer) && seen.insert(key.clone()) {
                 carriers.push((key, dependency));
@@ -181,8 +187,13 @@ impl<'search> ProviderSearch<'search> {
         (bound.into_iter().min_by_key(ToString::to_string), carriers)
     }
 
-    fn bound_in(&self, dependency: &SnapshotEntry) -> Option<PkgNameVerPeer> {
-        dependency_key(dependency, &self.alias).filter(|full| full.without_peer() == self.package)
+    /// The provider's full key, when `dependency` takes the peer and binds
+    /// it to the provider. A dependency of its own on the same package says
+    /// nothing about the peer.
+    fn bound_in(&self, key: &PkgNameVerPeer, dependency: &SnapshotEntry) -> Option<PkgNameVerPeer> {
+        let full = dependency_key(dependency, &self.alias)
+            .filter(|full| full.without_peer() == self.package)?;
+        base_peer_names(key, dependency, self.lockfile).contains(self.peer).then_some(full)
     }
 }
 
@@ -213,19 +224,32 @@ fn dependencies_of<'lockfile>(
 /// cover: the node needs an edge to each, as a peer edge when the name is
 /// still a peer and as a regular dependency otherwise. A hashed suffix
 /// names no provider.
+///
+/// `bound` is what [`bound_peers`] gave for the snapshot. It already holds
+/// the provider of a peer the snapshot has no dependency for, which saves
+/// looking its key up again.
 pub(super) fn unlinked_peer_providers(
-    dep_key: &PkgNameVerPeer,
-    snapshot: &SnapshotEntry,
+    (dep_key, snapshot): (&PkgNameVerPeer, &SnapshotEntry),
     lockfile: &Lockfile,
+    bound: &BoundPeers,
     has_edge: impl Fn(&str) -> bool,
 ) -> Vec<PkgNameVerPeer> {
     let Some(bindings) = PeerBindings::from_key(dep_key) else { return Vec::new() };
     let peers = base_peer_names(dep_key, snapshot, lockfile);
+    let known = |name: &str| {
+        let from_suffix = own_dependency_key(snapshot, name).is_none();
+        bound
+            .iter()
+            .find(|(peer, _)| from_suffix && peer == name)
+            .map(|(_, key)| key.clone())
+    };
     bindings
         .providers()
         .map(|provider| (provider.name.to_string(), provider))
         .filter(|(name, _)| peers.contains(name) && !has_edge(name))
-        .map(|(name, provider)| snapshot_key_of(provider, snapshot, &name, lockfile))
+        .map(|(name, provider)| {
+            known(&name).unwrap_or_else(|| snapshot_key_of(provider, snapshot, &name, lockfile))
+        })
         .collect()
 }
 
@@ -296,13 +320,15 @@ fn own_dependencies_declared_as_peers(
 }
 
 /// The snapshot key `name` resolves to among the package's own
-/// dependencies, regular before optional.
+/// dependencies.
 fn own_dependency_key(snapshot: &SnapshotEntry, name: &str) -> Option<PkgNameVerPeer> {
     dependency_key(snapshot, &PkgName::parse(name).ok()?)
 }
 
+/// An alias in both groups resolves to the optional one, the entry the
+/// tree is built from (see `spread_groups`).
 fn dependency_key(snapshot: &SnapshotEntry, alias: &PkgName) -> Option<PkgNameVerPeer> {
-    [&snapshot.dependencies, &snapshot.optional_dependencies]
+    [&snapshot.optional_dependencies, &snapshot.dependencies]
         .into_iter()
         .flatten()
         .find_map(|deps| deps.get(alias))

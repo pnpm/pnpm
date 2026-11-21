@@ -108,7 +108,7 @@ pub(super) struct TreeCache {
     pub(super) nodes: HashMap<String, Rc<HoisterTree>>,
     pub(super) regular_peers: RegularPeers,
     /// The peers each node binds, by the node's `reference`.
-    pub(super) bound_peers: HashMap<String, Rc<peers::BoundPeers>>,
+    pub(super) bound_peers: peers::BoundPeersByKey,
 }
 
 /// Dependency groups merged as pnpm v11 spreads them into one object:
@@ -262,7 +262,11 @@ fn link_transitive_peer_providers(
             .iter()
             .any(|child| child.0.name == name)
     };
-    let providers = peers::unlinked_peer_providers(dep_key, snapshot, lockfile, has_edge);
+    let bound = cache.bound_peers
+        .get(&dep_key.to_string())
+        .map(Rc::clone)
+        .unwrap_or_default();
+    let providers = peers::unlinked_peer_providers((dep_key, snapshot), lockfile, &bound, has_edge);
     for provider in providers {
         if let Some(provider_node) =
             build_dep_node(&provider.name, &provider, true, lockfile, opts, cache)?

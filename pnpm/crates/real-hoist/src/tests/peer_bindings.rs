@@ -1,10 +1,15 @@
 use super::{
+    BTreeSet,
     HashMap,
     HoistOpts,
+    HoisterDependencyKind,
+    HoisterTree,
+    IndexSet,
     Lockfile,
     ProjectSnapshot,
     Rc,
     RcByPtr,
+    RefCell,
     SnapshotDepRef,
     SnapshotEntry,
     assert_eq,
@@ -133,4 +138,61 @@ fn a_peer_provider_hoisted_above_a_nested_root_lets_copies_share_its_slot() {
             child_of(&host, "client").references.borrow().contains("client@2.0.0(schema@2.0.0)"),
         );
     }
+}
+
+/// `a` is a hoist border that holds `b`, and `b` depends on another peer
+/// variant of `a`. Hoisting that variant into `a` drops it, since `a`
+/// serves it by name, and `a` lists the variant's key with its own.
+#[test]
+fn a_root_that_absorbs_its_own_package_serves_its_snapshot_key() {
+    let inner = tree_node("a", "a@1.0.0(p@2.0.0)", &[], vec![]);
+    let holder = tree_node("b", "b@1.0.0", &[], vec![inner]);
+    let border = tree_node("a", "a@1.0.0(p@1.0.0)", &[], vec![holder]);
+    let root = tree_root(vec![border]);
+    let mut opts = HoistOpts::default();
+    opts.hoisting_limits.insert(".@".to_string(), BTreeSet::from(["a".to_string()]));
+
+    let result = nm_hoist(&root, &opts);
+
+    let border = child_of(&result, "a");
+    let served: Vec<String> = border.references
+        .borrow()
+        .iter()
+        .cloned()
+        .collect();
+    assert_eq!(served, ["a@1.0.0(p@1.0.0)", "a@1.0.0(p@2.0.0)"], "{result:#?}");
+    assert!(child_of(&border, "b").dependencies.borrow().is_empty(), "b finds a above it");
+}
+
+/// `n` takes its sibling `s` as a peer and depends on `q@2`, which the root
+/// cannot hold next to `q@1` and which moves up to `p`. Once `s` can move
+/// to the root, `n` may not follow it: from the root it would find `q@1`.
+#[test]
+fn a_node_waiting_on_a_peer_provider_stays_when_its_dependency_would_change() {
+    let soft_link = Rc::new(HoisterTree {
+        identity: None,
+        name: "s".to_string(),
+        ident_name: "s".to_string(),
+        reference: "link:s".to_string(),
+        peer_names: IndexSet::new(),
+        dependency_kind: HoisterDependencyKind::ExternalSoftLink,
+        hoist_priority: 0,
+        dependencies: RefCell::new(IndexSet::from([RcByPtr(tree_node(
+            "d",
+            "d@1.0.0",
+            &[],
+            vec![],
+        ))])),
+    });
+    let conflicting = tree_node("q", "q@2.0.0", &[], vec![]);
+    let dependent = tree_node("n", "n@1.0.0", &["s"], vec![conflicting, Rc::clone(&soft_link)]);
+    let parent = tree_node("p", "p@1.0.0", &[], vec![dependent, soft_link]);
+    let root = tree_root(vec![tree_node("q", "q@1.0.0", &[], vec![]), parent]);
+
+    let result = nm_hoist(&root, &HoistOpts::default());
+
+    let parent = child_of(&result, "p");
+    assert!(child_of(&parent, "q").references.borrow().contains("q@2.0.0"), "{result:#?}");
+    child_of(&parent, "n");
+    child_of(&result, "s");
 }

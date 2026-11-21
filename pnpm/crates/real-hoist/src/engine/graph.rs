@@ -99,11 +99,21 @@ fn peer_names_of(tree: &HoisterTree, by_ident: &PeerNamesByIdent) -> IndexSet<St
     names
 }
 
+/// Where a node sits in the tree being cloned.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Position {
+    /// The top of the tree: a workspace and a hoist border, as upstream
+    /// makes it, whatever the input says.
+    Root,
+    Below,
+}
+
 fn work_node(
     tree: &HoisterTree,
-    is_hoist_border: bool,
+    position: Position,
     (by_ident, arena): (&PeerNamesByIdent, &Arena),
 ) -> Rc<WorkNode> {
+    let is_root = position == Position::Root;
     let reference = tree.reference.clone();
     let ident = tree_ident(tree);
     let input = NodeInput {
@@ -115,8 +125,12 @@ fn work_node(
             .into_iter()
             .map(Rc::from)
             .collect(),
-        hoist_priority: tree.hoist_priority,
-        dependency_kind: tree.dependency_kind,
+        hoist_priority: if is_root { 0 } else { tree.hoist_priority },
+        dependency_kind: if is_root {
+            HoisterDependencyKind::Workspace
+        } else {
+            tree.dependency_kind
+        },
     };
     let node = Rc::new(WorkNode {
         input: Rc::new(input),
@@ -125,7 +139,7 @@ fn work_node(
         original_dependencies: Rc::default(),
         hoisted_dependencies: RefCell::default(),
         decoupled: Cell::new(true),
-        is_hoist_border: Cell::new(is_hoist_border),
+        is_hoist_border: Cell::new(is_root),
     });
     arena.track(&node);
     node
@@ -150,11 +164,10 @@ struct Cloned {
     sealed: FxHashSet<*const WorkNode>,
 }
 
-/// Upstream's `cloneTree`. The root is a workspace and a hoist border,
-/// as upstream makes it, whatever the input says.
+/// Upstream's `cloneTree`.
 pub(super) fn clone_tree(tree: &HoisterTree, options: &EngineOptions<'_>) -> Rc<WorkNode> {
     let by_ident = peer_names_by_ident(tree);
-    let root = work_node(tree, true, (&by_ident, &options.nodes));
+    let root = work_node(tree, Position::Root, (&by_ident, &options.nodes));
     let mut cloned = Cloned::default();
     cloned.by_input.insert(std::ptr::from_ref(tree), Rc::clone(&root));
     cloned.open.insert(Rc::as_ptr(&root));
@@ -195,7 +208,8 @@ fn add_node(
     let key = Rc::as_ptr(tree);
     let existing = cloned.by_input.get(&key).map(Rc::clone);
     let is_seen = existing.is_some();
-    let node = existing.unwrap_or_else(|| work_node(tree, false, (by_ident, &options.nodes)));
+    let node =
+        existing.unwrap_or_else(|| work_node(tree, Position::Below, (by_ident, &options.nodes)));
     cloned.by_input.entry(key).or_insert_with(|| Rc::clone(&node));
     let name = &node.input.name;
     let parent_limits = options.hoisting_limits.get(parent.input.ident.as_ref());

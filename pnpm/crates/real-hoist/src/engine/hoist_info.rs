@@ -15,18 +15,7 @@ use rustc_hash::{
     FxHashMap,
     FxHashSet,
 };
-use std::{
-    cell::RefCell,
-    rc::Rc,
-};
-
-/// Names a hoist would shadow below each parent, upstream's
-/// `shadowedNodes`. A later pass that hoists one of them past that
-/// parent needs another round.
-///
-/// Keyed by the parent's address: the run's arena keeps every work node
-/// alive, so an address names one node for the whole run.
-pub(super) type ShadowedNodes = FxHashMap<*const WorkNode, FxHashSet<Rc<str>>>;
+use std::rc::Rc;
 
 /// Upstream's `Hoistable`, with `dependsOn` folded into the variant.
 pub(super) enum Hoistable {
@@ -41,7 +30,6 @@ pub(super) struct RootContext<'ctx> {
     pub(super) root: &'ctx Rc<WorkNode>,
     pub(super) used: &'ctx FxHashMap<Rc<str>, Rc<WorkNode>>,
     pub(super) hoist_idents: &'ctx FxHashMap<Rc<str>, Rc<str>>,
-    pub(super) shadowed: &'ctx RefCell<ShadowedNodes>,
     pub(super) fast_lookup_possible: bool,
     pub(super) arena: &'ctx super::Arena,
 }
@@ -64,11 +52,13 @@ pub(super) fn node_hoist_info(
     if hoistable && !ctx.fast_lookup_possible {
         hoistable = hoisted_dependencies_still_resolve(ctx, node);
     }
-    // Upstream reports `DEPENDS` even when the check above failed.
+    // Upstream reports `DEPENDS` even when the check above failed, and then
+    // moves a node whose hoisted dependency resolves to another version at
+    // the root.
     match depends_on {
+        _ if !hoistable => Hoistable::No,
         Some(providers) if !providers.is_empty() => Hoistable::Depends(providers),
-        _ if hoistable => Hoistable::Yes,
-        _ => Hoistable::No,
+        _ => Hoistable::Yes,
     }
 }
 
@@ -100,8 +90,7 @@ fn may_leave_parent(ctx: &RootContext<'_>, node_path: &[Rc<WorkNode>], node: &Wo
 }
 
 /// No different version under this name is used from above the root, or
-/// sits on the path between the root and the parent. A path conflict is
-/// recorded in [`RootContext::shadowed`].
+/// sits on the path between the root and the parent.
 fn is_name_available(ctx: &RootContext<'_>, node_path: &[Rc<WorkNode>], node: &WorkNode) -> bool {
     let NodeInput { name, ident, .. } = &*node.input;
     if ctx.used
@@ -120,13 +109,6 @@ fn is_name_available(ctx: &RootContext<'_>, node_path: &[Rc<WorkNode>], node: &W
                 .get(name)
                 .is_some_and(|dep| dep.input.ident != *ident)
         });
-    if filled && let Some(parent) = node_path.last() {
-        let mut shadowed = ctx.shadowed.borrow_mut();
-        shadowed
-            .entry(Rc::as_ptr(parent))
-            .or_default()
-            .insert(Rc::clone(name));
-    }
     !filled
 }
 

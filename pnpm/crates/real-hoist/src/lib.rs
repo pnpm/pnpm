@@ -312,9 +312,9 @@ fn hoist_until_peers_resolve(
 ) -> Result<(Rc<HoisterTree>, HoisterResult), HoistError> {
     let mut regular_peers = RegularPeers::new();
     loop {
-        let tree = build_tree(lockfile, opts, &regular_peers)?;
+        let (tree, bound_peers) = build_tree(lockfile, opts, &regular_peers)?;
         let result = engine::hoist(&tree, opts);
-        let misresolved = repair::misresolved_peers(&result, lockfile, opts);
+        let misresolved = repair::misresolved_peers(&result, &bound_peers);
         let mut added = false;
         for (key, peer) in misresolved {
             added |= regular_peers
@@ -330,12 +330,13 @@ fn hoist_until_peers_resolve(
 }
 
 /// The hoister's input for `lockfile`: the root project's dependencies
-/// under the `.` root, then one workspace node per other project.
+/// under the `.` root, then one workspace node per other project. With it,
+/// the peers each snapshot in the tree binds.
 fn build_tree(
     lockfile: &Lockfile,
     opts: &HoistOpts,
     regular_peers: &RegularPeers,
-) -> Result<Rc<HoisterTree>, HoistError> {
+) -> Result<(Rc<HoisterTree>, BoundPeersByKey), HoistError> {
     let mut cache = TreeCache { regular_peers: regular_peers.clone(), ..TreeCache::default() };
 
     let mut root_children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
@@ -380,7 +381,7 @@ fn build_tree(
         dependencies: RefCell::new(root_children),
     });
 
-    Ok(root_node)
+    Ok((root_node, cache.bound_peers))
 }
 
 #[cfg(test)]
@@ -397,5 +398,6 @@ use tree::{
     collect_importer_deps,
     external_placeholder,
     importer_node,
+    peers::BoundPeersByKey,
     sorted_non_root_importers,
 };
