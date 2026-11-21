@@ -78,7 +78,7 @@ fn install_twice(settings: &str) -> (tempfile::TempDir, PathBuf) {
 
 /// The package directory the project's `node_modules` entry resolves to.
 fn parent_dir(workspace: &Path) -> PathBuf {
-    let entry = pnpm_fs::join_slash_separated_path(&workspace.join("node_modules"), PARENT);
+    let entry = pnpm_fs::join_slash_separated_path(workspace.join("node_modules"), PARENT);
     fs::canonicalize(&entry).unwrap_or_else(|err| panic!("resolve {entry:?}: {err}"))
 }
 
@@ -122,7 +122,7 @@ fn a_file_dep_inside_a_registry_package_is_linked_with_the_hoisted_node_linker()
     let parent = parent_dir(&workspace);
     assert_links_into(
         &pnpm_fs::join_slash_separated_path(
-            &parent.join("node_modules"),
+            parent.join("node_modules"),
             "@pnpm.e2e/internal-child",
         ),
         &parent,

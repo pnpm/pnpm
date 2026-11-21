@@ -103,7 +103,7 @@ fn module_graph_follows_reexports_and_nested_supers_and_skips_tests() {
 #[test]
 fn reports_the_largest_cycle() {
     let graph = CrateModules::read(&crate_tree(), "lib").unwrap().top_level_graph();
-    let report = CycleReport::new("lib", &graph);
+    let report = CycleReport::new("lib".to_owned(), &graph);
     dbg!(&report);
     assert_eq!(report.size(), 2);
     assert_eq!(report.module_count, 3);
@@ -115,7 +115,7 @@ fn reports_the_largest_cycle() {
 #[test]
 fn the_baseline_only_goes_down() {
     let graph = CrateModules::read(&crate_tree(), "lib").unwrap().top_level_graph();
-    let reports = [CycleReport::new("lib", &graph)];
+    let reports = [CycleReport::new("lib".to_owned(), &graph)];
     let check = |entries: &[(&str, usize)]| {
         let baseline = entries
             .iter()

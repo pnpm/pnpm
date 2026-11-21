@@ -125,7 +125,7 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     create_pnpm_workspace(
         &dir,
         None,
-        "http://localhost:4873/",
+        "http://localhost:4873/".to_owned(),
         BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline,
     );
     create_install_script(
@@ -192,7 +192,7 @@ fn linked_workspace_scenario_generates_a_shared_link_graph() {
 
     create_package_json(&dir, None, scenario);
     super::linked_workspace::create_projects(&dir);
-    create_pnpm_workspace(&dir, None, "http://localhost:4873/", scenario);
+    create_pnpm_workspace(&dir, None, "http://localhost:4873/".to_owned(), scenario);
 
     let root: serde_json::Value =
         serde_json::from_slice(&fs::read(dir.join("package.json")).expect("read root manifest"))
@@ -629,7 +629,7 @@ fn store_only_scenario_unlocks_the_peered_direct_deps_and_links_nothing() {
     let dir = temp.path();
 
     create_package_json(dir, None, scenario);
-    create_pnpm_workspace(dir, None, "http://localhost:4873/", scenario);
+    create_pnpm_workspace(dir, None, "http://localhost:4873/".to_owned(), scenario);
     create_install_script(dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
     may_create_lockfile(dir, scenario, None);
     let manifest: serde_json::Value =
@@ -690,7 +690,7 @@ fn injected_repeat_install_creates_its_lockfile_before_the_frozen_runs() {
     let dir = std::env::temp_dir().join(format!("pnpm-benchmark-injected-{}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
     create_package_json(&dir, None, scenario);
-    create_pnpm_workspace(&dir, None, "http://localhost:4873/", scenario);
+    create_pnpm_workspace(&dir, None, "http://localhost:4873/".to_owned(), scenario);
     create_install_script(&dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
     let manifest: serde_json::Value =
         serde_json::from_slice(&fs::read(dir.join("package.json")).unwrap()).unwrap();
@@ -722,7 +722,7 @@ fn cargo_repeat_install_seeds_workspace_and_store_before_frozen_runs() {
 
     create_package_json(dir, None, scenario);
     create_generated_projects(dir, scenario);
-    create_pnpm_workspace(dir, None, "http://localhost:4873/", scenario);
+    create_pnpm_workspace(dir, None, "http://localhost:4873/".to_owned(), scenario);
     create_install_script(dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
     super::cargo_workspace::seed_store(dir);
 

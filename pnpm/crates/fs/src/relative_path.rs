@@ -67,8 +67,8 @@ fn same_path_root(path: &Path, base: &Path) -> bool {
 
 /// [`push_slash_separated_path`] applied to a copy of `base`.
 #[must_use]
-pub fn join_slash_separated_path(base: &Path, rel: &str) -> PathBuf {
-    let mut path = base.to_path_buf();
+pub fn join_slash_separated_path(base: PathBuf, rel: &str) -> PathBuf {
+    let mut path = base;
     push_slash_separated_path(&mut path, rel);
     path
 }

@@ -89,7 +89,7 @@ impl HoistedBinPlans {
             locations_by_key
                 .entry(key.clone())
                 .or_default()
-                .push(pnpm_fs::join_slash_separated_path(&directory, alias));
+                .push(pnpm_fs::join_slash_separated_path(directory.clone(), alias));
         }
         *self.private_hoist.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
             Some(PrivateHoistedBins { directory, locations_by_key });

@@ -12,6 +12,7 @@ use super::{
     NormalizedSubdep,
     PackageInstallabilityManifest,
     Path,
+    PathBuf,
     Reporter,
     SkippedOptionalDependencyLog,
     SkippedOptionalPackage,
@@ -56,7 +57,7 @@ pub(super) async fn install_optional_subdeps<Reporter: self::Reporter>(
     )?;
 
     for subdep in compatible {
-        let subdep_dir = subdep_dir(subdep, global_virtual_store_dir);
+        let subdep_dir = subdep_dir(subdep, global_virtual_store_dir.to_path_buf());
         if !subdep_dir.join("package.json").exists() {
             started.report::<Reporter>();
             materialize::<Reporter>(
@@ -99,15 +100,17 @@ pub(super) fn optional_subdeps_installed(
                 Ok(Some(_)),
             )
         })
-        .all(|subdep| subdep_dir(subdep, global_virtual_store_dir).join("package.json").exists())
+        .all(|subdep| {
+            subdep_dir(subdep, global_virtual_store_dir.to_path_buf()).join("package.json").exists()
+        })
 }
 
-fn subdep_dir(subdep: &NormalizedSubdep, global_virtual_store_dir: &Path) -> std::path::PathBuf {
+fn subdep_dir(subdep: &NormalizedSubdep, global_virtual_store_dir: PathBuf) -> PathBuf {
     let subdep_full_id = full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity);
     let subdep_rel =
         calc_leaf_global_virtual_store_path(&subdep_full_id, &subdep.name, &subdep.version);
     pnpm_fs::join_slash_separated_path(
-        &join_global_virtual_store_path(global_virtual_store_dir, &subdep_rel).join("node_modules"),
+        join_global_virtual_store_path(global_virtual_store_dir, &subdep_rel).join("node_modules"),
         &subdep.name,
     )
 }

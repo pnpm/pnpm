@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 pub mod package_manager_spec;
 pub use bins::{
     MAX_PRECALCULATED_BINS,
@@ -410,6 +412,13 @@ impl PackageManifest {
 
     /// A dependency belongs to one install group at a time, so adding it to
     /// one removes it from the other two.
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "the name is copied only for an install group; a peer save returns first"
+        )
+    )]
     fn drop_from_other_install_groups(&mut self, name: &str, added_to: DependencyGroup) {
         const INSTALL_GROUPS: [DependencyGroup; 3] =
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];

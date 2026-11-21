@@ -63,7 +63,7 @@ fn database_cold_mock_imports_its_upstream_and_allows_loopback() {
     assert_eq!(config["routes"], json!({"allowedPrivateNetworks": ["127.0.0.0/8", "::1"]}));
     assert_eq!(config["storage"], "cold-mock-storage");
 
-    let document = parse(&cold_mock_registries_yaml("http://127.0.0.1:4874/"));
+    let document = parse(&cold_mock_registries_yaml("http://127.0.0.1:4874/".to_owned()));
     assert_eq!(
         document,
         json!({

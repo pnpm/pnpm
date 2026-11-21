@@ -43,14 +43,14 @@ impl StoreDir {
         let cache_dir = match OpenDir::open(cache_dir) {
             Ok(dir) => dir,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
-            Err(error) => return Err(read_error(cache_dir, error)),
+            Err(error) => return Err(read_error(cache_dir.to_path_buf(), error)),
         };
         let names = child_names(&cache_dir)?;
         remove_metadata_dirs(&cache_dir, &names, &protected)?;
         for name in names.iter().filter(|name| is_layout_version(name)) {
             let Some(layout_dir) = cache_dir
                 .open_child_dir(name.as_ref())
-                .map_err(|error| read_error(&cache_dir.path().join(name), error))?
+                .map_err(|error| read_error(cache_dir.path().join(name), error))?
             else {
                 continue;
             };
@@ -69,8 +69,9 @@ fn remove_metadata_dirs(
     names: &[String],
     protected: &[PathBuf],
 ) -> Result<(), PruneError> {
-    let Some(canonical_dir) =
-        dir.canonical_path().map_err(|error| read_error(dir.path(), error))?
+    let Some(canonical_dir) = dir
+        .canonical_path()
+        .map_err(|error| read_error(dir.path().to_path_buf(), error))?
     else {
         tracing::warn!(
             path = %dir.path().display(),
@@ -103,7 +104,9 @@ fn holds_any(dir: &Path, protected: &[PathBuf]) -> bool {
 /// The names of the entries of `dir`. Entries whose names are not UTF-8
 /// are skipped.
 fn child_names(dir: &OpenDir) -> Result<Vec<String>, PruneError> {
-    let names = dir.entry_names().map_err(|error| read_error(dir.path(), error))?;
+    let names = dir
+        .entry_names()
+        .map_err(|error| read_error(dir.path().to_path_buf(), error))?;
     names
         .into_iter()
         .map(std::ffi::OsString::into_string)
@@ -112,8 +115,8 @@ fn child_names(dir: &OpenDir) -> Result<Vec<String>, PruneError> {
         .pipe(Ok)
 }
 
-fn read_error(path: &Path, error: io::Error) -> PruneError {
-    PruneError::ReadCacheDir { path: path.to_path_buf(), error }
+fn read_error(path: PathBuf, error: io::Error) -> PruneError {
+    PruneError::ReadCacheDir { path, error }
 }
 
 fn is_layout_version(name: &str) -> bool {

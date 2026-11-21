@@ -40,7 +40,10 @@ use pnpm_tarball::{
 };
 use std::{
     collections::BTreeMap,
-    path::Path,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -151,14 +154,14 @@ pub(super) fn fetch_directory_resolution(
     files: CopyFiles,
 ) -> Result<(pnpm_fs::CasPaths, bool), InstallPackageBySnapshotError> {
     let output =
-        walk_directory(&lexical_normalize(&workspace_root.join(&dir_resolution.directory)), files)
+        walk_directory(lexical_normalize(&workspace_root.join(&dir_resolution.directory)), files)
             .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
     Ok((pnpm_fs::cas_paths_from_paths(output.files_map), output.exists))
 }
 
 /// The directory fetch every directory resolution goes through.
 pub(crate) fn walk_directory(
-    directory: &Path,
+    directory: PathBuf,
     files: CopyFiles,
 ) -> Result<DirectoryFetchOutput, DirectoryFetcherError> {
     files.fetcher(directory).run()

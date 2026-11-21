@@ -87,20 +87,20 @@ impl TurborepoCache {
 
     /// Replace what is stored under `hash`, as a server that does not verify
     /// what it serves could.
-    pub fn store(&self, hash: &str, body: Vec<u8>) {
+    pub fn store(&self, hash: String, body: Vec<u8>) {
         self.shared.artifacts
             .lock()
             .expect("artifact lock")
-            .insert(hash.to_string(), body);
+            .insert(hash, body);
     }
 
     /// Answer every request for `hash` with `status`.
-    pub fn fail(&self, hash: &str, status: u16) {
+    pub fn fail(&self, hash: String, status: u16) {
         let status = StatusCode::from_u16(status).expect("a valid status code");
         self.shared.failures
             .lock()
             .expect("failure lock")
-            .insert(hash.to_string(), status);
+            .insert(hash, status);
     }
 
     #[must_use]
@@ -127,7 +127,7 @@ fn serve(router: Router, listener: TcpListener) {
 fn record(
     shared: &Shared,
     method: &Method,
-    hash: &str,
+    hash: String,
     query: Option<String>,
     headers: &HeaderMap,
 ) {
@@ -136,7 +136,7 @@ fn record(
         .expect("request lock")
         .push(RecordedRequest {
             method: method.to_string(),
-            hash: hash.to_string(),
+            hash,
             query,
             authorization: headers
                 .get("authorization")
@@ -154,7 +154,7 @@ async fn get_artifact(
     RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Result<Vec<u8>, StatusCode> {
-    record(&shared, &method, &hash, query, &headers);
+    record(&shared, &method, hash.clone(), query, &headers);
     if let Some(status) = shared.failures
         .lock()
         .expect("failure lock")
@@ -177,7 +177,7 @@ async fn put_artifact(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
-    record(&shared, &Method::PUT, &hash, query, &headers);
+    record(&shared, &Method::PUT, hash.clone(), query, &headers);
     shared.artifacts
         .lock()
         .expect("artifact lock")

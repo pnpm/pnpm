@@ -44,7 +44,7 @@ pub(crate) struct ImportedFiles {
 /// `pnpm-tarball`, but defense-in-depth at this layer means a
 /// future caller (or a bug in that earlier sanitiser) can't turn
 /// a malformed entry into a write outside the working tree.
-fn join_checked(root: &Path, rel: &str) -> Result<PathBuf, GitFetcherError> {
+fn join_checked(root: PathBuf, rel: &str) -> Result<PathBuf, GitFetcherError> {
     let rel_path = Path::new(rel);
     if rel_path.is_absolute() {
         return Err(GitFetcherError::Io(io::Error::new(
@@ -52,7 +52,7 @@ fn join_checked(root: &Path, rel: &str) -> Result<PathBuf, GitFetcherError> {
             format!("absolute path is not allowed in CAS entry: {rel}"),
         )));
     }
-    let mut out = root.to_path_buf();
+    let mut out = root;
     for c in rel_path.components() {
         match c {
             Component::Normal(seg) => out.push(seg),
@@ -88,7 +88,7 @@ pub(crate) fn materialize_into(
         // recognises both `/` and `\` as separators on Windows, so we
         // can hand `rel` over directly and avoid a per-file `String`
         // allocation.
-        let target = join_checked(target_dir, rel)?;
+        let target = join_checked(target_dir.to_path_buf(), rel)?;
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(GitFetcherError::Io)?;
         }
@@ -114,7 +114,7 @@ pub(crate) fn import_into_cas(
     for rel in files {
         // See the matching note in `materialize_into`: `join_checked`
         // accepts forward-slash relative paths verbatim on every host.
-        let source = join_checked(pkg_dir, rel)?;
+        let source = join_checked(pkg_dir.to_path_buf(), rel)?;
         let metadata = match fs::metadata(&source) {
             Ok(metadata) if metadata.is_file() => metadata,
             Ok(_) => continue,

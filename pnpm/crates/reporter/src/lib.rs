@@ -10,6 +10,8 @@
 //! Only the variants pacquet currently emits live in [`LogEvent`]. New
 //! channels are added incrementally as the surrounding code starts using
 //! them.
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 pub use fatal_error::FatalErrorLog;
 
@@ -692,6 +694,13 @@ pub trait Reporter: Send + Sync + 'static {
 }
 
 /// Adapt a [`Reporter`] into the warning callback used by the network client.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the network client's `set_warning_handler` takes it as a `fn(&str)`"
+    )
+)]
 pub fn emit_global_warning<Sink: Reporter>(message: &str) {
     Sink::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Warn,

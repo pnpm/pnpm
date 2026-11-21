@@ -261,7 +261,7 @@ fn add_snapshot_package(
     let mut dependencies = BTreeMap::new();
     dependencies.insert(key.name.to_string(), id.clone());
     let package_dir = pnpm_fs::join_slash_separated_path(
-        &opts.layout.slot_dir(key).join("node_modules"),
+        opts.layout.slot_dir(key).join("node_modules"),
         &key.name.to_string(),
     );
     for group in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
@@ -299,7 +299,7 @@ fn add_metadata_only_package(
     let id = key.to_string();
     let package_dir = || {
         pnpm_fs::join_slash_separated_path(
-            &opts.layout.slot_dir(key).join("node_modules"),
+            opts.layout.slot_dir(key).join("node_modules"),
             &key.name.to_string(),
         )
     };

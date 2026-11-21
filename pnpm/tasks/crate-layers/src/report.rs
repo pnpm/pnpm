@@ -16,7 +16,7 @@ pub fn read_all(modules: &BTreeMap<String, CrateModules>) -> Vec<(CycleReport, T
         .iter()
         .map(|(crate_name, modules)| {
             let graph = modules.top_level_graph();
-            (CycleReport::new(crate_name, &graph), graph)
+            (CycleReport::new(crate_name.clone(), &graph), graph)
         })
         .collect()
 }

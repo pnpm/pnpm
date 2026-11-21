@@ -255,7 +255,7 @@ fn is_unsafe_deploy_link(metadata: &fs::Metadata) -> bool {
     }
 }
 
-pub(super) fn copy_project(src: &Path, dest: &Path, files: CopyFiles) -> miette::Result<()> {
+pub(super) fn copy_project(src: PathBuf, dest: &Path, files: CopyFiles) -> miette::Result<()> {
     let output = files
         .fetcher(src)
         .run()

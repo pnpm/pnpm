@@ -280,7 +280,7 @@ fn walk_callback_directory(
         ));
     };
     let directory = lexical_normalize(&callback_lockfile_dir(native, callback).join(relative));
-    let output = walk_directory(&directory, native.files)
+    let output = walk_directory(directory.clone(), native.files)
         .map_err(|error| FetchErrorDetails {
             message: error.to_string(),
             code: error.code().map(|code| code.to_string()),

@@ -299,15 +299,15 @@ impl FromStr for SupportedPlatform {
 
 fn parse_named(entry: &str) -> Result<NamedPlatform, UnknownPlatformError> {
     let spelled = aliases::canonical(entry)?;
-    let platform = Platform::parse_tag(&spelled.tag).map_err(|_| unknown(entry))?;
+    let platform = Platform::parse_tag(&spelled.tag).map_err(|_| unknown(entry.to_owned()))?;
     if platform.wasm32 {
-        return Err(unknown(entry));
+        return Err(unknown(entry.to_owned()));
     }
     Ok(NamedPlatform { platform, architecture: spelled.architecture, musllinux: spelled.musllinux })
 }
 
-pub(super) fn unknown(entry: &str) -> UnknownPlatformError {
-    UnknownPlatformError::Unknown { platform: entry.to_string() }
+pub(super) fn unknown(entry: String) -> UnknownPlatformError {
+    UnknownPlatformError::Unknown { platform: entry }
 }
 
 impl Serialize for SupportedPlatform {

@@ -346,7 +346,7 @@ impl DeployArgs {
             self.install_args.materialization.force,
         )?;
         copy_project(
-            &selected.project.root_dir,
+            selected.project.root_dir.clone(),
             deploy_dir,
             CopyFiles::from_deploy_all_files(config.deploy_all_files),
         )?;

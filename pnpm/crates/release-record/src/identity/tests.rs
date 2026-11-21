@@ -206,7 +206,7 @@ fn a_monitor_reports_a_record_logged_with_two_digests() {
 
 #[test]
 fn formats_and_parses_authorities() {
-    let authority = Authority::of_first_root("registry.example/npm", b"first root");
+    let authority = Authority::of_first_root("registry.example/npm".to_owned(), b"first root");
     let text = authority.to_string();
     assert!(text.starts_with("registry.example/npm+sha256:"), "{text}");
     assert_eq!(text.len(), "registry.example/npm+sha256:".len() + 64);
@@ -224,8 +224,8 @@ fn formats_and_parses_authorities() {
 
 #[test]
 fn cache_keys_separate_authorities_profiles_and_principals() {
-    let first = Authority::of_first_root("registry.example/npm", b"root a");
-    let second = Authority::of_first_root("registry.example/npm", b"root b");
+    let first = Authority::of_first_root("registry.example/npm".to_owned(), b"root a");
+    let second = Authority::of_first_root("registry.example/npm".to_owned(), b"root b");
     let key = |authority: &Authority, record: RecordKey, principal: Option<&str>| {
         CacheKey { authority: authority.clone(), record, principal: principal.map(str::to_owned) }
             .file_name()

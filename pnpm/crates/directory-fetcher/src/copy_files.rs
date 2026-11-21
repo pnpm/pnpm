@@ -1,7 +1,7 @@
 //! The file set of a copy of a local directory.
 
 use crate::DirectoryFetcher;
-use std::path::Path;
+use std::path::PathBuf;
 
 /// Which files a copy of a local directory holds: an injected dependency,
 /// or a project `pnpm deploy` copies. Every writer of such a copy reads
@@ -27,9 +27,9 @@ impl CopyFiles {
     /// listed by their own path, for the writer to recreate, and no file
     /// may resolve outside `directory`.
     #[must_use]
-    pub fn fetcher(self, directory: &Path) -> DirectoryFetcher {
+    pub fn fetcher(self, directory: PathBuf) -> DirectoryFetcher {
         DirectoryFetcher {
-            directory: directory.to_path_buf(),
+            directory,
             include_only_package_files: self == CopyFiles::PackageFiles,
             resolve_symlinks: false,
             preserve_symlinks: true,

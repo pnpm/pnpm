@@ -150,7 +150,7 @@ async fn an_untrusted_or_altered_artifact_is_a_miss() {
         serde_json::from_slice(&super::BASE64.decode(&altered.payload).unwrap()).unwrap();
     payload["builderId"] = "attacker".into();
     altered.payload = super::BASE64.encode(serde_json::to_vec(&payload).unwrap());
-    cache.store(&envelope_hash, serde_json::to_vec(&altered).unwrap());
+    cache.store(envelope_hash, serde_json::to_vec(&altered).unwrap());
     let tampered = store
         .resolve_artifacts(lookup(&public_key, NEWER_GLIBC))
         .await
@@ -430,7 +430,7 @@ async fn a_publication_replaces_an_unverifiable_object() {
     store.publish_artifact(&request).await.expect("publish");
     let hashes: Vec<String> = cache.artifacts().into_keys().collect();
     for hash in &hashes {
-        cache.store(hash, b"junk".to_vec());
+        cache.store(hash.clone(), b"junk".to_vec());
     }
     assert!(
         store
@@ -472,7 +472,7 @@ async fn a_failed_lookup_is_a_miss_for_that_candidate_alone() {
         options
     };
 
-    cache.fail(&dependency_hash, 500);
+    cache.fail(dependency_hash.clone(), 500);
     let resolved = store
         .resolve_artifacts(both())
         .await
@@ -480,7 +480,7 @@ async fn a_failed_lookup_is_a_miss_for_that_candidate_alone() {
     assert!(resolved.contains_key(&task.key), "the task result still resolves");
     assert!(!resolved.contains_key(&dependency.key));
 
-    cache.fail(&task_hash, 401);
+    cache.fail(task_hash, 401);
     let Err(error) = store.resolve_artifacts(both()).await else {
         panic!("refused credentials fail the lookup");
     };
@@ -494,7 +494,7 @@ async fn a_lookup_the_server_answers_no_part_of_fails() {
     let store = store(&cache);
     let (task, public_key, _, _blobs) = workspace_task_fixture();
     store.publish_artifact(&task).await.expect("publish");
-    cache.fail(&last_put(&cache), 503);
+    cache.fail(last_put(&cache), 503);
 
     let result = store.resolve_artifacts(ResolveArtifactsOptions {
         candidates: vec![ArtifactCandidate {
@@ -530,7 +530,7 @@ async fn an_altered_blob_is_refused() {
     let size = blob.len() as u64;
     assert_eq!(store.download_artifact_blob(&blob_request, size).await.expect("download"), blob);
 
-    cache.store(&blob_hash, b"altered".to_vec());
+    cache.store(blob_hash, b"altered".to_vec());
     let error = store.download_artifact_blob(&blob_request, size).await.expect_err("altered blob");
     eprintln!("{error}");
     assert!(matches!(error, PnprClientError::Protocol(_)), "a content fault is quarantinable");

@@ -13,9 +13,12 @@ use super::{
 #[test]
 fn parses_the_changesets_file_format() {
     let content = "---\n\"@example/ui\": minor\n\"@example/core\": patch\n---\n\nAdded a `variant` prop to `Button`.\n";
-    let intent =
-        parse_change_intent(content, "brave-pandas-smile", Path::new("/x/brave-pandas-smile.md"))
-            .expect("intent parses");
+    let intent = parse_change_intent(
+        content,
+        "brave-pandas-smile".to_owned(),
+        Path::new("/x/brave-pandas-smile.md"),
+    )
+    .expect("intent parses");
     assert_eq!(
         intent.releases,
         IndexMap::from([
@@ -29,21 +32,23 @@ fn parses_the_changesets_file_format() {
 #[test]
 fn tolerates_a_utf8_bom_and_crlf_line_endings() {
     let content = "\u{FEFF}---\r\nfoo: patch\r\n---\r\n\r\nA fix.\r\n";
-    let intent = parse_change_intent(content, "id", Path::new("/x/id.md")).expect("intent parses");
+    let intent = parse_change_intent(content, "id".to_owned(), Path::new("/x/id.md"))
+        .expect("intent parses");
     assert_eq!(intent.releases, IndexMap::from([("foo".to_string(), IntentBumpType::Patch)]));
     assert_eq!(intent.summary, "A fix.");
 }
 
 #[test]
 fn rejects_an_invalid_bump_type() {
-    let err = parse_change_intent("---\nfoo: gigantic\n---\nx", "id", Path::new("/x/id.md"))
-        .expect_err("parse must fail");
+    let err =
+        parse_change_intent("---\nfoo: gigantic\n---\nx", "id".to_owned(), Path::new("/x/id.md"))
+            .expect_err("parse must fail");
     assert!(err.to_string().contains("invalid bump type"), "unexpected error: {err}");
 }
 
 #[test]
 fn rejects_a_file_without_frontmatter() {
-    let err = parse_change_intent("Just some text.", "id", Path::new("/x/id.md"))
+    let err = parse_change_intent("Just some text.", "id".to_owned(), Path::new("/x/id.md"))
         .expect_err("parse must fail");
     assert!(err.to_string().contains("no YAML frontmatter"), "unexpected error: {err}");
 }
@@ -52,7 +57,8 @@ fn rejects_a_file_without_frontmatter() {
 fn comment_only_and_null_frontmatter_declare_no_releases() {
     for content in ["---\n# no bumps\n---\n\nA fix.\n", "---\nnull\n---\n\nA fix.\n"] {
         eprintln!("CASE: {content:?}");
-        let intent = parse_change_intent(content, "id", Path::new("/x/id.md")).expect("parse");
+        let intent =
+            parse_change_intent(content, "id".to_owned(), Path::new("/x/id.md")).expect("parse");
         assert!(intent.releases.is_empty());
         assert_eq!(intent.summary, "A fix.");
     }
