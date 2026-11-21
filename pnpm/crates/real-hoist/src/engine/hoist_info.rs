@@ -4,7 +4,10 @@
 use super::{
     NodeInput,
     WorkNode,
-    graph::is_workspace,
+    graph::{
+        is_workspace,
+        regular_dependencies,
+    },
 };
 use crate::{
     HoisterDependencyKind,
@@ -190,20 +193,84 @@ fn passes_through(ancestor: &WorkNode, name: &str) -> bool {
     takes_as_peer || found_higher
 }
 
-/// After the first round: every dependency hoisted out of the node must
-/// still resolve to the same ident from the root.
-fn hoisted_dependencies_still_resolve(ctx: &RootContext<'_>, node: &WorkNode) -> bool {
-    node.hoisted_dependencies
+/// After the first round: every dependency hoisted out of the node, or
+/// out of a node still nested in it, must resolve to the same ident from
+/// the root.
+///
+/// Upstream checks the node's own hoisted dependencies only. A dependency
+/// hoisted out of a nested node can sit in the node's parent, where the
+/// node would leave it behind.
+fn hoisted_dependencies_still_resolve(ctx: &RootContext<'_>, node: &Rc<WorkNode>) -> bool {
+    let resolves = |hoisted: &Rc<WorkNode>| {
+        let name = &hoisted.input.name;
+        let available = ctx.used
+            .get(name)
+            .map(Rc::clone)
+            .or_else(|| ctx.root.dependency(name));
+        available.is_some_and(|dep| dep.input.ident == hoisted.input.ident)
+    };
+    let own_resolve = node.hoisted_dependencies
         .borrow()
         .values()
-        .all(|hoisted| {
-            let name = &hoisted.input.name;
-            let available = ctx.used
-                .get(name)
-                .map(Rc::clone)
-                .or_else(|| ctx.root.dependency(name));
-            available.is_some_and(|dep| dep.input.ident == hoisted.input.ident)
-        })
+        .all(resolves);
+    // A node the root already holds is dropped in favour of that copy, and
+    // what is nested in it goes with it.
+    let moves = ctx.root.dependency(&node.input.name).is_none();
+    own_resolve
+        && (!moves
+            || nested_with_carried_names(node)
+                .values()
+                .all(|(nested, carried)| {
+                    nested.hoisted_dependencies
+                        .borrow()
+                        .values()
+                        .filter(|hoisted| !carried.contains(&hoisted.input.name))
+                        .all(resolves)
+                }))
+}
+
+type Names = FxHashSet<Rc<str>>;
+
+/// Every node nested in `top`, with the names held on every path from
+/// `top` down to it. A dependency hoisted out of the node under one of
+/// these names resolves inside `top` and moves along with it.
+fn nested_with_carried_names(
+    top: &Rc<WorkNode>,
+) -> FxHashMap<*const WorkNode, (Rc<WorkNode>, Names)> {
+    let mut nested: FxHashMap<*const WorkNode, (Rc<WorkNode>, Names)> = FxHashMap::default();
+    // `top` lands in the root under its own name, so a nested node that
+    // depends on it finds it from there.
+    let mut pending = vec![(Rc::clone(top), Names::from_iter([Rc::clone(&top.input.name)]))];
+    while let Some((node, mut held)) = pending.pop() {
+        let children = regular_dependencies(&node);
+        held.extend(children.iter().map(|child| Rc::clone(&child.input.name)));
+        for child in children {
+            if Rc::ptr_eq(&child, top) {
+                continue;
+            }
+            if let Some(narrowed) = narrow_carried(&mut nested, &child, held.clone()) {
+                pending.push((child, narrowed));
+            }
+        }
+    }
+    nested
+}
+
+/// Record that one more path reaches `node` holding `carried`. Returns the
+/// names all its paths hold when that set is new or has shrunk, which means
+/// the nodes below `node` have to be visited with it.
+fn narrow_carried(
+    nested: &mut FxHashMap<*const WorkNode, (Rc<WorkNode>, Names)>,
+    node: &Rc<WorkNode>,
+    carried: Names,
+) -> Option<Names> {
+    let Some((_, known)) = nested.get_mut(&Rc::as_ptr(node)) else {
+        nested.insert(Rc::as_ptr(node), (Rc::clone(node), carried.clone()));
+        return Some(carried);
+    };
+    let before = known.len();
+    known.retain(|name| carried.contains(name));
+    (known.len() < before).then(|| known.clone())
 }
 
 /// Upstream's `hasUnhoistedDependencies`.

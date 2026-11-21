@@ -197,3 +197,5 @@ mod peer_layout;
 mod generated;
 
 mod determinism;
+
+mod generated_workspaces;

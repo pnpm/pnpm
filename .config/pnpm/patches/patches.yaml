@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://json.schemastore.org/pnpm-workspace.json
 patchedDependencies:
   '@tybys/wasm-util@0.10.5': '@tybys__wasm-util@0.10.5.patch'
+  '@yarnpkg/nm@4.1.1': '@yarnpkg__nm@4.1.1.patch'
   '@yarnpkg/pnp@4.1.7': '@yarnpkg__pnp@4.1.7.patch'
   deepmerge@4.3.1: deepmerge@4.3.1.patch
   glob@11.1.0: glob@11.1.0.patch

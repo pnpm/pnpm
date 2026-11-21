@@ -516,3 +516,79 @@ snapshots:
     let parent = child_of(&project, "package02");
     assert_eq!(names(&parent), ["package10", "package13"], "{result:#?}");
 }
+
+/// `package38@1` depends on `package39@2` and is nested in `package32@1`.
+/// `packages/project3` uses `package39@1`, so `package39@2` goes no higher
+/// than `package20`, the parent of `package32`. `package32` may not move up
+/// to the project after that: `package38` would find `package39@1` from
+/// there. [`hoist`] checks that. The lockfile is a generated one, reduced
+/// to what the layout needs.
+#[test]
+fn a_package_stays_below_a_dependency_hoisted_out_of_a_package_nested_in_it() {
+    let result = hoist_lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      package24: {specifier: '*', version: 2.0.0}
+  packages/project3:
+    dependencies:
+      package20: {specifier: '*', version: 1.0.0(provider0@2.0.0)}
+      package39: {specifier: '*', version: 1.0.0}
+      provider0: {specifier: '*', version: 2.0.0}
+  packages/project4:
+    dependencies:
+      package10: {specifier: '*', version: 2.0.0(provider2@2.0.0)}
+      provider0: {specifier: '*', version: 1.0.0}
+      provider2: {specifier: '*', version: 2.0.0}
+packages:
+  package10@2.0.0: {resolution: {integrity: sha512-a}, peerDependencies: {provider2: '*'}}
+  package20@1.0.0: {resolution: {integrity: sha512-b}, peerDependencies: {provider0: '*'}}
+  package24@1.0.0: {resolution: {integrity: sha512-c}}
+  package24@2.0.0: {resolution: {integrity: sha512-d}}
+  package27@1.0.0: {resolution: {integrity: sha512-e}}
+  package31@1.0.0: {resolution: {integrity: sha512-f}}
+  package31@2.0.0: {resolution: {integrity: sha512-g}}
+  package32@1.0.0: {resolution: {integrity: sha512-h}}
+  package32@2.0.0: {resolution: {integrity: sha512-i}}
+  package38@1.0.0: {resolution: {integrity: sha512-j}}
+  package38@2.0.0: {resolution: {integrity: sha512-k}}
+  package39@1.0.0: {resolution: {integrity: sha512-l}}
+  package39@2.0.0: {resolution: {integrity: sha512-m}}
+  provider0@1.0.0: {resolution: {integrity: sha512-n}}
+  provider0@2.0.0: {resolution: {integrity: sha512-o}}
+  provider2@2.0.0: {resolution: {integrity: sha512-p}}
+snapshots:
+  package10@2.0.0(provider2@2.0.0):
+    dependencies: {package20: 1.0.0(provider0@1.0.0), provider0: 1.0.0, provider2: 2.0.0}
+  package20@1.0.0(provider0@1.0.0):
+    dependencies: {package24: 1.0.0, package31: 1.0.0, provider0: 1.0.0}
+  package20@1.0.0(provider0@2.0.0):
+    dependencies: {package24: 1.0.0, package31: 1.0.0, provider0: 2.0.0}
+  package24@1.0.0:
+    dependencies: {package31: 2.0.0}
+  package24@2.0.0:
+    dependencies: {package27: 1.0.0}
+  package27@1.0.0:
+    dependencies: {package31: 2.0.0}
+  package31@1.0.0:
+    dependencies: {package32: 1.0.0, package38: 2.0.0}
+  package31@2.0.0:
+    dependencies: {package32: 2.0.0}
+  package32@1.0.0:
+    dependencies: {package38: 1.0.0}
+  package32@2.0.0: {}
+  package38@1.0.0:
+    dependencies: {package39: 2.0.0}
+  package38@2.0.0: {}
+  package39@1.0.0: {}
+  package39@2.0.0: {}
+  provider0@1.0.0: {}
+  provider0@2.0.0: {}
+  provider2@2.0.0: {}
+",
+    );
+    let parent = child_of(&child_of(&result, "packages%2Fproject3"), "package20");
+    assert_eq!(names(&parent), ["package31", "package32", "package39"], "{result:#?}");
+}
