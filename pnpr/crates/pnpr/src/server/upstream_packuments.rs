@@ -194,8 +194,7 @@ pub(super) async fn fetch_coalesced_upstream_packument(
     coalesce_upstream_packument_keyed(state, key, || async {
         let admission =
             state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace)).await;
-        match fetch_and_cache_upstream_packument(state, namespace, upstream, name, read.ttl()).await
-        {
+        match fetch_and_cache_upstream_packument(state, namespace, upstream, name, read).await {
             Ok(fetched) => Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission))),
             Err(err) if matches!(read, PackumentRead::Cached(_)) => {
                 let stale = recover_stale_upstream_packument(
@@ -247,9 +246,9 @@ async fn fetch_and_cache_upstream_packument(
     namespace: &str,
     upstream: &Upstream,
     name: &CanonicalPackageName,
-    ttl: Option<Duration>,
+    read: PackumentRead,
 ) -> Result<Option<Vec<u8>>, Arc<RegistryError>> {
-    if let Some(ttl) = ttl
+    if let Some(ttl) = read.ttl()
         && upstream.caches()
         && let Ok(Some(bytes)) = read_unpurged_upstream_document(state, namespace, name, ttl).await
     {
@@ -257,11 +256,16 @@ async fn fetch_and_cache_upstream_packument(
     }
 
     let fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
-    let fetched = timed(
-        "packument:upstream_fetch",
-        name.as_str(),
-        upstream.fetch_packument(name, &CacheValidators::default()),
-    )
+    let fetched = timed("packument:upstream_fetch", name.as_str(), async {
+        match read {
+            PackumentRead::Cached(_) => {
+                upstream.fetch_packument(name, &CacheValidators::default()).await
+            }
+            PackumentRead::MissingVersion | PackumentRead::Revalidate => {
+                upstream.revalidate_packument(name).await
+            }
+        }
+    })
     .await?;
     cache_upstream_packument(state, namespace, upstream, name, fetched, fetch_seq)
         .await

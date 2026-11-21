@@ -140,8 +140,14 @@ pub(in crate::server) async fn reload_upstream_packument_for_expired_tarball(
                 read_unpurged_upstream_document(state, namespace, name, REFETCH_INTERVAL).await?;
             return Ok(cached.map(|bytes| AdmittedPackument::new(bytes, admission)));
         }
-        let fetched =
-            fetch_and_cache_upstream_packument(state, namespace, upstream, name, None).await?;
+        let fetched = fetch_and_cache_upstream_packument(
+            state,
+            namespace,
+            upstream,
+            name,
+            PackumentRead::Revalidate,
+        )
+        .await?;
         Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, upstream_admission)))
     })
     .await?;

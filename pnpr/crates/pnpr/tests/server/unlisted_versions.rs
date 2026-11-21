@@ -109,6 +109,7 @@ async fn publish_after_caching(
         .await;
     upstream
         .mock("GET", "/foo")
+        .match_header("cache-control", "no-cache")
         .with_header("content-type", "application/json")
         .with_body(packument(&upstream.url(), &[("1.0.0", b"old"), ("1.0.1", new_tgz)]))
         .expect(1)
