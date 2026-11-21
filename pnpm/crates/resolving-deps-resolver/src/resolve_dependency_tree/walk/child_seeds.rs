@@ -37,6 +37,7 @@ use super::{
     warm_children_resolutions,
     write_recoverable,
 };
+use std::path::PathBuf;
 
 /// Seed every child edge of one occurrence (its manifest's
 /// dependencies less the names its own `peerDependencies` shadow, with
@@ -349,17 +350,24 @@ pub(super) fn resolves_children_through_catalogs(
     let Some(dir) = declaring_manifest_dir(&ctx.importer.lockfile_dir, result) else {
         return false;
     };
-    result.resolved_via == "workspace" || is_workspace_project_dir(ctx, &dir)
+    result.resolved_via == "workspace" || workspace_project_dirs(ctx).contains(dir.as_ref())
 }
 
-fn is_workspace_project_dir(ctx: &TreeCtx, dir: &Path) -> bool {
-    let Some(workspace_packages) = ctx.options.base.project.workspace_packages.as_deref() else {
-        return false;
-    };
-    workspace_packages
-        .values()
-        .flat_map(|versions| versions.values())
-        .any(|package| pnpm_fs::lexical_normalize(&package.root_dir) == dir)
+fn workspace_project_dirs(ctx: &TreeCtx) -> &HashSet<PathBuf> {
+    ctx.importer.workspace_project_dirs.get_or_init(|| {
+        ctx.options.base.project.workspace_packages
+            .iter()
+            .flat_map(|packages| packages.values())
+            .flat_map(|versions| versions.values())
+            .flat_map(|package| {
+                let linked = pnpm_resolving_npm_resolver::resolve_workspace_package_dir(
+                    &package.root_dir,
+                    &package.manifest,
+                );
+                [package.root_dir.as_path(), linked.as_path()].map(pnpm_fs::lexical_normalize)
+            })
+            .collect()
+    })
 }
 
 pub(super) fn catalogs_for_children(
