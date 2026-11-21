@@ -1,5 +1,6 @@
 use super::{
     DirCloneCache,
+    content_slot_dir,
     retires_dir_clone,
 };
 use pnpm_config::{
@@ -60,6 +61,30 @@ fn not_eligible_when_deploy_uses_the_virtual_store_as_the_global_store() {
     );
 }
 
+#[test]
+fn content_slot_tracks_file_names_and_cas_paths() {
+    let root = std::path::Path::new("dir-clone-cache");
+    let manifest =
+        ("package.json".to_string(), std::path::PathBuf::from("files/ab/manifest").into());
+    let script = ("cli.js".to_string(), std::path::PathBuf::from("files/cd/script").into());
+    let files = pnpm_fs::CasPaths::from([manifest.clone(), script.clone()]);
+    let slot = content_slot_dir(root, &files);
+
+    let reordered = pnpm_fs::CasPaths::from([script.clone(), manifest.clone()]);
+    assert_eq!(slot, content_slot_dir(root, &reordered));
+
+    let renamed = pnpm_fs::CasPaths::from([manifest.clone(), ("other.js".into(), script.1)]);
+    assert_ne!(slot, content_slot_dir(root, &renamed));
+
+    for path in ["files/ef/changed-script", "files/cd/script-exec"] {
+        let changed = pnpm_fs::CasPaths::from([
+            manifest.clone(),
+            (script.0.clone(), std::path::PathBuf::from(path).into()),
+        ]);
+        assert_ne!(slot, content_slot_dir(root, &changed), "CAS path {path}");
+    }
+}
+
 #[cfg(target_os = "macos")]
 mod macos {
     use super::{
@@ -67,6 +92,7 @@ mod macos {
         DirCloneCache,
         NodeLinker,
         PackageImportMethod,
+        content_slot_dir,
     };
     use crate::dir_clone_cache::EngineNameSource;
     use pnpm_lockfile::{
@@ -183,7 +209,7 @@ mod macos {
             .filter(|path| path.ends_with("node_modules/foo/package.json"))
             .count();
         assert_eq!(canonical_manifests, 1, "one canonical slot for the one snapshot");
-        let expected_slot = cache.content_slot_dir(&cas_paths);
+        let expected_slot = content_slot_dir(&cache_root, &cas_paths);
         assert!(
             expected_slot.join("node_modules/foo/package.json").is_file(),
             "the canonical slot must be the one the package's files key: {expected_slot:?}",
@@ -233,8 +259,6 @@ mod macos {
         ));
     }
 
-    /// See [`crate::VirtualStoreLayout::hashed_slot_dir`] for why the
-    /// flat-name fallback must never serve the cache.
     #[test]
     fn try_import_declines_a_snapshot_without_a_hashed_slot() {
         let dir = tempdir().expect("tempdir");

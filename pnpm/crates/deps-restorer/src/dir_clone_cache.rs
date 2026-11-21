@@ -12,9 +12,9 @@
 //!
 //! The cache materializes each package once under
 //! [`pnpm_store_dir::StoreDir::dir_clone_cache`], using the global virtual
-//! store's slot layout, marker protocol, and concurrent-writer healing
-//! (see [`fn@crate::import_indexed_dir`]). It projects the cached package
-//! into the project-local virtual store with one `clonefile`.
+//! store's marker protocol and concurrent-writer healing
+//! (see [`fn@crate::import_indexed_dir`]). The cache keys slots by their file maps
+//! and projects each package into the project-local virtual store with one `clonefile`.
 //! A hot install whose canonical slots already exist pays
 //! one `stat` plus one `clonefile` per package instead of one syscall
 //! per file.
@@ -91,7 +91,7 @@ use std::{
     },
 };
 
-/// The engine name that keys the cache's canonical slots, the same
+/// The engine name used to compute global virtual store suffixes, the same
 /// value a GVS-enabled install computes (see
 /// [`crate::materialization_plan::resolve_engine_name`]).
 pub enum EngineNameSource {
@@ -110,7 +110,7 @@ pub enum EngineNameSource {
 /// it applies.
 pub struct DirCloneCache<'install> {
     layout_inputs: CanonicalLayoutInputs<'install>,
-    /// Layout rooted at [`pnpm_store_dir::StoreDir::dir_clone_cache`].
+    /// Global virtual store layout used to qualify snapshots for caching.
     /// Built on first use; see [`Self::layout`].
     layout: OnceLock<VirtualStoreLayout>,
     /// Under `frozenStore` the store is read-only: the cache may serve
@@ -192,7 +192,7 @@ impl<'install> DirCloneCache<'install> {
         })
     }
 
-    /// The canonical-slot layout, built on the first call. Deferred to
+    /// The qualification layout, built on the first call. Deferred to
     /// here so a still-running `node --version` probe overlaps the
     /// virtual-store partition and warm-batch I/O that run between
     /// [`Self::build`] and the first [`Self::try_import`]. May block on
@@ -233,16 +233,11 @@ impl<'install> DirCloneCache<'install> {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Ok(_) | Err(_) => return false,
         }
-        // A snapshot the layout has no precomputed suffix for goes
-        // through the per-file import.
-        if self
-            .layout()
-            .hashed_slot_dir(package_key)
-            .is_none()
-        {
+        if !self.layout().has_hashed_slot(package_key) {
             return false;
         }
-        let canonical_node_modules = self.content_slot_dir(cas_paths).join("node_modules");
+        let canonical_node_modules =
+            content_slot_dir(&self.layout_inputs.cache_dir, cas_paths).join("node_modules");
         let Ok(canonical) =
             safe_join_modules_dir(&canonical_node_modules, &package_key.name.to_string())
         else {
@@ -271,30 +266,6 @@ impl<'install> DirCloneCache<'install> {
             return false;
         }
         self.clone_canonical_slot(package_key, &canonical, save_path)
-    }
-
-    /// The canonical slot for a package's files. The slot only holds
-    /// `node_modules/<name>`, materialized from `cas_paths`, and builds
-    /// never reach the cache, so its content is the file set alone. Keying
-    /// it by that set, rather than by the dependency-graph hash a global
-    /// virtual store slot carries, lets every peer variant of one package
-    /// version share it: variants after the first cost one directory
-    /// clone instead of a per-file import each.
-    fn content_slot_dir(&self, cas_paths: &pnpm_fs::CasPaths) -> PathBuf {
-        let mut files: Vec<_> = cas_paths.iter().collect();
-        files.sort_unstable_by_key(|(a, _)| *a);
-        let mut hasher = Sha256::new();
-        for (name, file) in files {
-            hasher.update(name.as_bytes());
-            hasher.update([0]);
-            hasher.update(file.path.as_os_str().as_encoded_bytes());
-            hasher.update([0]);
-        }
-        let hex = format!("{:x}", hasher.finalize());
-        self.layout_inputs.cache_dir
-            .join("content")
-            .join(&hex[..2])
-            .join(&hex[2..])
     }
 
     /// Whether the canonical slot holds the package's files. Outside a
@@ -357,6 +328,25 @@ impl<'install> DirCloneCache<'install> {
         );
         false
     }
+}
+
+/// Peer variants share a slot because they import the same CAS files.
+/// Each CAS path includes the file's digest and executable bit.
+fn content_slot_dir(cache_dir: &Path, cas_paths: &pnpm_fs::CasPaths) -> PathBuf {
+    let mut files: Vec<_> = cas_paths.iter().collect();
+    files.sort_unstable_by_key(|(a, _)| *a);
+    let mut hasher = Sha256::new();
+    for (name, file) in files {
+        hasher.update(name.as_bytes());
+        hasher.update([0]);
+        hasher.update(file.path.as_os_str().as_encoded_bytes());
+        hasher.update([0]);
+    }
+    let hex = format!("{:x}", hasher.finalize());
+    cache_dir
+        .join("content")
+        .join(&hex[..2])
+        .join(&hex[2..])
 }
 
 /// Whether a failed directory clone condemns every later one. A failure

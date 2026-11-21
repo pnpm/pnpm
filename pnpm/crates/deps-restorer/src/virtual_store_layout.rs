@@ -358,18 +358,12 @@ impl VirtualStoreLayout {
         self.gvs_suffixes.is_some()
     }
 
-    /// Like [`Self::slot_dir`], but only for a snapshot with a
-    /// precomputed GVS suffix. `None` instead of the flat-name
-    /// fallback. The directory-clone cache requires this: a GVS suffix
-    /// is content-addressed through the graph hash's
-    /// `full_pkg_id = <pkg_id>:<integrity>` input, while the flat name
-    /// is keyed by the snapshot key alone, so a flat-named canonical
-    /// slot would keep serving stale content after the same version is
-    /// re-published with different integrity.
+    /// Whether the snapshot has a precomputed global virtual store suffix.
     #[must_use]
-    pub fn hashed_slot_dir(&self, key: &PackageKey) -> Option<PathBuf> {
-        let suffix = self.gvs_suffixes.as_ref()?.get(key)?;
-        Some(join_global_virtual_store_path(self.package_store_dir.clone(), suffix))
+    pub(crate) fn has_hashed_slot(&self, key: &PackageKey) -> bool {
+        self.gvs_suffixes
+            .as_ref()
+            .is_some_and(|suffixes| suffixes.contains_key(key))
     }
 
     /// Absolute directory that holds `node_modules/<name>` for one
