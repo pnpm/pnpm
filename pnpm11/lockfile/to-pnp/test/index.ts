@@ -192,7 +192,7 @@ test('lockfileToPackageMap', () => {
         },
         specifiers: {},
       },
-      ['packages/app' as ProjectId]: {
+      ['packages/app#?%20' as ProjectId]: {
         dependencies: {
           dep1: '1.0.0',
           linked: 'link:../linked',
@@ -236,7 +236,7 @@ test('lockfileToPackageMap', () => {
   }, {
     importerNames: {
       '.': 'root',
-      'packages/app': 'app',
+      'packages/app#?%20': 'app',
       'packages/linked': 'linked',
     },
     lockfileDir: process.cwd(),
@@ -270,10 +270,10 @@ test('lockfileToPackageMap', () => {
           qar: 'qar@3.0.0',
         },
       },
-      'packages/app': {
-        url: '../packages/app',
+      'packages/app#?%20': {
+        url: '../packages/app%23%3F%2520',
         dependencies: {
-          app: 'packages/app',
+          app: 'packages/app#?%20',
           dep1: 'dep1@1.0.0',
           dep2Alias: 'foo@2.0.0',
           linked: 'packages/linked',

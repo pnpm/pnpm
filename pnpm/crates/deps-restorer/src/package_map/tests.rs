@@ -53,7 +53,7 @@ fn builds_package_map_from_lockfile() {
     let linked_manifest = manifest("linked");
     let project_manifests = vec![
         (cwd.clone(), &root_manifest),
-        (cwd.join("packages/app"), &app_manifest),
+        (cwd.join("packages/app#?%20"), &app_manifest),
         (cwd.join("packages/linked"), &linked_manifest),
     ];
     let package_map = lockfile_to_package_map(
@@ -71,7 +71,7 @@ fn builds_package_map_from_lockfile() {
                     },
                 ),
                 (
-                    "packages/app".to_string(),
+                    "packages/app#?%20".to_string(),
                     ProjectSnapshot {
                         dependencies: Some(deps(&[
                             ("dep1", "1.0.0"),
@@ -132,10 +132,10 @@ fn builds_package_map_from_lockfile() {
                         "qar": "qar@3.0.0"
                     }
                 },
-                "packages/app": {
-                    "url": "../packages/app",
+                "packages/app#?%20": {
+                    "url": "../packages/app%23%3F%2520",
                     "dependencies": {
-                        "app": "packages/app",
+                        "app": "packages/app#?%20",
                         "dep1": "dep1@1.0.0",
                         "dep2-alias": "foo@2.0.0",
                         "linked": "packages/linked"

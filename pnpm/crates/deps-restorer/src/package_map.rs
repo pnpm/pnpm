@@ -385,7 +385,8 @@ fn to_relative_url(from: &Path, to: &Path) -> String {
     let Some(relative) = pathdiff::diff_paths(to, from) else {
         return absolute_package_url(to);
     };
-    let relative = normalize_path(&relative);
+    let relative = relative.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/");
+    let relative = encode_url_path(&relative, b"!$&'()*+,;=@");
     let relative = if relative.is_empty() { ".".to_string() } else { relative };
     if relative == "."
         || relative == ".."
@@ -423,22 +424,24 @@ fn graph_package_id(package_dir: &Path, modules_dir: &Path) -> String {
 
 fn absolute_package_url(path: &Path) -> String {
     let normalized = normalize_path(path);
+    let encoded = encode_url_path(&normalized, b"");
     if cfg!(windows) && normalized.starts_with("//") {
-        format!("file:{}", encode_url_path(&normalized))
+        format!("file:{encoded}")
     } else if cfg!(windows) && !normalized.starts_with('/') {
-        format!("file:///{}", encode_url_path(&normalized))
+        format!("file:///{encoded}")
     } else {
-        format!("file://{}", encode_url_path(&normalized))
+        format!("file://{encoded}")
     }
 }
 
-fn encode_url_path(path: &str) -> String {
+fn encode_url_path(path: &str, additional_safe: &[u8]) -> String {
     let mut encoded = String::with_capacity(path.len());
     for byte in path.bytes() {
         match byte {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' | b':' => {
                 encoded.push(byte as char);
             }
+            byte if additional_safe.contains(&byte) => encoded.push(byte as char),
             _ => write!(encoded, "%{byte:02X}").expect("writing to a string cannot fail"),
         }
     }

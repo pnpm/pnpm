@@ -52,11 +52,12 @@ export function toRelativeUrl (from: string, to: string): string {
   if (pathUtils.isAbsolute(relative)) {
     return pathToFileURL(to, { windows: pathUtils === path.win32 }).href
   }
-  const normalizedRelativePath = normalizePath(relative) || '.'
-  if (normalizedRelativePath === '.' || normalizedRelativePath === '..' || normalizedRelativePath.startsWith('./') || normalizedRelativePath.startsWith('../')) {
-    return normalizedRelativePath
+  const relativePath = relative.replaceAll(pathUtils.sep, '/') || '.'
+  const relativeUrl = encodeURI(relativePath).replaceAll('#', '%23').replaceAll('?', '%3F')
+  if (relativeUrl === '.' || relativeUrl === '..' || relativeUrl.startsWith('./') || relativeUrl.startsWith('../')) {
+    return relativeUrl
   }
-  return `./${normalizedRelativePath}`
+  return `./${relativeUrl}`
 }
 
 export function getNodeModulesPath (packageLocation: string): string | undefined {
