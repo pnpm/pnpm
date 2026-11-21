@@ -1,4 +1,4 @@
-use super::host;
+use super::{host, host_binary};
 use serde_json::{Value, json};
 
 pub(super) async fn check() {
@@ -81,11 +81,10 @@ async fn check_redirect_auth(url: &str) {
 async fn read_line(handle: &Value) -> String {
     let mut bytes = Vec::<u8>::new();
     while !bytes.contains(&b'\n') {
-        let chunk = host(json!({ "operation": "stream.read", "handle": handle })).await;
+        let (chunk, binary) =
+            host_binary(json!({ "operation": "stream.read", "handle": handle })).await;
         assert_ne!(chunk["done"], true, "server must report its URL before exiting");
-        bytes.extend(
-            serde_json::from_value::<Vec<u8>>(chunk["bytes"].clone()).expect("stdout bytes"),
-        );
+        bytes.extend(binary.expect("stdout binary chunk"));
     }
     String::from_utf8(bytes).expect("HTTP server URL is UTF-8")
 }

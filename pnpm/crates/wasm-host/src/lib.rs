@@ -5,10 +5,12 @@
 
 #[cfg(target_family = "wasm")]
 pub use pnpm_ffi_webcontainer::{
+    BinaryRequest,
     HostError,
     Request,
     close_resource,
     request,
+    request_binary,
 };
 
 #[cfg(target_family = "wasm")]

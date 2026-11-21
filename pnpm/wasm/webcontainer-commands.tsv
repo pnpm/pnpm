@@ -1,0 +1,177 @@
+command-path	coverage	capability
+access	partial	available
+init	partial	available
+recursive	partial	available
+add	partial	available
+install	partial	available
+install-test	partial	available
+update	partial	available
+outdated	partial	available
+audit	partial	available
+change	partial	available
+version	partial	available
+lane	partial	available
+bugs	partial	host-limited
+list	partial	available
+ll	partial	available
+licenses	partial	available
+fund	partial	available
+why	partial	available
+view	partial	available
+sbom	partial	available
+whoami	partial	available
+deprecate	partial	available
+undeprecate	partial	available
+unpublish	partial	available
+star	partial	available
+unstar	partial	available
+stars	partial	available
+dist-tag	partial	available
+ping	partial	available
+doctor	partial	available
+search	partial	available
+rebuild	partial	available
+rb	partial	available
+pack	partial	available
+publish	partial	available
+stage	partial	available
+remove	partial	available
+patch	routed	available
+patch-commit	routed	available
+patch-remove	routed	available
+peers	partial	available
+set-script	partial	available
+test	partial	available
+run	partial	available
+tasks	partial	available
+tasks status	partial	available
+pipeline	partial	available
+exec	partial	available
+dlx	partial	available
+create	partial	available
+completion	partial	available
+completion-server	routed	available
+start	partial	available
+stop	partial	available
+restart	partial	available
+find-hash	partial	available
+runtime	routed	host-limited
+env	routed	host-limited
+shim	routed	available
+bin	partial	available
+clean	partial	available
+purge	partial	available
+ci	partial	available
+root	partial	available
+prefix	partial	available
+config	partial	available
+config set	partial	available
+config get	partial	available
+config delete	partial	available
+config list	partial	available
+get	routed	available
+set	routed	available
+pkg	partial	available
+pkg get	partial	available
+pkg set	partial	available
+pkg delete	partial	available
+pkg fix	routed	available
+pack-app	partial	host-blocked
+store	partial	available
+store status	partial	available
+store add	partial	available
+store prune	partial	available
+store path	partial	available
+cache	partial	available
+cache list	partial	available
+cache list-registries	partial	available
+cache path	partial	available
+cache view	partial	available
+cache delete	partial	available
+cache prune	partial	available
+cat-file	partial	available
+cat-index	partial	available
+ignored-builds	partial	available
+approve-builds	partial	available
+permissions	partial	available
+permissions approve	partial	available
+permissions list	partial	available
+approve	routed	available
+link	partial	available
+import	routed	available
+dedupe	routed	available
+deploy	routed	available
+prune	routed	available
+fetch	routed	available
+unlink	partial	available
+docs	partial	host-limited
+repo	routed	host-limited
+self-update	partial	implementation-gap
+setup	partial	implementation-gap
+login	partial	host-limited
+team	partial	available
+owner	partial	available
+logout	partial	available
+with	routed	implementation-gap
+edit	routed	available
+catalog	routed	available
+catalog migrate	routed	available
+profile	partial	available
+token	partial	available
+mode:external-script-dispatch	partial	available
+mode:pnpm-pm-dispatch	partial	available
+mode:recursive-execution	partial	available
+mode:filter-selection	partial	available
+mode:global-install	partial	available
+mode:command-overriding-script	partial	available
+mode:interactive-terminal	partial	host-limited
+mode:package-manager-version-switch	partial	implementation-gap
+alias:bugs=issues	partial	host-limited
+alias:ci=clean-install	partial	available
+alias:ci=ic	partial	available
+alias:ci=install-clean	partial	available
+alias:config=c	partial	available
+alias:dist-tag=dist-tags	partial	available
+alias:docs=home	partial	host-limited
+alias:install-test=it	partial	available
+alias:install=i	partial	available
+alias:licenses=licences	partial	available
+alias:link=ln	partial	available
+alias:list=ls	partial	available
+alias:ll=la	partial	available
+alias:login=adduser	partial	host-limited
+alias:owner=owners	partial	available
+alias:permissions list=ls	partial	available
+alias:recursive=m	partial	available
+alias:recursive=multi	partial	available
+alias:remove=rm	partial	available
+alias:remove=un	partial	available
+alias:remove=uni	partial	available
+alias:remove=uninstall	partial	available
+alias:run=run-script	partial	available
+alias:runtime=rt	routed	host-limited
+alias:search=find	partial	available
+alias:search=s	partial	available
+alias:search=se	partial	available
+alias:set-script=ss	partial	available
+alias:test=t	partial	available
+alias:test=tst	partial	available
+alias:unlink=dislink	partial	available
+alias:update=up	partial	available
+alias:update=upgrade	partial	available
+alias:view=info	partial	available
+alias:view=show	partial	available
+alias:view=v	partial	available
+mode:auth-and-registry-operations	partial	available
+mode:cargo-workspace-management	partial	host-blocked
+mode:custom-network-controls	partial	host-blocked
+mode:lifecycle-scripts	partial	available
+mode:metadata-rollback	partial	host-blocked
+mode:native-dependency-builds	none	host-limited
+mode:permission-inheritance-race	none	host-blocked
+mode:pnpmfile-hooks	partial	available
+mode:provenance-signing	none	implementation-gap
+mode:publish-registry	partial	available
+mode:redirect-authentication	partial	available
+mode:store-linkers	partial	available
+mode:watch-and-cancellation	partial	host-limited

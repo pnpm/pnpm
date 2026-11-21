@@ -27,7 +27,6 @@ use pnpm_executor::{
 };
 use std::{
     collections::HashSet,
-    env,
     ffi::OsStr,
     fmt::Write as _,
     fs,
@@ -66,7 +65,7 @@ struct UnusableNode {
 pub(super) fn check_node_on_path(path: Option<&OsStr>) -> CheckResult {
     let title = "Node.js on PATH";
     let dirs: Vec<PathBuf> = path
-        .map(env::split_paths)
+        .map(pnpm_fs::split_paths)
         .map(Iterator::collect)
         .unwrap_or_default();
     let (usable, unusable) = find_node_entries(&dirs);

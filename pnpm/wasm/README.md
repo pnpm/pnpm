@@ -64,9 +64,10 @@ The `pnpm_host` imports start asynchronous operations and transfer responses.
 One Rust completion thread wakes pending futures. The supervisor retains result
 buffers until Rust reads or cancels them; it never retains pointers into guest
 memory. Each JSON request or response is limited to 1 MiB. Stream reads transfer
-at most 64 KiB of data at a time. HTTP uploads use a separate bounded stream,
-so package bodies can exceed the control-message limit. Dropping a request cancels it, and closing the
-runtime aborts outstanding operations before terminating the workers.
+at most 64 KiB of binary data alongside a JSON control response. HTTP uploads
+use a separate bounded stream, so package bodies can exceed the control-message
+limit. Dropping a request cancels it, and closing the runtime aborts outstanding
+operations before terminating the workers.
 
 The `pnpm_fs` imports supply operations WASI lacks: atomic creation with an
 explicit mode, descriptor-bound permission changes, and private lock

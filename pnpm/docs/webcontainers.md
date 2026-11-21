@@ -63,6 +63,14 @@ Node.js APIs. Lifecycle scripts run inside the same container and keep pnpm's
 build-approval rules. Packages that require native executables or native Node.js
 addons remain subject to WebContainer limitations.
 
+The built-in commands use the same CLI as other pnpm distributions, with these
+host-specific limits:
+
+- `pnpm bugs`, `pnpm docs`, `pnpm login`, and `pnpm repo` cannot open a
+  browser. They print the URL when a browser action is needed.
+- `pnpm setup` and `pnpm self-update` cannot install or switch the WebContainer
+  distribution. `pnpm pack-app` cannot run its native app builder.
+
 WebContainer's bundled npm applies its own package compatibility replacements.
 This runtime does not use those private integrations. Select
 WebAssembly alternatives explicitly when a dependency normally downloads native
@@ -98,9 +106,22 @@ Automatic restoration of changed installation metadata after an error is
 unavailable because WebContainers cannot securely pin the parent directory.
 pnpm reports this limitation instead of restoring through a replaced directory.
 
-Automatic provenance signing, Cargo workspace integration, `pnpm setup`,
-`pnpm self-update`, and `pnpm pack-app` are unavailable in this distribution.
-These operations fail explicitly before performing unsupported work.
+WebContainers also lack descriptor-relative directory opens for permission
+inheritance. pnpm checks each path component before opening it, so a concurrent
+rename or symlink replacement can redirect a permission change between those
+operations. Do not run pnpm in a directory tree that an untrusted process can
+modify concurrently.
+
+Automatic provenance signing is unavailable in this distribution. Cargo
+workspace integration requires the Cargo executable, which is not installed in
+WebContainers. Cargo dependency commands fail when pnpm tries to run Cargo for
+manifest discovery.
+
+The WebContainer browser network does not support explicit HTTP proxies, custom
+TLS trust roots or client identities, disabled TLS verification, or pinned
+local addresses. Commands that request these settings fail while creating the
+HTTP client, before sending a registry request. A `ca` or `cafile` setting that
+yields no certificates adds no trust roots and does not fail.
 
 To update pnpm in a WebContainer, install a newer version of `@pnpm/wasm` with
 npm.
