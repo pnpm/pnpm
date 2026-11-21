@@ -63,6 +63,7 @@ pnpm-deps-inspection-peers = { workspace = true }
 pnpm-graph-hasher = { workspace = true }
 pnpm-hooks = { workspace = true }
 pnpm-injected-deps-syncer = { workspace = true }
+pnpm-package-extensions = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-patching = { workspace = true }

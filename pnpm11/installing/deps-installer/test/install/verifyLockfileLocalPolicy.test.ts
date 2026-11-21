@@ -777,6 +777,43 @@ test('a readPackage hook that throws on a real parent manifest surfaces its own 
   })).rejects.toThrow('hook exploded')
 })
 
+test('a hook rewrite keyed on a packageExtensions range authorizes nothing without the real manifest', async () => {
+  const redirectExtendedHelper: ReadPackageHook = (pkg) => {
+    if (pkg.dependencies?.helper === '^1.0.0') pkg.dependencies.helper = 'file:local-helper'
+    return pkg
+  }
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    pnpmfileChecksum: 'sha256-hook',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { 'tarball-parent': 'https://example.com/parent.tgz' },
+        specifiers: { 'tarball-parent': 'https://example.com/parent.tgz' },
+      },
+    },
+    packages: {
+      ['tarball-parent@https://example.com/parent.tgz' as DepPath]: {
+        version: '1.0.0',
+        resolution: { tarball: 'https://example.com/parent.tgz' },
+        dependencies: { helper: 'file:local-helper' },
+      },
+      ['helper@file:local-helper' as DepPath]: {
+        resolution: { type: 'directory', directory: 'local-helper' },
+      },
+    },
+  }
+  // No store controller, so the parent's real manifest is unavailable and the
+  // replay cannot tell whether it declares `helper` itself.
+  const policy = await resolveLocalPolicyForInstall(lockfile, {
+    hooks: { readPackage: [redirectExtendedHelper] },
+    lockfileDir: '/work/app',
+    packageExtensions: { 'tarball-parent': { dependencies: { helper: '^1.0.0' } } },
+  })
+  expect(() => verifyLockfileLocalResolutions(lockfile, policy)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+  }))
+})
+
 test('the hook replay sees in-archive file: dependencies as package-root links', async () => {
   const fetchPackage = jest.fn(async () => ({
     fetching: async () => ({

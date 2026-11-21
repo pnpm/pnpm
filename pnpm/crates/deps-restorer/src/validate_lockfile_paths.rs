@@ -11,11 +11,18 @@
 //! valid. The check needs the install-time [`VirtualStoreLayout`], which
 //! is why it lives here rather than in the verifier crate.
 
+pub use pnpm_package_extensions::InvalidPackageExtensionSelector;
+
 use crate::VirtualStoreLayout;
+use derive_more::{
+    Display,
+    Error,
+};
 use futures_util::{
     StreamExt,
     stream,
 };
+use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_hooks::{
     HookContext,
@@ -36,6 +43,7 @@ use pnpm_lockfile_verification::{
     verify_lockfile_local_resolutions,
 };
 use pnpm_network::ThrottledClient;
+use pnpm_package_extensions::DependencyManifestExtensions;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_store_dir::StoreIndex;
 use pristine_manifests::{
@@ -76,6 +84,19 @@ pub struct LocalPolicyEnrichDrivers<'a> {
     pub config: Option<&'a Config>,
     pub http_client: Option<&'a ThrottledClient>,
     pub hook: Option<&'a dyn PnpmfileHooks>,
+}
+
+/// Why [`enrich_local_policy_for_install`] failed.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum EnrichLocalPolicyError {
+    /// The `readPackage` hook threw on a parent's real manifest.
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
+    ReadPackageHook(#[error(not(source))] HookError),
+
+    /// The configured `packageExtensions`, which the replay runs before the
+    /// hook, have a selector whose range does not parse.
+    #[diagnostic(transparent)]
+    InvalidPackageExtensionSelector(#[error(source)] InvalidPackageExtensionSelector),
 }
 
 /// Build the [`LocalResolutionPolicy`] reflecting the active workspace
@@ -180,37 +201,19 @@ pub fn attach_selected_project_manifests<'m>(
     policy.with_selected_importer_ids(ids)
 }
 
-/// Enrich `policy` with local edges rewritten by an active `pnpmfile` hook.
-///
-/// # Errors
-///
-/// See [`enrich_local_policy_for_install`].
-pub async fn enrich_local_policy_with_pnpmfile_hook(
-    policy: LocalResolutionPolicy,
-    lockfile: &Lockfile,
-    hook: Option<&dyn PnpmfileHooks>,
-) -> Result<LocalResolutionPolicy, HookError> {
-    enrich_local_policy_for_install(
-        policy,
-        lockfile,
-        LocalPolicyEnrichDrivers { config: None, http_client: None, hook },
-    )
-    .await
-}
-
 /// Enrich `policy` with pristine candidate manifest specs (for child-ranged
 /// overrides) and `.pnpmfile.cjs` hook rewrites when `lockfile` contains local
 /// non-importer edges that would otherwise fail.
 ///
 /// # Errors
 ///
-/// The `readPackage` hook's error when it fails on a parent's real manifest.
-/// An error on a placeholder manifest only withholds that parent's rewrites.
+/// See [`EnrichLocalPolicyError`]. An error the hook throws on a placeholder
+/// manifest only withholds that parent's rewrites.
 pub async fn enrich_local_policy_for_install(
     mut policy: LocalResolutionPolicy,
     lockfile: &Lockfile,
     drivers: LocalPolicyEnrichDrivers<'_>,
-) -> Result<LocalResolutionPolicy, HookError> {
+) -> Result<LocalResolutionPolicy, EnrichLocalPolicyError> {
     if !matches!(
         verify_lockfile_local_resolutions(lockfile, Some(policy.clone())),
         Err(VerifyError::LocalSubdepNotAllowed { .. }),
@@ -255,7 +258,9 @@ async fn probe_candidates_for_policy(
     candidates: Vec<LocalResolutionProbeParent>,
     drivers: LocalPolicyEnrichDrivers<'_>,
     modes: ProbeModes,
-) -> Result<LocalResolutionPolicy, HookError> {
+) -> Result<LocalResolutionPolicy, EnrichLocalPolicyError> {
+    let replay = ReadPackageReplay::for_probe(drivers, modes)
+        .map_err(EnrichLocalPolicyError::InvalidPackageExtensionSelector)?;
     let store_index = match drivers.config {
         Some(cfg) => StoreIndex::open_shared(&cfg.store_dir, cfg.frozen_store).await,
         None => None,
@@ -283,10 +288,10 @@ async fn probe_candidates_for_policy(
         {
             record_pristine_specs(parent, manifest, &mut pristine_specs);
         }
-        if modes.read_package
-            && let Some(hook) = drivers.hook
-        {
-            collect_probed_parent_rewrites(hook, parent, pristine.as_ref(), &mut rewrites).await?;
+        if let Some(replay) = &replay {
+            collect_probed_parent_rewrites(replay, parent, pristine.as_ref(), &mut rewrites)
+                .await
+                .map_err(EnrichLocalPolicyError::ReadPackageHook)?;
         }
     }
     Ok(policy
@@ -303,50 +308,86 @@ async fn should_probe_read_package(lockfile: &Lockfile, hook: Option<&dyn Pnpmfi
     lockfile_has_hook && hook.has_read_package().await.unwrap_or(false)
 }
 
+/// The `readPackage` hook, run on a manifest the way fresh resolution runs it.
+struct ReadPackageReplay<'a> {
+    hook: &'a dyn PnpmfileHooks,
+    extensions: Option<DependencyManifestExtensions>,
+}
+
+impl<'a> ReadPackageReplay<'a> {
+    /// The replay `modes` asks for, when `drivers` has a hook to replay.
+    fn for_probe(
+        drivers: LocalPolicyEnrichDrivers<'a>,
+        modes: ProbeModes,
+    ) -> Result<Option<Self>, InvalidPackageExtensionSelector> {
+        let Some(hook) = drivers.hook.filter(|_| modes.read_package) else { return Ok(None) };
+        let extensions =
+            drivers.config.map(DependencyManifestExtensions::from_config).transpose()?;
+        Ok(Some(Self { hook, extensions }))
+    }
+
+    /// `manifest` as fresh resolution hands it to the hook: in-archive
+    /// `file:` dependencies rewritten, then the pre-hook extensions applied.
+    fn hook_input(&self, mut manifest: Value) -> Value {
+        pnpm_lockfile::link_file_deps_inside_manifest(&mut manifest);
+        match &self.extensions {
+            Some(extensions) => Arc::unwrap_or_clone(extensions.apply(Arc::new(manifest))),
+            None => manifest,
+        }
+    }
+
+    /// Fresh resolution passes no directory for a dependency's manifest.
+    async fn read_package(&self, manifest: Value) -> Result<Arc<Value>, HookError> {
+        self.hook.read_package(manifest, HookContext { log: Arc::new(|_| {}), dir: None }).await
+    }
+}
+
 async fn collect_probed_parent_rewrites(
-    hook: &dyn PnpmfileHooks,
+    replay: &ReadPackageReplay<'_>,
     parent: &LocalResolutionProbeParent,
     pristine: Option<&Value>,
     out: &mut Vec<(PackageKey, String, Option<String>, String, String)>,
 ) -> Result<(), HookError> {
-    // Fresh resolution rewrites in-archive `file:` dependencies before the
-    // hook sees the manifest, so the replay and its rewrite baseline do too.
-    let prepared = pristine
+    let real_input = pristine
         .cloned()
-        .map(|mut manifest| {
-            pnpm_lockfile::link_file_deps_inside_manifest(&mut manifest);
-            manifest
-        });
-    let pristine = prepared.as_ref();
-    let probe =
-        pristine.cloned().unwrap_or_else(|| build_probe_manifest(parent, PROBE_SENTINEL_SPEC));
-    let hooked =
-        match hook.read_package(probe, HookContext { log: Arc::new(|_| {}), dir: None }).await {
-            Ok(hooked) => hooked,
-            // The hook may not handle a placeholder manifest. Only an error
-            // on the real manifest is one the install would also hit.
-            Err(_) if pristine.is_none() => return Ok(()),
-            Err(error) => return Err(error),
-        };
-    let alt_hooked = if pristine.is_none() {
-        hook.read_package(
-            build_probe_manifest(parent, PROBE_ALT_SENTINEL_SPEC),
-            HookContext { log: Arc::new(|_| {}), dir: None },
-        )
-        .await
-        .ok()
+        .map(|manifest| replay.hook_input(manifest));
+    let input =
+        real_input.clone().unwrap_or_else(|| build_probe_manifest(parent, PROBE_SENTINEL_SPEC));
+    let hooked = match replay.read_package(input.clone()).await {
+        Ok(hooked) => hooked,
+        // The hook may not handle a placeholder manifest. Only an error
+        // on the real manifest is one the install would also hit.
+        Err(_) if real_input.is_none() => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    let alt_hooked = if real_input.is_none() {
+        let alt_input = build_probe_manifest(parent, PROBE_ALT_SENTINEL_SPEC);
+        replay.read_package(alt_input).await.ok()
     } else {
         None
     };
-    record_verified_hook_rewrites(parent, pristine, &hooked, alt_hooked.as_deref(), out);
+    let baseline = match real_input {
+        Some(_) => HookBaseline::Real(&input),
+        None => HookBaseline::Placeholder { input: &input, alt_hooked: alt_hooked.as_deref() },
+    };
+    record_verified_hook_rewrites(parent, baseline, &hooked, out);
     Ok(())
+}
+
+/// What a replayed hook's output is compared against to find its rewrites.
+#[derive(Clone, Copy)]
+enum HookBaseline<'a> {
+    /// The hook input built from the parent's real manifest.
+    Real(&'a Value),
+    /// The hook input built from a placeholder, and the hook's output for the
+    /// alternate placeholder, which a real rewrite agrees with.
+    Placeholder { input: &'a Value, alt_hooked: Option<&'a Value> },
 }
 
 fn record_verified_hook_rewrites(
     parent: &LocalResolutionProbeParent,
-    pristine: Option<&Value>,
+    baseline: HookBaseline<'_>,
     hooked: &Value,
-    alt_hooked: Option<&Value>,
     out: &mut Vec<(PackageKey, String, Option<String>, String, String)>,
 ) {
     for field in PROBE_FIELDS {
@@ -357,7 +398,7 @@ fn record_verified_hook_rewrites(
             let Some(post_spec) = val.as_str() else {
                 continue;
             };
-            if is_hook_rewritten_spec(pristine, alt_hooked, field, alias, post_spec) {
+            if is_hook_rewritten_spec(baseline, field, alias, post_spec) {
                 out.push((
                     parent.pkg_key.clone(),
                     parent.name.clone(),
@@ -371,20 +412,22 @@ fn record_verified_hook_rewrites(
 }
 
 fn is_hook_rewritten_spec(
-    pristine: Option<&Value>,
-    alt_hooked: Option<&Value>,
+    baseline: HookBaseline<'_>,
     field: &str,
     alias: &str,
     post_spec: &str,
 ) -> bool {
-    if let Some(orig) = pristine {
-        return lookup_field_spec(orig, field, alias) != Some(post_spec);
+    match baseline {
+        HookBaseline::Real(input) => lookup_field_spec(input, field, alias) != Some(post_spec),
+        HookBaseline::Placeholder { input, alt_hooked } => {
+            lookup_field_spec(input, field, alias) != Some(post_spec)
+                && post_spec != PROBE_SENTINEL_SPEC
+                && post_spec != PROBE_ALT_SENTINEL_SPEC
+                && alt_hooked
+                    .and_then(|alt| lookup_field_spec(alt, field, alias))
+                    .is_some_and(|alt_spec| alt_spec == post_spec)
+        }
     }
-    post_spec != PROBE_SENTINEL_SPEC
-        && post_spec != PROBE_ALT_SENTINEL_SPEC
-        && alt_hooked
-            .and_then(|alt| lookup_field_spec(alt, field, alias))
-            .is_some_and(|alt_spec| alt_spec == post_spec)
 }
 
 fn lookup_field_spec<'a>(manifest: &'a Value, field: &str, alias: &str) -> Option<&'a str> {
@@ -395,6 +438,11 @@ fn lookup_field_spec<'a>(manifest: &'a Value, field: &str, alias: &str) -> Optio
         .and_then(Value::as_str)
 }
 
+/// A stand-in for a parent whose real manifest is unavailable, mapping each
+/// local child alias to `sentinel`. The pre-hook extensions do not run on it:
+/// they never override a declaration, and a placeholder cannot show which
+/// declarations the real manifest has, so a range they add could reach the
+/// hook where fresh resolution would pass another.
 fn build_probe_manifest(parent: &LocalResolutionProbeParent, sentinel: &str) -> Value {
     let to_map = |aliases: &[String]| -> Value {
         aliases

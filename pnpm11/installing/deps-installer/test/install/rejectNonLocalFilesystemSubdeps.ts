@@ -518,6 +518,37 @@ test('readPackage hook rewriting a remote dependency outside the workspace succe
   )
 })
 
+test('a readPackage hook keyed on a packageExtensions range reinstalls with a frozen lockfile', async () => {
+  prepareEmpty()
+  const sharedDir = path.resolve('..', 'shared-outside')
+  fs.mkdirSync(sharedDir, { recursive: true })
+  fs.writeFileSync(path.join(sharedDir, 'package.json'), JSON.stringify({ name: 'shared', version: '1.0.0' }))
+
+  const redirectExtendedHelper: ReadPackageHook = <Pkg extends BaseManifest>(pkg: Pkg): Pkg => {
+    if (pkg.name === 'remote-pkg' && pkg.dependencies?.shared === '^1.0.0') {
+      pkg.dependencies.shared = 'file:../shared-outside'
+    }
+    return pkg
+  }
+  const packageExtensions = { 'remote-pkg': { dependencies: { shared: '^1.0.0' } } }
+
+  await withMockRegistry(
+    { name: 'remote-pkg', version: '1.0.0' },
+    async (registryUrl) => {
+      const manifest = { name: 'app', version: '1.0.0', dependencies: { 'remote-pkg': '1.0.0' } }
+      const opts = {
+        hooks: { readPackage: [redirectExtendedHelper], untrackedPnpmfileReadPackageHook: true },
+        packageExtensions,
+        registriesByScope: { default: registryUrl },
+      }
+      await install(manifest, testDefaults(opts))
+      fs.rmSync('node_modules', { recursive: true, force: true })
+      await install(manifest, testDefaults({ ...opts, frozenLockfile: true }))
+      expect(fs.existsSync('node_modules/.pnpm/remote-pkg@1.0.0/node_modules/shared/package.json')).toBe(true)
+    }
+  )
+})
+
 test('hoisted local peer authorizations are scoped to the declaring parent and importer', async () => {
   prepareEmpty()
   const peerDir = path.resolve('..', 'shared-peer')

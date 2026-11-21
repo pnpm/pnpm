@@ -48,10 +48,13 @@ pub use minimum_release_age::{
 };
 pub use optimistic_repeat_install::*;
 pub use overrides::*;
-pub use package_extender::*;
 pub use patch::*;
 pub use pnpm_deps_restorer::*;
 pub use pnpm_local_spec::is_host_filesystem_specifier;
+pub use pnpm_package_extensions::{
+    InvalidPackageExtensionSelector,
+    PackageExtender,
+};
 pub use pnpm_patching::{
     PatchCommitError,
     PkgFilesForDiff,
@@ -96,7 +99,6 @@ mod catalog_cleanup;
 mod catalog_mode;
 mod check_custom_resolver_force_resolve;
 mod command_lockfile;
-mod compat_package_extensions;
 mod dependencies_graph_to_lockfile;
 mod early_materializer;
 mod fast_update_catalog_versions;
@@ -118,10 +120,8 @@ mod linked_peer_dependencies;
 mod lockfile_diff;
 mod manifest_spec_bumps;
 mod minimum_release_age;
-mod missing_peer_types;
 mod optimistic_repeat_install;
 mod overrides;
-mod package_extender;
 mod patch;
 mod peer_dependency_issues;
 mod prefetch_downloads;

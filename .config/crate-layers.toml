@@ -147,6 +147,7 @@ crates = [
   "pnpm-env-installer",
   "pnpm-github-actions",
   "pnpm-pack",
+  "pnpm-package-extensions",
   "pnpm-package-manager",
   "pnpm-publish",
   "pnpm-python-installer",
@@ -297,7 +298,7 @@ pnpm-default-reporter = 6
 pnpm-deps-inspection = 11
 pnpm-deps-inspection-peers = 10
 pnpm-deps-path = 2
-pnpm-deps-restorer = 33
+pnpm-deps-restorer = 34
 pnpm-detect-libc = 1
 pnpm-directory-fetcher = 4
 pnpm-engine-pm-yarn-resolver = 6
@@ -334,8 +335,9 @@ pnpm-network = 3
 pnpm-network-web-auth = 5
 pnpm-network-web-auth-testing = 3
 pnpm-pack = 12
+pnpm-package-extensions = 2
 pnpm-package-is-installable = 3
-pnpm-package-manager = 62
+pnpm-package-manager = 63
 pnpm-package-manifest = 4
 pnpm-package-name = 1
 pnpm-patching = 5
@@ -431,6 +433,7 @@ pnpm-network = 1
 pnpm-network-web-auth = 2
 pnpm-network-web-auth-testing = 1
 pnpm-pack = 5
+pnpm-package-extensions = 1
 pnpm-package-is-installable = 1
 pnpm-package-manager = 31
 pnpm-package-manifest = 1

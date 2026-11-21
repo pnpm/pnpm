@@ -82,9 +82,7 @@ pub enum InstallError {
     /// The resolver reports the same error; this reaches it first because
     /// the gates apply the extensions before deciding whether to resolve.
     #[diagnostic(transparent)]
-    InvalidPackageExtensionSelector(
-        #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
-    ),
+    InvalidPackageExtensionSelector(#[error(source)] crate::InvalidPackageExtensionSelector),
 
     // The errors below mirror pnpm's `validateModules`: a
     // non-plain-install mutation refuses to touch a modules directory
@@ -558,6 +556,19 @@ impl From<pnpm_hooks::HookError> for InstallError {
                 Self::BadReadPackageHookResult(err)
             }
             _ => Self::ReadPackageHook(err),
+        }
+    }
+}
+
+impl From<pnpm_deps_restorer::EnrichLocalPolicyError> for InstallError {
+    fn from(err: pnpm_deps_restorer::EnrichLocalPolicyError) -> Self {
+        match err {
+            pnpm_deps_restorer::EnrichLocalPolicyError::ReadPackageHook(err) => {
+                Self::ReadPackageHook(err)
+            }
+            pnpm_deps_restorer::EnrichLocalPolicyError::InvalidPackageExtensionSelector(err) => {
+                Self::InvalidPackageExtensionSelector(err)
+            }
         }
     }
 }
