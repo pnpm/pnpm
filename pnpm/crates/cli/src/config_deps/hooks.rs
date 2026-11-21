@@ -549,5 +549,6 @@ fn adopt_hook_catalogs(config: &mut Config, current: &Value) -> Result<()> {
 
 mod apply;
 mod catalogs;
+mod hook_added_overrides;
 mod node_linker_aliases;
 mod package_settings;
