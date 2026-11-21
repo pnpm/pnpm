@@ -264,7 +264,7 @@ fn python_index_keys(project: &Path) -> io::Result<Vec<String>> {
         Err(error) if error.kind() == io::ErrorKind::InvalidData => {
             pnpm_diagnostics::eprintln!(
                 "Skipped {} because it could not be parsed: {error}",
-                path.display()
+                path.display(),
             );
             Ok(Vec::new())
         }
