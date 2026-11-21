@@ -15,14 +15,23 @@ use pnpm_lockfile::{
     VersionPart,
 };
 
+/// Which lockfile edges a reachability walk follows.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum LockfileWalk {
+    /// Only edges to `file:` packages, from local direct dependencies.
+    LocalOnly,
+    /// Every edge.
+    All,
+}
+
 pub(super) fn importer_reachable_lockfile_packages(
     lockfile: &Lockfile,
     importer_id: &str,
     current_direct_aliases: Option<&HashSet<&str>>,
-    local_only: bool,
+    walk: LockfileWalk,
 ) -> HashSet<PkgNameVerPeer> {
     let mut visited =
-        seed_single_importer_roots(lockfile, importer_id, current_direct_aliases, local_only);
+        seed_single_importer_roots(lockfile, importer_id, current_direct_aliases, walk);
     if visited.is_empty() {
         return HashSet::new();
     }
@@ -32,13 +41,13 @@ pub(super) fn importer_reachable_lockfile_packages(
             if let Some(snapshot) = snapshots.get(&current) {
                 enqueue_snapshot_dep_map(
                     snapshot.dependencies.as_ref(),
-                    local_only,
+                    walk,
                     &mut visited,
                     &mut queue,
                 );
                 enqueue_snapshot_dep_map(
                     snapshot.optional_dependencies.as_ref(),
-                    local_only,
+                    walk,
                     &mut visited,
                     &mut queue,
                 );
@@ -55,19 +64,14 @@ fn seed_single_importer_roots(
     lockfile: &Lockfile,
     importer_id: &str,
     current_direct_aliases: Option<&HashSet<&str>>,
-    local_only: bool,
+    walk: LockfileWalk,
 ) -> HashSet<PackageKey> {
     let mut roots = HashSet::new();
     if let Some(importer) = lockfile.importers.get(importer_id) {
         for deps in
             [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
         {
-            collect_importer_dep_roots(
-                deps.as_ref(),
-                current_direct_aliases,
-                local_only,
-                &mut roots,
-            );
+            collect_importer_dep_roots(deps.as_ref(), current_direct_aliases, walk, &mut roots);
         }
     }
     if let Some(packages) = lockfile.packages.as_ref() {
@@ -79,7 +83,7 @@ fn seed_single_importer_roots(
 fn collect_importer_dep_roots(
     deps: Option<&ResolvedDependencyMap>,
     current_direct_aliases: Option<&HashSet<&str>>,
-    local_only: bool,
+    walk: LockfileWalk,
     roots: &mut HashSet<PackageKey>,
 ) {
     let Some(deps) = deps else {
@@ -91,7 +95,7 @@ fn collect_importer_dep_roots(
             continue;
         }
         if let Some(key) = dep_spec.version.resolved_key(alias)
-            && (!local_only || matches!(key.suffix.version(), VersionPart::File(_)))
+            && (walk == LockfileWalk::All || matches!(key.suffix.version(), VersionPart::File(_)))
         {
             roots.insert(key);
         }
@@ -117,7 +121,7 @@ fn collect_single_importer_dir_pkg(
 
 fn enqueue_snapshot_dep_map(
     deps: Option<&HashMap<PkgName, SnapshotDepRef>>,
-    local_only: bool,
+    walk: LockfileWalk,
     visited: &mut HashSet<PackageKey>,
     queue: &mut Vec<PackageKey>,
 ) {
@@ -128,7 +132,9 @@ fn enqueue_snapshot_dep_map(
         let Some(child_key) = dep_ref.resolve(alias) else {
             continue;
         };
-        if local_only && !matches!(child_key.suffix.version(), VersionPart::File(_)) {
+        if walk == LockfileWalk::LocalOnly
+            && !matches!(child_key.suffix.version(), VersionPart::File(_))
+        {
             continue;
         }
         if visited.insert(child_key.clone()) {

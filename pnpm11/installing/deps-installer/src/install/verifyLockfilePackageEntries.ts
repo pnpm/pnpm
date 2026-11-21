@@ -62,7 +62,7 @@ function inspectPackageEntry (
   const pkgVer = parsed.version ?? snapshot.version
   const displayVer = pkgVer ?? parsed.nonSemverVersion ?? '0.0.0'
   if (scan.selectedSnapshots == null || scan.selectedSnapshots.has(depPath)) {
-    checkSnapshotPeerSpecs(scan, { name: pkgName, version: pkgVer, displayVer, baseKey, nonSemverVersion: parsed.nonSemverVersion, peerSuffix: parsed.peerDepGraphHash, snapshot }, violations)
+    checkSnapshotPeerSpecs(scan, { name: pkgName, version: pkgVer, displayVer, baseKey, nonSemverVersion: parsed.nonSemverVersion, peerBindings: dp.parsePeerBindings(depPath), snapshot }, violations)
   }
   if (parsed.nonSemverVersion?.startsWith('file:')) {
     checkFilePackageEntry(scan, shapeCtx, { pkgName, baseKey, nonSemverVersion: parsed.nonSemverVersion, snapshot }, violations)
@@ -113,7 +113,7 @@ function checkLocalGitPackageEntry (
 
 function checkSnapshotPeerSpecs (
   scan: PackageEntryScan,
-  pkg: { name: string, version?: string, displayVer: string, baseKey: string, nonSemverVersion?: string, peerSuffix?: string, snapshot: PackageSnapshot },
+  pkg: { name: string, version?: string, displayVer: string, baseKey: string, nonSemverVersion?: string, peerBindings?: dp.PeerBindings, snapshot: PackageSnapshot },
   violations: ResolutionPolicyViolation[]
 ): void {
   const peers = pkg.snapshot.peerDependencies
@@ -132,51 +132,22 @@ function checkSnapshotPeerSpecs (
  * creates no edge, so its declaration reaches nothing on disk.
  */
 function isPeerResolved (
-  { peerSuffix, snapshot }: { peerSuffix?: string, snapshot: PackageSnapshot },
+  { peerBindings, snapshot }: { peerBindings?: dp.PeerBindings, snapshot: PackageSnapshot },
   alias: string
 ): boolean {
   const takesAlias = snapshot.dependencies?.[alias] != null || snapshot.optionalDependencies?.[alias] != null
-  return takesAlias && peerSuffixBinds(peerSuffix, alias)
+  return takesAlias && peerSuffixBinds(peerBindings, alias)
 }
 
 /**
  * Whether the dependency path's peer suffix binds `alias`. A regular
- * dependency of the same name is not a resolved peer. A hashed group names
+ * dependency of the same name is not a resolved peer. A hashed suffix names
  * no peers, so it counts as binding every alias.
  */
-function peerSuffixBinds (peerSuffix: string | undefined, alias: string): boolean {
-  if (!peerSuffix) return false
-  return peerSuffix.includes(`(${alias}@`) || topLevelGroups(peerSuffix).some(isHashGroup)
-}
-
-function topLevelGroups (suffix: string): string[] {
-  const groups: string[] = []
-  let depth = 0
-  let start = 0
-  for (let index = 0; index < suffix.length; index++) {
-    const delta = parenDepthDelta(suffix[index])
-    if (delta === 1 && depth === 0) start = index + 1
-    depth += delta
-    if (delta === -1 && depth === 0) groups.push(suffix.slice(start, index))
-  }
-  return groups
-}
-
-function parenDepthDelta (char: string): number {
-  if (char === '(') return 1
-  return char === ')' ? -1 : 0
-}
-
-/**
- * A peer graph hash group holds only the hash. Explicit peer groups hold
- * `name@version` and the patch group holds `patch_hash=...`.
- */
-function isHashGroup (group: string): boolean {
-  return group !== '' && Array.from(group).every(isAsciiAlphanumeric)
-}
-
-function isAsciiAlphanumeric (char: string): boolean {
-  return (char >= '0' && char <= '9') || (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z')
+function peerSuffixBinds (peerBindings: dp.PeerBindings | undefined, alias: string): boolean {
+  if (peerBindings == null) return false
+  if (peerBindings.kind === 'hashed') return true
+  return peerBindings.segments.some((segment) => segment.startsWith(`${alias}@`))
 }
 
 function snapshotSkipsPeerCheck (
@@ -197,7 +168,7 @@ function isUnauthorizedPeerSpec (
   if (isAuthorizedGit && /^git\+file:/i.test(spec.trim())) return false
   if (dp.packageRootLinkTarget(spec) != null) return false
   return isNonLocalFilesystemSubdepSpec(spec, () => false) &&
-    !policyAuthorizesPeerSpec(scan.policy, scan.lockfile, pkg, alias, spec) &&
+    !policyAuthorizesPeerSpec(scan, pkg, { alias, rawSpec: spec }) &&
     !authorizedLocalPackageDeclaresPeer(scan, alias, spec)
 }
 

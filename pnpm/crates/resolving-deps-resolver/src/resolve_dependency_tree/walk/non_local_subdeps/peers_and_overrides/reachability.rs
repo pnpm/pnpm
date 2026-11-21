@@ -18,7 +18,10 @@ use crate::{
 use super::{
     TreeCtx,
     lock_recoverable,
-    lockfile_closure::importer_reachable_lockfile_packages,
+    lockfile_closure::{
+        LockfileWalk,
+        importer_reachable_lockfile_packages,
+    },
     override_authorizes_spec,
 };
 
@@ -60,22 +63,25 @@ impl<'a> HoistedPeerReachability<'a> {
         })
     }
 
-    pub(super) fn lockfile_reachable(&self, local_only: bool) -> &HashSet<PkgNameVerPeer> {
-        let slot = if local_only { &self.lockfile_local } else { &self.lockfile_all };
+    pub(super) fn lockfile_reachable(&self, walk: LockfileWalk) -> &HashSet<PkgNameVerPeer> {
+        let slot = match walk {
+            LockfileWalk::LocalOnly => &self.lockfile_local,
+            LockfileWalk::All => &self.lockfile_all,
+        };
         slot.get_or_init(|| {
             let Some(lockfile) = self.ctx.workspace.wanted_lockfile() else {
                 return HashSet::new();
             };
             let aliases: HashSet<&str> = self.direct_deps
                 .iter()
-                .filter(|dep| !local_only || is_local_direct_dep_id(&dep.id))
+                .filter(|dep| walk == LockfileWalk::All || is_local_direct_dep_id(&dep.id))
                 .map(|dep| dep.alias.as_str())
                 .collect();
             importer_reachable_lockfile_packages(
                 lockfile,
                 &self.ctx.importer.id,
                 Some(&aliases),
-                local_only,
+                walk,
             )
         })
     }
@@ -106,7 +112,7 @@ pub(super) fn lockfile_local_pkg_declares_peer(
     let Some(packages) = lockfile.packages.as_ref() else {
         return false;
     };
-    let reachable = reachability.lockfile_reachable(true);
+    let reachable = reachability.lockfile_reachable(LockfileWalk::LocalOnly);
     packages
         .iter()
         .any(|(pkg_key, meta)| {
@@ -217,7 +223,7 @@ fn lockfile_local_parent_declares_peer(
     let Some(packages) = lockfile.packages.as_ref() else {
         return false;
     };
-    let reachable_local = reachability.lockfile_reachable(true);
+    let reachable_local = reachability.lockfile_reachable(LockfileWalk::LocalOnly);
     packages
         .iter()
         .any(|(pkg_key, meta)| {
@@ -238,7 +244,7 @@ fn lockfile_non_local_peer_parent(
 ) -> Option<String> {
     let lockfile = reachability.ctx.workspace.wanted_lockfile()?;
     let packages = lockfile.packages.as_ref()?;
-    let reachable = reachability.lockfile_reachable(false);
+    let reachable = reachability.lockfile_reachable(LockfileWalk::All);
     packages
         .iter()
         .find_map(|(pkg_key, meta)| {

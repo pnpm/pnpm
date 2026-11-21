@@ -204,11 +204,8 @@ export function importerSpecifierDeclaresLocal (
 }
 
 export function policyAuthorizesImporterDep (
-  policy: LocalResolutionPolicy,
-  lockfile: LockfileObject,
-  alias: string,
-  declaredSpec: string,
-  target: string
+  { policy, lockfile }: { policy: LocalResolutionPolicy, lockfile: LockfileObject },
+  { alias, declaredSpec, target }: { alias: string, declaredSpec: string, target: string }
 ): boolean {
   if (afterAllResolvedAllows(policy, lockfile, target)) return true
   const resolvedDecl = derefCatalogSpec(policy.catalogs, alias, declaredSpec)
@@ -249,11 +246,9 @@ export function policyAuthorizesPackage (
 }
 
 export function policyAuthorizesPeerSpec (
-  policy: LocalResolutionPolicy,
-  lockfile: LockfileObject,
+  { policy, lockfile }: { policy: LocalResolutionPolicy, lockfile: LockfileObject },
   parent: { baseKey: string, name: string, version?: string },
-  alias: string,
-  rawSpec: string
+  { alias, rawSpec }: { alias: string, rawSpec: string }
 ): boolean {
   const specPath = extractSpecLocalPath(rawSpec)
   if (specPath == null) return false

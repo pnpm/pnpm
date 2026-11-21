@@ -938,7 +938,7 @@ test('explicit and hashed peer suffixes both bind a local peer', async () => {
       },
     },
   })
-  for (const suffix of ['(helper@1.0.0)', '(4d6f1c2b9a)', '(patch_hash=abc)(4d6f1c2b9a)']) {
+  for (const suffix of ['(helper@1.0.0)', '(0123456789abcdef0123456789abcdef)', '(patch_hash=abc)(0123456789abcdef0123456789abcdef)']) {
     // eslint-disable-next-line no-await-in-loop -- sequential assertion per suffix form
     await expect(verifyLockfileResolutions(lockfile(suffix), [], { localPolicy: buildPolicy({}) })).rejects.toMatchObject({
       code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',

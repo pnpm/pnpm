@@ -171,7 +171,7 @@ function importerLinkIsTrusted (
   return (rawSpec != null && importerSpecifierDeclaresLocal(ctx.policy, alias, rawSpec)) ||
     ctx.workspaceDirs.has(anchoredTarget) ||
     ctx.lockfileImporterDirs.has(anchoredTarget) ||
-    (rawSpec != null && policyAuthorizesImporterDep(ctx.policy, ctx.lockfile, alias, rawSpec, anchoredTarget))
+    (rawSpec != null && policyAuthorizesImporterDep(ctx, { alias, declaredSpec: rawSpec, target: anchoredTarget }))
 }
 
 function importerPkgIsTrusted (
@@ -183,7 +183,7 @@ function importerPkgIsTrusted (
   if (rawSpec != null && importerSpecifierDeclaresLocal(ctx.policy, alias, rawSpec)) return true
   if (isWorkspaceDirectorySnapshot(ctx.workspaceDirs, snapshot)) return true
   const target = extractLocalPackageTarget(nonSemverVersion, snapshot)
-  return target != null && rawSpec != null && policyAuthorizesImporterDep(ctx.policy, ctx.lockfile, alias, rawSpec, target)
+  return target != null && rawSpec != null && policyAuthorizesImporterDep(ctx, { alias, declaredSpec: rawSpec, target })
 }
 
 function isDeploySnapshot (
