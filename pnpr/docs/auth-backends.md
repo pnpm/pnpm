@@ -4,10 +4,8 @@ title: Shared database
 ---
 
 Auth state (registered users and bearer tokens) is stored in the metadata
-database. By default, that is SQLite at
-`<storage>/.metadata/metadata.sqlite` (see [`auth`](configuration.md#auth)).
-Two pnpr replicas do not see each other's accounts unless they use the same
-database.
+database (see [`auth`](configuration.md#auth)). Two pnpr replicas do not see
+each other's accounts unless they use the same database.
 
 Set `storage.database.url` to a libSQL, PostgreSQL, or MySQL database to share accounts,
 tokens, and package metadata across instances. Archives stay in the configured
