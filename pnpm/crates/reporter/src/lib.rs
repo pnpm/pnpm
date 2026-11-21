@@ -168,6 +168,13 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:skipped-optional-dependency")]
     SkippedOptionalDependency(SkippedOptionalDependencyLog),
 
+    /// One per override selector that matched no resolved dependency
+    /// (`pnpm:unused-override`). The default reporter buffers these
+    /// against `pnpm:stage { stage: "resolution_done" }` and emits a
+    /// single grouped warning.
+    #[serde(rename = "pnpm:unused-override")]
+    UnusedOverride(UnusedOverrideLog),
+
     /// Package compatibility warning (`pnpm:install-check`).
     #[serde(rename = "pnpm:install-check")]
     InstallCheck(PnpmLog),
@@ -631,6 +638,18 @@ pub struct DeprecationLog {
     /// deprecation is not news. Skipped from the wire when `false`.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub already_installed: bool,
+}
+
+/// `pnpm:unused-override` payload. Field names match the
+/// `UnusedOverrideMessage` wire shape in
+/// `pnpm11/core/core-loggers/src/unusedOverrideLogger.ts`. `prefix` is the
+/// workspace root (`lockfileDir`); `selector` is the raw override key
+/// (`foo`, `parent>child`, `foo@^1`).
+#[derive(Debug, Clone, Serialize)]
+pub struct UnusedOverrideLog {
+    pub level: LogLevel,
+    pub prefix: String,
+    pub selector: String,
 }
 
 /// A version of the same package that is not deprecated, as the resolver read

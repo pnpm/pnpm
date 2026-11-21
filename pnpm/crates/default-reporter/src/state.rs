@@ -58,6 +58,7 @@ use pnpm_reporter::{
     Stage,
     StatsMessage,
     SummaryLog,
+    UnusedOverrideLog,
     UpdateCheckLog,
 };
 use serde_json::Value;
@@ -276,6 +277,10 @@ struct NoticeState {
     /// name and then version.
     deprecation_index: HashMap<String, HashMap<String, usize>>,
     deprecated_slot: BlockSlot,
+    /// `pnpm:unused-override` selectors withheld until
+    /// `pnpm:stage { stage: "resolution_done" }`, mirroring
+    /// `reportUnusedOverrides.ts`'s `buffer(resolutionDone$)`.
+    unused_overrides: Vec<String>,
     reported_peer_issues: bool,
     approvals: PendingApprovals,
 }
@@ -422,6 +427,7 @@ impl ReporterState {
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             LogEvent::Hook(log) => self.on_hook(log),
             LogEvent::Deprecation(log) => self.on_deprecation(log),
+            LogEvent::UnusedOverride(log) => self.on_unused_override(log),
             LogEvent::PeerDependencyIssues(_) => self.on_peer_dependency_issues(),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
@@ -435,7 +441,9 @@ impl ReporterState {
     /// pass: below `info`, [`Self::on_lifecycle`] buffers each script and
     /// prints only failed ones. Dedupe-check issues always pass too,
     /// upstream reports them as an error-level log
-    /// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`).
+    /// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`). The
+    /// `resolution_done` stage passes wherever warnings do, since it is what
+    /// flushes the buffered deprecation and unused-override warnings.
     fn level_permits(&self, event: &LogEvent) -> bool {
         match event {
             LogEvent::Lockfile(_)
@@ -448,7 +456,11 @@ impl ReporterState {
             | LogEvent::PendingSkills(_)
             | LogEvent::RequestRetry(_)
             | LogEvent::Deprecation(_)
+            | LogEvent::UnusedOverride(_)
             | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,
+            LogEvent::Stage(log) if log.stage == Stage::ResolutionDone => {
+                self.options.max_log_level >= MaxLogLevel::Warn
+            }
             LogEvent::LockfileVerification(log) => {
                 matches!(log.message, LockfileVerificationMessage::Failed { .. })
                     || self.options.max_log_level >= MaxLogLevel::Info

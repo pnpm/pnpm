@@ -449,6 +449,21 @@ async fn fresh_lockfile_only_with_overrides(
     overrides: &[(&str, &str)],
     workspace_yaml: Option<&str>,
 ) -> (tempfile::TempDir, Lockfile) {
+    fresh_lockfile_only_with_overrides_reporting::<SilentReporter>(
+        dependencies,
+        overrides,
+        workspace_yaml,
+        |_| {},
+    )
+    .await
+}
+
+async fn fresh_lockfile_only_with_overrides_reporting<ReporterT: Reporter + 'static>(
+    dependencies: &[(&str, &str)],
+    overrides: &[(&str, &str)],
+    workspace_yaml: Option<&str>,
+    configure: fn(&mut Config),
+) -> (tempfile::TempDir, Lockfile) {
     let mock_instance = TestRegistry::start();
 
     let dir = tempdir().unwrap();
@@ -478,6 +493,7 @@ async fn fresh_lockfile_only_with_overrides(
         }
         config.overrides = Some(map);
     }
+    configure(&mut config);
     let config = config.leak();
 
     Install {
@@ -531,7 +547,7 @@ async fn fresh_lockfile_only_with_overrides(
             discovered_workspace: None,
         },
     }
-    .run::<SilentReporter>()
+    .run::<ReporterT>()
     .await
     .expect("lockfile-only install should succeed");
 

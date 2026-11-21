@@ -232,6 +232,7 @@ mod unlink;
 mod unpublish;
 mod unresolved_env_var;
 mod unstar_tests;
+mod unused_overrides;
 mod update;
 mod update_changeset;
 mod update_github_actions;

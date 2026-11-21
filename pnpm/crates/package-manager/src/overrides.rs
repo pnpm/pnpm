@@ -76,6 +76,9 @@ pub struct VersionsOverrider {
     /// override are not recorded, the convergence override never
     /// governs them.
     converge_declared_ranges: Mutex<HashMap<String, HashSet<String>>>,
+    /// Raw selectors of the explicit overrides that rewrote at least one
+    /// edge. Read by the unused-override warning after a full resolution.
+    applied_selectors: Mutex<HashSet<String>>,
     /// Workspace catalogs used to dereference `catalog:` dependency
     /// specifiers when matching range-scoped overrides.
     catalogs: Catalogs,
@@ -164,6 +167,7 @@ impl VersionsOverrider {
             generic,
             converge,
             converge_declared_ranges: Mutex::new(HashMap::new()),
+            applied_selectors: Mutex::new(HashSet::new()),
             catalogs: Catalogs::new(),
         }
     }
@@ -197,6 +201,18 @@ impl VersionsOverrider {
     #[must_use]
     pub fn converge_declared_ranges(&self) -> HashMap<String, HashSet<String>> {
         self.converge_declared_ranges
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Snapshot of the raw selectors of every explicit override that
+    /// rewrote at least one edge so far. Complete only after a full
+    /// resolution has streamed every manifest through this hook.
+    /// Convergence overrides are never recorded.
+    #[must_use]
+    pub fn applied_selectors(&self) -> HashSet<String> {
+        self.applied_selectors
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
@@ -371,6 +387,7 @@ impl VersionsOverrider {
             }
             return false;
         };
+        self.record_applied(chosen);
 
         if chosen.inner.new_bare_specifier == "-" {
             map.remove(name);
@@ -424,6 +441,7 @@ impl VersionsOverrider {
             }
             return;
         };
+        self.record_applied(chosen);
         if chosen.inner.new_bare_specifier == "-" {
             remove_peer_dependency(value, &name);
             return;
@@ -453,6 +471,7 @@ impl VersionsOverrider {
         pkg_dir: &Path,
     ) -> Option<String> {
         if let Some(chosen) = self.choose_override(None, &[], dep_name, dep_spec) {
+            self.record_applied(chosen);
             if chosen.inner.new_bare_specifier == "-" {
                 return Some("-".to_string());
             }
@@ -470,6 +489,14 @@ impl VersionsOverrider {
         OverriddenDependencyMatcher {
             overrider: self,
             applicable_parent_scoped: self.applicable_parent_scoped(manifest),
+        }
+    }
+
+    fn record_applied(&self, chosen: &ResolvedOverride) {
+        let mut applied =
+            self.applied_selectors.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !applied.contains(&chosen.inner.selector) {
+            applied.insert(chosen.inner.selector.clone());
         }
     }
 

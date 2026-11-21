@@ -308,8 +308,11 @@ pub(super) fn update_reuse_scopes(
         ),
     }
 }
+/// Whether the resolve pass reads every package manifest, so that nothing
+/// locked is reused. A `--depth` limit keeps the subtrees below it locked.
 pub(super) fn full_resolution_required<'a>(
     has_reusable_seed: bool,
+    max_depth: UpdateDepth,
     importer_ids: impl IntoIterator<Item = &'a str>,
     default_scope: &pnpm_resolving_deps_resolver::UpdateReuseScope,
     scopes_by_importer: &BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
@@ -317,14 +320,15 @@ pub(super) fn full_resolution_required<'a>(
     use pnpm_resolving_deps_resolver::UpdateReuseScope;
 
     !has_reusable_seed
-        || importer_ids
-            .into_iter()
-            .all(|importer_id| {
-                let scope = if matches!(default_scope, UpdateReuseScope::None) {
-                    default_scope
-                } else {
-                    scopes_by_importer.get(importer_id).unwrap_or(default_scope)
-                };
-                matches!(scope, UpdateReuseScope::None)
-            })
+        || max_depth == UpdateDepth::UNLIMITED
+            && importer_ids
+                .into_iter()
+                .all(|importer_id| {
+                    let scope = if matches!(default_scope, UpdateReuseScope::None) {
+                        default_scope
+                    } else {
+                        scopes_by_importer.get(importer_id).unwrap_or(default_scope)
+                    };
+                    matches!(scope, UpdateReuseScope::None)
+                })
 }

@@ -930,6 +930,11 @@ pub struct Config {
     #[default = true]
     pub block_exotic_subdeps: bool,
 
+    /// Whether to warn when an entry in `overrides` matches no dependency
+    /// in the resolved tree. The `warnUnusedOverrides` setting; default `true`.
+    #[default = true]
+    pub warn_unused_overrides: bool,
+
     /// Whether to verify each CAFS file's on-disk integrity before reusing it
     /// for an install. When `true` (pnpm's default), the store-index cache
     /// lookup stats each referenced file and re-hashes any whose mtime has
@@ -1570,6 +1575,11 @@ pub struct Config {
     ///
     /// [`WorkspaceSettings::overrides`]: crate::workspace_yaml::WorkspaceSettings::overrides
     pub overrides: Option<IndexMap<String, String>>,
+
+    /// The [`Self::overrides`] selectors that an `updateConfig` hook or a
+    /// config dependency's settings added. The workspace does not declare
+    /// them, so they are not reported when they match no dependency.
+    pub hook_added_overrides: BTreeSet<String>,
 
     /// `packageExtensions` from `pnpm-workspace.yaml`. Maps a
     /// `name[@range]` selector to a partial manifest fragment that

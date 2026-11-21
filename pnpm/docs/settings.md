@@ -146,6 +146,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [overrides](./settings/dependency-resolution.md#overrides)
   * [Convergence overrides](./settings/dependency-resolution.md#convergence-overrides)
   * [Overriding peer dependencies](./settings/dependency-resolution.md#overriding-peer-dependencies)
+* [warnUnusedOverrides](./settings/dependency-resolution.md#warnunusedoverrides)
 * [packageExtensions](./settings/dependency-resolution.md#packageextensions)
 * [allowedDeprecatedVersions](./settings/dependency-resolution.md#alloweddeprecatedversions)
 * [update](./settings/dependency-resolution.md#update)
