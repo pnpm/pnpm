@@ -25,10 +25,7 @@ use std::{
         HashMap,
         HashSet,
     },
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::PathBuf,
 };
 
 /// Compute the hex digest that uniquely identifies one snapshot's
@@ -218,7 +215,7 @@ pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &
 /// [`pnpm_fs::push_slash_separated_path`]'s job, whose documentation
 /// covers what a `/` left in a Windows path string costs.
 #[must_use]
-pub fn join_global_virtual_store_path(base: &Path, rel: &str) -> PathBuf {
+pub fn join_global_virtual_store_path(base: PathBuf, rel: &str) -> PathBuf {
     pnpm_fs::join_slash_separated_path(base, rel)
 }
 

@@ -32,6 +32,7 @@ use pnpm_config::Config;
 /// what synthesis, the branch fold, the fast update and the `preResolution`
 /// hook made of it. Each later layer stands in for the ones below when it
 /// applied.
+#[derive(Default)]
 pub(super) struct WantedLockfile<'a> {
     /// The on-disk `pnpm-lock.yaml`, the dry-run diff's baseline.
     pub(super) loaded: Option<&'a Lockfile>,
@@ -78,6 +79,16 @@ impl WantedLockfile<'_> {
 
     pub(super) fn take_hooked(&mut self) -> Option<Lockfile> {
         self.hooked.take()
+    }
+
+    pub(super) fn matches_single_on_disk_file(&self, loaded: &Loaded<'_>) -> bool {
+        self.loaded.is_some()
+            && self.synthesized.is_none()
+            && self.merged_branch.is_none()
+            && self.fast_updated.is_none()
+            && self.hooked.is_none()
+            && !loaded.wanted.had_conflicts
+            && loaded.wanted.pre_merge_importers.is_none()
     }
 }
 /// The wanted lockfile settled, with the manifests the freshness gates

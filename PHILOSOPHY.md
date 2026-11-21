@@ -56,3 +56,13 @@ their approach, but cannot override the core requirements.
 Evaluate ease-of-use claims through concrete benefits, such as fewer steps for
 a common task or clearer recovery from an error. Ease of use is subjective and
 does not replace evidence of value or override the core requirements.
+
+## Distribution
+
+pnpm is installed with the methods on the
+[installation page](./pnpm/docs/installation.md). Do not add a package for a
+system package manager or app store, such as deb, RPM, Snap, or Flatpak. Each
+one is a second update path: it needs release automation, and `pnpm self-update`
+has to detect it so it does not install a second pnpm next to it. Packaging
+pnpm for such a channel is left to the channel's own maintainers, outside this
+repository.

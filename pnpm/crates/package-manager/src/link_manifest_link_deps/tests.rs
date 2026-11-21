@@ -24,7 +24,11 @@ fn manifest_at(dir: &std::path::Path, json: serde_json::Value) -> PackageManifes
 }
 
 fn modules_dirs(lockfile_dir: &std::path::Path, name: &str) -> ImporterModulesDirs {
-    ImporterModulesDirs::new(lockfile_dir, std::path::Path::new(name), std::ffi::OsStr::new(name))
+    ImporterModulesDirs::new(
+        lockfile_dir,
+        std::path::Path::new(name),
+        std::ffi::OsString::from(name),
+    )
 }
 
 fn all_dependencies() -> IncludedDependencies {
@@ -353,7 +357,7 @@ fn the_root_project_links_into_the_configured_modules_dir() {
         }),
     );
     link_manifest_link_deps::<SilentReporter>(
-        &ImporterModulesDirs::new(&workspace, &vendor, std::ffi::OsStr::new("vendor")),
+        &ImporterModulesDirs::new(&workspace, &vendor, std::ffi::OsString::from("vendor")),
         &[(workspace.clone(), &manifest)],
         None,
         None,

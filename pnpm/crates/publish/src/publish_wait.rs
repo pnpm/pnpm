@@ -49,7 +49,7 @@ pub async fn wait_for_published_packages<Reporter: self::Reporter>(
         .enumerate()
         .map(|(index, (name, version))| (index, format!("{name}@{version}")))
         .collect();
-    global_info::<Reporter>(&format!(
+    global_info::<Reporter>(format!(
         "Waiting up to {}ms for {} package(s) to become available from {}",
         timeout.as_millis(),
         packages.len(),

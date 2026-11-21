@@ -39,6 +39,13 @@ pub(super) struct ManagedDirectory {
     pub(super) _pinned_components: Vec<fs::File>,
 }
 
+#[cfg_attr(
+    all(dylint_lib = "perfectionist", unix),
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the Windows branch canonicalizes from a borrow of `root_dir`, so every platform shares the borrowed signature"
+    )
+)]
 pub(super) fn ensure_workspace_directory(
     root_dir: &Path,
     components: &[&str],

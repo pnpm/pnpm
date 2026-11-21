@@ -107,8 +107,8 @@ pub struct VirtualStoreLayout {
 }
 
 impl VirtualStoreLayout {
-    pub(crate) fn relocated(&self, root: &Path) -> Self {
-        Self { package_store_dir: root.to_path_buf(), ..self.clone() }
+    pub(crate) fn relocated(&self, root: PathBuf) -> Self {
+        Self { package_store_dir: root, ..self.clone() }
     }
 
     pub(crate) fn engine_name(&self) -> Option<&str> {
@@ -358,18 +358,12 @@ impl VirtualStoreLayout {
         self.gvs_suffixes.is_some()
     }
 
-    /// Like [`Self::slot_dir`], but only for a snapshot with a
-    /// precomputed GVS suffix. `None` instead of the flat-name
-    /// fallback. The directory-clone cache requires this: a GVS suffix
-    /// is content-addressed through the graph hash's
-    /// `full_pkg_id = <pkg_id>:<integrity>` input, while the flat name
-    /// is keyed by the snapshot key alone, so a flat-named canonical
-    /// slot would keep serving stale content after the same version is
-    /// re-published with different integrity.
+    /// Whether the snapshot has a precomputed global virtual store suffix.
     #[must_use]
-    pub fn hashed_slot_dir(&self, key: &PackageKey) -> Option<PathBuf> {
-        let suffix = self.gvs_suffixes.as_ref()?.get(key)?;
-        Some(join_global_virtual_store_path(&self.package_store_dir, suffix))
+    pub(crate) fn has_hashed_slot(&self, key: &PackageKey) -> bool {
+        self.gvs_suffixes
+            .as_ref()
+            .is_some_and(|suffixes| suffixes.contains_key(key))
     }
 
     /// Absolute directory that holds `node_modules/<name>` for one
@@ -392,7 +386,7 @@ impl VirtualStoreLayout {
         // The flat non-GVS `to_virtual_store_name` fallback carries no
         // `/`, so it too can route through the GVS join (which then just
         // pushes it as a single component).
-        join_global_virtual_store_path(&self.package_store_dir, &suffix)
+        join_global_virtual_store_path(self.package_store_dir.clone(), &suffix)
     }
 
     /// Whether `key`'s virtual-store slot is lexically contained within the store
@@ -404,13 +398,13 @@ impl VirtualStoreLayout {
             return false;
         }
         if self.enable_global_virtual_store() {
-            return is_gvs_slot_contained(&self.package_store_dir, key, &slot_dir);
+            return is_gvs_slot_contained(self.package_store_dir.clone(), key, &slot_dir);
         }
         true
     }
 }
 
-fn is_gvs_slot_contained(store_dir: &Path, key: &PackageKey, slot_dir: &Path) -> bool {
+fn is_gvs_slot_contained(store_dir: PathBuf, key: &PackageKey, slot_dir: &Path) -> bool {
     let name = key.name.to_string();
     let prefix = if name.starts_with('@') { "" } else { "@/" };
     let package_dir = pnpm_fs::join_slash_separated_path(store_dir, &format!("{prefix}{name}"));
@@ -474,7 +468,7 @@ pub fn global_virtual_store_version_dir(
         return None;
     }
     let candidate_slot = join_global_virtual_store_path(
-        package_store_dir,
+        package_store_dir.to_path_buf(),
         &format_global_virtual_store_path(&name, &version, "candidate"),
     );
     if !pnpm_fs::is_subdir(package_store_dir, &candidate_slot) {
@@ -576,7 +570,7 @@ fn injected_targets(
     // separator normalization matches the `hoistedLocations` entries the
     // hoisted branch reuses (see `path_relative_to_lockfile_dir`).
     let target = pnpm_fs::join_slash_separated_path(
-        &layout.slot_dir(key).join("node_modules"),
+        layout.slot_dir(key).join("node_modules"),
         &key.name.to_string(),
     );
     let target = match target.strip_prefix(lockfile_dir) {

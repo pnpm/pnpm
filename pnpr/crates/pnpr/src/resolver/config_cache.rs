@@ -113,6 +113,13 @@ impl EffectiveResolverSettings {
 
 /// Reuse a request configuration, evicting the least recently used entry at capacity.
 /// Active requests retain their own reference across eviction.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the cache directory is copied only on a cache miss, past the early returns"
+    )
+)]
 pub(super) fn intern_config(
     configs: &Mutex<HashMap<String, CachedConfig>>,
     store_dir: &StoreDir,
@@ -141,7 +148,7 @@ pub(super) fn intern_config(
         configs.remove(&oldest);
     }
 
-    let config = build_config(store_dir, cache_dir, request, inputs);
+    let config = build_config(store_dir, cache_dir.to_path_buf(), request, inputs);
     let config = Arc::new(config);
     if max_cached > 0 {
         configs.insert(
@@ -154,7 +161,7 @@ pub(super) fn intern_config(
 
 fn build_config(
     store_dir: &StoreDir,
-    cache_dir: &Path,
+    cache_dir: PathBuf,
     request: &ResolveRequest,
     inputs: ConfigKeyInputs,
 ) -> PacquetConfig {
@@ -165,7 +172,7 @@ fn build_config(
     } = inputs;
     let mut config = PacquetConfig::new();
     config.store_dir = store_dir.clone();
-    config.cache_dir = cache_dir.to_path_buf();
+    config.cache_dir = cache_dir;
     config.registry = registry;
     apply_registry_declarations(&mut config, request);
     config.overrides = overrides;
@@ -262,6 +269,10 @@ pub(super) const CONFIG_KEY: &[KeyPart] = &[
         value: |request, _| serde_json::json!(request.minimum_release_age_ignore_missing_time),
     },
     KeyPart {
+        fields: &["minimumReleaseAgeStrict"],
+        value: |request, _| serde_json::json!(request.minimum_release_age_strict),
+    },
+    KeyPart {
         fields: &["trustPolicy"],
         value: |request, _| serde_json::json!(request.trust_policy),
     },
@@ -324,6 +335,9 @@ pub(super) fn apply_request_policy(config: &mut PacquetConfig, request: &Resolve
     config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
     if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
         config.minimum_release_age_ignore_missing_time = ignore_missing_time;
+    }
+    if let Some(strict) = request.minimum_release_age_strict {
+        config.minimum_release_age_strict = Some(strict);
     }
     config.trust_policy = request.trust_policy;
     config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);

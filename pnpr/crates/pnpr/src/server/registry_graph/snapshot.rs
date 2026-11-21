@@ -159,8 +159,9 @@ fn upstream_clients(
                     .filter(|_| unchanged)
                     .cloned()
             });
-            let client =
-                reused.unwrap_or_else(|| stored_upstream(name, ecosystem, upstream, guard_context));
+            let client = reused.unwrap_or_else(|| {
+                stored_upstream(name.to_owned(), ecosystem, upstream, guard_context)
+            });
             (name.clone(), client)
         })
         .collect()
@@ -182,7 +183,7 @@ fn upstream_ecosystem(routing: &RoutingConfig, name: &str) -> Ecosystem {
 /// a hostname that resolves to them, including this server's own host, nor
 /// this server's own `public_url` origin.
 fn stored_upstream(
-    name: &str,
+    name: String,
     ecosystem: Ecosystem,
     upstream: &UpstreamConfig,
     guard_context: &UpstreamGuardContext,

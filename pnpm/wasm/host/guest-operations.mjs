@@ -43,6 +43,15 @@ export function createGuestOperations (services = createHostServices()) {
 
   async function settle (id, entry, result) {
     if (!pending.has(id)) return closed ? undefined : releaseResult(entry.operation, result)
+    if (result.ok && entry.operation === 'stream.read' && result.value != null) {
+      if (result.value.done) {
+        result.value = { done: true }
+      } else if (result.value.bytes instanceof Uint8Array) {
+        entry.binary = result.value.bytes
+        result.value = { done: false }
+        result.binaryLength = entry.binary.length
+      }
+    }
     let bytes
     try {
       bytes = new TextEncoder().encode(JSON.stringify(result, (_key, value) => value instanceof Uint8Array ? [...value] : value))
@@ -71,8 +80,14 @@ export function createGuestOperations (services = createHostServices()) {
     case 'read': {
       const entry = pending.get(args[0])
       if (!entry?.response || entry.response.length > args[1]) return -2
-      pending.delete(args[0])
+      if (!entry.binary) pending.delete(args[0])
       return entry.response
+    }
+    case 'read-binary': {
+      const entry = pending.get(args[0])
+      if (!entry?.binary || entry.binary.length > args[1]) return -2
+      pending.delete(args[0])
+      return entry.binary
     }
     case 'cancel': {
       const entry = pending.get(args[0])

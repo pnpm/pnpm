@@ -16,7 +16,7 @@ import { parseArgs, stripVTControlCharacters } from 'node:util'
 
 import { chromium } from 'playwright-core'
 
-import { coreWorkflowSteps, packageInstallSteps, packageWorkflowSteps } from './cli-workflows.mjs'
+import { cleanCapabilitySteps, coreWorkflowSteps, inspectionWorkflowSteps, networkCapabilitySteps, packageInstallSteps, packageWorkflowSteps } from './cli-workflows.mjs'
 
 const STEP_TIMEOUT_MS = 10 * 60_000
 
@@ -60,24 +60,75 @@ const { values: opts } = parseArgs({
     'wasm-probe': { type: 'string' },
     'wasm-runtime': { type: 'string' },
     'wasm-cli': { type: 'string' },
+    'wasm-inspection': { type: 'string' },
+    'wasm-hoisted': { type: 'string' },
+    'wasm-registry': { type: 'string' },
+    'wasm-network': { type: 'string' },
+    'wasm-global': { type: 'string' },
     'wasm-package': { type: 'string' },
+    'wasm-package-registry': { type: 'string' },
+    'wasm-package-frontend': { type: 'string' },
     'host-probe': { type: 'string' },
   },
 })
 const pnpmDir = path.resolve(opts['pnpm-dir'])
-if ([opts['wasm-probe'], opts['wasm-runtime'], opts['wasm-cli'], opts['wasm-package'], opts['host-probe']].filter(Boolean).length > 1) throw new Error('Select one probe mode')
-const servedFiles = opts['wasm-package'] ? new Map([['pnpm-wasm.tgz', path.resolve(opts['wasm-package'])]]) : opts['wasm-cli'] ? runtimeFiles().set('runtime/pnpm.wasm', path.resolve(opts['wasm-cli'])) : opts['host-probe'] ? runtimeFiles().set('probe.mjs', path.resolve(opts['host-probe'])) : opts['wasm-runtime'] ? runtimeFiles(opts['wasm-runtime']) : opts['wasm-probe']
+if (Object.values(opts).some(value => value === '')) throw new Error('Probe artifact paths cannot be empty')
+if ([opts['wasm-probe'], opts['wasm-runtime'], opts['wasm-cli'], opts['wasm-inspection'], opts['wasm-hoisted'], opts['wasm-registry'], opts['wasm-network'], opts['wasm-global'], opts['wasm-package'], opts['wasm-package-registry'], opts['wasm-package-frontend'], opts['host-probe']].filter(Boolean).length > 1) throw new Error('Select one probe mode')
+const wasmCliArtifact = opts['wasm-cli'] ?? opts['wasm-inspection'] ?? opts['wasm-hoisted'] ?? opts['wasm-registry'] ?? opts['wasm-network'] ?? opts['wasm-global']
+const packageArtifact = opts['wasm-package'] ?? opts['wasm-package-registry'] ?? opts['wasm-package-frontend']
+const servedFiles = packageArtifact ? new Map([['pnpm-wasm.tgz', path.resolve(packageArtifact)]]) : wasmCliArtifact ? runtimeFiles().set('runtime/pnpm.wasm', path.resolve(wasmCliArtifact)) : opts['host-probe'] ? runtimeFiles().set('probe.mjs', path.resolve(opts['host-probe'])) : opts['wasm-runtime'] ? runtimeFiles(opts['wasm-runtime']) : opts['wasm-probe']
   ? new Map([
     ['probe.wasm', path.resolve(opts['wasm-probe'])],
     ['probe.mjs', fileURLToPath(new URL('wasm-probe.mjs', import.meta.url))],
   ])
   : new Map(listPnpmPackageFiles(pnpmDir).map(file => [file, path.join(pnpmDir, file)]))
-if (opts['wasm-cli'] || opts['wasm-package']) servedFiles.set('cli-fixture.mjs', fileURLToPath(new URL('./cli-fixture.mjs', import.meta.url)))
+if (opts['wasm-registry'] || opts['wasm-network'] || opts['wasm-cli'] || opts['wasm-inspection'] || opts['wasm-hoisted'] || packageArtifact) servedFiles.set('cli-fixture.mjs', fileURLToPath(new URL('./cli-fixture.mjs', import.meta.url)))
+if (opts['wasm-network'] || opts['wasm-cli'] || packageArtifact) {
+  const fixtures = fileURLToPath(new URL('../../../../pnpm/crates/network/tests/fixtures/', import.meta.url))
+  servedFiles.set('network-ca.pem', path.join(fixtures, 'test-ca.pem'))
+  servedFiles.set('network-client-key.pem', path.join(fixtures, 'test-client-pkcs1.key'))
+}
+if (opts['wasm-cli'] || packageArtifact) servedFiles.set('metadata-bench.mjs', fileURLToPath(new URL('./metadata-bench.mjs', import.meta.url)))
+if (opts['wasm-cli'] || packageArtifact) servedFiles.set('webcontainer-commands.tsv', fileURLToPath(new URL('../../../wasm/webcontainer-commands.tsv', import.meta.url)))
+if (opts['wasm-package']) servedFiles.set('process-tree-probe.mjs', fileURLToPath(new URL('./process-tree-probe.mjs', import.meta.url)))
 for (const file of servedFiles.values()) fs.accessSync(file, fs.constants.R_OK)
 const steps = opts['wasm-package'] ? [
   ...packageInstallSteps(),
   ...installedCliSteps('../installed/node_modules/.bin/pnpm'),
-] : opts['wasm-cli'] ? wasmCliSteps() : opts['host-probe']
+  { name: 'cancel an owned child process tree', command: 'node', args: ['../pnpm/process-tree-probe.mjs'], env: { PNPM_WASM_HOST_MODULE: '../installed/node_modules/@pnpm/wasm/dist/host/operations.mjs' }, expectOutput: 'Owned process tree cancellation passed' },
+] : opts['wasm-package-registry'] ? [
+  ...packageInstallSteps(),
+  { name: 'registry workflows through the installed package', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--registry-workflow', '../installed/node_modules/.bin/pnpm'], expectOutput: 'Mock registry view, search, ping, audit, outdated, stars, staged publish, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed' },
+] : opts['wasm-package-frontend'] ? [
+  ...packageInstallSteps().slice(0, 1),
+  ...runInstalledEntry(frontendBuildSteps('../installed/node_modules/.bin/pnpm'), '../installed/node_modules/.bin/pnpm'),
+] : opts['wasm-cli'] ? wasmCliSteps() : opts['wasm-registry'] ? [
+  { name: 'prepare mounted executable launcher', command: 'node', args: ['-e', "require('node:fs').chmodSync('../pnpm/runtime/pnpm.mjs', 0o755)"] },
+  { name: 'mock registry command workflows', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--registry-workflow', '../pnpm/runtime/pnpm.mjs'], expectOutput: 'Mock registry view, search, ping, audit, outdated, stars, staged publish, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed' },
+  ] : opts['wasm-hoisted'] ? [
+    { name: 'prepare mounted executable launcher', command: 'node', args: ['-e', "require('node:fs').chmodSync('../pnpm/runtime/pnpm.mjs', 0o755)"] },
+    { name: 'create hoisted workspace fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs'] },
+    { name: 'select the hoisted linker', command: 'node', args: ['-e', "require('node:fs').appendFileSync('pnpm-workspace.yaml', String.fromCharCode(10) + 'nodeLinker: hoisted' + String.fromCharCode(10))"] },
+    { name: 'install with the hoisted linker', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'install'] },
+    { name: 'load workspace dependencies from hoisted node_modules', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('semver').valid('1.2.3'), '1.2.3'); require('@fixture/local')"] },
+    { name: 'list hoisted workspace packages', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', '--dir', 'packages/local', 'list'], expectOutput: 'semver@7.6.3' },
+    { name: 'inspect hoisted dependency graph', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'why', 'semver'], expectOutput: '@fixture/local' },
+    { name: 'check hoisted peer dependencies', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'peers', '--json'], expectOutput: 'missing' },
+    { name: 'repeat hoisted install offline and frozen', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'install', '--offline', '--frozen-lockfile'] },
+  ] : opts['wasm-inspection'] ? [
+    { name: 'prepare mounted executable launcher', command: 'node', args: ['-e', "require('node:fs').chmodSync('../pnpm/runtime/pnpm.mjs', 0o755)"] },
+    { name: 'create inspection workspace fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs'] },
+    { name: 'install inspection workspace fixture', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'install'] },
+    ...inspectionWorkflowSteps('../pnpm/runtime/pnpm.mjs'),
+    ...cleanCapabilitySteps('../pnpm/runtime/pnpm.mjs'),
+  ] : opts['wasm-network'] ? [
+    { name: 'prepare mounted executable launcher', command: 'node', args: ['-e', "require('node:fs').chmodSync('../pnpm/runtime/pnpm.mjs', 0o755)"] },
+    ...networkCapabilitySteps('../pnpm/runtime/pnpm.mjs'),
+  ] : opts['wasm-global'] ? [
+    { name: 'prepare mounted executable launcher', command: 'node', args: ['-e', "require('node:fs').chmodSync('../pnpm/runtime/pnpm.mjs', 0o755)"] },
+    { name: 'install a global package', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'add', '--global', 'semver@7.6.3', '--config.global-bin-dir=/home/project/global/bin'], env: { PATH: '/home/project/global/bin:/home/.local/share/pnpm/bin:/usr/local/bin:/usr/bin:/bin' } },
+    { name: 'list global packages', command: 'node', args: ['../pnpm/runtime/pnpm.mjs', 'list', '--global', '--depth', '0', '--parseable'], env: { PATH: '/home/project/global/bin:/home/.local/share/pnpm/bin:/usr/local/bin:/usr/bin:/bin' }, expectOutput: 'semver' },
+  ] : opts['host-probe']
   ? [{ name: 'Node host capabilities', command: 'node', args: ['../pnpm/probe.mjs'] }]
   : opts['wasm-runtime']
   ? runtimeSteps()
@@ -121,6 +172,16 @@ try {
       failed = true
       break
     }
+    if (step.expectOutputSequence != null && !containsInOrder(text, step.expectOutputSequence)) {
+      console.error(`FAIL: "${step.name}" output did not contain the expected sequence: ${step.expectOutputSequence.join(' -> ')}`)
+      failed = true
+      break
+    }
+    if (step.expectNoOutput != null && text.includes(step.expectNoOutput)) {
+      console.error(`FAIL: "${step.name}" output unexpectedly contains "${step.expectNoOutput}"`)
+      failed = true
+      break
+    }
   }
 } finally {
   await browser?.close()
@@ -139,17 +200,45 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
   return [
     ...(opts['wasm-cli'] ? [{ name: 'prepare mounted executable launcher', command: 'node', args: ['-e', `require('node:fs').chmodSync(${JSON.stringify(entry)}, 0o755)`] }] : []),
     { name: 'Rust WASM CLI version', command: 'node', args: [entry, '--version'], expectOutput: '12.' },
+    ...((opts['wasm-cli'] || opts['wasm-package']) ? [{ name: 'measure WebContainer filesystem metadata calls', command: 'node', args: ['../pnpm/metadata-bench.mjs'], expectOutput: 'webcontainer-metadata-bench-ok' }] : []),
     { name: 'Rust WASM CLI help', command: 'node', args: [entry, '--help'], expectOutput: 'Usage:' },
+    { name: 'prepare command routing directory', command: 'node', args: ['-e', "require('node:fs').mkdirSync('command-routing', { recursive: true })"] },
+    { name: 'route every classified command and alias', command: 'node', args: ['../../pnpm/cli-fixture.mjs', '--command-routing', opts['wasm-package'] ? '../../installed/node_modules/.bin/pnpm' : '../../pnpm/runtime/pnpm.mjs', '../../pnpm/webcontainer-commands.tsv'], cwd: 'app/command-routing', expectOutput: 'WebContainer command routing passed' },
     { name: 'isolated WASM store namespace', command: 'node', args: [entry, 'store', 'path'], expectOutput: 'v11-wasm' },
+    { name: 'resolve metadata cache path', command: 'node', args: [entry, 'cache', 'path'], expectOutput: '/home/.cache/pnpm' },
+    { name: 'setup fails without side effects', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, 'setup', '--expect', 'This WebContainer runtime cannot install itself globally'], expectOutput: 'failed without changing project files' },
+    { name: 'self-update fails without side effects', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, 'self-update', '12.18.0', '--expect', 'Update this WebAssembly distribution by installing a newer version of @pnpm/wasm'], expectOutput: 'failed without changing project files' },
+    { name: 'pack-app fails without side effects', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, 'pack-app', '--expect', 'WebContainers cannot run that builder'], expectOutput: 'failed without changing project files' },
+    { name: 'Cargo add fails without side effects', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--assert-no-effects', entry, '--cargo-add', '--expect', 'spawn cargo ENOENT'], expectOutput: 'failed without changing project files' },
+    ...networkCapabilitySteps(entry),
+    { name: 'registry commands use the WebContainer host', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--registry-workflow', entry], expectOutput: 'Mock registry view, search, ping, audit, outdated, stars, staged publish, login, whoami, profile, token list, docs, publish, unpublish, access, owners, teams, tags, deprecation and logout passed' },
     ...steps,
+    { name: 'install alias i', command: 'node', args: [entry, 'i', '--offline'] },
+    { name: 'list alias ls', command: 'node', args: [entry, 'ls'], expectOutput: 'semver@7.6.3' },
     ...coreWorkflowSteps(entry),
-    { name: 'execute a Node command', command: 'node', args: [entry, 'exec', 'node', '-e', "require('semver'); console.log('wasm-exec-ok')"], expectOutput: 'wasm-exec-ok' },
+    { name: 'install a global package', command: 'node', args: [entry, 'add', '--global', 'semver@7.6.3', '--config.global-bin-dir=/home/project/global/bin'], env: { PATH: '/home/project/global/bin:/home/.local/share/pnpm/bin:/usr/local/bin:/usr/bin:/bin' } },
+    { name: 'list global packages', command: 'node', args: [entry, 'list', '--global', '--depth', '0', '--parseable'], env: { PATH: '/home/project/global/bin:/home/.local/share/pnpm/bin:/usr/local/bin:/usr/bin:/bin' }, expectOutput: 'semver' },
+    { name: 'execute a Node command', command: 'node', args: [entry, 'exec', 'node', '-e', "console.log('wasm-exec-ok')"], expectOutput: 'wasm-exec-ok' },
     { name: 'create workspace fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs'] },
     { name: 'install workspace and run lifecycle', command: 'node', args: [entry, 'install'] },
     { name: 'verify lifecycle result', command: 'node', args: ['-e', "if (require('node:fs').readFileSync('lifecycle-ok', 'utf8') !== 'yes') throw new Error('lifecycle did not run')"] },
+    { name: 'verify pnpmfile readPackage hook ran', command: 'node', args: ['-e', "require('node:assert/strict').ok(require('node:fs').readFileSync('pnpmfile-hook-ok', 'utf8').length > 0)"] },
+    ...inspectionWorkflowSteps(entry),
+    { name: 'resolve project root', command: 'node', args: [entry, 'root'], expectOutput: '/home/project/app/node_modules' },
+    { name: 'resolve project prefix', command: 'node', args: [entry, 'prefix'], expectOutput: '/home/project/app' },
+    { name: 'resolve project binary directory', command: 'node', args: [entry, 'bin'], expectOutput: '/home/project/app/node_modules/.bin' },
+    { name: 'verify store package integrity', command: 'node', args: [entry, 'store', 'status'], expectOutput: 'Packages in the store are untouched' },
+    { name: 'store status detects modified package content', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--store-status-mutation', entry], expectOutput: 'store status detected a modified installed package' },
     { name: 'execute workspace bin', command: 'node', args: [entry, 'exec', 'fixture-bin', 'a b', '$(false)', "'quoted'"], expectOutput: 'wasm-bin-ok' },
     { name: 'run project script', command: 'node', args: [entry, 'run', 'verify'], expectOutput: 'wasm-script-ok' },
+    { name: 'run-script alias', command: 'node', args: [entry, 'run-script', 'verify'], expectOutput: 'wasm-script-ok' },
+    { name: 'dispatch an external package script', command: 'node', args: [entry, 'wasm-external'], expectOutput: 'wasm-external-script-ok' },
+    { name: 'run an overriding script for a built-in command', command: 'node', args: [entry, '--dir', 'packages/local', 'rebuild'], expectOutput: 'wasm-rebuild-script-override' },
+    { name: 'force a built-in through pnpm pm', command: 'node', args: [entry, '--dir', 'packages/local', 'pm', 'rebuild'], expectNoOutput: 'wasm-rebuild-script-override' },
     { name: 'run filtered workspace script', command: 'node', args: [entry, '--filter', '@fixture/local', 'run', 'build'], expectOutput: 'wasm-filter-ok' },
+    { name: 'run scripts recursively', command: 'node', args: [entry, '-r', 'run', 'build'], expectOutput: 'wasm-filter-ok' },
+    { name: 'recursive alias m', command: 'node', args: [entry, 'm', 'run', 'build'], expectOutput: 'wasm-filter-ok' },
+    { name: 'recursive alias multi', command: 'node', args: [entry, 'multi', 'run', 'build'], expectOutput: 'wasm-filter-ok' },
     { name: 'install frozen workspace offline', command: 'node', args: [entry, 'install', '--offline', '--frozen-lockfile'] },
     { name: 'create build approval fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--approval'] },
     { name: 'pack dependency with a lifecycle script', command: 'npm', args: ['pack', './pending-build', '--ignore-scripts'] },
@@ -161,20 +250,32 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
     },
     { name: 'verify approved dependency build', command: 'node', args: ['-e', "if (require('node:fs').readFileSync('node_modules/fixture-needs-build/built', 'utf8') !== 'yes') throw new Error('approved build did not run')"] },
     ...packageWorkflowSteps(entry),
-    { name: 'create frontend fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--frontend'] },
-    { name: 'install frontend toolchain', command: 'node', args: [entry, 'install'] },
-    { name: 'build a Vite app', command: 'node', args: [entry, 'exec', 'vite', 'build'] },
-    { name: 'verify frontend build', command: 'node', args: ['-e', "if (!require('node:fs').existsSync('dist/index.html')) throw new Error('Vite build output is missing')"] },
+    // --wasm-package-frontend runs these in a fresh session; see the ecosystem-e2e README.
+    ...(opts['wasm-package'] ? [] : frontendBuildSteps(entry)),
     { name: 'pin the running WASM version', command: 'node', args: ['-e', `const fs = require('node:fs'); const manifest = require('./package.json'); manifest.packageManager = 'pnpm@' + require('node:child_process').execFileSync('node', [${JSON.stringify(entry)}, '--version'], { encoding: 'utf8' }).trim(); fs.writeFileSync('package.json', JSON.stringify(manifest))`] },
     { name: 'install with matching package manager pin', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--matching-pin', entry] },
     { name: 'pin a different pnpm release', command: 'node', args: ['-e', "const fs = require('node:fs'); const manifest = require('./package.json'); manifest.packageManager = 'pnpm@12.8.1'; fs.writeFileSync('package.json', JSON.stringify(manifest))"] },
     { name: 'reject native version switching', command: 'node', args: [entry, 'install'], expectExitCode: 1, expectOutput: 'ERR_PNPM_UNSUPPORTED_RUNTIME' },
     { name: 'use installed WASM version explicitly', command: 'node', args: [entry, 'install'], env: { npm_config_manage_package_manager_versions: 'false' } },
+    ...cleanCapabilitySteps(entry),
+  ]
+}
+
+function frontendBuildSteps (entry) {
+  return [
+    { name: 'create frontend fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--frontend'] },
+    { name: 'install frontend toolchain', command: 'node', args: [entry, 'install'] },
+    { name: 'build a Vite app', command: 'node', args: [entry, 'exec', 'vite', 'build'] },
+    { name: 'verify frontend build', command: 'node', args: ['-e', "if (!require('node:fs').existsSync('dist/index.html')) throw new Error('Vite build output is missing')"] },
   ]
 }
 
 function installedCliSteps (entry) {
-  return wasmCliSteps(entry).map(step => step.command === 'node' && step.args[0] === entry
+  return runInstalledEntry(wasmCliSteps(entry), entry)
+}
+
+function runInstalledEntry (steps, entry) {
+  return steps.map(step => step.command === 'node' && step.args[0] === entry
     ? { ...step, command: entry, args: step.args.slice(1) }
     : step)
 }
@@ -309,4 +410,14 @@ function withTimeout (promise, name) {
   return Promise.race([promise, timeout]).finally(() => {
     clearTimeout(timer)
   })
+}
+
+function containsInOrder (text, parts) {
+  let position = 0
+  for (const part of parts) {
+    const nextPosition = text.indexOf(part, position)
+    if (nextPosition === -1) return false
+    position = nextPosition + part.length
+  }
+  return true
 }

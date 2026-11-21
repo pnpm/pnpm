@@ -270,7 +270,7 @@ impl SkipScan<'_, '_> {
                 &metadata_key.to_string(),
                 warn.skip_reason(),
                 warn.to_string(),
-                self.prefix,
+                self.prefix.to_owned(),
             );
         }
     }
@@ -505,7 +505,7 @@ fn emit_skipped<Reporter: self::Reporter>(
     pkg_id: &str,
     reason: SkipReason,
     details: String,
-    prefix: &str,
+    prefix: String,
 ) {
     let (name, version) = split_name_version(pkg_id);
     let wire_reason = match reason {
@@ -517,7 +517,7 @@ fn emit_skipped<Reporter: self::Reporter>(
         details: Some(details),
         package: SkippedOptionalPackage::Installed { id: pkg_id.to_string(), name, version },
         parents: None,
-        prefix: prefix.to_string(),
+        prefix,
         reason: wire_reason,
     }));
 }

@@ -37,7 +37,7 @@ const NON_TYPESCRIPT_PKGS = new Set([
 
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
 // `@pnpm/exe` ships the same `dist/` tree as `pnpm`, so the two manifests'
-// `publishConfig.executableFiles` lists must stay identical — otherwise the
+// `publishConfig.executableFiles` lists must stay identical. Otherwise the
 // shims end up packed at 0644 in one of the tarballs (see pnpm/pnpm#11483).
 export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!

@@ -209,6 +209,26 @@ test('getOptionsFromPnpmSettings() rejects a non-boolean sideEffectsCache.read',
   } as unknown as PnpmSettings)).toThrow(/sideEffectsCache\.read/)
 })
 
+test('getOptionsFromPnpmSettings() accepts sideEffectsCache.exclude string array', () => {
+  const sideEffectsCache = {
+    read: true,
+    write: true,
+    exclude: ['java', '@native/*'],
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { sideEffectsCache }))
+    .toStrictEqual({ sideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-array or non-string sideEffectsCache.exclude', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sideEffectsCache: { exclude: 'not-an-array' },
+  } as unknown as PnpmSettings)).toThrow(/sideEffectsCache\.exclude/)
+
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sideEffectsCache: { exclude: [123] },
+  } as unknown as PnpmSettings)).toThrow(/sideEffectsCache\.exclude/)
+})
+
 // A repository that could set `publish` would turn a key the machine holds for
 // its own builds into a signing oracle, so every field but the two that declare
 // eligibility is refused.
@@ -862,6 +882,15 @@ test('getOptionsFromPnpmSettings() passes a valid tasks section through', () => 
     test: { dependsOn: ['build'] },
     lint: {},
   })
+})
+
+test('getOptionsFromPnpmSettings() rejects a task entry without a value with a hint', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: null } as never,
+  })).toThrow(expect.objectContaining({
+    message: 'The "tasks[\'build\']" setting has no value.',
+    hint: expect.stringContaining('Write {} for a task with no settings'),
+  }))
 })
 
 test('getOptionsFromPnpmSettings() rejects a tasks entry that is not an object', () => {

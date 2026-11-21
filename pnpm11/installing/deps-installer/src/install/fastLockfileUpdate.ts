@@ -16,6 +16,11 @@ import { tryComposeFastUpdates } from './tryComposeFastUpdates.js'
 import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
 import { warnUnusedPatches } from './tryFastUpdatePatchedDependencies.js'
+import { buildExoticSubdepsScopeFromContext } from './verifyLockfileExoticSubdeps.js'
+import {
+  resolveLocalPolicyForInstall,
+  withContextLocalPolicyOptions,
+} from './verifyLockfileLocalResolutions.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 const COMPOSABLE_CHANGED_FIELDS = new Set<ChangedField>([
@@ -64,10 +69,19 @@ export async function tryFastLockfileUpdate (
   // policies rejects a malformed pattern, which is the resolver's error
   // to report on a run that has no use for them.
   const rewriteOptions = plan.hasAsyncDrift ? createRewriteOptions(run, isLockfileUpToDate) : undefined
+  const policyOpts = withContextLocalPolicyOptions(run.opts, ctx.workspacePackages, plan.contextProjects)
   const updated = await tryFastUpdateLockfile(ctx.wantedLockfile, {
     update: async (candidate) => tryComposeFastUpdates(candidate, createComposeOptions(run, { input, plan, rewriteOptions })),
     isLockfileUpToDate,
-    verifyLockfile: (lockfile) => verifyLockfileResolutions(lockfile, []),
+    verifyLockfile: async (lockfile) => {
+      const blockExoticSubdeps = !run.opts.trustLockfile && Boolean(run.opts.blockExoticSubdeps)
+      const localPolicy = await resolveLocalPolicyForInstall(lockfile, policyOpts, plan.contextProjects)
+      await verifyLockfileResolutions(lockfile, [], {
+        blockExoticSubdeps,
+        exoticSubdepsScope: blockExoticSubdeps ? buildExoticSubdepsScopeFromContext(ctx, run.opts) : undefined,
+        localPolicy,
+      })
+    },
   })
   if (!updated) return null
   ctx.wantedLockfileIsModified = true
@@ -91,8 +105,8 @@ function planDriftUpdate ({ ctx, opts }: MutationRun, { additions, settings }: F
     return added == null ? project : { ...project, ...added }
   })
   // A catalog move can change the effective value of an override whose
-  // configured value is a `catalog:` reference — an effect no catalog
-  // rewrite can express — so catalog drift under such an override goes to
+  // configured value is a `catalog:` reference (an effect no catalog
+  // rewrite can express), so catalog drift under such an override goes to
   // the resolver. Override drift alone composes: override values are
   // compared catalog-resolved, so a settled `catalog:` override shows no
   // drift and only the genuinely changed entries reach the override
@@ -151,11 +165,11 @@ function canComposeOntoLockfile (
     !opts.force &&
     !opts.forceFullResolution &&
     !forceResolutionFromHook &&
-    // A pnpmfile's `readPackage` hook is safe here — `getContext` applies
+    // A pnpmfile's `readPackage` hook is safe here. `getContext` applies
     // it to every project manifest and a changed pnpmfile surfaces as
-    // `pnpmfileChecksum` drift. A hook the checksum cannot vouch for — a
-    // programmatic one, or one from the checksum-excluded global pnpmfile
-    // — keeps forcing the resolver.
+    // `pnpmfileChecksum` drift. A hook the checksum cannot vouch for (a
+    // programmatic one, or one from the checksum-excluded global pnpmfile)
+    // keeps forcing the resolver.
     !checksums.untrackedReadPackageHookMayHaveChanged &&
     !checksums.pnpmfileChecksumIgnored &&
     !opts.hooks.preResolution?.length &&

@@ -101,7 +101,7 @@ impl Server {
 }
 
 fn views(database: &Arc<SqlDatabase>) -> PackageMetadata {
-    database.view("", Ecosystem::Npm)
+    database.view(String::new(), Ecosystem::Npm)
 }
 
 async fn publish(metadata: &PackageMetadata, versions: &[&str]) {

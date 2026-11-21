@@ -110,7 +110,7 @@ pub(crate) fn cached_fingerprint(key: &str) -> Option<Fingerprint> {
     cache()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .get(&key.to_string())
+        .get(key)
         .cloned()
 }
 
@@ -124,14 +124,13 @@ fn cached_fingerprint_matches(
     key: &str,
     fingerprint: &Fingerprint,
 ) -> bool {
-    let key = key.to_string();
     if !cache
-        .get(&key)
+        .get(key)
         .is_some_and(|cached| cached == fingerprint)
     {
         return false;
     }
-    cache.insert(key, fingerprint.clone(), 1, MAX_ENTRIES);
+    cache.insert(key.to_string(), fingerprint.clone(), 1, MAX_ENTRIES);
     true
 }
 

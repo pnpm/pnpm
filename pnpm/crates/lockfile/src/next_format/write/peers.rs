@@ -18,7 +18,6 @@ use crate::{
     SnapshotEntry,
     split_peer_suffix_segments,
 };
-use pnpm_deps_path::link_path_to_peer_version;
 use std::{
     collections::{
         HashMap,
@@ -342,15 +341,8 @@ pub(super) fn binds_reference(
     reference: &SnapshotDepRef,
 ) -> bool {
     let Some(providers) = providers else { return true };
-    match reference.resolve(alias) {
-        Some(target) => providers.binds_snapshot(&target),
-        None => reference
-            .as_link_target()
-            .is_some_and(|path| {
-                providers.is_hashed()
-                    || format!("{alias}@{}", link_path_to_peer_version(path))
-                        .parse()
-                        .is_ok_and(|target| providers.binds_snapshot(&target))
-            }),
-    }
+    providers.is_hashed()
+        || reference
+            .peer_provider_key(alias)
+            .is_some_and(|target| providers.binds_snapshot(&target))
 }

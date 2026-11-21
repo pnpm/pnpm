@@ -117,7 +117,7 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     }
     let requested = scope.selectors
         .iter()
-        .find(|selector| matcher_one(&selector.pattern).matches(name))
+        .find(|selector| matcher_one(selector).matches(name))
         .and_then(|selector| selector.version.clone());
     if !scope.version.save {
         let MatchedRewriteInputs { rewrite_ctx, .. } = inputs;

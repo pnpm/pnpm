@@ -49,7 +49,7 @@ impl IgnoreRule {
             .chars()
             .take_while(|&current| current == '!')
             .count();
-        let alternatives = expand_braces(&line[negations..])
+        let alternatives = expand_braces(line[negations..].to_owned())
             .iter()
             .map(|pattern| parse_segments(pattern, literal_case))
             .collect();
@@ -186,8 +186,8 @@ fn match_globstar(
 
 /// Expands brace alternatives and sequences up to
 /// [`MAX_BRACE_ALTERNATIVES`] and [`MAX_BRACE_EXPANSION_BYTES`].
-fn expand_braces(pattern: &str) -> Vec<String> {
-    let mut pending = vec![pattern.to_string()];
+fn expand_braces(pattern: String) -> Vec<String> {
+    let mut pending = vec![pattern];
     let mut expanded = Vec::new();
     let mut produced_bytes = 0;
     while let Some(current) = pending.pop() {

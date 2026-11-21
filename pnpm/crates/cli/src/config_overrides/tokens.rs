@@ -8,6 +8,7 @@ use super::{
     RuntimeOnFail,
     SaveWorkspaceProtocol,
     TrustPolicy,
+    to_kebab_case,
 };
 
 /// Whether the token at `index` belongs to the forwarded child command line.
@@ -230,13 +231,20 @@ fn is_u64(value: &str) -> bool {
     value.parse::<u64>().is_ok()
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`SettingArity::Parsed` stores this as a `fn(&str) -> bool` pointer."
+    )
+)]
 fn is_enum<Value: serde::de::DeserializeOwned>(value: &str) -> bool {
-    parse_enum::<Value>(value).is_some()
+    parse_enum::<Value>(value.to_owned()).is_some()
 }
 
 fn is_node_linker(value: &str) -> bool {
     serde_json::from_str::<NodeLinkerSetting>(value).is_ok()
-        || parse_enum::<NodeLinkerSetting>(value).is_some()
+        || parse_enum::<NodeLinkerSetting>(value.to_owned()).is_some()
 }
 
 fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
@@ -249,7 +257,7 @@ fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
 /// key outside [`BARE_SETTING_FLAGS`], which keeps the `--config.<key>`
 /// tolerance for the settings pacquet has not ported.
 fn setting_takes(key: &str, value: &str) -> bool {
-    match named_bare_setting_flag(key) {
+    match named_bare_setting_flag(&to_kebab_case(key)) {
         Some((_, SettingArity::Boolean)) => parse_bool(value).is_some(),
         Some((_, SettingArity::BooleanOr { takes, .. })) => {
             parse_bool(value).is_some() || takes(value)
@@ -319,15 +327,15 @@ pub(super) fn scoped_registry_key(key: &str) -> Option<&str> {
         .filter(|scope| !scope.contains('/'))
 }
 
-pub(super) fn parse_enum<Value: serde::de::DeserializeOwned>(value: &str) -> Option<Value> {
-    serde_json::from_value(serde_json::Value::String(value.to_string())).ok()
+pub(super) fn parse_enum<Value: serde::de::DeserializeOwned>(value: String) -> Option<Value> {
+    serde_json::from_value(serde_json::Value::String(value)).ok()
 }
 
 /// A setting whose type is a boolean or a keyword, from either spelling.
 pub(super) fn parse_bool_or_enum<Value: serde::de::DeserializeOwned>(value: &str) -> Option<Value> {
     match parse_bool(value) {
         Some(boolean) => serde_json::from_value(serde_json::Value::Bool(boolean)).ok(),
-        None => parse_enum(value),
+        None => parse_enum(value.to_owned()),
     }
 }
 

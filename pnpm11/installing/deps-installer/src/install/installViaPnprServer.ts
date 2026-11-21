@@ -17,6 +17,7 @@ import { calcPatchHashes, resolvePatchedDependencies } from '@pnpm/lockfile.sett
 import { logger } from '@pnpm/logger'
 import { groupPatchedDependenciesWithPaths } from '@pnpm/patching.config'
 import type { PnprProject, ResolveViaPnprServerOptions, ResolveViaPnprServerResult } from '@pnpm/pnpr.client'
+import type { ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
 import type { DepPath, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { pathAbsolute } from 'path-absolute'
@@ -31,8 +32,15 @@ import {
 } from './installPredicates.js'
 import type { InstallResult, MutatedProject, SingleProjectInstallOptions } from './mutationTypes.js'
 import { applyResolvedSpecsFromLockfile, type PnprNewDep } from './pnpr.js'
+import { violationsFromAllowedPicks } from './pnprAllowedPicks.js'
 import { createRootHookOptions } from './rootProjectHooks.js'
-import { verifyLockfileFileOffline, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { buildExoticSubdepsScopeFromProjectDirs } from './verifyLockfileExoticSubdepsScope.js'
+import { localPolicyForInstallOptions } from './verifyLockfileLocalResolutions.js'
+import {
+  type ExoticSubdepsScope,
+  verifyLockfileFileOffline,
+  verifyLockfileResolutions,
+} from './verifyLockfileResolutions.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
 interface PnprInstallProjectOptions {
@@ -65,7 +73,7 @@ export function assertPnprCompatibleWithStore (opts: Pick<SingleProjectInstallOp
   // The pnpr server path re-resolves and persists new `index.db` entries plus a
   // freshly written lockfile, so it inherently writes the store. `frozenStore`
   // promises the store is complete and read-only, so the two are mutually
-  // exclusive — and the unconditional pnpr gate means this path runs even under
+  // exclusive. The unconditional pnpr gate means this path runs even under
   // `--offline --frozen-lockfile`, so refuse up front with guidance instead of
   // crashing later on the read-only `index.db` open.
   if (opts.frozenStore) {
@@ -92,7 +100,7 @@ export function assertFrozenPnprPnpmfileChecksum (
 /**
  * When a pnpr server is configured, resolve dependencies server-side,
  * then run a headless install that fetches tarballs from the registries
- * and links packages into node_modules — like a normal install.
+ * and links packages into node_modules, like a normal install.
  */
 export async function installViaPnprServer (args: InstallViaPnprServerArgs): Promise<PnprInstallResult> {
   const { opts, rootDir } = args
@@ -114,7 +122,7 @@ export async function installViaPnprServer (args: InstallViaPnprServerArgs): Pro
       resolveViaPnprServer,
     })
   } finally {
-    // Close the storeController to flush queued StoreIndex writes — the
+    // Close the storeController to flush queued StoreIndex writes. The
     // normal install path does the same; skipping it here would leave
     // pending writes on disk and diverge from lifecycle expectations.
     await opts.storeController.close()
@@ -123,7 +131,7 @@ export async function installViaPnprServer (args: InstallViaPnprServerArgs): Pro
 
 async function resolveAndInstallViaPnpr (request: PnprRequestContext): Promise<PnprInstallResult> {
   const { lockfileDir, manifest, opts } = request
-  // Read the existing lockfile (if any) in its on-disk shape — that's
+  // Read the existing lockfile (if any) in its on-disk shape. That's
   // what the pnpr server protocol carries, so no conversion is needed before
   // sending it.
   const existingLockfile = await readWantedLockfileFile(lockfileDir, {
@@ -142,10 +150,10 @@ async function resolveAndInstallViaPnpr (request: PnprRequestContext): Promise<P
 
   await runRootProjectHooks(request)
 
-  const lockfile = await resolveLockfileViaPnpr(request, { existingLockfile, patchedDependencies })
+  const { lockfile, resolutionPolicyViolations } = await resolveLockfileViaPnpr(request, { existingLockfile, patchedDependencies })
 
   // `--lockfile-only`: the pnpr server resolved and we wrote the lockfile, but
-  // pnpm fetches nothing and links nothing in this mode — stop before the
+  // pnpm fetches nothing and links nothing in this mode, so stop before the
   // headless install. See https://github.com/pnpm/pnpm/issues/12146.
   if (opts.lockfileOnly) {
     return {
@@ -154,10 +162,10 @@ async function resolveAndInstallViaPnpr (request: PnprRequestContext): Promise<P
       ignoredBuilds: undefined,
       stats: { added: 0, removed: 0, linkedToRoot: 0 },
       lockfile,
-      resolutionPolicyViolations: [],
+      resolutionPolicyViolations,
     }
   }
-  return materializePnprLockfile(request, { lockfile, patchGroups })
+  return materializePnprLockfile(request, { lockfile, patchGroups, resolutionPolicyViolations })
 }
 
 /**
@@ -182,68 +190,79 @@ async function runRootProjectHooks (
 async function resolveLockfileViaPnpr (
   request: PnprRequestContext,
   { existingLockfile, patchedDependencies }: { existingLockfile: LockfileFile | null, patchedDependencies: Record<string, string> | undefined }
-): Promise<LockfileObject> {
+): Promise<{ lockfile: LockfileObject, resolutionPolicyViolations: ResolutionPolicyViolation[] }> {
   const { allInstallProjects, lockfileDir, opts, rootDir } = request
-  // Like the local install, `frozenLockfileIfExists` ignores a lockfile
-  // that records no dependencies.
   const frozenLockfile = opts.frozenLockfile === true || (
-    opts.frozenLockfileIfExists === true &&
-    existingLockfile != null &&
-    recordsDependencies(existingLockfile)
+    opts.frozenLockfileIfExists === true && existingLockfile != null && recordsDependencies(existingLockfile)
   )
+  const exoticSubdepsScope = buildPnprExoticSubdepsScope(request)
   const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
-  verifyExistingPnprLockfile({ existingLockfile, frozenLockfile, opts, pnpmfileChecksum })
+  await verifyExistingPnprLockfile({ existingLockfile, exoticSubdepsScope, frozenLockfile, lockfileDir, opts, pnpmfileChecksum })
 
   logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
-
-  const { lockfile, stats: pnprStats } = await request.resolveViaPnprServer(
+  const { lockfile, stats: pnprStats, allowedPicks } = await request.resolveViaPnprServer(
     createResolveRequest(request, { existingLockfile, frozenLockfile, patchedDependencies })
   )
-  await verifyLockfileResolutions(lockfile, [])
-
-  // The server never sees the pnpmfile, so the fields a local resolution
-  // records for it are stamped here.
+  const blockExoticSubdeps = !opts.trustLockfile && Boolean(opts.blockExoticSubdeps)
+  await verifyLockfileResolutions(lockfile, [], {
+    blockExoticSubdeps,
+    exoticSubdepsScope,
+    localPolicy: localPolicyForInstallOptions({ ...opts, lockfileDir }),
+  })
+  const resolutionPolicyViolations = violationsFromAllowedPicks(allowedPicks, lockfile, opts)
   if (!frozenLockfile) {
     lockfile.pnpmfileChecksum = pnpmfileChecksum
     setUntrackedPnpmfileReadPackageHook(lockfile, getUntrackedPnpmfileReadPackageHook(opts.hooks ?? {}))
   }
-
   await writeWantedLockfileAndRecordVerified({
     lockfileDir,
     lockfile,
     cacheDir: opts.cacheDir,
     resolutionVerifiers: opts.resolutionVerifiers,
+    blockExoticSubdeps,
+    exoticSubdepsScope,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   })
-
-  if (allInstallProjects) {
-    applyResolvedSpecsToAddedProjects(allInstallProjects, { lockfile, lockfileDir })
-  }
-
-  logger.info({
-    message: `Resolved ${pnprStats.totalPackages} packages`,
-    prefix: rootDir,
-  })
-  return lockfile
+  if (allInstallProjects) applyResolvedSpecsToAddedProjects(allInstallProjects, { lockfile, lockfileDir })
+  logger.info({ message: `Resolved ${pnprStats.totalPackages} packages`, prefix: rootDir })
+  return { lockfile, resolutionPolicyViolations }
 }
 
-function verifyExistingPnprLockfile ({
+async function verifyExistingPnprLockfile ({
   existingLockfile,
+  exoticSubdepsScope,
   frozenLockfile,
+  lockfileDir,
   opts,
   pnpmfileChecksum,
 }: {
   existingLockfile: LockfileFile | null
+  exoticSubdepsScope: ExoticSubdepsScope | undefined
   frozenLockfile: boolean
+  lockfileDir: string
   opts: SingleProjectInstallOptions
   pnpmfileChecksum: string | undefined
-}): void {
+}): Promise<void> {
   if (existingLockfile == null) return
-  verifyLockfileFileOffline(existingLockfile)
-  if (frozenLockfile) {
-    assertFrozenPnprPnpmfileChecksum(opts, existingLockfile.pnpmfileChecksum, pnpmfileChecksum)
+  verifyLockfileFileOffline(existingLockfile, { lockfileDir })
+  if (!frozenLockfile) return
+  assertFrozenPnprPnpmfileChecksum(opts, existingLockfile.pnpmfileChecksum, pnpmfileChecksum)
+  if (!opts.trustLockfile && opts.blockExoticSubdeps) {
+    await verifyLockfileResolutions(convertToLockfileObject(existingLockfile), [], {
+      blockExoticSubdeps: true,
+      exoticSubdepsScope,
+      localPolicy: localPolicyForInstallOptions({ ...opts, lockfileDir }),
+    })
   }
+}
+
+function buildPnprExoticSubdepsScope (
+  { allInstallProjects, lockfileDir, opts, rootDir }: PnprRequestContext
+): ExoticSubdepsScope | undefined {
+  if (opts.trustLockfile || !opts.blockExoticSubdeps) return undefined
+  const projectDirs = (allInstallProjects ?? [{ rootDir }]).map((project) => project.rootDir)
+  return buildExoticSubdepsScopeFromProjectDirs(lockfileDir, projectDirs, opts)
 }
 
 /**
@@ -295,6 +314,7 @@ function createResolveRequest (
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
+    minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
@@ -310,7 +330,7 @@ function createResolveRequest (
 
 /**
  * The workspace projects of the request, when there is more than one.
- * Separators are normalized to POSIX — on Windows `path.relative` returns
+ * Separators are normalized to POSIX. On Windows `path.relative` returns
  * backslashes, which the pnpr server rejects (it treats `\` as an
  * unsafe/YAML-injection character and normalizes paths as POSIX).
  */
@@ -361,7 +381,7 @@ function applyResolvedSpecsToAddedProjects (
  */
 async function materializePnprLockfile (
   request: PnprRequestContext,
-  { lockfile, patchGroups }: { lockfile: LockfileObject, patchGroups: ReturnType<typeof groupPatchedDependenciesWithPaths> }
+  { lockfile, patchGroups, resolutionPolicyViolations }: { lockfile: LockfileObject, patchGroups: ReturnType<typeof groupPatchedDependenciesWithPaths>, resolutionPolicyViolations: ResolutionPolicyViolation[] }
 ): Promise<PnprInstallResult> {
   const { allInstallProjects, manifest, opts, rootDir, rootProjectPreinstallRan } = request
   const headlessOpts = {
@@ -378,7 +398,7 @@ async function materializePnprLockfile (
       updatedProjects,
       updatedCatalogs: undefined,
       newLockfile: lockfile,
-      resolutionPolicyViolations: [],
+      resolutionPolicyViolations,
     })
   }
   const { ignoredBuilds, stats } = await materializeOrDelegate(
@@ -395,11 +415,7 @@ async function materializePnprLockfile (
     // zeros so the pnpr server's non-optional `stats` slot is filled.
     stats: stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     lockfile,
-    // The pnpr server enforces the whole verification policy itself and
-    // reports any violation as a terminal `violations` frame, which the
-    // client turns into a thrown error — so a resolve that got this far
-    // produced a policy-clean lockfile with nothing left to react to.
-    resolutionPolicyViolations: [],
+    resolutionPolicyViolations,
   }
 }
 

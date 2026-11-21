@@ -22,7 +22,7 @@ pub fn is_host_filesystem_specifier(
     importer_dir: &str,
     is_declared_prefix: impl Fn(&str) -> bool,
 ) -> bool {
-    if has_local_file_protocol(spec) {
+    if has_local_file_protocol(spec) || strip_package_name_from_local_spec(spec).is_some() {
         return true;
     }
     if let Some(rest) = strip_ascii_case_prefix(spec, "workspace:") {
@@ -41,6 +41,103 @@ pub fn is_host_filesystem_specifier(
     !spec.contains(':') && is_unprefixed_local_path(spec)
 }
 
+/// Whether `spec` declared in a non-local package manifest targets the host
+/// filesystem or a path-based `workspace:` dependency.
+///
+/// Assumes valid package-internal `file:` directory paths have already been
+/// rewritten to `link:<root>/...` and filtered out by the caller.
+#[must_use]
+pub fn is_non_local_filesystem_subdep_spec(
+    spec: &str,
+    is_declared_prefix: impl Fn(&str) -> bool,
+) -> bool {
+    is_non_local_filesystem_subdep_ref(spec, &is_declared_prefix)
+}
+
+fn is_non_local_filesystem_subdep_ref(
+    spec: &str,
+    is_declared_prefix: &dyn Fn(&str) -> bool,
+) -> bool {
+    let spec = peel_npm_alias(spec);
+    if has_non_local_forbidden_protocol(spec) || strip_package_name_from_local_spec(spec).is_some()
+    {
+        return true;
+    }
+    if let Some(rest) = strip_ascii_case_prefix(spec, "workspace:") {
+        return is_workspace_filesystem_suffix(rest, is_declared_prefix);
+    }
+    if is_drive_letter_prefix(spec) {
+        let (_, rest) = spec.split_once(':').expect("drive prefix contains a colon");
+        return rest.starts_with('/') || rest.starts_with('\\') || !is_declared_prefix(&spec[..1]);
+    }
+    if bare_path_is_unambiguous(spec) || is_tilde_dir_prefix(spec) {
+        return true;
+    }
+    !spec.contains(':') && is_unprefixed_local_path(spec)
+}
+
+/// The local specifier that follows the `<name>@` of a specifier written as
+/// a package key, such as the `lib@file:///workspace/lib` that `pnpm deploy`
+/// writes into the deployed manifest. `None` unless `spec` is a package name,
+/// `@`, and a `file:`, `link:`, `path:`, or `git+file:` specifier.
+#[must_use]
+pub fn strip_package_name_from_local_spec(spec: &str) -> Option<&str> {
+    let name_end = match spec.strip_prefix('@') {
+        Some(scoped) => scoped.find('@')? + 1,
+        None => spec.find('@')?,
+    };
+    let (name, rest) = (&spec[..name_end], &spec[name_end + 1..]);
+    let scope_slashes = usize::from(name.starts_with('@'));
+    let is_package_name = name.matches('/').count() == scope_slashes
+        && !name.ends_with('/')
+        && !name.starts_with(['.', '_', '~'])
+        && !name.contains([':', '\\']);
+    (is_package_name && has_non_local_forbidden_protocol(rest)).then_some(rest)
+}
+
+fn peel_npm_alias(mut spec: &str) -> &str {
+    for _ in 0..8 {
+        let Some(aliased) = strip_ascii_case_prefix(spec, "npm:") else {
+            break;
+        };
+        let Some(index) = aliased
+            .rfind('@')
+            .filter(|index| *index >= 1)
+        else {
+            break;
+        };
+        spec = &aliased[index + 1..];
+    }
+    spec
+}
+
+fn has_non_local_forbidden_protocol(spec: &str) -> bool {
+    has_local_file_protocol(spec) || strip_ascii_case_prefix(spec, "path:").is_some()
+}
+
+fn is_tilde_path(path: &str) -> bool {
+    path == "~" || is_tilde_dir_prefix(path)
+}
+
+fn is_tilde_dir_prefix(path: &str) -> bool {
+    path.starts_with("~/") || path.starts_with(r"~\")
+}
+
+fn is_workspace_filesystem_suffix(rest: &str, is_declared_prefix: &dyn Fn(&str) -> bool) -> bool {
+    if is_tilde_dir_prefix(rest)
+        || rest.starts_with('.')
+        || rest.starts_with('/')
+        || rest.contains('\\')
+        || is_drive_letter_prefix(rest)
+    {
+        return true;
+    }
+    let (Some(_alias), version) = pnpm_workspace_spec::split_alias_version(rest) else {
+        return false;
+    };
+    version != "~" && is_non_local_filesystem_subdep_ref(version, is_declared_prefix)
+}
+
 fn has_local_file_protocol(spec: &str) -> bool {
     strip_ascii_case_prefix(spec, "file:").is_some()
         || strip_ascii_case_prefix(spec, "link:").is_some()
@@ -55,28 +152,42 @@ fn npm_alias_wraps_local_protocol(aliased: &str) -> bool {
 }
 
 fn workspace_spec_escapes_root(rest: &str, importer_dir: &str) -> bool {
-    if rest.starts_with("~/") || rest.contains('\\') || is_drive_letter_prefix(rest) {
+    if is_tilde_dir_prefix(rest) || rest.contains('\\') || is_drive_letter_prefix(rest) {
         return true;
     }
     (rest.starts_with('.') || rest.starts_with('/')) && escapes_workspace_root(importer_dir, rest)
 }
 
-fn escapes_workspace_root(importer_dir: &str, rel_path: &str) -> bool {
-    if rel_path.starts_with('/') || rel_path.contains('\\') || is_drive_letter_prefix(rel_path) {
+/// Whether `rel_path`, interpreted relative to POSIX `importer_dir` (`.` at
+/// the workspace root), escapes outside the workspace root.
+#[must_use]
+pub fn escapes_workspace_root(importer_dir: &str, rel_path: &str) -> bool {
+    if is_tilde_path(rel_path)
+        || rel_path.starts_with('/')
+        || rel_path.contains('\\')
+        || is_drive_letter_prefix(rel_path)
+    {
         return true;
     }
-    climbs_above_depth(rel_path, importer_depth(importer_dir))
+    let Some(initial_depth) = importer_depth(importer_dir) else {
+        return true;
+    };
+    climbs_above_depth(rel_path, initial_depth)
 }
 
-fn importer_depth(importer_dir: &str) -> usize {
-    if importer_dir == "." || importer_dir.is_empty() {
-        return 0;
+fn importer_depth(importer_dir: &str) -> Option<usize> {
+    if is_tilde_path(importer_dir)
+        || importer_dir.starts_with('/')
+        || importer_dir.contains('\\')
+        || is_drive_letter_prefix(importer_dir)
+    {
+        return None;
     }
-    importer_dir
-        .split('/')
-        .filter(|segment| !segment.is_empty())
-        .filter(|segment| *segment != ".")
-        .count()
+    let mut depth = 0;
+    for segment in importer_dir.split('/') {
+        depth = apply_path_segment(depth, segment)?;
+    }
+    Some(depth)
 }
 
 fn climbs_above_depth(rel_path: &str, initial_depth: usize) -> bool {

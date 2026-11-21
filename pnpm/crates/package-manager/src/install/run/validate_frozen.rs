@@ -35,7 +35,7 @@ use super::{
         load_wanted_lockfile,
         spawn_current_lockfile_load,
     },
-    pre_resolution::run_pre_resolution_hook,
+    pre_resolution::run_pre_resolution_hook_and_enrich,
     reject_frozen_with_update_checksums,
     settle_wanted_lockfile,
     settled::Settled,
@@ -68,12 +68,12 @@ pub struct PreparedFrozenInstall {
     pre_resolution: PreparedPreResolution,
     verified_wanted: Option<Arc<Lockfile>>,
     had_conflicts: bool,
-    lockfile_verified: bool,
+    verified_policy: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 struct VerifiedSettledFrozen {
     pre_resolution: PreparedPreResolution,
-    lockfile_verified: bool,
+    verified_policy: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 pub(crate) struct PreparedFrozenRun {
@@ -213,13 +213,17 @@ where
         if let Some(hook) = prepared.pnpmfile_hook {
             self.projects.pnpmfile_hook_override = Some(hook);
         }
-        let lockfile_verification_override =
-            (same_lockfile && prepared.lockfile_verified).then(|| {
-                Box::pin(async { Ok(()) }) as LockfileVerificationOverride<'a>
-            });
+        let prepared_policy = same_lockfile.then_some(prepared.verified_policy).flatten();
+        let lockfile_verification_override = prepared_policy
+            .is_some()
+            .then(|| Box::pin(async { Ok(()) }) as LockfileVerificationOverride<'a>);
         InstallRunOptions {
             selection,
-            lockfile_verification_override,
+            verification: crate::install::InstallVerificationOptions {
+                override_check: lockfile_verification_override,
+                prepared_policy,
+                extra_workspace_dirs: Vec::new(),
+            },
             manifests: InstallManifestOptions {
                 prepared_frozen: Some(PreparedFrozenRun {
                     manifests: Some(prepared.manifests),
@@ -280,7 +284,7 @@ impl<'a> RunExecution<'a> {
             .or_else(|| loaded.wanted.lockfile.cloned().map(Arc::new));
         let had_conflicts = loaded.wanted.had_conflicts;
         let manifests = std::mem::take(&mut loaded.manifests);
-        let VerifiedSettledFrozen { pre_resolution, lockfile_verified } = {
+        let VerifiedSettledFrozen { pre_resolution, verified_policy } = {
             let project_manifests = manifests.view(&scope.project_manifests);
             self.validate_project_manifests(&project_manifests)?;
             self.verify_settled_frozen::<Reporter>(&scope, &mut loaded, &project_manifests).await?
@@ -291,7 +295,7 @@ impl<'a> RunExecution<'a> {
             pre_resolution,
             verified_wanted,
             had_conflicts,
-            lockfile_verified,
+            verified_policy,
         })
     }
 
@@ -350,14 +354,16 @@ impl<'a> RunExecution<'a> {
             self.options.selection.as_ref(),
         )
         .await?;
-        let verification = Verification::set_up(&self, &lockfiles, (scope, project_manifests))?;
-        let hooked_current = run_pre_resolution_hook::<HookOnlyReporter<Reporter>>(
+        let mut verification =
+            Verification::set_up(&self, loaded, &lockfiles, (scope, project_manifests))?;
+        let hooked_current = run_pre_resolution_hook_and_enrich::<HookOnlyReporter<Reporter>>(
             self.install,
             &self.workspace,
-            loaded,
-            &mut lockfiles.wanted,
+            (loaded, &mut lockfiles.wanted),
+            &mut verification,
         )
         .await?;
+        verification.sync_derived_lockfile_path(&lockfiles.wanted, loaded);
         let lockfile_verified = {
             let settled = Settled::new(
                 (self.install, &self.owned, &self.mode, &self.workspace),
@@ -366,9 +372,16 @@ impl<'a> RunExecution<'a> {
             );
             verify_settled_frozen_path(settled).await?
         };
+        let verified_policy =
+            (!self.install.lockfile_policy.trust && lockfile_verified).then(|| {
+                pnpm_lockfile_verification::snapshot_verification_policy(
+                    &verification.resolution_verifiers,
+                    &verification.exotic_subdeps,
+                )
+            });
         let pre_resolution =
             PreparedPreResolution { hooked_wanted: lockfiles.wanted.take_hooked(), hooked_current };
-        Ok(VerifiedSettledFrozen { pre_resolution, lockfile_verified })
+        Ok(VerifiedSettledFrozen { pre_resolution, verified_policy })
     }
 }
 

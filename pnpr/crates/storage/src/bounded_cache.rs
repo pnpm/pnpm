@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     collections::{
         HashMap,
         VecDeque,
@@ -31,7 +32,11 @@ impl<Key, Value> Default for BoundedCache<Key, Value> {
 
 impl<Key: Clone + Eq + Hash, Value> BoundedCache<Key, Value> {
     /// The value stored for `key`.
-    pub fn get(&self, key: &Key) -> Option<&Value> {
+    pub fn get<Query>(&self, key: &Query) -> Option<&Value>
+    where
+        Key: Borrow<Query>,
+        Query: Eq + Hash + ?Sized,
+    {
         self.entries.get(key).map(|entry| &entry.value)
     }
 

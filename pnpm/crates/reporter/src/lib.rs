@@ -10,6 +10,8 @@
 //! Only the variants pacquet currently emits live in [`LogEvent`]. New
 //! channels are added incrementally as the surrounding code starts using
 //! them.
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 pub use fatal_error::FatalErrorLog;
 
@@ -165,6 +167,13 @@ pub enum LogEvent {
     /// than fail the install over.
     #[serde(rename = "pnpm:skipped-optional-dependency")]
     SkippedOptionalDependency(SkippedOptionalDependencyLog),
+
+    /// One per override selector that matched no resolved dependency
+    /// (`pnpm:unused-override`). The default reporter buffers these
+    /// against `pnpm:stage { stage: "resolution_done" }` and emits a
+    /// single grouped warning.
+    #[serde(rename = "pnpm:unused-override")]
+    UnusedOverride(UnusedOverrideLog),
 
     /// Package compatibility warning (`pnpm:install-check`).
     #[serde(rename = "pnpm:install-check")]
@@ -625,6 +634,22 @@ pub struct DeprecationLog {
     pub depth: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub non_deprecated_alternative: Option<NonDeprecatedAlternative>,
+    /// Whether the previous install already installed this package, so the
+    /// deprecation is not news. Skipped from the wire when `false`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub already_installed: bool,
+}
+
+/// `pnpm:unused-override` payload. Field names match the
+/// `UnusedOverrideMessage` wire shape in
+/// `pnpm11/core/core-loggers/src/unusedOverrideLogger.ts`. `prefix` is the
+/// workspace root (`lockfileDir`); `selector` is the raw override key
+/// (`foo`, `parent>child`, `foo@^1`).
+#[derive(Debug, Clone, Serialize)]
+pub struct UnusedOverrideLog {
+    pub level: LogLevel,
+    pub prefix: String,
+    pub selector: String,
 }
 
 /// A version of the same package that is not deprecated, as the resolver read
@@ -688,6 +713,13 @@ pub trait Reporter: Send + Sync + 'static {
 }
 
 /// Adapt a [`Reporter`] into the warning callback used by the network client.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the network client's `set_warning_handler` takes it as a `fn(&str)`"
+    )
+)]
 pub fn emit_global_warning<Sink: Reporter>(message: &str) {
     Sink::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Warn,

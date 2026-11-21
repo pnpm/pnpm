@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 // `plan_add`'s install future carries the engine's whole resolve-and-fetch
 // graph; proving it `Send` walks deeper than rustc's default limit.
 #![recursion_limit = "256"]

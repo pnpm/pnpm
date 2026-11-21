@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 pub mod file_mode;
 #[cfg(all(windows, feature = "test"))]
 pub mod test_support;
@@ -42,6 +44,7 @@ pub use internal_symlink::{
     selected_paths_and_ancestors,
     symlink_file_or_copy,
 };
+pub use is_hardlinked::is_hardlinked;
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{
@@ -67,6 +70,8 @@ pub use pending_temp::{
     remove_pending_temp_files,
     track_temp_file,
 };
+/// Re-exported so a caller naming a mode need not depend on the FFI crate.
+pub use pnpm_ffi_fs::FileMode;
 pub use private_named_tempfile::private_named_tempfile_in;
 pub use read_modules_dir::read_modules_dir;
 pub use realpath_missing::{
@@ -140,6 +145,7 @@ mod exchange_dirents;
 #[cfg(not(target_os = "wasi"))]
 mod file_lock;
 mod internal_symlink;
+mod is_hardlinked;
 mod is_not_found;
 mod is_subdir;
 mod lexical_normalize;

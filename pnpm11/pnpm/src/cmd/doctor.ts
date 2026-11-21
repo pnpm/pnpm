@@ -28,8 +28,8 @@ export const commandNames = ['doctor']
 
 /**
  * `pnpm doctor` runs read-only diagnostics that predict whether an install
- * will work on this machine and how fast it will be, plus one live check —
- * an offline `file:` install — that exercises the resolve → store → link
+ * will work on this machine and how fast it will be, plus one live check
+ * (an offline `file:` install) that exercises the resolve → store → link
  * path end to end. It runs the same checks whether a user invokes it or the
  * release pipeline does before promoting a version, so the release gate tests
  * exactly what ships.
@@ -171,7 +171,7 @@ function checkInstallMethod (): CheckResult {
 }
 
 /**
- * Check the global executables directory — where `pnpm setup` links binaries
+ * Check the global executables directory, where `pnpm setup` links binaries
  * and which must be on PATH for them to run. Not `opts.bin`, which outside
  * `--global` is the local `node_modules/.bin` and is never on PATH. The layout
  * moved between majors (v10 links into PNPM_HOME directly, v11 into

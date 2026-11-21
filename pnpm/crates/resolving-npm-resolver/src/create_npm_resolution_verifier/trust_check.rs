@@ -72,7 +72,7 @@ impl NpmResolutionVerifier {
 
 impl super::TrustCheck {
     pub(super) fn new(opts: super::VerificationTrustOptions) -> Self {
-        let sorted_excludes = super::policy_snapshot::sorted_unique(&opts.exclude_patterns);
+        let sorted_excludes = super::policy_snapshot::sorted_unique(opts.exclude_patterns);
         Self {
             policy: opts.policy,
             exclude: opts.exclude,

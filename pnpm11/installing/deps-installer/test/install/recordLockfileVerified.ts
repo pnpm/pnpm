@@ -62,7 +62,6 @@ function makeLockfile (): LockfileObject {
 test('no-op when cacheDir is undefined', () => {
   recordLockfileVerified({
     cacheDir: undefined,
-    lockfilePath,
     lockfile: makeLockfile(),
     resolutionVerifiers: [mraVerifier(60)],
   })
@@ -72,7 +71,6 @@ test('no-op when cacheDir is undefined', () => {
 test('no-op when resolutionVerifiers is empty', () => {
   recordLockfileVerified({
     cacheDir,
-    lockfilePath,
     lockfile: makeLockfile(),
     resolutionVerifiers: [],
   })
@@ -82,7 +80,6 @@ test('no-op when resolutionVerifiers is empty', () => {
 test('no-op when resolutionVerifiers is undefined', () => {
   recordLockfileVerified({
     cacheDir,
-    lockfilePath,
     lockfile: makeLockfile(),
     resolutionVerifiers: undefined,
   })
@@ -93,7 +90,6 @@ test('records nothing when the in-memory lockfile has no packages', async () => 
   await writeWantedLockfile(lockfileDir, makeLockfile())
   recordLockfileVerified({
     cacheDir,
-    lockfilePath,
     lockfile: { lockfileVersion: '9.0', importers: {} } as unknown as LockfileObject,
     resolutionVerifiers: [mraVerifier(60)],
   })
@@ -103,7 +99,7 @@ test('records nothing when the in-memory lockfile has no packages', async () => 
 test('records the load-equivalent hash — matches what the next install computes off-disk', async () => {
   // Use a fixture that carries an explicit `undefined` optional field
   // (the real divergence case install-time code produces), then pass
-  // the *writer's return value* to recordLockfileVerified — same flow
+  // the *writer's return value* to recordLockfileVerified, the same flow
   // as the production call sites. Passing the in-memory input here
   // instead would silently regress the moment the writer's
   // canonicalization stops matching the reader's output.
@@ -118,7 +114,6 @@ test('records the load-equivalent hash — matches what the next install compute
   const written = await writeWantedLockfile(lockfileDir, inMemoryLockfile)
   recordLockfileVerified({
     cacheDir,
-    lockfilePath,
     lockfile: written,
     resolutionVerifiers: [mraVerifier(60)],
   })
@@ -135,35 +130,38 @@ test('records the load-equivalent hash — matches what the next install compute
     lockfile: { hash: string, path: string }
   }
   expect(record.lockfile.hash).toBe(expectedHash)
-  expect(record.lockfile.path).toBe(lockfilePath)
+  expect(record.lockfile.path).toBe('')
 })
 
-test('respects the caller-supplied lockfilePath — git-branch lockfiles record under their branch-suffixed filename', async () => {
-  // Simulates `useGitBranchLockfile`: the actual on-disk lockfile is
-  // pnpm-lock.<branch>.yaml, not pnpm-lock.yaml. The helper has no
-  // git logic of its own — it records whatever path the caller hands
-  // it, so cache lookups on the same path will hit.
-  const branchLockfilePath = path.resolve(lockfileDir, 'pnpm-lock.feature-x.yaml')
-  await fs.promises.writeFile(branchLockfilePath, 'lockfileVersion: \'9.0\'\n')
-  const lockfile = makeLockfile()
+test('a file put at the lockfile path between the write and the record does not inherit the verdict', async () => {
+  const written = await writeWantedLockfile(lockfileDir, makeLockfile())
+  const replacement = {
+    ...makeLockfile(),
+    packages: {
+      'is-positive@1.0.0': { resolution: { tarball: 'https://evil.example/is-positive.tgz' } },
+    },
+  } as unknown as LockfileObject
+  await writeWantedLockfile(lockfileDir, replacement)
   recordLockfileVerified({
     cacheDir,
-    lockfilePath: branchLockfilePath,
-    lockfile,
+    lockfile: written,
     resolutionVerifiers: [mraVerifier(60)],
   })
-  const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
-  const record = JSON.parse(fs.readFileSync(cacheFile, 'utf8').trim()) as {
-    lockfile: { path: string }
-  }
-  expect(record.lockfile.path).toBe(branchLockfilePath)
+  const loaded = (await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }))!
+
+  const result = tryLockfileVerificationCache(cacheDir, {
+    lockfilePath,
+    verifiers: [mraVerifier(60)],
+    hashLockfile: () => hashObject(loaded),
+  })
+  expect(result.hit).toBe(false)
 })
 
-test('records a cache entry that the next install hits on both the stat shortcut and hash fallback paths', async () => {
+test('records a cache entry that the next install hits by content, then by the stat it indexes', async () => {
   // Mirror real call sites: hand `recordLockfileVerified` the
   // writer's return value rather than the in-memory input. With an
   // explicit `undefined` optional field in the fixture, those two
-  // diverge structurally — the in-memory variant would record a hash
+  // diverge structurally. The in-memory variant would record a hash
   // the next install can't match, and this test would silently miss
   // that regression.
   const inMemoryLockfile = {
@@ -177,40 +175,26 @@ test('records a cache entry that the next install hits on both the stat shortcut
   const written = await writeWantedLockfile(lockfileDir, inMemoryLockfile)
   recordLockfileVerified({
     cacheDir,
-    lockfilePath,
     lockfile: written,
     resolutionVerifiers: [mraVerifier(60)],
   })
   const loaded = (await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }))!
 
-  // Stat shortcut: file untouched since record.
-  const statResult = tryLockfileVerificationCache(cacheDir, {
+  const byContent = tryLockfileVerificationCache(cacheDir, {
     lockfilePath,
     verifiers: [mraVerifier(60)],
     hashLockfile: () => hashObject(loaded),
   })
-  expect(statResult.hit).toBe(true)
+  expect(byContent.hit).toBe(true)
 
-  // Hash fallback: invalidate stat fields the cache compares against so the
-  // shortcut bails. This is the CI-checkout / new-worktree path; the hash
-  // has to match for the fallback to hit, which is the whole point of
-  // hashing the canonical load-equivalent form. Use `size = -1` (impossible
-  // for a real file) rather than zeroing `inode`/`mtimeNs` alone — on
-  // Windows `stat.ino` is often 0, which would let the cached record
-  // accidentally match and skip the fallback path we want to exercise.
-  const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
-  const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8').trim()) as {
-    lockfile: { size: number }
-  }
-  cached.lockfile.size = -1
-  fs.writeFileSync(cacheFile, `${JSON.stringify(cached)}\n`)
-
-  const hashResult = tryLockfileVerificationCache(cacheDir, {
+  const byStat = tryLockfileVerificationCache(cacheDir, {
     lockfilePath,
     verifiers: [mraVerifier(60)],
-    hashLockfile: () => hashObject(loaded),
+    hashLockfile: () => {
+      throw new Error('the stat shortcut must not hash the lockfile')
+    },
   })
-  expect(hashResult.hit).toBe(true)
+  expect(byStat.hit).toBe(true)
 })
 
 test('refuses to record a lockfile with an invalid dependency alias or package key', () => {
@@ -226,7 +210,6 @@ test('refuses to record a lockfile with an invalid dependency alias or package k
   } as unknown as LockfileObject
   recordLockfileVerified({
     cacheDir,
-    lockfilePath,
     lockfile: tamperedImporter,
     resolutionVerifiers: [mraVerifier(60)],
   })
@@ -243,7 +226,6 @@ test('refuses to record a lockfile with an invalid dependency alias or package k
   } as unknown as LockfileObject
   recordLockfileVerified({
     cacheDir,
-    lockfilePath,
     lockfile: tamperedPackageKey,
     resolutionVerifiers: [mraVerifier(60)],
   })

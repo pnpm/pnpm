@@ -41,7 +41,7 @@ use std::{
 /// alotta-files fixture, and it is what gets saved anyway.
 pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
-    lockfile_verification_gate: &mut Option<crate::LockfileVerificationGate>,
+    lockfile_handles: &mut super::WantedLockfileHandles,
     resolved_time: BTreeMap<String, String>,
     resolved: &Resolved<'a, Reporter>,
     views: LockfileViews<'_, 'a>,
@@ -54,7 +54,7 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
             .await
             .map_err(InstallWithFreshLockfileError::PnpmfileHook)?;
     if install.execution.lockfile_only() {
-        await_lockfile_gate(lockfile_verification_gate).await?;
+        await_lockfile_gate(&mut lockfile_handles.verification_gate).await?;
     }
     let phase_start = std::time::Instant::now();
     let built_lockfile = build_resolved_lockfile(
@@ -66,12 +66,13 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
         untracked_pnpmfile_read_package_hook,
     )?;
     if verify_filtered_repair {
-        await_lockfile_gate(lockfile_verification_gate).await?;
+        await_lockfile_gate(&mut lockfile_handles.verification_gate).await?;
     }
     verify_repair_if_filtered::<Reporter>(
-        verify_filtered_repair,
+        verify_filtered_repair.then_some((&install, views.catalogs)),
         &built_lockfile,
-        install.resolution_verifiers,
+        lockfile_handles.exotic_subdeps.clone(),
+        resolved.hooks.after_all_resolved_hook.as_deref(),
     )
     .await?;
     tracing::info!(

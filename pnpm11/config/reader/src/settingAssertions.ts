@@ -7,7 +7,7 @@ export function renderReceivedType (value: unknown): string {
 }
 
 // The `update`, `audit` and `packageExtensions` sections come from repo-controlled
-// pnpm-workspace.yaml, which is parsed untyped — so their fields are validated
+// pnpm-workspace.yaml, which is parsed untyped, so their fields are validated
 // here. An invalid `audit.level` is especially worth catching: it would leave
 // `pnpm audit` comparing severities against `undefined`, silently reporting no
 // advisories.

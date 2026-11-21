@@ -58,7 +58,7 @@ pub fn private_workspace_dependencies(
         let Some(spec) = spec.as_str() else {
             continue;
         };
-        let spec = replace_catalog_protocol(dep_name, spec, dir, opts)?;
+        let spec = replace_catalog_protocol(dep_name.clone(), spec, dir, opts)?;
         if is_private_workspace_package(dep_name, &spec, dir, opts)? {
             private.push(dep_name.clone());
         }

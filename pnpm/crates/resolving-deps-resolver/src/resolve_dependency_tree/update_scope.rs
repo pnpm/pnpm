@@ -72,9 +72,9 @@ impl VersionLine {
 }
 
 /// The packages a `pacquet update` targets, each mapped to the version
-/// lines its selectors scoped it to or the exact versions its caller named
-/// -- or to `None` when a selector named no single version, which targets
-/// the package at every version. See [`VersionLine`].
+/// lines its selectors scoped it to, to the exact versions its caller
+/// named, or to `None` when a selector named no single version, which
+/// targets the package at every version. See [`VersionLine`].
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UpdateTargets(BTreeMap<String, Option<BTreeSet<TargetedVersions>>>);
 
@@ -282,6 +282,13 @@ pub(super) fn is_update_target(
 mod tests;
 
 impl super::TreeCtx {
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "`alias` and `specifier` are copied only after the update-all early return, and the caller borrows them while filtering a map, so owned parameters would allocate on every call."
+        )
+    )]
     pub(crate) fn direct_dependency_is_updated(&self, alias: &str, specifier: &str) -> bool {
         if matches!(self.update_reuse_scope(), UpdateReuseScope::All) {
             return false;

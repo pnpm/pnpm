@@ -226,10 +226,28 @@ fn persist_and_report_excludes<ReporterImpl: Reporter>(
         .map(|violation| format!("{}@{}", violation.name, violation.version))
         .collect();
     let added = merge_package_version_specs(&added).map_err(MinimumReleaseAgeError::VersionPolicy)?;
+    write_and_report_excludes::<ReporterImpl>(workspace_dir, &added, mode)
+}
+
+/// Add release-age fallback picks that a loose resolution made to
+/// `minimumReleaseAgeExclude` and report them. `picks` are already merged
+/// `name@version || version` specs.
+pub fn persist_loose_release_age_picks<ReporterImpl: Reporter>(
+    workspace_dir: &Path,
+    picks: &[String],
+) -> Result<(), MinimumReleaseAgeError> {
+    write_and_report_excludes::<ReporterImpl>(workspace_dir, picks, ExcludeReportMode::Loose)
+}
+
+fn write_and_report_excludes<ReporterImpl: Reporter>(
+    workspace_dir: &Path,
+    added: &[String],
+    mode: ExcludeReportMode,
+) -> Result<(), MinimumReleaseAgeError> {
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
-            added_minimum_release_age_excludes: &added,
+            added_minimum_release_age_excludes: added,
             ..Default::default()
         },
     )

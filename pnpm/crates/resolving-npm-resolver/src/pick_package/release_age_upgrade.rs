@@ -86,7 +86,7 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     match fetch_release_age_upgrade(&spec.name, &fetch_opts, !opts.request.dry_run).await {
         Ok(upgraded) => {
             let meta = Arc::new(upgraded);
-            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
+            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key.to_owned(), &meta);
             Ok(UpgradeOutcome { meta, upgraded: true })
         }
         Err(error) if !matches!(error, FetchMetadataError::NotModifiedWithoutCache { .. }) => {
@@ -109,7 +109,7 @@ fn declined_upgrade<Cache: PackageMetaCache>(
     cache_key: &str,
     meta: Arc<Package>,
 ) -> Result<UpgradeOutcome, PickPackageError> {
-    ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
+    ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key.to_owned(), &meta);
     if !opts.request.dry_run {
         ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }

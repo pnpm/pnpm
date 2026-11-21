@@ -1,34 +1,34 @@
 use super::{
-    InstallFrozenLockfileError,
-    LocalLockfileInstall,
     Lockfile,
-    LockfileVerificationOverride,
-    PnprClient,
-    PnprClientError,
     PnprLink,
     PnprSession,
     Reporter,
     State,
-    VerifiedOfflineLockfile,
-    VerifyLockfileOptions,
-    VerifyLockfileResolutionsOptions,
     build_resolution_verifiers,
-    record_lockfile_verified,
+};
+use pnpm_lockfile_verification::{
+    ExoticSubdepsPolicy,
+    VerifiedOfflineLockfile,
+    VerifyLockfileResolutionsOptions,
     verify_lockfile_resolutions,
 };
+
+type VerifierList = Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>;
 
 /// Offline structural and shape verification for an existing lockfile before
 /// delegating policy verification or resolution to the pnpr server. Runs even
 /// under `--trust-lockfile`, which opts out only of online supply-chain policy
 /// verifiers.
 pub(super) fn verify_pnpr_input_lockfile<'a>(
+    state: &State,
     link: &PnprLink<'_>,
     lockfile: &'a Lockfile,
 ) -> miette::Result<VerifiedOfflineLockfile<'a>> {
+    let local_policy = pnpm_deps_restorer::local_resolution_policy_for_config(state.config, false);
     let result = if link.lockfile.fix {
-        VerifiedOfflineLockfile::verify_for_repair(lockfile)
+        VerifiedOfflineLockfile::verify_for_repair_with_policy(lockfile, Some(local_policy))
     } else {
-        VerifiedOfflineLockfile::verify(lockfile)
+        VerifiedOfflineLockfile::verify_with_policy(lockfile, Some(local_policy))
     };
     result.map_err(miette::Report::new)
 }
@@ -40,21 +40,95 @@ pub(super) async fn verify_settled_pnpr_lockfile<Reporter: self::Reporter + 'sta
     state: &State,
     link: &PnprLink<'_>,
     session: &PnprSession<'_>,
+    exotic_subdeps: &ExoticSubdepsPolicy,
     lockfile: &Lockfile,
-) -> miette::Result<Option<Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>>>
-{
-    let verified = VerifiedOfflineLockfile::verify(lockfile).map_err(miette::Report::new)?;
-    if !(link.lockfile.fix && session.partial_selection) {
-        return Ok(None);
+) -> miette::Result<Option<VerifierList>> {
+    let local_policy = pnpm_deps_restorer::enrich_local_policy_for_install(
+        pnpm_deps_restorer::local_resolution_policy_for_config(state.config, false),
+        lockfile,
+        pnpm_deps_restorer::LocalPolicyEnrichDrivers {
+            config: Some(state.config),
+            http_client: Some(&state.http_client),
+            hook: None,
+        },
+    )
+    .await
+    .map_err(|error| {
+        miette::Report::new(pnpm_package_manager::InstallError::ReadPackageHook(error))
+    })?;
+    let verified =
+        VerifiedOfflineLockfile::verify_with_policy(lockfile, Some(local_policy.clone()))
+            .map_err(miette::Report::new)?;
+    let settled = SettledPnprLockfile { lockfile, verified, exotic_subdeps, local_policy };
+    if link.lockfile.fix && session.partial_selection {
+        return verify_merged_repair_policies::<Reporter>(state, link, settled).await;
     }
-    let verifiers =
-        if link.lockfile.trust { Vec::new() } else { state_resolution_verifiers(state)? };
-    if !verifiers.is_empty() && !verified.is_cached_by_content(&state.config.cache_dir, &verifiers)
+    if !link.lockfile.trust {
+        verify_settled_exotic_subdeps::<Reporter>(state, settled).await?;
+    }
+    Ok(None)
+}
+
+/// The settled lockfile and what its verification needs.
+struct SettledPnprLockfile<'a> {
+    lockfile: &'a Lockfile,
+    verified: VerifiedOfflineLockfile<'a>,
+    exotic_subdeps: &'a ExoticSubdepsPolicy,
+    local_policy: pnpm_lockfile_verification::LocalResolutionPolicy,
+}
+
+async fn verify_settled_exotic_subdeps<Reporter: self::Reporter + 'static>(
+    state: &State,
+    SettledPnprLockfile {
+        lockfile,
+        verified,
+        exotic_subdeps,
+        local_policy,
+    }: SettledPnprLockfile<'_>,
+) -> miette::Result<()> {
+    if !exotic_subdeps.is_enforced()
+        || verified.is_cached_by_content(&state.config.cache_dir, &[], exotic_subdeps)
+    {
+        return Ok(());
+    }
+    verify_lockfile_resolutions::<Reporter>(
+        lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions {
+            exotic_subdeps: exotic_subdeps.clone(),
+            local_policy: Some(local_policy),
+            ..Default::default()
+        },
+    )
+    .await
+    .map_err(miette::Report::new)
+}
+
+async fn verify_merged_repair_policies<Reporter: self::Reporter + 'static>(
+    state: &State,
+    link: &PnprLink<'_>,
+    SettledPnprLockfile {
+        lockfile,
+        verified,
+        exotic_subdeps,
+        local_policy,
+    }: SettledPnprLockfile<'_>,
+) -> miette::Result<Option<VerifierList>> {
+    if link.lockfile.trust {
+        return Ok(Some(Vec::new()));
+    }
+    let verifiers = state_resolution_verifiers(state)?;
+    if (!verifiers.is_empty() || exotic_subdeps.is_enforced())
+        && !verified.is_cached_by_content(&state.config.cache_dir, &verifiers, exotic_subdeps)
     {
         verify_lockfile_resolutions::<Reporter>(
             lockfile,
             &verifiers,
-            &VerifyLockfileResolutionsOptions::default(),
+            &VerifyLockfileResolutionsOptions {
+                exotic_subdeps: exotic_subdeps.clone(),
+                local_policy: Some(local_policy),
+                ..Default::default()
+            },
         )
         .await
         .map_err(miette::Report::new)?;
@@ -62,71 +136,7 @@ pub(super) async fn verify_settled_pnpr_lockfile<Reporter: self::Reporter + 'sta
     Ok(Some(verifiers))
 }
 
-/// The verification the frozen install runs concurrently with its fetch.
-/// `None` under `--trust-lockfile`, and when this exact lockfile was
-/// already verified against the same resolvers.
-pub(super) fn local_lockfile_verification<'a>(
-    state: &'a State,
-    pnpr_server: &str,
-    link: &PnprLink<'_>,
-    local: &LocalLockfileInstall<'a>,
-    verified_input: VerifiedOfflineLockfile<'a>,
-) -> miette::Result<Option<LockfileVerificationOverride<'a>>> {
-    if link.lockfile.trust {
-        return Ok(None);
-    }
-    let verifiers = state_resolution_verifiers(state)?;
-    if verified_input.is_cached(&state.config.cache_dir, local.lockfile_path, &verifiers) {
-        return Ok(None);
-    }
-    let verify_opts = local_verify_options(state, pnpr_server, link, local);
-    let verify_client = PnprClient::new(pnpr_server);
-    let cache_dir = state.config.cache_dir.clone();
-    let record_lockfile_path = local.lockfile_path.to_path_buf();
-    let lockfile = local.lockfile;
-    Ok(Some(Box::pin(async move {
-        match verify_client.verify_lockfile(verify_opts).await {
-            Ok(()) => {
-                record_lockfile_verified(
-                    Some(&cache_dir),
-                    &record_lockfile_path,
-                    lockfile,
-                    &verifiers,
-                );
-                Ok(())
-            }
-            Err(PnprClientError::Verification(verify_err)) => {
-                Err(InstallFrozenLockfileError::LockfileVerification(verify_err))
-            }
-            Err(err) => {
-                Err(InstallFrozenLockfileError::ExternalLockfileVerification(err.to_string()))
-            }
-        }
-    }) as LockfileVerificationOverride<'a>))
-}
-
-fn local_verify_options(
-    state: &State,
-    pnpr_server: &str,
-    link: &PnprLink<'_>,
-    local: &LocalLockfileInstall<'_>,
-) -> VerifyLockfileOptions {
-    VerifyLockfileOptions {
-        overrides: local.overrides.cloned(),
-        lockfile: local.lockfile.clone(),
-        trust_lockfile: link.lockfile.trust,
-        routing: pnpm_pnpr_client::RegistryRouting {
-            registry: local.resolve_registry.to_owned(),
-            registries: state.config.registry_declarations(),
-            authorization: state.config.auth_headers.for_url(pnpr_server),
-        },
-        verification: super::pnpr_request::verification_policy(state.config),
-    }
-}
-
-fn state_resolution_verifiers(
-    state: &State,
-) -> miette::Result<Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>> {
+pub(super) fn state_resolution_verifiers(state: &State) -> miette::Result<VerifierList> {
     build_resolution_verifiers(
         state.config,
         std::sync::Arc::clone(&state.http_client),

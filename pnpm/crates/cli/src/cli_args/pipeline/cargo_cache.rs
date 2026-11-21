@@ -218,7 +218,7 @@ impl CargoCache {
 pub(super) fn snapshot_entry(
     cache_dir: &Path,
     project: &Path,
-    task_key: &str,
+    task_key: String,
     environment: &BTreeMap<String, String>,
 ) -> io::Result<(PathBuf, String, Vec<String>)> {
     let cache_dir = pnpm_fs::realpath_missing(cache_dir)?;
@@ -229,7 +229,7 @@ pub(super) fn snapshot_entry(
         &project,
         environment,
     )?;
-    let mut inputs = vec!["pnpm-cargo-state:v1".to_string(), task_key.to_string()];
+    let mut inputs = vec!["pnpm-cargo-state:v1".to_string(), task_key];
     inputs.push(command_output("rustc", &["-vV"], &project, environment)?);
     inputs.push(command_output("cargo", &["-vV"], &project, environment)?);
     let metadata: serde_json::Value = serde_json::from_str(&command_output(

@@ -1,7 +1,5 @@
-use super::{
-    file_spec_to_package_root_link,
-    link_file_deps_inside_package,
-};
+use super::link_file_deps_inside_package;
+use pnpm_lockfile::file_spec_to_package_root_link;
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
 

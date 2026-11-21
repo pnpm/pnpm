@@ -135,6 +135,7 @@ function parseBoolean (envVar: string): boolean | undefined {
 }
 
 function parseNumber (envVar: string): number | undefined {
+  if (envVar.trim() === '') return undefined
   const value = Number(envVar)
   return isNaN(value) ? undefined : value
 }

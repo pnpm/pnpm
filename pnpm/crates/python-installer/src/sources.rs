@@ -242,7 +242,7 @@ impl Registry<'_> {
             if !self.has_wheel(&name, &version) {
                 bail!("the Python git source built a different version of {name}=={version}");
             }
-            self.record_sources(&[])?;
+            self.record_sources(Vec::new())?;
         }
         Ok(())
     }
@@ -261,8 +261,8 @@ impl Registry<'_> {
         wanted
     }
 
-    pub(super) fn record_sources(&mut self, requirements: &[Requirement]) -> Result<()> {
-        let mut declared = requirements.to_vec();
+    pub(super) fn record_sources(&mut self, requirements: Vec<Requirement>) -> Result<()> {
+        let mut declared = requirements;
         for ((name, version), metadata) in &self.resolution.packages.metadata {
             if !self.resolution.packages.candidates
                 .get(name)

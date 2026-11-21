@@ -7,6 +7,7 @@ use super::{
     FrontierNode,
     HashSet,
     NodeSeed,
+    ParentOrigin,
     Path,
     PendingNode,
     Pipe,
@@ -37,6 +38,7 @@ use super::{
     warm_children_resolutions,
     write_recoverable,
 };
+use std::path::PathBuf;
 
 /// Seed every child edge of one occurrence (its manifest's
 /// dependencies less the names its own `peerDependencies` shadow, with
@@ -145,11 +147,11 @@ pub(super) struct ChildSeedScope<'s> {
     /// whole child fanout instead of locking per edge.
     pub(super) direct_versions: Option<Arc<super::super::workspace_ctx::DirectDepVersions>>,
     pub(super) declaring_dir: Option<Arc<Path>>,
-    pub(super) parent_is_workspace: bool,
+    pub(super) parent_origin: ParentOrigin<'s>,
 }
 
 impl<'s> ChildSeedScope<'s> {
-    pub(super) fn of(ctx: &'s TreeCtx, pending: &PendingNode) -> Self {
+    pub(super) fn of(ctx: &'s TreeCtx, pending: &'s PendingNode) -> Self {
         let landed_prior = pending.lockfile.prior_key
             .as_ref()
             .filter(|key| {
@@ -166,7 +168,7 @@ impl<'s> ChildSeedScope<'s> {
     /// lockfile entry `landed_prior` when it has one.
     pub(super) fn for_result(
         ctx: &'s TreeCtx,
-        result: &pnpm_resolving_resolver_base::ResolveResult,
+        result: &'s pnpm_resolving_resolver_base::ResolveResult,
         landed_prior: Option<&PkgNameVerPeer>,
     ) -> Self {
         Self {
@@ -181,7 +183,7 @@ impl<'s> ChildSeedScope<'s> {
                 .get(&ctx.importer.id)
                 .map(Arc::clone),
             declaring_dir: declaring_manifest_dir(&ctx.importer.lockfile_dir, result),
-            parent_is_workspace: result.resolved_via == "workspace",
+            parent_origin: ParentOrigin::of(result),
         }
     }
 }
@@ -210,7 +212,7 @@ where
             pick_overlay: node.children_overlay.clone(),
             parent_dir: scope.declaring_dir.as_deref(),
             parent_pkg_aliases: &node.children_pkg_aliases,
-            parent_is_workspace: scope.parent_is_workspace,
+            parent_origin: scope.parent_origin,
         },
     )
     .await?;
@@ -335,16 +337,38 @@ pub(super) fn overlay_lookup_names<'edge>(
 }
 
 /// Whether this package's child specifiers pass through the importer's
-/// catalogs: a `file:` directory package does, however it was declared. That
-/// makes them a property of the resolving importer
+/// catalogs: an injected workspace project does, whether it was declared by a
+/// `workspace:` specifier or by a path to a workspace project. Any other
+/// `file:` directory is not part of the workspace, so a `catalog:` spec in it
+/// stays unsupported. That makes them a property of the resolving importer
 /// rather than of the package id, the one input
 /// [`fn@crate::resolve_dependency_tree::workspace_ctx::recorded_children_match`] cannot compare, since the recorded
 /// context does not carry the catalogs the recording importer used.
 pub(super) fn resolves_children_through_catalogs(
+    ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> bool {
-    result.id.as_str().starts_with("file:")
-        && matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+    let Some(dir) = declaring_manifest_dir(&ctx.importer.lockfile_dir, result) else {
+        return false;
+    };
+    result.resolved_via == "workspace" || workspace_project_dirs(ctx).contains(dir.as_ref())
+}
+
+fn workspace_project_dirs(ctx: &TreeCtx) -> &HashSet<PathBuf> {
+    ctx.importer.workspace_project_dirs.get_or_init(|| {
+        ctx.options.base.project.workspace_packages
+            .iter()
+            .flat_map(|packages| packages.values())
+            .flat_map(|versions| versions.values())
+            .flat_map(|package| {
+                let linked = pnpm_resolving_npm_resolver::resolve_workspace_package_dir(
+                    &package.root_dir,
+                    &package.manifest,
+                );
+                [package.root_dir.as_path(), linked.as_path()].map(pnpm_fs::lexical_normalize)
+            })
+            .collect()
+    })
 }
 
 pub(super) fn catalogs_for_children(

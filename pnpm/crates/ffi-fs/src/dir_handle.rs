@@ -358,15 +358,25 @@ fn entry_kind(mode: libc::mode_t) -> EntryKind {
 /// answers `false`.
 #[must_use]
 pub fn can_write_and_search(path: &Path) -> bool {
+    effective_access(path, libc::W_OK | libc::X_OK)
+}
+
+/// Whether the calling user may execute `path`, asked of the effective user
+/// as `exec` asks it. A path that does not exist, or that cannot be reached,
+/// answers `false`.
+#[must_use]
+pub fn can_execute(path: &Path) -> bool {
+    effective_access(path, libc::X_OK)
+}
+
+fn effective_access(path: &Path, mode: libc::c_int) -> bool {
     let Ok(path) = path_argument(path.as_os_str()) else {
         return false;
     };
     // SAFETY: the string is NUL-terminated and borrowed for the whole call,
     // which writes no memory. `AT_FDCWD` resolves the path as an ordinary
     // relative or absolute path.
-    let permitted = unsafe {
-        libc::faccessat(libc::AT_FDCWD, path.as_ptr(), libc::W_OK | libc::X_OK, EFFECTIVE_IDS)
-    };
+    let permitted = unsafe { libc::faccessat(libc::AT_FDCWD, path.as_ptr(), mode, EFFECTIVE_IDS) };
     permitted == 0
 }
 

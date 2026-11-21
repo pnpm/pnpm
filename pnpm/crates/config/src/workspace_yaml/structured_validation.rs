@@ -60,6 +60,7 @@ pub fn validate_structured_setting(
             parse_workspace_yaml_setting(camel_key, value, target).map(|_| ())
         }
         "concurrencyGroups" => validate_concurrency_groups(value, target),
+        "editor" => parse_workspace_yaml_setting(camel_key, value, target).map(|_| ()),
         "globalPackagesConfig" => validate_global_packages(value),
         "remoteSideEffectsCache"
         | "remoteCache"

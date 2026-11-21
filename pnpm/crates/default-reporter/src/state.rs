@@ -18,6 +18,7 @@ use std::{
         BTreeMap,
         BTreeSet,
         HashMap,
+        HashSet,
     },
     path::{
         Component,
@@ -56,6 +57,8 @@ use pnpm_reporter::{
     SkippedOptionalReason,
     Stage,
     StatsMessage,
+    SummaryLog,
+    UnusedOverrideLog,
     UpdateCheckLog,
 };
 use serde_json::Value;
@@ -134,6 +137,9 @@ struct PackageDiff {
 struct ManifestDiff {
     initial: Option<Value>,
     updated: Option<Value>,
+    /// Whether the edit from `initial` to `updated` is already folded into
+    /// the summary's changes.
+    applied: bool,
 }
 
 /// The five dependency buckets, in summary render order.
@@ -230,9 +236,20 @@ struct InstallProgress {
     stats_slot: BlockSlot,
 }
 
+/// [`PackageDiff`]s keyed by [`diff_key`], then by sign and name.
+type DiffBuckets = HashMap<&'static str, HashMap<String, PackageDiff>>;
+
 struct SummaryState {
-    diff: HashMap<&'static str, HashMap<String, PackageDiff>>,
+    /// The changes of the current project, or of every project under
+    /// [`SummaryScope::AllPrefixes`].
+    diff: DiffBuckets,
+    /// The changes of the other projects, keyed by normalized prefix. Only
+    /// a workspace summary renders them.
+    other_projects: HashMap<String, DiffBuckets>,
+    /// Keyed by normalized prefix.
     manifest_diffs: HashMap<String, ManifestDiff>,
+    /// Set by a `pnpm:summary` that covers a workspace of several projects.
+    workspace: Option<WorkspaceSummary>,
     slot: BlockSlot,
     seen: bool,
     rendered: bool,
@@ -253,8 +270,17 @@ struct LifecycleState {
 struct NoticeState {
     warnings: usize,
     collapsed_slot: BlockSlot,
-    deprecated_subdeps: Vec<DeprecationLog>,
+    /// Every `pnpm:deprecation` not printed yet. pnpm reports each
+    /// deprecated package once, for whichever project reached it first.
+    deprecations: Vec<DeprecationLog>,
+    /// The index in `deprecations` of the first notice of each package, by
+    /// name and then version.
+    deprecation_index: HashMap<String, HashMap<String, usize>>,
     deprecated_slot: BlockSlot,
+    /// `pnpm:unused-override` selectors withheld until
+    /// `pnpm:stage { stage: "resolution_done" }`, mirroring
+    /// `reportUnusedOverrides.ts`'s `buffer(resolutionDone$)`.
+    unused_overrides: Vec<String>,
     reported_peer_issues: bool,
     approvals: PendingApprovals,
 }
@@ -376,7 +402,7 @@ impl ReporterState {
             LogEvent::Stats(log) => self.on_stats(&log.message),
             LogEvent::Root(log) => self.on_root(&log.message),
             LogEvent::PackageManifest(log) => self.on_manifest(&log.message),
-            LogEvent::Summary(log) => self.on_summary(&log.prefix),
+            LogEvent::Summary(log) => self.on_summary(log),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
             LogEvent::PendingSkills(log) => self.on_pending_skills(log),
@@ -401,6 +427,7 @@ impl ReporterState {
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             LogEvent::Hook(log) => self.on_hook(log),
             LogEvent::Deprecation(log) => self.on_deprecation(log),
+            LogEvent::UnusedOverride(log) => self.on_unused_override(log),
             LogEvent::PeerDependencyIssues(_) => self.on_peer_dependency_issues(),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
@@ -414,7 +441,9 @@ impl ReporterState {
     /// pass: below `info`, [`Self::on_lifecycle`] buffers each script and
     /// prints only failed ones. Dedupe-check issues always pass too,
     /// upstream reports them as an error-level log
-    /// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`).
+    /// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`). The
+    /// `resolution_done` stage passes wherever warnings do, since it is what
+    /// flushes the buffered deprecation and unused-override warnings.
     fn level_permits(&self, event: &LogEvent) -> bool {
         match event {
             LogEvent::Lockfile(_)
@@ -427,7 +456,11 @@ impl ReporterState {
             | LogEvent::PendingSkills(_)
             | LogEvent::RequestRetry(_)
             | LogEvent::Deprecation(_)
+            | LogEvent::UnusedOverride(_)
             | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,
+            LogEvent::Stage(log) if log.stage == Stage::ResolutionDone => {
+                self.options.max_log_level >= MaxLogLevel::Warn
+            }
             LogEvent::LockfileVerification(log) => {
                 matches!(log.message, LockfileVerificationMessage::Failed { .. })
                     || self.options.max_log_level >= MaxLogLevel::Info
@@ -478,6 +511,11 @@ mod progress;
 
 mod summary;
 
+mod deprecations;
+
+mod workspace_summary;
+use workspace_summary::WorkspaceSummary;
+
 mod manifest_diff;
 use manifest_diff::{
     added_diff,
@@ -518,7 +556,7 @@ impl DisplayState {
             if lines.is_empty() { Output::None } else { Output::Lines(lines) }
         } else {
             let frame = self.frame.render();
-            if self.last_frame.as_deref() == Some(frame.as_str()) {
+            if self.last_frame.as_deref().unwrap_or_default() == frame {
                 Output::None
             } else {
                 self.last_frame = Some(frame.clone());
@@ -535,14 +573,20 @@ impl Frame {
     }
 }
 
+fn empty_diff_buckets() -> DiffBuckets {
+    SUMMARY_ORDER
+        .into_iter()
+        .map(|kind| (diff_key(kind), HashMap::new()))
+        .collect()
+}
+
 impl Default for SummaryState {
     fn default() -> Self {
         Self {
-            diff: SUMMARY_ORDER
-                .into_iter()
-                .map(|kind| (diff_key(kind), HashMap::new()))
-                .collect(),
+            diff: empty_diff_buckets(),
+            other_projects: HashMap::new(),
             manifest_diffs: HashMap::new(),
+            workspace: None,
             slot: BlockSlot::default(),
             seen: false,
             rendered: false,

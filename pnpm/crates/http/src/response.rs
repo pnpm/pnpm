@@ -90,19 +90,24 @@ impl Response {
         Ok(self)
     }
     pub async fn chunk(&mut self) -> Result<Option<Bytes>> {
-        let value =
-            pnpm_wasm_host::request(&json!({"operation":"stream.read", "handle":self.handle}))
-                .map_err(Error::body)?
-                .await
-                .map_err(Error::body)?;
+        let (value, bytes) = pnpm_wasm_host::request_binary(
+            &json!({"operation":"stream.read", "handle":self.handle}),
+        )
+        .map_err(Error::body)?
+        .await
+        .map_err(Error::body)?;
         #[derive(serde::Deserialize)]
         struct Chunk {
             done: bool,
-            bytes: Vec<u8>,
         }
         let chunk: Chunk = serde_json::from_value(value)
             .map_err(|error| Error::new(Kind::Decode, error.to_string()))?;
-        Ok((!chunk.done).then(|| Bytes::from(chunk.bytes)))
+        if chunk.done {
+            return Ok(None);
+        }
+        let bytes =
+            bytes.ok_or_else(|| Error::new(Kind::Decode, "Missing binary HTTP response chunk"))?;
+        Ok(Some(Bytes::from(bytes)))
     }
     pub async fn bytes(mut self) -> Result<Bytes> {
         let mut bytes = Vec::new();

@@ -117,8 +117,8 @@ impl BlobSlot {
 
     /// The slot of a file of `version`, whose mapping goes with the version.
     #[must_use]
-    pub fn for_version(mut self, version: &str) -> Self {
-        self.version = version.to_string();
+    pub fn for_version(mut self, version: String) -> Self {
+        self.version = version;
         self
     }
 

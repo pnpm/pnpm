@@ -56,7 +56,7 @@ const _proofTypedWorkspaceManifestKeysAreExhaustive: ProofTypedWorkspaceManifest
 
 /**
  * The {@link ConfigWithDeprecatedSettings} fields that neither {@link types}
- * nor {@link TYPED_WORKSPACE_MANIFEST_KEYS} carries — settings whose only
+ * nor {@link TYPED_WORKSPACE_MANIFEST_KEYS} carries: settings whose only
  * spelling is a camelCase config field (e.g. `catalogPrune`), and the reader's
  * own derived fields. {@link ProofKnownSettingKeysCoverConfig} forces a new
  * config field to be added here, so a setting introduced later cannot start
@@ -158,6 +158,7 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
   bootConfig: 'pnpm v12',
   cargo: 'pnpm v12',
   concurrencyGroups: 'pnpm v12',
+  editor: 'pnpm v12',
   globalPackagesConfig: 'pnpm v12',
   globalShims: 'pnpm v12',
   macosBackup: 'pnpm v12',
@@ -174,6 +175,7 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
   storeIndexFormat: 'pnpm v12',
   symlinkedLockfileTargetDirs: 'pnpm v12',
   tools: 'pnpm v12',
+  warnUnusedOverrides: 'pnpm v12',
 }
 
 const KNOWN_SETTING_KEYS_LIST = [...KNOWN_SETTING_KEYS]

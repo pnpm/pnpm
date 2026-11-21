@@ -181,6 +181,11 @@ pub enum InstallFrozenLockfileError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomFetcherHook(#[error(not(source))] pnpm_hooks::HookError),
 
+    /// The pnpmfile's `readPackage` hook threw on a package's manifest while
+    /// the lockfile's local dependencies were being verified.
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
+    ReadPackageHook(#[error(not(source))] pnpm_hooks::HookError),
+
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
 
@@ -432,7 +437,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         verification_override: Option<LockfileVerificationOverride<'_>>,
         known_requires_build: Option<&crate::RequiresBuildBySnapshot>,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
-        let swap_lock = crate::ModulesSwapLock::new(&self.drivers.config.modules_dir);
+        let swap_lock = crate::ModulesSwapLock::new(self.drivers.config.modules_dir.clone());
         let ctx = crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: self.logged_methods,

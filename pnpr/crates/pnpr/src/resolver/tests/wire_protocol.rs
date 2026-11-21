@@ -18,7 +18,6 @@ use super::{
     registry_config,
     reject_inline_url_auth,
     set_local_hosted_rules,
-    store_resolution,
     tarball_router,
     tarball_router_with_registries,
     upstream_with_access,
@@ -61,13 +60,15 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     let router = tarball_router(&registry, user("alice"));
     let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
 
-    assert!(store_resolution(
+    let allowed_picks = vec!["acme@1.0.0".to_string()];
+    assert!(super::super::cache::store_resolution_with_allowed_picks(
         &cache,
         Duration::from_mins(1),
         key.clone(),
         private_alias_footprint("corp"),
         b"secret",
         &routed,
+        allowed_picks.clone(),
     ));
     let cached = cached_resolution(
         &cache,
@@ -77,10 +78,11 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
         &user("alice"),
     )
     .expect("authorized caller reuses private cached lockfile");
-    let tarball = lockfile_tarball_url(&cached, "acme@1.0.0");
+    let tarball = lockfile_tarball_url(&cached.lockfile, "acme@1.0.0");
 
     assert!(tarball.contains("/npm/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
+    assert_eq!(cached.allowed_picks, allowed_picks);
 }
 
 #[test]
@@ -265,7 +267,11 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
 
     let stats = observed_dist_stats_sink();
     stats.insert(
-        observed_dist_stats_key("https://registry.example.test/", "acme", "1.0.0"),
+        observed_dist_stats_key(
+            "https://registry.example.test/",
+            "acme".to_owned(),
+            "1.0.0".to_owned(),
+        ),
         DistStats {
             unpacked_size: Some(123_456),
             file_count: Some(42),
@@ -407,6 +413,7 @@ fn npm_success_frames_echo_every_policy() {
         "minimumReleaseAge": 60,
         "minimumReleaseAgeExclude": ["example-*"],
         "minimumReleaseAgeIgnoreMissingTime": false,
+        "minimumReleaseAgeStrict": false,
         "trustPolicy": "no-downgrade",
         "trustPolicyExclude": ["legacy-*"],
         "trustPolicyIgnoreAfter": 1440,
@@ -426,6 +433,7 @@ fn npm_success_frames_echo_every_policy() {
         "minimumReleaseAge": 60,
         "minimumReleaseAgeExclude": ["example-*"],
         "minimumReleaseAgeIgnoreMissingTime": false,
+        "minimumReleaseAgeStrict": false,
         "trustPolicy": "no-downgrade",
         "trustPolicyExclude": ["legacy-*"],
         "trustPolicyIgnoreAfter": 1440,
@@ -444,6 +452,7 @@ fn npm_success_frames_echo_every_policy() {
     assert_eq!(defaults["minimumReleaseAge"], Value::Null);
     assert_eq!(defaults["minimumReleaseAgeExclude"], json!([]));
     assert_eq!(defaults["minimumReleaseAgeIgnoreMissingTime"], json!(true));
+    assert_eq!(defaults["minimumReleaseAgeStrict"], json!(false));
     assert_eq!(defaults["trustPolicy"], Value::Null);
     assert_eq!(defaults["trustPolicyExclude"], json!([]));
     assert_eq!(defaults["trustPolicyIgnoreAfter"], Value::Null);
@@ -756,11 +765,19 @@ fn frozen_frames_and_lockfile_routing_isolate_multi_registry_stats_and_routed_en
     .unwrap();
     let stats = observed_dist_stats_sink();
     stats.insert(
-        observed_dist_stats_key("https://east.corp.example/", "acme", "1.0.0"),
+        observed_dist_stats_key(
+            "https://east.corp.example/",
+            "acme".to_owned(),
+            "1.0.0".to_owned(),
+        ),
         DistStats { unpacked_size: Some(1_111), file_count: Some(10), requires_build: Some(true) },
     );
     stats.insert(
-        observed_dist_stats_key("https://west.corp.example/", "acme", "1.0.0"),
+        observed_dist_stats_key(
+            "https://west.corp.example/",
+            "acme".to_owned(),
+            "1.0.0".to_owned(),
+        ),
         DistStats { unpacked_size: Some(2_222), file_count: Some(20), requires_build: Some(false) },
     );
     let frames = super::super::wire::frozen_package_frames_until(

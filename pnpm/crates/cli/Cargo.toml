@@ -172,6 +172,7 @@ command-extra = { workspace = true }
 dialoguer = { workspace = true }
 flate2 = { workspace = true }
 insta = { workspace = true }
+libsqlite3-sys = { workspace = true }
 mockito = { workspace = true }
 pretty_assertions = { workspace = true }
 rusqlite = { workspace = true }
@@ -196,3 +197,6 @@ pnpm-http = { workspace = true }
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+development = ["libsqlite3-sys"]

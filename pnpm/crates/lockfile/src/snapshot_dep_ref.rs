@@ -9,6 +9,7 @@ use derive_more::{
     Display,
     Error,
 };
+use pnpm_deps_path::link_path_to_peer_version;
 use serde::{
     Deserialize,
     Serialize,
@@ -45,10 +46,10 @@ pub fn package_root_link_target(link_target: &str) -> Option<&str> {
 /// declaring package's directory one segment at a time, so the result uses
 /// the platform's separator.
 #[must_use]
-pub fn join_package_root_link(package_dir: &std::path::Path, target: &str) -> std::path::PathBuf {
+pub fn join_package_root_link(package_dir: std::path::PathBuf, target: &str) -> std::path::PathBuf {
     target
         .split('/')
-        .fold(package_dir.to_path_buf(), |dir, segment| dir.join(segment))
+        .fold(package_dir, |dir, segment| dir.join(segment))
 }
 
 /// Value of a single entry in [`SnapshotEntry::dependencies`](crate::SnapshotEntry::dependencies)
@@ -115,6 +116,15 @@ impl SnapshotDepRef {
             }
             SnapshotDepRef::Alias(key) => Some(key.clone()),
             SnapshotDepRef::Link(_) => None,
+        }
+    }
+
+    /// The key used to identify this provider in a peer suffix. A link
+    /// has a peer key derived from its path, even without a snapshot.
+    pub(crate) fn peer_provider_key(&self, alias: &PkgName) -> Option<PkgNameVerPeer> {
+        match self {
+            Self::Link(path) => format!("{alias}@{}", link_path_to_peer_version(path)).parse().ok(),
+            _ => self.resolve(alias),
         }
     }
 

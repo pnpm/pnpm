@@ -75,7 +75,8 @@ pub(crate) async fn extract_tarball_buffer_with_permit(
 ) -> Result<ExtractedFiles, TarballError> {
     tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
 
-    let extraction = BufferedExtraction::new(archive, package_url, store_dir, ignore_file_pattern);
+    let extraction =
+        BufferedExtraction::new(archive, package_url.to_owned(), store_dir, ignore_file_pattern);
     let result = spawn_extraction(post_download_permit, move || extraction.run())
         .await
         .map_err(TarballError::TaskJoin)??;
@@ -94,7 +95,8 @@ pub(crate) async fn extract_local_tarball_buffer_with_sha1(
 ) -> Result<(ExtractedFiles, Integrity), TarballError> {
     tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
 
-    let extraction = BufferedExtraction::new(archive, package_url, store_dir, ignore_file_pattern);
+    let extraction =
+        BufferedExtraction::new(archive, package_url.to_owned(), store_dir, ignore_file_pattern);
     let result = spawn_extraction(post_download_permit, move || {
         let mut sha1 = IntegrityOpts::new().algorithm(Algorithm::Sha1);
         sha1.input(&extraction.buffer);
@@ -126,7 +128,7 @@ struct BufferedExtraction {
 impl BufferedExtraction {
     fn new(
         archive: BufferedArchive,
-        package_url: &str,
+        package_url: String,
         store_dir: &StoreDir,
         ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     ) -> Self {
@@ -136,7 +138,7 @@ impl BufferedExtraction {
             verification: archive.verification,
             unpacked_size: archive.unpacked_size,
             limits: archive.tar_limits.with_unpacked_size(archive.unpacked_size),
-            package_url: package_url.to_string(),
+            package_url,
             store_dir: store_dir.clone(),
             ignore_file_pattern,
         }

@@ -164,6 +164,8 @@ Push back on changes that are mostly churn:
 - Commands or aliases added just because another tool has them.
 - Rare-case handling that adds permanent CLI complexity.
 - Error-prone "nice to have" compatibility that duplicates a better pnpm mechanism.
+- New distribution channels, such as a deb, RPM, or Snap package. See
+  [Distribution](../../../../PHILOSOPHY.md#distribution).
 
 Judge a change on the change itself; how it was authored is not a review criterion.
 

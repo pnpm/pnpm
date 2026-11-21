@@ -117,6 +117,13 @@ pub(crate) struct DecodeWatch {
 impl DecodeWatch {
     /// The error for a response whose content coding did not decode. The
     /// server sends the same bytes again, so it is not retried.
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "the URL is copied only when decoding failed, and callers keep using their own"
+        )
+    )]
     pub(crate) fn error(&self, package_url: &str) -> Option<TarballError> {
         let reason = self.failure.get()?;
         Some(TarballError::ContentDecode {

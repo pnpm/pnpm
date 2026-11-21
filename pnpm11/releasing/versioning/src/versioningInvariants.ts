@@ -21,7 +21,7 @@ export interface CheckVersioningInvariantsOptions {
  * configuration declares: every epic member's major sits inside its lead's
  * band, and every fixed group shares one version. This is the static
  * counterpart to the release-time enforcement in `assembleReleasePlan`, which
- * only checks packages a plan actually releases — so a committed manifest that
+ * only checks packages a plan actually releases, so a committed manifest that
  * drifted out of band, or a fixed group that fell out of lockstep, would
  * otherwise go unnoticed until a release that happens to touch it. Returns
  * every violation so a caller can report them all at once; malformed

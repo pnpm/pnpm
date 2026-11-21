@@ -203,6 +203,7 @@ struct DoneFrame<'a> {
     lockfile_format: &'static str,
     lockfile: &'a Lockfile,
     stats: DoneStats,
+    allowed_picks: &'a [String],
 }
 
 #[derive(serde::Serialize)]
@@ -303,6 +304,15 @@ pub(super) fn try_done_frame_until(
     applied_policies: &super::protocol::AppliedPolicies,
     should_cancel: &dyn Fn() -> bool,
 ) -> Option<Result<Vec<u8>, Vec<u8>>> {
+    try_done_frame_with_allowed_picks_until(lockfile, applied_policies, &[], should_cancel)
+}
+
+pub(super) fn try_done_frame_with_allowed_picks_until(
+    lockfile: &Lockfile,
+    applied_policies: &super::protocol::AppliedPolicies,
+    allowed_picks: &[String],
+    should_cancel: &dyn Fn() -> bool,
+) -> Option<Result<Vec<u8>, Vec<u8>>> {
     let total_packages = lockfile.packages
         .as_ref()
         .map(HashMap::len)
@@ -313,6 +323,7 @@ pub(super) fn try_done_frame_until(
         lockfile_format: LockfileFormat::PnpmLockV9.wire_name(),
         lockfile,
         stats: DoneStats { total_packages },
+        allowed_picks,
     };
     serialize_bounded_frame(&frame, "failed to serialize lockfile", should_cancel)
 }
@@ -407,11 +418,11 @@ pub(super) fn ndjson_line(value: &serde_json::Value) -> Result<Vec<u8>, serde_js
 /// A 200 NDJSON response carrying a single, already-serialized terminal
 /// frame (the short-circuit and violation paths, which never stream
 /// `package` frames).
-pub(super) fn ndjson_single_frame(frame: &[u8]) -> Response {
+pub(super) fn ndjson_single_frame(frame: Vec<u8>) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .body(Body::from(frame.to_vec()))
+        .body(Body::from(frame))
         .expect("binary response is always valid")
 }
 

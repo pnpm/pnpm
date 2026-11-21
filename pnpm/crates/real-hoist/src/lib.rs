@@ -722,7 +722,7 @@ fn hoist_graph(
             root_index.insert(child.0.name.clone(), child.clone());
             changed |= hoist_node_dependencies(
                 &child.0,
-                &root_path,
+                root_path.to_vec(),
                 ctx,
                 root_index,
                 &mut next_wave,
@@ -757,7 +757,7 @@ fn hoist_graph(
 /// [hoist-node-deps]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L594-L696
 fn hoist_node_dependencies(
     node: &Rc<HoisterResult>,
-    ancestor_path: &[Rc<HoisterResult>],
+    ancestor_path: Vec<Rc<HoisterResult>>,
     ctx: &HoistCtx<'_>,
     root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
     next_wave: &mut Vec<RcByPtr<HoisterResult>>,
@@ -787,7 +787,7 @@ fn hoist_node_dependencies(
     // ancestor path for `node`'s direct children. Used for the
     // peer-shadow checks, the cycle cut, and as the path passed into
     // recursion for a child that stays nested.
-    let mut path_for_children: Vec<Rc<HoisterResult>> = ancestor_path.to_vec();
+    let mut path_for_children = ancestor_path;
     path_for_children.push(Rc::clone(node));
 
     let mut stayed: Vec<RcByPtr<HoisterResult>> = Vec::new();
@@ -817,7 +817,7 @@ fn hoist_node_dependencies(
         let child = decouple_child(node, &child);
         changed_in_subtree |= hoist_node_dependencies(
             &child.0,
-            &path_for_children,
+            path_for_children.clone(),
             ctx,
             root_index,
             next_wave,

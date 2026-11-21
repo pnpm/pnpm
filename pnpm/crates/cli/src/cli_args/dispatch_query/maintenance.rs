@@ -24,7 +24,6 @@ use super::{
     DoctorOutcome,
     FindHashArgs,
     IgnoredBuildsArgs,
-    NotImplementedError,
     PrefixArgs,
     RepoArgs,
     RootArgs,
@@ -48,8 +47,9 @@ pub(in super::super) fn doctor<'a>(
     args: DoctorArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
+    let dir: &'a std::path::Path = ctx.locations.dir;
     Ok(Box::pin(async move {
-        let result = args.run(cfg).await?;
+        let result = args.run(cfg, dir).await?;
         pnpm_diagnostics::println!("{}", result.output);
         if result.outcome == DoctorOutcome::Unhealthy {
             // `doctor` exits non-zero when a check fails, mirroring pnpm.
@@ -158,12 +158,6 @@ pub(in super::super) fn config_set<'a>(
     args: ConfigSetAliasArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Set(args.args) })
-}
-
-pub(in super::super) fn not_implemented<'a>(
-    command: &'static str,
-) -> miette::Result<CommandFuture<'a>> {
-    Err(NotImplementedError { command }.into())
 }
 
 pub(in super::super) fn repo<'a>(

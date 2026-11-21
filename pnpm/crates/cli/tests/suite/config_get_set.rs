@@ -575,3 +575,31 @@ fn global_tools_and_resolution_keys_round_trip_through_cli() {
 
     drop(root);
 }
+
+#[test]
+fn camel_case_dotted_state_dir_supports_values_and_empty_reset_on_cli() {
+    let CommandTempCwd {
+        pacquet: _pacquet, root, workspace, ..
+    } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let custom = pacquet_in(&workspace)
+        .with_args(["--config.stateDir=custom-state", "config", "get", "state-dir"])
+        .output()
+        .expect("run pnpm config get state-dir with --config.stateDir");
+    assert!(custom.status.success(), "stderr={}", String::from_utf8_lossy(&custom.stderr));
+    assert_eq!(String::from_utf8_lossy(&custom.stdout).trim_end(), "custom-state");
+
+    for flag in ["--state-dir=", "--config.state-dir=", "--config.stateDir="] {
+        let reset = pacquet_in(&workspace)
+            .with_args([flag, "config", "get", "state-dir"])
+            .output()
+            .expect("run pnpm config get state-dir with empty state-dir override");
+        let stderr = String::from_utf8_lossy(&reset.stderr);
+        assert!(reset.status.success(), "{flag} stderr={stderr}");
+        assert_eq!(String::from_utf8_lossy(&reset.stdout).trim_end(), "", "{flag}");
+    }
+
+    drop(root);
+}

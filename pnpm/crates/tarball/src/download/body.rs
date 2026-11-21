@@ -48,9 +48,8 @@ impl BodyVerification {
         self,
         chunks: BodyChunkReceiver,
         permit: SemaphorePermit<'static>,
-        package_url: &str,
+        package_url: String,
     ) -> tokio::task::JoinHandle<ExtractedResource> {
-        let package_url = package_url.to_owned();
         spawn_extraction(permit, move || {
             stream_extract_channel(
                 chunks,
@@ -102,7 +101,7 @@ where
     Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
 {
     let (chunk_tx, chunk_rx) = body_chunk_channel();
-    let extract_task = verification.spawn(chunk_rx, streaming_permit, package_url);
+    let extract_task = verification.spawn(chunk_rx, streaming_permit, package_url.to_owned());
 
     let mut feed = ExtractorFeed { chunk_tx, open: true };
     for chunk in seed {

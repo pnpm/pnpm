@@ -102,7 +102,7 @@ pub(in super::super) fn collect_glob_manifests(
         ctx.collect_literal(walk_root, manifest_paths);
         return Ok(());
     }
-    let mut ancestors = AncestorStack::new(walk_root);
+    let mut ancestors = AncestorStack::new(walk_root.to_path_buf());
     let (prefix, remaining) = split_literal_prefix(normalized);
     let Some((start_dir, start_rel)) = step_literal_prefix(&prefix, &ctx, &mut ancestors) else {
         return Ok(());

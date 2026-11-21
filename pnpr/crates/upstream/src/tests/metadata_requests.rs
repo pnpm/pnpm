@@ -441,7 +441,7 @@ async fn packument_body_limit_accepts_exact_size_and_rejects_overflow() {
         let mock = mock.create_async().await;
         let mut config = pnpr_config::UpstreamConfig::with_defaults(server.url(), HeaderMap::new());
         config.requests.max_packument_size = 16;
-        let client = super::Upstream::new("example", &config);
+        let client = super::Upstream::new("example".to_owned(), &config);
         let name =
             CanonicalPackageName::parse("example", pnpr_package_name::Ecosystem::Npm).unwrap();
         let result = client.fetch_packument(&name, &CacheValidators::default()).await;

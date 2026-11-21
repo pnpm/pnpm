@@ -51,6 +51,9 @@ mod stdio_inheritance;
 mod virtual_terminal;
 mod with_current;
 
+#[cfg(test)]
+mod wasm_command_inventory;
+
 use boolean_negations::with_boolean_negations;
 use clap::{
     CommandFactory,
@@ -117,7 +120,7 @@ pub fn main() -> ExitCode {
     // Tracing reads `TRACE`/`TRACE_FORMAT`, which the files above may
     // define, so it starts only after the load.
     enable_tracing_by_env();
-    let result = run_on_big_stack(|| run_cli(&launch, &argv, single_threaded));
+    let result = run_on_big_stack(|| run_cli(&launch, argv, single_threaded));
     match result.and_then(|()| flush_stdout()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -151,20 +154,23 @@ fn initialize_wasm_paths() -> std::io::Result<()> {
         })
 }
 
-/// Print the approval notice that append-only output holds back until the
-/// command ends. Commands outside the install family, such as
-/// `approve-builds`, emit no `Done in ...` footer to print it with.
-pub(crate) fn flush_pending_approvals() {
+/// Print what the default reporter holds back until the command ends: the
+/// approval notice of append-only output, and deprecation warnings no install
+/// summary carried. Commands outside the install family, such as
+/// `approve-builds`, emit no `Done in ...` footer to print them with, and a
+/// failing command none at all.
+pub(crate) fn flush_held_notices() {
     if matches!(
         cli_args::reporter::selected_reporter(),
         cli_args::reporter::ReporterType::Default | cli_args::reporter::ReporterType::AppendOnly,
     ) {
         pnpm_default_reporter::DefaultReporter::flush_pending_approvals();
+        pnpm_default_reporter::DefaultReporter::flush_pending_deprecations();
     }
 }
 
 fn report_fatal_error(error: &miette::Report) {
-    flush_pending_approvals();
+    flush_held_notices();
     for cause in error.chain() {
         if let Some(pnpm_package_manager::InstallError::PeerDependencyIssues { rendered }) =
             cause.downcast_ref::<pnpm_package_manager::InstallError>()
@@ -199,10 +205,9 @@ fn is_reported_error(error: &miette::Report) -> bool {
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
 fn run_cli(
     launch: &shim_dispatch::ShimLaunch,
-    argv: &[OsString],
+    argv: Vec<OsString>,
     single_threaded: pnpm_ffi_process::SingleThreaded,
 ) -> miette::Result<()> {
-    let argv = argv.to_vec();
     if let Some(exit_code) = launch.dispatch(&argv) {
         // The shim dispatcher propagates the dispatched command's exit status.
         pnpm_executor::exit(exit_code);

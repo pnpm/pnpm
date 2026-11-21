@@ -249,11 +249,11 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
     .unwrap();
     let secret = secret_dir.to_str().unwrap();
 
-    for (idx, (transitive_spec, expected_error)) in [
-        (format!("file:{secret}"), "cannot be resolved on the server"),
-        (format!("link:{secret}"), "cannot be resolved on the server"),
-        (secret.to_string(), "isn't supported by any available resolver"),
-        (format!("git+file://localhost{secret}"), "is not allowed by this pnpr server"),
+    for (idx, transitive_spec) in [
+        format!("file:{secret}"),
+        format!("link:{secret}"),
+        secret.to_string(),
+        git_file_localhost_url(secret),
     ]
     .into_iter()
     .enumerate()
@@ -329,14 +329,23 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
         assert_eq!(status, StatusCode::OK);
         assert!(text.contains(r#""type":"error""#), "expected error frame: {text}");
         assert!(
-            text.contains(expected_error),
-            "expected {expected_error:?} in error frame for {pkg_name}: {text}",
+            text.contains("is not allowed in non-local package"),
+            "expected non-local subdep rejection in error frame for {pkg_name}: {text}",
         );
         assert!(!text.contains(r#""type":"done""#), "must not resolve: {text}");
         assert!(!text.contains("server-secret"), "leaked server manifest: {text}");
         assert!(!text.contains("canary-pkg"), "leaked transitive dep: {text}");
     }
     canary.assert_async().await;
+}
+
+/// A `git+file://localhost` URL for `path`. A Windows path gets the leading `/`
+/// and forward slashes a URL path needs; pasting `C:\...` after the host would
+/// make `C` a port.
+fn git_file_localhost_url(path: &str) -> String {
+    let url_path = path.replace('\\', "/");
+    let separator = if url_path.starts_with('/') { "" } else { "/" };
+    format!("git+file://localhost{separator}{url_path}")
 }
 
 #[tokio::test]

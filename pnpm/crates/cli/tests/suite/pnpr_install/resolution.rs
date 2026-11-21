@@ -1011,3 +1011,123 @@ fn delegated_install_rekeys_an_existing_secondary_registry_alias() {
     assert!(workspace.join("node_modules/@foo/no-deps/package.json").exists());
     drop((root, mock_instance));
 }
+
+#[test]
+fn loose_minimum_release_age_picks_are_persisted_and_reused_via_pnpr() {
+    let CommandTempCwd {
+        pacquet: _,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"@foo/no-deps":"1.0.0"}}"#)
+        .expect("write package.json");
+    let workspace_config = workspace.join("pnpm-workspace.yaml");
+    let mut settings = fs::read_to_string(&workspace_config).expect("read workspace config");
+    settings.push_str("\nminimumReleaseAge: 52560000\nminimumReleaseAgeStrict: false\n");
+    fs::write(&workspace_config, settings).expect("write release-age settings");
+
+    let install = || {
+        let assert = pacquet_at(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_args(["install", "--pnpr-server", &pnpr_url])
+            .assert()
+            .success();
+        String::from_utf8_lossy(&assert.get_output().stdout).into_owned()
+    };
+    let stdout = install();
+    assert!(
+        stdout.contains(
+            "Added 1 entry to minimumReleaseAgeExclude in pnpm-workspace.yaml (set minimumReleaseAgeStrict to true to gate these updates with a prompt):\n  @foo/no-deps@1.0.0"
+        ),
+        "loose pnpr resolution did not report the saved pick:\n{stdout}",
+    );
+    let workspace_yaml = fs::read_to_string(&workspace_config).expect("read collected excludes");
+    assert!(
+        workspace_yaml.contains("minimumReleaseAgeExclude:")
+            && workspace_yaml.contains("@foo/no-deps@1.0.0"),
+        "loose pnpr resolution did not persist the allowed pick: {workspace_yaml}",
+    );
+    install();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn pnpr_patch_refresh_does_not_persist_release_age_picks_under_no_save() {
+    let CommandTempCwd {
+        pacquet: _,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"@foo/no-deps":"1.0.0"}}"#)
+        .expect("write package.json");
+
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let workspace_config = workspace.join("pnpm-workspace.yaml");
+    let mut settings = fs::read_to_string(&workspace_config).expect("read workspace config");
+    settings.push_str(
+        "\nminimumReleaseAge: 52560000\nminimumReleaseAgeStrict: false\ntrustLockfile: true\n",
+    );
+    fs::write(&workspace_config, settings).expect("write release-age settings");
+
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["update", "--patches", "--no-save", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let workspace_yaml = fs::read_to_string(&workspace_config).expect("read workspace config");
+    assert!(
+        !workspace_yaml.contains("minimumReleaseAgeExclude:"),
+        "--no-save persisted release-age picks: {workspace_yaml}",
+    );
+    drop((root, mock_instance));
+}
+
+#[test]
+fn strict_minimum_release_age_rejects_immature_picks_via_pnpr() {
+    let CommandTempCwd {
+        pacquet: _,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"@foo/no-deps":"1.0.0"}}"#)
+        .expect("write package.json");
+    let workspace_config = workspace.join("pnpm-workspace.yaml");
+    let mut settings = fs::read_to_string(&workspace_config).expect("read workspace config");
+    settings.push_str("\nminimumReleaseAge: 52560000\nminimumReleaseAgeStrict: true\n");
+    fs::write(&workspace_config, settings).expect("write release-age settings");
+
+    let output = pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .output()
+        .expect("run pnpm install");
+    assert!(!output.status.success(), "strict pnpr install unexpectedly succeeded");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("ERR_PNPR_NO_MATURE_MATCHING_VERSION"),
+        "expected the stable maturity error code, got: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    drop((root, mock_instance));
+}

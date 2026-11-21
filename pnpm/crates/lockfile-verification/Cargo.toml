@@ -12,8 +12,10 @@ repository.workspace = true
 
 [dependencies]
 pnpm-package-name = { workspace = true }
+pnpm-config-parse-overrides = { workspace = true }
 pnpm-diagnostics = { workspace = true }
 pnpm-lockfile = { workspace = true }
+pnpm-matcher = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-time = { workspace = true }
@@ -22,10 +24,12 @@ jiff = { workspace = true }
 derive_more = { workspace = true }
 futures-util = { workspace = true }
 miette = { workspace = true }
+node-semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time"] }
+url = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

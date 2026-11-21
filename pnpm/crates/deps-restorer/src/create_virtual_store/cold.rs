@@ -105,6 +105,13 @@ pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<
 /// to swallow. Local materialization (`CreateVirtualDir`) and config-shape
 /// errors (`MissingTarballIntegrity`, `UnsupportedResolution`) abort even for
 /// optional snapshots; they sit outside the swallowed fetch surface.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`prefix` is copied only after the non-optional early return, and the caller borrows it from the install context, so an owned parameter would allocate on every failed fetch."
+    )
+)]
 pub(super) fn swallow_optional_fetch_failure<Reporter: self::Reporter, Captured>(
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,

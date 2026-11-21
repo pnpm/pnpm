@@ -61,7 +61,7 @@ export interface AddLockedVersionsOptions {
 /**
  * The manifests `pnpm add` would write for every requested selector, on copies
  * the caller commits only once the lockfile rewrite they enable has passed its
- * gates — so a fallback to resolution still sees the `package.json` files as
+ * gates, so a fallback to resolution still sees the `package.json` files as
  * they are on disk.
  *
  * `null` for anything the lockfile alone cannot answer, which leaves the caller
@@ -124,7 +124,7 @@ function lockedAddSpec (
 ): PackageSpecObject | null {
   const { alias, bareSpecifier } = parseWantedDependency(selector)
   // Without a version the request means the `latest` tag, the specifier a
-  // sibling project prefers, or the one an override names — none of which the
+  // sibling project prefers, or the one an override names, none of which the
   // lockfile decides.
   if (alias == null || bareSpecifier == null) return null
   if (!lockfileCanDecideAdd(alias, bareSpecifier, { project, opts })) return null

@@ -925,7 +925,7 @@ test('.npmrc does not load pnpm settings', async () => {
   })
 
   // rc options appear as usual. Unscoped credentials (`username`,
-  // `_authToken`) are rescoped to the file's registry at load — the .npmrc
+  // `_authToken`) are rescoped to the file's registry at load. The .npmrc
   // here doesn't set its own `registry=`, so they pin to the npmjs default.
   expect(config.authConfig).toMatchObject({
     '//my-org.registry.example.com:username': 'some-employee',
@@ -2236,7 +2236,7 @@ test.each([
 })
 
 // `pnpm login` turns `scope` into a `@scope:registry` route in the global
-// auth.ini, which outranks ~/.npmrc in every project on the machine — so a
+// auth.ini, which outranks ~/.npmrc in every project on the machine. So a
 // repo-committed file must not be able to choose it.
 // https://github.com/pnpm/pnpm/issues/13557
 describe('the scope setting is honored from trusted sources only', () => {
@@ -2319,8 +2319,8 @@ describe('the scope setting is honored from trusted sources only', () => {
     expect(config.scope).toBe('@from-env')
   })
 
-  // An empty scope is a value like any other — it would clear a scope the
-  // global config file set — so the repo must not be able to supply it either.
+  // An empty scope is a value like any other (it would clear a scope the
+  // global config file set), so the repo must not be able to supply it either.
   test('an empty pnpm-workspace.yaml scope is ignored too', async () => {
     prepareEmpty()
 
@@ -3185,7 +3185,7 @@ test('a non-object pnpm_config__auth value aborts the load', async () => {
 test('PNPM_CONFIG__AUTH (all-caps) form is also honored', async () => {
   prepareEmpty()
 
-  // Both forms are accepted — `pnpm_config__auth` (documented) and
+  // Both forms are accepted: `pnpm_config__auth` (documented) and
   // `PNPM_CONFIG__AUTH` (the all-caps shell convention some CI runners
   // apply). Mirrors `readEnvVar`'s two-form lookup shape.
   const { config } = await getConfig({
@@ -4130,7 +4130,7 @@ describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
   // Regression suite for https://github.com/pnpm/pnpm/issues/11513: actions/setup-node
   // writes `_authToken=${NODE_AUTH_TOKEN}` to .npmrc, and when the user relies on OIDC
   // trusted publishing without setting NODE_AUTH_TOKEN, the literal placeholder must not
-  // surface as a bearer token — otherwise the registry sees `Bearer ${NODE_AUTH_TOKEN}`
+  // surface as a bearer token. Otherwise the registry sees `Bearer ${NODE_AUTH_TOKEN}`
   // and rejects the publish.
   let originalXdg: string | undefined
   let configHome: string
@@ -4245,7 +4245,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
   // Each .npmrc / auth.ini gets its unscoped credential keys rewritten to
   // URL-scoped form using the same source's `registry=` value (or the npmjs
   // default if it has none). A later layer overriding `registry=` therefore
-  // cannot rebind the credential to its own registry — the credential is
+  // cannot rebind the credential to its own registry. The credential is
   // already pinned to the URL its author intended.
   let originalXdg: string | undefined
   let configHome: string
@@ -4325,7 +4325,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
   test('auth.ini with no registry of its own falls back to the npmjs default', async () => {
     // The split-file case: ~/.npmrc declares a registry but no creds; auth.ini
     // declares an unscoped credential with no registry. Each file rescopes in
-    // isolation, so the credential pins to the builtin npmjs default — NOT to
+    // isolation, so the credential pins to the builtin npmjs default, NOT to
     // whatever the workspace later overrides the merged registry to.
     fs.writeFileSync(userconfig, 'registry=https://trusted.example.com/\n', 'utf8')
     fs.writeFileSync(
@@ -5224,7 +5224,7 @@ test('getConfig() resolves a relative cafile= from .npmrc against the npmrc dire
   )
   fs.writeFileSync(path.join(projectDir, '.npmrc'), 'cafile=certs/ca.pem\n')
 
-  // process.cwd() is the prepareEmpty() root, *not* projectDir — i.e. the same
+  // process.cwd() is the prepareEmpty() root, *not* projectDir. This is the same
   // shape as `pnpm --dir <projectDir> install` invoked from a sibling cwd.
   const { config } = await getConfig({
     cliOptions: { dir: projectDir },
@@ -5832,6 +5832,48 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
   expect(await getConfigValue({
     pnpm_config_fetch_retries: '10',
   })).toBe(10)
+})
+
+test('empty or whitespace-only numeric pnpm_config_* environment variables are ignored', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    fetchRetries: 5,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_network_concurrency: '',
+      pnpm_config_child_concurrency: '   ',
+      pnpm_config_fetch_retries: '',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.networkConcurrency).toBeUndefined()
+  expect(config.childConcurrency).toBeUndefined()
+  expect(config.fetchRetries).toBe(5)
+
+  const { config: zeroAndTrimmed } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_network_concurrency: ' 16 ',
+      pnpm_config_fetch_retries: '0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(zeroAndTrimmed.networkConcurrency).toBe(16)
+  expect(zeroAndTrimmed.fetchRetries).toBe(0)
 })
 
 test('CLI should override environment variable pnpm_config_*', async () => {
@@ -6939,7 +6981,7 @@ test('GVS: global config.yaml dangerouslyAllowAllBuilds is preserved when no wor
     // The key assertion: global config.yaml policy should NOT be wiped by the GVS
     // allowBuilds = {} default.
     expect(config.dangerouslyAllowAllBuilds).toBe(true)
-    // allowBuilds should remain null — dangerouslyAllowAllBuilds IS the policy
+    // allowBuilds should remain null. dangerouslyAllowAllBuilds IS the policy
     expect(config.allowBuilds).toBeUndefined()
   } finally {
     if (prevXdgConfigHome === undefined) {
@@ -6964,7 +7006,7 @@ test('no warning when PNPM_CONFIG_NPMRC_AUTH_FILE points at the project .npmrc',
     env: {
       ...env,
       MY_TOKEN: 'secret',
-      // Trust this file explicitly — same path as the project .npmrc.
+      // Trust this file explicitly. It is the same path as the project .npmrc.
       PNPM_CONFIG_NPMRC_AUTH_FILE: projectNpmrc,
     },
     packageManager: {
@@ -6989,7 +7031,7 @@ test('no warning when PNPM_CONFIG_NPMRC_AUTH_FILE is the literal relative ".npmr
     env: {
       ...env,
       MY_TOKEN: 'secret',
-      // The exact shape reported in pnpm/pnpm#12480 — a relative path,
+      // The exact shape reported in pnpm/pnpm#12480: a relative path,
       // resolved against the cwd, that lands on the project .npmrc.
       PNPM_CONFIG_NPMRC_AUTH_FILE: '.npmrc',
     },
@@ -7020,7 +7062,7 @@ test('warning stays when PNPM_CONFIG_NPMRC_AUTH_FILE is a relative path that doe
       env: {
         ...env,
         MY_TOKEN: 'secret',
-        // Resolves to <cwd>/other/.npmrc — not the project .npmrc, so the
+        // Resolves to <cwd>/other/.npmrc, not the project .npmrc, so the
         // project file stays untrusted.
         PNPM_CONFIG_NPMRC_AUTH_FILE: 'other/.npmrc',
       },
@@ -7538,8 +7580,8 @@ test.each([
   ['BUILD_ENV', 'buildEnv', '{"CC":"clang"}', { CC: 'clang' }],
   ['TRUSTED_KEYS', 'trustedKeys', '{"acme-2026":"AA=="}', { 'acme-2026': 'AA==' }],
 ])('getConfig() reads %s of the remote tier under either environment spelling', async (suffix, field, raw, expected) => {
-  // The suffixes do not share a parsing path — PUBLISH is a boolean, BUILD_ENV
-  // and TRUSTED_KEYS are JSON, the rest are strings — so each is covered under
+  // The suffixes do not share a parsing path (PUBLISH is a boolean, BUILD_ENV
+  // and TRUSTED_KEYS are JSON, the rest are strings), so each is covered under
   // the name matching the setting and the name that matched its older spelling.
   prepareEmpty()
   const canonical = `PNPM_SIDE_EFFECTS_CACHE_REMOTE_${suffix}`

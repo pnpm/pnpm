@@ -235,7 +235,7 @@ fn importers_updating_the_same_targets_share_their_target_distances() {
         .pipe(Arc::new);
     for importer in ["first", "second"] {
         let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default())
-            .with_importer_id(importer);
+            .with_importer_id(importer.to_owned());
         assert!(!reusable(&ctx, &lockfile, "a@1.0.0"));
     }
     assert_eq!(lock_recoverable(&workspace.cache.lockfile_reuse.target_distances).len(), 1);

@@ -1,6 +1,9 @@
 pub(crate) mod applied_policies;
 
+pub(super) use allowed_picks::assert_allowed_picks;
 pub use applied_policies::AppliedPolicies;
+
+mod allowed_picks;
 
 use super::{
     BTreeMap,
@@ -216,13 +219,15 @@ fn handle_resolve_frame(
             lockfile_format,
             stats,
             applied_policies,
+            allowed_picks,
         } => {
             expect_lockfile_format(lockfile_format.as_deref(), PNPM_LOCK_V9)?;
             assert_requested_importers(&lockfile, permitted_importers)?;
             assert_transform_metadata(&lockfile, opts)?;
             assert_publish_directories(&lockfile, opts)?;
             assert_applied_policies(applied_policies.as_ref(), opts)?;
-            Ok(Some(ResolveOutcome { lockfile: *lockfile, stats, applied_policies }))
+            assert_allowed_picks(&allowed_picks, &lockfile, opts)?;
+            Ok(Some(ResolveOutcome { lockfile: *lockfile, stats, applied_policies, allowed_picks }))
         }
         Frame::Error { message, code } => Err(PnprClientError::Server { message, code }),
         Frame::Violations { violations } => {
@@ -367,6 +372,8 @@ pub(super) enum Frame {
         stats: Stats,
         #[serde(default, rename = "appliedPolicies")]
         applied_policies: Option<AppliedPolicies>,
+        #[serde(default, rename = "allowedPicks")]
+        allowed_picks: Vec<String>,
     },
     Error {
         message: String,

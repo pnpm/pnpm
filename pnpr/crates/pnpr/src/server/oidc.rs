@@ -76,8 +76,8 @@ async fn login(
     let returns_to = match query.returns_to.as_deref() {
         None => LoginReturn::Token,
         Some("ui") if ui_served => LoginReturn::Ui,
-        Some("ui") => return bad_request("this pnpr does not serve the web UI"),
-        Some(_) => return bad_request("return must be ui"),
+        Some("ui") => return bad_request("this pnpr does not serve the web UI".to_owned()),
+        Some(_) => return bad_request("return must be ui".to_owned()),
     };
     redirect_to_provider(&state.inner.identity.oidc, &provider, returns_to)
         .await
@@ -117,7 +117,7 @@ async fn callback(
     headers: HeaderMap,
 ) -> Response {
     if !is_valid_state(&query.state) {
-        return bad_request("invalid OIDC state");
+        return bad_request("invalid OIDC state".to_owned());
     }
     let cookie_name = format!("__Host-pnpr-oidc-{}", query.state);
     let response = if let Some(secret) = browser_secret(&headers, &cookie_name) {
@@ -195,7 +195,7 @@ async fn redeem_handoff(
     headers: HeaderMap,
 ) -> Response {
     if !is_valid_state(&query.flow) {
-        return bad_request("invalid sign-in flow");
+        return bad_request("invalid sign-in flow".to_owned());
     }
     redeem(&state.inner.identity.oidc, &query.flow, &headers)
 }
@@ -267,8 +267,8 @@ fn with_cookie(mut response: Response, cookie: &str) -> Response {
     }
 }
 
-fn bad_request(reason: &str) -> Response {
-    protect(RegistryError::BadRequest { reason: reason.to_string() }.into_response())
+fn bad_request(reason: String) -> Response {
+    protect(RegistryError::BadRequest { reason }.into_response())
 }
 
 pub(super) fn protect(response: Response) -> Response {

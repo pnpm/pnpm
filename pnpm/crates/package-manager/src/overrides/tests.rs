@@ -17,6 +17,7 @@ use std::path::{
     PathBuf,
 };
 
+mod applied_selectors;
 mod catalog_references;
 mod specificity;
 

@@ -122,6 +122,15 @@ overrides:
   "react-dom>react:peer": "-"
 ```
 
+### warnUnusedOverrides
+
+* Default: **true**
+* Type: **Boolean**
+
+When `true`, an install that resolves the whole dependency graph warns about every entry in [`overrides`](#overrides) that matched no dependency, in one line such as `2 overrides matched no dependency: foo, parent>child`.
+
+Only the entries that `pnpm-workspace.yaml` or a local file it includes declares are reported. Entries a config dependency or an `updateConfig` hook adds are not. Convergence overrides are not reported either, since pnpm warns about them when they go stale, and neither are removal overrides (`"-"`), which leave nothing to match against.
+
 ### packageExtensions
 
 The `packageExtensions` fields offer a way to extend the existing package definitions with additional information. For example, if `react-redux` should have `react-dom` in its `peerDependencies` but it has not, it is possible to patch `react-redux` using `packageExtensions`:
@@ -421,6 +430,8 @@ The default depends on whether you configured `minimumReleaseAge` yourself: if y
 minimumReleaseAgeStrict: true
 ```
 
+When resolving through a pnpr server, strict mode fails the request if no mature version matches. In non-strict mode, pnpm adds fallback versions selected by the server to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`.
+
 ### trustPolicy
 
 * Default: **off**
@@ -470,7 +481,7 @@ The cleanup is skipped when the install's lockfile does not cover the whole work
 * Default: **false**
 * Type: **Boolean**
 
-When `true`, `pnpm install` skips the supply-chain verification pass that re-applies [`minimumReleaseAge`](#minimumreleaseage) and [`trustPolicy`](#trustpolicy) to every entry in the loaded lockfile. The install treats the lockfile as already trusted.
+When `true`, `pnpm install` skips the supply-chain verification pass that re-applies [`minimumReleaseAge`](#minimumreleaseage), [`trustPolicy`](#trustpolicy), and [`blockExoticSubdeps`](#blockexoticsubdeps) to every entry in the loaded lockfile. The install treats the lockfile as already trusted.
 
 Useful in environments where the lockfile is effectively part of the trusted base: closed-source projects where every commit comes from a trusted author. A poisoned lockfile (one a contributor authored under a weaker policy than CI enforces) can slip through, so leave this `false` whenever outside collaborators can edit the lockfile.
 
@@ -481,7 +492,7 @@ On large workspaces the verification pass holds per-package registry metadata in
 * Default: **true**
 * Type: **Boolean**
 
-When set to `true`, only direct dependencies (those listed in your root `package.json`) may use exotic sources (like git repositories or direct tarball URLs). All transitive dependencies must be resolved from a trusted source, such as the configured registry, local file paths, workspace links, or trusted GitHub repositories (node, bun, deno).
+When set to `true`, only direct dependencies (those listed in your root `package.json`) may use exotic sources (like git repositories or direct tarball URLs). All transitive dependencies must be resolved from a trusted source, such as the configured registry, workspace packages, or trusted GitHub repositories (node, bun, deno). Non-local packages cannot resolve host filesystem paths (`file:` or `link:`) outside their own package archive unless rewritten by workspace `overrides`, `packageExtensions`, or `.pnpmfile.cjs`.
 
 This setting helps secure the dependency supply chain by preventing transitive dependencies from pulling in code from untrusted locations.
 

@@ -26,12 +26,12 @@ pub(super) struct Spelled {
 
 /// `entry` as the platform tag it names.
 pub(super) fn canonical(entry: &str) -> Result<Spelled, UnknownPlatformError> {
-    let (head, rest) = entry.split_once('-').ok_or_else(|| unknown(entry))?;
+    let (head, rest) = entry.split_once('-').ok_or_else(|| unknown(entry.to_owned()))?;
     if is_node_os(head) {
         return platform_name(entry, head, rest);
     }
     let linux_tag = target_triple_tag(entry, head, rest)?;
-    let (os, rest) = linux_tag.split_once('-').ok_or_else(|| unknown(entry))?;
+    let (os, rest) = linux_tag.split_once('-').ok_or_else(|| unknown(entry.to_owned()))?;
     platform_name(entry, os, rest)
 }
 
@@ -43,7 +43,7 @@ fn platform_name(entry: &str, os: &str, rest: &str) -> Result<Spelled, UnknownPl
     let cpu = match architecture {
         Some(architecture) => architecture.cpu(),
         None if is_node_cpu(cpu_name) => cpu_name,
-        None => return Err(unknown(entry)),
+        None => return Err(unknown(entry.to_owned())),
     };
     let mut tag = format!("{os}-{cpu}");
     let mut musllinux = None;
@@ -53,7 +53,7 @@ fn platform_name(entry: &str, os: &str, rest: &str) -> Result<Spelled, UnknownPl
         // otherwise read as musl alone.
         if let Some(family) = libc_family(part) {
             if named_family.is_some_and(|named| named != family) {
-                return Err(unknown(entry));
+                return Err(unknown(entry.to_owned()));
             }
             named_family = Some(family);
         }
@@ -98,7 +98,7 @@ fn libc_part(entry: &str, os: &str, part: &str) -> Result<LibcPart, UnknownPlatf
     let libc = match part {
         "musl" | "glibc" | "gnu" => Libc::parse(part),
         _ if part.starts_with("manylinux") || part.starts_with("musllinux") => {
-            Some(Libc::parse(part).ok_or_else(|| unknown(entry))?)
+            Some(Libc::parse(part).ok_or_else(|| unknown(entry.to_owned()))?)
         }
         _ => return Ok(LibcPart::Tag),
     };
@@ -125,13 +125,13 @@ fn target_triple_tag(
     architecture: &str,
     system: &str,
 ) -> Result<String, UnknownPlatformError> {
-    Architecture::parse(architecture).ok_or_else(|| unknown(entry))?;
+    Architecture::parse(architecture).ok_or_else(|| unknown(entry.to_owned()))?;
     Ok(match system {
         "apple-darwin" => format!("darwin-{architecture}"),
         "pc-windows-msvc" => format!("win32-{architecture}"),
         _ => {
             let libc = system.strip_prefix("unknown-linux-").unwrap_or(system);
-            Libc::parse(libc).ok_or_else(|| unknown(entry))?;
+            Libc::parse(libc).ok_or_else(|| unknown(entry.to_owned()))?;
             format!("linux-{architecture}-{libc}")
         }
     })

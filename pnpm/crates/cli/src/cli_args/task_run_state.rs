@@ -87,7 +87,7 @@ struct TaskIdentity {
 struct InvocationIdentity<'a> {
     command: &'a str,
     params: &'a [String],
-    settings: &'a [String],
+    settings: &'a [&'a String],
     tasks: Vec<TaskIdentity>,
 }
 
@@ -397,7 +397,7 @@ fn invocation_hash(
             .cmp(&right.project)
             .then_with(|| left.task.cmp(&right.task))
     });
-    let mut settings = settings.to_vec();
+    let mut settings: Vec<&String> = settings.iter().collect();
     settings.sort();
     let identity =
         serde_json::to_string(&InvocationIdentity { command, params, settings: &settings, tasks })
@@ -411,8 +411,8 @@ enum StateStorageError {
 }
 
 impl StateStorageError {
-    fn io(error: io::Error, operation: &'static str, path: &Path) -> Self {
-        Self::Io { error, operation, path: path.to_path_buf() }
+    fn io(error: io::Error, operation: &'static str, path: PathBuf) -> Self {
+        Self::Io { error, operation, path }
     }
 
     fn is_unavailable(&self) -> bool {

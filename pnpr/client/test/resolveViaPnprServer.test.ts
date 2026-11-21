@@ -74,7 +74,7 @@ test.each(resolverSettingNames)('serializes %s independently', async (setting) =
 })
 
 // The mode decides which version every pick lands on, so a server resolving
-// on the client's behalf has to be told it — omitted, it resolves `highest`
+// on the client's behalf has to be told it. Omitted, it resolves `highest`
 // and hands back a lockfile the client would never have written.
 test.each(['time-based', 'lowest-direct', 'highest'] as const)('serializes resolutionMode %s', async (resolutionMode) => {
   const request = await captureResolveRequest({ dependencies: {}, resolutionMode })
@@ -293,6 +293,7 @@ test.each([
   ['minimumReleaseAge', 60, 0],
   ['minimumReleaseAgeExclude', ['example-*'], []],
   ['minimumReleaseAgeIgnoreMissingTime', false, true],
+  ['minimumReleaseAgeStrict', true, false],
   ['trustPolicy', 'no-downgrade', null],
   ['trustPolicyExclude', ['example-*'], []],
   ['trustPolicyIgnoreAfter', 1440, null],
@@ -316,6 +317,7 @@ function matchingPolicies (options: Omit<ResolveViaPnprServerOptions, 'registryU
     minimumReleaseAge: options.minimumReleaseAge ?? null,
     minimumReleaseAgeExclude: options.minimumReleaseAgeExclude ?? [],
     minimumReleaseAgeIgnoreMissingTime: options.minimumReleaseAgeIgnoreMissingTime ?? true,
+    minimumReleaseAgeStrict: options.minimumReleaseAgeStrict ?? false,
     trustPolicy: options.trustPolicy === 'no-downgrade' ? 'no-downgrade' : null,
     trustPolicyExclude: options.trustPolicyExclude ?? [],
     trustPolicyIgnoreAfter: options.trustPolicyIgnoreAfter ?? null,

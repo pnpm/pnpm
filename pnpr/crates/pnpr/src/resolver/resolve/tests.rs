@@ -378,6 +378,7 @@ async fn try_resolve_json_with(
         None,
     )
     .await
+    .map(|result| result.lockfile)
 }
 
 fn assert_workspace_link(lockfile: &Lockfile, importer: &str, alias: &str, expected_target: &str) {
@@ -393,4 +394,16 @@ fn assert_workspace_link(lockfile: &Lockfile, importer: &str, alias: &str, expec
         ImporterDepVersion::Link(target) => assert_eq!(target, expected_target),
         version => panic!("expected workspace link, got {version:?}"),
     }
+}
+
+#[test]
+fn allowed_picks_include_only_new_exact_exclusions() {
+    let requested = vec!["old-pkg@1.0.0".to_string(), "already-excluded".to_string()];
+    let picks = super::newly_allowed_picks(
+        Some(&requested),
+        &["old-pkg@1.0.0".to_string(), "new-pkg@2.0.0".to_string(), "already-excluded".to_string()],
+    )
+    .unwrap();
+
+    assert_eq!(picks, ["new-pkg@2.0.0"]);
 }

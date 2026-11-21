@@ -123,7 +123,7 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     symlinked: SymlinkedLockfile<'_>,
 ) -> Result<(), SaveLockfileError> {
     let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
-    save_content_to_path(content, path, symlinked)
+    save_content_to_path(content, path, symlinked).map(drop)
 }
 
 /// [`save_value_to_path`] for a main document already rendered, such as by
@@ -133,18 +133,21 @@ pub fn save_text_to_path(
     path: &Path,
     symlinked: SymlinkedLockfile<'_>,
 ) -> Result<(), SaveLockfileError> {
-    save_content_to_path(content, path, symlinked)
+    save_content_to_path(content, path, symlinked).map(drop)
 }
 
 fn save_content_to_path(
     content: String,
     path: &Path,
     symlinked: SymlinkedLockfile<'_>,
-) -> Result<(), SaveLockfileError> {
-    let existing = read_normalized_lockfile(path)?;
-    let output = render_content_over(content, existing.as_deref(), path)?;
-    if existing.as_deref() == Some(output.as_str()) {
-        return Ok(());
+) -> Result<Option<fs::Metadata>, SaveLockfileError> {
+    let existing = read_existing_lockfile(path)?;
+    let output =
+        render_content_over(content, existing.as_ref().map(|file| file.text.as_str()), path)?;
+    if let Some(existing) = existing
+        && existing.text == output
+    {
+        return Ok(existing.metadata);
     }
     let target = lockfile_write_target(path, symlinked).map_err(SaveLockfileError::WriteFile)?;
     write_atomic(&target, output.as_bytes())
@@ -189,11 +192,23 @@ pub fn render_hook_lockfile(value: &serde_json::Value) -> Result<String, SaveLoc
 }
 
 fn read_normalized_lockfile(path: &Path) -> Result<Option<String>, SaveLockfileError> {
-    match fs::read_to_string(path) {
-        Ok(existing) => Ok(Some(normalize_lockfile_content(&existing).into_owned())),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(SaveLockfileError::WriteFile(error)),
-    }
+    Ok(read_existing_lockfile(path)?.map(|file| file.text))
+}
+
+/// The normalized text of the lockfile at `path`, and the metadata of the
+/// handle it was read through when no in-place change raced the read.
+struct ExistingLockfile {
+    text: String,
+    metadata: Option<fs::Metadata>,
+}
+
+fn read_existing_lockfile(path: &Path) -> Result<Option<ExistingLockfile>, SaveLockfileError> {
+    let existing = crate::load_lockfile::file_read::read_file_with_stable_metadata(path)
+        .map_err(SaveLockfileError::WriteFile)?;
+    Ok(existing.map(|(text, metadata)| ExistingLockfile {
+        text: normalize_lockfile_content(&text).into_owned(),
+        metadata,
+    }))
 }
 
 fn render_content_over(
@@ -351,6 +366,19 @@ impl Lockfile {
         path: &Path,
         symlinked: SymlinkedLockfile<'_>,
     ) -> Result<(), SaveLockfileError> {
+        self.save_to_path_with_metadata(path, symlinked).map(drop)
+    }
+
+    /// [`Self::save_to_path`], returning the metadata of the file the save
+    /// left at `path`. It is read from the handle that wrote the file, or
+    /// that read the unchanged content the save then skipped writing, so a
+    /// file another process puts at `path` afterwards cannot be mistaken
+    /// for it. `None` when that handle could not report it.
+    pub fn save_to_path_with_metadata(
+        &self,
+        path: &Path,
+        symlinked: SymlinkedLockfile<'_>,
+    ) -> Result<Option<fs::Metadata>, SaveLockfileError> {
         save_content_to_path(self.to_yaml_string()?, path, symlinked)
     }
 
@@ -413,7 +441,7 @@ impl Lockfile {
             // `Shape::Suffixed`.
             let content =
                 serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
-            write_atomic(&target, content.as_bytes())
+            write_atomic(&target, content.as_bytes()).map(drop)
         }
     }
 }
@@ -465,7 +493,9 @@ fn lockfile_file_name(target: &Path) -> String {
 /// at our predicted temp path. On `AlreadyExists` we advance the
 /// counter and try again, up to `MAX_TEMP_ATTEMPTS` times, matching
 /// the hardening already in `pnpm_fs::ensure_file::write_atomic`.
-fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> {
+/// The metadata of the written file, read through a handle kept across the
+/// rename where the platform allows renaming an open file.
+fn write_atomic(target: &Path, content: &[u8]) -> Result<Option<fs::Metadata>, SaveLockfileError> {
     /// Sixteen fresh counter values is plenty, under benign
     /// conditions we never collide; under shared-store-across-
     /// containers the chance of 16 consecutive same-pid same-counter
@@ -510,13 +540,13 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
             let _ = fs::remove_file(&tmp);
             return Err(SaveLockfileError::WriteFile(error));
         }
+        let written = WrittenFile::before_close(&file);
         // Close the handle before `rename`. Windows `MoveFileEx` over
-        // an open source file can fail with sharing-violation; on Unix
-        // an early `close` lets the kernel commit dirty buffers before
-        // the rename commits the dirent change.
+        // an open source file can fail with sharing-violation.
         drop(file);
 
-        return commit_temp_file(tmp, target);
+        commit_temp_file(tmp, target)?;
+        return Ok(written.metadata_after_rename());
     }
 
     // Ran out of temp-name attempts. Surface the last `AlreadyExists`
@@ -527,6 +557,41 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
             "exhausted temp-path attempts for atomic lockfile write",
         )
     })))
+}
+
+/// What a save reads the written file's metadata from. Unix keeps a second
+/// handle open across the rename, which changes the file's ctime. Windows
+/// cannot rename an open file, so it reads the metadata before closing: the
+/// rename keeps the last-write time, and the cache's Windows stat has no
+/// ctime or inode.
+struct WrittenFile(Option<WrittenFileSource>);
+
+#[cfg(unix)]
+type WrittenFileSource = fs::File;
+
+#[cfg(not(unix))]
+type WrittenFileSource = fs::Metadata;
+
+impl WrittenFile {
+    #[cfg(unix)]
+    fn before_close(file: &fs::File) -> Self {
+        WrittenFile(file.try_clone().ok())
+    }
+
+    #[cfg(not(unix))]
+    fn before_close(file: &fs::File) -> Self {
+        WrittenFile(file.metadata().ok())
+    }
+
+    #[cfg(unix)]
+    fn metadata_after_rename(self) -> Option<fs::Metadata> {
+        self.0?.metadata().ok()
+    }
+
+    #[cfg(not(unix))]
+    fn metadata_after_rename(self) -> Option<fs::Metadata> {
+        self.0
+    }
 }
 
 /// Rename the temp file over `target`. On Windows, another process holding

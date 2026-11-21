@@ -56,7 +56,7 @@ pub fn discover_workspace_package_manifests(
 pub fn create_publish_pack_manifest_options(
     manifest_flags: &PublishManifestArgs,
     config: &Config,
-    before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+    before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
     bumped_packages: Option<&Arc<HashSet<String>>>,
 ) -> miette::Result<PackManifestOptions> {
@@ -74,7 +74,7 @@ pub fn create_publish_pack_manifest_options(
             manifest_flags.no_skip_manifest_obfuscation,
             config.skip_manifest_obfuscation,
         ),
-        before_packing_hooks: before_packing_hooks.to_vec(),
+        before_packing_hooks,
         workspace_packages,
         bumped_workspace_packages: bumped_packages.map(Arc::clone),
     })

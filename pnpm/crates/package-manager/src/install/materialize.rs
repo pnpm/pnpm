@@ -320,6 +320,7 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
     fn into_owned_inputs(
         self,
         lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+        exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
     ) -> OwnedInputs {
         OwnedInputs {
             wanted_lockfile_shared: self.lockfiles.wanted_shared,
@@ -328,6 +329,7 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
             pnpmfile_hook_override: self.resolution.pnpmfile_hook,
             lockfile: crate::install_with_fresh_lockfile::WantedLockfileHandles {
                 verification_gate: lockfile_verification_gate,
+                exotic_subdeps,
                 check_sink: self.resolution.lockfile_check_sink,
             },
             resolution: self.resolution.inputs,
@@ -361,36 +363,52 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
     async fn start_fresh_verification<Reporter: self::Reporter>(
         &mut self,
     ) -> Result<Option<crate::LockfileVerificationGate>, InstallError> {
-        Ok(
-            if let Some(lockfile_verification_override) = self.lockfiles
-                .verification_override
-                .take()
-            {
-                lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
-                None
-            } else {
-                let shared_lockfile = self.lockfiles.wanted_shared
-                    .as_ref()
-                    .map(Arc::clone)
-                    .or_else(|| self.lockfiles.wanted.cloned().map(Arc::new));
-                shared_lockfile.and_then(|loaded_lockfile| {
-                    super::LockfileVerificationGate::spawn::<Reporter>(
-                        Arc::clone(&loaded_lockfile),
-                        &self.lockfiles.verification.resolution_verifiers,
-                        self.lockfiles.verification.derived_lockfile_path.as_deref(),
-                        &self.install.context.config.cache_dir,
-                        self.resolution.inputs.update_seed_policy.replaced_fresh_lockfile_entries(
-                            &loaded_lockfile,
-                            self.workspace.requested_importer_ids,
-                            self.install.context.config,
-                            self.lockfiles.locked_registries,
-                        ),
-                        matches!(
-                            self.resolution.inputs.update_seed_policy,
-                            crate::UpdateSeedPolicy::FixLockfile,
-                        ),
-                    )
-                })
+        if let Some(verification_override) = self.lockfiles
+            .verification_override
+            .take()
+        {
+            verification_override.await.map_err(map_frozen_lockfile_error)?;
+            return Ok(None);
+        }
+        let shared_lockfile = self.lockfiles.wanted_shared
+            .as_ref()
+            .map(Arc::clone)
+            .or_else(|| self.lockfiles.wanted.cloned().map(Arc::new));
+        let Some(loaded_lockfile) = shared_lockfile else {
+            return Ok(None);
+        };
+        pnpm_lockfile_verification::verify_lockfile_local_resolutions(
+            &loaded_lockfile,
+            Some(self.lockfiles.verification.local_policy.clone()),
+        )
+        .map_err(InstallError::LockfileVerification)?;
+        Ok(self.spawn_fresh_verification_gate::<Reporter>(loaded_lockfile))
+    }
+
+    fn spawn_fresh_verification_gate<Reporter: self::Reporter>(
+        &self,
+        loaded_lockfile: Arc<Lockfile>,
+    ) -> Option<crate::LockfileVerificationGate> {
+        let replaced = self.resolution.inputs.update_seed_policy.replaced_fresh_lockfile_entries(
+            &loaded_lockfile,
+            self.workspace.requested_importer_ids,
+            self.install.context.config,
+            self.lockfiles.locked_registries,
+        );
+        let repairs_lockfile = matches!(
+            self.resolution.inputs.update_seed_policy,
+            crate::UpdateSeedPolicy::FixLockfile,
+        );
+        super::LockfileVerificationGate::spawn::<Reporter>(
+            loaded_lockfile,
+            &self.lockfiles.verification.resolution_verifiers,
+            super::verification_gate::SpawnVerificationGateOptions {
+                exotic_subdeps: self.lockfiles.verification.exotic_subdeps.clone(),
+                lockfile_source: self.lockfiles.verification.cache_source(),
+                cache_dir: &self.install.context.config.cache_dir,
+                replaced,
+                repairs_lockfile,
+                local_policy: self.lockfiles.verification.local_policy.clone(),
             },
         )
     }
@@ -436,13 +454,11 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
         let dependency_groups = std::mem::take(&mut self.workspace.dependency_groups);
         let resolution_verifiers =
             std::mem::take(&mut self.lockfiles.verification.resolution_verifiers);
-        let derived_lockfile_path = self.lockfiles.verification
-            .derived_lockfile_path
-            .take();
+        let exotic_subdeps = std::mem::take(&mut self.lockfiles.verification.exotic_subdeps);
+        let cache_dir = self.install.context.config.cache_dir.as_path();
         let auto_dedupe_baseline = self.lockfiles.verification
             .auto_dedupe_baseline
             .take();
-        let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let prior_skipped = previously_skipped(self.modules.modules_manifest);
         let missing_projects = self.missing_project_manifests();
@@ -454,16 +470,16 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
                 &prior_skipped,
             ),
             importer_manifests: self.importer_manifests(&missing_projects),
-            owned: self.into_owned_inputs(lockfile_verification_gate),
+            owned: self.into_owned_inputs(lockfile_verification_gate, exotic_subdeps.clone()),
         }
         .run::<Reporter>()
         .await
         .map_err(map_fresh_lockfile_error)?;
         record_fresh_lockfile_verified(
             &fresh_result,
-            derived_lockfile_path,
-            site,
+            cache_dir,
             &resolution_verifiers,
+            &exotic_subdeps,
         );
         record_auto_dedupe_baseline(&fresh_result, auto_dedupe_baseline.as_ref());
         Ok(fresh_materialization_output(fresh_result))

@@ -97,7 +97,7 @@ async fn tag_selector<Reporter: self::Reporter>(
 }
 
 fn keep_spec<Reporter: self::Reporter>(alias: &str, spec: &str, tag: &str) -> String {
-    warn_global::<Reporter>(&format!(
+    warn_global::<Reporter>(format!(
         r#"Skipping "{alias}": its "{tag}" dist-tag names no version that can be installed, so its recorded specifier was kept."#,
     ));
     format!("{alias}@{spec}")

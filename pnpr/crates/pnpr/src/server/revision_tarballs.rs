@@ -301,7 +301,7 @@ impl UpstreamRevision<'_> {
 
     fn integrity_error(&self, reason: String) -> RegistryError {
         let label = format!("{}+r{}", self.version, self.revision);
-        tarball_integrity_error(self.name.as_str(), &label, reason)
+        tarball_integrity_error(self.name.as_str().to_owned(), label, reason)
     }
 }
 

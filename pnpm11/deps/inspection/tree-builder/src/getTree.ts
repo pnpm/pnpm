@@ -47,7 +47,7 @@ interface GetTreeOpts extends BaseTreeOpts {
   parentDir?: string
 }
 
-// Context object for materializeChildren — holds everything that stays the
+// Context object for materializeChildren. It holds everything that stays the
 // same across recursive calls.
 type MaterializationContext =
   Omit<GetTreeOpts, 'maxDepth' | 'parentDir'> & {
@@ -68,7 +68,7 @@ interface CachedSubtree {
 /**
  * Caches already-materialized subtrees.  When a subtree is encountered a
  * second time (cache hit), an empty array is returned and the node is marked
- * as deduped — bounding the total output to O(N) nodes.
+ * as deduped, bounding the total output to O(N) nodes.
  */
 export type MaterializationCache = Map<string, CachedSubtree>
 
@@ -87,7 +87,7 @@ export function getTree (
   const result = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
 
   // Seed the ancestors with parentDir (the filesystem path of parentId) so
-  // that back-edges to the root of this subtree are detected — the root
+  // that back-edges to the root of this subtree are detected. The root
   // itself does not appear as a node in the tree, only its children do.
   const circularAncestors = new Set<string>()
   if (opts.parentDir) {
@@ -121,7 +121,7 @@ interface MaterializationResult {
  * `DependencyNode[]` children of a given node.  It is populated
  * unconditionally, including results where recursion was truncated at a
  * cycle boundary.  Cycle detection uses a mutable `ancestors` Set to
- * stop recursion but does NOT set the `circular` flag — that is handled
+ * stop recursion but does NOT set the `circular` flag. That is handled
  * by `fixCircularRefs` in a separate pass over the final tree.  This
  * keeps cached subtrees free of context-dependent circular markers.
  */
@@ -278,7 +278,7 @@ function materializeTarget (
   const cached = ctx.materializationCache.get(cacheKey)
   if (cached !== undefined) {
     // This subtree was already returned to a parent elsewhere in
-    // the output tree — elide it to avoid repeating the same nodes.
+    // the output tree. Elide it to avoid repeating the same nodes.
     return {
       ...createEmptySubtree(),
       dedupedCount: cached.count > 0 ? cached.count : undefined,
@@ -308,7 +308,7 @@ function materializeTarget (
 
 type SearchMatch = ReturnType<Finder> | undefined
 
-// External link or unresolvable — no traversal possible. With
+// External link or unresolvable, so no traversal is possible. With
 // onlyProjects, this is a link to a project outside the lockfile, which
 // buildDependenciesTree walks and prunes for the search afterwards.
 function selectUnresolvedEntry (
@@ -378,7 +378,7 @@ function markSearchMatch (
 
 /**
  * Walks the materialized DependencyNode[] tree and marks circular back-edges.
- * A node whose `path` matches an ancestor is a cycle — it gets
+ * A node whose `path` matches an ancestor is a cycle. It gets
  * `circular: true` and its dependencies (if any) are stripped.
  *
  * With deduplication in place (deduped nodes are leaves), the walk is O(N).

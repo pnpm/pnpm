@@ -91,31 +91,23 @@ fn full_install_frame_orders_blocks_like_pnpm() {
 }
 
 #[test]
-fn recursive_direct_deprecation_is_zoomed() {
+fn direct_deprecation_of_the_current_project_names_no_project() {
     let mut reporter = state_with_options(ReporterOptions {
         scope: pnpm_default_reporter::state::ScopeOptions { recursive: true, ..Default::default() },
         ..ReporterOptions::default()
     });
-    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
-    assert_eq!(
-        frame,
-        pnpm_default_reporter::format::zoom_out(CWD, CWD, "[WARN] deprecated express@0.14.1"),
-    );
+    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD), summary()]);
+    assert_eq!(frame, "[WARN] deprecated: express@0.14.1");
 }
 
 #[test]
-fn zoomed_direct_deprecation_carries_the_prefix() {
+fn direct_deprecation_of_another_project_names_it() {
     let mut reporter = state(false);
-    let frame =
-        render(&mut reporter, vec![deprecation("express", "0.14.1", 0, "/repo/packages/app")]);
-    assert_eq!(
-        frame,
-        pnpm_default_reporter::format::zoom_out(
-            CWD,
-            "/repo/packages/app",
-            "[WARN] deprecated express@0.14.1",
-        ),
+    let frame = render(
+        &mut reporter,
+        vec![deprecation("express", "0.14.1", 0, "/repo/packages/app"), summary()],
     );
+    assert_eq!(frame, "[WARN] deprecated: express@0.14.1 (packages/app)");
 }
 
 /// A single selected project is the directory the user is standing in, so

@@ -44,6 +44,7 @@ use super::{
     pin_patched_revision,
     project_relative_cache_scope,
     register_shadowable_dep_names,
+    reject_non_local_filesystem_subdep,
     resolve_wanted_cached,
     resolves_children_through_catalogs,
     seed_reused_node,
@@ -87,7 +88,13 @@ where
         && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
         && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), edge.depth)
     {
-        reject_exotic_subdep(ctx, &wanted, &reused.result, edge.depth, edge.parent_is_workspace)?;
+        reject_exotic_subdep(
+            ctx,
+            &wanted,
+            &reused.result,
+            edge.depth,
+            edge.parent_origin.is_workspace(),
+        )?;
         resolver.on_reused(&reused.result);
         return seed_reused_node(ctx, wanted, &edge, current_is_optional, reused).await;
     }
@@ -116,7 +123,8 @@ where
         lock_recoverable(&ctx.workspace.policy.policy_violations).push(violation);
     }
 
-    reject_exotic_subdep(ctx, &wanted, &result, edge.depth, edge.parent_is_workspace)?;
+    reject_non_local_filesystem_subdep(ctx, &wanted, &result, &edge)?;
+    reject_exotic_subdep(ctx, &wanted, &result, edge.depth, edge.parent_origin.is_workspace())?;
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
@@ -349,7 +357,7 @@ pub(super) fn seed_pending(
     resolved: ResolvedEdge,
 ) -> Result<NodeSeed, ResolveDependencyTreeError> {
     let alias = node_alias(wanted, &result, &resolved.id);
-    let identity = NodeIdentity::of(&result, &resolved.id);
+    let identity = NodeIdentity::of(ctx, &result, &resolved.id);
     let peer_shadowed = peer_shadowed_dependencies(
         result.package.manifest.as_deref(),
         edge.parent_pkg_aliases,
@@ -399,11 +407,15 @@ pub(super) struct NodeIdentity {
 }
 
 impl NodeIdentity {
-    pub(super) fn of(result: &Arc<pnpm_resolving_resolver_base::ResolveResult>, id: &str) -> Self {
+    pub(super) fn of(
+        ctx: &TreeCtx,
+        result: &Arc<pnpm_resolving_resolver_base::ResolveResult>,
+        id: &str,
+    ) -> Self {
         let kind = NodeKind::of(result, id);
         Self {
             kind,
-            resolves_children_through_catalogs: resolves_children_through_catalogs(result),
+            resolves_children_through_catalogs: resolves_children_through_catalogs(ctx, result),
             node_id: node_id_for(kind.is_leaf(), id),
         }
     }
@@ -472,6 +484,13 @@ pub(super) fn register_seeded_package(
 
 /// A `workspace:` edge the resolver did not name carries its identity in the
 /// linked project's own manifest.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`id` is copied only for a `workspace:` edge without a resolved name, after the early returns, and the caller reuses it, so an owned parameter would allocate for every edge."
+    )
+)]
 pub(super) fn record_workspace_manifest_identity(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
@@ -497,7 +516,7 @@ pub(super) fn record_workspace_manifest_identity(
     ) else {
         return;
     };
-    ctx.workspace.versions.record_workspace_manifest_identity(id, name, version);
+    ctx.workspace.versions.record_workspace_manifest_identity(id.to_owned(), name, version);
 }
 
 pub(super) fn reject_exotic_subdep(

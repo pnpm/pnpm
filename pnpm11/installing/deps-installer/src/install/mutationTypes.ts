@@ -68,6 +68,7 @@ export interface PreparedFrozenMutation {
   preResolutionRan: boolean
   validatedInputLockfile?: LockfileObject
   verifiedLockfile: boolean
+  verifiedPolicySnapshot?: Record<string, unknown>
 }
 
 export type SingleProjectInstallOptions = Omit<InstallOptions, 'allProjects'> & {
@@ -268,7 +269,7 @@ export interface MutationRun extends MutationRunBase {
    * take the fast lockfile update and the frozen-like install; an explicitly
    * frozen run keeps its stricter behavior. An addition also has to have had
    * its manifest edit committed, which only a rewrite that passed its gates
-   * does — see `addedManifests`.
+   * does. See `addedManifests`.
    */
   installsAndUninstallsOnly: boolean
   scriptsOpts: RunLifecycleHooksConcurrentlyOptions

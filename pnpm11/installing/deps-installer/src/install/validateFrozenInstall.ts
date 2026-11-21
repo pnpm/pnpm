@@ -1,9 +1,7 @@
-import path from 'node:path'
-
 import { createAllowBuildFunction } from '@pnpm/building.policy'
-import { LOCKFILE_MAJOR_VERSION, LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_MAJOR_VERSION, LOCKFILE_VERSION } from '@pnpm/constants'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
-import { createLockfileObject, getWantedLockfileName, type LockfileObject } from '@pnpm/lockfile.fs'
+import { createLockfileObject, type LockfileObject } from '@pnpm/lockfile.fs'
 import type { ProjectRootDir } from '@pnpm/types'
 import { clone, equals } from 'ramda'
 
@@ -33,6 +31,13 @@ import {
   createNoLockfileError,
   verifyLockedTarballIntegrity,
 } from './verifyFrozenLockfile.js'
+import { verifyLockfilePolicies } from './verifyFrozenLockfilePolicies.js'
+import {
+  localPolicyForInstallOptions,
+  policyHasChildRangedEdges,
+  resolveLocalPolicyForInstall,
+  withContextLocalPolicyOptions,
+} from './verifyLockfileLocalResolutions.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 export interface ValidatedFrozenInstall {
@@ -128,8 +133,9 @@ async function validateWithoutWantedLockfile (
   if (preResolution.wantedMutated) {
     await verifyLockfileStructureAndSettings(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   }
+  let verifiedPolicySnapshot: Record<string, unknown> | undefined
   if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
+    verifiedPolicySnapshot = await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
   }
   return {
     wantedLockfile: rawCtx.wantedLockfile,
@@ -141,6 +147,7 @@ async function validateWithoutWantedLockfile (
       lockfileHadConflicts: false,
       preResolutionRan: true,
       verifiedLockfile: !opts.trustLockfile,
+      verifiedPolicySnapshot,
     },
   }
 }
@@ -156,8 +163,9 @@ async function prepareUnverifiedLockfile (
   if (preResolution.wantedMutated) {
     await verifyLockfileStructureAndSettings(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   }
+  let verifiedPolicySnapshot: Record<string, unknown> | undefined
   if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
+    verifiedPolicySnapshot = await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
   }
   return {
     wantedLockfile: rawCtx.wantedLockfile,
@@ -170,6 +178,7 @@ async function prepareUnverifiedLockfile (
       preResolutionRan: true,
       validatedInputLockfile,
       verifiedLockfile: !opts.trustLockfile,
+      verifiedPolicySnapshot,
     },
   }
 }
@@ -184,12 +193,7 @@ async function verifyLockfileStructureAndSettings (
     checkMajorVersion: boolean
   }
 ): Promise<void> {
-  await verifyLockfileResolutions(ctx.wantedLockfile, [])
-  const checksums = await readInstallChecksums({ ctx, opts })
-  if (usesPnpr) {
-    assertFrozenPnprPnpmfileChecksum(opts, ctx.wantedLockfile.pnpmfileChecksum, checksums.pnpmfileChecksum)
-  }
-  const settings = detectOutdatedLockfileSettings({ ctx, opts }, checksums)
+  const settings = await verifyStructureAndSettingsDrift(ctx, { opts, usesPnpr })
   throwOnInconsistentFrozenPatchHashes(ctx, true)
   if (!checkMajorVersion) return
   const installsOnly = allMutationsAreInstalls(projects)
@@ -203,6 +207,40 @@ async function verifyLockfileStructureAndSettings (
   })) {
     throw createOutdatedLockfileMajorVersionError()
   }
+}
+
+async function verifyStructureAndSettingsDrift (
+  ctx: PnpmContext,
+  { opts, usesPnpr }: { opts: StrictInstallOptions, usesPnpr: boolean }
+): Promise<ReturnType<typeof detectOutdatedLockfileSettings>> {
+  const liveProjects = Object.values(ctx.projects)
+  const policyOpts = withContextLocalPolicyOptions(opts, ctx.workspacePackages, liveProjects)
+  const basePolicy = localPolicyForInstallOptions(policyOpts, liveProjects)
+  try {
+    await verifyLockfileResolutions(ctx.wantedLockfile, [], { localPolicy: basePolicy })
+    return await checkChecksumsAndOutdatedSettings(ctx, { opts, usesPnpr })
+  } catch (err: unknown) {
+    const code = (err as { code?: string } | undefined)?.code
+    const canEnrich = Boolean(opts.hooks.readPackage?.length) || policyHasChildRangedEdges(basePolicy)
+    if (code !== 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED' || !canEnrich) {
+      throw err
+    }
+    const settings = await checkChecksumsAndOutdatedSettings(ctx, { opts, usesPnpr })
+    const enrichedPolicy = await resolveLocalPolicyForInstall(ctx.wantedLockfile, policyOpts, liveProjects)
+    await verifyLockfileResolutions(ctx.wantedLockfile, [], { localPolicy: enrichedPolicy })
+    return settings
+  }
+}
+
+async function checkChecksumsAndOutdatedSettings (
+  ctx: PnpmContext,
+  { opts, usesPnpr }: { opts: StrictInstallOptions, usesPnpr: boolean }
+): Promise<ReturnType<typeof detectOutdatedLockfileSettings>> {
+  const checksums = await readInstallChecksums({ ctx, opts })
+  if (usesPnpr) {
+    assertFrozenPnprPnpmfileChecksum(opts, ctx.wantedLockfile.pnpmfileChecksum, checksums.pnpmfileChecksum)
+  }
+  return detectOutdatedLockfileSettings({ ctx, opts }, checksums)
 }
 
 async function hookContextProjectsOnce (
@@ -269,8 +307,9 @@ async function verifyFrozenMutationRun (
   if (!opts.lockfileOnly) {
     await verifyLockedTarballIntegrity(run)
   }
+  let verifiedPolicySnapshot: Record<string, unknown> | undefined
   if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(ctx, opts, { wantedMutated: preResolution.wantedMutated })
+    verifiedPolicySnapshot = await verifyLockfilePolicies(ctx, opts, { wantedMutated: preResolution.wantedMutated })
   }
   return {
     wantedLockfile: ctx.wantedLockfile,
@@ -283,6 +322,7 @@ async function verifyFrozenMutationRun (
       preResolutionRan: true,
       validatedInputLockfile,
       verifiedLockfile: !opts.trustLockfile,
+      verifiedPolicySnapshot,
     },
   }
 }
@@ -321,33 +361,6 @@ async function runPreResolutionForValidation (
     hookedWantedLockfile: hookCtx.wantedLockfile,
     wantedMutated: !equals(wantedBefore, hookCtx.wantedLockfile),
   }
-}
-
-async function verifyLockfilePolicies (
-  ctx: PnpmContext,
-  opts: StrictInstallOptions,
-  { wantedMutated }: { wantedMutated: boolean }
-): Promise<void> {
-  const canUseOnDiskCache = !wantedMutated &&
-    !opts.mergeGitBranchLockfiles &&
-    ctx.existsWantedLockfile &&
-    !ctx.lockfileHadConflicts &&
-    opts.cacheDir != null &&
-    opts.resolutionVerifiers.length > 0
-  const wantedLockfileName = canUseOnDiskCache
-    ? await getWantedLockfileName({
-      useGitBranchLockfile: opts.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    })
-    : undefined
-  const wantedLockfilePath = wantedLockfileName != null &&
-    (!opts.useGitBranchLockfile || wantedLockfileName !== WANTED_LOCKFILE)
-    ? path.resolve(ctx.lockfileDir, wantedLockfileName)
-    : undefined
-  await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-    cacheDir: wantedMutated ? undefined : opts.cacheDir,
-    lockfilePath: wantedLockfilePath,
-  })
 }
 
 function buildValidationRun (

@@ -69,6 +69,14 @@ pub enum VerifyError {
         breakdown: String,
     },
 
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_EXOTIC_SUBDEP), help("{HINT}"))]
+    ExoticSubdep {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
+
     /// The registry couldn't be reached to verify an entry
     /// (auth/network/5xx). Surfaces the registry's own fetch error (which
     /// already explains the auth situation) rather than a tampering-style
@@ -91,6 +99,14 @@ pub enum VerifyError {
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
     #[diagnostic(code(ERR_PNPM_RESOLUTION_SHAPE_MISMATCH), help("{STRUCTURAL_HINT}"))]
     ResolutionShapeMismatch {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
+
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED), help("{STRUCTURAL_HINT}"))]
+    LocalSubdepNotAllowed {
         #[error(not(source))]
         count: usize,
         breakdown: String,
@@ -181,8 +197,8 @@ impl VerifyError {
 
     /// Constructs [`VerifyError::MissingDependency`].
     #[must_use]
-    pub fn missing_dependency(dep_path: &str) -> Self {
-        VerifyError::MissingDependency { dep_path: dep_path.to_string() }
+    pub fn missing_dependency(dep_path: String) -> Self {
+        VerifyError::MissingDependency { dep_path }
     }
 
     /// Build the appropriate variant from a list of rendered
@@ -227,6 +243,7 @@ impl VerifyError {
                 VerifyError::MinimumReleaseAgeViolation { count, breakdown }
             }
             codes::TRUST_DOWNGRADE => VerifyError::TrustDowngrade { count, breakdown },
+            crate::EXOTIC_SUBDEP_VIOLATION_CODE => VerifyError::ExoticSubdep { count, breakdown },
             codes::MISSING_TARBALL_INTEGRITY => {
                 VerifyError::MissingTarballIntegrity { count, breakdown }
             }
@@ -238,6 +255,9 @@ impl VerifyError {
             crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
                 VerifyError::ResolutionShapeMismatch { count, breakdown }
             }
+            crate::LOCAL_SUBDEP_NOT_ALLOWED_VIOLATION_CODE => {
+                VerifyError::LocalSubdepNotAllowed { count, breakdown }
+            }
             _ => VerifyError::LockfileResolutionVerification { count, breakdown, hint },
         }
     }
@@ -248,7 +268,8 @@ fn is_policy_violation(code: &str) -> bool {
     matches!(
         code,
         pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION
-            | pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE,
+            | pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE
+            | crate::EXOTIC_SUBDEP_VIOLATION_CODE,
     )
 }
 

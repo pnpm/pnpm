@@ -230,8 +230,8 @@ pub fn run_pipeline(
     })?;
 
     let report = RunReport::new(
-        name,
-        &base,
+        name.to_owned(),
+        base.clone(),
         &selection,
         git_stdout(run.workspace_root, &["rev-parse", "HEAD"]),
     )?;

@@ -39,7 +39,7 @@ fn emits_resolved_with_supplied_identifiers() {
     }
 
     EVENTS.lock().unwrap().clear();
-    emit_progress_resolved::<RecordingReporter>("react@18.0.0", "/proj");
+    emit_progress_resolved::<RecordingReporter>("react@18.0.0".to_owned(), "/proj".to_owned());
 
     let captured = EVENTS.lock().unwrap();
     assert!(

@@ -6,6 +6,10 @@ pub use arguments::{
     LockfileUpdateArgs,
 };
 
+pub(crate) use pnpr_link::{
+    PnprLink,
+    PnprLockfilePolicy,
+};
 pub(crate) use pnpr_pnpmfile::{
     PnprTarget,
     pnpr_target,
@@ -52,12 +56,6 @@ use pnpm_lockfile::{
     LockfileResolution,
     MaybeLazyLockfile,
 };
-use pnpm_lockfile_verification::{
-    VerifiedOfflineLockfile,
-    VerifyLockfileResolutionsOptions,
-    record_lockfile_verified,
-    verify_lockfile_resolutions,
-};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manager::{
     InstallFrozenLockfileError,
@@ -70,12 +68,14 @@ use pnpm_package_manager::{
     WantedLockfileSatisfactionCheck,
     WorkspaceInstallSelection,
     build_resolution_verifiers,
+    config_exotic_subdeps_policy,
     install_already_up_to_date,
     install_already_up_to_date_from_records,
     install_already_up_to_date_per_project,
     materialization_closure,
     merge_filtered_wanted_lockfile,
     report_merged_lockfile_conflicts,
+    verified_project_workspace_dirs,
     wanted_lockfile_satisfies_workspace,
 };
 use pnpm_package_manifest::DependencyGroup;
@@ -97,6 +97,7 @@ use pnpr_lockfile::{
     merge_and_save_pnpr_lockfile,
     pnpr_lockfile_dir,
     selection_importer_ids,
+    verify_frozen_pnpr_preflight,
 };
 use pnpr_pnpmfile::{
     check_frozen_pnpmfile,
@@ -117,7 +118,7 @@ use pnpr_resolution::{
     prefetch_allowed,
 };
 use pnpr_verification::{
-    local_lockfile_verification,
+    state_resolution_verifiers,
     verify_pnpr_input_lockfile,
     verify_settled_pnpr_lockfile,
 };
@@ -360,6 +361,7 @@ impl InstallArgs {
             skip_runtimes: config.skip_runtimes || self.materialization.no_runtime,
             lockfile_path: Some(lockfile_path),
             use_state_lockfile: true,
+            save_workspace_manifest: true,
             lockfile: PnprLockfilePolicy {
                 frozen: frozen_lockfile,
                 prefer_frozen: self
@@ -493,54 +495,6 @@ pub(crate) fn workspace_install_selection(
     }
 }
 
-/// Per-invocation install knobs forwarded to the frozen link pass,
-/// already resolved from the CLI flags + config by [`InstallArgs::run`].
-pub(crate) struct PnprLink<'a> {
-    pub(crate) dependency_groups: Vec<DependencyGroup>,
-    pub(crate) supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
-    pub(crate) node_linker: NodeLinker,
-    pub(crate) skip_runtimes: bool,
-    pub(crate) lockfile_path: Option<&'a std::path::Path>,
-    pub(crate) use_state_lockfile: bool,
-    pub(crate) lockfile: PnprLockfilePolicy,
-}
-
-pub(crate) struct PnprLockfilePolicy {
-    /// Governs the *server's* resolution behavior (frozen vs
-    /// reuse-and-update); forwarded to `/-/pnpr/v0/resolve`. The local
-    /// materialization always runs frozen against the server-produced
-    /// lockfile.
-    pub(crate) frozen: bool,
-    /// The *effective* `preferFrozenLockfile` (the CLI tri-state already
-    /// resolved against `config.prefer_frozen_lockfile`, exactly as the
-    /// local `Install` resolves it); forwarded to `/-/pnpr/v0/resolve`. `false`
-    /// forces the server to re-resolve. Resolving here (rather than
-    /// sending the raw CLI override) keeps a yaml `preferFrozenLockfile:
-    /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
-    pub(crate) prefer_frozen: bool,
-    /// Refresh registry artifacts while retaining every locked package
-    /// version. This disables the exchange-free satisfied-lockfile path and
-    /// is forwarded to `/-/pnpr/v0/resolve`.
-    pub(crate) update_patches: bool,
-    /// Regenerate derived lockfile metadata while retaining compatible pins.
-    pub(crate) fix: bool,
-    /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server
-    /// resolves only (returning the lockfile without fetching files)
-    /// after which [`install_via_pnpr`] writes the lockfile and skips
-    /// materialization, mirroring pnpm's resolve + write, fetch nothing,
-    /// link nothing. See
-    /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
-    pub(crate) only: bool,
-    /// `--ignore-manifest-check`; forwarded so the server's frozen
-    /// freshness check and the local materialization both skip the
-    /// manifest ↔ lockfile comparison.
-    pub(crate) ignore_manifest_check: bool,
-    /// The effective `trustLockfile` (yaml `trustLockfile` OR
-    /// `--trust-lockfile`); forwarded so the server skips verifying the
-    /// input lockfile when the user opted out, mirroring the local path.
-    pub(crate) trust: bool,
-}
-
 /// `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile` map to
 /// `Option<bool>`: `Some` when either flag is set, `None` otherwise (use
 /// config). The pair's mutual `overrides_with` collapses both spellings
@@ -568,6 +522,8 @@ mod fast_path;
 mod frozen_validation;
 
 mod pnpr_config_validation;
+
+mod pnpr_link;
 
 mod pnpr_local_specs;
 

@@ -29,6 +29,10 @@ use super::{
 use base64::Engine as _;
 use p256::pkcs8::EncodePublicKey as _;
 use sha2::Digest as _;
+use tokio::io::{
+    AsyncReadExt as _,
+    AsyncWriteExt as _,
+};
 
 #[tokio::test]
 async fn resolves_a_package() {
@@ -278,17 +282,22 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
     let (payload, _) = fixture.envelope.decode_payload().expect("decode fixture payload");
     let candidate =
         ArtifactCandidate { key: fixture.key, subject: payload.subject, owner: payload.owner };
+    // One client, as a publishing pnpm has: sixteen of them would be
+    // sixteen connection pools opening sixteen sockets, which is
+    // contention the limit under test has nothing to do with. The
+    // barrier is what makes the publications overlap.
+    let client = Arc::new(PnprClient::new(pnpr_url.clone()));
     let barrier = Arc::new(Barrier::new(PUBLICATIONS + 1));
     let mut publications = Vec::with_capacity(PUBLICATIONS);
     for index in 0..PUBLICATIONS {
         let barrier = Arc::clone(&barrier);
-        let pnpr_url = pnpr_url.clone();
+        let client = Arc::clone(&client);
         let pnpr_auth = pnpr_auth.clone();
         let (publish, _, _, blobs) = signed_artifact_fixture_for_platform(index);
         publications.push(tokio::spawn(async move {
             let _blobs = blobs;
             barrier.wait().await;
-            PnprClient::new(pnpr_url).publish_artifact(&publish, Some(&pnpr_auth)).await
+            client.publish_artifact(&publish, Some(&pnpr_auth)).await
         }));
     }
     barrier.wait().await;
@@ -312,6 +321,81 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
     let variants =
         response["artifacts"][0]["variants"].as_array().expect("artifact variants array");
     assert_eq!(variants.len(), pnpm_shared_artifact_protocol::MAX_VARIANTS_PER_CANDIDATE);
+}
+
+/// An upload the server reads to its end keeps its connection, whether it
+/// stored the blob or verified a copy already stored. One refused before
+/// its body arrived leaves that body on the wire, so the connection cannot
+/// carry another request. The answer says so, and the publisher's next
+/// request goes to a connection of its own rather than into a socket the
+/// server has already shut.
+#[tokio::test]
+async fn only_an_upload_refused_before_it_arrives_retires_its_connection() {
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
+    let authority = pnpr_url
+        .trim_start_matches("http://")
+        .trim_end_matches('/')
+        .to_string();
+    let blob = b"native-addon";
+    let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(blob)));
+    let integrity: String = url::form_urlencoded::byte_serialize(integrity.as_bytes()).collect();
+    let upload_head = |length: u64| {
+        format!(
+            "PUT /-/pnpr/v0/artifacts/blobs/pnpr-client/{integrity} HTTP/1.1\r\n\
+             host: {authority}\r\n\
+             authorization: {pnpr_auth}\r\n\
+             content-type: application/octet-stream\r\n\
+             content-length: {length}\r\n\r\n",
+        )
+    };
+    let request = upload_head(blob.len() as u64);
+
+    let mut socket = tokio::net::TcpStream::connect(&authority).await.expect("connect to pnpr");
+    let stored = put_blob(&mut socket, &request, blob).await;
+    assert!(stored.starts_with("HTTP/1.1 201 "), "the first upload stores the blob: {stored}");
+    assert!(
+        !stored.to_ascii_lowercase().contains("connection: close"),
+        "an upload that stored its blob keeps its connection: {stored}",
+    );
+
+    // Reaching the server at all proves the first answer kept the
+    // connection.
+    let verified = put_blob(&mut socket, &request, blob).await;
+    assert!(
+        verified.starts_with("HTTP/1.1 200 "),
+        "an upload of a stored blob stores nothing: {verified}",
+    );
+    assert!(
+        !verified.to_ascii_lowercase().contains("connection: close"),
+        "an upload verified against the stored blob keeps its connection: {verified}",
+    );
+
+    let oversized = upload_head(pnpm_shared_artifact_protocol::MAX_BLOB_SIZE + 1);
+    let refused = put_blob(&mut socket, &oversized, b"").await;
+    assert!(refused.starts_with("HTTP/1.1 400 "), "an oversized upload is refused: {refused}");
+    assert!(
+        refused.to_ascii_lowercase().contains("connection: close"),
+        "an upload refused before it arrived retires its connection: {refused}",
+    );
+
+    let mut remainder = Vec::new();
+    socket.read_to_end(&mut remainder).await.expect("read the closed connection");
+    let body = String::from_utf8_lossy(&remainder);
+    assert!(!body.contains("HTTP/1.1"), "nothing follows the refusal: {body}");
+}
+
+/// Send one blob upload on `socket` and return its response head.
+async fn put_blob(socket: &mut tokio::net::TcpStream, request: &str, blob: &[u8]) -> String {
+    socket.write_all(request.as_bytes()).await.expect("write the upload head");
+    socket.write_all(blob).await.expect("write the upload body");
+    let mut head = Vec::new();
+    let mut byte = [0_u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        let read = socket.read(&mut byte).await.expect("read the response head");
+        assert_ne!(read, 0, "the response head ended early: {:?}", String::from_utf8_lossy(&head));
+        head.extend_from_slice(&byte);
+    }
+    String::from_utf8(head).expect("the response head is UTF-8")
 }
 
 #[tokio::test]

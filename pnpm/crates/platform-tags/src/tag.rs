@@ -16,7 +16,7 @@ fn parse_floor(part: &str, prefix: &str) -> Option<Result<Floor, TagError>> {
     Some(match rest.split_once('_') {
         Some((major, minor)) => parse_number(major)
             .and_then(|major| parse_number(minor).map(|minor| Floor { major, minor })),
-        None => Err(TagError::new(part, "has no minor version")),
+        None => Err(TagError::new(part.to_owned(), "has no minor version")),
     })
 }
 
@@ -45,7 +45,7 @@ impl<'tag, Iter: Iterator<Item = &'tag str>> Parts<'tag, Iter> {
     }
 
     fn rejects(&self, reason: &'static str) -> TagError {
-        TagError::new(self.tag, reason)
+        TagError::new(self.tag.to_owned(), reason)
     }
 
     /// The C library of a platform on `os`, and its glibc floor: `musl`,
@@ -86,10 +86,10 @@ impl Platform {
         }
         let mut split = tag.split('-');
         let (Some(os), Some(cpu)) = (split.next(), split.next()) else {
-            return Err(TagError::new(tag, "is not <os>-<cpu>"));
+            return Err(TagError::new(tag.to_owned(), "is not <os>-<cpu>"));
         };
         if !is_os_or_cpu(os) || !is_os_or_cpu(cpu) {
-            return Err(TagError::new(tag, "has an invalid os or cpu"));
+            return Err(TagError::new(tag.to_owned(), "has an invalid os or cpu"));
         }
         let mut parts = Parts { tag, parts: split.peekable() };
         let (libc, libc_version) = parts.libc(os)?;
@@ -124,7 +124,7 @@ impl Platform {
             return Ok("wasm32".to_string());
         }
         let (Some(os), Some(cpu)) = (&self.os, &self.cpu) else {
-            return Err(TagError::new("", "has no os or cpu"));
+            return Err(TagError::new(String::new(), "has no os or cpu"));
         };
         let mut parts = vec![os.clone(), cpu.clone()];
         if self.libc == Some(Libc::Musl) {

@@ -62,6 +62,13 @@ fn comparison_component(component: &str) -> String {
     component.to_lowercase()
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "The Windows twin lowercases from a borrow, and both twins share one signature."
+    )
+)]
 #[cfg(not(windows))]
 fn comparison_component(component: &str) -> String {
     component.to_string()

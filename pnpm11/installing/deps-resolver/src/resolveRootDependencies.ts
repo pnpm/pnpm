@@ -9,6 +9,7 @@ import { getHoistableOptionalPeers, getLockfileOnlyVersions, getOptionalPeerSpec
 import { addDirectDepVersion } from './indexResolvedDependencies.js'
 import { createImporterLockedPeerVersions } from './lockedPeerVersions.js'
 import { filterMissingPeers, mergeMissingPeersOfImporter, mergePkgsDeps } from './missingPeers.js'
+import { assertHoistedPeersAllowed, createDetachedPeerSpecChecker } from './nonLocalSubdeps.js'
 import {
   acceptsOptionalPeerCandidate,
   type CandidatePeers,
@@ -141,6 +142,7 @@ async function hoistRequiredPeersOfImporter (hoisting: PeerHoisting, index: numb
     if (!missingRequiredPeers.length) break
     const dependencies = hoistPeersToImporter(missingRequiredPeers)
     if (!Object.keys(dependencies).length) break
+    assertHoistedPeersAllowed({ ctx, importer: hoisting.importers[index], missingRequiredPeers, pkgAddresses: importerResult.pkgAddresses, workspaceRootDeps: hoisting.workspaceRootDeps }, dependencies)
     // eslint-disable-next-line no-await-in-loop -- the next round depends on the peers this round resolves
     await resolveHoistedDependencies(hoisting, index, getHoistedRequiredPeers(hoisting, index, dependencies))
   }
@@ -428,11 +430,12 @@ async function resolvePendingDetachedPeers (hoisting: PeerHoisting, index: numbe
 function createRequiredPeerVersionsPicker (
   hoisting: PeerHoisting,
   opts: RequiredPeerPickOptions
-): (missingPeersOfWave: MissingPeers[]) => Map<string, string> | undefined {
+): (missingPeersOfWave: MissingPeers[], declaringWave?: ReadonlyArray<{ name: string, version: string }>) => Map<string, string> | undefined {
   const pickVersion = createCachedRequiredPeerVersionPicker(hoisting, opts)
-  return (missingPeersOfWave) => pickMergedPeerVersions({
+  return (missingPeersOfWave, declaringWave) => pickMergedPeerVersions({
     merged: mergePkgsDeps(missingPeersOfWave, hoisting.ctx),
     missingPeersOfWave,
+    declaringWave,
     pickVersion,
   })
 }
@@ -446,14 +449,17 @@ interface RequiredPeerPickOptions {
 function createCachedRequiredPeerVersionPicker (
   hoisting: PeerHoisting,
   { detachedPeers, index, knowsPeers }: RequiredPeerPickOptions
-): (name: string, range: string) => string | null | undefined {
+): (name: string, range: string, declaringParents?: ReadonlyArray<{ name: string, version: string }>) => string | null | undefined {
   const hoistPeersToImporter = createImporterPeersHoister(hoisting, index)
+  const checkDetachedPeerSpec = createDetachedPeerSpecChecker(hoisting.ctx, hoisting.importers[index], hoisting.importerResults[index].pkgAddresses, hoisting.workspaceRootDeps)
   const picked = new Map<string, string | null | undefined>()
-  return (name, range) => {
-    const key = `${name}@${range}`
+  return (name, range, declaringParents = []) => {
+    const key = `${name}@${range}@${declaringParents.map((parent) => `${parent.name}@${parent.version}`).join(',')}`
     if (!picked.has(key)) {
-      const spec = hoistPeersToImporter([[name, { range, optional: false }]])[name]
-      picked.set(key, spec == null ? undefined : pickHoistedVersion(detachedPeers, { knowsPeers, name, spec }))
+      const pair: Array<[string, MissingPeerInfo]> = [[name, { range, optional: false }]]
+      const spec = hoistPeersToImporter(pair)[name]
+      const allowedSpec = spec != null && checkDetachedPeerSpec(pair, name, spec, declaringParents)
+      picked.set(key, spec == null ? undefined : (allowedSpec ? pickHoistedVersion(detachedPeers, { knowsPeers, name, spec }) : null))
     }
     return picked.get(key)
   }

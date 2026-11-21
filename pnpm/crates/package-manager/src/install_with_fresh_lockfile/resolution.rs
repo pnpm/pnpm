@@ -155,7 +155,14 @@ pub(super) async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static
     let prep = prepare_resolution::<Reporter>(install, owned, setup, manifests).await?;
     let importer_manifests = manifests.view();
     let pass = run_prepared_resolve(
-        ResolutionContext { install, owned, setup, prep: &prep, registries },
+        ResolutionContext {
+            install,
+            owned,
+            setup,
+            prep: &prep,
+            registries,
+            deprecations: super::DeprecationCollector::default(),
+        },
         importer_manifests,
     )
     .await?;
@@ -168,6 +175,9 @@ pub(super) struct ResolutionContext<'a, Reporter> {
     setup: &'a ResolverSetup,
     prep: &'a ResolutionPrep<Reporter>,
     registries: resolver_setup::Registries,
+    /// Every pass and the peer resolution report into it; it is emitted
+    /// once resolution ends.
+    deprecations: super::DeprecationCollector,
 }
 impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
     fn wanted_lockfile(&self) -> Option<&Lockfile> {
@@ -352,6 +362,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             result: workspace_result,
             full_resolution: full_resolution_required(
                 has_reusable_seed,
+                self.owned.resolution.update_seed_policy.max_depth(),
                 importer_manifests.keys().map(String::as_str),
                 &self.prep.reuse.scope,
                 &self.prep.reuse.by_importer,
@@ -429,9 +440,10 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
         preferred_versions_seeds_by_importer,
         stale_override_targets,
     )
-    .await?;
+    .await;
+    context.deprecations.emit::<Reporter>(context.install.prior.lockfile);
     Ok(context.completed_pass(
-        workspace_result,
+        workspace_result?,
         lockfile_reuse_seed.is_some(),
         phase_start,
         importer_manifests,

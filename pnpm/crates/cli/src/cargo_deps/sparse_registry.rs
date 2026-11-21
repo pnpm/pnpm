@@ -140,7 +140,7 @@ pub(super) async fn fetch_sparse_index(
         let missing = pnpm_cargo_resolver::missing_index_names_with_preferences(
             metadata,
             &index_files,
-            &source,
+            source.clone(),
             preferred_versions,
         )
         .wrap_err("discover Cargo sparse-index files")?;

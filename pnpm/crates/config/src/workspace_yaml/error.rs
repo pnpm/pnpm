@@ -241,6 +241,18 @@ pub enum LoadWorkspaceYamlError {
     )]
     WorkspaceRemoteCacheTrust { path: PathBuf, field: &'static str },
 
+    /// An `editor` appeared in a committed file, which may not choose the
+    /// executable `pnpm edit` runs.
+    #[display("editor cannot be set by a workspace ({})", path.display())]
+    #[diagnostic(
+        code(ERR_PNPM_WORKSPACE_EDITOR),
+        help(
+            "Set it in the global config file or in the environment instead of {}.",
+            path.display(),
+        )
+    )]
+    WorkspaceEditor { path: PathBuf },
+
     #[diagnostic(transparent)]
     UnexpandedEnvInPath(#[error(source)] crate::UnexpandedWindowsEnvVar),
 

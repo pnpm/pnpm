@@ -289,7 +289,7 @@ fn seed_scenario_fixture(
     // database the shared mock serves.
     pnpm_registry_mock::seed_runtime_storage()
         .unwrap_or_else(|err| panic!("seed registry-mock fixtures into runtime storage: {err}"));
-    work_env::seed_peer_heavy_registry(&pnpm_registry_mock::runtime_metadata_path());
+    work_env::seed_peer_heavy_registry(pnpm_registry_mock::runtime_metadata_path());
 }
 
 fn prepared_work_env(work_env: &std::path::Path) -> std::path::PathBuf {

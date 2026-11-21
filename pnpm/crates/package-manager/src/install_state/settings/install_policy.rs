@@ -1,3 +1,7 @@
+use std::collections::BTreeMap;
+
+use pnpm_config::Tool;
+
 use super::{
     Config,
     SettingsComparison,
@@ -26,11 +30,43 @@ pub(super) fn install_policy_settings(
     WorkspaceStateSettings {
         dangerously_allow_all_builds: Some(config.dangerously_allow_all_builds),
         extend_node_path: (!config.extend_node_path).then_some(false),
+        node_download_mirrors: recorded_node_download_mirrors(config),
         runtime: config.skip_runtimes.then_some(false),
         runtime_on_fail: config.runtime_on_fail,
+        tool_mirrors: recorded_tool_mirrors(config),
         trust_lockfile: config.trust_lockfile.then_some(true),
         ..rest
     }
+}
+
+fn recorded_node_download_mirrors(config: &Config) -> Option<BTreeMap<String, String>> {
+    (!config.node_download_mirrors.is_empty()).then(|| {
+        config.node_download_mirrors
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    })
+}
+
+fn recorded_tool_mirrors(config: &Config) -> Option<BTreeMap<String, String>> {
+    let mut mirrors = BTreeMap::new();
+    for (tool, name) in [(Tool::Node, "node"), (Tool::Bun, "bun")] {
+        if let Some(mirror) = config.tool_mirror(tool) {
+            mirrors.insert(format!("{name}.mirror"), mirror.to_string());
+        }
+        for (channel, mirror) in config.tool_channel_mirrors(tool) {
+            mirrors.insert(format!("{name}.channels.{channel}"), mirror);
+        }
+    }
+    (!mirrors.is_empty()).then_some(mirrors)
+}
+
+fn optional_string_maps_differ(
+    recorded: Option<&BTreeMap<String, String>>,
+    live: Option<&BTreeMap<String, String>>,
+) -> bool {
+    let empty = BTreeMap::new();
+    recorded.unwrap_or(&empty) != live.unwrap_or(&empty)
 }
 
 impl SettingsComparison<'_> {
@@ -49,8 +85,22 @@ impl SettingsComparison<'_> {
                 recorded.extend_node_path.unwrap_or(true)
                     != live.extend_node_path.unwrap_or(true),
             ),
+            (
+                "nodeDownloadMirrors",
+                optional_string_maps_differ(
+                    recorded.node_download_mirrors.as_ref(),
+                    live.node_download_mirrors.as_ref(),
+                ),
+            ),
             ("runtime", recorded.runtime.unwrap_or(true) != live.runtime.unwrap_or(true)),
             ("runtimeOnFail", recorded.runtime_on_fail != live.runtime_on_fail),
+            (
+                "toolMirrors",
+                optional_string_maps_differ(
+                    recorded.tool_mirrors.as_ref(),
+                    live.tool_mirrors.as_ref(),
+                ),
+            ),
             ("trustLockfile", differs(recorded.trust_lockfile, live.trust_lockfile)),
         ]
         .into_iter()

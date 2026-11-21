@@ -110,7 +110,7 @@ async fn fetch_local_archive<Reporter: self::Reporter>(
         files,
         index,
         bins,
-        meta: empty_meta(package_url),
+        meta: empty_meta(package_url.to_owned()),
     })))
 }
 
@@ -162,11 +162,11 @@ pub(crate) enum AttemptedFetch {
     NotModified(crate::archive_request::ArchiveResponseMeta),
 }
 
-fn empty_meta(package_url: &str) -> crate::archive_request::ArchiveResponseMeta {
+fn empty_meta(package_url: String) -> crate::archive_request::ArchiveResponseMeta {
     crate::archive_request::ArchiveResponseMeta {
         not_modified: false,
         cache_headers: crate::CacheHeaders::default(),
-        final_url: package_url.to_owned(),
+        final_url: package_url,
     }
 }
 

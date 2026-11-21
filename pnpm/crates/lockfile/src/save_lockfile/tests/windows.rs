@@ -31,7 +31,7 @@ fn save_recovers_after_the_lockfile_is_briefly_held() {
 
     let (sender, receiver) = mpsc::channel();
     let result = with_retry_observer(
-        &path,
+        path.clone(),
         move |attempt| {
             sender
                 .send(

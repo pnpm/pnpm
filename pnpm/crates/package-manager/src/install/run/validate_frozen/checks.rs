@@ -3,6 +3,7 @@ use super::{
         super::{
             Arc,
             CheckLockfileSettingsDriftOptions,
+            ExoticSubdepsPolicy,
             InstallError,
             Lockfile,
             Path,
@@ -42,14 +43,93 @@ impl RunExecution<'_> {
             }
             return Ok(());
         };
-        verify_lockfile_offline_and_policies(
+        let (base_policy, has_pnpmfile_hook) = self.build_pre_hook_local_policy(scope);
+        self.verify_pre_hook_and_drift(lockfile, base_policy, has_pnpmfile_hook).await
+    }
+
+    fn build_pre_hook_local_policy(
+        &self,
+        scope: &InstallScope<'_>,
+    ) -> (pnpm_lockfile_verification::LocalResolutionPolicy, bool) {
+        let config = self.install.context.config;
+        let has_pnpmfile_hook = self.owned.projects.pnpmfile_hook_override.is_some()
+            || (!config.ignore_pnpmfile
+                && !pnpm_hooks::finder::find_pnpmfiles(
+                    config.lockfile_dir_for(&self.workspace.dirs.workspace_root),
+                    crate::pnpmfile_selection(config),
+                )
+                .is_empty());
+        let overrides_root = self.options.manifests.overrides_root_dir;
+        let containment_root =
+            overrides_root.unwrap_or(&self.workspace.dirs.workspace_manifest_dir);
+        let with_live = pnpm_deps_restorer::attach_live_project_manifests(
+            pnpm_deps_restorer::local_resolution_policy_for_workspace_with_catalogs(
+                config,
+                Some(&self.workspace.catalogs),
+                (
+                    overrides_root,
+                    containment_root,
+                    config.lockfile_dir_for(&self.workspace.dirs.workspace_root),
+                ),
+                has_pnpmfile_hook,
+            )
+            .with_deploy(matches!(self.install.execution.mutation, crate::ProjectMutation::Deploy)),
+            scope.project_manifests
+                .iter()
+                .chain(scope.workspace_projects.iter().flatten()),
+        );
+        let policy = if self.install.lockfile_policy.ignore_manifest_check {
+            with_live
+        } else {
+            pnpm_deps_restorer::attach_selected_project_manifests(
+                with_live,
+                &scope.project_manifests,
+            )
+        };
+        (policy, has_pnpmfile_hook)
+    }
+
+    async fn verify_pre_hook_and_drift(
+        &mut self,
+        lockfile: &Lockfile,
+        base_policy: pnpm_lockfile_verification::LocalResolutionPolicy,
+        has_pnpmfile_hook: bool,
+    ) -> Result<(), InstallError> {
+        let cache_dir = Some(self.install.context.config.cache_dir.as_path());
+        match verify_lockfile_offline_and_policies(
             lockfile,
             &[],
-            None,
-            Some(&self.install.context.config.cache_dir),
+            (ExoticSubdepsPolicy::Allow, Some(base_policy.clone())),
+            (None, cache_dir),
         )
-        .await?;
-        self.check_pre_hook_settings_drift(lockfile).await
+        .await
+        {
+            Ok(()) => self.check_pre_hook_settings_drift(lockfile).await,
+            Err(InstallError::LockfileVerification(
+                pnpm_lockfile_verification::VerifyError::LocalSubdepNotAllowed { .. },
+            )) if has_pnpmfile_hook || base_policy.has_child_ranged_edges() => {
+                self.check_pre_hook_settings_drift(lockfile).await?;
+                let enriched = pnpm_deps_restorer::enrich_local_policy_for_install(
+                    base_policy,
+                    lockfile,
+                    pnpm_deps_restorer::LocalPolicyEnrichDrivers {
+                        config: Some(self.install.context.config),
+                        http_client: Some(self.install.context.http_client),
+                        hook: self.owned.projects.pnpmfile_hook_override.as_deref(),
+                    },
+                )
+                .await
+                .map_err(InstallError::ReadPackageHook)?;
+                verify_lockfile_offline_and_policies(
+                    lockfile,
+                    &[],
+                    (ExoticSubdepsPolicy::Allow, Some(enriched)),
+                    (None, cache_dir),
+                )
+                .await
+            }
+            Err(err) => Err(err),
+        }
     }
 
     async fn check_pre_hook_settings_drift(
@@ -102,19 +182,16 @@ pub(super) async fn verify_settled_frozen_path(
     if let Some(lockfile) = settled.lockfiles.wanted.get() {
         let is_hooked = settled.lockfiles.wanted.is_hooked();
         let config = settled.install.context.config;
-        let can_use_on_disk_cache = !is_hooked
-            && !settled.loaded.wanted.had_conflicts
-            && !config.merge_git_branch_lockfiles
-            && config.git_branch_lockfile_candidates.is_empty();
-        let lockfile_path = can_use_on_disk_cache
-            .then_some(settled.verification.derived_lockfile_path.as_deref())
-            .flatten();
-        let cache_dir = can_use_on_disk_cache.then_some(config.cache_dir.as_path());
+        let lockfile_source = settled.verification.cache_source();
+        let cache_dir = (!is_hooked).then_some(config.cache_dir.as_path());
         verify_lockfile_offline_and_policies(
             lockfile,
             &settled.verification.resolution_verifiers,
-            lockfile_path,
-            cache_dir,
+            (
+                settled.verification.exotic_subdeps.clone(),
+                Some(settled.verification.local_policy.clone()),
+            ),
+            (lockfile_source, cache_dir),
         )
         .await?;
         return Ok(true);
@@ -125,18 +202,27 @@ pub(super) async fn verify_settled_frozen_path(
 async fn verify_lockfile_offline_and_policies(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>],
-    lockfile_path: Option<&Path>,
-    cache_dir: Option<&Path>,
+    (exotic_subdeps, local_policy): (
+        ExoticSubdepsPolicy,
+        Option<pnpm_lockfile_verification::LocalResolutionPolicy>,
+    ),
+    (lockfile_source, cache_dir): (
+        Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>,
+        Option<&Path>,
+    ),
 ) -> Result<(), InstallError> {
     verify_lockfile_resolutions::<SilentReporter>(
         lockfile,
         verifiers,
         &VerifyLockfileResolutionsOptions {
             concurrency: None,
-            lockfile_path,
+            lockfile_path: lockfile_source.map(|source| source.path),
+            lockfile_stat: lockfile_source.and_then(|source| source.stat.cloned()),
             cache_dir,
             replaced: None,
             repairs_lockfile: false,
+            exotic_subdeps,
+            local_policy,
         },
     )
     .await

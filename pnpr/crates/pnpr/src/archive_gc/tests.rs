@@ -125,7 +125,7 @@ async fn archive_path(
         .await
         .unwrap()
         .unwrap();
-    local_archive_path(&temp.path().join("store"), "", Ecosystem::Oci, &blob.key())
+    local_archive_path(temp.path().join("store"), "", Ecosystem::Oci, &blob.key())
 }
 
 struct RetainedImage {
@@ -157,7 +157,7 @@ async fn retained_image_with_layers(
     }))
     .unwrap();
     let manifest = blob(storage, repository, &bytes).await;
-    let mut document = ImageDocument::new(repository.as_str());
+    let mut document = ImageDocument::new(repository.as_str().to_owned());
     document.insert_manifest(ManifestEntry {
         children: Vec::new(),
         referrer: None,
@@ -264,7 +264,7 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
     }))
     .unwrap();
     let index = blob(&storage, &repository, &bytes).await;
-    let mut document = ImageDocument::new(repository.as_str());
+    let mut document = ImageDocument::new(repository.as_str().to_owned());
     document.insert_manifest(ManifestEntry {
         children: Vec::new(),
         referrer: None,
@@ -308,7 +308,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
     }))
     .unwrap();
     let digest = blob(&storage, &repository, &bytes).await;
-    let mut document = ImageDocument::new(repository.as_str());
+    let mut document = ImageDocument::new(repository.as_str().to_owned());
     document.insert_manifest(ManifestEntry {
         children: Vec::new(),
         referrer: None,
@@ -330,7 +330,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
 async fn a_corrupt_repository_without_blobs_leaves_other_repositories_collectable() {
     let (_temp, storage) = setup();
     let repository = name("empty");
-    let mut document = ImageDocument::new(repository.as_str());
+    let mut document = ImageDocument::new(repository.as_str().to_owned());
     document.insert_manifest(ManifestEntry {
         children: Vec::new(),
         referrer: None,

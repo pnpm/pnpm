@@ -24,7 +24,7 @@ fn make_prepared(
         pre_resolution: PreparedPreResolution { hooked_wanted: None, hooked_current: None },
         verified_wanted,
         had_conflicts,
-        lockfile_verified: true,
+        verified_policy: Some(serde_json::Map::new()),
     }
 }
 
@@ -74,5 +74,61 @@ fn matches_verified_lockfile_accepts_same_lazy_instance_and_rejects_modified_dis
     assert!(
         !matches_verified_lockfile(MaybeLazyLockfile::Lazy(&validated_lazy), &conflict_mismatch),
         "had_conflicts mismatch invalidates prepared verification",
+    );
+}
+
+#[test]
+fn take_valid_override_rejects_weaker_prepared_policy() {
+    use super::{
+        SilentReporter,
+        Verification,
+    };
+    use pnpm_lockfile_verification::{
+        ExoticSubdepsPolicy,
+        ExoticSubdepsScope,
+        snapshot_verification_policy,
+    };
+
+    let unhooked_wanted = crate::install::run::wanted::WantedLockfile::default();
+
+    let weaker_policy = snapshot_verification_policy(&[], &ExoticSubdepsPolicy::Allow);
+    let stricter_verification = Verification {
+        meta_cache: std::sync::Arc::default(),
+        planned_canonical_fetches: std::sync::Arc::default(),
+        resolution_verifiers: Vec::new(),
+        exotic_subdeps: ExoticSubdepsPolicy::block(ExoticSubdepsScope::new(
+            Some(["."]),
+            std::iter::empty(),
+            std::iter::empty(),
+            std::iter::empty(),
+        )),
+        local_policy: pnpm_lockfile_verification::LocalResolutionPolicy::default(),
+        derived_lockfile: None,
+        auto_dedupe_baseline: None,
+    };
+
+    let mut mismatched = crate::install::InstallVerificationOptions {
+        override_check: Some(Box::pin(async { Ok(()) })),
+        prepared_policy: Some(weaker_policy),
+        extra_workspace_dirs: Vec::new(),
+    };
+    assert!(
+        stricter_verification
+            .take_valid_override::<SilentReporter>(&unhooked_wanted, &mut mismatched)
+            .is_none(),
+        "prepared verification under weaker policy must not bypass stricter run",
+    );
+
+    let matching_policy = snapshot_verification_policy(&[], &stricter_verification.exotic_subdeps);
+    let mut matching = crate::install::InstallVerificationOptions {
+        override_check: Some(Box::pin(async { Ok(()) })),
+        prepared_policy: Some(matching_policy),
+        extra_workspace_dirs: Vec::new(),
+    };
+    assert!(
+        stricter_verification
+            .take_valid_override::<SilentReporter>(&unhooked_wanted, &mut matching)
+            .is_some(),
+        "prepared verification under identical policy and scope must be reused",
     );
 }

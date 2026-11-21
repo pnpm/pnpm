@@ -137,10 +137,10 @@ pub struct ProjectDocument {
 
 impl ProjectDocument {
     #[must_use]
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: String) -> Self {
         Self {
             format_version: PROJECT_DOCUMENT_FORMAT_VERSION,
-            name: name.to_string(),
+            name,
             files: Vec::new(),
             deleted_files: BTreeSet::new(),
             owners: Vec::new(),

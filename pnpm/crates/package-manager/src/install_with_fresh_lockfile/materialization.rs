@@ -20,11 +20,11 @@ use super::{
     finish_early_materialization,
     finish_lockfile_only,
     manifest_transforms,
+    override_warnings::warn_stale_overrides,
     persist_fresh_lockfile,
     plan_fresh_materialization,
     resolver_setup,
     run_on_disk_phases,
-    warn_stale_convergence_overrides_if_any,
 };
 use crate::{
     AllowBuildPolicy,
@@ -138,22 +138,6 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
         .await
     })
 }
-pub(super) async fn warn_stale_overrides<Reporter: self::Reporter + 'static>(
-    install: FreshInputs<'_>,
-    setup: &ResolverSetup,
-    resolved: &Resolved<'_, Reporter>,
-) {
-    if resolved.reuse.full_resolution {
-        warn_stale_convergence_overrides_if_any::<Reporter>(
-            &*setup.chain.npm_resolver,
-            resolved.overrides.parsed_overrides.as_deref(),
-            resolved.overrides.versions_overrider.as_deref(),
-            install.projects.lockfile_dir,
-            (setup.policy.published_by, setup.policy.published_by_exclude.as_ref()),
-        )
-        .await;
-    }
-}
 
 fn on_disk_store<'a>(
     store_index_writer: Arc<pnpm_store_dir::StoreIndexWriter>,
@@ -184,7 +168,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
         let built_lockfile = build_lockfile_phase::<Reporter>(
             self.install,
-            &mut self.resources.lockfile.verification_gate,
+            &mut self.resources.lockfile,
             std::mem::take(&mut self.resolved.graph.time),
             &self.resolved,
             LockfileViews {
@@ -297,7 +281,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
 
             peer_issue_importer_ids: self.resolved.graph.peer_issue_importer_ids,
             wanted_lockfile: persisted.lockfile,
-            can_record_lockfile_verification: persisted.can_record_lockfile_verification,
+            saved_lockfile: persisted.saved_lockfile,
             ignored_builds: on_disk.ignored_builds,
             deferred_builds: on_disk.deferred_builds,
             skipped: on_disk.skipped,
@@ -313,8 +297,8 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         allow_build_policy: &AllowBuildPolicy,
         known: &ResolvedPackageFacts,
     ) -> Result<OnDiskOutput, InstallWithFreshLockfileError> {
-        let swap_lock =
-            pnpm_deps_restorer::ModulesSwapLock::new(&self.install.drivers.config.modules_dir);
+        let modules_dir = self.install.drivers.config.modules_dir.clone();
+        let swap_lock = pnpm_deps_restorer::ModulesSwapLock::new(modules_dir);
         run_on_disk_phases::<Reporter>(
             OnDiskInputs {
                 // Ahead of `ctx`, which borrows the stores `take_writer` mutates.

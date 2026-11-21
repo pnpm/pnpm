@@ -3,10 +3,9 @@ id: auth-backends
 title: Shared database
 ---
 
-Auth state (the registered users and their bearer tokens) is per-instance disk
-state. By default users live in a JSON account file and tokens in a local SQLite
-database (see [`auth`](configuration.md#auth)), so two pnpr replicas don't see
-each other's accounts.
+Auth state (registered users and bearer tokens) is stored in the metadata
+database (see [`auth`](configuration.md#auth)). Two pnpr replicas do not see
+each other's accounts unless they use the same database.
 
 Set `storage.database.url` to a libSQL, PostgreSQL, or MySQL database to share accounts,
 tokens, and package metadata across instances. Archives stay in the configured

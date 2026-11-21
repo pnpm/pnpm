@@ -308,7 +308,7 @@ fn visibility_failure_message_names_the_package_registry_and_reason() {
         ProvenanceError::failed_to_fetch_visibility(
             body,
             status,
-            "@pnpm/test-package",
+            "@pnpm/test-package".to_owned(),
             "https://registry.npmjs.org",
         )
         .to_string()

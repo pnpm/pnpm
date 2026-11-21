@@ -51,15 +51,33 @@ pub(super) struct RevisionMockRegistry {
     pub(super) url: String,
 }
 /// Where one benchmark's pnpr server binary, config and storage live.
-pub(super) struct PnprServerPaths<'a> {
-    pub(super) bench_dir: &'a Path,
-    pub(super) binary: &'a Path,
-    pub(super) config: &'a Path,
+pub(super) struct PnprServerPaths {
+    pub(super) bench_dir: PathBuf,
+    pub(super) binary: PathBuf,
+    pub(super) config: PathBuf,
     /// The registries document to import before the server starts, for a
     /// revision whose config file holds no registries.
-    pub(super) registries: Option<&'a Path>,
-    pub(super) storage: &'a Path,
+    pub(super) registries: Option<PathBuf>,
+    pub(super) storage: PathBuf,
     pub(super) port: u16,
+}
+impl PnprServerPaths {
+    /// The server's resolver cache: its cached packuments and resolutions.
+    /// It sits outside the database, so emptying it while the server is down
+    /// keeps the accounts and the token minted at startup.
+    pub(super) fn cache(&self) -> PathBuf {
+        pnpr_cache_dir(&self.storage)
+    }
+}
+/// The `--cache` of the pnpr server whose storage is `storage`.
+pub(super) fn pnpr_cache_dir(storage: &Path) -> PathBuf {
+    storage.join("cache")
+}
+/// A `pnpr@<rev>` target's resolver server, with the paths that launch it
+/// again after a restart with an empty cache.
+pub(super) struct PnprResolverServer {
+    pub(super) server: PnprServer,
+    pub(super) paths: PnprServerPaths,
 }
 /// A pnpr resolver server spawned for one `pnpr@<rev>`
 /// target. Killed on drop so it never outlives the benchmark run.
@@ -163,7 +181,7 @@ pub(super) fn cold_mock_config_yaml(
     registries: RegistriesHome,
 ) -> String {
     let graph = match registries {
-        RegistriesHome::ConfigFile => Some(cold_mock_graph(origin)),
+        RegistriesHome::ConfigFile => Some(cold_mock_graph(origin.to_owned())),
         RegistriesHome::Database => None,
     };
     let config = ColdMockConfig {
@@ -183,11 +201,11 @@ pub(super) fn cold_mock_config_yaml(
 }
 /// The cold mock's registries, for a revision that reads them from the
 /// database.
-pub(super) fn cold_mock_registries_yaml(origin: &str) -> String {
+pub(super) fn cold_mock_registries_yaml(origin: String) -> String {
     serde_saphyr::to_string(&cold_mock_graph(origin)).expect("serialize cold mock registries")
 }
-fn cold_mock_graph(origin: &str) -> ColdMockGraph {
-    let npmjs = ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
+fn cold_mock_graph(origin: String) -> ColdMockGraph {
+    let npmjs = ColdMockUpstreamEntry { kind: "upstream", url: origin, public: true };
     ColdMockGraph { registries: ColdMockUpstreamTable { npmjs }, default_registry: "npmjs" }
 }
 /// Use an isolated cache, cleared between iterations, with the warm mock as
@@ -220,7 +238,7 @@ pub(super) fn cold_revision_mock_command(
         .with_arg("31536000");
     if mock.registries.in_database() {
         let document = mock.bench_dir.join("cold-mock-registries.yaml");
-        fs::write(&document, cold_mock_registries_yaml(origin_url))
+        fs::write(&document, cold_mock_registries_yaml(origin_url.to_owned()))
             .expect("write cold mock registries");
         pnpm_registry_mock::import_registries(&command, &document);
     }

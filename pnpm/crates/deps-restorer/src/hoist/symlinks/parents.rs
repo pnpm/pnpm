@@ -57,7 +57,7 @@ fn create_hoist_root(root: &Path) -> Result<(), crate::SymlinkPackageError> {
         })
         .ok_or_else(|| {
             parent_dir_error(
-                root,
+                root.to_path_buf(),
                 io::Error::new(
                     io::ErrorKind::NotFound,
                     "workspace hoist directory has no existing ancestor",
@@ -77,7 +77,10 @@ fn create_dirs_below(
     let relative = parent
         .strip_prefix(root)
         .map_err(|error| {
-            parent_dir_error(parent, io::Error::new(io::ErrorKind::InvalidInput, error))
+            parent_dir_error(
+                parent.to_path_buf(),
+                io::Error::new(io::ErrorKind::InvalidInput, error),
+            )
         })?;
     let mut current = root.to_path_buf();
     for component in relative.components() {
@@ -93,15 +96,15 @@ fn create_or_validate(dir: &Path, kind: ParentKind) -> Result<(), crate::Symlink
         Err(error) if error.kind() == io::ErrorKind::NotFound => match std::fs::create_dir(dir) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                probe(dir, kind).map_err(|error| parent_dir_error(dir, error))?
+                probe(dir, kind).map_err(|error| parent_dir_error(dir.to_path_buf(), error))?
             }
-            Err(error) => return Err(parent_dir_error(dir, error)),
+            Err(error) => return Err(parent_dir_error(dir.to_path_buf(), error)),
         },
-        Err(error) => return Err(parent_dir_error(dir, error)),
+        Err(error) => return Err(parent_dir_error(dir.to_path_buf(), error)),
     };
     if shape.is_symlink || !shape.is_dir {
         return Err(parent_dir_error(
-            dir,
+            dir.to_path_buf(),
             io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "workspace hoist directory is not a real directory",
@@ -149,6 +152,6 @@ fn probe_attributes(dir: &Path, kind: ParentKind) -> io::Result<ParentShape> {
     })
 }
 
-fn parent_dir_error(dir: &Path, error: io::Error) -> crate::SymlinkPackageError {
-    crate::SymlinkPackageError::CreateParentDir { dir: dir.to_path_buf(), error }
+fn parent_dir_error(dir: PathBuf, error: io::Error) -> crate::SymlinkPackageError {
+    crate::SymlinkPackageError::CreateParentDir { dir, error }
 }

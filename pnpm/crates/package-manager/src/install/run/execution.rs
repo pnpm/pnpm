@@ -121,16 +121,9 @@ impl<'a> RunExecution<'a> {
         project_manifests: &[(PathBuf, &PackageManifest)],
         lockfiles: &mut Lockfiles<'_>,
     ) -> Result<InstallRunOutcome, InstallError> {
-        let (verification, root_preinstall_ran) =
+        let (mut verification, root_preinstall_ran) =
             self.announce::<Reporter>((scope, project_manifests), loaded, lockfiles)?;
-        apply_or_run_pre_resolution_hook::<Reporter>(
-            self.install,
-            &self.workspace,
-            loaded,
-            &mut lockfiles.wanted,
-            self.options.manifests.prepared_frozen.as_mut(),
-        )
-        .await?;
+        self.settle_pre_resolution::<Reporter>(loaded, lockfiles, &mut verification).await?;
         let lockfiles = &*lockfiles;
         let settled = Settled::new(
             (self.install, &self.owned, &self.mode, &self.workspace),
@@ -166,13 +159,33 @@ impl<'a> RunExecution<'a> {
     /// the install, and run `pnpm:devPreinstall`, which pnpm runs before the
     /// `preResolution` hook. Also returns whether the root's `preinstall` is
     /// taken care of.
+    async fn settle_pre_resolution<Reporter: self::Reporter>(
+        &mut self,
+        loaded: &mut Loaded<'_>,
+        lockfiles: &mut Lockfiles<'_>,
+        verification: &mut Verification,
+    ) -> Result<(), InstallError> {
+        apply_or_run_pre_resolution_hook::<Reporter>(
+            self.install,
+            &self.workspace,
+            loaded,
+            &mut lockfiles.wanted,
+            self.options.manifests.prepared_frozen.as_mut(),
+            verification,
+        )
+        .await?;
+        verification.sync_derived_lockfile_path(&lockfiles.wanted, loaded);
+        Ok(())
+    }
+
     fn announce<Reporter: self::Reporter>(
         &self,
         (scope, project_manifests): (&InstallScope<'_>, &[(PathBuf, &PackageManifest)]),
         loaded: &Loaded<'_>,
         lockfiles: &Lockfiles<'_>,
     ) -> Result<(Verification, bool), InstallError> {
-        let verification = Verification::set_up(self, lockfiles, (scope, project_manifests))?;
+        let verification =
+            Verification::set_up(self, loaded, lockfiles, (scope, project_manifests))?;
         if let Some(message) = self.install.context.config.bypassed_home_store_warning() {
             pnpm_reporter::emit_global_warning::<Reporter>(&message);
         }
@@ -388,6 +401,9 @@ impl<'a> RunExecution<'a> {
                 existing_wanted: lockfiles.wanted.loaded,
                 loaded: lockfiles.wanted.get(),
                 frozen: dispatched.take_frozen_path,
+                trust_lockfile: self.options.save.recorded_trust_lockfile.unwrap_or(
+                    self.install.lockfile_policy.trust,
+                ),
                 locked_registry_routes: self.workspace.loaded_workspace
                     .locked_registry_routes
                     .take(),

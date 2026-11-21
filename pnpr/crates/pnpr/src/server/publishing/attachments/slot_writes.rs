@@ -84,7 +84,8 @@ async fn write_attachment_slot(
         TarballStorage::Tar => name.tar_name_for_version(&prepared.version),
         TarballStorage::Tgz => prepared.canonical.clone(),
     };
-    let slot = storage.reserve_hosted_blob(name, &blob).await?.for_version(&prepared.version);
+    let slot =
+        storage.reserve_hosted_blob(name, &blob).await?.for_version(prepared.version.clone());
     let (slot, derived) = write_under_permit(
         slot,
         slot_storage,

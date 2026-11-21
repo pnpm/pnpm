@@ -27,7 +27,10 @@ use std::{
         Path,
         PathBuf,
     },
-    sync::Arc,
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 /// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
@@ -77,6 +80,11 @@ pub struct PrefetchedBinLookup<'a> {
     /// file's shebang read and executable-bit fix-up run once per pass
     /// rather than once per importer.
     pub(super) shim_cache: ShimTargetCache,
+    /// Manifests read from disk, keyed by the directory the dependency's
+    /// link points at. Workspace projects are `link:` dependencies of many
+    /// importers, and each would otherwise read the same `package.json`.
+    /// See [`Self::read_from_disk`].
+    disk_manifests: Mutex<HashMap<PathBuf, Option<Arc<serde_json::Value>>>>,
     /// See [`Self::with_scheduled_builds`].
     scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
 }
@@ -119,8 +127,41 @@ impl<'a> PrefetchedBinLookup<'a> {
             package_bins: None,
             requires_build,
             shim_cache: ShimTargetCache::default(),
+            disk_manifests: Mutex::default(),
             scheduled_builds: None,
         }
+    }
+
+    /// [`read_dep_manifest`] with the manifest memoized under `target`, so
+    /// one pass reads a linked directory's manifest once however many
+    /// importers depend on it. Errors are not memoized. Two workers racing
+    /// on one target may both read it, which is harmless.
+    pub(super) fn read_from_disk(
+        &self,
+        modules_dir: &Path,
+        name: &str,
+        target: &Path,
+    ) -> Option<Result<PackageBinSource, LinkBinsError>> {
+        let memoized = self.disk_manifests
+            .lock()
+            .expect("disk manifest memo lock")
+            .get(target)
+            .cloned();
+        let manifest = if let Some(manifest) = memoized {
+            manifest
+        } else {
+            let manifest = match read_linked_manifest(&modules_dir.join(name), Some(target)) {
+                Ok(manifest) => manifest.map(Arc::new),
+                Err(error) => return Some(Err(error)),
+            };
+            self.disk_manifests
+                .lock()
+                .expect("disk manifest memo lock")
+                .insert(target.to_path_buf(), manifest.clone());
+            manifest
+        }?;
+        Some(Ok(PackageBinSource::new(modules_dir.join(name), manifest)
+            .with_resolved_location(target.to_path_buf())))
     }
 }
 /// What the prefetched facts say about one direct dependency's bins.
@@ -136,6 +177,13 @@ pub(super) enum PrefetchedBin {
 /// (see [`PrefetchedBinLookup::requires_build`]); anything else reads
 /// the on-disk manifest, which reflects whatever a build script did to
 /// it.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`target` is copied only once the prefetched facts rule out the early returns, and callers borrow it from a shared candidate list, so an owned parameter would allocate for every candidate."
+    )
+)]
 pub(super) fn prefetched_bin_source(
     modules_dir: &Path,
     name: &str,
@@ -198,16 +246,26 @@ pub(super) fn read_dep_manifest(
     target: Option<&Path>,
 ) -> Option<Result<(PathBuf, serde_json::Value), LinkBinsError>> {
     let location = modules_dir.join(name);
-    let manifest = match read_manifest_at(&location.join("package.json")) {
-        Ok(Some(manifest)) => manifest,
-        Ok(None) => match read_existing_publish_manifest(target?) {
-            Ok(Some(manifest)) => manifest,
-            Ok(None) => return None,
-            Err(err) => return Some(Err(err)),
+    match read_linked_manifest(&location, target) {
+        Ok(Some(manifest)) => Some(Ok((location, manifest))),
+        Ok(None) => None,
+        Err(err) => Some(Err(err)),
+    }
+}
+
+/// The manifest of the package at `location`, the link that points at
+/// `target`. See [`read_dep_manifest`] for the fallback.
+fn read_linked_manifest(
+    location: &Path,
+    target: Option<&Path>,
+) -> Result<Option<serde_json::Value>, LinkBinsError> {
+    match read_manifest_at(&location.join("package.json"))? {
+        Some(manifest) => Ok(Some(manifest)),
+        None => match target {
+            Some(target) => read_existing_publish_manifest(target),
+            None => Ok(None),
         },
-        Err(err) => return Some(Err(err)),
-    };
-    Some(Ok((location, manifest)))
+    }
 }
 fn read_existing_publish_manifest(
     target: &Path,

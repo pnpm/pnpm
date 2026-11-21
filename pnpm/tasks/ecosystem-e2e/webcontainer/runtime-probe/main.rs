@@ -110,6 +110,13 @@ async fn host(message: Value) -> Value {
         .expect("complete host operation")
 }
 
+async fn host_binary(message: Value) -> (Value, Option<Vec<u8>>) {
+    pnpm_wasm_host::request_binary(&message)
+        .expect("start binary host operation")
+        .await
+        .expect("complete binary host operation")
+}
+
 async fn check_host_network() {
     let url = std::env::var("PROBE_REGISTRY_URL")
         .unwrap_or_else(|_| "https://registry.npmjs.org/is-odd/latest".into());
@@ -118,13 +125,12 @@ async fn check_host_network() {
     let handle = &response["handle"];
     let mut bytes = Vec::<u8>::new();
     loop {
-        let chunk = host(json!({ "operation": "stream.read", "handle": handle })).await;
+        let (chunk, binary) =
+            host_binary(json!({ "operation": "stream.read", "handle": handle })).await;
         if chunk["done"] == true {
             break;
         }
-        bytes.extend(
-            serde_json::from_value::<Vec<u8>>(chunk["bytes"].clone()).expect("binary chunk"),
-        );
+        bytes.extend(binary.expect("binary response chunk"));
     }
     let metadata: Value = serde_json::from_slice(&bytes).expect("registry returned JSON");
     assert_eq!(metadata["name"], "is-odd");
@@ -141,8 +147,16 @@ async fn check_host_process() {
     let handle = &child["handle"];
     host(json!({ "operation": "process.write", "handle": handle, "bytes": [0, 255, 13] })).await;
     host(json!({ "operation": "process.end", "handle": handle })).await;
-    let output = host(json!({ "operation": "stream.read", "handle": child["stdout"] })).await;
-    assert_eq!(output["bytes"], json!([0, 255, 13]));
+    let mut output_bytes = Vec::new();
+    loop {
+        let (output, bytes) =
+            host_binary(json!({ "operation": "stream.read", "handle": child["stdout"] })).await;
+        if output["done"] == true {
+            break;
+        }
+        output_bytes.extend(bytes.expect("live subprocess output chunk"));
+    }
+    assert_eq!(output_bytes, [0, 255, 13]);
     let exit = host(json!({ "operation": "process.wait", "handle": handle })).await;
     assert_eq!(exit["code"], 17);
     assert!(exit["signal"].is_null());
@@ -221,13 +235,13 @@ async fn check_secure_filesystem(directory: &Path) {
     pnpm_fs::write_atomic_private(&credential, b"secret").expect("private atomic write");
     let executable = directory.join("executable");
     pnpm_fs::write_atomic(&executable, b"script").expect("atomic write");
-    pnpm_fs::file_mode::set_path_permissions(&executable, 0o755).expect("executable permissions");
+    pnpm_fs::file_mode::set_path_permissions(&executable, pnpm_fs::FileMode::from_mode(0o755)).expect("executable permissions");
     pnpm_fs::executable_access(&executable).expect("host executable access");
     assert!(pnpm_fs::executable_access(&credential).is_err());
     let linked = directory.join("linked");
     pnpm_fs::create_symlink(&credential, &linked, false).expect("WASI symlink");
     assert_eq!(std::fs::read(&linked).expect("read symlink"), b"secret");
-    assert!(pnpm_fs::file_mode::set_path_permissions(&linked, 0o777).is_err());
+    assert!(pnpm_fs::file_mode::set_path_permissions(&linked, pnpm_fs::FileMode::from_mode(0o777)).is_err());
     std::fs::remove_file(&linked).expect("remove symlink");
     std::fs::hard_link(&credential, &linked).expect("hardlink");
     assert_eq!(pnpm_fs::file_link_count(&File::open(&credential).unwrap()).unwrap(), 2);

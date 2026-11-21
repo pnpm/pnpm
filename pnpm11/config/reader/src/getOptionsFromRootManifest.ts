@@ -182,7 +182,7 @@ function misspelledTaskSettingField (field: string): string | undefined {
 }
 
 // The section feeds the task-graph builder of `pnpm -r run`, which reads it
-// without further checks — a malformed entry has to be rejected here rather
+// without further checks. A malformed entry has to be rejected here rather
 // than surface as a scheduling bug far from the setting that produced it. A
 // misspelled `dependsOn` is the costly one: the entry still exists, so the task
 // takes the empty dependency list an entry without `dependsOn` declares, and
@@ -195,6 +195,11 @@ function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSet
 }
 
 function assertValidTask (taskPath: string, task: unknown): void {
+  if (task == null) {
+    throw new PnpmError('INVALID_SETTING', `The "${taskPath}" setting has no value.`, {
+      hint: 'Write {} for a task with no settings, or remove the entry to keep the default dependsOn: [\'^<task>\'].',
+    })
+  }
   assertObjectSetting(task, taskPath)
   assertNoMisspelledTaskFields(taskPath, task as Record<string, unknown>)
   const concurrency = (task as { concurrency?: unknown }).concurrency
@@ -224,8 +229,8 @@ function assertNoMisspelledTaskFields (taskPath: string, task: Record<string, un
 
 /**
  * The signing trust root stays outside the repository: a workspace declares
- * which organization and packages are eligible and nothing else — see
- * {@link WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS}. Letting it set `publish` would
+ * which organization and packages are eligible and nothing else (see
+ * {@link WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS}). Letting it set `publish` would
  * turn a key the machine holds for its own builds into a signing oracle any
  * cloned repository could aim at a registry of its choosing.
  *
@@ -240,6 +245,7 @@ function assertValidSideEffectsCache (
   assertObjectSetting(settings, 'sideEffectsCache')
   assertOptionalBoolean(settings.read, 'sideEffectsCache.read')
   assertOptionalBoolean(settings.write, 'sideEffectsCache.write')
+  assertOptionalStringArray(settings.exclude, 'sideEffectsCache.exclude')
   if (settings.remote != null) {
     assertValidSharedSideEffectsCache(settings.remote, trustedSource, 'sideEffectsCache.remote')
   }
@@ -281,8 +287,8 @@ function assertOnlyWorkspaceRemoteSideEffectsFields (
 /**
  * The only fields of `remoteSideEffectsCache` a committed file may contribute.
  *
- * Everything else describes the act of signing — which key signs, what
- * provenance the signature attests, and whether to publish at all — so it
+ * Everything else describes the act of signing (which key signs, what
+ * provenance the signature attests, and whether to publish at all), so it
  * belongs to the machine holding the key. Listing what a repository may set,
  * rather than what it may not, keeps a field added later machine-only until
  * someone decides otherwise.
@@ -371,8 +377,8 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
 /**
  * The `update` settings the CLI acts on, re-joined from the internal
  * `updateConfig` shape {@link translateUpdateSettings} splits the section
- * into — the view `pnpm config get update` prints. `undefined` when nothing
- * is set.
+ * into. This is the view `pnpm config get update` prints. `undefined` when
+ * nothing is set.
  */
 export function toUpdateSettings (updateConfig: OptionsFromRootManifest['updateConfig']): UpdateSettings | undefined {
   if (updateConfig == null) return undefined
@@ -388,7 +394,7 @@ export function toUpdateSettings (updateConfig: OptionsFromRootManifest['updateC
 /**
  * The `audit` settings the CLI acts on, re-joined from the internal
  * `auditConfig` / `auditLevel` / `auditIgnorePrune` settings
- * {@link translateAuditSettings} splits the section into — the view
+ * {@link translateAuditSettings} splits the section into. This is the view
  * `pnpm config get audit` prints. An empty ignore list reads as unset.
  * `undefined` when nothing is set.
  */
@@ -468,7 +474,7 @@ const PACKAGE_EXTENSION_DEPENDENCY_FIELDS = ['dependencies', 'optionalDependenci
 // resolution tries to read a version out of it, far away from the setting that
 // produced it.
 //
-// A `null` field counts as absent rather than malformed — that is what a key
+// A `null` field counts as absent rather than malformed. That is what a key
 // left empty in YAML parses to, and what pacquet's `Option` fields accept.
 function assertValidPackageExtensions (packageExtensions: unknown): asserts packageExtensions is Record<string, PackageExtension> {
   assertObjectSetting(packageExtensions, 'packageExtensions')

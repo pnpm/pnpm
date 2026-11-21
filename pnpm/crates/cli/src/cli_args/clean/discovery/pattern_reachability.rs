@@ -27,7 +27,7 @@ pub(super) fn patterns_entering_root_dir(
         if pattern.starts_with('!') {
             negations.push(pattern.clone());
         } else {
-            includes.extend(matching_recovery_branches(pattern, &target_segments));
+            includes.extend(matching_recovery_branches(pattern.clone(), &target_segments));
         }
     }
     if includes.is_empty() {
@@ -58,7 +58,7 @@ fn relative_root_dir_posix(workspace_dir: &Path, target_dir: &Path) -> Option<St
     relative_subpath_posix(&rel)
 }
 
-fn matching_recovery_branches(pattern: &str, target_segments: &[&str]) -> Vec<String> {
+fn matching_recovery_branches(pattern: String, target_segments: &[&str]) -> Vec<String> {
     expand_braces(pattern)
         .into_iter()
         .filter_map(|branch| {
@@ -133,7 +133,7 @@ pub(super) fn literal_pattern_subpaths(patterns: &[String]) -> Vec<String> {
                 negations.push(trimmed);
             }
         } else {
-            literals.extend(expand_literal_branches(pattern));
+            literals.extend(expand_literal_branches(pattern.clone()));
         }
     }
     literals
@@ -142,7 +142,7 @@ pub(super) fn literal_pattern_subpaths(patterns: &[String]) -> Vec<String> {
         .collect()
 }
 
-fn expand_literal_branches(raw: &str) -> Vec<String> {
+fn expand_literal_branches(raw: String) -> Vec<String> {
     expand_braces(raw)
         .into_iter()
         .filter_map(|branch| normalize_literal_branch(&branch))
@@ -183,8 +183,8 @@ fn is_literal_glob_segment(seg: &str) -> bool {
     !seg.is_empty() && seg != "." && seg != ".." && wax::escape(seg) == seg
 }
 
-fn expand_braces(pattern: &str) -> Vec<String> {
-    let mut queue = vec![pattern.to_string()];
+fn expand_braces(pattern: String) -> Vec<String> {
+    let mut queue = vec![pattern];
     let mut expanded = Vec::new();
     while let Some(current) = queue.pop() {
         let Some((open, close, alts)) = find_first_brace_group(&current) else {

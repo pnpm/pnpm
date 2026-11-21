@@ -94,6 +94,13 @@ fn npm_only_field(declaration: &RegistryDeclaration) -> Option<&'static str> {
 }
 
 /// Record a non-npm entry's index, answering whether it was one.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the URL is copied only for non-npm entries, and the caller keeps using its own copy"
+    )
+)]
 pub(super) fn collect_index(
     indexes_by_ecosystem: &mut BTreeMap<Ecosystem, Vec<EcosystemIndex>>,
     normalized: &str,

@@ -25,7 +25,6 @@ use super::{
         prepare_modules_state,
         verify_lockfile_eagerly,
     },
-    Verification,
     manifests::{
         RootHooksScope,
         run_root_hooks,
@@ -100,7 +99,10 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     if take_frozen_path && mode.lockfile_only {
         finish_dispatched_lockfile::<Reporter>(
             settled,
-            options.lockfile_verification_override.take(),
+            settled.verification.take_valid_override::<Reporter>(
+                &settled.lockfiles.wanted,
+                &mut options.verification,
+            ),
         )
         .await?;
         return Ok(None);
@@ -135,22 +137,12 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
     let Settled {
         install,
         lockfiles,
-        verification,
         projects: SettledProjects { workspace, .. },
         ..
     } = settled;
     let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
-    if let Some(lockfile_verification_override) = lockfile_verification_override {
-        lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
-    } else {
-        verify_lockfile_eagerly::<Reporter>(
-            lockfile,
-            &verification.resolution_verifiers,
-            verification.derived_lockfile_path.as_deref(),
-            &install.context.config.cache_dir,
-        )
+    verify_dispatched_lockfile::<Reporter>(settled, lockfile, lockfile_verification_override)
         .await?;
-    }
     if install.context.config.lockfile {
         lockfile
             .save_to_path_as(
@@ -168,8 +160,26 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: workspace.prefix.clone(),
+        new_projects: None,
     }));
     Ok(())
+}
+
+async fn verify_dispatched_lockfile<Reporter: self::Reporter + 'static>(
+    settled: Settled<'_, '_>,
+    lockfile: &Lockfile,
+    lockfile_verification_override: Option<super::super::LockfileVerificationOverride<'_>>,
+) -> Result<(), InstallError> {
+    if let Some(lockfile_verification_override) = lockfile_verification_override {
+        return lockfile_verification_override.await.map_err(map_frozen_lockfile_error);
+    }
+    verify_lockfile_eagerly::<Reporter>(
+        lockfile,
+        &settled.verification.resolution_verifiers,
+        (settled.verification.exotic_subdeps.clone(), settled.verification.local_policy.clone()),
+        (settled.verification.cache_source(), &settled.install.context.config.cache_dir),
+    )
+    .await
 }
 pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
@@ -182,11 +192,11 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
         mode,
         loaded,
         lockfiles,
-        verification,
         projects,
+        ..
     } = settled;
     let scope = projects.scope;
-    let verification = verification.take_inputs(options);
+    let verification = settled.take_verification_inputs::<Reporter>(options);
     let prepared = prepare_modules_state::<Reporter>(PrepareModulesStateInputs {
         tree: settled.modules_tree(),
         lockfiles: crate::install::state_options::PreparedLockfiles {
@@ -466,20 +476,26 @@ pub(super) async fn auto_frozen_path(
     }
 }
 
-impl Verification {
-    fn take_inputs<'r, 'install>(
-        &'r self,
+impl<'r> Settled<'r, '_> {
+    fn take_verification_inputs<'install, Reporter: self::Reporter + 'static>(
+        self,
         options: &mut InstallRunOptions<'install, '_>,
     ) -> crate::install::state_options::LockfileVerificationInputs<'r, 'install> {
+        let trust_lockfile =
+            options.save.recorded_trust_lockfile.unwrap_or(self.install.lockfile_policy.trust);
         crate::install::state_options::LockfileVerificationInputs {
-            verifiers: &self.resolution_verifiers,
-            path: self.derived_lockfile_path.as_deref(),
-            override_check: options.lockfile_verification_override.take(),
+            verifiers: &self.verification.resolution_verifiers,
+            exotic_subdeps: &self.verification.exotic_subdeps,
+            source: self.verification.cache_source(),
+            local_policy: self.verification.local_policy.clone(),
+            override_check: self.verification.take_valid_override::<Reporter>(
+                &self.lockfiles.wanted,
+                &mut options.verification,
+            ),
+            trust_lockfile,
         }
     }
-}
 
-impl<'r> Settled<'r, '_> {
     fn modules_tree(self) -> crate::install::state_options::ModulesTreeContext<'r> {
         crate::install::state_options::ModulesTreeContext {
             config: self.install.context.config,

@@ -90,6 +90,7 @@ use super::{
     walk::{
         ChildEdge,
         NodeSeed,
+        ParentOrigin,
         closes_cycle,
         level_aliases,
         node_alias,
@@ -345,7 +346,13 @@ pub(super) async fn seed_reused_node(
         }
         PackageRegistration::Existing(id) => id,
     };
-    let ancestry = snapshot_children::ReusedNodeAncestry::new(edge, &id, current_is_optional);
+    let non_local_parent = matches!(ParentOrigin::of(&result), ParentOrigin::NonLocal(_));
+    let ancestry = snapshot_children::ReusedNodeAncestry::new(
+        edge,
+        &id,
+        current_is_optional,
+        non_local_parent,
+    );
     Ok(NodeSeed::Reused(Box::new(PendingReusedNode {
         dep: DirectDep { alias, node_id: identity.node_id, id },
         key: reused.key,

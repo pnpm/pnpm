@@ -7,6 +7,12 @@ An error pnpm raises carries a code that starts with `ERR_PNPM_`. The code is pr
 
 The codes are listed in alphabetical order. A code that is not listed here is explained by its own message.
 
+## ERR_PNPM_BAD_RUNTIME_VERSION
+
+The root project declares a runtime in [`devEngines.runtime`](./package_json.md#devenginesruntime) or `engines.runtime` with `onFail` set to `error`, and the installed version of that runtime does not satisfy the declared range. The message names the wanted range and the current version.
+
+Install a matching version of the runtime, or set `onFail` to `download` to let pnpm fetch it. To check without failing, set [`runtimeOnFail`](./settings/cli.md#runtimeonfail) to `warn` or `ignore`.
+
 ## ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR
 
 A setting in `pnpm-workspace.yaml` or the [global configuration file](./cli/config.md) references an environment variable that isn't set or is empty, and the reference has no fallback. The error names the reference, for example `${MY_STORE_DIR}`.
@@ -35,11 +41,23 @@ Run [`pnpm approve-builds`](./cli/approve-builds.md) to allow the builds you tru
 
 The [`nodeVersion`](./settings/cli.md#nodeversion) setting is not an exact semver version, such as `22.22.3`.
 
+## ERR_PNPM_INVALID_RUNTIME_VERSION_RANGE
+
+The `version` of a runtime declared in [`devEngines.runtime`](./package_json.md#devenginesruntime) or `engines.runtime` is not a valid semver range, and `onFail` is `error`.
+
+Fix the range in `package.json`. To check without failing, set [`runtimeOnFail`](./settings/cli.md#runtimeonfail) to `warn` or `ignore`.
+
 ## ERR_PNPM_LOCKFILE_CONFIG_MISMATCH
 
 A frozen install found that a setting recorded in `pnpm-lock.yaml` differs from the current configuration. The message names the setting. The lockfile records `overrides`, `patchedDependencies`, `catalogs`, `ignoredOptionalDependencies`, the checksums of `packageExtensions` and the pnpmfile, and the resolution settings in its `settings` block, such as `autoInstallPeers` and `dedupePeers`.
 
 Run `pnpm install` without `--frozen-lockfile` and commit the updated lockfile.
+
+## ERR_PNPM_MISSING_RUNTIME_VERSION_RANGE
+
+A runtime declared in [`devEngines.runtime`](./package_json.md#devenginesruntime) or `engines.runtime` has no `version`, and `onFail` is `error`.
+
+Add a version range to the runtime entry in `package.json`. To check without failing, set [`runtimeOnFail`](./settings/cli.md#runtimeonfail) to `warn` or `ignore`.
 
 ## ERR_PNPM_NODE_LINKER_DIFF
 
@@ -101,6 +119,12 @@ Run `pnpm install` to recreate the modules directory with the new `publicHoistPa
 The registry answered a request for one package with the metadata of a different package. pnpm stops instead of installing the package under a name the registry was not asked about.
 
 Check that the registry configured for the package, or for its scope, is correct. A misconfigured proxy or a registry that serves the wrong document can cause this error.
+
+## ERR_PNPM_RUNTIME_NOT_FOUND
+
+A runtime declared in [`devEngines.runtime`](./package_json.md#devenginesruntime) or `engines.runtime` with `onFail` set to `error` is not installed on the system.
+
+Install the runtime, or set `onFail` to `download` to let pnpm fetch it. To check without failing, set [`runtimeOnFail`](./settings/cli.md#runtimeonfail) to `warn` or `ignore`.
 
 ## ERR_PNPM_TARBALL_INTEGRITY
 

@@ -4,6 +4,7 @@ use super::{
     compute_package_extensions_checksum,
     importers_consuming_linked_peers,
     include_transitive_optional_dependencies,
+    is_installed,
     is_partial_workspace_selection,
     manifest_transforms::build_manifest_transforms,
 };
@@ -71,8 +72,13 @@ async fn filtered_repair_verifies_the_merged_lockfile() {
     )
     .expect("parse lockfile");
 
-    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[]).await
-        .expect_err("the merged lockfile must pass structural verification");
+    let error = verify_merged_repair::<SilentReporter>(
+        &lockfile,
+        &[],
+        (pnpm_lockfile_verification::ExoticSubdepsPolicy::Allow, None),
+    )
+    .await
+    .expect_err("the merged lockfile must pass structural verification");
     assert!(matches!(
         error,
         super::InstallWithFreshLockfileError::LockfileVerification(
@@ -164,18 +170,56 @@ fn importer_scoped_update_full_resolution_requires_every_importer_to_disable_reu
     let importer_ids = ["selected", "unselected"];
     let mixed =
         std::collections::BTreeMap::from([("selected".to_string(), UpdateReuseScope::None)]);
-    assert!(!full_resolution_required(true, importer_ids, &UpdateReuseScope::All, &mixed,));
+    assert!(!full_resolution_required(
+        true,
+        pnpm_resolving_deps_resolver::UpdateDepth::UNLIMITED,
+        importer_ids,
+        &UpdateReuseScope::All,
+        &mixed,
+    ));
 
     let all_none = std::collections::BTreeMap::from([
         ("selected".to_string(), UpdateReuseScope::None),
         ("unselected".to_string(), UpdateReuseScope::None),
     ]);
-    assert!(full_resolution_required(true, importer_ids, &UpdateReuseScope::All, &all_none,));
+    assert!(full_resolution_required(
+        true,
+        pnpm_resolving_deps_resolver::UpdateDepth::UNLIMITED,
+        importer_ids,
+        &UpdateReuseScope::All,
+        &all_none,
+    ));
     assert!(full_resolution_required(
         false,
+        pnpm_resolving_deps_resolver::UpdateDepth::UNLIMITED,
         importer_ids,
         &UpdateReuseScope::All,
         &std::collections::BTreeMap::new(),
+    ));
+}
+
+#[test]
+fn a_depth_limited_update_is_not_a_full_resolution() {
+    use pnpm_resolving_deps_resolver::{
+        UpdateDepth,
+        UpdateReuseScope,
+    };
+
+    let no_scopes = std::collections::BTreeMap::new();
+    let depth_zero = UpdateDepth::new(0);
+    assert!(!full_resolution_required(
+        true,
+        depth_zero,
+        ["."],
+        &UpdateReuseScope::None,
+        &no_scopes
+    ));
+    assert!(full_resolution_required(
+        false,
+        depth_zero,
+        ["."],
+        &UpdateReuseScope::None,
+        &no_scopes
     ));
 }
 
@@ -189,6 +233,7 @@ fn importer_scoped_update_custom_refresh_widens_every_importer() {
     )]);
     assert!(full_resolution_required(
         true,
+        pnpm_resolving_deps_resolver::UpdateDepth::UNLIMITED,
         ["selected", "unselected"],
         &UpdateReuseScope::None,
         &scoped,
@@ -567,4 +612,31 @@ fn deps_requiring_build_include_loaded_builds() {
     super::on_disk::publish_deps_requiring_build(Some(&sink), &output);
     let published = sink.lock().unwrap().clone().unwrap();
     assert_eq!(published.into_iter().collect::<Vec<_>>(), ["loaded@1.0.0", "materialized@1.0.0"]);
+}
+
+fn deprecation(pkg_id: &str) -> pnpm_resolving_deps_resolver::Deprecation {
+    pnpm_resolving_deps_resolver::Deprecation {
+        pkg_name: "foo".to_string(),
+        pkg_version: "1.0.0".to_string(),
+        pkg_id: pkg_id.to_string(),
+        prefix: "/repo".to_string(),
+        depth: 1,
+        non_deprecated_alternative: None,
+    }
+}
+
+/// A tarball of the same version is a different package from the registry
+/// one the lockfile has, so its deprecation is news.
+#[test]
+fn a_deprecated_package_is_installed_only_under_its_own_id() {
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\n\
+         importers:\n  .: {}\n\
+         packages:\n  foo@1.0.0:\n    resolution: {integrity: sha512-AAAA}\n",
+    )
+    .expect("parse the lockfile");
+    let packages = lockfile.packages.as_ref().expect("the lockfile has packages");
+    assert!(is_installed(packages, &deprecation("foo@1.0.0")));
+    assert!(!is_installed(packages, &deprecation("foo@https://example.test/foo.tgz")));
+    assert!(!is_installed(packages, &deprecation("foo@1.0.1")));
 }

@@ -722,7 +722,7 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
         .collect(),
         Some("main".to_string()),
     )
-    .with_ecosystem("crates", Ecosystem::Cargo);
+    .with_ecosystem("crates".to_owned(), Ecosystem::Cargo);
     let auth = crate::tokens::seeded_auth(
         &config,
         &[("alice", "password"), ("bob", "password"), ("ci", "password")],

@@ -230,7 +230,7 @@ async fn pin_waits_are_bounded_and_skip_unusable_metadata() {
     let state = state(tmp.path(), &server.url());
     let mut config = state.routing().upstreams["mirror"].clone();
     config.requests.timeout = Duration::from_millis(20);
-    let upstream = super::Upstream::new("mirror", &config);
+    let upstream = super::Upstream::new("mirror".to_owned(), &config);
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
     let filename = "example-1.0.0.tgz";
     let mut doc = json!({"versions":{"1.0.0":{"dist":{"tarball":format!("{}/example/-/{filename}", server.url())}}}});
@@ -258,7 +258,7 @@ async fn pin_waits_are_bounded_and_skip_unusable_metadata() {
         .await
         .unwrap();
     config.requests.timeout = Duration::from_secs(10);
-    let upstream = super::Upstream::new("mirror", &config);
+    let upstream = super::Upstream::new("mirror".to_owned(), &config);
     tokio::time::timeout(
         Duration::from_secs(1),
         super::wait_for_pin(&state, "test", &upstream, &name, filename),
@@ -601,7 +601,7 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
         .unwrap(),
         super::super::RefreshOutcome::SupersededByPurge,
     ));
-    assert!(state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+    assert!(state.inner.proxy.packument_writes.is_purged("fail-ns".to_owned(), &name));
 
     // Across a restart, a fresh AppState with empty in-memory write order still
     // suppresses the retained file on both storage reads and stale-if-error recovery.
@@ -609,7 +609,7 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
     let state = self::state(tmp.path(), &server_url);
     let routing = state.routing();
     let upstream = &routing.upstream_clients["mirror"];
-    assert!(!state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+    assert!(!state.inner.proxy.packument_writes.is_purged("fail-ns".to_owned(), &name));
     assert!(retained_doc.exists());
     assert!(
         state.inner.storage
@@ -681,7 +681,7 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
         .unwrap(),
         super::super::RefreshOutcome::Stored(_),
     ));
-    assert!(!state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+    assert!(!state.inner.proxy.packument_writes.is_purged("fail-ns".to_owned(), &name));
     assert!(!state.inner.storage.is_upstream_package_purged("fail-ns", &name).await.unwrap());
     let republished = state.inner.storage
         .read_upstream_document_any("fail-ns", &name)

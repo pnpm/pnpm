@@ -384,6 +384,8 @@ The default depends on whether you configured `minimumReleaseAge` yourself: if y
 minimumReleaseAgeStrict: true
 ```
 
+When resolving through a pnpr server, strict mode fails the request if no mature version matches. In non-strict mode, pnpm adds fallback versions selected by the server to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`.
+
 ### trustPolicy
 
 Added in: v10.21.0
@@ -441,7 +443,7 @@ Added in: v11.3.0
 * Default: **false**
 * Type: **Boolean**
 
-When `true`, `pnpm install` skips the supply-chain verification pass that re-applies [`minimumReleaseAge`](#minimumreleaseage) and [`trustPolicy`](#trustpolicy) to every entry in the loaded lockfile. The install treats the lockfile as already trusted.
+When `true`, `pnpm install` skips the supply-chain verification pass that re-applies [`minimumReleaseAge`](#minimumreleaseage), [`trustPolicy`](#trustpolicy), and [`blockExoticSubdeps`](#blockexoticsubdeps) to every entry in the loaded lockfile. The install treats the lockfile as already trusted.
 
 Useful in environments where the lockfile is effectively part of the trusted base: closed-source projects where every commit comes from a trusted author. A poisoned lockfile (one a contributor authored under a weaker policy than CI enforces) can slip through, so leave this `false` whenever outside collaborators can edit the lockfile.
 
@@ -454,7 +456,7 @@ Added in: v10.26.0
 * Default: **true**
 * Type: **Boolean**
 
-When set to `true`, only direct dependencies (those listed in your root `package.json`) may use exotic sources (like git repositories or direct tarball URLs). All transitive dependencies must be resolved from a trusted source, such as the configured registry, local file paths, workspace links, or trusted GitHub repositories (node, bun, deno).
+When set to `true`, only direct dependencies (those listed in your root `package.json`) may use exotic sources (like git repositories or direct tarball URLs). All transitive dependencies must be resolved from a trusted source, such as the configured registry, workspace packages, or trusted GitHub repositories (node, bun, deno). Non-local packages cannot resolve host filesystem paths (`file:` or `link:`) outside their own package archive unless rewritten by workspace `overrides`, `packageExtensions`, or `.pnpmfile.cjs`.
 
 This setting helps secure the dependency supply chain by preventing transitive dependencies from pulling in code from untrusted locations.
 

@@ -110,6 +110,50 @@ fn save_reproduces_pnpm_authored_bytes() {
     assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n"));
 }
 
+#[cfg(unix)]
+#[test]
+fn saved_metadata_describes_the_written_file_not_a_later_replacement() {
+    use std::os::unix::fs::MetadataExt as _;
+
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+
+    let written = lockfile
+        .save_to_path_with_metadata(&path, SymlinkedLockfile::Refuse)
+        .expect("save lockfile")
+        .expect("a Unix save reads the metadata from the writing handle");
+    let on_disk = std::fs::metadata(&path).expect("stat saved lockfile");
+    assert_eq!(
+        (written.ino(), written.mtime_nsec(), written.ctime_nsec()),
+        (on_disk.ino(), on_disk.mtime_nsec(), on_disk.ctime_nsec()),
+    );
+
+    let replacement = tmp.path().join("replacement");
+    std::fs::write(&replacement, "lockfileVersion: '9.0'\n").expect("write replacement");
+    std::fs::rename(&replacement, &path).expect("replace saved lockfile");
+    let replaced = std::fs::metadata(&path).expect("stat replaced lockfile");
+    assert_ne!(written.ino(), replaced.ino());
+}
+
+#[cfg(unix)]
+#[test]
+fn skipped_save_reports_the_metadata_of_the_unchanged_file() {
+    use std::os::unix::fs::MetadataExt as _;
+
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).expect("save lockfile");
+    let before = std::fs::metadata(&path).expect("stat saved lockfile");
+
+    let unchanged = lockfile
+        .save_to_path_with_metadata(&path, SymlinkedLockfile::Refuse)
+        .expect("save unchanged lockfile")
+        .expect("the skipped save read the file through a handle");
+    assert_eq!((unchanged.ino(), unchanged.mtime_nsec()), (before.ino(), before.mtime_nsec()));
+}
+
 #[test]
 fn time_survives_a_save_round_trip() {
     let lockfile: Lockfile = serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{DIRECT_TIME}"))

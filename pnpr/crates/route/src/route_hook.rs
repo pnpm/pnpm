@@ -163,7 +163,7 @@ impl RouteHook {
 
 impl ResolvedAlias {
     /// Resolve upstream access and credential state for route classification.
-    pub(super) fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
+    pub(super) fn from_upstream(name: String, upstream: &UpstreamConfig) -> Option<Self> {
         let authorization = upstream.headers
             .get(AUTHORIZATION)
             .filter(|_| !upstream.public)
@@ -171,7 +171,7 @@ impl ResolvedAlias {
             .and_then(Result::ok)
             .map(str::to_string);
         Some(Self {
-            name: name.to_string(),
+            name,
             credential_digest: headers_credential_digest(&upstream.headers),
             registry: upstream.url.clone(),
             origin: nerf_prefix(&upstream.url)?,

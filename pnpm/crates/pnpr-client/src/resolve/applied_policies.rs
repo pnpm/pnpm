@@ -29,6 +29,7 @@ pub struct AppliedPolicies {
     pub minimum_release_age: Option<u64>,
     pub minimum_release_age_exclude: Vec<String>,
     pub minimum_release_age_ignore_missing_time: bool,
+    pub minimum_release_age_strict: bool,
     #[serde(deserialize_with = "Option::deserialize")]
     pub trust_policy: Option<String>,
     pub trust_policy_exclude: Vec<String>,
@@ -70,6 +71,10 @@ pub(crate) fn assert_verification_policies(
             "minimumReleaseAgeIgnoreMissingTime",
             applied.minimum_release_age_ignore_missing_time
                 == policy.minimum_release_age_ignore_missing_time,
+        ),
+        (
+            "minimumReleaseAgeStrict",
+            applied.minimum_release_age_strict == policy.minimum_release_age_strict,
         ),
         (
             "trustPolicyExclude",

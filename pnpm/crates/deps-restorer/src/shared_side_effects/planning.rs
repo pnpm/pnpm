@@ -239,6 +239,13 @@ pub(super) async fn plan_root(
 }
 /// The artifact one snapshot would look up. `None` when the package has
 /// no metadata row, or no integrity to bind the artifact's subject to.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`input_key` is copied only after the metadata and integrity early returns, and callers borrow it, so an owned parameter would allocate for snapshots that yield no candidate."
+    )
+)]
 pub(super) fn artifact_candidate(
     plan: &CandidatePlan<'_>,
     snapshot_key: &PackageKey,

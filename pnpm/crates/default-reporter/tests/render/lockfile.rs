@@ -339,17 +339,18 @@ fn skipped_optional_resolution_failure_renders_only_top_level() {
 }
 
 #[test]
-fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
+fn transitive_deprecations_follow_the_install_summary() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
-        vec![deprecation("uuid", "3.4.0", 2, CWD), deprecation("request", "2.88.2", 3, CWD)],
+        vec![
+            deprecation("uuid", "3.4.0", 2, CWD),
+            deprecation("request", "2.88.2", 3, CWD),
+            resolution_done(),
+        ],
     );
-    assert!(
-        frame.is_empty(),
-        "transitive deprecations must buffer until resolution_done: {frame:?}",
-    );
+    assert!(frame.is_empty(), "deprecations must wait for the summary: {frame:?}");
 
-    let frame = render(&mut reporter, vec![resolution_done()]);
+    let frame = render(&mut reporter, vec![summary()]);
     assert_eq!(frame, "[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0");
 }

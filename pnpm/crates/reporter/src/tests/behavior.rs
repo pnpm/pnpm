@@ -501,6 +501,7 @@ fn deprecation_event_matches_pnpm_wire_shape() {
             version: "1.0.0".to_string(),
             outside_declared_range: true,
         }),
+        already_installed: true,
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
@@ -522,6 +523,7 @@ fn deprecation_event_matches_pnpm_wire_shape() {
     );
     assert_eq!(json["nonDeprecatedAlternative"]["version"], "1.0.0");
     assert_eq!(json["nonDeprecatedAlternative"]["outsideDeclaredRange"], true);
+    assert_eq!(json["alreadyInstalled"], true);
 }
 
 /// Transitive deprecation events (`depth > 0`) also match the wire shape.
@@ -535,6 +537,7 @@ fn deprecation_event_transitive_matches_pnpm_wire_shape() {
         prefix: "/projects/x".to_string(),
         depth: 3,
         non_deprecated_alternative: None,
+        already_installed: false,
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
@@ -545,4 +548,5 @@ fn deprecation_event_transitive_matches_pnpm_wire_shape() {
     assert_eq!(json["name"], "pnpm:deprecation");
     assert_eq!(json["pkgName"], "request");
     assert_eq!(json["depth"], 3);
+    assert!(json.get("alreadyInstalled").is_none(), "{json}");
 }

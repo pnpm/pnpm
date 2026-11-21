@@ -309,7 +309,7 @@ impl Storage {
     ) -> Self {
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
         let hosted = slice(&root, "", Ecosystem::Npm);
-        let metadata = database.view("", Ecosystem::Npm);
+        let metadata = database.view(String::new(), Ecosystem::Npm);
         Self {
             root,
             hosted,

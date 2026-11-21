@@ -72,8 +72,10 @@ pub(super) fn place_symlink_or_resolve_file<'a>(
     if place_symlink_entry(placement, store_path, target, roots)? {
         return Ok(None);
     }
-    let resolved =
-        fs::canonicalize(store_path).map_err(|error| import_link_error(store_path, target, error))?;
+    let resolved = fs::canonicalize(store_path)
+        .map_err(|error| {
+            import_link_error(store_path.to_path_buf(), target.to_path_buf(), error)
+        })?;
     Ok(Some(Cow::Owned(StoreFile::new(resolved))))
 }
 
@@ -93,7 +95,9 @@ pub(super) fn place_symlink_entry(
         policy: roots.policy,
     };
     let decision = pnpm_fs::resolve_symlink_placement(store_path, target, ctx)
-        .map_err(|error| import_link_error(store_path, target, error))?;
+        .map_err(|error| {
+            import_link_error(store_path.to_path_buf(), target.to_path_buf(), error)
+        })?;
     let (link_target, is_dir) = match decision {
         Ok(SymlinkPlacement::Preserve { link_target, is_dir, .. }) => (link_target, is_dir),
         Ok(SymlinkPlacement::ImportFile) => return Ok(false),
@@ -129,19 +133,19 @@ fn stage_symlink(
     };
     if let Err(error) = created {
         let _ = pnpm_fs::remove_dirent(&temp);
-        return Err(import_link_error(store_path, target, error));
+        return Err(import_link_error(store_path.to_path_buf(), target.to_path_buf(), error));
     }
     Ok(temp)
 }
 
 fn import_link_error(
-    store_path: &Path,
-    target: &Path,
+    store_path: PathBuf,
+    target: PathBuf,
     error: std::io::Error,
 ) -> ImportIndexedDirError {
     ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
-        from: store_path.to_path_buf(),
-        to: target.to_path_buf(),
+        from: store_path,
+        to: target,
         error,
     })
 }

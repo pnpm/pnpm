@@ -217,7 +217,7 @@ pub(crate) struct HoistSettings {
 impl ResolveImporterOptions {
     pub(crate) fn into_tree_ctx(
         self,
-        importer_id: &str,
+        importer_id: String,
         importer_order: usize,
         workspace: Arc<WorkspaceTreeCtx>,
     ) -> (TreeCtx, HoistSettings) {

@@ -230,6 +230,13 @@ async fn current_trust_evidence(
     (picked == package.current).then(|| get_manifest_trust_evidence(&manifest)).flatten()
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "Only catalog specifiers reach the conversion, and owning `alias` would allocate for every non-catalog dependency."
+    )
+)]
 fn dereference_catalog<'a>(
     catalogs: &Catalogs,
     alias: &str,
@@ -349,6 +356,13 @@ fn target_moves(
     }
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "The workspace name is copied only for a target that moves, and the caller shares one borrowed name across every candidate."
+    )
+)]
 fn outdated_target(
     query: &OutdatedQuery<'_>,
     workspace: &str,

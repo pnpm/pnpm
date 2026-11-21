@@ -59,7 +59,7 @@ pub(super) fn check_a_project_has_the_script(
     if script_name == "test" || args.if_present || a_project_has_the_script(task_graph) {
         return Ok(());
     }
-    Err(no_requested_script_error(script_name, all_packages_selected).into())
+    Err(no_requested_script_error(script_name.to_owned(), all_packages_selected).into())
 }
 
 /// A script listed in `requiredScripts` must exist in every requested
@@ -145,6 +145,13 @@ pub(super) fn run_state_settings(
 /// The task graph this run actually schedules: the full graph, or
 /// (under `--resume-from`) the part of it that follows the named project,
 /// minus what the previous run already completed.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`script_name` is copied only under `--resume-from`, after the early return, so an owned parameter would allocate on every recursive run."
+    )
+)]
 pub(super) fn resume_task_graph(
     task_run_state_context: &TaskRunStateContext,
     args: &RunArgs,
@@ -160,7 +167,7 @@ pub(super) fn resume_task_graph(
     Ok(resume_task_graph_from(
         full_task_graph.clone(),
         &anchor,
-        script_name,
+        script_name.to_owned(),
         completed_tasks.as_ref(),
     ))
 }
@@ -350,7 +357,11 @@ pub(super) fn report_run_outcome(
     let failures = count_failures(result);
     if script_name != "test" && !reporting.ran_a_command && failures == 0 && !args.if_present {
         task_run_state.finish()?;
-        return Err(no_requested_script_error(script_name, reporting.all_packages_selected).into());
+        return Err(no_requested_script_error(
+            script_name.to_owned(),
+            reporting.all_packages_selected,
+        )
+        .into());
     }
 
     if args.workspace.report_summary {
@@ -362,8 +373,10 @@ pub(super) fn report_run_outcome(
     task_run_state.finish()
 }
 
-fn no_requested_script_error(script_name: &str, all_packages_selected: bool) -> RecursiveRunError {
-    let script_name = script_name.to_string();
+fn no_requested_script_error(
+    script_name: String,
+    all_packages_selected: bool,
+) -> RecursiveRunError {
     if all_packages_selected {
         RecursiveRunError::NoScript { script_name }
     } else {

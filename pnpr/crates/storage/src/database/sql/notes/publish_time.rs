@@ -51,7 +51,7 @@ pub(in crate::database::sql) fn store_publish_notes(
             ecosystem: note.ecosystem,
             name: note.name.clone(),
         };
-        let subject = NoteSubject::version(&key, &note.version);
+        let subject = NoteSubject::version(&key, note.version.clone());
         write_initial(batch, &subject, &note.text, principal)?;
     }
     let Some(text) = &notes.publication else { return Ok(()) };
@@ -60,7 +60,12 @@ pub(in crate::database::sql) fn store_publish_notes(
         reason: "a publication note needs a publish that introduces a version".to_string(),
     })?;
     // The publication is this batch's own, so it has no note yet.
-    write_initial(batch, &NoteSubject::publication(batch.namespace(), id), text, principal)
+    write_initial(
+        batch,
+        &NoteSubject::publication(batch.namespace().to_owned(), id),
+        text,
+        principal,
+    )
 }
 
 /// The read that finds a row when `note`'s version already has a note, for

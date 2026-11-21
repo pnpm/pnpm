@@ -152,7 +152,7 @@ where
         let trimmed_selector = selector.trim();
         let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(trimmed_selector)?;
         let resolved_specifier =
-            resolve_catalog_in_value(catalogs, &target_pkg.name, new_bare_specifier)?;
+            resolve_catalog_in_value(catalogs, target_pkg.name.clone(), new_bare_specifier)?;
         let converge = check_converge(
             trimmed_selector,
             parent_pkg.as_ref(),
@@ -304,13 +304,11 @@ fn strip_dep_type(selector: &str) -> (&str, Option<OverrideDependencyType>) {
 /// re-anchoring here would move the path twice.
 fn resolve_catalog_in_value(
     catalogs: &Catalogs,
-    target_name: &str,
+    target_name: String,
     new_bare_specifier: &str,
 ) -> Result<String, ParseOverridesError> {
-    let wanted = WantedDependency {
-        alias: target_name.to_string(),
-        bare_specifier: new_bare_specifier.to_string(),
-    };
+    let wanted =
+        WantedDependency { alias: target_name, bare_specifier: new_bare_specifier.to_string() };
     match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(new_bare_specifier.to_string()),

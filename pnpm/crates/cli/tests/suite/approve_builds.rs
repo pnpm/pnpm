@@ -5,9 +5,12 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{
-    AddMockedRegistry,
-    CommandTempCwd,
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    git_repo::GitRepoFixture,
 };
 use std::{
     fmt::Write as _,
@@ -50,7 +53,7 @@ fn approve_builds_requires_an_exact_file_selector() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
-    assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_FILE_SELECTOR_REQUIRED"), "{stderr}");
+    assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_EXACT_SELECTOR_REQUIRED"), "{stderr}");
     assert!(stderr.contains("fixture@file:../fixture"), "{stderr}");
     assert_eq!(fs::read(&settings).expect("read settings after rejection"), original_settings);
     pacquet(&harness.workspace)
@@ -58,6 +61,46 @@ fn approve_builds_requires_an_exact_file_selector() {
         .assert()
         .success();
     assert!(harness.workspace.join("node_modules/fixture/built").is_file());
+}
+
+/// A bare name cannot identify a git-hosted artifact either, so
+/// `approve-builds` must name the exact pending selector here too.
+#[test]
+fn approve_builds_requires_an_exact_git_selector() {
+    let harness = CommandTempCwd::init();
+    let repo = GitRepoFixture::init(harness.root.path(), "gitbuild");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"gitbuild","version":"1.0.0","scripts":{"postinstall":"node build.cjs"}}"#,
+    );
+    repo.write_file("build.cjs", "require('node:fs').writeFileSync('built', '')");
+    let spec = repo.git_url_at(&repo.commit("init"));
+    let selector = format!("gitbuild@{spec}");
+    fs::write(
+        harness.workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "gitbuild": spec } }).to_string(),
+    )
+    .expect("write project manifest");
+    let settings = harness.workspace.join("pnpm-workspace.yaml");
+    fs::write(&settings, "enableGlobalVirtualStore: false\n").expect("write settings");
+    pacquet(&harness.workspace)
+        .with_arg("install")
+        .assert()
+        .failure();
+    let original_settings = fs::read(&settings).expect("read settings after install");
+    let rejected = pacquet(&harness.workspace)
+        .with_args(["approve-builds", "gitbuild"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_EXACT_SELECTOR_REQUIRED"), "{stderr}");
+    assert!(stderr.contains(&selector), "{stderr}");
+    assert_eq!(fs::read(&settings).expect("read settings after rejection"), original_settings);
+    pacquet(&harness.workspace)
+        .with_args(["approve-builds", &selector])
+        .assert()
+        .success();
+    assert!(harness.workspace.join("node_modules/gitbuild/built").is_file());
 }
 
 #[cfg(unix)]
@@ -1110,6 +1153,25 @@ fn ignore_workspace_skips_the_allow_builds_scaffold() {
         "--ignore-workspace must not scaffold allowBuilds into the workspace manifest",
     );
 
+    drop(harness);
+}
+
+#[test]
+fn permissions_approval_rebuilds_the_selected_dependency() {
+    let (harness, workspace) = install_with_ignored_build();
+    let marker = workspace.join(INSTALL_MARKER);
+    assert!(!marker.exists());
+    pacquet(&workspace)
+        .with_args(["permissions", "approve", "@pnpm.e2e/install-script-example"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "permissions approval must run the install script");
+    let modules = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("read .modules.yaml")
+    .expect(".modules.yaml exists");
+    assert!(modules.pending_builds.is_empty(), "{:?}", modules.pending_builds);
     drop(harness);
 }
 

@@ -1,9 +1,7 @@
-use std::{
-    borrow::Cow,
-    collections::HashSet,
+use std::collections::{
+    HashMap,
+    HashSet,
 };
-
-use pnpm_crypto_hash::create_short_hash;
 
 use super::{
     BoundProviders,
@@ -16,15 +14,26 @@ use crate::{
     PackageMetadata,
     PkgName,
     PkgNameVerPeer,
-    SnapshotDepRef,
     SnapshotEntry,
 };
 use cycle_probe::CycleProbe;
+use descendants::{
+    LinkCandidates,
+    all_dep_refs,
+    collect_descendant_targets,
+    push_unique_target,
+    resolved_peer_target,
+};
+use search::{
+    CombinationSearch,
+    MixedCandidate,
+    PeerGroups,
+    pair_segment_of,
+};
 
 mod cycle_probe;
-
-const MAX_COMBINATIONS: usize = 4096;
-const MAX_VISITED_SNAPSHOTS: usize = 1024;
+mod descendants;
+mod search;
 
 pub(super) fn recover_hashed_providers(
     entries: LockfileEntries<'_>,
@@ -33,10 +42,25 @@ pub(super) fn recover_hashed_providers(
     let hash_hex = suffix_hash_segment(key.suffix.peer())?;
     let snapshots = entries.snapshots?;
     let snapshot = snapshots.get(key)?;
-    let package = entries.packages?.get(&key.without_peer())?;
+    let packages = entries.packages?;
+    let package = packages.get(&key.without_peer())?;
 
-    let candidates = peer_candidates_by_name(snapshots, snapshot, package, key)?;
-    match_candidates(&candidates, &hash_hex, &mut CycleProbe::new(snapshots, key))
+    let recover = |links: &mut LinkCandidates| {
+        let candidates = peer_candidates_by_name(snapshots, snapshot, package, key, links)?;
+        match_candidates(
+            &candidates,
+            Some(packages),
+            &hash_hex,
+            &mut CycleProbe::new(snapshots, key),
+        )
+    };
+    // Links get a separate pass so they cannot spend the snapshot search budget.
+    let mut links = LinkCandidates::Exclude { seen: false };
+    recover(&mut links)
+        .or_else(|| match links {
+            LinkCandidates::Exclude { seen: true } => recover(&mut LinkCandidates::Include),
+            _ => None,
+        })
 }
 
 fn suffix_hash_segment(peer_suffix: &str) -> Option<String> {
@@ -49,22 +73,28 @@ fn suffix_hash_segment(peer_suffix: &str) -> Option<String> {
 }
 
 fn peer_candidates_by_name(
-    snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
+    snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     snapshot: &SnapshotEntry,
     package: &PackageMetadata,
     self_key: &PkgNameVerPeer,
+    links: &mut LinkCandidates,
 ) -> Option<Vec<Vec<PkgNameVerPeer>>> {
     let peers = peer_names_of_snapshot(snapshot, package);
     let self_identity = self_key.without_peer();
+    let root_transitive: HashSet<&str> = snapshot.transitive_peer_dependencies
+        .iter()
+        .flatten()
+        .map(String::as_str)
+        .collect();
     let transitive_peers: Vec<(PkgName, &str)> = peers
         .iter()
-        .filter(|(_, name)| lists_transitive_peer(snapshot, name))
+        .filter(|(_, name)| root_transitive.contains(name))
         .cloned()
         .collect();
     let descendant_targets = if transitive_peers.is_empty() {
-        std::collections::HashMap::new()
+        HashMap::new()
     } else {
-        collect_descendant_targets(snapshots, snapshot, &transitive_peers)?
+        collect_descendant_targets(snapshots, snapshot, &transitive_peers, links)?
     };
     Some(
         peers
@@ -74,6 +104,7 @@ fn peer_candidates_by_name(
                     snapshot,
                     &peer,
                     descendant_targets.get(&peer).map(Vec::as_slice),
+                    links,
                 );
                 if peer == self_key.name {
                     targets.retain(|target| target.without_peer() != self_identity);
@@ -121,123 +152,21 @@ fn targets_for_peer(
     snapshot: &SnapshotEntry,
     peer: &PkgName,
     descendants: Option<&[PkgNameVerPeer]>,
+    links: &mut LinkCandidates,
 ) -> Vec<PkgNameVerPeer> {
     let mut targets = Vec::new();
-    record_peer_target(&mut targets, snapshot, peer);
+    if let Some(target) = resolved_peer_target(snapshot, peer, links) {
+        push_unique_target(&mut targets, target);
+    }
     for target in descendants.into_iter().flatten() {
-        if !targets.contains(target) {
-            targets.push(target.clone());
-        }
+        push_unique_target(&mut targets, target.clone());
     }
     targets
 }
 
-fn snapshot_dep_ref<'a>(snapshot: &'a SnapshotEntry, name: &PkgName) -> Option<&'a SnapshotDepRef> {
-    snapshot.dependencies
-        .as_ref()
-        .and_then(|deps| deps.get(name))
-        .or_else(|| {
-            snapshot.optional_dependencies
-                .as_ref()
-                .and_then(|deps| deps.get(name))
-        })
-}
-
-fn collect_descendant_targets(
-    snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
-    root: &SnapshotEntry,
-    transitive_peers: &[(PkgName, &str)],
-) -> Option<std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>>> {
-    let mut by_peer: std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>> =
-        std::collections::HashMap::new();
-    let mut visited: std::collections::HashMap<PkgNameVerPeer, HashSet<usize>> =
-        std::collections::HashMap::new();
-    let initial: Vec<usize> = (0..transitive_peers.len()).collect();
-    let mut pending = vec![(root, initial)];
-    while let Some((current, active)) = pending.pop() {
-        for (child_key, child) in resolved_children(snapshots, current) {
-            let next = record_child_peers(
-                &mut by_peer,
-                &mut visited,
-                &child_key,
-                child,
-                &active,
-                transitive_peers,
-            );
-            if visited.len() > MAX_VISITED_SNAPSHOTS {
-                return None;
-            }
-            if !next.is_empty() {
-                pending.push((child, next));
-            }
-        }
-    }
-    Some(by_peer)
-}
-
-fn record_child_peers(
-    by_peer: &mut std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>>,
-    visited: &mut std::collections::HashMap<PkgNameVerPeer, HashSet<usize>>,
-    child_key: &PkgNameVerPeer,
-    child: &SnapshotEntry,
-    active: &[usize],
-    transitive_peers: &[(PkgName, &str)],
-) -> Vec<usize> {
-    let seen = visited.entry(child_key.clone()).or_default();
-    let mut next = Vec::new();
-    for &idx in active {
-        if !seen.insert(idx) {
-            continue;
-        }
-        let (peer, peer_name) = &transitive_peers[idx];
-        record_peer_target(by_peer.entry(peer.clone()).or_default(), child, peer);
-        if lists_transitive_peer(child, peer_name) {
-            next.push(idx);
-        }
-    }
-    next
-}
-
-fn resolved_children<'a>(
-    snapshots: &'a std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
-    parent: &'a SnapshotEntry,
-) -> impl Iterator<Item = (PkgNameVerPeer, &'a SnapshotEntry)> {
-    all_dep_refs(parent)
-        .filter_map(move |(alias, dep_ref)| {
-            let child_key = dep_ref.resolve(alias)?;
-            let child = snapshots.get(&child_key)?;
-            Some((child_key, child))
-        })
-}
-
-fn record_peer_target(targets: &mut Vec<PkgNameVerPeer>, snapshot: &SnapshotEntry, peer: &PkgName) {
-    if let Some(target) = resolved_peer_target(snapshot, peer)
-        && !targets.contains(&target)
-    {
-        targets.push(target);
-    }
-}
-
-fn resolved_peer_target(snapshot: &SnapshotEntry, peer: &PkgName) -> Option<PkgNameVerPeer> {
-    snapshot_dep_ref(snapshot, peer)?.resolve(peer)
-}
-
-fn all_dep_refs(snapshot: &SnapshotEntry) -> impl Iterator<Item = (&PkgName, &SnapshotDepRef)> {
-    snapshot.dependencies
-        .iter()
-        .chain(snapshot.optional_dependencies.iter())
-        .flatten()
-}
-
-fn lists_transitive_peer(snapshot: &SnapshotEntry, peer_name: &str) -> bool {
-    snapshot.transitive_peer_dependencies
-        .iter()
-        .flatten()
-        .any(|name| name == peer_name)
-}
-
 fn match_candidates(
     candidates: &[Vec<PkgNameVerPeer>],
+    packages: Option<&HashMap<PkgNameVerPeer, PackageMetadata>>,
     hash_hex: &str,
     cycle_probe: &mut CycleProbe<'_>,
 ) -> Option<HashSet<PkgNameVerPeer>> {
@@ -246,156 +175,68 @@ fn match_candidates(
             return Some(matched);
         }
     }
-    if !candidates
-        .iter()
-        .flatten()
-        .any(|target| !target.suffix.peer().is_empty())
+    if let Some(packages) = packages
+        && let Some(matched) =
+            CombinationSearch::new(PeerGroups::Pair(packages), hash_hex).find(candidates)
     {
-        return None;
+        return Some(matched);
     }
-    // Cycle cuts can omit nested groups from only some providers.
-    let mixed = mixed_cycle_cut_candidates(candidates, cycle_probe);
-    if mixed.as_slice() == candidates {
-        return None;
-    }
-    CombinationSearch::new(PeerGroups::Full, hash_hex).find(&mixed)
+    // Cycle cuts can omit nested groups (and collapse to name@version) for cyclic providers.
+    let mixed = mixed_cycle_cut_candidates(candidates, packages, cycle_probe)?;
+    CombinationSearch::new(PeerGroups::Full, hash_hex).find_mixed(&mixed)
 }
 
+/// The candidates extended with cycle-cut forms, or `None` when no slot has one.
 fn mixed_cycle_cut_candidates(
     candidates: &[Vec<PkgNameVerPeer>],
+    packages: Option<&HashMap<PkgNameVerPeer, PackageMetadata>>,
     cycle_probe: &mut CycleProbe<'_>,
-) -> Vec<Vec<PkgNameVerPeer>> {
-    candidates
+) -> Option<Vec<Vec<MixedCandidate>>> {
+    let mut changed = false;
+    let mixed = candidates
         .iter()
-        .map(|targets| {
-            let mut variants = targets.clone();
-            let mut seen: HashSet<_> = targets.iter().cloned().collect();
-            for target in targets {
-                let bare = target.without_peer();
-                if !seen.contains(&bare) && cycle_probe.may_be_cut(target) {
-                    seen.insert(bare.clone());
-                    variants.push(bare);
-                }
-            }
-            variants
-        })
-        .collect()
-}
-
-#[derive(Clone, Copy)]
-enum PeerGroups {
-    Full,
-    Bare,
-}
-
-impl PeerGroups {
-    fn provider(self, target: &PkgNameVerPeer) -> Cow<'_, PkgNameVerPeer> {
-        match self {
-            Self::Full => Cow::Borrowed(target),
-            Self::Bare => Cow::Owned(target.without_peer()),
-        }
-    }
-}
-
-struct CombinationSearch<'hash> {
-    mode: PeerGroups,
-    hash_hex: &'hash str,
-    remaining: usize,
-}
-
-impl<'hash> CombinationSearch<'hash> {
-    fn new(mode: PeerGroups, hash_hex: &'hash str) -> Self {
-        CombinationSearch { mode, hash_hex, remaining: MAX_COMBINATIONS }
-    }
-
-    fn find(&mut self, candidates: &[Vec<PkgNameVerPeer>]) -> Option<HashSet<PkgNameVerPeer>> {
-        let mut chosen = Vec::with_capacity(candidates.len());
-        // Prefer complete provider sets before spending the budget on omissions.
-        for omitted in 0..=candidates.len() {
-            if self.remaining == 0 {
-                break;
-            }
-            if let Some(matched) = self.with_omissions(candidates, &mut chosen, omitted) {
-                return Some(matched);
-            }
-        }
-        None
-    }
-
-    fn with_omissions<'a>(
-        &mut self,
-        candidates: &'a [Vec<PkgNameVerPeer>],
-        chosen: &mut Vec<&'a PkgNameVerPeer>,
-        omitted: usize,
-    ) -> Option<HashSet<PkgNameVerPeer>> {
-        let mut frames = vec![SearchFrame { next_target: 0, omitted, chosen_len: 0 }];
-        while self.remaining > 0 && !frames.is_empty() {
-            let depth = frames.len() - 1;
-            let frame = frames.last_mut().unwrap();
-            chosen.truncate(frame.chosen_len);
-            if frame.omitted > candidates.len() - depth {
-                frames.pop();
-            } else if depth == candidates.len() {
-                frames.pop();
-                if let Some(matched) = self.match_chosen(chosen) {
-                    return Some(matched);
-                }
-            } else if let Some(next) = frame.next(&candidates[depth], chosen) {
-                frames.push(next);
-            } else {
-                frames.pop();
-            }
-        }
-        None
-    }
-
-    fn match_chosen(&mut self, chosen: &[&PkgNameVerPeer]) -> Option<HashSet<PkgNameVerPeer>> {
-        self.remaining -= 1;
-        subset_matches_hash(chosen, self.mode, self.hash_hex)
-            .then(|| {
-                chosen
-                    .iter()
-                    .map(|target| self.mode.provider(target).into_owned())
-                    .collect()
-            })
-    }
-}
-
-struct SearchFrame {
-    next_target: usize,
-    omitted: usize,
-    chosen_len: usize,
-}
-
-impl SearchFrame {
-    fn next<'a>(
-        &mut self,
-        targets: &'a [PkgNameVerPeer],
-        chosen: &mut Vec<&'a PkgNameVerPeer>,
-    ) -> Option<Self> {
-        let omitted = if let Some(target) = targets.get(self.next_target) {
-            chosen.push(target);
-            self.omitted
-        } else if self.next_target == targets.len() && self.omitted > 0 {
-            self.omitted - 1
-        } else {
-            return None;
-        };
-        self.next_target += 1;
-        Some(Self { next_target: 0, omitted, chosen_len: chosen.len() })
-    }
-}
-
-fn subset_matches_hash(chosen: &[&PkgNameVerPeer], mode: PeerGroups, hash_hex: &str) -> bool {
-    if chosen.is_empty() {
-        return false;
-    }
-    let mut segments: Vec<String> = chosen
-        .iter()
-        .map(|target| mode.provider(target).to_string())
+        .map(|targets| expand_slot_variants(targets, packages, cycle_probe, &mut changed))
         .collect();
-    segments.sort();
-    create_short_hash(&segments.join(")(")) == hash_hex
+    changed.then_some(mixed)
+}
+
+fn expand_slot_variants(
+    targets: &[PkgNameVerPeer],
+    packages: Option<&HashMap<PkgNameVerPeer, PackageMetadata>>,
+    cycle_probe: &mut CycleProbe<'_>,
+    changed: &mut bool,
+) -> Vec<MixedCandidate> {
+    let mut variants: Vec<MixedCandidate> = targets
+        .iter()
+        .map(|target| MixedCandidate { provider: target.clone(), segment: target.to_string() })
+        .collect();
+    let mut seen: HashSet<String> = variants
+        .iter()
+        .map(|entry| entry.segment.clone())
+        .collect();
+    for target in targets {
+        let bare = target.without_peer();
+        let bare_seg = bare.to_string();
+        let pair_seg = packages.map(|pkgs| pair_segment_of(target, pkgs));
+        let has_cut_form = !target.suffix.peer().is_empty()
+            || pair_seg
+                .as_deref()
+                .is_some_and(|seg| seg != bare_seg);
+        if !has_cut_form || !cycle_probe.may_be_cut(target) {
+            continue;
+        }
+        if seen.insert(bare_seg.clone()) {
+            *changed = true;
+            variants.push(MixedCandidate { provider: bare.clone(), segment: bare_seg });
+        }
+        if let Some(pair_seg) = pair_seg
+            && seen.insert(pair_seg.clone())
+        {
+            *changed = true;
+            variants.push(MixedCandidate { provider: bare, segment: pair_seg });
+        }
+    }
+    variants
 }
 
 impl BoundProviders {

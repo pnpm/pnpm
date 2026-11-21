@@ -26,6 +26,7 @@ use super::{
     DlxArgs,
     DocsArgs,
     DoctorArgs,
+    EditArgs,
     EnvArgs,
     ExecArgs,
     FetchArgs,
@@ -42,7 +43,6 @@ use super::{
     ListArgs,
     LoginArgs,
     LogoutArgs,
-    NotImplementedArgs,
     OutdatedArgs,
     OwnerArgs,
     PackAppArgs,
@@ -106,6 +106,8 @@ pub enum CliCommand {
     Recursive,
     /// Add a package
     Add(AddArgs),
+    /// Opens an installed package's folder in the default text editor.
+    Edit(EditArgs),
     /// Install packages
     #[clap(visible_alias = "i")]
     Install(InstallArgs),
@@ -348,10 +350,6 @@ pub enum CliCommand {
     /// single invocation, ignoring the "packageManager" and
     /// "devEngines.packageManager" fields of the project's manifest.
     With(WithArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
-    // Registered rather than left to the external-subcommand fallback so
-    // it names npm instead of failing as a missing package script.
-    Edit(NotImplementedArgs),
     /// Change settings on your registry profile.
     Profile(ProfileArgs),
     /// Manage authentication tokens on the registry.
@@ -431,6 +429,7 @@ impl CliCommand {
             self,
             CliCommand::Bin(_)
                 | CliCommand::Clean(_)
+                | CliCommand::Edit(_)
                 | CliCommand::Exec(_)
                 | CliCommand::External(_)
                 | CliCommand::Fund(_)
@@ -537,6 +536,11 @@ impl CliCommand {
             CliCommand::Why(args) => args.output.json || args.output.parseable,
             _ => false,
         }
+    }
+
+    /// See [`pnpm_default_reporter::set_edits_manifests`].
+    pub(crate) fn edits_manifests(&self) -> bool {
+        matches!(self, CliCommand::Add(_) | CliCommand::Remove(_) | CliCommand::Update(_))
     }
 
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {

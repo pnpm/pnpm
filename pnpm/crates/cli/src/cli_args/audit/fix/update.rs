@@ -106,7 +106,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
             (Vec::new(), Some(pnpm_package_manager::PolicyExcludes::Skip))
         }
     };
-    let resources = update_resources(state, &classification, &age_excludes, policy_excludes);
+    let resources = update_resources(state, &classification, age_excludes.clone(), policy_excludes);
     update_non_vulnerable::<Reporter>(state, &classification, resources).await?;
 
     // A missing lockfile here means the update couldn't be verified; mirror
@@ -462,7 +462,7 @@ fn vulnerable_locked_versions(
 fn update_resources(
     state: &State,
     classification: &UpdateClassification,
-    age_excludes: &[String],
+    age_excludes: Vec<String>,
     policy_excludes: Option<pnpm_package_manager::PolicyExcludes>,
 ) -> pnpm_package_manager::UpdateResources {
     pnpm_package_manager::UpdateResources {
@@ -476,9 +476,6 @@ fn update_resources(
         ],
         explicit_groups: pnpm_package_manager::UpdateExplicitGroups::default(),
         supported_architectures: state.config.supported_architectures.clone(),
-        resolution_observer: Some(fix_observer(
-            &classification.vulnerabilities,
-            age_excludes.to_vec(),
-        )),
+        resolution_observer: Some(fix_observer(&classification.vulnerabilities, age_excludes)),
     }
 }

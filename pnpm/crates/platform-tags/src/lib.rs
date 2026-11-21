@@ -92,7 +92,7 @@ impl FromStr for NodeAbi {
         match value.split_once('-') {
             Some(("node", abi)) => Ok(NodeAbi::Node(parse_number(abi)?)),
             Some(("electron", abi)) => Ok(NodeAbi::Electron(parse_number(abi)?)),
-            _ => Err(TagError::new(value, "is not node-<abi> or electron-<abi>")),
+            _ => Err(TagError::new(value.to_owned(), "is not node-<abi> or electron-<abi>")),
         }
     }
 }
@@ -148,8 +148,8 @@ pub struct TagError {
 }
 
 impl TagError {
-    fn new(tag: &str, reason: &'static str) -> Self {
-        TagError { tag: tag.to_string(), reason }
+    fn new(tag: String, reason: &'static str) -> Self {
+        TagError { tag, reason }
     }
 }
 
@@ -159,9 +159,12 @@ fn parse_number(value: &str) -> Result<u32, TagError> {
         && value.bytes().all(|byte| byte.is_ascii_digit())
         && (value == "0" || !value.starts_with('0'));
     if !canonical {
-        return Err(TagError::new(value, "is not a decimal number without leading zeros"));
+        return Err(TagError::new(
+            value.to_owned(),
+            "is not a decimal number without leading zeros",
+        ));
     }
-    value.parse().map_err(|_| TagError::new(value, "is too large"))
+    value.parse().map_err(|_| TagError::new(value.to_owned(), "is too large"))
 }
 
 #[cfg(test)]

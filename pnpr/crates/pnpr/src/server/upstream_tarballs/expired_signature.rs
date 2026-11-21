@@ -45,9 +45,9 @@ pub(super) async fn retry_expired_signed_tarball(
     };
     crate::server::ensure_osv_allowed(state, tarball.name, &dist.version)?;
     state.inner.proxy.version_tgzs.invalidate_version(
-        tarball.namespace,
+        tarball.namespace.to_owned(),
         tarball.name,
-        &dist.version,
+        dist.version,
     );
     timed(
         "tarball:upstream_fetch",

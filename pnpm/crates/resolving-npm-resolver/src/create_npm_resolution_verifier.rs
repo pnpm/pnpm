@@ -162,14 +162,10 @@ pub type ObservedDistStats = Arc<DashMap<(String, String, String), DistStats>>;
 #[must_use]
 pub fn observed_dist_stats_key(
     registry: &str,
-    name: &str,
-    version: &str,
+    name: String,
+    version: String,
 ) -> (String, String, String) {
-    (
-        pnpm_network::normalize_registry_url(registry).into_owned(),
-        name.to_string(),
-        version.to_string(),
-    )
+    (pnpm_network::normalize_registry_url(registry).into_owned(), name, version)
 }
 
 /// Construct a fresh sink for

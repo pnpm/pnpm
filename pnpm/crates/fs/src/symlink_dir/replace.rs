@@ -117,6 +117,13 @@ pub(super) struct OccupantInUseError {
 
 /// Keep the error kind of a Windows file-lock failure, but say which directory
 /// is held and what usually holds it.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the path is copied only for a file-lock error; every other error returns unchanged"
+    )
+)]
 pub(super) fn describe_locked_occupant(path: &Path, error: io::Error) -> io::Error {
     if !is_transient_file_lock_error(&error) {
         return error;

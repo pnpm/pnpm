@@ -8,6 +8,7 @@ use super::{
         PackageKey,
         Path,
         PathBuf,
+        RebuildOptions,
         Reporter,
         RunPostinstallHooks,
         SkippedOptionalDependencyLog,
@@ -82,7 +83,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     match result {
         Ok(ran) => Ok(Some(ran)),
         Err(err) => {
-            if !run.optional {
+            if !run.optional || context.rebuild.is_some_and(RebuildOptions::rebuilds_edited_files) {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
             linked_copies::discard_failed_optional(context, snapshot_key)?;
@@ -146,7 +147,7 @@ pub(super) fn snapshot_extra_bin_paths(
     pkg_dir: &Path,
 ) -> Vec<PathBuf> {
     let mut extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
-        bin_dirs_in_all_parent_dirs(pkg_dir, context.directories.lockfile_dir)
+        bin_dirs_in_all_parent_dirs(pkg_dir.to_path_buf(), context.directories.lockfile_dir)
     } else {
         Vec::new()
     };

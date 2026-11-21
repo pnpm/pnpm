@@ -68,6 +68,7 @@ use setup::{
 };
 
 mod materialization;
+mod override_warnings;
 use materialization::finish_resolved_install;
 
 mod errors;
@@ -76,14 +77,14 @@ mod seed_policy;
 
 fn report_importing_done<Report: Reporter + 'static>(
     observer: Option<&dyn crate::ResolutionObserver>,
-    requester: &str,
+    requester: String,
 ) {
     if let Some(observer) = observer {
         observer.flush_progress();
     }
     Report::emit(&LogEvent::Stage(pnpm_reporter::StageLog {
         level: LogLevel::Debug,
-        prefix: requester.to_string(),
+        prefix: requester,
         stage: pnpm_reporter::Stage::ImportingDone,
     }));
 }
@@ -402,11 +403,49 @@ pub(crate) struct OwnedInputs {
 
 /// The install's handles on the wanted lockfile: the background verification
 /// of the one on disk, and where a check run sends the one it would write.
+/// How a verification of the wanted lockfile an install saved can be
+/// recorded for the next install to find.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SavedLockfileRecord {
+    /// The file on disk is not the typed lockfile: it was not written, or
+    /// an `afterAllResolved` hook result replaced it. Record nothing.
+    Unrecordable,
+    /// Saved, but the platform kept no handle to read the written file's
+    /// metadata from. Record by content hash.
+    ByContent,
+    /// Saved at `path`, with `stat` read from the handle that wrote it.
+    /// A lockfile format that omits fields, such as v13 dropping
+    /// `deprecated`, reads back with a different content hash, so only this
+    /// record lets the next install skip verification.
+    AtPath { path: std::path::PathBuf, stat: pnpm_lockfile_verification::LockfileStat },
+}
+
+impl SavedLockfileRecord {
+    pub(crate) fn of_saved_file(
+        path: &std::path::Path,
+        metadata: Option<std::fs::Metadata>,
+    ) -> Self {
+        match metadata {
+            Some(metadata) => SavedLockfileRecord::AtPath {
+                path: path.to_path_buf(),
+                stat: pnpm_lockfile_verification::stat_from_metadata(&metadata),
+            },
+            None => SavedLockfileRecord::ByContent,
+        }
+    }
+
+    #[must_use]
+    pub fn is_recordable(&self) -> bool {
+        !matches!(self, SavedLockfileRecord::Unrecordable)
+    }
+}
+
 pub(crate) struct WantedLockfileHandles {
     /// The pre-resolve verification of the existing lockfile, running in
     /// the background while this install resolves and materializes. See
     /// [`crate::LockfileVerificationGate`].
     pub(crate) verification_gate: Option<crate::LockfileVerificationGate>,
+    pub(crate) exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
     /// Where a `lockfileCheck` run delivers the wanted lockfile instead of
     /// writing it. See [`crate::Install::run_lockfile_check`].
     pub(crate) check_sink: Option<crate::LockfileCheckSink>,
@@ -477,12 +516,9 @@ pub struct InstallWithFreshLockfileResult {
     /// even when disk persistence of the wanted `pnpm-lock.yaml` is skipped
     /// (`config.lockfile=false` or `save_lockfile=false`).
     pub wanted_lockfile: Option<Lockfile>,
-    /// `true` when the wanted lockfile written to disk is the same
-    /// typed lockfile returned in [`Self::wanted_lockfile`]. A
-    /// non-null `afterAllResolved` hook result can mutate fields the
-    /// typed model tracks, so the caller must not record a verification
-    /// cache entry for that case.
-    pub can_record_lockfile_verification: bool,
+    /// How a verification of [`Self::wanted_lockfile`] can be recorded for
+    /// the next install to find.
+    pub saved_lockfile: SavedLockfileRecord,
     /// Sorted `name@version` keys whose build scripts were blocked by
     /// the `allowBuilds` policy. The caller raises
     /// `ERR_PNPM_IGNORED_BUILDS` from this list when `strictDepBuilds`
@@ -581,27 +617,63 @@ fn skipped_optional_log_fn<Reporter: self::Reporter>()
     })
 }
 
-/// Build the resolver's deprecation sink: each notification emits a
-/// `pnpm:deprecation` debug event through the install's reporter,
-/// matching pnpm's `deprecationLogger.debug` payload.
-fn deprecation_log_fn<Reporter: self::Reporter>() -> pnpm_resolving_deps_resolver::DeprecationLogFn
-{
-    Arc::new(|deprecation: pnpm_resolving_deps_resolver::Deprecation| {
-        Reporter::emit(&LogEvent::Deprecation(DeprecationLog {
-            level: LogLevel::Debug,
-            pkg_name: deprecation.pkg_name,
-            pkg_version: deprecation.pkg_version,
-            pkg_id: deprecation.pkg_id,
-            prefix: deprecation.prefix,
-            depth: deprecation.depth,
-            non_deprecated_alternative: deprecation.non_deprecated_alternative.map(|alt| {
-                pnpm_reporter::NonDeprecatedAlternative {
-                    version: alt.version,
-                    outside_declared_range: alt.outside_declared_range,
-                }
-            }),
-        }));
-    })
+/// The deprecations resolution reports. They are emitted once resolution
+/// ends, when each can be checked against the current lockfile, which the
+/// resolver's `'static` sink cannot borrow.
+#[derive(Default)]
+struct DeprecationCollector(Arc<std::sync::Mutex<Vec<pnpm_resolving_deps_resolver::Deprecation>>>);
+
+impl DeprecationCollector {
+    fn sink(&self) -> pnpm_resolving_deps_resolver::DeprecationLogFn {
+        let collected = Arc::clone(&self.0);
+        Arc::new(move |deprecation| {
+            collected
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(deprecation);
+        })
+    }
+
+    /// Emit a `pnpm:deprecation` event per collected deprecation, matching
+    /// pnpm's `deprecationLogger.debug` payload, flagged when `installed`
+    /// (the current lockfile) already has the package.
+    fn emit<Reporter: self::Reporter>(&self, installed: Option<&Lockfile>) {
+        let deprecations =
+            std::mem::take(&mut *self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
+        let installed_packages = installed.and_then(|lockfile| lockfile.packages.as_ref());
+        for deprecation in deprecations {
+            let already_installed =
+                installed_packages.is_some_and(|packages| is_installed(packages, &deprecation));
+            Reporter::emit(&LogEvent::Deprecation(DeprecationLog {
+                level: LogLevel::Debug,
+                pkg_name: deprecation.pkg_name,
+                pkg_version: deprecation.pkg_version,
+                pkg_id: deprecation.pkg_id,
+                prefix: deprecation.prefix,
+                depth: deprecation.depth,
+                non_deprecated_alternative: deprecation
+                    .non_deprecated_alternative
+                    .map(|alt| pnpm_reporter::NonDeprecatedAlternative {
+                        version: alt.version,
+                        outside_declared_range: alt.outside_declared_range,
+                    }),
+                already_installed,
+            }));
+        }
+    }
+}
+
+/// Whether `packages` has the deprecated package. Its id is the package's
+/// lockfile key, so a tarball or git resolution of the same version stays
+/// distinct from the registry one. An id that is no package key counts as
+/// not installed, which names the package rather than hiding it.
+fn is_installed(
+    packages: &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>,
+    deprecation: &pnpm_resolving_deps_resolver::Deprecation,
+) -> bool {
+    deprecation.pkg_id
+        .parse::<pnpm_lockfile::PackageKey>()
+        .is_ok_and(|key| packages.contains_key(&key.without_peer()))
 }
 
 /// The importer selection the patch-usage check is scoped by.
@@ -677,32 +749,6 @@ fn report_peer_issues(
             "Peer dependency issues detected (issue renderer not ported yet)",
         );
     }
-}
-
-/// No-op unless the run both parsed overrides and built an overrider for
-/// them; only then are the collected declared ranges complete enough for a
-/// staleness verdict.
-async fn warn_stale_convergence_overrides_if_any<Reporter: pnpm_reporter::Reporter>(
-    npm_resolver: &dyn pnpm_resolving_resolver_base::Resolver,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-    versions_overrider: Option<&crate::VersionsOverrider>,
-    lockfile_dir: &Path,
-    published_by: (
-        Option<jiff::Timestamp>,
-        Option<&pnpm_config::version_policy::PackageVersionPolicy>,
-    ),
-) {
-    let (Some(parsed), Some(overrider)) = (parsed_overrides, versions_overrider) else { return };
-    let (published_by, published_by_exclude) = published_by;
-    resolve::warn_stale_convergence_overrides::<Reporter>(
-        npm_resolver,
-        parsed,
-        overrider,
-        lockfile_dir,
-        published_by,
-        published_by_exclude,
-    )
-    .await;
 }
 
 #[cfg(test)]

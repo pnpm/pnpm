@@ -193,12 +193,31 @@ impl WorkspaceSettings {
             let Some(settings) = setting else { continue };
             Self::reject_machine_only_fields(settings, prefix, path)?;
         }
-        self.reject_machine_only_remote_cache_fields(path)
+        self.reject_machine_only_remote_cache_fields(path)?;
+        self.reject_committed_editor(path)
+    }
+
+    /// `editor` names the executable `pnpm edit` runs, so, like `tokenHelper`,
+    /// only the machine's own configuration may choose it.
+    fn reject_committed_editor(&self, path: &Path) -> Result<(), LoadWorkspaceYamlError> {
+        match self.editor {
+            Some(Some(_)) => {
+                Err(LoadWorkspaceYamlError::WorkspaceEditor { path: path.to_path_buf() })
+            }
+            _ => Ok(()),
+        }
     }
 
     /// The token and everything that describes signing belong to the
     /// machine, for the reasons [`Self::reject_repo_controlled_trust_material`]
     /// gives for `sideEffectsCache.remote`.
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "the path is copied only into the error, so the success path stays allocation-free"
+        )
+    )]
     fn reject_machine_only_remote_cache_fields(
         &self,
         path: &Path,
@@ -216,6 +235,13 @@ impl WorkspaceSettings {
         Err(LoadWorkspaceYamlError::WorkspaceRemoteCacheTrust { path: path.to_path_buf(), field })
     }
 
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "the path is copied only into the error, and callers check several settings against the same path"
+        )
+    )]
     pub(super) fn reject_machine_only_fields(
         settings: &RemoteSideEffectsCacheSettings,
         prefix: &'static str,
@@ -332,6 +358,13 @@ impl WorkspaceSettings {
     }
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the task name is copied only into the error, which most tasks never produce"
+    )
+)]
 fn invalid_task_concurrency(task: &str, settings: &TaskSettings) -> Option<LoadWorkspaceYamlError> {
     let concurrency = settings.concurrency
         .filter(|concurrency| *concurrency < 1)

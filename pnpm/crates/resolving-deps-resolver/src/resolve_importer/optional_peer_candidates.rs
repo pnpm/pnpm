@@ -80,18 +80,47 @@ struct DetachedPeers {
     pending: RefCell<BTreeMap<(String, String), String>>,
 }
 
+type RequiredPickCacheKey = (String, String, Vec<(String, String)>);
+
 /// Picks the versions the required peers of a candidate's waves are hoisted
 /// at, for one pass of the candidate selection.
 struct RequiredPeerPicker<'a> {
     candidate_peers: &'a CandidatePeers<'a>,
     detached: &'a DetachedPeers,
-    /// Each pick, by name and range.
-    picked: RefCell<HashMap<(String, String), RequiredPeerPick>>,
+    reachability: crate::resolve_dependency_tree::HoistedPeerReachability<'a>,
+    /// Each pick, by name, range, and declaring wave parents.
+    picked: RefCell<HashMap<RequiredPickCacheKey, RequiredPeerPick>>,
 }
 
 impl<'a> RequiredPeerPicker<'a> {
-    fn new(candidate_peers: &'a CandidatePeers<'a>, detached: &'a DetachedPeers) -> Self {
-        Self { candidate_peers, detached, picked: RefCell::new(HashMap::default()) }
+    fn new(
+        candidate_peers: &'a CandidatePeers<'a>,
+        detached: &'a DetachedPeers,
+        reachability: crate::resolve_dependency_tree::HoistedPeerReachability<'a>,
+    ) -> Self {
+        Self { candidate_peers, detached, reachability, picked: RefCell::new(HashMap::default()) }
+    }
+
+    fn get_or_pick(
+        &self,
+        name: String,
+        range: String,
+        parents: &[(&str, &str)],
+        compute: impl FnOnce() -> RequiredPeerPick,
+    ) -> RequiredPeerPick {
+        let key = (
+            name,
+            range,
+            parents
+                .iter()
+                .map(|(pkg_name, pkg_ver)| ((*pkg_name).to_string(), (*pkg_ver).to_string()))
+                .collect(),
+        );
+        self.picked
+            .borrow_mut()
+            .entry(key)
+            .or_insert_with(compute)
+            .clone()
     }
 }
 
@@ -117,38 +146,27 @@ impl ImporterHoistState {
     fn hoisted_required_peer_version(
         &self,
         name: &str,
-        range: &str,
+        range: String,
+        declaring_parents: &[(&str, &str)],
         picker: &RequiredPeerPicker<'_>,
     ) -> RequiredPeerPick {
         let names = || std::iter::once(name);
         let resolved_versions = self.ctx.run_resolved_versions(names());
         let preferred = self.required_peer_preferred_versions(names(), &resolved_versions);
-        let missing = [(name.to_string(), MissingPeerInfo { range: range.to_string() })];
-        let Some(specifier) =
-            hoist_peers(&self.hoist_peers_options(&preferred, &resolved_versions), &missing)
-                .remove(name)
-        else {
+        let missing = [(name.to_string(), MissingPeerInfo { range })];
+        let hoist_opts = self.hoist_peers_options(&preferred, &resolved_versions);
+        let Some(specifier) = hoist_peers(&hoist_opts, &missing).remove(name) else {
             return RequiredPeerPick::Unknown;
         };
-        let exact_version = specifier
-            .split(" || ")
-            .next()
-            .filter(|version| version.parse::<Version>().is_ok())
-            .map(str::to_string);
-        if let Some(version) = &exact_version
-            && picker.candidate_peers.contains(name, version)
-        {
-            return RequiredPeerPick::Version(version.clone());
+        if !crate::resolve_dependency_tree::is_detached_peer_spec_allowed(
+            &picker.reachability,
+            &hoist_opts,
+            declaring_parents,
+            (&missing, name, &specifier),
+        ) {
+            return RequiredPeerPick::Unresolvable;
         }
-        let key = (name.to_string(), specifier);
-        if let Some(version) = picker.detached.versions.get(&key) {
-            return version
-                .clone()
-                .map_or(RequiredPeerPick::Unresolvable, RequiredPeerPick::Version);
-        }
-        let to_resolve = exact_version.clone().unwrap_or_else(|| key.1.clone());
-        picker.detached.pending.borrow_mut().insert(key, to_resolve);
-        exact_version.map_or(RequiredPeerPick::Unknown, RequiredPeerPick::Version)
+        resolve_or_enqueue_detached_peer(name, specifier, picker)
     }
 
     /// The versions the missing required peers of a wave of packages
@@ -158,23 +176,12 @@ impl ImporterHoistState {
     /// does not resolve.
     fn required_peer_versions(
         &self,
+        wave: &[(String, String)],
         missing_of_wave: &[Vec<CandidatePeer>],
         picker: &RequiredPeerPicker<'_>,
     ) -> Option<Vec<(String, String)>> {
-        let mut declarations_by_name: BTreeMap<&str, Vec<MissingPeer>> = BTreeMap::new();
-        for peer in missing_of_wave.iter().flatten() {
-            declarations_by_name
-                .entry(&peer.name)
-                .or_default()
-                .push(MissingPeer {
-                    wanted_range: peer.comparable.text.clone(),
-                    raw_range: peer.range.clone(),
-                    optional: peer.optional,
-                    parents: ParentChain::default(),
-                });
-        }
         let mut versions = Vec::new();
-        for (name, declarations) in declarations_by_name {
+        for (name, declarations) in group_missing_wave_declarations(missing_of_wave) {
             let range = match classify_missing_peer(
                 &declarations,
                 self.policy.peers.auto_install_peers_from_highest_match,
@@ -186,13 +193,11 @@ impl ImporterHoistState {
                 }
                 MissingPeerKind::Unhoistable => return None,
             };
-            let pick = picker.picked
-                .borrow_mut()
-                .entry((name.to_string(), range))
-                .or_insert_with_key(|(name, range)| {
-                    self.hoisted_required_peer_version(name, range, picker)
-                })
-                .clone();
+            let parents =
+                collect_declaring_wave_parents(wave, missing_of_wave, name, &picker.reachability);
+            let pick = picker.get_or_pick(name.to_string(), range.clone(), &parents, || {
+                self.hoisted_required_peer_version(name, range.clone(), &parents, picker)
+            });
             match pick {
                 RequiredPeerPick::Version(version) => versions.push((name.to_string(), version)),
                 RequiredPeerPick::Unknown => {}
@@ -295,11 +300,7 @@ impl ImporterHoistState {
         candidates: OptionalPeerCandidates,
     ) -> HoistableOptionalPeers {
         let provided_peer_versions = self.hoisted_provider_peer_versions();
-        let hoist_preferred = self.optional_peer_preferred_versions(&provided_peer_versions);
-        let picker = RequiredPeerPicker::new(candidate_peers, detached);
-        let pick_required_peer_versions = |missing_of_wave: &[Vec<CandidatePeer>]| {
-            self.required_peer_versions(missing_of_wave, &picker)
-        };
+        let picker = self.required_peer_picker(candidate_peers, detached);
         let resolved = self.ctx.run_resolved_versions(
             self.dependencies.all_missing_optional_peers.keys().map(String::as_str),
         );
@@ -310,7 +311,9 @@ impl ImporterHoistState {
             }
             let accepted = accepts_optional_peer_candidate(
                 candidate_peers,
-                &pick_required_peer_versions,
+                &|wave, missing_of_wave| {
+                    self.required_peer_versions(wave, missing_of_wave, &picker)
+                },
                 &provided_peer_versions,
                 (name, version),
             );
@@ -326,7 +329,7 @@ impl ImporterHoistState {
         };
         let versions = get_hoistable_optional_peers_with_preferred_versions(
             &self.dependencies.all_missing_optional_peers,
-            &hoist_preferred,
+            &self.optional_peer_preferred_versions(&provided_peer_versions),
             self.hoist_root_deps(),
             &self.ctx.optional_peer_version_tiers(
                 self.selection.locked_versions.versions(self.ctx.workspace()),
@@ -335,6 +338,18 @@ impl ImporterHoistState {
             &accepts_candidate,
         );
         HoistableOptionalPeers::new(versions, rejected.into_inner())
+    }
+
+    fn required_peer_picker<'b>(
+        &'b self,
+        candidate_peers: &'b CandidatePeers<'b>,
+        detached: &'b DetachedPeers,
+    ) -> RequiredPeerPicker<'b> {
+        let reachability = crate::resolve_dependency_tree::HoistedPeerReachability::new(
+            &self.ctx,
+            &self.dependencies.direct,
+        );
+        RequiredPeerPicker::new(candidate_peers, detached, reachability)
     }
 
     /// The preferred versions a missing optional peer may be hoisted at,
@@ -385,4 +400,69 @@ impl ImporterHoistState {
             !selectors.is_empty()
         });
     }
+}
+
+fn resolve_or_enqueue_detached_peer(
+    name: &str,
+    specifier: String,
+    picker: &RequiredPeerPicker<'_>,
+) -> RequiredPeerPick {
+    let exact_version = specifier
+        .split(" || ")
+        .next()
+        .filter(|version| version.parse::<Version>().is_ok())
+        .map(str::to_string);
+    if let Some(version) = &exact_version
+        && picker.candidate_peers.contains(name, version)
+    {
+        return RequiredPeerPick::Version(version.clone());
+    }
+    let key = (name.to_string(), specifier);
+    if let Some(version) = picker.detached.versions.get(&key) {
+        return version.clone().map_or(RequiredPeerPick::Unresolvable, RequiredPeerPick::Version);
+    }
+    let to_resolve = exact_version.clone().unwrap_or_else(|| key.1.clone());
+    picker.detached.pending.borrow_mut().insert(key, to_resolve);
+    exact_version.map_or(RequiredPeerPick::Unknown, RequiredPeerPick::Version)
+}
+
+fn group_missing_wave_declarations(
+    missing_of_wave: &[Vec<CandidatePeer>],
+) -> BTreeMap<&str, Vec<MissingPeer>> {
+    let mut declarations_by_name: BTreeMap<&str, Vec<MissingPeer>> = BTreeMap::new();
+    for peer in missing_of_wave.iter().flatten() {
+        declarations_by_name
+            .entry(&peer.name)
+            .or_default()
+            .push(MissingPeer {
+                wanted_range: peer.comparable.text.clone(),
+                raw_range: peer.range.clone(),
+                optional: peer.optional,
+                parents: ParentChain::default(),
+            });
+    }
+    declarations_by_name
+}
+
+/// The wave's packages that must authorize the hoisted peer: every required
+/// declarer, and every optional declarer whose declared spec reads the host
+/// filesystem, since it shares the hoisted read.
+fn collect_declaring_wave_parents<'w>(
+    wave: &'w [(String, String)],
+    missing_of_wave: &[Vec<CandidatePeer>],
+    peer_name: &str,
+    reachability: &crate::resolve_dependency_tree::HoistedPeerReachability<'_>,
+) -> Vec<(&'w str, &'w str)> {
+    wave.iter()
+        .zip(missing_of_wave.iter())
+        .filter(|(_, missing)| {
+            missing
+                .iter()
+                .any(|peer| {
+                    peer.name == peer_name
+                        && (!peer.optional || reachability.is_forbidden_spec(&peer.range))
+                })
+        })
+        .map(|((pkg_name, pkg_ver), _)| (pkg_name.as_str(), pkg_ver.as_str()))
+        .collect()
 }

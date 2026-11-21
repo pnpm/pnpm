@@ -201,7 +201,7 @@ fn resumed_exec_task_graph(
         Some(anchor) => resume_task_graph_from(
             full_task_graph.clone(),
             &anchor,
-            &args.command[0],
+            args.command[0].clone(),
             completed_tasks.as_ref(),
         ),
         None => full_task_graph.clone(),

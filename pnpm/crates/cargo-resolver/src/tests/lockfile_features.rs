@@ -29,15 +29,21 @@ const WEAK_BAR_INDEX: &str = r#"{"name":"bar","vers":"2.0.0","deps":[{"name":"ba
 #[test]
 fn discovers_and_locks_weak_dependencies_recursively_across_targets() {
     let mut files = BTreeMap::from([("foo".to_string(), WEAK_FOO_INDEX.to_string())]);
-    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["bar"]);
+    assert_eq!(
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
+        ["bar"],
+    );
     files.insert("bar".to_string(), WEAK_BAR_INDEX.to_string());
-    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["baz"]);
+    assert_eq!(
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
+        ["baz"],
+    );
     files.insert(
         "baz".to_string(),
         BAZ_INDEX.replace(r#""features":{}"#, r#""features":{"leaf":[]}"#),
     );
     assert_eq!(
-        missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
+        missing_index_names(METADATA, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
         Vec::<String>::new(),
     );
 
@@ -64,7 +70,7 @@ fn discovers_and_locks_weak_dependencies_recursively_across_targets() {
 #[test]
 fn weak_features_leave_unactivated_build_dependencies_inactive() {
     let files = BTreeMap::from([("foo".to_string(), WEAK_FOO_INDEX.to_string())]);
-    let registry = Registry::new(&files, CRATES_IO_SOURCE).unwrap();
+    let registry = Registry::new(&files, CRATES_IO_SOURCE.to_owned()).unwrap();
     let foo = &registry.package("foo").unwrap()[0];
     let dependencies = dependencies_from_parts(
         &foo.dependencies,
@@ -82,7 +88,7 @@ fn unselected_weak_features_do_not_add_lock_entries() {
         METADATA.replace(r#""req": "^1.0""#, r#""req": "^1.0", "uses_default_features": false"#);
     let files = BTreeMap::from([("foo".to_string(), WEAK_FOO_INDEX.to_string())]);
     assert_eq!(
-        missing_index_names(&metadata, &files, CRATES_IO_SOURCE).unwrap(),
+        missing_index_names(&metadata, &files, CRATES_IO_SOURCE.to_owned()).unwrap(),
         Vec::<String>::new(),
     );
     let encoded = resolve_lockfile(&metadata, &files, CRATES_IO_SOURCE).unwrap();

@@ -338,6 +338,13 @@ fn npm_alias_target<'a>(dep_name: &'a str, raw_spec: &'a str) -> Option<(&'a str
 
 /// The catalog entry a `catalog:` specifier names, with a local path
 /// re-anchored from the workspace directory to the importer's.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`dep_name` is copied only for a `catalog:` specifier when catalogs exist, after the early returns, so an owned parameter would allocate for every dependency."
+    )
+)]
 fn resolve_catalog_spec(
     importer: usize,
     dep_name: &str,

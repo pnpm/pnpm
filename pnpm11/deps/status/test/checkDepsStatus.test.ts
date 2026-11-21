@@ -399,8 +399,10 @@ describe('checkDepsStatus - settings change detection', () => {
   })
 
   it.each([
+    ['blockExoticSubdeps', false, true],
     ['dangerouslyAllowAllBuilds', undefined, true],
     ['extendNodePath', false, undefined],
+    ['nodeDownloadMirrors', { release: 'https://mirror.example/node/' }, undefined],
     ['runtime', false, undefined],
     ['runtimeOnFail', 'ignore', 'download'],
     ['trustLockfile', true, undefined],

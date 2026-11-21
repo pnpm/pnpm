@@ -109,8 +109,8 @@ pub(super) fn packument_tarball_filename(
     let (filename, _) = tarball_cache_name(name, raw_filename)
         .map_err(|err| {
             tarball_integrity_error(
-                name.as_str(),
-                raw_filename,
+                name.as_str().to_owned(),
+                raw_filename.to_owned(),
                 format!("invalid tarball name for version {version:?}: {err}"),
             )
         })?;
@@ -129,8 +129,8 @@ fn needs_integrity(
                 .parse::<ssri::Integrity>()
                 .map_err(|err| {
                     tarball_integrity_error(
-                        name.as_str(),
-                        filename,
+                        name.as_str().to_owned(),
+                        filename.to_owned(),
                         format!("malformed dist.integrity for version {version:?}: {err}"),
                     )
                 })?;
@@ -141,8 +141,8 @@ fn needs_integrity(
         }
         Some(Value::Null) | None => Ok(true),
         Some(_) => Err(tarball_integrity_error(
-            name.as_str(),
-            filename,
+            name.as_str().to_owned(),
+            filename.to_owned(),
             format!("dist.integrity for version {version:?} is not a string"),
         )),
     }
@@ -159,15 +159,15 @@ fn legacy_shasum_integrity(
             .map(Some)
             .map_err(|err| {
                 tarball_integrity_error(
-                    name.as_str(),
-                    filename,
+                    name.as_str().to_owned(),
+                    filename.to_owned(),
                     format!("malformed dist.shasum for version {version:?}: {err}"),
                 )
             }),
         Some(Value::Null) | None => Ok(None),
         Some(_) => Err(tarball_integrity_error(
-            name.as_str(),
-            filename,
+            name.as_str().to_owned(),
+            filename.to_owned(),
             format!("dist.shasum for version {version:?} is not a string"),
         )),
     }

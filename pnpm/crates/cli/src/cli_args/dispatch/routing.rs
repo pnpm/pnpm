@@ -33,6 +33,7 @@ pub(super) fn route<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     match command {
         CliCommand::Add(args) => dispatch_install::add(ctx, args),
+        CliCommand::Edit(args) => dispatch_install::edit(ctx, args),
         CliCommand::Install(args) => dispatch_install::install(ctx, args),
         CliCommand::InstallTest(args) => dispatch_install::install_test(ctx, args),
         CliCommand::Ci(args) => dispatch_install::ci(ctx, args),
@@ -105,7 +106,6 @@ fn route_project<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<Co
         CliCommand::Restart(args) => dispatch_script::restart(ctx, args),
         CliCommand::Pkg(args) => dispatch_script::pkg(ctx, args),
         CliCommand::Catalog(args) => dispatch_script::catalog(ctx, args),
-        CliCommand::Edit(_) => dispatch_query::not_implemented("edit"),
         command => route_maintenance(command, ctx),
     }
 }

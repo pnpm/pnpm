@@ -143,9 +143,8 @@ fn next_staged_generation(
     id: &str,
     expected: Option<i64>,
 ) -> Result<Option<i64>> {
-    let parameters = [Param::Text(id)];
     let queries = [
-        Query::new("SELECT generation FROM staged_metadata WHERE id = ?1", &parameters),
+        Query::new("SELECT generation FROM staged_metadata WHERE id = ?1", vec![Param::Text(id)]),
         query!("SELECT generation FROM record_generation WHERE singleton = 1"),
     ];
     let mut results = connection.query_all(&queries)?.into_iter();

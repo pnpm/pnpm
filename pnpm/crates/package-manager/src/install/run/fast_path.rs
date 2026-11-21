@@ -195,7 +195,11 @@ pub(super) fn report_already_up_to_date<Reporter: self::Reporter>(
         message: "Already up to date".to_string(),
         prefix: prefix.clone(),
     }));
-    Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+    Reporter::emit(&LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix,
+        new_projects: None,
+    }));
     super::InstallRunOutcome::AlreadyUpToDate
 }
 

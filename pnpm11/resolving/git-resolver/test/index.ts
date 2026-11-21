@@ -666,8 +666,8 @@ test.each([
   mockFetchAsPrivate()
   const err = await resolveFailure(resolveFromGit({ bareSpecifier: `git+https://hunter2:x-oauth-basic@github.com/foo/bar.git#${committish}` }))
   expect(err.message).toContain(expected)
-  // The whole `user:pass@` goes, not just one half of it — a GitHub token is
-  // the *user* in `<token>:x-oauth-basic@` — while the part of the URL that
+  // The whole `user:pass@` goes, not just one half of it (a GitHub token is
+  // the *user* in `<token>:x-oauth-basic@`), while the part of the URL that
   // tells the reader which repository failed stays.
   expect(err.message).not.toContain('hunter2')
   expect(err.message).not.toContain('x-oauth-basic')

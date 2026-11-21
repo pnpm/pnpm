@@ -460,6 +460,13 @@ fn encode_os(value: &OsStr) -> Vec<u8> {
     value.as_bytes().to_vec()
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "The Windows twin decodes UTF-16 from a borrow, and both twins share one signature."
+    )
+)]
 #[cfg(any(unix, target_os = "wasi"))]
 fn decode_os(bytes: &[u8]) -> Option<OsString> {
     #[cfg(unix)]

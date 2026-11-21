@@ -37,10 +37,10 @@ function convertResolution (
   inputResolution: LockfileResolution,
   opts: Pick<ConvertOptions, 'deployDir' | 'lockfileDir'>
 ): LockfileResolution {
-  if ('integrity' in inputResolution) return inputResolution
   if ('tarball' in inputResolution && typeof inputResolution.tarball === 'string') {
     return convertTarballResolution(inputResolution, inputResolution.tarball, opts)
   }
+  if ('integrity' in inputResolution) return inputResolution
   if (inputResolution.type === 'directory') {
     const dirResolution = inputResolution as DirectoryResolution
     const resolvedPath = path.resolve(opts.lockfileDir, dirResolution.directory)
@@ -58,9 +58,10 @@ function convertTarballResolution (
   tarball: string,
   opts: Pick<ConvertOptions, 'deployDir' | 'lockfileDir'>
 ): LockfileResolution {
-  if (!tarball.startsWith('file:')) return { ...inputResolution }
-  const inputPath = tarball.slice('file:'.length)
-  const resolvedPath = path.resolve(opts.lockfileDir, inputPath)
+  if (!tarball.startsWith('file:')) return inputResolution
+  const resolvedPath = tarball.startsWith('file://')
+    ? url.fileURLToPath(tarball)
+    : path.resolve(opts.lockfileDir, tarball.slice('file:'.length))
   const outputPath = normalizePath(path.relative(opts.deployDir, resolvedPath))
   const hasPath = 'path' in inputResolution && typeof inputResolution.path === 'string'
   return {

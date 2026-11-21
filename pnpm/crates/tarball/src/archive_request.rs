@@ -87,7 +87,7 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
         .as_ref()
         .ok()
         .and_then(reqwest::Response::content_length);
-    emit_started::<Reporter>(attempt, package_id, size);
+    emit_started::<Reporter>(attempt, package_id.to_owned(), size);
     let response =
         sent.map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
     let meta = response_meta(&response);
@@ -96,12 +96,12 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     Ok((client, response, meta))
 }
 
-fn emit_started<Reporter: self::Reporter>(attempt: u32, package_id: &str, size: Option<u64>) {
+fn emit_started<Reporter: self::Reporter>(attempt: u32, package_id: String, size: Option<u64>) {
     Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
         level: LogLevel::Debug,
         message: FetchingProgressMessage::Started {
             attempt: attempt.saturating_add(1),
-            package_id: package_id.to_owned(),
+            package_id,
             size,
         },
     }));

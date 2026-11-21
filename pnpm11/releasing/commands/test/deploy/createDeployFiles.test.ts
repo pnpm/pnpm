@@ -72,7 +72,10 @@ test('createDeployFiles keeps local tarball package names when rewriting file UR
   expect(manifest.dependencies).toStrictEqual({
     'tar-pkg': outputDepPath,
   })
-  expect(deployLockfile.packages?.[outputDepPath]).toBeDefined()
+  expect(deployLockfile.packages?.[outputDepPath]?.resolution).toStrictEqual({
+    integrity: 'sha512-test',
+    tarball: 'file:../vendor/tar-pkg-1.0.0.tgz',
+  })
   expect(deployLockfile.packages?.[outputDepPathWithTarballFilename]).toBeUndefined()
 })
 

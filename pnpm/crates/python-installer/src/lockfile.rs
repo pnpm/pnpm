@@ -174,7 +174,7 @@ impl PythonPrepare<'_> {
         registry.resolution.packages.candidates.clear();
         lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
         workspace::offer_locked(&mut registry.resolution.packages, &local, &lock);
-        registry.record_sources(requirements)?;
+        registry.record_sources(requirements.to_vec())?;
         let replayed = match registry.fetch_wheels::<Reporter>(requirements).await {
             Ok(()) => resolver::validate_locked(&registry.resolution, requirements),
             Err(error) if same_target => return Err(error),
@@ -211,7 +211,7 @@ impl PythonPrepare<'_> {
         registry.resolution.packages.candidates.clear();
         lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
         workspace::offer_locked(&mut registry.resolution.packages, local, &lock);
-        registry.record_sources(requirements)?;
+        registry.record_sources(requirements.to_vec())?;
         registry.fetch_wheels::<Reporter>(requirements).await?;
         resolver::validate_locked(&registry.resolution, requirements)?;
         Ok(lock)

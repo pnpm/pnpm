@@ -36,8 +36,8 @@ const REGISTRY_NAME_RE = /^[A-Z][\w.-]*$/i
 
 /**
  * Whether `name` is syntactically usable as a named-registry alias in a
- * registry-qualified dep path. Does not check the reserved list —
- * see `RESERVED_VERSION_PREFIXES` for that.
+ * registry-qualified dep path. Does not check the reserved list.
+ * See `RESERVED_VERSION_PREFIXES` for that.
  */
 export function isWellFormedRegistryName (name: string): boolean {
   return REGISTRY_NAME_RE.test(name)
@@ -50,7 +50,7 @@ export interface RegistryQualifiedVersion {
 
 /**
  * Parses the version slot of a registry-qualified dep path
- * (`<registryName>:<version>`, e.g. `work:1.0.0`) — the form used for
+ * (`<registryName>:<version>`, e.g. `work:1.0.0`), the form used for
  * packages resolved from a named registry since lockfile format 12.0.
  * Returns `undefined` for every other version form (plain semver, `file:`,
  * `runtime:`, git/tarball URLs, ...).
@@ -320,7 +320,7 @@ export type PeerId = { name: string, version: string } | string
  * marker. `hashed` is the opaque hash written once the segments exceed
  * `peersSuffixMaxLength`, which names no provider.
  */
-export type PeerBindings = { kind: 'explicit', segments: string[] } | { kind: 'hashed' }
+export type PeerBindings = { kind: 'explicit', segments: string[] } | { kind: 'hashed', hash: string }
 
 /**
  * The bindings `depPath`'s peer suffix records. `undefined` when it has no
@@ -332,7 +332,9 @@ export function parsePeerBindings (depPath: string): PeerBindings | undefined {
   const segments = splitPeerSuffixSegments(peerDepGraphHash)
   if (segments == null) return undefined
   const providerSegments = segments.filter((segment) => !segment.startsWith('patch_hash='))
-  if (providerSegments.length === 1 && isPeerSuffixHash(providerSegments[0])) return { kind: 'hashed' }
+  if (providerSegments.length === 1 && isPeerSuffixHash(providerSegments[0])) {
+    return { kind: 'hashed', hash: providerSegments[0] }
+  }
   return { kind: 'explicit', segments }
 }
 

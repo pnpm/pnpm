@@ -410,7 +410,31 @@ pub(super) struct WorkspaceResolutionPolicy {
     /// `ERR_PNPM_NO_MATCHING_VERSION` to the entry that forced the missing
     /// version.
     pub(super) parsed_overrides: Option<Arc<[crate::OverrideEntry]>>,
+    /// Per-package hook/override authorizations and untrusted peer origins for
+    /// host-filesystem subdependency validation.
+    pub(super) local_subdeps: LocalSubdepAuthorizations,
 }
+
+#[derive(Default)]
+pub(super) struct LocalSubdepAuthorizations {
+    /// Per non-local package resolution id: child aliases added or rewritten
+    /// by workspace hooks, `packageExtensions`, or `overrides`.
+    pub(super) hook_authorized_local_children: Mutex<HashMap<String, HashSet<String>>>,
+    /// Per local package resolution id: `(peer_name, specifier)` pairs declared
+    /// in `peerDependencies`.
+    pub(super) local_pkg_peer_specs: Mutex<HashMap<String, PeerSpecSet>>,
+    /// Per non-local package resolution id: `(peer_name, specifier)` pairs
+    /// rewritten by workspace hooks or authorized by `overrides`.
+    pub(super) authorized_non_local_peer_specs: Mutex<HashMap<String, PeerSpecSet>>,
+    /// Per non-local package resolution id: `(peer_name, specifier) -> parent`
+    /// recorded from un-rewritten `peerDependencies` on non-local packages.
+    pub(super) untrusted_local_peer_parents: Mutex<HashMap<String, UntrustedPeerParentMap>>,
+    /// Per non-local package resolution id: `(name, version)` from its manifest.
+    pub(super) pkg_name_ver: Mutex<HashMap<String, (String, String)>>,
+}
+
+type PeerSpecSet = HashSet<(String, String)>;
+type UntrustedPeerParentMap = HashMap<(String, String), String>;
 
 /// The per-package missing-peer names
 /// [`crate::resolve_dependency_tree::workspace_ctx::WorkspaceChildrenState::first_walk_missing_by_pkg`] projects out of its

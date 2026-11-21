@@ -487,7 +487,7 @@ fn deploy_workspace_settings_preserves_v13_lockfile_format_and_tarball_url() {
     assert_eq!(manifest.get("linkWorkspacePackages"), Some(&json!(false)));
 
     let mut target_config = Config::default();
-    settings.apply_to_config(&mut target_config, Path::new("deploy"));
+    settings.apply_to_config(&mut target_config, Path::new("deploy").to_path_buf());
     assert_eq!(target_config.lockfile_format, LockfileFormat::V13);
     assert!(target_config.lockfile_include_tarball_url);
     assert_eq!(target_config.lockfile_integrity_target, IntegrityTarget::Tar);

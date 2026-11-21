@@ -233,7 +233,7 @@ pub(super) async fn read_image_document(
         Ok(Some(bytes)) => {
             ImageDocument::parse(&bytes).map_err(std::convert::Into::into).map_err(registry_error)
         }
-        Ok(None) => Ok(ImageDocument::new(key.as_str())),
+        Ok(None) => Ok(ImageDocument::new(key.as_str().to_owned())),
         Err(err) => Err(registry_error(err)),
     }
 }

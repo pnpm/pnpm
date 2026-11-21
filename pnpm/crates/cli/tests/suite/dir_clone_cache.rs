@@ -29,14 +29,31 @@ fn cache_root(store_dir: &Path) -> PathBuf {
 }
 
 /// The package's materialized directory inside its sole canonical slot.
+/// Slots are keyed by content (`content/<xx>/<rest>`), so the one holding
+/// `name@version` is found by its manifest.
 fn canonical_pkg_dir(store_dir: &Path, name: &str, version: &str) -> PathBuf {
-    let version_dir = cache_root(store_dir).join(name).join(version);
-    let hashes: Vec<PathBuf> = fs::read_dir(&version_dir)
-        .unwrap_or_else(|err| panic!("read hash dirs under {version_dir:?}: {err}"))
-        .map(|entry| entry.expect("read hash dir entry").path())
+    let content_dir = cache_root(store_dir).join("content");
+    let read_dir = |dir: &Path| -> Vec<PathBuf> {
+        fs::read_dir(dir)
+            .unwrap_or_else(|err| panic!("read {dir:?}: {err}"))
+            .map(|entry| entry.expect("read slot entry"))
+            .map(|entry| entry.path())
+            .collect()
+    };
+    let matches: Vec<PathBuf> = read_dir(&content_dir)
+        .iter()
+        .flat_map(|shard| read_dir(shard))
+        .map(|slot| slot.join("node_modules"))
+        .map(|modules_dir| modules_dir.join(name))
+        .filter(|pkg_dir| {
+            fs::read(pkg_dir.join("package.json"))
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+                .is_some_and(|manifest| manifest["version"] == version)
+        })
         .collect();
-    assert_eq!(hashes.len(), 1, "expected one hash dir under {version_dir:?}, got {hashes:?}");
-    hashes[0].join("node_modules").join(name)
+    assert_eq!(matches.len(), 1, "expected one slot for {name}@{version}, got {matches:?}");
+    matches.into_iter().next().unwrap()
 }
 
 fn pacquet(workspace: &Path) -> Command {
@@ -57,8 +74,8 @@ fn project_pkg_manifest(workspace: &Path) -> PathBuf {
 }
 
 /// The planted bytes are what prove the source: only a clone of the
-/// canonical slot — not a re-import from the CAS — can carry them into
-/// the project copy.
+/// canonical slot can carry them into the project copy. A re-import from
+/// the CAS cannot.
 #[test]
 fn warm_reinstall_is_served_from_the_canonical_slot() {
     let CommandTempCwd {

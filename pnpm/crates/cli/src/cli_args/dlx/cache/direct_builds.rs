@@ -69,6 +69,7 @@ pub(super) async fn rebuild_direct_non_registry_packages<Reporter: self::Reporte
     let rebuild_state = State::init(manifest_path.to_path_buf(), config, true)
         .wrap_err("initialize the dlx rebuild state")?;
     let selection = crate::cli_args::rebuild::RebuildSelection {
+        snapshots: None,
         names: Some(approved_keys.clone()),
         projects: Vec::new(),
     };

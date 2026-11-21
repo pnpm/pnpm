@@ -193,12 +193,13 @@ export interface StrictInstallOptions extends RegistryContext {
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeIgnoreMissingTime?: boolean
+  minimumReleaseAgeStrict?: boolean
   /**
    * Resolver-agnostic post-tree gate, invoked between
    * `resolveDependencyTree` and `resolvePeers` inside
    * `resolveDependencies`. Receives the violations the verifier
    * fan-out collected from the freshly-resolved tree. Throwing here
-   * unwinds the install before peer-dep resolution runs — nothing on
+   * unwinds the install before peer-dep resolution runs. Nothing on
    * disk has changed, and the (potentially expensive) peer pass is
    * skipped on abort.
    *
@@ -231,11 +232,11 @@ export interface StrictInstallOptions extends RegistryContext {
   /**
    * Skip the lockfile supply-chain verification pass entirely. When
    * true, `verifyLockfileResolutions` is not called even if
-   * `resolutionVerifiers` is non-empty — the install trusts the
+   * `resolutionVerifiers` is non-empty. The install trusts the
    * lockfile as-is. Trade-off: a poisoned lockfile (e.g. one a
    * contributor authored under a weaker policy than CI enforces) can
    * slip through. Use only in environments where the lockfile is
-   * effectively part of the trusted base — closed-source projects
+   * effectively part of the trusted base: closed-source projects
    * where every commit comes from a trusted author, fully reproducible
    * CI runs against an already-verified lockfile, etc.
    *
@@ -247,6 +248,8 @@ export interface StrictInstallOptions extends RegistryContext {
   trustLockfile?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  nodeDownloadMirrors?: Record<string, string>
+  deployedWorkspaceDirs?: readonly string[]
   /**
    * Optional alternative install engine. When set, the installer
    * delegates the install to `run` instead of calling `headlessInstall`.

@@ -73,6 +73,13 @@ impl<'a> WorkspaceProjectIndex<'a> {
         }
     }
 
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "the alias is copied only for a catalog: spec, and the caller borrows it"
+        )
+    )]
     fn dereference_catalog<'b>(
         &self,
         dir: &Path,

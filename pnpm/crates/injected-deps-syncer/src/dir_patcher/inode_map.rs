@@ -33,7 +33,7 @@ use std::{
 
 pub(super) fn load_inode_map(dir: &Path, files: CopyFiles) -> Result<InodeMap, PatchError> {
     let files_map = files
-        .fetcher(dir)
+        .fetcher(dir.to_path_buf())
         .list_files()
         .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })?;
     let listed = pnpm_fs::selected_paths_and_ancestors(files_map.keys().map(String::as_str));

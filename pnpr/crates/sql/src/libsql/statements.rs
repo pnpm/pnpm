@@ -137,10 +137,10 @@ impl Statements<'_> {
         self.state.set(state);
     }
 
-    fn hold(&self, sql: &str, params: &[Param<'_>], step: StepKind) {
+    fn hold(&self, sql: String, params: &[Param<'_>], step: StepKind) {
         self.held
             .borrow_mut()
-            .push(HeldStatement { sql: sql.to_string(), params: to_params(params), step });
+            .push(HeldStatement { sql, params: to_params(params), step });
     }
 
     /// Send every held statement as one batch, and return the rows of each.
@@ -192,7 +192,7 @@ impl Connection for Statements<'_> {
     fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()> {
         reject_nul(params)?;
         if !self.local {
-            self.hold(sql, params, classify_sql(sql));
+            self.hold(sql.to_owned(), params, classify_sql(sql));
             return Ok(());
         }
         self.wait(async { Ok(self.conn.execute(sql, to_params(params)).await?) })?;
@@ -202,7 +202,7 @@ impl Connection for Statements<'_> {
     fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
         reject_nul(params)?;
         if !self.local {
-            let query = Query::new(sql, params);
+            let query = Query::new(sql, params.to_vec());
             return Ok(self
                 .query_all(&[query])?
                 .pop()
@@ -222,7 +222,7 @@ impl Connection for Statements<'_> {
             reject_nul(&query.params)?;
         }
         for query in queries {
-            self.hold(query.sql, &query.params, classify_sql(query.sql));
+            self.hold(query.sql.to_owned(), &query.params, classify_sql(query.sql));
         }
         // `send` answers every statement it sent, the held ones before these.
         let mut results = self.send()?;
@@ -248,7 +248,7 @@ impl Connection for Statements<'_> {
         if self.local {
             return self.execute("BEGIN IMMEDIATE", &[]);
         }
-        self.hold("BEGIN IMMEDIATE", &[], StepKind::Begin);
+        self.hold("BEGIN IMMEDIATE".to_owned(), &[], StepKind::Begin);
         Ok(())
     }
 
@@ -258,7 +258,7 @@ impl Connection for Statements<'_> {
         if self.local {
             return self.execute_batch("BEGIN READONLY");
         }
-        self.hold("BEGIN", &[], StepKind::Begin);
+        self.hold("BEGIN".to_owned(), &[], StepKind::Begin);
         Ok(())
     }
 
@@ -281,7 +281,7 @@ impl Connection for Statements<'_> {
                 return Ok(());
             }
         }
-        self.hold("COMMIT", &[], StepKind::Commit);
+        self.hold("COMMIT".to_owned(), &[], StepKind::Commit);
         self.send().map(drop)
     }
 

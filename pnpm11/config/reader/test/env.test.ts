@@ -56,6 +56,20 @@ test('parseEnvVars works with numbers', () => {
   })
 })
 
+test('parseEnvVars skips empty or whitespace-only numbers', () => {
+  expect(pairsToObject(parseEnvVars(alwaysSchema(Number), {
+    pnpm_config_empty: '',
+    pnpm_config_blank: '   ',
+    pnpm_config_zero: '0',
+    pnpm_config_padded: ' 16 ',
+  }))).toStrictEqual({
+    empty: undefined,
+    blank: undefined,
+    zero: 0,
+    padded: 16,
+  })
+})
+
 test('parseEnvVars works with booleans', () => {
   expect(pairsToObject(parseEnvVars(alwaysSchema(Boolean), {
     HOME: '/home/fake-user',

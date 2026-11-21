@@ -17,7 +17,7 @@ pub struct CycleReport {
 }
 
 impl CycleReport {
-    pub fn new(crate_name: &str, graph: &TopLevelGraph) -> Self {
+    pub fn new(crate_name: String, graph: &TopLevelGraph) -> Self {
         let biggest = components(graph)
             .into_iter()
             .max_by_key(Vec::len)
@@ -31,7 +31,7 @@ impl CycleReport {
         let mut largest = if biggest.len() > 1 { biggest } else { Vec::new() };
         largest.sort_by_key(|module| (std::cmp::Reverse(lines(module)), module.clone()));
         Self {
-            crate_name: crate_name.to_owned(),
+            crate_name,
             module_count: graph.code_lines.len(),
             total_lines: graph.code_lines.values().sum(),
             largest_lines: largest.iter().map(lines).sum(),

@@ -95,6 +95,7 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'enableGlobalVirtualStore',
   'allowBuilds',
   'autoInstallPeers',
+  'blockExoticSubdeps',
   'catalogs',
   // Turned on, it allows builds the last install ignored.
   'dangerouslyAllowAllBuilds',
@@ -120,6 +121,7 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'minimumReleaseAgeStrict',
   'minimumReleaseAgeExclude',
   'minimumReleaseAgeIgnoreMissingTime',
+  'nodeDownloadMirrors',
   'nodeLinker',
   'optional',
   'overrides',
@@ -153,16 +155,17 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
 ] as const satisfies ReadonlyArray<keyof Config>
 
 /** Settings a state may leave out. Unset reads as the default. */
-type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'extendNodePath' | 'runtime' | 'virtualStoreDirMaxLength'
+type OptionalSettingKey = 'dangerouslyAllowAllBuilds' | 'extendNodePath' | 'nodeDownloadMirrors' | 'runtime' | 'virtualStoreDirMaxLength'
 
 export type WorkspaceStateSettings = Pick<Config, Exclude<typeof WORKSPACE_STATE_SETTING_KEYS[number], OptionalSettingKey>> &
 Partial<Pick<Config, OptionalSettingKey>> & {
   /**
    * Recorded by pnpm v12; v11 carries it forward when rewriting the
-   * workspace state so a v11 write does not make the next v12 command see
+   * workspace state so a v12 write does not make the next v12 command see
    * a setting change.
    */
   autoDedupe?: boolean
+  toolMirrors?: Record<string, string>
   /**
    * What decides the lockfile keys of registry packages: each prefix
    * `registries` and `namedRegistries` declare, mapped to its URL. Recorded

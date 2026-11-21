@@ -72,7 +72,7 @@ impl Interpretation {
     fn from_record(version: &str, record: Option<Value>) -> Result<Self> {
         let Some(record) = record else { return Ok(Self::submitted()) };
         let invalid = || {
-            bad_request(&format!(
+            bad_request(format!(
                 "`{ARCHIVE_MANIFEST_FIELD}` of version {version:?} must be an object naming a profile",
             ))
         };
@@ -128,12 +128,14 @@ pub(super) fn decompose(bytes: &[u8]) -> Result<PackumentRows> {
     let packument: Value = serde_json::from_slice(bytes)?;
     check_format_version(&packument)?;
     let Value::Object(mut state) = packument else {
-        return Err(bad_request("a packument must be an object"));
+        return Err(bad_request("a packument must be an object".to_owned()));
     };
     let tags = take_tags(&mut state)?;
     let mut versions = take_versions(&mut state)?;
     if let Some(time) = state.get_mut(TIME) {
-        let time = time.as_object_mut().ok_or_else(|| bad_request("`time` must be an object"))?;
+        let time = time
+            .as_object_mut()
+            .ok_or_else(|| bad_request("`time` must be an object".to_owned()))?;
         for (version, rows) in &mut versions {
             if let Some(Value::String(published_at)) = time.get(version) {
                 rows.published_at = Some(publication_time(version, published_at)?);
@@ -147,19 +149,19 @@ pub(super) fn decompose(bytes: &[u8]) -> Result<PackumentRows> {
 fn publication_time(version: &str, value: &str) -> Result<i64> {
     pnpm_time::parse_rfc3339_millis(value)
         .map_err(|_| {
-            bad_request(&format!("publication time of version {version:?} must be RFC 3339"))
+            bad_request(format!("publication time of version {version:?} must be RFC 3339"))
         })
 }
 
 fn take_tags(state: &mut Map<String, Value>) -> Result<BTreeMap<String, String>> {
     let Some(tags) = state.get_mut(TAGS) else { return Ok(BTreeMap::new()) };
     let Value::Object(tags) = tags.take() else {
-        return Err(bad_request("`dist-tags` must be an object"));
+        return Err(bad_request("`dist-tags` must be an object".to_owned()));
     };
     tags.into_iter()
         .map(|(tag, version)| match version {
             Value::String(version) => Ok((tag, version)),
-            _ => Err(bad_request(&format!("dist-tag {tag:?} must name a version"))),
+            _ => Err(bad_request(format!("dist-tag {tag:?} must name a version"))),
         })
         .collect()
 }
@@ -167,7 +169,7 @@ fn take_tags(state: &mut Map<String, Value>) -> Result<BTreeMap<String, String>>
 fn take_versions(state: &mut Map<String, Value>) -> Result<BTreeMap<String, VersionRows>> {
     let Some(versions) = state.get_mut(VERSIONS) else { return Ok(BTreeMap::new()) };
     let Value::Object(versions) = versions.take() else {
-        return Err(bad_request("`versions` must be an object"));
+        return Err(bad_request("`versions` must be an object".to_owned()));
     };
     versions
         .into_iter()
@@ -176,7 +178,7 @@ fn take_versions(state: &mut Map<String, Value>) -> Result<BTreeMap<String, Vers
                 let rows = version_rows(&version, manifest)?;
                 Ok((version, rows))
             }
-            _ => Err(bad_request(&format!("version {version:?} must be an object"))),
+            _ => Err(bad_request(format!("version {version:?} must be an object"))),
         })
         .collect()
 }
@@ -207,8 +209,8 @@ fn check_format_version(packument: &Value) -> Result<()> {
     })
 }
 
-fn bad_request(reason: &str) -> RegistryError {
-    RegistryError::BadRequest { reason: reason.to_string() }
+fn bad_request(reason: String) -> RegistryError {
+    RegistryError::BadRequest { reason }
 }
 
 pub(super) struct Assembled {

@@ -8,7 +8,7 @@ import {
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
 import { getContext, type PnpmContext, type ProjectOptions } from '@pnpm/installing.context'
-import { cleanGitBranchLockfiles, getWantedLockfileName } from '@pnpm/lockfile.fs'
+import { cleanGitBranchLockfiles } from '@pnpm/lockfile.fs'
 import { streamParser } from '@pnpm/logger'
 import type { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
@@ -23,7 +23,6 @@ import {
   DEV_PREINSTALL,
   installRunsDevPreinstall,
   isCheckOnlyInstall,
-  matchReplacedLockfileEntries,
   rootProjectRunsPreinstallEarly,
 } from './installPredicates.js'
 import type {
@@ -43,7 +42,6 @@ import {
 import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
 import { runMutations } from './runMutations.js'
 import { validateModules } from './validateModules.js'
-import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 export async function mutateModules (
   projects: MutatedProject[],
@@ -83,7 +81,7 @@ export async function mutateModules (
   applyPreparedFrozenProjects(opts, maybeOpts._preparedFrozen)
 
   const run = await prepareMutationRun({ projects, maybeOpts, opts, detachReporter })
-  const result = await settleInstall(runMutations(run), run.verifyLockfilePromise, detachReporter)
+  const result = await settleInstall(() => runMutations(run), run.verifyLockfilePromise, detachReporter)
 
   reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
@@ -322,55 +320,11 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
 }
 
 /**
- * Re-validate every entry in the lockfile against the policies the
- * resolver chain was built with.
- *
- * The verification is kicked off here, right after the lockfile is loaded,
- * but not awaited inline — it would otherwise block every later install
- * stage on per-entry registry round trips. Its synchronous prologue (cache
- * lookup, lockfile hashing, candidate collection) runs now against the
- * pristine lockfile, so the async fan-out reads a stable snapshot even
- * while the install mutates `ctx.wantedLockfile` concurrently. The verdict
- * is reconciled with the install in `settleInstall`: a failure aborts the
- * install even mid-flight, and an install that finishes first is held back
- * until the verdict arrives.
- *
- * The pending verdict is returned wrapped in an object, so that awaiting
- * this function does not await the verification.
- */
-export async function startLockfileVerification (
-  { ctx, installsOnly, opts, projects }: Pick<OpenedMutationRun, 'ctx' | 'installsOnly' | 'opts' | 'projects'>,
-  { skipStatShortcut = false }: { skipStatShortcut?: boolean } = {}
-): Promise<{ verifyLockfilePromise?: Promise<void> }> {
-  if (willDelegateToPacquet(opts, ctx, installsOnly) || opts.trustLockfile) return {}
-  const cacheActive = !skipStatShortcut &&
-    !opts.mergeGitBranchLockfiles &&
-    opts.cacheDir != null &&
-    opts.resolutionVerifiers.length > 0
-  const wantedLockfilePath = cacheActive
-    ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
-      useGitBranchLockfile: opts.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    }))
-    : undefined
-  const verifyLockfilePromise = verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-    cacheDir: opts.cacheDir,
-    lockfilePath: wantedLockfilePath,
-    isReplaced: matchReplacedLockfileEntries(projects, ctx, opts),
-  })
-  // Keep the rejection from going unhandled in the window before
-  // `settleInstall` awaits the verdict — a preResolution hook or the
-  // install kickoff below could throw and bail out before we get there.
-  verifyLockfilePromise.catch(() => {})
-  return { verifyLockfilePromise }
-}
-
-/**
  * Lockfile verification is skipped when we already know pacquet will run the
  * install: pacquet applies the same resolver-policy gate (port of
  * `verifyLockfileResolutions`) whether it materializes a frozen lockfile or
- * re-resolves from the manifests, so re-running it would duplicate the work —
- * and for `minimumReleaseAge` in strict mode each lockfile entry is an HTTP
+ * re-resolves from the manifests, so re-running it would duplicate the work.
+ * For `minimumReleaseAge` in strict mode, each lockfile entry is an HTTP
  * probe.
  *
  * The predicate mirrors every short-circuit `tryFrozenInstall` checks
@@ -378,7 +332,7 @@ export async function startLockfileVerification (
  * return null, throw, or fall through to the JS path must keep
  * verification on. The optimistic `preferFrozenLockfile` path decides
  * whether to delegate later (based on `allProjectsAreUpToDate`), which
- * isn't known here — so verification still runs in that window, the
+ * isn't known here. Verification still runs in that window, so the
  * duplicate is bounded to it.
  */
 export function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, installsOnly: boolean): boolean {
@@ -400,7 +354,7 @@ export function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmCont
         ctx.existsNonEmptyWantedLockfile &&
         (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)) ||
       // Resolving install: pacquet (>= 0.11.7) re-resolves from the
-      // manifests itself — applying the policy during fresh resolution —
+      // manifests itself (applying the policy during fresh resolution),
       // so the existing lockfile entries verified here would just be
       // discarded. If a policy handler is active, keep resolution in pnpm
       // so violations can be returned to the command layer.
@@ -457,19 +411,23 @@ function shouldPruneVirtualStore (opts: StrictInstallOptions, ctx: PnpmContext):
 // install's result (or error) surfaced. detachReporter mirrors the success
 // path's cleanup so a long-lived process doesn't leak the stream listener on
 // a rejected install.
+const VERIFICATION_PENDING = Symbol('verificationPending')
+
 async function settleInstall (
-  install: Promise<InnerInstallResult>,
+  startInstall: () => Promise<InnerInstallResult>,
   verification: Promise<void> | undefined,
   detachReporter: () => void
 ): Promise<InnerInstallResult> {
-  if (verification != null) {
-    // Handle the install's eventual rejection up front so a fail-fast
-    // verification throw below doesn't leave the still-running install
-    // unhandled.
-    install.catch(() => {})
-  }
   try {
     if (verification != null) {
+      await Promise.race([verification, Promise.resolve(VERIFICATION_PENDING)])
+    }
+    const install = startInstall()
+    if (verification != null) {
+      // Handle the install's eventual rejection up front so a fail-fast
+      // verification throw below doesn't leave the still-running install
+      // unhandled.
+      install.catch(() => {})
       await verification
     }
     return await install
@@ -484,7 +442,7 @@ async function finishMutation (run: MutationRun, result: InnerInstallResult): Pr
   // The branch lockfiles become disposable only once the merge has been
   // written for good. An install that never saves a lockfile did not merge
   // them, and a `--dry-run` / `lockfileCheck` run only reports what it would
-  // do — deleting them in either case drops resolutions no file is left
+  // do. Deleting them in either case drops resolutions no file is left
   // holding.
   if (
     opts.mergeGitBranchLockfiles && opts.useLockfile && opts.saveLockfile &&

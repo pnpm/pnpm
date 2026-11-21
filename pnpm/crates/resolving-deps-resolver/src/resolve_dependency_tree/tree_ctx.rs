@@ -187,6 +187,10 @@ pub(super) struct TreeImporterContext {
     /// The [`TargetDistances`] of this importer's update scope, fetched
     /// from the workspace on first use. See [`TreeCtx::target_distances`].
     target_distances: OnceLock<Arc<TargetDistances>>,
+    /// The directories of the workspace projects and the publish directories
+    /// they link, built on first use. See
+    /// `resolves_children_through_catalogs` in the walk.
+    pub(super) workspace_project_dirs: OnceLock<HashSet<PathBuf>>,
 }
 
 impl TreeCtx {
@@ -220,6 +224,7 @@ impl TreeCtx {
                     &base_opts.project.lockfile_dir,
                 ),
                 target_distances: OnceLock::new(),
+                workspace_project_dirs: OnceLock::new(),
                 lockfile_dir,
                 id: pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
                 order: 0,
@@ -261,6 +266,7 @@ impl TreeCtx {
                     &base_opts.project.lockfile_dir,
                 ),
                 target_distances: OnceLock::new(),
+                workspace_project_dirs: OnceLock::new(),
                 lockfile_dir,
                 id: pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
                 order: 0,
@@ -384,8 +390,8 @@ impl TreeCtx {
     /// Set the importer this context walks for. See [`TreeCtx`]'s
     /// `importer_id` field.
     #[must_use]
-    pub fn with_importer_id(mut self, importer_id: &str) -> Self {
-        self.importer.id = importer_id.to_string();
+    pub fn with_importer_id(mut self, importer_id: String) -> Self {
+        self.importer.id = importer_id;
         self.importer.target_distances = OnceLock::new();
         self
     }

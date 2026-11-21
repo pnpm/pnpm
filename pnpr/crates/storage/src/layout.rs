@@ -30,10 +30,7 @@ use serde::{
     Deserialize,
     Serialize,
 };
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::PathBuf;
 
 /// The layout this build reads and writes.
 pub const LAYOUT_VERSION: u32 = 3;
@@ -92,12 +89,12 @@ pub fn namespace_segments(namespace: &str, ecosystem: Ecosystem) -> Vec<String> 
 /// hosted store at `root`.
 #[must_use]
 pub fn local_package_dir(
-    root: &Path,
+    root: PathBuf,
     namespace: &str,
     ecosystem: Ecosystem,
     name: &str,
 ) -> PathBuf {
-    let mut dir = root.to_path_buf();
+    let mut dir = root;
     dir.extend(namespace_segments(namespace, ecosystem));
     dir.push(PACKAGES_DIR);
     dir.extend(package_segments(ecosystem, name));
@@ -107,7 +104,7 @@ pub fn local_package_dir(
 /// Where [`local_package_dir`]'s document is.
 #[must_use]
 pub fn local_document_path(
-    root: &Path,
+    root: PathBuf,
     namespace: &str,
     ecosystem: Ecosystem,
     name: &str,
@@ -129,12 +126,12 @@ pub fn archive_object_path(key: &str) -> String {
 /// local hosted store at `root` is.
 #[must_use]
 pub fn local_archive_path(
-    root: &Path,
+    root: PathBuf,
     namespace: &str,
     ecosystem: Ecosystem,
     key: &str,
 ) -> PathBuf {
-    let mut path = root.to_path_buf();
+    let mut path = root;
     path.extend(namespace_segments(namespace, ecosystem));
     path.extend(archive_object_path(key).split('/'));
     path

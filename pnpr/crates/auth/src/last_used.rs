@@ -104,7 +104,7 @@ impl LastUsedWriter {
         if claims.written_at.get(key).is_some_and(|&written_at| within_interval(written_at, now)) {
             return false;
         }
-        claims.insert(key, now);
+        claims.insert(key.to_owned(), now);
         true
     }
 
@@ -118,12 +118,12 @@ impl LastUsedWriter {
 }
 
 impl Claims {
-    fn insert(&mut self, key: &str, now: u64) {
+    fn insert(&mut self, key: String, now: u64) {
         if self.written_at.len() >= self.prune_at {
             self.written_at.retain(|_, &mut written_at| within_interval(written_at, now));
             self.prune_at = (self.written_at.len() * 2).max(MIN_CLAIMS_BEFORE_PRUNE);
         }
-        self.written_at.insert(key.to_owned(), now);
+        self.written_at.insert(key, now);
     }
 }
 

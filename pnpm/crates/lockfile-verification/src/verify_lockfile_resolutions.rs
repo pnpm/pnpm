@@ -7,10 +7,28 @@
 //! resolutions outside their scope; the runner is policy-neutral and
 //! dispatch-free at this layer.
 
+pub use exotic_subdeps::{
+    EXOTIC_SUBDEP_VIOLATION_CODE,
+    ExoticSubdepsPolicy,
+    ExoticSubdepsScope,
+};
+pub use local_containment::{
+    LocalDepField,
+    LocalResolutionPolicy,
+    LocalResolutionProbeParent,
+    PristineDeclaredSpecs,
+    local_resolution_candidate_parents,
+    local_resolution_candidate_parents_for_policy,
+    verify_lockfile_local_resolutions,
+};
+pub(crate) use offline_checks::with_offline_and_exotic_cache_identities;
 pub use offline_checks::{
+    LOCAL_SUBDEP_NOT_ALLOWED_VIOLATION_CODE,
     RESOLUTION_SHAPE_CACHE_VERSION,
     RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+    can_trust_prepared_policy,
     collect_resolution_shape_violations,
+    snapshot_verification_policy,
     verify_lockfile_dependency_names,
     verify_lockfile_importer_snapshot_links,
     verify_lockfile_resolution_shapes,
@@ -48,9 +66,13 @@ use tokio::sync::Semaphore;
 use crate::{
     cache::{
         CachePrecomputed,
+        LockfileStat,
         lockfile_verification_is_cached_by_hash,
         record_verification,
+        record_verification_by_hash,
         try_lockfile_verification_cache,
+        try_lockfile_verification_cache_by_hash,
+        try_lockfile_verification_cache_with_stat,
     },
     errors::{
         RenderedViolation,
@@ -69,17 +91,20 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// Cap on concurrent verifier futures. `None` falls back to
     /// an internal default of `64`.
     pub concurrency: Option<usize>,
-    /// Absolute path of the lockfile being verified. Required for
-    /// the on-disk verification cache (the stat shortcut + per-path
-    /// index key off it) and surfaced in the
-    /// `pnpm:lockfile-verification` reporter payload.
+    /// Absolute path of the lockfile being verified. Surfaced in the
+    /// `pnpm:lockfile-verification` reporter payload, and enables the
+    /// on-disk stat shortcut when paired with [`Self::lockfile_stat`].
     pub lockfile_path: Option<&'a Path>,
-    /// The on-disk cache directory. When set together with
-    /// `lockfile_path`, a successful run is memoised in
-    /// `<cache_dir>/lockfile-verified.jsonl` and the gate
+    /// Metadata captured from the open file handle when `lockfile` was
+    /// loaded. When `None`, cache lookup and recording use the content-only
+    /// index rather than statting `lockfile_path` after the fact.
+    pub lockfile_stat: Option<LockfileStat>,
+    /// The on-disk cache directory. When set, a successful run is
+    /// memoised in `<cache_dir>/lockfile-verified.jsonl` (by stat +
+    /// content hash when `lockfile_path` is set, or by content hash
+    /// alone when `lockfile_path` is `None`) and the gate
     /// short-circuits on a repeat run against an unchanged lockfile
-    /// (under the same or stricter policy). Omitting either field
-    /// disables the cache (every call rehashes + reruns the gate).
+    /// under the same or stricter policy.
     pub cache_dir: Option<&'a Path>,
     /// Entries the install re-resolves instead of reusing. See
     /// [`ReplacedEntries`].
@@ -88,6 +113,11 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// an importer reference to a missing snapshot, so such a reference is
     /// not an error.
     pub repairs_lockfile: bool,
+    /// Whether `blockExoticSubdeps` is enforced on lockfile subdependencies.
+    pub exotic_subdeps: ExoticSubdepsPolicy,
+    /// Active workspace policy for local (`directory`, `file:`, `link:`)
+    /// entries referenced by non-importer snapshots.
+    pub local_policy: Option<LocalResolutionPolicy>,
 }
 
 /// One deduplicated lockfile entry offered to [`ReplacedEntries`].
@@ -115,46 +145,92 @@ impl std::fmt::Debug for ReplacedEntries<'_> {
 }
 
 /// Proof that `lockfile` passed offline dependency-name, importer-snapshot
-/// link (except in [`Self::verify_for_repair`]), and resolution-shape
-/// validation, allowing a subsequent verification-cache lookup to skip
-/// repeating those scans.
+/// link (except in [`Self::verify_for_repair`]), local containment, and
+/// resolution-shape validation, allowing a subsequent verification-cache lookup
+/// to skip repeating those scans.
 #[derive(Debug, Clone, Copy)]
 pub struct VerifiedOfflineLockfile<'a>(&'a Lockfile);
 
 impl<'a> VerifiedOfflineLockfile<'a> {
-    /// Validate offline dependency names, importer-snapshot links, and
-    /// resolution shapes of `lockfile`.
+    /// Validate offline dependency names, local containment, importer-snapshot
+    /// links, and resolution shapes of `lockfile`.
     pub fn verify(lockfile: &'a Lockfile) -> Result<Self, VerifyError> {
-        verify_offline_structural_checks(lockfile)?;
-        verify_lockfile_resolution_shapes(lockfile)?;
+        Self::verify_with_policy(lockfile, None)
+    }
+
+    /// Validate offline dependency names, local containment under
+    /// `local_policy`, importer-snapshot links, and resolution shapes.
+    pub fn verify_with_policy(
+        lockfile: &'a Lockfile,
+        local_policy: Option<LocalResolutionPolicy>,
+    ) -> Result<Self, VerifyError> {
+        verify_lockfile_dependency_names(lockfile)?;
+        let shape_ctx = shape_context_from_policy(local_policy.as_ref(), None);
+        verify_lockfile_resolution_shapes_with_ctx(lockfile, shape_ctx)?;
+        verify_lockfile_local_resolutions(lockfile, local_policy)?;
+        verify_lockfile_importer_snapshot_links(lockfile)?;
         Ok(Self(lockfile))
     }
 
-    /// Validate offline dependency names and resolution shapes of `lockfile`
-    /// while allowing missing importer-snapshot links that `--fix-lockfile`
-    /// re-resolves.
+    /// Validate offline dependency names, local containment, and resolution
+    /// shapes while allowing missing importer-snapshot links that
+    /// `--fix-lockfile` re-resolves.
     pub fn verify_for_repair(lockfile: &'a Lockfile) -> Result<Self, VerifyError> {
+        Self::verify_for_repair_with_policy(lockfile, None)
+    }
+
+    /// Policy-aware counterpart of [`Self::verify_for_repair`].
+    pub fn verify_for_repair_with_policy(
+        lockfile: &'a Lockfile,
+        local_policy: Option<LocalResolutionPolicy>,
+    ) -> Result<Self, VerifyError> {
         verify_lockfile_dependency_names(lockfile)?;
-        verify_lockfile_resolution_shapes(lockfile)?;
+        let shape_ctx = shape_context_from_policy(local_policy.as_ref(), None);
+        verify_lockfile_resolution_shapes_with_ctx(lockfile, shape_ctx)?;
+        verify_lockfile_local_resolutions(lockfile, local_policy)?;
         Ok(Self(lockfile))
     }
 
     /// Whether `lockfile-verified.jsonl` already covers this offline-verified
-    /// lockfile at `lockfile_path` under `verifiers`.
+    /// lockfile at `lockfile_path` under `verifiers` and the given [`ExoticSubdepsPolicy`].
     #[must_use]
     pub fn is_cached(
         self,
         cache_dir: &Path,
         lockfile_path: &Path,
         verifiers: &[Arc<dyn ResolutionVerifier>],
+        exotic_subdeps: &ExoticSubdepsPolicy,
     ) -> bool {
         if self.0.packages.is_none() {
-            return true;
+            return packages_absent_is_clean(self.0, exotic_subdeps);
         }
         try_lockfile_verification_cache(
             cache_dir,
             lockfile_path,
-            &with_offline_check_cache_identities(verifiers),
+            &with_offline_and_exotic_cache_identities(verifiers, exotic_subdeps),
+            || hash_lockfile(self.0),
+        )
+        .hit
+    }
+
+    /// [`Self::is_cached`] using a pre-captured [`LockfileStat`].
+    #[must_use]
+    pub fn is_cached_with_stat(
+        self,
+        cache_dir: &Path,
+        lockfile_path: &Path,
+        stat: LockfileStat,
+        verifiers: &[Arc<dyn ResolutionVerifier>],
+        exotic_subdeps: &ExoticSubdepsPolicy,
+    ) -> bool {
+        if self.0.packages.is_none() {
+            return packages_absent_is_clean(self.0, exotic_subdeps);
+        }
+        try_lockfile_verification_cache_with_stat(
+            cache_dir,
+            lockfile_path,
+            stat,
+            &with_offline_and_exotic_cache_identities(verifiers, exotic_subdeps),
             || hash_lockfile(self.0),
         )
         .hit
@@ -166,70 +242,71 @@ impl<'a> VerifiedOfflineLockfile<'a> {
         self,
         cache_dir: &Path,
         verifiers: &[Arc<dyn ResolutionVerifier>],
+        exotic_subdeps: &ExoticSubdepsPolicy,
     ) -> bool {
         if self.0.packages.is_none() {
-            return true;
+            return packages_absent_is_clean(self.0, exotic_subdeps);
         }
         lockfile_verification_is_cached_by_hash(
             cache_dir,
             &hash_lockfile(self.0),
-            &with_offline_check_cache_identities(verifiers),
+            &with_offline_and_exotic_cache_identities(verifiers, exotic_subdeps),
         )
     }
 }
 
+fn packages_absent_is_clean(lockfile: &Lockfile, exotic_subdeps: &ExoticSubdepsPolicy) -> bool {
+    match exotic_subdeps.scope() {
+        None => true,
+        Some(scope) => {
+            collect_exotic_subdep_violations(lockfile, None, scope).violations.is_empty()
+        }
+    }
+}
+
 /// Whether a recorded verification already covers `lockfile` as it sits
-/// at `lockfile_path` under the policy `verifiers` currently demand,
-/// i.e. whether a [`verify_lockfile_resolutions`] call would
-/// short-circuit on the cache without running the fan-out. The offline
-/// structural dependency-name gate runs here too (it is cheap and the
-/// cache never covers a lockfile that fails it), so a `true` return
-/// carries the same guarantee as the runner's cache hit.
-///
-/// Lets the pnpr client decide locally whether the server-side
-/// `verify_lockfile` round trip can be skipped
-/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
+/// at `lockfile_path` under the policy `verifiers` currently demand.
 pub fn lockfile_verification_is_cached(
     cache_dir: &Path,
     lockfile_path: &Path,
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
 ) -> bool {
-    if verify_offline_structural_checks(lockfile).is_err() {
+    let Ok(verified) = VerifiedOfflineLockfile::verify(lockfile) else {
         return false;
-    }
-    if lockfile.packages.is_none() {
-        return true;
-    }
-    try_lockfile_verification_cache(
-        cache_dir,
-        lockfile_path,
-        &with_offline_check_cache_identities(verifiers),
-        || hash_lockfile(lockfile),
-    )
-    .hit
+    };
+    verified.is_cached(cache_dir, lockfile_path, verifiers, exotic_subdeps)
+}
+
+/// [`lockfile_verification_is_cached`] using a [`LockfileStat`] captured when
+/// the lockfile was read rather than re-statting `lockfile_path`.
+pub fn lockfile_verification_is_cached_with_stat(
+    cache_dir: &Path,
+    lockfile_path: &Path,
+    stat: LockfileStat,
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
+) -> bool {
+    let Ok(verified) = VerifiedOfflineLockfile::verify(lockfile) else {
+        return false;
+    };
+    verified.is_cached_with_stat(cache_dir, lockfile_path, stat, verifiers, exotic_subdeps)
 }
 
 /// Whether a recorded verification covers the exact in-memory
-/// `lockfile` content under the currently active policy. Unlike
-/// [`lockfile_verification_is_cached`], this never consults path or
-/// filesystem metadata.
+/// `lockfile` content under the currently active policy.
 pub fn lockfile_verification_is_cached_by_content(
     cache_dir: &Path,
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
 ) -> bool {
-    if verify_offline_structural_checks(lockfile).is_err() {
+    let Ok(verified) = VerifiedOfflineLockfile::verify(lockfile) else {
         return false;
-    }
-    if lockfile.packages.is_none() {
-        return true;
-    }
-    lockfile_verification_is_cached_by_hash(
-        cache_dir,
-        &hash_lockfile(lockfile),
-        &with_offline_check_cache_identities(verifiers),
-    )
+    };
+    verified.is_cached_by_content(cache_dir, verifiers, exotic_subdeps)
 }
 
 /// Run every active [`ResolutionVerifier`] against every entry in
@@ -239,54 +316,42 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
-    // Offline structural gate first: reject invalid dependency names
-    // or missing importer snapshot links before the `packages`-absent
-    // short-circuit and the cache lookup.
     verify_structure_before_install(lockfile, opts)?;
-
     if lockfile.packages.is_none() {
-        return Ok(());
+        return verify_packages_absent(lockfile, opts);
     }
-
-    let cache_inputs = opts.cache_dir.zip(opts.lockfile_path);
-
-    let cache_verifiers = with_offline_check_cache_identities(verifiers);
-
+    let has_policy_verifiers = !verifiers.is_empty() || opts.exotic_subdeps.is_enforced();
+    let cache_target = resolve_cache_target(opts, verifiers);
+    let cache_verifiers = with_offline_and_exotic_cache_identities(verifiers, &opts.exotic_subdeps);
     let mut hash_once = memoized_lockfile_hash(lockfile);
-
     let lockfile_path_str =
         opts.lockfile_path.map(Path::to_string_lossy).map(std::borrow::Cow::into_owned);
 
-    let cache_precomputed = match reuse_cached_verdict::<Reporter>(
-        cache_inputs,
+    let CacheOutcome::Miss(cache_precomputed) = reuse_cached_verdict::<Reporter>(
+        cache_target,
         &cache_verifiers,
         &mut hash_once,
-        CachedVerdict {
-            has_policy_verifiers: !verifiers.is_empty(),
-            lockfile_path: lockfile_path_str.as_ref(),
-        },
-    ) {
-        CacheOutcome::Hit => return Ok(()),
-        CacheOutcome::Miss(precomputed) => precomputed,
+        CachedVerdict { has_policy_verifiers, lockfile_path: lockfile_path_str.as_ref() },
+    ) else {
+        return Ok(());
     };
 
     // Checked after the verification cache so a lockfile freshly resolved on
     // this machine by a local custom resolver (recorded via
-    // `record_lockfile_verified`) can reinstall cleanly, while any uncached
-    // lockfile or cacheless check rejects shape mismatches even with empty
-    // `verifiers`.
-    verify_lockfile_resolution_shapes(lockfile)?;
-    if verifiers.is_empty() {
+    // `record_lockfile_verified_by_content`) can reinstall cleanly, while any
+    // uncached lockfile or cacheless check rejects shape mismatches even with
+    // empty `verifiers`.
+    let shape_ctx = shape_context_from_policy(opts.local_policy.as_ref(), opts.lockfile_path);
+    verify_lockfile_resolution_shapes_with_ctx(lockfile, shape_ctx)?;
+    if !has_policy_verifiers {
         return Ok(());
     }
 
-    let CandidatesToVerify { candidates, skipped_replaced } =
-        collect_candidates_to_verify(lockfile, opts.replaced);
-    let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);
-    if candidates.is_empty() {
-        // Persist the success so the next install can stat-only the
-        // lockfile. An empty fan-out is still a successful run.
-        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
+    let CollectedCandidates { candidates, skipped_replaced } =
+        collect_candidates_to_verify(lockfile, opts.replaced, &opts.exotic_subdeps)?;
+    let cache_target = cache_target.filter(|_| !skipped_replaced);
+    if verifiers.is_empty() || candidates.is_empty() {
+        record_verdict(cache_target, &cache_verifiers, &mut hash_once, cache_precomputed);
         return Ok(());
     }
 
@@ -294,26 +359,74 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
             .await?;
     if violations.is_empty() {
-        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
+        record_verdict(cache_target, &cache_verifiers, &mut hash_once, cache_precomputed);
         return Ok(());
     }
     Err(build_verification_error(violations))
 }
 
-struct CandidatesToVerify {
+fn shape_context_from_policy<'p>(
+    local_policy: Option<&'p LocalResolutionPolicy>,
+    lockfile_path: Option<&'p Path>,
+) -> file_url_shape::FileShapeContext<'p> {
+    file_url_shape::FileShapeContext {
+        lockfile_dir: local_policy
+            .and_then(|policy| policy.scope.lockfile_dir.as_deref())
+            .or_else(|| lockfile_path.and_then(Path::parent)),
+        allow_deploy_file_url_keys: local_policy.is_some_and(|policy| {
+            policy.allow_deploy_file_url_keys
+        }),
+    }
+}
+
+fn resolve_cache_target<'a>(
+    opts: &'a VerifyLockfileResolutionsOptions<'a>,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Option<(&'a Path, Option<(&'a Path, &'a LockfileStat)>)> {
+    let stat_source = opts.lockfile_path.zip(opts.lockfile_stat.as_ref());
+    let has_policy_verifiers = !verifiers.is_empty() || opts.exotic_subdeps.is_enforced();
+    opts.cache_dir
+        .filter(|_| stat_source.is_some() || has_policy_verifiers)
+        .map(|cache_dir| (cache_dir, stat_source))
+}
+
+fn verify_packages_absent(
+    lockfile: &Lockfile,
+    opts: &VerifyLockfileResolutionsOptions<'_>,
+) -> Result<(), VerifyError> {
+    if let Some(scope) = opts.exotic_subdeps.scope() {
+        let scan = collect_exotic_subdep_violations(lockfile, opts.replaced, scope);
+        if !scan.violations.is_empty() {
+            return Err(build_verification_error(scan.violations));
+        }
+    }
+    Ok(())
+}
+
+struct CollectedCandidates {
     candidates: Vec<Candidate>,
     skipped_replaced: bool,
 }
 
 /// The lockfile entries the policy verifiers check, after the offline
-/// shape check passes. Entries `replaced` matches are left out.
+/// shape and exotic-subdep checks pass. Entries `replaced` matches are
+/// left out, and `skipped_replaced` tells whether any was.
 fn collect_candidates_to_verify(
     lockfile: &Lockfile,
     replaced: Option<ReplacedEntries<'_>>,
-) -> CandidatesToVerify {
+    exotic_subdeps: &ExoticSubdepsPolicy,
+) -> Result<CollectedCandidates, VerifyError> {
+    let mut skipped_replaced = false;
+    if let Some(scope) = exotic_subdeps.scope() {
+        let scan = collect_exotic_subdep_violations(lockfile, replaced, scope);
+        if !scan.violations.is_empty() {
+            return Err(build_verification_error(scan.violations));
+        }
+        skipped_replaced |= scan.skipped_replaced;
+    }
     let mut candidates = collect_candidates(lockfile);
     let Some(ReplacedEntries(is_replaced)) = replaced else {
-        return CandidatesToVerify { candidates, skipped_replaced: false };
+        return Ok(CollectedCandidates { candidates, skipped_replaced });
     };
     let entries = candidates.len();
     candidates.retain(|candidate| {
@@ -323,12 +436,10 @@ fn collect_candidates_to_verify(
             registry_name: candidate.registry_name.as_deref(),
         })
     });
-    let skipped_replaced = candidates.len() < entries;
-    CandidatesToVerify { candidates, skipped_replaced }
+    skipped_replaced |= candidates.len() < entries;
+    Ok(CollectedCandidates { candidates, skipped_replaced })
 }
 
-/// Run the verifiers over every candidate, reporting the run to the
-/// reporter as a [`VerificationProgress`].
 async fn verify_candidates<Reporter: self::Reporter>(
     candidates: Vec<Candidate>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -347,45 +458,41 @@ async fn verify_candidates<Reporter: self::Reporter>(
     Ok(violations)
 }
 
-/// What the verification cache had to say about this lockfile.
 enum CacheOutcome {
-    /// A previous run already verified it under the same identities.
     Hit,
-    /// Nothing reusable; carries what the recorder need not recompute.
     Miss(CachePrecomputed),
 }
 
-/// What a cache lookup needs to report a hit.
 #[derive(Clone, Copy)]
 struct CachedVerdict<'a> {
-    /// Whether any policy verifier is active. The shape-only run that every
-    /// install performs reports nothing.
     has_policy_verifiers: bool,
     lockfile_path: Option<&'a String>,
 }
 
-/// Share the lazy hash between cache lookup and recording. A stat-only
-/// lookup never computes it.
 fn memoized_lockfile_hash(lockfile: &Lockfile) -> impl FnMut() -> String + '_ {
     let mut cached_hash: Option<String> = None;
     move || cached_hash.get_or_insert_with(|| hash_lockfile(lockfile)).clone()
 }
 
-/// Reuse a previous verdict for this lockfile, if the cache holds one.
-///
-/// A silent short-circuit would look like the policy gate never ran, so a
-/// reused verdict is surfaced.
 fn reuse_cached_verdict<Reporter: self::Reporter>(
-    cache_inputs: Option<(&Path, &Path)>,
+    cache_target: Option<(&Path, Option<(&Path, &LockfileStat)>)>,
     cache_verifiers: &[Arc<dyn ResolutionVerifier>],
     hash_once: &mut impl FnMut() -> String,
     verdict: CachedVerdict<'_>,
 ) -> CacheOutcome {
-    let Some((cache_dir, lockfile_path)) = cache_inputs else {
+    let Some((cache_dir, stat_source)) = cache_target else {
         return CacheOutcome::Miss(CachePrecomputed::default());
     };
-    let result =
-        try_lockfile_verification_cache(cache_dir, lockfile_path, cache_verifiers, hash_once);
+    let result = match stat_source {
+        Some((lockfile_path, stat)) => try_lockfile_verification_cache_with_stat(
+            cache_dir,
+            lockfile_path,
+            stat.clone(),
+            cache_verifiers,
+            hash_once,
+        ),
+        None => try_lockfile_verification_cache_by_hash(cache_dir, cache_verifiers, hash_once),
+    };
     if !result.hit {
         return CacheOutcome::Miss(result.precomputed);
     }
@@ -401,15 +508,20 @@ fn reuse_cached_verdict<Reporter: self::Reporter>(
     CacheOutcome::Hit
 }
 
-/// Persist a successful verification, when caching is wired up.
 fn record_verdict(
-    cache_inputs: Option<(&Path, &Path)>,
+    cache_target: Option<(&Path, Option<(&Path, &LockfileStat)>)>,
     cache_verifiers: &[Arc<dyn ResolutionVerifier>],
     hash_once: &mut impl FnMut() -> String,
     precomputed: CachePrecomputed,
 ) {
-    if let Some((cache_dir, lockfile_path)) = cache_inputs {
-        record_verification(cache_dir, lockfile_path, cache_verifiers, hash_once, precomputed);
+    match cache_target {
+        Some((cache_dir, Some((lockfile_path, _)))) => {
+            record_verification(cache_dir, lockfile_path, cache_verifiers, hash_once, precomputed);
+        }
+        Some((cache_dir, None)) => {
+            record_verification_by_hash(cache_dir, cache_verifiers, hash_once, precomputed);
+        }
+        None => {}
     }
 }
 
@@ -438,6 +550,10 @@ pub async fn collect_resolution_policy_violations(
 mod tests;
 
 mod candidates;
+mod exotic_subdeps;
+mod file_url_shape;
+mod local_containment;
+mod local_git_shape;
 mod offline_checks;
 mod progress;
 
@@ -447,8 +563,9 @@ use candidates::{
     collect_candidates,
     run_fan_out,
 };
+use exotic_subdeps::collect_exotic_subdep_violations;
 use offline_checks::{
-    verify_offline_structural_checks,
+    verify_lockfile_resolution_shapes_with_ctx,
     verify_structure_before_install,
 };
 use progress::{

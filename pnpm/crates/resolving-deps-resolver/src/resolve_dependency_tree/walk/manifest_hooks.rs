@@ -4,6 +4,7 @@ use super::{
     ResolveOptions,
     TreeCtx,
     link_file_deps_inside_package,
+    validate_and_record_non_local_manifest,
 };
 
 pub(super) async fn original_manifest_opts<'a>(
@@ -59,10 +60,12 @@ pub(super) async fn apply_manifest_hooks(
             _ => None,
         },
     };
+    let pre_hook = Arc::clone(&manifest);
     let hooked = ctx.workspace.hooks.manifests
         .apply(manifest, hook_ctx)
         .await
         .map_err(ResolveDependencyTreeError::from)?;
+    validate_and_record_non_local_manifest(ctx, result, &pre_hook, &hooked)?;
     result.package.manifest = Some(hooked);
     Ok(())
 }

@@ -27,11 +27,15 @@ pub(super) fn build(
 ) -> pnpr_error::Result<Option<CloudflareCdnConfig>> {
     let Some(config) = file else { return Ok(None) };
     if config.zone_id.len() != 32 || !config.zone_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(invalid("cloudflareCdn.zoneId must be a 32-character hexadecimal zone ID"));
+        return Err(invalid(
+            "cloudflareCdn.zoneId must be a 32-character hexadecimal zone ID".to_owned(),
+        ));
     }
     if config.api_token.is_empty() || !config.api_token.bytes().all(|byte| byte.is_ascii_graphic())
     {
-        return Err(invalid("cloudflareCdn.apiToken must be a nonempty token without whitespace"));
+        return Err(invalid(
+            "cloudflareCdn.apiToken must be a nonempty token without whitespace".to_owned(),
+        ));
     }
     if config.cache_tag.is_empty()
         || config.cache_tag.len() > 100
@@ -40,12 +44,12 @@ pub(super) fn build(
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
     {
         return Err(invalid(
-            "cloudflareCdn.cacheTag must contain 1 to 100 ASCII letters, digits, hyphens, or underscores",
+            "cloudflareCdn.cacheTag must contain 1 to 100 ASCII letters, digits, hyphens, or underscores".to_owned(),
         ));
     }
     Ok(Some(config))
 }
 
-fn invalid(reason: &str) -> pnpr_error::RegistryError {
-    pnpr_error::RegistryError::InvalidConfig { reason: reason.to_string() }
+fn invalid(reason: String) -> pnpr_error::RegistryError {
+    pnpr_error::RegistryError::InvalidConfig { reason }
 }

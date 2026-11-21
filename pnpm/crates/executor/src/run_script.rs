@@ -241,7 +241,7 @@ fn run_streamed(
     streamed: StreamedScript<'_>,
     emulate: bool,
 ) -> Result<ScriptExit, RunScriptError> {
-    streamed.started(&command.shown);
+    streamed.started(command.shown.clone());
     let status = if emulate {
         let emit_line = |stdio, line| streamed.emit_line(stdio, line);
         execute_emulated(

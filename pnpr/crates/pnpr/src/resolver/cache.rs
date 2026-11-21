@@ -32,10 +32,16 @@ use super::{
 
 pub(super) struct CachedResolution {
     lockfile: Lockfile,
+    allowed_picks: Vec<String>,
     inserted: Instant,
     last_used: Instant,
     pub(super) footprint: Footprint,
     descriptor_digest: Option<String>,
+}
+
+pub(super) struct CachedResolutionResult {
+    pub(super) lockfile: Lockfile,
+    pub(super) allowed_picks: Vec<String>,
 }
 
 pub(super) const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
@@ -47,7 +53,7 @@ pub(super) fn cached_resolution(
     key: &str,
     route_context: &RouteContext,
     identity: &Identity,
-) -> Option<Lockfile> {
+) -> Option<CachedResolutionResult> {
     if ttl.is_zero() {
         return None;
     }
@@ -68,16 +74,20 @@ pub(super) fn cached_resolution(
     };
     let candidate = &mut candidates[candidate_index];
     candidate.last_used = Instant::now();
-    Some(candidate.lockfile.clone())
+    Some(CachedResolutionResult {
+        lockfile: candidate.lockfile.clone(),
+        allowed_picks: candidate.allowed_picks.clone(),
+    })
 }
 
-pub(super) fn store_resolution(
+pub(super) fn store_resolution_with_allowed_picks(
     cache: &Mutex<HashMap<String, Vec<CachedResolution>>>,
     ttl: Duration,
     key: String,
     footprint: Footprint,
     secret: &[u8],
     lockfile: &Lockfile,
+    allowed_picks: Vec<String>,
 ) -> bool {
     if ttl.is_zero() {
         return false;
@@ -86,6 +96,7 @@ pub(super) fn store_resolution(
     let descriptor_digest = footprint.digest(secret);
     let candidate = CachedResolution {
         lockfile: lockfile.clone(),
+        allowed_picks,
         inserted: now,
         last_used: now,
         footprint,
@@ -119,6 +130,7 @@ pub(super) struct StoreCandidate<'a> {
     pub(super) footprint: &'a Mutex<Footprint>,
     pub(super) cache_secret: &'a [u8],
     pub(super) lockfile: &'a Lockfile,
+    pub(super) allowed_picks: &'a [String],
 }
 
 /// Offer a finished resolution to the cache, logging what a private one was
@@ -129,13 +141,14 @@ pub(super) fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
         .expect("footprint poisoned")
         .clone();
     let descriptor = footprint.digest(candidate.cache_secret);
-    let cached = store_resolution(
+    let cached = store_resolution_with_allowed_picks(
         candidate.cache,
         candidate.cache_ttl,
         candidate.key,
         footprint.clone(),
         candidate.cache_secret,
         candidate.lockfile,
+        candidate.allowed_picks.to_vec(),
     );
     if footprint.is_public() {
         return;

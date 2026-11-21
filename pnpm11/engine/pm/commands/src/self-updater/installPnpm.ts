@@ -42,7 +42,7 @@ const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': 
 /**
  * Versions whose `@pnpm/exe` shipped platform packages with no binary, so it
  * cannot run. Keyed by version, not package: the pin is shared but the wrapper
- * is not, so a developer on the JS `pnpm` — which does run at these versions —
+ * is not, so a developer on the JS `pnpm` (which does run at these versions)
  * would otherwise pin one and break every teammate on `@pnpm/exe`.
  */
 const BROKEN_RELEASES: ReadonlySet<string> = new Set(['11.12.0', '11.13.0'])
@@ -50,7 +50,7 @@ const BROKEN_RELEASES: ReadonlySet<string> = new Set(['11.12.0', '11.13.0'])
 const FIRST_PNPM_EXE_WITH_X64_MUSL_BINARY = '11.0.0-rc.3'
 
 /**
- * Whether `version` can be installed at all — false for the
+ * Whether `version` can be installed at all. False for the
  * {@link BROKEN_RELEASES}. For callers that pick a version rather than being
  * handed one, and so can choose another instead of failing.
  */
@@ -127,7 +127,7 @@ export interface InstallPnpmOptions extends GlobalAddOptions {
   storeController?: StoreController
   storeDir?: string
   packageManager?: { name: string, version: string }
-  /** See {@link VerifyPnpmEngineIdentityOptions.trustedKeys} — a test seam. */
+  /** See {@link VerifyPnpmEngineIdentityOptions.trustedKeys}. A test seam. */
   trustedKeys?: VerifyPnpmEngineIdentityOptions['trustedKeys']
 }
 
@@ -158,7 +158,7 @@ export async function installPnpm (pnpmVersion: string, opts: InstallPnpmOptions
 
 /**
  * Installs pnpm to the global virtual store (for version switching).
- * Does NOT create an entry in globalPkgDir — the package lives only in the store.
+ * Does NOT create an entry in globalPkgDir. The package lives only in the store.
  * Returns the bin directory where the pnpm binary can be found.
  */
 export async function installPnpmToStore (
@@ -187,7 +187,7 @@ export async function installPnpmToStore (
 
   await verifyPnpmEngineIdentity(opts.envLockfile, { name: pkgName, version: pnpmVersion }, opts)
 
-  // Install to a temporary directory — headless install with GVS enabled
+  // Install to a temporary directory. Headless install with GVS enabled
   // will populate the global virtual store
   const tmpInstallDir = path.join(opts.storeDir, '.tmp', `pnpm-${pnpmVersion}-${Date.now()}`)
   fs.mkdirSync(tmpInstallDir, { recursive: true })
@@ -203,7 +203,7 @@ export async function installPnpmToStore (
       packageManager: opts.packageManager,
     })
 
-    // Now the GVS should be populated — create bins alongside the GVS entry
+    // Now the GVS should be populated. Create bins alongside the GVS entry
     await ensureStoreBinsLinked(pnpmGvsPath, binDir, pkgName)
 
     return { binDir }

@@ -195,6 +195,7 @@ fn create_config(
         add_missing_peer_types: false,
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
+        warn_unused_overrides: true,
         verify_store_integrity: true,
         include_workspace_root: false,
         ignore_workspace_cycles: false,
@@ -266,6 +267,7 @@ fn create_config(
         supported_architectures: None,
         ignored_optional_dependencies: None,
         overrides: None,
+        hook_added_overrides: Default::default(),
         package_extensions: None,
         package_configs: None,
         cache_dir: cache_dir.to_path_buf(),
@@ -323,6 +325,7 @@ fn create_config(
         cli: Default::default(),
         raw_auth_config: Default::default(),
         config_dir: None,
+        editor: None,
     }
 }
 

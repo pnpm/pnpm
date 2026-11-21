@@ -164,7 +164,7 @@ use self::{
         ndjson_stream_response,
         osv_violations_for_lockfile_until,
         progress_frame,
-        try_done_frame_until,
+        try_done_frame_with_allowed_picks_until,
         verify_done_frame,
         violations_frame,
     },

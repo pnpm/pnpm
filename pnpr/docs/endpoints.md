@@ -848,9 +848,9 @@ and `routes.public` keys, as JSON. A `{name}` is a key of
 - Replacing the whole document and restoring a version work while the stored
   document cannot be loaded, so they repair it.
 
-With the default account file store, each replica keeps its own accounts, so an
+With the default SQLite database, each replica keeps its own accounts, so an
 account change reaches only the replica that served it. Use a
-[shared auth backend](auth-backends.md) to run several replicas.
+[shared database](auth-backends.md) to run several replicas.
 
 ## Error responses
 

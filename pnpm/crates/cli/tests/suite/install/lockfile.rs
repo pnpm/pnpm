@@ -315,6 +315,64 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn filtered_fix_lockfile_accepts_a_local_override_from_a_workspace_catalog() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\ncatalog:\n  '@pnpm.e2e/dep-of-pkg-with-1-dep': file:./vendor/helper\noverrides:\n  '@pnpm.e2e/pkg-with-1-dep>@pnpm.e2e/dep-of-pkg-with-1-dep': 'catalog:'\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root manifest");
+    let helper = workspace.join("vendor/helper");
+    fs::create_dir_all(&helper).expect("create helper");
+    fs::write(
+        helper.join("package.json"),
+        serde_json::json!({ "name": "@pnpm.e2e/dep-of-pkg-with-1-dep", "version": "100.0.0" })
+            .to_string(),
+    )
+    .expect("write helper manifest");
+    let selected = workspace.join("packages/selected");
+    fs::create_dir_all(&selected).expect("create selected project");
+    fs::write(
+        selected.join("package.json"),
+        serde_json::json!({
+            "name": "selected",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write selected manifest");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    assert!(
+        fs::read_to_string(&lockfile_path).expect("read lockfile").contains("vendor/helper"),
+        "the override must resolve to the local helper",
+    );
+
+    new_pacquet_command(&workspace)
+        .with_args(["--filter", "selected", "install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
 fn locked_package<'a>(
     lockfile: &'a pnpm_lockfile::Lockfile,
     package_key: &str,

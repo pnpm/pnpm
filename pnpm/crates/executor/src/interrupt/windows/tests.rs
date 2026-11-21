@@ -14,7 +14,7 @@ use super::{
 };
 use crate::interrupt::{
     SignalRelay,
-    relay_to_child,
+    spawning_child,
 };
 use command_extra::CommandExtra;
 use pretty_assertions::assert_eq;
@@ -115,7 +115,7 @@ fn wait_for_exit(child: &mut Child, deadline: Duration) -> ExitStatus {
 #[test]
 fn a_stuck_cmd_is_terminated_once_the_grace_passes() {
     let mut child = spawn_stuck_cmd();
-    let relay = relay_to_child(child.id(), false);
+    let relay = spawning_child().relay_to_child(child.id(), false);
 
     press_ctrl_c(&relay);
     let status = wait_for_exit(&mut child, WINDOWS_INTERRUPT_GRACE + Duration::from_secs(30));
@@ -130,7 +130,7 @@ fn a_stuck_cmd_is_terminated_once_the_grace_passes() {
 #[test]
 fn a_cmd_that_exits_during_the_grace_keeps_its_own_exit_code() {
     let mut child = spawn_cmd_running_node("setTimeout(() => process.exit(42), 200)");
-    let relay = relay_to_child(child.id(), false);
+    let relay = spawning_child().relay_to_child(child.id(), false);
 
     press_ctrl_c(&relay);
     let status = wait_for_exit(&mut child, Duration::from_secs(30));
@@ -147,7 +147,7 @@ fn a_cmd_whose_script_is_still_shutting_down_is_waited_for() {
     let shutdown_ms = (WINDOWS_INTERRUPT_GRACE * 3).as_millis();
     let mut child =
         spawn_cmd_running_node(&format!("setTimeout(() => process.exit(42), {shutdown_ms})"));
-    let relay = relay_to_child(child.id(), false);
+    let relay = spawning_child().relay_to_child(child.id(), false);
 
     press_ctrl_c(&relay);
     let status = wait_for_exit(&mut child, Duration::from_secs(30));
@@ -165,7 +165,7 @@ fn a_child_that_is_not_cmd_is_waited_for_without_child_processes() {
     // nothing under it, and has no batch-termination prompt to get stuck on.
     let shutdown_ms = (WINDOWS_INTERRUPT_GRACE * 3).as_millis();
     let mut child = spawn_node(&format!("setTimeout(() => process.exit(42), {shutdown_ms})"));
-    let relay = relay_to_child(child.id(), false);
+    let relay = spawning_child().relay_to_child(child.id(), false);
 
     press_ctrl_c(&relay);
     let status = wait_for_exit(&mut child, Duration::from_secs(30));
@@ -176,7 +176,7 @@ fn a_child_that_is_not_cmd_is_waited_for_without_child_processes() {
 #[test]
 fn a_second_interrupt_terminates_without_waiting_for_the_grace() {
     let mut child = spawn_stuck_cmd();
-    let relay = relay_to_child(child.id(), false);
+    let relay = spawning_child().relay_to_child(child.id(), false);
 
     press_ctrl_c(&relay);
     press_ctrl_c(&relay);
@@ -189,7 +189,7 @@ fn a_second_interrupt_terminates_without_waiting_for_the_grace() {
 #[test]
 fn an_interrupt_for_a_released_entry_is_not_counted() {
     let mut child = spawn_node("setInterval(() => {}, 1000)");
-    let relay = relay_to_child(child.id(), false);
+    let relay = spawning_child().relay_to_child(child.id(), false);
     let entry = relay.entry.expect("the child is registered");
     let target = entry.target.load(Ordering::Acquire);
     let relays = entry.relays.load(Ordering::Relaxed);

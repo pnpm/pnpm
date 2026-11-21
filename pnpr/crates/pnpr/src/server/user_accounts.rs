@@ -246,7 +246,7 @@ async fn log_in(
     if let Some(id) = users.account_id(name).await?
         && super::scim::is_deprovisioned(state, &id)?
     {
-        return Err(deprovisioned(name));
+        return Err(deprovisioned(name.to_owned()));
     }
     let expires_at = super::tokens::unrequested_token_expiry(state, pnpr_auth::unix_millis());
     let new_token = pnpr_auth::NewToken::new().with_expires_at(Some(expires_at));
@@ -260,7 +260,7 @@ async fn log_in(
         };
     if super::scim::is_deprovisioned(state, &id)? {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
-        return Err(deprovisioned(name));
+        return Err(deprovisioned(name.to_owned()));
     }
     let Some(current_name) = users.active_account_name(&id).await? else {
         state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
@@ -269,9 +269,9 @@ async fn log_in(
     Ok((outcome, current_name, id, token))
 }
 
-fn deprovisioned(name: &str) -> RegistryError {
+fn deprovisioned(name: String) -> RegistryError {
     RegistryError::Forbidden {
-        user: name.to_string(),
+        user: name,
         action: "sign in to",
         resource: "this account, which an identity provider deprovisioned".to_string(),
     }

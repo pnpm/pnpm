@@ -162,6 +162,11 @@ export interface ResolutionContext extends RegistryContext {
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
+  hookAuthorizedLocalChildrenByPkgId: Map<PkgResolutionId, ReadonlySet<string>>
+  localPkgPeerSpecsByPkgId: Map<PkgResolutionId, Set<string>>
+  authorizedNonLocalPeerSpecsByPkgId: Map<PkgResolutionId, Set<string>>
+  untrustedLocalPeerParentsByPkgId: Map<PkgResolutionId, Map<string, string>>
+  pkgNameVerByPkgId: Map<PkgResolutionId, { name: string, version: string }>
 }
 
 export interface PackageResolutionBarrier {
@@ -225,7 +230,7 @@ export interface PkgAddress extends PkgAddressOrLinkBase {
    * A peer dependency provider attached to the root importer so that other
    * subtrees can reuse it. Its `nodeId` keeps pointing at the provider's
    * original position inside the dependency tree, so the node must be
-   * peer-resolved there — not in the root context.
+   * peer-resolved there, not in the root context.
    */
   hoistedPeerProvider?: boolean
 }

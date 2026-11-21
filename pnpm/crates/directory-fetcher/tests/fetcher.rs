@@ -165,7 +165,7 @@ fn copy_files_follows_deploy_all_files() {
     touch(root, "tsconfig.json", "");
     let listed = |deploy_all_files| {
         let mut rels: Vec<_> = CopyFiles::from_deploy_all_files(deploy_all_files)
-            .fetcher(root)
+            .fetcher(root.to_path_buf())
             .run()
             .unwrap()
             .files_map

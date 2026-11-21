@@ -1457,7 +1457,7 @@ describe('node binary linking', () => {
 
     const exePath = path.join(binTarget, 'node.exe')
     expect(fs.existsSync(exePath)).toBe(true)
-    // Should be a hardlink, not a shim — same content as the original
+    // Should be a hardlink with the same content as the original, not a shim
     expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
     // No cmd-shim should be created since we return early
     expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)

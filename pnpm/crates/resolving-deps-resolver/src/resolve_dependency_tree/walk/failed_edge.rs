@@ -103,7 +103,11 @@ fn with_dependency_context(
     source: ResolveDependencyTreeError,
 ) -> ResolveDependencyTreeError {
     // The override entry, not the dependency path, is what the user has to fix.
-    if matches!(source, ResolveDependencyTreeError::OverrideNoMatchingVersion(_)) {
+    if matches!(
+        source,
+        ResolveDependencyTreeError::OverrideNoMatchingVersion(_)
+            | ResolveDependencyTreeError::LocalSubdepNotAllowed { .. },
+    ) {
         return source;
     }
     ResolveDependencyTreeError::DependencyContext(super::super::DependencyResolutionError {

@@ -51,12 +51,12 @@ pub(super) enum NoteSubject {
 }
 
 impl NoteSubject {
-    pub(super) fn version(key: &PackageKey, version: &str) -> Self {
-        Self::Version { key: key.clone(), version: version.to_string() }
+    pub(super) fn version(key: &PackageKey, version: String) -> Self {
+        Self::Version { key: key.clone(), version }
     }
 
-    pub(super) fn publication(namespace: &str, id: u64) -> Self {
-        Self::Publication { namespace: namespace.to_string(), id: to_column(id) }
+    pub(super) fn publication(namespace: String, id: u64) -> Self {
+        Self::Publication { namespace, id: to_column(id) }
     }
 }
 
@@ -218,7 +218,8 @@ impl super::SqlDatabase {
         namespace: &str,
         version: &str,
     ) -> Result<Option<Note>> {
-        let subject = NoteSubject::version(&package_key(name, namespace), version);
+        let subject =
+            NoteSubject::version(&package_key(name, namespace.to_owned()), version.to_owned());
         self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
             read_note(connection, &subject)
         })
@@ -233,7 +234,7 @@ impl super::SqlDatabase {
         name: &CanonicalPackageName,
         namespace: &str,
     ) -> Result<Vec<String>> {
-        let key = package_key(name, namespace);
+        let key = package_key(name, namespace.to_owned());
         self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
             let (namespace, ecosystem, name) = key.params();
             connection
@@ -262,7 +263,8 @@ impl super::SqlDatabase {
         version: &str,
         change: NoteChange,
     ) -> Result<bool> {
-        let subject = NoteSubject::version(&package_key(name, namespace), version);
+        let subject =
+            NoteSubject::version(&package_key(name, namespace.to_owned()), version.to_owned());
         self.write(move |connection| {
             change_note(connection, &subject, change.text.as_deref(), &change.principal)
         })
@@ -275,7 +277,7 @@ impl super::SqlDatabase {
         namespace: &str,
         id: u64,
     ) -> Result<Option<Note>> {
-        let subject = NoteSubject::publication(namespace, id);
+        let subject = NoteSubject::publication(namespace.to_owned(), id);
         self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
             read_note(connection, &subject)
         })
@@ -290,7 +292,7 @@ impl super::SqlDatabase {
         id: u64,
         change: NoteChange,
     ) -> Result<bool> {
-        let subject = NoteSubject::publication(namespace, id);
+        let subject = NoteSubject::publication(namespace.to_owned(), id);
         self.write(move |connection| {
             change_note(connection, &subject, change.text.as_deref(), &change.principal)
         })
@@ -298,12 +300,8 @@ impl super::SqlDatabase {
     }
 }
 
-fn package_key(name: &CanonicalPackageName, namespace: &str) -> PackageKey {
-    PackageKey {
-        namespace: namespace.to_string(),
-        ecosystem: name.ecosystem(),
-        name: name.as_str().to_string(),
-    }
+fn package_key(name: &CanonicalPackageName, namespace: String) -> PackageKey {
+    PackageKey { namespace, ecosystem: name.ecosystem(), name: name.as_str().to_string() }
 }
 
 impl super::SqlDatabase {
@@ -317,7 +315,7 @@ impl super::SqlDatabase {
         if name.ecosystem() != Ecosystem::Npm {
             return Ok(false);
         }
-        let (key, version) = (package_key(name, namespace), version.to_string());
+        let (key, version) = (package_key(name, namespace.to_owned()), version.to_string());
         self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
             let (namespace, name) = key.params_in(Ecosystem::Npm);
             let found = connection.query_optional(
@@ -338,7 +336,7 @@ impl super::SqlDatabase {
         name: &CanonicalPackageName,
         namespace: &str,
     ) -> Result<Vec<(String, u64)>> {
-        let key = package_key(name, namespace);
+        let key = package_key(name, namespace.to_owned());
         self.read(namespace.to_string(), Freshness::Bounded, move |connection, _| {
             let (namespace, ecosystem, name) = key.params();
             let rows = connection.query(

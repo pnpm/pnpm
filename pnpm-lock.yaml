@@ -13020,8 +13020,8 @@ snapshots:
 			},
 		},
 
-		"baseline-browser-mapping@2.11.38": {
-			"integrity": "sha512-rMgy5YW7x28SMfXHLlVZDBqlWzYZ0x2rVR/6FWrNBF0chjigARK1H6nM0hKA1Um3kPOlkQFVtjJs00d2N1ezuw==",
+		"baseline-browser-mapping@2.11.39": {
+			"integrity": "sha512-Q9buOYhr2ggrEZpImICecZTJHCCd8yXkRUokFlUEQ8uiD6oP82F4W4jWnhOHZYV+wlvrC51V7Wy0ULyWjil5Wg==",
 			"engines": {"node": ">=6.0.0"},
 			"hasBin": true,
 		},
@@ -13120,9 +13120,9 @@ snapshots:
 			"engines": {"node": "^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7"},
 			"hasBin": true,
 			"dependencies": {
-				"baseline-browser-mapping": "2.11.38",
+				"baseline-browser-mapping": "2.11.39",
 				"caniuse-lite": "1.0.30001826",
-				"electron-to-chromium": "1.5.491",
+				"electron-to-chromium": "1.5.492",
 				"node-releases": "2.0.65",
 				"update-browserslist-db": "1.4.0",
 			},
@@ -14141,8 +14141,8 @@ snapshots:
 			"integrity": "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==",
 		},
 
-		"electron-to-chromium@1.5.491": {
-			"integrity": "sha512-zMOQrvaTekJMwENqx1Rnyl3qieqGxIui5CRu9g6ktKzQ/T54fq0Qfr3V/SEhGrkStWI3eYMSzMN4rbyFwfQSzA==",
+		"electron-to-chromium@1.5.492": {
+			"integrity": "sha512-4uMs7omhajKiud0GqALLTazS/zyvHLTLmDWVTR+e6BnyJo5bSNrph/JoRWEFJJmY75ct9hCiSGsbFF9fLe5gDw==",
 		},
 
 		"emittery@0.13.1": {
@@ -14562,7 +14562,6 @@ snapshots:
 			"peerDependencies": {
 				"jiti": {
 					"specifier": "*",
-					"version": "2.7.0",
 					"optional": true,
 				},
 				"supports-color": {
@@ -16781,12 +16780,6 @@ snapshots:
 				"import-local": "3.2.0",
 				"jest-cli": "30.4.2",
 			},
-		},
-
-		"jiti@2.7.0": {
-			"integrity": "sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==",
-			"hasBin": true,
-			"optional": true,
 		},
 
 		"js-tokens@4.0.0": {

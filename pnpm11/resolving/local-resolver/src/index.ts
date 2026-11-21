@@ -11,6 +11,7 @@ import { readProjectManifestOnly, safeReadParentPublishManifest } from '@pnpm/wo
 import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type LocalPackageSpec, type LocalResolvedVia, localSpecPath, parseLocalPath, parseLocalScheme, recordedLocalPath, type WantedLocalDependency } from './parseBareSpecifier.js'
 
 export { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type LocalResolvedVia, localSpecPath, recordedLocalPath, type WantedLocalDependency }
+export { escapesWorkspaceRoot, isHostFilesystemSpecifier, isNonLocalFilesystemSubdepSpec, stripPackageNameFromLocalSpec } from './hostFilesystem.js'
 export { fileSpecToPackageRootLink } from './packageRootLink.js'
 
 export interface LocalResolveResult extends ResolveResult {
@@ -52,7 +53,7 @@ export async function resolveFromLocalScheme (
 }
 
 /**
- * Resolves a dependency by path shape — a relative/absolute path or a tarball
+ * Resolves a dependency by path shape: a relative/absolute path or a tarball
  * filename. Does not look at scheme prefixes; callers that want scheme support
  * should call {@link resolveFromLocalScheme} first.
  */
@@ -67,7 +68,7 @@ export async function resolveFromLocalPath (
   return resolveSpec(spec, opts, wantedDependency.bareSpecifier)
 }
 
-// link:/file:/workspace: dependencies don't have a "latest" — claim them so
+// link:/file:/workspace: dependencies don't have a "latest". Claim them so
 // the dispatcher stops here. Returning undefined would let downstream
 // resolvers try; in particular, a user-configured named-registry alias
 // called `link`, `file`, or `workspace` could otherwise hijack these.

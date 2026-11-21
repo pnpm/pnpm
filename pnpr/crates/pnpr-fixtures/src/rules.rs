@@ -216,12 +216,12 @@ fn declared(yaml: &str) -> Vec<StoredGrant> {
         .iter()
         .map(|(name, grant)| StoredGrant {
             id: name.clone(),
-            content: declared_content(name, grant),
+            content: declared_content(name.to_owned(), grant),
         })
         .collect()
 }
 
-fn declared_content(name: &str, grant: &Value) -> GrantContent {
+fn declared_content(name: String, grant: &Value) -> GrantContent {
     let subjects = grant["subjects"].as_object().expect("the subjects of a grant");
     let mut subjects: Vec<(String, String)> = subjects
         .iter()
@@ -233,7 +233,7 @@ fn declared_content(name: &str, grant: &Value) -> GrantContent {
         .collect();
     subjects.sort();
     GrantContent {
-        name: name.to_string(),
+        name,
         registries: strings(&grant["registries"]),
         include: strings(&grant["include"]),
         exclude: strings(&grant["exclude"]),

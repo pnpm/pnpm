@@ -207,6 +207,11 @@ fn validate_structured_setting_accepts_placeholders_and_enforces_target_trust_ru
     validate_structured_setting("sideEffectsCache", &signed_side_effects, YamlConfigTarget::Global)
         .unwrap();
 
+    let project_err =
+        validate_structured_setting("editor", &json!("vi"), YamlConfigTarget::Project).unwrap_err();
+    assert!(project_err.contains("editor cannot be set by a workspace"), "{project_err}");
+    validate_structured_setting("editor", &json!("vi"), YamlConfigTarget::Global).unwrap();
+
     let remote_cache = json!({
         "url": "https://cache.example.com",
         "privateKey": "secret-key"

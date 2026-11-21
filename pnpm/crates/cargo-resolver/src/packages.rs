@@ -146,11 +146,8 @@ pub(crate) fn admits_features(
 
 /// The line package a [`PackageKey::Requirement`] choice settled on, named
 /// by the version the solver picked for it.
-pub(crate) fn chosen_line(name: &str, representative: &Version) -> PackageKey {
-    PackageKey::Registry {
-        name: name.to_string(),
-        compatibility: compatibility_line(representative),
-    }
+pub(crate) fn chosen_line(name: String, representative: &Version) -> PackageKey {
+    PackageKey::Registry { name, compatibility: compatibility_line(representative) }
 }
 
 /// The registry package a requirement resolved to, reading the chosen
@@ -166,7 +163,7 @@ pub(crate) fn selected_package_with_preferences(
         line @ PackageKey::Registry { .. } => Some(line),
         choice @ PackageKey::Requirement { .. } => solution
             .get(&choice)
-            .map(|representative| chosen_line(&dependency.name, representative)),
+            .map(|representative| chosen_line(dependency.name.clone(), representative)),
         PackageKey::Root | PackageKey::Unsatisfiable { .. } => None,
     })
 }

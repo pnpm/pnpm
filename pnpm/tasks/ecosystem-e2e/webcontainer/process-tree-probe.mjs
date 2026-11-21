@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { createHostServices } from './runtime/host/operations.mjs'
+
+const { createHostServices } = await import(process.env.PNPM_WASM_HOST_MODULE ?? './runtime/host/operations.mjs')
 
 const host = createHostServices()
 try {

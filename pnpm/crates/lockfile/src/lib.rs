@@ -14,6 +14,7 @@ pub use lockfile_version::*;
 pub use merge_lockfile_changes::*;
 pub use next_format::*;
 pub use package_metadata::*;
+pub use package_root_link::*;
 pub use patched_dep_paths::*;
 pub use peer_bindings::*;
 pub use peer_edges::*;
@@ -23,6 +24,14 @@ pub use pkg_name_suffix::*;
 pub use pkg_name_ver::*;
 pub use pkg_name_ver_peer::*;
 pub use pkg_ver_peer::*;
+pub use pnpm_local_spec::{
+    escapes_workspace_root,
+    is_drive_letter_prefix,
+    is_host_filesystem_specifier,
+    is_non_local_filesystem_subdep_spec,
+    is_tarball_filename,
+    strip_package_name_from_local_spec,
+};
 pub use project_snapshot::*;
 pub use prune_env_lockfile::*;
 pub use prune_time::*;
@@ -53,6 +62,7 @@ mod lockfile_version;
 mod merge_lockfile_changes;
 mod next_format;
 mod package_metadata;
+mod package_root_link;
 mod parallel_parse;
 mod patched_dep_paths;
 mod peer_bindings;

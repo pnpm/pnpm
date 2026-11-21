@@ -1,7 +1,7 @@
 use super::super::{
     Arc,
     BTreeMap,
-    Config,
+    ExoticSubdepsPolicy,
     HashSet,
     InstallError,
     Lockfile,
@@ -15,7 +15,7 @@ use super::super::{
     Reporter,
     ResolutionVerifier,
     map_frozen_lockfile_error,
-    record_lockfile_verified,
+    record_lockfile_verified_by_content,
     verify_lockfile_eagerly,
 };
 
@@ -102,27 +102,34 @@ pub(super) fn lockfile_specifier_manifests_by_id(
         })
         .collect()
 }
-// Record under the same path the verification gates key
-// their cache on, so the next install's stat shortcut hits.
+// Persist the freshly resolved lockfile by content hash; the next install
+// refreshes the per-path stat shortcut from its read-time `LockfileStat`.
 pub(super) fn record_fresh_lockfile_verified(
     result: &crate::InstallWithFreshLockfileResult,
-    derived_lockfile_path: Option<PathBuf>,
-    site: (&Path, &Config),
+    cache_dir: &Path,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
 ) {
-    let (workspace_root, config) = site;
-    if !result.can_record_lockfile_verification {
-        return;
-    }
     let Some(lockfile) = result.wanted_lockfile.as_ref() else { return };
-    let lockfile_path =
-        derived_lockfile_path.unwrap_or_else(|| workspace_root.join(config.wanted_lockfile_name()));
-    record_lockfile_verified(
-        Some(&config.cache_dir),
-        &lockfile_path,
-        lockfile,
-        resolution_verifiers,
-    );
+    match &result.saved_lockfile {
+        crate::SavedLockfileRecord::Unrecordable => {}
+        crate::SavedLockfileRecord::ByContent => record_lockfile_verified_by_content(
+            Some(cache_dir),
+            lockfile,
+            resolution_verifiers,
+            exotic_subdeps,
+        ),
+        crate::SavedLockfileRecord::AtPath { path, stat } => {
+            pnpm_lockfile_verification::record_lockfile_verified_with_stat(
+                Some(cache_dir),
+                path,
+                stat.clone(),
+                lockfile,
+                resolution_verifiers,
+                exotic_subdeps,
+            );
+        }
+    }
 }
 /// Only a lockfile saved as resolved, which no `afterAllResolved` hook
 /// rewrote, is the output the next deduplicating resolution reproduces.
@@ -130,7 +137,7 @@ pub(super) fn record_auto_dedupe_baseline(
     result: &crate::InstallWithFreshLockfileResult,
     baseline: Option<&super::super::auto_dedupe_baseline::AutoDedupeBaseline>,
 ) {
-    if result.can_record_lockfile_verification
+    if result.saved_lockfile.is_recordable()
         && let Some(baseline) = baseline
         && let Some(lockfile) = result.wanted_lockfile.as_ref()
     {
@@ -145,8 +152,8 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
     verification_override: Option<super::super::LockfileVerificationOverride<'install>>,
     lockfile: &Lockfile,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
-    derived_lockfile_path: Option<&Path>,
-    cache_dir: &Path,
+    policies: (ExoticSubdepsPolicy, pnpm_lockfile_verification::LocalResolutionPolicy),
+    paths: (Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>, &Path),
 ) -> Result<Option<super::super::LockfileVerificationOverride<'install>>, InstallError> {
     if requested_importer_ids.is_none() {
         return Ok(verification_override);
@@ -156,13 +163,8 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
             verification_override.await.map_err(map_frozen_lockfile_error)?;
         }
         None => {
-            verify_lockfile_eagerly::<Reporter>(
-                lockfile,
-                resolution_verifiers,
-                derived_lockfile_path,
-                cache_dir,
-            )
-            .await?;
+            verify_lockfile_eagerly::<Reporter>(lockfile, resolution_verifiers, policies, paths)
+                .await?;
         }
     }
     Ok(None)
@@ -211,6 +213,13 @@ pub(in crate::install) fn initial_materialization_ids(
 /// gate on a full install. Upstream's headless entry returns before the
 /// announcement for an empty lockfile (`isEmptyLockfile`), and an explicit
 /// `pnpm rebuild` is not an install, so both stay silent.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the prefix is copied only when the install announces itself, and the caller borrows it"
+    )
+)]
 pub(super) fn announce_headless_install<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     rebuild: Option<&RebuildOptions>,

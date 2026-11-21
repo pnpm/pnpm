@@ -34,14 +34,41 @@ use std::{
 };
 
 pub(super) async fn verify_repair_if_filtered<Reporter: pnpm_reporter::Reporter>(
-    verify_filtered_repair: bool,
+    filtered_repair: Option<(&super::FreshInputs<'_>, &pnpm_catalogs_types::Catalogs)>,
     built_lockfile: &Lockfile,
-    resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
+    hook: Option<&dyn pnpm_hooks::PnpmfileHooks>,
 ) -> Result<(), InstallWithFreshLockfileError> {
-    if !verify_filtered_repair {
+    let Some((install, catalogs)) = filtered_repair else {
         return Ok(());
-    }
-    verify_merged_repair::<Reporter>(built_lockfile, resolution_verifiers).await
+    };
+    let (config, http_client) = (install.drivers.config, install.drivers.http_client);
+    let overrides_root_dir = install.manifests.overrides_root_dir;
+    let containment_root =
+        overrides_root_dir.or(config.workspace_dir.as_deref()).unwrap_or(&config.dir);
+    let base_policy = pnpm_deps_restorer::local_resolution_policy_for_workspace_with_catalogs(
+        config,
+        Some(catalogs),
+        (overrides_root_dir, containment_root, config.lockfile_dir_for(&config.dir)),
+        hook.is_some(),
+    );
+    let local_policy = pnpm_deps_restorer::enrich_local_policy_for_install(
+        base_policy,
+        built_lockfile,
+        pnpm_deps_restorer::LocalPolicyEnrichDrivers {
+            config: Some(config),
+            http_client: Some(http_client),
+            hook,
+        },
+    )
+    .await
+    .map_err(InstallWithFreshLockfileError::PnpmfileHook)?;
+    verify_merged_repair::<Reporter>(
+        built_lockfile,
+        install.resolution_verifiers,
+        (exotic_subdeps, Some(local_policy)),
+    )
+    .await
 }
 /// The repair copy `pacquet install --fix-lockfile` resolves against, which
 /// drops what the repair is meant to rebuild.
@@ -64,7 +91,7 @@ pub(super) fn fix_lockfile_copy(
 /// may be recorded against the on-disk wanted lockfile.
 pub(super) struct PersistedLockfile {
     pub(super) lockfile: Option<Lockfile>,
-    pub(super) can_record_lockfile_verification: bool,
+    pub(super) saved_lockfile: crate::SavedLockfileRecord,
 }
 /// Save `pnpm-lock.yaml` after the build phase succeeds, so a partial install
 /// can't leave a lockfile pointing at slots that never landed on disk.
@@ -80,15 +107,15 @@ pub(super) async fn persist_fresh_lockfile(
         // `pnpm-lock.yaml` whose verification a later install could key off.
         return Ok(PersistedLockfile {
             lockfile: Some(built_lockfile),
-            can_record_lockfile_verification: false,
+            saved_lockfile: crate::SavedLockfileRecord::Unrecordable,
         });
     }
     let (hook, log) = after_all_resolved;
     let target = lockfile_dir.join(config.wanted_lockfile_name());
-    let can_record_lockfile_verification =
+    let saved_lockfile =
         save_wanted_lockfile(&built_lockfile, &target, config.symlinked_lockfile(), hook, log)
             .await?;
-    Ok(PersistedLockfile { lockfile: Some(built_lockfile), can_record_lockfile_verification })
+    Ok(PersistedLockfile { lockfile: Some(built_lockfile), saved_lockfile })
 }
 /// Importers whose linked workspace dependency declares
 /// `peerDependencies`.
@@ -211,11 +238,19 @@ pub(super) struct LockfileOnlyOptions<'a> {
 pub(super) async fn verify_merged_repair<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
+    (exotic_subdeps, local_policy): (
+        pnpm_lockfile_verification::ExoticSubdepsPolicy,
+        Option<pnpm_lockfile_verification::LocalResolutionPolicy>,
+    ),
 ) -> Result<(), InstallWithFreshLockfileError> {
     pnpm_lockfile_verification::verify_lockfile_resolutions::<Reporter>(
         lockfile,
         resolution_verifiers,
-        &pnpm_lockfile_verification::VerifyLockfileResolutionsOptions::default(),
+        &pnpm_lockfile_verification::VerifyLockfileResolutionsOptions {
+            exotic_subdeps,
+            local_policy,
+            ..Default::default()
+        },
     )
     .await
     .map_err(InstallWithFreshLockfileError::LockfileVerification)
@@ -230,16 +265,15 @@ pub(super) async fn verify_merged_repair<Reporter: self::Reporter>(
 pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
     opts: LockfileOnlyOptions<'_>,
 ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
-    let (wanted_lockfile, can_record_lockfile_verification) =
-        if opts.write.dry_run || !opts.write.save {
-            (Some(opts.built_lockfile), false)
-        } else if opts.write.config.lockfile {
-            let can_record_lockfile_verification =
-                save_or_capture_wanted_lockfile(&opts.built_lockfile, opts.write).await?;
-            (Some(opts.built_lockfile), can_record_lockfile_verification)
-        } else {
-            (None, false)
-        };
+    let (wanted_lockfile, saved_lockfile) = if opts.write.dry_run || !opts.write.save {
+        (Some(opts.built_lockfile), crate::SavedLockfileRecord::Unrecordable)
+    } else if opts.write.config.lockfile {
+        let saved_lockfile =
+            save_or_capture_wanted_lockfile(&opts.built_lockfile, opts.write).await?;
+        (Some(opts.built_lockfile), saved_lockfile)
+    } else {
+        (None, crate::SavedLockfileRecord::Unrecordable)
+    };
 
     // Close the writer cleanly even though no rows were written,
     // mirroring the materializing path: drop closes the channel, the
@@ -260,7 +294,7 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
 
         peer_issue_importer_ids: opts.peer_issue_importer_ids,
         wanted_lockfile,
-        can_record_lockfile_verification,
+        saved_lockfile,
         ignored_builds: Vec::new(),
         deferred_builds: Vec::new(),
         skipped: SkippedSnapshots::new(),
@@ -268,11 +302,10 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
     })
 }
 /// Save the wanted lockfile, or hand it to the check sink when one is set.
-/// Returns whether the saved file can carry a lockfile verification record.
 async fn save_or_capture_wanted_lockfile(
     built_lockfile: &Lockfile,
     write: super::resolution_inputs::LockfilePersistenceOptions<'_>,
-) -> Result<bool, InstallWithFreshLockfileError> {
+) -> Result<crate::SavedLockfileRecord, InstallWithFreshLockfileError> {
     let target = write.dir.join(write.config.wanted_lockfile_name());
     let Some(sink) = write.check_sink else {
         return save_wanted_lockfile(
@@ -285,7 +318,7 @@ async fn save_or_capture_wanted_lockfile(
         .await;
     };
     capture_wanted_lockfile(built_lockfile, &target, (write.hook, write.log), sink).await?;
-    Ok(false)
+    Ok(crate::SavedLockfileRecord::Unrecordable)
 }
 
 pub(super) async fn save_wanted_lockfile(
@@ -294,15 +327,16 @@ pub(super) async fn save_wanted_lockfile(
     symlinked: SymlinkedLockfile<'_>,
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     log: Option<pnpm_hooks::LogFn>,
-) -> Result<bool, InstallWithFreshLockfileError> {
-    let wanted = after_all_resolved(built_lockfile, hook, log).await?;
-    match &wanted {
-        HookedLockfile::Unchanged(lockfile) => lockfile.save_to_path(target, symlinked),
-        HookedLockfile::Replaced(value) => pnpm_lockfile::render_hook_lockfile(value)
-            .and_then(|text| pnpm_lockfile::save_text_to_path(text, target, symlinked)),
+) -> Result<crate::SavedLockfileRecord, InstallWithFreshLockfileError> {
+    match after_all_resolved(built_lockfile, hook, log).await? {
+        HookedLockfile::Unchanged(lockfile) => lockfile
+            .save_to_path_with_metadata(target, symlinked)
+            .map(|metadata| crate::SavedLockfileRecord::of_saved_file(target, metadata)),
+        HookedLockfile::Replaced(value) => pnpm_lockfile::render_hook_lockfile(&value)
+            .and_then(|text| pnpm_lockfile::save_text_to_path(text, target, symlinked))
+            .map(|()| crate::SavedLockfileRecord::Unrecordable),
     }
-    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
-    Ok(matches!(wanted, HookedLockfile::Unchanged(_)))
+    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)
 }
 
 /// Hand the sink the text [`save_wanted_lockfile`] would have written.

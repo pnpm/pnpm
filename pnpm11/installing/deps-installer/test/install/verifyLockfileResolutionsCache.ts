@@ -24,7 +24,7 @@ afterEach(async () => {
   await fs.promises.rm(tmpDir, { recursive: true, force: true })
 })
 
-// Helpers — most tests use a stand-in for the npm minimumReleaseAge
+// Helpers. Most tests use a stand-in for the npm minimumReleaseAge
 // verifier. The cache layer is policy-neutral, so this could be any
 // verifier shape.
 function mraVerifier (current: number): VerifierCacheIdentity {
@@ -37,7 +37,7 @@ function mraVerifier (current: number): VerifierCacheIdentity {
   }
 }
 
-// The cache hashes the in-memory lockfile, not the file bytes — but for
+// The cache hashes the in-memory lockfile, not the file bytes. But for
 // unit tests we don't need a real lockfile object. A stable thunk is
 // enough; tests that simulate "different content" pass a different tag.
 const hashLockfileFor = (tag: string) => () => `hash:${tag}`
@@ -81,7 +81,7 @@ describe('tryLockfileVerificationCache', () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)], hashLockfile: hashLockfileFor('content-a') })
 
-    // Append bytes — file size changes, so byPath stat-match bails.
+    // Append bytes. The file size changes, so byPath stat-match bails.
     // The lookup falls through to the hash lookup. Today's content
     // produces a different hash, so byHash misses → overall miss.
     await fs.promises.appendFile(lockfilePath, 'extra: bytes\n')
@@ -92,6 +92,101 @@ describe('tryLockfileVerificationCache', () => {
       hashLockfile: hashLockfileFor('content-b'),
     })
     expect(result.hit).toBe(false)
+  })
+
+  test('in-place edit restoring mtime still misses stat shortcut via ctimeNs on POSIX', async () => {
+    if (process.platform === 'win32') return
+    const fixedTimeSec = 1_700_000_000
+    await fs.promises.writeFile(lockfilePath, 'aaaaaaaaaaaa')
+    fs.utimesSync(lockfilePath, fixedTimeSec, fixedTimeSec)
+    const beforeStat = fs.statSync(lockfilePath, { bigint: true })
+    recordVerification(cacheDir, {
+      lockfilePath,
+      verifiers: [mraVerifier(60)],
+      hashLockfile: hashLockfileFor('content-a'),
+    })
+
+    let hashCalls = 0
+    const baselineLookup = tryLockfileVerificationCache(cacheDir, {
+      lockfilePath,
+      verifiers: [mraVerifier(60)],
+      hashLockfile: () => {
+        hashCalls += 1
+        return 'hash:content-a'
+      },
+    })
+    expect(baselineLookup.hit).toBe(true)
+    expect(hashCalls).toBe(0)
+
+    const rewriteRestoringMtime = async (remainingAttempts: number): Promise<fs.BigIntStats> => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      const fd = fs.openSync(lockfilePath, 'r+')
+      try {
+        fs.writeSync(fd, Buffer.from('bbbbbbbbbbbb'), 0, 12, 0)
+        fs.futimesSync(fd, fixedTimeSec, fixedTimeSec)
+      } finally {
+        fs.closeSync(fd)
+      }
+      const stat = fs.statSync(lockfilePath, { bigint: true })
+      if (stat.ctimeNs === beforeStat.ctimeNs && remainingAttempts > 1) {
+        return rewriteRestoringMtime(remainingAttempts - 1)
+      }
+      return stat
+    }
+    const afterStat = await rewriteRestoringMtime(10)
+    expect(afterStat.size).toBe(beforeStat.size)
+    expect(afterStat.ino).toBe(beforeStat.ino)
+    expect(afterStat.mtimeNs).toBe(beforeStat.mtimeNs)
+    expect(afterStat.ctimeNs).not.toBe(beforeStat.ctimeNs)
+
+    const result = tryLockfileVerificationCache(cacheDir, {
+      lockfilePath,
+      verifiers: [mraVerifier(60)],
+      hashLockfile: () => {
+        hashCalls += 1
+        return 'hash:content-b'
+      },
+    })
+    expect(hashCalls).toBe(1)
+    expect(result.hit).toBe(false)
+  })
+
+  test('cache read failure preserves captured stat across lockfile replacement', async () => {
+    await fs.promises.writeFile(lockfilePath, 'verified-lockfile')
+    const beforeStat = fs.statSync(lockfilePath, { bigint: true })
+    await fs.promises.mkdir(path.join(cacheDir, 'lockfile-verified.jsonl'), { recursive: true })
+
+    const lookup = tryLockfileVerificationCache(cacheDir, {
+      lockfilePath,
+      verifiers: [mraVerifier(60)],
+      hashLockfile: hashLockfileFor('verified'),
+    })
+    expect(lookup.hit).toBe(false)
+    expect(lookup.precomputed.stat).toEqual({
+      size: Number(beforeStat.size),
+      mtimeNs: beforeStat.mtimeNs.toString(),
+      ctimeNs: beforeStat.ctimeNs.toString(),
+      inode: beforeStat.ino.toString(),
+    })
+
+    await fs.promises.writeFile(lockfilePath, 'replacement-lockfile-with-different-length')
+    await fs.promises.rmdir(path.join(cacheDir, 'lockfile-verified.jsonl'))
+    recordVerification(
+      cacheDir,
+      { lockfilePath, verifiers: [mraVerifier(60)], hashLockfile: hashLockfileFor('verified') },
+      lookup.precomputed
+    )
+
+    const raw = await fs.promises.readFile(path.join(cacheDir, 'lockfile-verified.jsonl'), 'utf8')
+    const written = JSON.parse(raw.trim()) as {
+      lockfile: { size: number, mtimeNs: string, ctimeNs: string, inode: string }
+    }
+    expect(written.lockfile).toMatchObject({
+      size: Number(beforeStat.size),
+      mtimeNs: beforeStat.mtimeNs.toString(),
+      ctimeNs: beforeStat.ctimeNs.toString(),
+      inode: beforeStat.ino.toString(),
+    })
   })
 
   test('hash-fallback hit when size matches but mtime/inode were reset', async () => {
@@ -117,11 +212,11 @@ describe('tryLockfileVerificationCache', () => {
     await fs.promises.writeFile(lockfilePath, 'aaaaaaaaaaaa')
     recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)], hashLockfile: hashLockfileFor('content-a') })
 
-    // Same byte length, different content — hash check is what rejects.
+    // Same byte length, different content. The hash check is what rejects.
     // Write the replacement to a sibling and rename it in so it gets a
     // fresh inode. Rewriting in place can reuse the freed inode, and on
     // filesystems with coarse mtime granularity (some CI runners) both
-    // writes land in the same mtime tick — which would let the stat
+    // writes land in the same mtime tick. That would let the stat
     // shortcut spuriously match on (size, mtime, inode) and skip the hash
     // check this test exercises.
     const sibling = path.join(tmpDir, 'pnpm-lock-2.yaml')
@@ -153,7 +248,7 @@ describe('tryLockfileVerificationCache', () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(1440)], hashLockfile: hashLockfileFor('lockfilePath') })
 
-    // Today's policy is weaker — the stricter cached run still covers it.
+    // Today's policy is weaker. The stricter cached run still covers it.
     const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)], hashLockfile: hashLockfileFor('lockfilePath'),
@@ -297,6 +392,7 @@ describe('recordVerification', () => {
     expect(typeof record.verifiedAt).toBe('string')
     expect(typeof record.lockfile.size).toBe('number')
     expect(typeof record.lockfile.mtimeNs).toBe('string')
+    expect(typeof record.lockfile.ctimeNs).toBe('string')
     expect(typeof record.lockfile.inode).toBe('string')
   })
 
@@ -325,8 +421,8 @@ describe('recordVerification', () => {
 
   test('shared policy field is stored once, not duplicated', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    // Two verifiers both contribute minimumReleaseAge with the same value
-    // — the merged bag stores it once.
+    // Two verifiers both contribute minimumReleaseAge with the same value.
+    // The merged bag stores it once.
     recordVerification(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60), mraVerifier(60)], hashLockfile: hashLockfileFor('lockfilePath'),

@@ -17,7 +17,12 @@
 //! so a caller can ask what a specifier is without depending on the code
 //! that resolves it.
 
-pub use host_filesystem::is_host_filesystem_specifier;
+pub use host_filesystem::{
+    escapes_workspace_root,
+    is_host_filesystem_specifier,
+    is_non_local_filesystem_subdep_spec,
+    strip_package_name_from_local_spec,
+};
 
 use std::path::{
     Path,
@@ -304,7 +309,8 @@ pub fn bare_path_is_unambiguous(specifier: &str) -> bool {
 
 /// Whether the spec opens with `<letter>:`, which reads as a Windows
 /// drive path and as a single-letter named-registry alias alike.
-fn is_drive_letter_prefix(spec: &str) -> bool {
+#[must_use]
+pub fn is_drive_letter_prefix(spec: &str) -> bool {
     let mut chars = spec.chars();
     matches!(chars.next(), Some(first) if first.is_ascii_alphabetic()) && chars.next() == Some(':')
 }

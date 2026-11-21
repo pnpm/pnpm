@@ -451,6 +451,7 @@ const SETTING_UNSET_EQUIVALENTS: Partial<Record<keyof WorkspaceStateSettings, un
   dangerouslyAllowAllBuilds: false,
   enableGlobalVirtualStore: false,
   extendNodePath: true,
+  nodeDownloadMirrors: {},
   runtime: true,
   trustLockfile: false,
   // The default of `virtualStoreDirMaxLength`.

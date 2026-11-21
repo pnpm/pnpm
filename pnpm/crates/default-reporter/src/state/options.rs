@@ -70,6 +70,10 @@ pub struct ScopeOptions {
     pub reports_scope: bool,
     /// Whether direct dependency warnings use workspace-relative prefixes.
     pub recursive: bool,
+    /// Whether the command edits the manifests of the projects it installs.
+    /// Only then does a workspace summary infer which dependencies of a
+    /// project with no previous install the command asked for.
+    pub edits_manifests: bool,
 }
 
 impl Default for ReporterOptions {
@@ -91,6 +95,7 @@ impl Default for ReporterOptions {
                 reports_scope: false,
                 recursive: false,
                 is_global: false,
+                edits_manifests: false,
             },
         }
     }
@@ -103,6 +108,7 @@ impl Default for ScopeOptions {
             reports_scope: false,
             recursive: false,
             is_global: false,
+            edits_manifests: false,
         }
     }
 }

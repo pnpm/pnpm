@@ -122,6 +122,8 @@ fn a_corrupt_block_does_not_discard_the_rest_of_a_ca_bundle() {
 #[cfg(target_vendor = "apple")]
 #[test]
 fn platform_verifier_detects_unreachable_trustd_under_sandbox() {
+    use command_extra::CommandExtra;
+
     use super::{
         NetworkSettings,
         PerRegistryTls,
@@ -154,15 +156,15 @@ fn platform_verifier_detects_unreachable_trustd_under_sandbox() {
 
     let exe = std::env::current_exe().expect("current test executable path");
     let output = std::process::Command::new("sandbox-exec")
-        .args([
+        .with_args([
             "-p",
             r#"(version 1)(allow default)(deny mach-lookup (global-name "com.apple.trustd.agent"))"#,
         ])
-        .arg(&exe)
-        .arg("--exact")
-        .arg("tests::manifests::platform_verifier_detects_unreachable_trustd_under_sandbox")
-        .arg("--nocapture")
-        .env("PNPM_TEST_DENIED_TRUSTD", "1")
+        .with_arg(&exe)
+        .with_arg("--exact")
+        .with_arg("tests::manifests::platform_verifier_detects_unreachable_trustd_under_sandbox")
+        .with_arg("--nocapture")
+        .with_env("PNPM_TEST_DENIED_TRUSTD", "1")
         .output()
         .expect("sandbox-exec execution must succeed");
 
