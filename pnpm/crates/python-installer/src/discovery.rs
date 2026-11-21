@@ -148,13 +148,10 @@ impl Discovery {
         let environments = EnvironmentStore::new(config);
         for root in edited {
             let path = root.join("pyproject.toml");
-            let contents = tokio::fs::read_to_string(&path).await
-                .into_diagnostic()
-                .wrap_err_with(|| format!("read {}", path.display()))?;
             let allowed_root = config.workspace_dir.as_deref().unwrap_or(root);
             let own_environment = (self.workspace.lock_root(root) == root).then_some(&environments);
             let adjacent = Adjacent { allowed_root, own_environment };
-            let manifest = Arc::new(read_manifest(&path, &contents, adjacent).await?);
+            let manifest = Arc::new(read_member_manifest(&path, adjacent).await?);
             match self.roots
                 .iter_mut()
                 .find(|(discovered, _)| discovered == root)
@@ -251,7 +248,7 @@ impl ProjectManifests<'_> {
         if !is_discovered(root, self.reading.workspace_root, &self.declared) {
             return Ok(None);
         }
-        read_manifest(path, "", adjacent).await.map(Some)
+        read_adjacent_requirements(path, Manifest::parse("")?, adjacent).await.map(Some)
     }
 }
 
@@ -354,9 +351,24 @@ fn is_ignored_by_default(project: &Path, workspace_root: &Path) -> bool {
         })
 }
 
-async fn read_manifest(path: &Path, contents: &str, adjacent: Adjacent<'_>) -> Result<Manifest> {
-    let manifest =
-        if is_pyproject(path) { Manifest::parse(contents)? } else { Manifest::parse("")? };
+async fn read_member_manifest(path: &Path, adjacent: Adjacent<'_>) -> Result<Manifest> {
+    let contents = match tokio::fs::read_to_string(path).await {
+        Ok(contents) => contents,
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound
+                && tokio::fs::try_exists(path.with_file_name("requirements.txt"))
+                    .await
+                    .into_diagnostic()? =>
+        {
+            String::new()
+        }
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("read {}", path.display()));
+        }
+    };
+    let manifest = Manifest::parse(&contents)?;
     read_adjacent_requirements(path, manifest, adjacent).await
 }
 

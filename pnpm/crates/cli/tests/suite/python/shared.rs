@@ -181,6 +181,10 @@ async fn adding_to_a_member_updates_its_manifest_and_the_shared_lockfile() {
     python_project(&root.path().join("packages/a"), "a", "dependencies = ['alpha']");
     python_project(&root.path().join("packages/b"), "b", "dependencies = []");
 
+    let worker = root.path().join("packages/worker");
+    fs::create_dir(&worker).unwrap();
+    fs::write(worker.join("requirements.txt"), "alpha>=1").unwrap();
+
     pacquet_in(&root.path().join("packages/b"))
         .with_args(["add", "pypi:gamma"])
         .assert()
@@ -196,8 +200,11 @@ async fn adding_to_a_member_updates_its_manifest_and_the_shared_lockfile() {
     );
     let lock: toml::Value =
         toml::from_str(&fs::read_to_string(root.path().join("pylock.toml")).unwrap()).unwrap();
-    assert_eq!(lock["tool"]["pnpm"]["requirements"], list(&["alpha", "gamma>=1.0"]));
-    assert_eq!(lock["tool"]["pnpm"]["members"], list(&["packages/a", "packages/b"]));
+    assert_eq!(lock["tool"]["pnpm"]["requirements"], list(&["alpha", "alpha>=1", "gamma>=1.0"]));
+    assert_eq!(
+        lock["tool"]["pnpm"]["members"],
+        list(&["packages/a", "packages/b", "packages/worker"])
+    );
     assert!(!has_own_environment(&root.path().join("packages/b")));
     python(root.path())
         .with_args(["-c", "import alpha, gamma, a, b"])

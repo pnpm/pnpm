@@ -350,7 +350,8 @@ fn finalize_prepared_project(
             finalize_requirement(group, req, options, &lock_index)
         })?;
     }
-    let recorded = workspace.recorded_requirements(config, &project.members)?;
+    let recorded =
+        workspace.recorded_requirements(config, &project.members, super::workspace::read_manifest)?;
     lock.tool.pnpm.set_requirements(&recorded);
     project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     Ok(())

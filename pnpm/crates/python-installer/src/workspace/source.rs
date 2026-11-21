@@ -200,11 +200,12 @@ impl super::Workspace {
     pub(crate) fn recorded_requirements(
         &self,
         config: &pnpm_config::Config,
-        members: &[std::path::PathBuf],
+        members: &[PathBuf],
+        load: impl Fn(&Path) -> Result<std::sync::Arc<Manifest>>,
     ) -> Result<Vec<Requirement>> {
         let mut recorded = Vec::new();
         for member in members {
-            let manifest = super::load(member)?;
+            let manifest = load(member)?;
             let all = manifest.selected_requirements(config)?.all;
             recorded.extend(self.requirements(member, &manifest, all)?);
         }

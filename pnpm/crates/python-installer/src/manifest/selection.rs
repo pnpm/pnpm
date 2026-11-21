@@ -16,7 +16,25 @@ use pep508_rs::{
 use pnpm_config::Config;
 use pnpm_python_resolver::parse_requirement;
 use serde::Deserialize;
-use std::collections::BTreeSet;
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
+
+pub(super) fn deserialize_groups<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<BTreeMap<PackageName, Vec<toml::Value>>, D::Error> {
+    use serde::de::Error as _;
+    let raw = BTreeMap::<String, Vec<toml::Value>>::deserialize(deserializer)?;
+    let mut groups = BTreeMap::new();
+    for (key, entries) in raw {
+        let name = key.parse().map_err(D::Error::custom)?;
+        if groups.insert(name, entries).is_some() {
+            return Err(D::Error::custom(format!("duplicate Python dependency group: {key}")));
+        }
+    }
+    Ok(groups)
+}
 
 #[derive(Default, Clone, Deserialize)]
 pub(super) struct Pnpm {
@@ -78,7 +96,11 @@ impl Manifest {
         let extras = self.selected_extras(config)?;
         let mut requirements = self.production_requirements(project, &extras)?;
         let production_count = requirements.len();
-        self.expand_configured_groups(config, &mut requirements)?;
+        requirements.extend(
+            self.group_requirements(config)?
+                .into_iter()
+                .map(|(_, requirement)| requirement.to_owned()),
+        );
         let all = requirements
             .into_iter()
             .map(|requirement| parse_requirement(&requirement))
@@ -119,26 +141,24 @@ impl Manifest {
             .collect())
     }
 
-    fn expand_configured_groups(
-        &self,
-        config: &Config,
-        requirements: &mut Vec<String>,
-    ) -> Result<()> {
+    pub(super) fn group_requirements(&self, config: &Config) -> Result<Vec<(&PackageName, &str)>> {
+        let mut requirements = Vec::new();
         let explicit = self.tool.pnpm.python.groups.as_ref();
         for group in explicit.unwrap_or(&config.python.groups) {
-            if explicit.is_none() && !self.groups.contains_key(group) {
+            let group = group.parse::<PackageName>().into_diagnostic()?;
+            if explicit.is_none() && !self.groups.contains_key(&group) {
                 continue;
             }
-            self.expand_group(group, &mut Vec::new(), requirements)?;
+            self.expand_group(&group, &mut Vec::new(), &mut requirements)?;
         }
-        Ok(())
+        Ok(requirements)
     }
 
-    fn expand_group(
-        &self,
-        group: &str,
-        visiting: &mut Vec<String>,
-        requirements: &mut Vec<String>,
+    fn expand_group<'a>(
+        &'a self,
+        group: &PackageName,
+        visiting: &mut Vec<PackageName>,
+        requirements: &mut Vec<(&'a PackageName, &'a str)>,
     ) -> Result<()> {
         if visiting
             .iter()
@@ -146,18 +166,19 @@ impl Manifest {
         {
             bail!("cyclic Python dependency group: {group}");
         }
-        let entries = self.groups
-            .get(group)
+        let (name, entries) = self.groups
+            .get_key_value(group)
             .ok_or_else(|| miette::miette!("unknown Python dependency group: {group}"))?;
-        visiting.push(group.to_string());
+        visiting.push(group.clone());
         for entry in entries {
             if let Some(requirement) = entry.as_str() {
-                requirements.push(requirement.to_string());
+                requirements.push((name, requirement));
             } else if let Some(table) = entry.as_table()
                 && table.len() == 1
                 && let Some(include) = table.get("include-group").and_then(toml::Value::as_str)
             {
-                self.expand_group(include, visiting, requirements)?;
+                let include = include.parse().into_diagnostic()?;
+                self.expand_group(&include, visiting, requirements)?;
             } else {
                 bail!("invalid entry in Python dependency group {group}");
             }

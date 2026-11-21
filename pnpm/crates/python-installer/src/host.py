@@ -9,6 +9,7 @@ import importlib
 import io
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 import shlex
 import shutil
@@ -170,11 +171,6 @@ def inspect_wheel(request):
     if wheel["Root-Is-Purelib"] not in ("true", "false"):
         raise ValueError("invalid Root-Is-Purelib")
     metadata = read_headers(files, dist_info + "/METADATA")
-    for field in ("Name", "Version", "Metadata-Version"):
-        if len(metadata.get_all(field, [])) != 1:
-            raise ValueError("wheel requires exactly one " + field)
-    if not metadata["Metadata-Version"].startswith("2."):
-        raise ValueError("unsupported Metadata-Version")
     record_name = dist_info + "/RECORD"
     recorded = set()
     for row in csv.reader(io.StringIO(Path(files[record_name]).read_text(encoding="utf-8"))):
@@ -265,9 +261,10 @@ class Environment:
                 if not name or not all(character.isascii() and (character.isalnum() or character in "-_.") for character in name):
                     raise ValueError("unsafe entry point name: " + name)
                 module, separator, function = entry.split("[", 1)[0].strip().partition(":")
-                if not separator or not all(part.isidentifier() for part in module.split(".")) or not all(part.isidentifier() for part in function.strip().split(".")):
-                    raise ValueError("invalid Python entry point: " + entry)
+                module = module.strip()
                 function = function.strip()
+                if not separator or not all(part.isidentifier() for part in module.split(".")) or not all(part.isidentifier() for part in function.split(".")):
+                    raise ValueError("invalid Python entry point: " + entry)
                 body = "import sys\nfrom " + module + " import " + function.split(".")[0] + "\nif __name__ == '__main__':\n    sys.exit(" + function + "())\n"
                 if os.name == "nt":
                     self.write(self.scripts / (name + "-script.py"), body.encode())
@@ -304,17 +301,16 @@ def install_wheel(environment, package):
             executable = executable or parts[1] == "scripts"
         else:
             destination = environment.site.joinpath(*parts)
-        prefix = None
+        placeholder = None
         if executable:
             with Path(source).open("rb") as file:
                 header = file.read(11)
-            first_line, newline, _ = header.partition(b"\n")
-            if first_line.removesuffix(b"\r") in (b"#!python", b"#!pythonw"):
-                prefix = ("#!" + str(environment.interpreter)).encode() + newline
-        if prefix is not None or executable != source_executable:
+            placeholder = re.match(rb"#!pythonw?(?=[ \t]|\r?\n|\Z)", header)
+        if placeholder is not None or executable != source_executable:
             contents = Path(source).read_bytes()
-            if prefix is not None:
-                contents = prefix + contents.partition(b"\n")[2]
+            if placeholder is not None:
+                line, newline, body = contents[placeholder.end():].partition(b"\n")
+                contents = b"#!" + os.fsencode(environment.interpreter) + line.removesuffix(b"\r") + newline + body
             environment.write(destination, contents, executable)
         else:
             environment.import_file(destination, source, source_metadata)
@@ -403,7 +399,8 @@ def core_metadata(metadata, dist_info, purelib):
     for field in ("Metadata-Version", "Name", "Version"):
         if len(metadata.get_all(field, [])) != 1:
             raise ValueError("metadata must contain exactly one " + field)
-    if not metadata["Metadata-Version"].startswith("2."):
+    version = metadata["Metadata-Version"]
+    if version not in ("1.0", "1.1", "1.2") and not version.startswith("2."):
         raise ValueError("unsupported Metadata-Version")
     return {
         "name": metadata["Name"], "version": metadata["Version"],

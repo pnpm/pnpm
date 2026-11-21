@@ -25,7 +25,7 @@ fn unpacked_wheel(root: &Path, mismatched_wheel_hash: bool) -> BTreeMap<String, 
     let mut files = BTreeMap::new();
     let mut record = String::new();
     for (name, body) in [
-        ("alpha-1.0.dist-info/METADATA", "Metadata-Version: 2.4\nName: alpha\nVersion: 1.0\n"),
+        ("alpha-1.0.dist-info/METADATA", "Metadata-Version: 1.1\nName: alpha\nVersion: 1.0\n"),
         (
             "alpha-1.0.dist-info/WHEEL",
             "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n",

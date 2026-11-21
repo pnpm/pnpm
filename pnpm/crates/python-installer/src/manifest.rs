@@ -55,8 +55,12 @@ pub(super) struct Manifest {
     /// because the directory's `.venv` is unmanaged.
     #[serde(skip)]
     pub(super) has_unmanaged_requirements: bool,
-    #[serde(default, rename = "dependency-groups")]
-    groups: BTreeMap<String, Vec<toml::Value>>,
+    #[serde(
+        default,
+        rename = "dependency-groups",
+        deserialize_with = "selection::deserialize_groups"
+    )]
+    groups: BTreeMap<PackageName, Vec<toml::Value>>,
     #[serde(default, rename = "build-system")]
     pub(super) build_system: Option<BuildSystem>,
     #[serde(default)]
@@ -387,7 +391,12 @@ impl Manifest {
     }
 }
 
-pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Result<()> {
+pub(crate) fn add(
+    path: &Path,
+    requirements: &[String],
+    development: bool,
+    config: &pnpm_config::Config,
+) -> Result<()> {
     let original = std::fs::read_to_string(path)
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", path.display()))?;
@@ -396,13 +405,43 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
         bail!("{} has no [project] table", path.display());
     };
     project.ensure_static_dependencies()?;
-    let document: BTreeMap<String, TomlTable> = toml::from_str(&original).into_diagnostic()?;
+    let updated = with_added_requirements(&original, requirements, development)?;
+    let manifest = Manifest::parse(&updated)?;
+    if development
+        && !manifest
+            .group_requirements(config)?
+            .iter()
+            .any(|(group, _)| group.as_ref() == "dev")
+    {
+        bail!(
+            "cannot add a development dependency to {}: select the dev group in python.groups or [tool.pnpm.python].groups",
+            path.display()
+        );
+    }
+    pnpm_fs::write_atomic(path, updated.as_bytes()).into_diagnostic()
+}
+
+fn with_added_requirements(
+    original: &str,
+    requirements: &[String],
+    development: bool,
+) -> Result<String> {
+    let document: BTreeMap<String, TomlTable> = toml::from_str(original).into_diagnostic()?;
     let (table_name, key) =
         if development { ("dependency-groups", "dev") } else { ("project", "dependencies") };
     let table = document.get(table_name);
     let existing_array = table
         .map(toml::Spanned::get_ref)
-        .and_then(|table| table.get(key));
+        .and_then(|table| {
+            if development {
+                table
+                    .iter()
+                    .find(|(name, _)| name.eq_ignore_ascii_case("dev"))
+                    .map(|(_, value)| value)
+            } else {
+                table.get(key)
+            }
+        });
     let mut entries = existing_array
         .map(|array| {
             array
@@ -415,18 +454,17 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
         .unwrap_or_default();
     merge_requirements(&mut entries, requirements)?;
     let array = toml::Value::Array(entries).to_string();
-    let mut updated = original.clone();
+    let mut updated = original.to_owned();
     if let Some(existing) = existing_array {
         updated.replace_range(existing.span(), &array);
     } else if let Some(table) = table {
-        insert_key_into_table(&mut updated, &original, table, (table_name, key), &array)?;
+        insert_key_into_table(&mut updated, original, table, (table_name, key), &array)?;
     } else {
         writeln!(updated, "\n[{table_name}]\n{key} = {array}").expect(
             "writing to a String cannot fail",
         );
     }
-    Manifest::parse(&updated)?;
-    pnpm_fs::write_atomic(path, updated.as_bytes()).into_diagnostic()
+    Ok(updated)
 }
 
 /// One table of the manifest, with the span it occupies in the source.

@@ -21,10 +21,12 @@ fn requirements(
 
 #[test]
 fn workspace_defaults_select_only_names_the_project_defines() {
-    let manifest = Manifest::parse(PROJECT).unwrap();
+    let manifest =
+        Manifest::parse(&PROJECT.replace("test =", "TEST_suite =").replace("dev = [", "Dev = ["))
+            .unwrap();
     let mut config = Config::new();
     config.python.extras = vec!["cli".into(), "missing".into(), "dev-tools".into()];
-    config.python.groups = vec!["test".into(), "missing".into()];
+    config.python.groups = vec!["test-suite".into(), "missing".into()];
     assert_eq!(
         requirements(&manifest, &config, DependencySelection::ALL),
         ["base", "alpha", "gamma", "pytest", "coverage"],
@@ -168,4 +170,11 @@ fn explicit_selections_are_validated_before_install_projections() {
             assert!(result.contains(error));
         }
     }
+}
+
+#[test]
+fn equivalent_group_declarations_are_ambiguous() {
+    let error =
+        Manifest::parse("[dependency-groups]\ndev_test = []\n'Dev.Test' = []").err().unwrap();
+    assert!(error.to_string().contains("duplicate Python dependency group"));
 }

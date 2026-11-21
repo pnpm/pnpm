@@ -66,6 +66,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
                 &root.join("pyproject.toml"),
                 &options.requirements,
                 options.development,
+                context.config,
             )?;
         }
         let config = context.config;
@@ -154,10 +155,21 @@ fn save_added(
         }
         for member in &project.members {
             if edited.contains(member) {
-                manifest::add(&member.join("pyproject.toml"), &requirements, options.development)?;
+                manifest::add(
+                    &member.join("pyproject.toml"),
+                    &requirements,
+                    options.development,
+                    config,
+                )?;
             }
         }
-        let recorded = workspace.recorded_requirements(config, &project.members)?;
+        let recorded = workspace.recorded_requirements(config, &project.members, |root| {
+            if edited.contains(root) {
+                super::workspace::read_manifest(root)
+            } else {
+                workspace.load(root)
+            }
+        })?;
         lock.tool.pnpm.set_requirements(&recorded);
         project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     }

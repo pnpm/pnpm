@@ -68,6 +68,26 @@ async fn requirements_alongside_a_tool_only_manifest_install() {
         .success();
 }
 
+#[tokio::test]
+async fn exec_uses_the_requirements_projects_environment_below_a_tool_manifest() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    fs::write(root.path().join("pyproject.toml"), "[tool.ruff]\n").unwrap();
+    let worker = root.path().join("worker");
+    fs::create_dir(&worker).unwrap();
+    fs::write(worker.join("requirements.txt"), "alpha").unwrap();
+    super::pacquet_in(root.path())
+        .with_arg("install")
+        .assert()
+        .success();
+    super::pacquet_in(&worker)
+        .with_args(["exec", "python", "-c", "import alpha"])
+        .assert()
+        .success();
+}
+
 #[test]
 fn unsupported_requirements_directives_and_cycles_fail_with_context() {
     for contents in

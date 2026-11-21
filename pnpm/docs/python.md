@@ -121,7 +121,9 @@ groups = ["test"]
 
 The lists override their workspace defaults independently. Omitting a list keeps its workspace default. An empty list disables that default for the project.
 
-Explicit project selections must exist in that project. Selected groups' `include-group` references must exist and cannot form cycles. Extra names follow Python's normalization rules, so `dev_tools` and `dev-tools` select the same extra. These rules also apply to extras obtained from dynamic build-backend metadata.
+Explicit project selections must exist in that project. Selected groups' `include-group` references must exist and cannot form cycles. Extra and dependency group names follow Python's normalization rules, so `dev_tools` and `dev-tools` match. This also applies to extras obtained from dynamic build-backend metadata.
+
+To use `pnpm add -D pypi:<name>`, select the `dev` group directly or include it from a selected group.
 
 Selections participate in locking. `--prod` and `--dev` choose which dependencies to install without changing the complete lockfile. A requirement on another project's extra, such as `library[cli]`, selects that distribution extra independently of `library`'s own installation settings.
 
