@@ -3,6 +3,7 @@ use pnpm_lockfile::{
     Lockfile,
     PackageMetadata,
     SnapshotEntry,
+    name_version_from_package_key,
 };
 use pnpm_package_manifest::PackageManifest;
 use serde_json::Value;
@@ -92,13 +93,12 @@ fn prune_matching_snapshots(
         return false;
     };
     let mut changed = false;
+    let packages = lockfile.packages.as_ref();
     for (key, snapshot) in snapshots.iter_mut() {
-        if key.name.to_string() == name
-            && (apply_to_all || key.suffix.version().to_string() == version)
-        {
-            let metadata = lockfile.packages
-                .as_ref()
-                .and_then(|packages| packages.get(&key.without_peer()));
+        let metadata_key = key.without_peer();
+        let (key_name, key_version) = name_version_from_package_key(&metadata_key, packages);
+        if key_name == name && (apply_to_all || key_version == version) {
+            let metadata = packages.and_then(|packages| packages.get(&metadata_key));
             changed |= prune_snapshot_edges(snapshot, declared, metadata);
         }
     }

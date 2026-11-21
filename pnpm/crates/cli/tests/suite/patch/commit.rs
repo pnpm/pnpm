@@ -922,22 +922,31 @@ fn patch_commit_writes_the_entry_beside_its_patch_in_an_included_file() {
     drop((root, mock_instance));
 }
 
-/// The lockfile keys a `namedRegistries` package as
-/// `<name>@<registryName>:<version>`, while the user names it by its version.
-#[test]
-fn patch_and_patch_commit_reach_a_named_registry_package() {
+/// Installs `dependencies` with the `work:` named-registry alias pointing at
+/// the mocked registry, which the lockfile keys as
+/// `<name>@<registryName>:<version>`.
+fn setup_named_registry_install(
+    dependencies: serde_json::Value,
+) -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let registry = mock_instance.url();
+    let registry = npmrc_info.mock_instance.url();
     append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{registry}' }}"));
     append_workspace_yaml_key(&workspace, "registry", registry.replace("127.0.0.1", "localhost"));
     fs::write(
         workspace.join("package.json"),
-        serde_json::json!({ "dependencies": { "is-positive": "work:1.0.0" } }).to_string(),
+        serde_json::json!({ "dependencies": dependencies }).to_string(),
     )
     .expect("write package.json");
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    (root, workspace, npmrc_info)
+}
+
+#[test]
+fn patch_and_patch_commit_reach_a_named_registry_package() {
+    let (root, workspace, npmrc_info) =
+        setup_named_registry_install(serde_json::json!({ "is-positive": "work:1.0.0" }));
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
     let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
@@ -954,6 +963,39 @@ fn patch_and_patch_commit_reach_a_named_registry_package() {
         .expect("read installed index.js");
     assert!(installed.contains("patched named registry"), "index.js: {installed}");
     pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commit_prunes_a_dependency_removed_from_a_named_registry_package() {
+    let (root, workspace, npmrc_info) = setup_named_registry_install(
+        serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "work:100.0.0" }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace, ["patch", "@pnpm.e2e/pkg-with-1-dep@100.0.0", "--reporter=silent"])
+        .assert()
+        .success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/@pnpm.e2e/pkg-with-1-dep@100.0.0");
+    fs::write(
+        edit_dir.join("package.json"),
+        serde_json::json!({ "name": "@pnpm.e2e/pkg-with-1-dep", "version": "100.0.0" }).to_string(),
+    )
+    .expect("write edit package.json");
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let lockfile_text =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read updated lockfile");
+    assert!(
+        !lockfile_text.contains("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "dep-of-pkg-with-1-dep should be pruned from lockfile: {lockfile_text}",
+    );
 
     drop((root, mock_instance));
 }
