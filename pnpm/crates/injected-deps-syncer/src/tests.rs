@@ -9,6 +9,8 @@ use crate::{
     sync_injected_deps_of_modules_dir,
     watch_injected_edits,
 };
+use pnpm_cmd_shim::LinkBinsOptions;
+use pnpm_workspace::FindWorkspaceProjectsOpts;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashSet,
@@ -77,8 +79,8 @@ fn sync_leaves_an_injected_copy_alone_when_its_publish_directory_is_missing() {
         project_modules_dirs: &[],
         bin_links: BinLinkSettings {
             modules_dir_name: OsStr::new("node_modules"),
-            link_options: Default::default(),
-            projects: Default::default(),
+            link_options: LinkBinsOptions::default(),
+            projects: FindWorkspaceProjectsOpts::default(),
         },
     })
     .expect("sync should not fail when the publish directory is missing");
@@ -205,7 +207,7 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         project_modules_dirs: &[],
         bin_links: BinLinkSettings {
             modules_dir_name: OsStr::new("node_modules"),
-            link_options: pnpm_cmd_shim::LinkBinsOptions {
+            link_options: LinkBinsOptions {
                 extra_node_paths: vec![
                     workspace
                         .join("hoisted")
@@ -214,7 +216,7 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
                 ],
                 ..Default::default()
             },
-            projects: pnpm_workspace::FindWorkspaceProjectsOpts {
+            projects: FindWorkspaceProjectsOpts {
                 patterns: Some(vec!["**".into(), "!fixtures/**".into()]),
                 ..Default::default()
             },
@@ -294,8 +296,8 @@ fn watch_publishes_from_the_publish_directory_once_it_exists() {
         project_modules_dirs: &[],
         bin_links: BinLinkSettings {
             modules_dir_name: OsStr::new("node_modules"),
-            link_options: Default::default(),
-            projects: Default::default(),
+            link_options: LinkBinsOptions::default(),
+            projects: FindWorkspaceProjectsOpts::default(),
         },
     });
     assert_eq!(
@@ -360,8 +362,8 @@ fn edit_sources_include_the_copies_a_project_with_its_own_lockfile_lists() {
             project_modules_dirs,
             bin_links: BinLinkSettings {
                 modules_dir_name: OsStr::new("node_modules"),
-                link_options: Default::default(),
-                projects: Default::default(),
+                link_options: LinkBinsOptions::default(),
+                projects: FindWorkspaceProjectsOpts::default(),
             },
         })
         .into_iter()
