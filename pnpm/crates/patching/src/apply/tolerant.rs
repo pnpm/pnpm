@@ -59,6 +59,127 @@ pub(super) fn drop_context_no_newline_markers(text: String) -> String {
     kept
 }
 
+/// Give a space prefix to each hunk line that is only a CRLF line break.
+///
+/// Editors strip the space from a blank context line. [`diffy`] reads the
+/// resulting `\n` line as context, but rejects the `\r\n` one a CRLF patch
+/// file has. pnpm 11's parser reads both as context.
+pub(super) fn mark_blank_crlf_context_lines(text: String) -> String {
+    if !text.contains("\n\r\n") {
+        return text;
+    }
+    let mut kept = String::with_capacity(text.len());
+    let mut in_hunk = false;
+    for line in text.split_inclusive('\n') {
+        if line.starts_with("@@") {
+            in_hunk = true;
+        } else if line.starts_with("diff --git ") {
+            in_hunk = false;
+        } else if in_hunk && line == "\r\n" {
+            kept.push(' ');
+        }
+        kept.push_str(line);
+    }
+    kept
+}
+
+/// Split a unified diff without `diff --git` lines into its file records,
+/// each starting at a `---` line that a `+++` line follows outside a hunk.
+/// The first record keeps any preamble.
+///
+/// [`diffy`] parses such records one after another, but rejects a `---`
+/// header that follows a deletion marked `\ No newline at end of file`,
+/// taking it for one more deleted line. pnpm 11's parser starts a new record
+/// at each `--- a/` line.
+pub(super) fn unidiff_records(text: &str) -> Vec<&str> {
+    let mut header_starts = Vec::new();
+    let mut pending_header: Option<usize> = None;
+    let mut hunk = HunkLinesLeft::default();
+    let mut offset = 0;
+    for line in text.split_inclusive('\n') {
+        let line_start = offset;
+        offset += line.len();
+        let header = pending_header.take();
+        if hunk.consume(line) {
+            continue;
+        }
+        match header {
+            Some(start) if line.starts_with("+++ ") => header_starts.push(start),
+            _ => pending_header = line.starts_with("--- ").then_some(line_start),
+        }
+        if line.starts_with("@@ ") {
+            hunk = HunkLinesLeft::of_header(line);
+        }
+    }
+    split_before(
+        text,
+        header_starts
+            .get(1..)
+            .unwrap_or_default(),
+    )
+}
+
+fn split_before<'a>(text: &'a str, starts: &[usize]) -> Vec<&'a str> {
+    let mut records = Vec::with_capacity(starts.len() + 1);
+    let mut from = 0;
+    for &start in starts {
+        records.push(&text[from..start]);
+        from = start;
+    }
+    records.push(&text[from..]);
+    records
+}
+
+/// The pre-image and post-image lines a hunk header announces that its body
+/// has not yet supplied.
+#[derive(Default)]
+struct HunkLinesLeft {
+    old: usize,
+    new: usize,
+}
+
+/// The length of a `start,len` range, which is one when it is left out.
+fn range_len(range: &str) -> &str {
+    range.split_once(',').map_or("1", |(_, len)| len)
+}
+
+impl HunkLinesLeft {
+    /// Read the counts of an `@@ -l,s +l,s @@` header. A count left out is
+    /// one; a header that does not parse announces no lines.
+    fn of_header(line: &str) -> Self {
+        let mut ranges = line.split_whitespace().skip(1);
+        let mut count = |sign: char| {
+            ranges
+                .next()
+                .and_then(|range| range.strip_prefix(sign))
+                .map(range_len)
+                .map(str::parse)
+                .and_then(Result::ok)
+                .unwrap_or(0)
+        };
+        let old = count('-');
+        let new = count('+');
+        HunkLinesLeft { old, new }
+    }
+
+    /// Count `line` against the hunk, returning whether it belongs to it.
+    fn consume(&mut self, line: &str) -> bool {
+        if self.old == 0 && self.new == 0 {
+            return false;
+        }
+        match line.as_bytes().first() {
+            Some(b'-') => self.old = self.old.saturating_sub(1),
+            Some(b'+') => self.new = self.new.saturating_sub(1),
+            Some(b'\\') => {}
+            _ => {
+                self.old = self.old.saturating_sub(1);
+                self.new = self.new.saturating_sub(1);
+            }
+        }
+        true
+    }
+}
+
 /// The git extended headers whose value [`diffy`] matches exactly: the
 /// file modes, the rename and copy paths, and the `diff --git` line the
 /// path fallback reads. No hunk line can begin with one of these, so a

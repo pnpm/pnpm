@@ -45,11 +45,17 @@ type Modification =
   | { type: 'push' }
 
 function findHunk (hunk: Hunk, fileLines: string[]): Modification[] | null {
+  const start = hunkStartIndex(hunk)
   for (const fuzzingOffset of fuzzingOffsets()) {
-    const modifications = evaluateHunk(hunk, fileLines, hunk.header.original.start - 1 + fuzzingOffset)
+    const modifications = evaluateHunk(hunk, fileLines, start + fuzzingOffset)
     if (modifications != null) return modifications
   }
   return null
+}
+
+/** An empty range names the gap after its line. A nonempty range is one-based. */
+function hunkStartIndex ({ header: { original } }: Hunk): number {
+  return original.length === 0 ? original.start : original.start - 1
 }
 
 /** `0, -1, 1, -2, 2, ...` out to {@link MAX_FUZZING_OFFSET}. */

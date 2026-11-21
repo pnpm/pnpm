@@ -237,12 +237,14 @@ impl PatchCommitArgs {
         patch_content: &str,
     ) -> Result<IndexMap<String, String>, PatchCommitError> {
         let workspace_dir = state.config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        let patches_dir_name = normalize_patches_dir_name(
-            self.patches_dir
-                .as_deref()
-                .or(state.config.patches_dir.as_deref())
-                .unwrap_or("patches"),
-        );
+        let patches_dir_setting = self.patches_dir
+            .as_deref()
+            .or(state.config.patches_dir.as_deref())
+            .unwrap_or("patches");
+        let patches_dir_name = normalize_patches_dir_name(patches_dir_setting)
+            .ok_or_else(|| PatchCommitError::PatchesDirOutsideProject {
+                patches_dir: patches_dir_setting.to_string(),
+            })?;
         let patches_dir = workspace_dir.join(path_from_forward_slash(&patches_dir_name));
         fs::create_dir_all(&patches_dir)
             .map_err(|source| PatchCommitError::CreatePatchesDir {

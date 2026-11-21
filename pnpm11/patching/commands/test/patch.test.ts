@@ -1167,8 +1167,8 @@ describe('patching should work when there is a no EOL in the patched file', () =
     const patchContent = fs.readFileSync('patches/safe-execa@0.1.2.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
-    expect(patchContent).not.toContain('No newline at end of file')
-    expect(fs.readFileSync('node_modules/safe-execa/lib/index.js', 'utf8')).toContain('// test patching')
+    expect(patchContent).toMatch(/\+\/\/ test patching\n\\ No newline at end of file\n$/)
+    expect(fs.readFileSync('node_modules/safe-execa/lib/index.js', 'utf8')).toMatch(/\n\/\/ test patching$/)
   })
   it('should work fine when new content is appended', async () => {
     const output = await patch.handler(defaultPatchOption, ['safe-execa@0.1.2'])

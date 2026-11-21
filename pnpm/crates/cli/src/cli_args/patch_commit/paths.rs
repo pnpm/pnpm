@@ -152,21 +152,21 @@ pub(super) fn remove_dir_if_exists(path: &Path) -> io::Result<()> {
     }
 }
 
-pub(super) fn normalize_patches_dir_name(input: &str) -> String {
+/// The patches directory setting as a `/`-separated path relative to the
+/// project, or `None` when a `..` segment climbs out of the project.
+pub(super) fn normalize_patches_dir_name(input: &str) -> Option<String> {
     let mut parts = Vec::new();
     for component in Path::new(input).components() {
         match component {
             Component::CurDir => {}
             Component::ParentDir => {
-                if !parts.is_empty() {
-                    parts.pop();
-                }
+                parts.pop()?;
             }
             Component::Normal(part) => parts.push(part.to_string_lossy().into_owned()),
             Component::RootDir | Component::Prefix(_) => {}
         }
     }
-    if parts.is_empty() { ".".to_string() } else { parts.join("/") }
+    Some(if parts.is_empty() { ".".to_string() } else { parts.join("/") })
 }
 
 pub(super) fn path_from_forward_slash(path: &str) -> PathBuf {

@@ -118,6 +118,34 @@ fn patch_commit_writes_an_applicable_patch_when_the_last_line_loses_its_newline(
 }
 
 #[test]
+fn patch_commit_keeps_an_appended_last_line_without_a_final_newline() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    let original = fs::read_to_string(edit_dir.join("index.js")).expect("read index.js");
+    let edited = format!("{original}// appended");
+    fs::write(edit_dir.join("index.js"), &edited).expect("edit index.js");
+
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let patch =
+        fs::read_to_string(workspace.join("patches/is-positive@1.0.0.patch")).expect("patch file");
+    assert!(patch.ends_with("+// appended\n\\ No newline at end of file\n"), "patch: {patch}");
+    let installed = fs::read_to_string(workspace.join("node_modules/is-positive/index.js"))
+        .expect("read patched index.js");
+    assert_eq!(installed, edited);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn patch_commit_bare_name_writes_apply_to_all_key() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -315,6 +343,37 @@ fn patch_commit_custom_patches_dir_normalizes_path() {
         "workspace yaml: {workspace_yaml}",
     );
     assert!(workspace.join("ts/custom-patches/is-positive@1.0.0.patch").is_file());
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commit_rejects_a_patches_dir_outside_the_project() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    write_patch_edit(&edit_dir, "patched outside");
+
+    let output = pacquet(
+        &workspace,
+        [
+            "patch-commit",
+            "--patches-dir",
+            "../outside",
+            edit_dir.to_str().expect("utf8 edit dir"),
+            "--reporter=silent",
+        ],
+    )
+    .output()
+    .expect("run patch-commit");
+
+    assert!(!output.status.success(), "a patches dir outside the project should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PATCHES_DIR_OUTSIDE_PROJECT"), "stderr: {stderr}");
+    assert!(!workspace.join("outside").exists());
+    assert!(!workspace.join("../outside").exists());
 
     drop((root, mock_instance));
 }

@@ -38,11 +38,19 @@ export function executeEffects (effects: PatchFilePart[], opts: ExecuteEffectsOp
   }
 }
 
+/**
+ * The dry run also checks the file's content. It only runs on a reversed
+ * patch, whose deletions are reversed creations, so a deletion without a hunk
+ * stands for an empty file. A creation over a different file must not be
+ * confirmed as applied.
+ */
 function deleteFile (effect: FileDeletion, filePath: string, dryRun: boolean): void {
   if (!dryRun) {
     fs.unlinkSync(filePath)
   } else if (!fs.existsSync(filePath)) {
     throw new Error(`Trying to delete file that doesn't exist: ${effect.path}`)
+  } else if (!holdsContents(filePath, wholeFileContents(effect))) {
+    throw new Error(`Trying to delete file whose content differs from the patch: ${effect.path}`)
   }
 }
 
@@ -89,19 +97,36 @@ function normalizeName (name: string): string {
   return name.toLowerCase().normalize('NFC')
 }
 
+/**
+ * Never overwrites a file with different content: a patch authored against
+ * another base would destroy it. A file that already holds the created
+ * content is written again, so that it gets the patch's mode.
+ */
 function createFile (effect: FileCreation, filePath: string, dryRun: boolean): void {
-  if (dryRun) {
-    if (fs.existsSync(filePath)) {
+  const contents = wholeFileContents(effect)
+  if (entryExists(filePath)) {
+    if (dryRun || !holdsContents(filePath, contents)) {
       throw new Error(`Trying to create file that already exists: ${effect.path}`)
     }
+    // Writing through a hardlink would change every other link to the file,
+    // such as its copy in the store. Unlinking first gives the file a new inode.
+    fs.unlinkSync(filePath)
+  } else if (dryRun) {
     return
   }
-  const firstPart = effect.hunk?.parts[0]
-  const contents = firstPart == null
-    ? ''
-    : firstPart.lines.join('\n') + (firstPart.noNewlineAtEndOfFile ? '' : '\n')
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, contents, { mode: effect.mode })
+}
+
+/** The whole content of the file a creation or deletion carries. */
+function wholeFileContents ({ hunk }: FileCreation | FileDeletion): string {
+  const firstPart = hunk?.parts[0]
+  if (firstPart == null) return ''
+  return firstPart.lines.join('\n') + (firstPart.noNewlineAtEndOfFile ? '' : '\n')
+}
+
+function holdsContents (filePath: string, contents: string): boolean {
+  return fs.lstatSync(filePath).isFile() && fs.readFileSync(filePath).equals(Buffer.from(contents))
 }
 
 function changeMode (effect: FileModeChange, filePath: string, dryRun: boolean): void {

@@ -337,9 +337,6 @@ fn normalize_diff_output(diff: &str, folder_a: &str, folder_b: &str) -> String {
         }
         out.push_str(newline);
     }
-    if let Some(without_marker) = out.strip_suffix("\n\\ No newline at end of file\n") {
-        out = format!("{without_marker}\n");
-    }
     remove_ds_store_diff_blocks(&out)
 }
 

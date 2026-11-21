@@ -1,6 +1,7 @@
 use super::{
     PatchApplyError,
     package_relative_operation,
+    parse_file_patches,
     read_patch_text,
     tolerant,
 };
@@ -8,8 +9,6 @@ use super::{
 use diffy::patch_set::{
     FileOperation,
     FilePatch,
-    ParseOptions,
-    PatchSet,
 };
 use indexmap::IndexSet;
 use std::{
@@ -79,12 +78,8 @@ pub fn preview_patch(
         // states.
         manifest_removed: false,
     };
-    for file_patch_result in PatchSet::parse(&text, ParseOptions::gitdiff()) {
-        let file_patch = file_patch_result.map_err(|source| PatchApplyError::InvalidPatch {
-            patch_file_path: patch_file_path.to_path_buf(),
-            message: source.to_string(),
-        })?;
-        state.record(&file_patch)?;
+    for file_patch in parse_file_patches(&text, patch_file_path) {
+        state.record(&file_patch?)?;
     }
     let PreviewState {
         mut preview,

@@ -102,15 +102,58 @@ pub fn apply_patch_to_dir(
         })?;
     let text = read_patch_text(patch_file_path)?;
 
-    let patches = PatchSet::parse(&text, ParseOptions::gitdiff());
-    for file_patch_result in patches {
-        let file_patch = file_patch_result.map_err(|source| PatchApplyError::InvalidPatch {
-            patch_file_path: patch_file_path.to_path_buf(),
-            message: source.to_string(),
-        })?;
-        apply_one_file(patched_dir, &canonical_dir, patch_file_path, &file_patch)?;
+    for file_patch in parse_file_patches(&text, patch_file_path) {
+        apply_one_file(patched_dir, &canonical_dir, patch_file_path, &file_patch?)?;
     }
     Ok(())
+}
+
+/// Parse the records of a patch file read by [`read_patch_text`].
+///
+/// A patch without `diff --git` lines is read as a plain unified diff, as
+/// `diff -u` and old patch-package versions write it.
+///
+/// A record that creates or changes a symlink or a submodule is rejected:
+/// only regular and executable files can be patched.
+pub(super) fn parse_file_patches<'a>(
+    text: &'a str,
+    patch_file_path: &'a Path,
+) -> impl Iterator<Item = Result<FilePatch<'a, str>, PatchApplyError>> + 'a {
+    let has_git_headers = text
+        .lines()
+        .any(|line| line.starts_with("diff --git "));
+    let (records, options) = if has_git_headers {
+        (vec![text], ParseOptions::gitdiff())
+    } else {
+        (tolerant::unidiff_records(text), ParseOptions::unidiff())
+    };
+    let invalid = move |message: String| PatchApplyError::InvalidPatch {
+        patch_file_path: patch_file_path.to_path_buf(),
+        message,
+    };
+    records
+        .into_iter()
+        .flat_map(move |record| PatchSet::parse(record, options.clone()))
+        .map(move |file_patch_result| {
+            let file_patch =
+                file_patch_result.map_err(|source| source.to_string()).map_err(invalid)?;
+            let unsupported_mode = [file_patch.old_mode(), file_patch.new_mode()]
+                .into_iter()
+                .flatten()
+                .find_map(|mode| unsupported_file_mode(*mode));
+            match unsupported_mode {
+                Some(mode) => Err(invalid(format!("Unexpected file mode string: {mode}"))),
+                None => Ok(file_patch),
+            }
+        })
+}
+
+fn unsupported_file_mode(mode: FileMode) -> Option<&'static str> {
+    match mode {
+        FileMode::Regular | FileMode::Executable => None,
+        FileMode::Symlink => Some("120000"),
+        FileMode::Gitlink => Some("160000"),
+    }
 }
 
 /// Read a patch file and apply the tolerances that let the patch files
@@ -120,7 +163,8 @@ pub fn apply_patch_to_dir(
 /// them in, kept in one place so the apply and preview paths cannot drift.
 pub(super) fn read_patch_text(patch_file_path: &Path) -> Result<String, PatchApplyError> {
     let text = read_patch_file(patch_file_path)?;
-    Ok(tolerant::drop_context_no_newline_markers(tolerant::strip_cr_from_extended_headers(text)))
+    let text = tolerant::strip_cr_from_extended_headers(text);
+    Ok(tolerant::drop_context_no_newline_markers(tolerant::mark_blank_crlf_context_lines(text)))
 }
 
 /// Read a patch file, mapping a missing file to
@@ -267,6 +311,8 @@ impl FileApply<'_> {
         Ok(())
     }
 
+    /// A record without hunks only changes the mode, so the file's bytes are
+    /// written back undecoded: a binary file must not pass through UTF-8.
     fn modify(
         &self,
         target: &Path,
@@ -277,22 +323,12 @@ impl FileApply<'_> {
             .map_err(|source| self.failed(format!("stat {}: {source}", target.display())))?;
         let bytes = fs::read(target)
             .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
-        let original = String::from_utf8_lossy(&bytes).into_owned();
-        let updated = match tolerant::apply(&original, text_patch) {
-            Ok(updated) => updated,
-            // File is already in the post-patch state, reverse applies
-            // cleanly. If the patch requested a mode change that is not yet
-            // reflected, or the target is still a symlink, re-write atomically
-            // to break store hardlinks and safely isolate without mutating inodes in-place.
-            Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => {
-                if atomic_write::needs_mode_change(target, new_mode) || target.is_symlink() {
-                    original
-                } else {
-                    return Ok(());
-                }
-            }
-            Err(message) => {
-                return Err(self.failed(format!("apply to {}: {message}", target.display())));
+        let updated = if text_patch.hunks().is_empty() {
+            bytes
+        } else {
+            match self.patched_text(target, &bytes, text_patch, new_mode)? {
+                Some(updated) => updated.into_bytes(),
+                None => return Ok(()),
             }
         };
         // `rename` creates a new dirent → inode mapping at `target`, which
@@ -305,8 +341,33 @@ impl FileApply<'_> {
         // patched output is captured by the side-effects cache
         // after this returns; nothing requires the store copy
         // to carry it.
-        write_atomic_with_mode(target, updated.as_bytes(), Some(&permissions))
+        write_atomic_with_mode(target, &updated, Some(&permissions))
             .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
+    }
+
+    /// The file's content with the hunks applied, or `None` when the file
+    /// already carries them and needs no rewrite.
+    fn patched_text(
+        &self,
+        target: &Path,
+        bytes: &[u8],
+        text_patch: &Patch<'_, str>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<Option<String>, PatchApplyError> {
+        let original = String::from_utf8_lossy(bytes).into_owned();
+        match tolerant::apply(&original, text_patch) {
+            Ok(updated) => Ok(Some(updated)),
+            // File is already in the post-patch state, reverse applies
+            // cleanly. If the patch requested a mode change that is not yet
+            // reflected, or the target is still a symlink, re-write atomically
+            // to break store hardlinks and safely isolate without mutating inodes in-place.
+            Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => {
+                let rewrite =
+                    atomic_write::needs_mode_change(target, new_mode) || target.is_symlink();
+                Ok(rewrite.then_some(original))
+            }
+            Err(message) => Err(self.failed(format!("apply to {}: {message}", target.display()))),
+        }
     }
 
     /// An existing `to` is not overwritten, for the reason [`Self::create`]
@@ -389,7 +450,7 @@ impl FileApply<'_> {
         }
         let existing = fs::read(target)
             .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
-        if String::from_utf8_lossy(&existing) != created {
+        if existing != created.as_bytes() {
             let target = target.display();
             return Err(self.failed(format!("cannot create {target}: target already exists")));
         }

@@ -69,7 +69,7 @@ exports[`parsePatchFile() parses a patch with CRLF line breaks 1`] = `
       "header": {
         "original": {
           "length": 0,
-          "start": 1,
+          "start": 0,
         },
         "patched": {
           "length": 1,
