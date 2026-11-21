@@ -31,8 +31,13 @@ pub enum PermissionValue {
 /// Upsert `name → bool` entries into `dir`'s `pnpm-workspace.yaml`
 /// `allowBuilds:` block (creating the file/block if absent), preserving the
 /// rest of the document's formatting, and write the file back only when
-/// something actually changed. Used by `pnpm approve-builds` to record
-/// which dependencies may (`true`) or may not (`false`) run build scripts.
+/// something actually changed. Records which dependencies may (`true`) or
+/// may not (`false`) run build scripts.
+///
+/// When the file has a `permissions` block, each decision lands there as
+/// [`set_permissions`] places a [`PermissionValue::Build`]: a
+/// `permissions.<name>.build` entry outranks `allowBuilds.<name>`, so an
+/// `allowBuilds` write would not take effect.
 ///
 /// `entries` is iterated in its own order; pass an ordered map for a
 /// deterministic result.
@@ -125,12 +130,20 @@ where
     let path = target.path.clone();
 
     let entries: Vec<(&str, bool)> = entries.into_iter().collect();
-    validate_allow_build_entries(&manifest, &path, &entries, &[&["allowBuilds"]])?;
+    validate_allow_build_entries(
+        &manifest,
+        &path,
+        &entries,
+        &[&["allowBuilds"], &["permissions"]],
+    )?;
 
-    let mut changed = false;
-    for (name, value) in entries {
-        changed |= edit::add_allow_build(&mut manifest, name, value);
-    }
+    let mut changed = record_permissions(
+        &mut manifest,
+        entries
+            .into_iter()
+            .map(|(name, allowed)| (name, PermissionValue::Build(allowed)))
+            .collect(),
+    );
     if clear_legacy_settings {
         for key in LEGACY_BUILD_SETTINGS {
             changed |= edit::remove_top_level_field(&mut manifest, key);

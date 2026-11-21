@@ -162,9 +162,12 @@ impl ApproveBuildsArgs {
         config: &Config,
         rebuild_config: &Config,
         manifest_path: &Path,
-        scan: IgnoredBuildsScan,
+        mut scan: IgnoredBuildsScan,
     ) -> miette::Result<Option<(State, Vec<String>)>> {
         self.validate()?;
+        if self.packages.is_empty() {
+            exclude_disallowed_builds(&mut scan, config);
+        }
         let pending = scan.names.unwrap_or_default();
         if pending.is_empty() && self.packages.is_empty() {
             pnpm_diagnostics::println!("There are no packages awaiting approval");
@@ -323,11 +326,10 @@ pub(crate) struct Partition {
 impl Partition {
     /// Reject a bare-name approval when the pending dependency is one a bare
     /// name cannot identify: a `file:`/`link:` path, a git URL, or a tarball
-    /// URL. Only a default-registry semver is approvable by name; a named
-    /// registry key (`name@alias:version`) lacks the registry-origin shape
-    /// that `AllowBuildPolicy` trusts, so it needs the exact selector too.
+    /// URL. A registry semver, from the default or a named registry, is
+    /// approvable by name.
     /// [`parse_dep_path_name_version`] strips peer and patch suffixes, so a
-    /// patched default-registry entry stays approvable by name.
+    /// patched registry entry stays approvable by name.
     fn require_exact_selectors(&self, pending: &[String]) -> miette::Result<()> {
         if self.unknown.is_empty() {
             return Ok(());
@@ -337,7 +339,7 @@ impl Partition {
             .filter(|key| {
                 parse_dep_path_name_version(key)
                     .is_some_and(|(name, version)| {
-                        node_semver::Version::parse(version).is_err()
+                        pnpm_package_name::registry_version(version).is_none()
                             && self.unknown
                                 .iter()
                                 .any(|unknown| unknown == name)
@@ -442,6 +444,9 @@ fn sort_unique(mut names: Vec<String>) -> Vec<String> {
 #[cfg(test)]
 mod tests;
 
+/// Drop the builds `config` denies from `scan`. A run that names no
+/// packages decides only the builds awaiting a decision, so it never turns a
+/// denial into an approval.
 pub(crate) fn exclude_disallowed_builds(scan: &mut IgnoredBuildsScan, config: &Config) {
     if let Some(names) = scan.names.as_mut() {
         names.retain(|name| {

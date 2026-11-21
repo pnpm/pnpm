@@ -333,6 +333,8 @@ allowBuilds:
   nx@21.6.0: false
 ```
 
+A package from a [named registry](../package-sources.md#named-registries) matches these entries the same way as one from the default registry: `nx@21.6.0` covers `nx@work:21.6.0` too.
+
 **Git-hosted packages:** a package name on its own never approves builds for a git or tarball dependency, because the name alone does not identify the artifact. Approve one either by its exact resolved path (including the commit) or by its repository URL:
 
 ```yaml title="pnpm-workspace.yaml"

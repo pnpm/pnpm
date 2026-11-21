@@ -85,6 +85,15 @@ fn bare_name_rule_matches_registry_and_local_directories_only() {
 }
 
 #[test]
+fn named_registry_packages_match_name_and_version_rules() {
+    let policy =
+        policy(&[("foo", chosen(&["guide"])), ("foo@2.0.0", SkillsPermission::All(false))]);
+    assert_eq!(policy.check("foo@work:1.0.0"), Some(chosen(&["guide"])));
+    assert_eq!(policy.check("foo@work:2.0.0"), Some(SkillsPermission::All(false)));
+    assert_eq!(super::skill_approval_key("foo@work:1.0.0"), "foo");
+}
+
+#[test]
 fn skill_approval_key_uses_bare_name_for_local_directories_and_dep_path_for_tarballs() {
     use super::skill_approval_key;
 

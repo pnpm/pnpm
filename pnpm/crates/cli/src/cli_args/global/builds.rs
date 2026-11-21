@@ -27,7 +27,17 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
     args.validate()?;
     let global_pkg_dir = base_config.global_pkg_dir.as_ref().ok_or(GlobalError::NoGlobalBinDir)?;
     warn_about_legacy_global_settings::<Reporter>(base_config, global_pkg_dir)?;
-    let (groups, pending) = scan_global_ignored_builds(base_config, global_pkg_dir)?;
+    let (groups, mut pending) = scan_global_ignored_builds(base_config, global_pkg_dir)?;
+    if args.packages.is_empty() {
+        let decided =
+            global_approval_store(base_config, global_pkg_dir)?.config_with_approvals(base_config)?;
+        pending.retain(|name| {
+            decided.allow_builds
+                .get(name)
+                .copied()
+                .unwrap_or(true)
+        });
+    }
     if pending.is_empty() && args.packages.is_empty() {
         pnpm_diagnostics::println!("There are no packages awaiting approval");
         return Ok(());
