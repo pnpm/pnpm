@@ -251,3 +251,17 @@ fn skips_the_bundled_dependencies_it_is_given() {
     reject_private_workspace_dependencies(&published, &private, &["secret".to_string()])
         .expect("a bundled dependency ships in the tarball");
 }
+
+#[test]
+fn rejects_a_private_dev_dependency_a_hook_moves_into_dependencies() {
+    let temp = fixture(true);
+    assert_rejected(export_with(
+        &temp,
+        &app("devDependencies", "workspace:*"),
+        None,
+        |published| {
+            let version = published["devDependencies"]["secret"].clone();
+            published["dependencies"] = json!({ "secret": version });
+        },
+    ));
+}

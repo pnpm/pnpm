@@ -25,6 +25,9 @@ use serde_json::{
 };
 use std::path::Path;
 
+const DEPENDENCY_FIELDS: &[&str] =
+    &["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
+
 /// A publishable package lists a private workspace package in
 /// `dependencies`.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -41,9 +44,10 @@ pub struct PrivateWorkspaceDependencyError {
     pub dep_name: String,
 }
 
-/// The registry names of the private workspace packages that `original`'s
-/// `dependencies` point at through a `workspace:` specifier, once a
-/// `catalog:` entry is resolved. Pass them to
+/// The registry names of the private workspace packages that any of
+/// `original`'s dependency fields point at through a `workspace:` specifier,
+/// once a `catalog:` entry is resolved. Every field counts, because a hook
+/// can move an entry into `dependencies`. Pass them to
 /// [`reject_private_workspace_dependencies`] after the `beforePacking` hooks
 /// have settled the published manifest.
 pub fn private_workspace_dependencies(
@@ -51,16 +55,19 @@ pub fn private_workspace_dependencies(
     original: &Value,
     opts: &CreateExportableManifestOptions<'_>,
 ) -> Result<Vec<String>, CreateExportableManifestError> {
-    let Some(dependencies) = original.get("dependencies").and_then(Value::as_object) else {
-        return Ok(Vec::new());
-    };
+    let dependencies = DEPENDENCY_FIELDS
+        .iter()
+        .filter_map(|field| original.get(*field).and_then(Value::as_object))
+        .flatten();
     let mut private = Vec::new();
     for (dep_name, spec) in dependencies {
         let Some(spec) = spec.as_str() else {
             continue;
         };
         let spec = replace_catalog_protocol(dep_name.clone(), spec, dir, opts)?;
-        if let Some(package) = private_workspace_package(dep_name, &spec, dir, opts)? {
+        if let Some(package) = private_workspace_package(dep_name, &spec, dir, opts)?
+            && !private.contains(&package)
+        {
             private.push(package);
         }
     }
