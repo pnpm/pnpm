@@ -82,6 +82,7 @@ The project document can contain the following keys.
 | `overrides` | The [`overrides`](./settings/dependency-resolution.md#overrides) in effect, in the order they are declared. |
 | `packageExtensionsChecksum` | A hash of the [`packageExtensions`](./settings/dependency-resolution.md#packageextensions) in effect. |
 | `pnpmfileChecksum` | A hash of the [pnpmfile](./pnpmfile.md), when it defines hooks. |
+| `untrackedPnpmfileReadPackageHook` | Whether a hook source excluded from `pnpmfileChecksum` provides a `readPackage` hook. Omitted when there is no such source. |
 | `ignoredOptionalDependencies` | The [`ignoredOptionalDependencies`](./settings/dependency-resolution.md#ignoredoptionaldependencies) in effect. |
 | `patchedDependencies` | Each [patched dependency](./cli/patch.md#patcheddependencies) selector mapped to the SHA-256 hex digest of its patch file. |
 | `importers` | See [importers](#importers). |
