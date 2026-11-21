@@ -1,5 +1,6 @@
 use crate::state::State;
 use clap::Args;
+use command_extra::CommandExtra;
 use miette::{
     Context,
     IntoDiagnostic,
@@ -46,17 +47,7 @@ impl EditArgs {
                 "Cannot edit dependencies in a shared virtual store",
             ));
         }
-        let modules_dir_name = state.config.modules_dir
-            .file_name()
-            .unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
-        let project_modules_dir = state.project_dir().join(modules_dir_name);
-        let workspace_modules_dir = dunce::canonicalize(&state.config.modules_dir).ok();
-        let real_pkg_path = resolve_package_dir_with_fallback(
-            &project_modules_dir,
-            workspace_modules_dir.as_deref(),
-            &parts,
-            state.config.virtual_store_dir(),
-        )?;
+        let real_pkg_path = installed_package_dir(&state, &parts)?;
 
         let editor = self.pick_editor(&state);
         let project_root =
@@ -102,6 +93,20 @@ impl EditArgs {
             })
             .unwrap_or_else(|| if cfg!(windows) { "notepad".to_owned() } else { "vi".to_owned() })
     }
+}
+
+fn installed_package_dir(state: &State, parts: &[String]) -> miette::Result<PathBuf> {
+    let modules_dir_name = state.config.modules_dir
+        .file_name()
+        .unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+    let project_modules_dir = state.project_dir().join(modules_dir_name);
+    let workspace_modules_dir = dunce::canonicalize(&state.config.modules_dir).ok();
+    resolve_package_dir_with_fallback(
+        &project_modules_dir,
+        workspace_modules_dir.as_deref(),
+        parts,
+        state.config.virtual_store_dir(),
+    )
 }
 
 fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<PackageKey> {
@@ -178,22 +183,7 @@ fn resolve_package_dir(
         let candidate = if i == 0 {
             current_dir.join(part)
         } else if current_dir.starts_with(&virtual_store_dir) {
-            // pnpm's isolated layout puts a package and its dependency links
-            // beside one another in `<slot>/node_modules`, not under the
-            // package directory itself.
-            let package_modules = current_dir
-                .ancestors()
-                .find(|ancestor| {
-                    ancestor
-                        .file_name()
-                        .is_some_and(|name| name == "node_modules")
-                })
-                .ok_or_else(|| {
-                    miette!(
-                        "Could not find package node_modules directory under isolated virtual store"
-                    )
-                })?;
-            package_modules.join(part)
+            isolated_dependency_dir(&current_dir, part)?
         } else {
             current_dir.join("node_modules").join(part)
         };
@@ -207,6 +197,18 @@ fn resolve_package_dir(
     }
     verify_package_path_within_tree(&current_dir, &modules_dir, &virtual_store_dir)?;
     Ok(current_dir)
+}
+
+/// pnpm's isolated layout puts a package and its dependency links beside
+/// one another in `<slot>/node_modules`, not under the package directory.
+fn isolated_dependency_dir(package_dir: &Path, dependency: &str) -> miette::Result<PathBuf> {
+    package_dir
+        .ancestors()
+        .find(|ancestor| ancestor.file_name() == Some(std::ffi::OsStr::new("node_modules")))
+        .map(|package_modules| package_modules.join(dependency))
+        .ok_or_else(|| {
+            miette!("Could not find package node_modules directory under isolated virtual store")
+        })
 }
 
 fn resolve_package_dir_with_fallback(
@@ -250,10 +252,7 @@ fn resolve_editor_command(
         return Err(miette!("No editor command specified"));
     };
     let program_path = find_safe_program_path(program, project_root)?;
-    let mut command = Command::new(program_path);
-    command.args(args);
-    command.arg(real_pkg_path);
-    Ok(command)
+    Ok(Command::new(program_path).with_args(args).with_arg(real_pkg_path))
 }
 
 fn find_safe_program_path(

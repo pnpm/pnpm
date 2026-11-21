@@ -69,8 +69,7 @@ fn edit_dependency_successfully() {
 
     let dummy_editor = r#"node -e "const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \"modified\";');""#;
 
-    let mut cmd = pacquet(&workspace);
-    cmd.env("EDITOR", dummy_editor);
+    let cmd = pacquet(&workspace).with_env("EDITOR", dummy_editor);
     cmd.with_args(["edit", "is-positive"])
         .assert()
         .success();
@@ -119,7 +118,7 @@ fn edit_opens_nested_dependency_in_isolated_layout() {
             "edit",
             nested_package,
             "--editor",
-            "node -e \"require('fs').writeFileSync(process.argv[1]+'/edited','yes')\"",
+            r#"node -e "require('fs').writeFileSync(process.argv[1]+'/edited','yes')""#,
         ])
         .assert()
         .success();
@@ -168,7 +167,7 @@ fn edit_uses_active_workspace_member_modules() {
             "edit",
             "@pnpm.e2e/bar",
             "--editor",
-            "node -e \"require('fs').writeFileSync(process.argv[1]+'/edited','yes')\"",
+            r#"node -e "require('fs').writeFileSync(process.argv[1]+'/edited','yes')""#,
         ])
         .output()
         .unwrap();
@@ -201,8 +200,7 @@ fn edit_dependency_fails_with_invalid_editor() {
         .assert()
         .success();
 
-    let mut cmd = pacquet(&workspace);
-    cmd.env("EDITOR", "non_existent_editor_command_xyz");
+    let cmd = pacquet(&workspace).with_env("EDITOR", "non_existent_editor_command_xyz");
     let output = cmd
         .with_args(["edit", "is-positive"])
         .output()
@@ -319,8 +317,7 @@ fn edit_flag_editor_overrides_env_and_accepts_arguments() {
         .success();
 
     let dummy_editor = r#"node -e "const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \"flag-edited\";');""#;
-    let mut cmd = pacquet(&workspace);
-    cmd.env("EDITOR", "non_existent_editor_command_xyz");
+    let cmd = pacquet(&workspace).with_env("EDITOR", "non_existent_editor_command_xyz");
     cmd.with_args(["edit", "is-positive", "--editor", dummy_editor])
         .assert()
         .success();
@@ -353,8 +350,7 @@ fn edit_fails_when_editor_exits_non_zero() {
         .assert()
         .success();
 
-    let mut cmd = pacquet(&workspace);
-    cmd.env("EDITOR", r#"node -e "process.exit(1)""#);
+    let cmd = pacquet(&workspace).with_env("EDITOR", r#"node -e "process.exit(1)""#);
     let output = cmd
         .with_args(["edit", "is-positive"])
         .output()
@@ -409,21 +405,19 @@ fn edit_uses_configured_editor() {
         fs::create_dir_all(&package_dir).unwrap();
         fs::write(package_dir.join("package.json"), r#"{"name":"test-dependency"}"#).unwrap();
         let editor = "pnpm-edit-configured-editor-missing";
-        let mut command = pacquet(&workspace).with_args(["edit", "test-dependency"]);
-        command.env("EDITOR", "pnpm-edit-fallback-editor-missing");
-        match source {
+        let command = pacquet(&workspace)
+            .with_args(["edit", "test-dependency"])
+            .with_env("EDITOR", "pnpm-edit-fallback-editor-missing");
+        let mut command = match source {
             "workspace" => {
                 fs::write(workspace.join("pnpm-workspace.yaml"), format!("editor: {editor}\n"))
                     .unwrap();
+                command
             }
-            "environment" => {
-                command.env("PNPM_CONFIG_EDITOR", editor);
-            }
-            "cli" => {
-                command.arg(format!("--config.editor={editor}"));
-            }
+            "environment" => command.with_env("PNPM_CONFIG_EDITOR", editor),
+            "cli" => command.with_arg(format!("--config.editor={editor}")),
             _ => unreachable!(),
-        }
+        };
         let output = command.output().unwrap();
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(!output.status.success());
