@@ -1,4 +1,5 @@
 use super::{
+    CheckVerdict,
     ConcurrentCheck,
     CreateVirtualStoreError,
     CreateVirtualStoreStoreContext,
@@ -24,11 +25,14 @@ use crate::{
     InstallPackageBySnapshotError,
 };
 use futures_util::{
+    FutureExt,
     StreamExt,
+    future::Shared,
     stream::FuturesUnordered,
 };
 use miette::Diagnostic;
 use pnpm_lockfile::{
+    LockfileResolution,
     PackageKey,
     PackageMetadata,
     PkgName,
@@ -184,10 +188,16 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
         return Ok(());
     }
 
+    let verification = check.take().map(FutureExt::shared);
+    *check = verification
+        .as_ref()
+        .map(|pending| pending.clone().boxed());
     let batch = &batch;
     let mut downloads: FuturesUnordered<_> = batch.cold
         .iter()
-        .map(|&(snapshot_key, snapshot)| download_one::<Reporter>(batch, snapshot_key, snapshot))
+        .map(|&(snapshot_key, snapshot)| {
+            download_one::<Reporter>(batch, snapshot_key, snapshot, verification.as_ref())
+        })
         .collect();
     let shared_packages = batch.shared_packages;
 
@@ -341,10 +351,11 @@ impl ColdLinker<'_> {
 /// One cold download. A failed optional snapshot lands in the first
 /// slot instead of failing the batch; the second carries what the link
 /// pass still has to place.
-pub(super) async fn download_one<'a, Reporter: self::Reporter>(
+async fn download_one<'a, Reporter: self::Reporter>(
     batch: &ColdBatch<'a>,
     snapshot_key: &'a PackageKey,
     snapshot: &'a SnapshotEntry,
+    verification: Option<&Shared<ConcurrentCheck<'_>>>,
 ) -> Result<(Option<PackageKey>, Option<ColdCapture<'a>>), CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = batch.reuse.packages
@@ -353,6 +364,14 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             snapshot_key: snapshot_key.to_string(),
             metadata_key: metadata_key.to_string(),
         })?;
+    // Binding an explicit URL can refresh the registry metadata that makes that tarball available.
+    if let Some(verification) = verification
+        && matches!(metadata.resolution, LockfileResolution::Tarball(_))
+        && metadata_key.suffix.registry_version().is_some()
+        && verification.clone().await == CheckVerdict::Abort
+    {
+        return Err(CreateVirtualStoreError::ConcurrentCheckAborted);
+    }
     let installed = match batch.installer.run::<Reporter>(snapshot_key, metadata, snapshot).await {
         Ok(installed) => installed,
         Err(err) => {
