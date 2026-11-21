@@ -334,17 +334,21 @@ async fn verification_can_make_a_locked_tarball_available_during_the_cold_batch(
     let mut batch = ColdMemCacheBatch::new(2);
     let url = "https://registry.test/cold-01@1.0.0";
     let integrity: ssri::Integrity = DUMMY_SHA512.parse().unwrap();
-    let metadata = batch.packages
-        .get_mut(&key("cold-01", "1.0.0"))
-        .unwrap();
-    metadata.resolution =
-        pnpm_lockfile::LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
-            tarball: url.to_string(),
-            integrity: Some(integrity.clone()),
-            revision: None,
-            git_hosted: None,
-            path: None,
-        });
+    for (name, tarball) in
+        [("cold-00", "https://registry.test/cold-00/-/cold-00-1.0.0.tgz"), ("cold-01", url)]
+    {
+        let metadata = batch.packages
+            .get_mut(&key(name, "1.0.0"))
+            .unwrap();
+        metadata.resolution =
+            pnpm_lockfile::LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+                tarball: tarball.to_string(),
+                integrity: Some(integrity.clone()),
+                revision: None,
+                git_hosted: None,
+                path: None,
+            });
+    }
     let canonical = pnpm_tarball::package_mem_cache_key(
         "https://registry.test/cold-01/-/cold-01-1.0.0.tgz",
         Some(&integrity),

@@ -138,11 +138,7 @@ async function refetchBypassingCache (
   return refetched
 }
 
-// Persist a freshly downloaded body so the next install can do a headers-only
-// conditional GET, then hand its meta back. Fire-and-forget: a cache-write
-// failure isn't a reason to fail the caller; the next install just won't get
-// the speedup.
-function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataResult, mirrorFullMetadata: boolean): PackageMeta {
+async function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataResult, mirrorFullMetadata: boolean): Promise<PackageMeta> {
   if (pkgMirror != null) {
     const write = mirrorWrite(fetched, mirrorFullMetadata)
     const content = encodeMirror({}, fetched, {
@@ -150,7 +146,7 @@ function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataRes
       etag: write.etag,
       body: write.body,
     })
-    saveMeta(pkgMirror, content).catch(() => {
+    await saveMeta(pkgMirror, content).catch(() => {
       return discardMirrorAfterFailedUncacheableWrite(pkgMirror, write.body.uncacheable === true)
     })
   }

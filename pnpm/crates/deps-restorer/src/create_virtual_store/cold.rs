@@ -366,10 +366,9 @@ async fn download_one<'a, Reporter: self::Reporter>(
             snapshot_key: snapshot_key.to_string(),
             metadata_key: metadata_key.to_string(),
         })?;
-    // Binding an explicit URL can refresh the registry metadata that makes that tarball available.
+    // A version-addressed tarball may only become available when verification refreshes its metadata.
     if let Some(verification) = verification
-        && matches!(metadata.resolution, LockfileResolution::Tarball(_))
-        && metadata_key.suffix.registry_version().is_some()
+        && is_version_addressed_tarball(&metadata_key, &metadata.resolution)
         && verification.clone().await == CheckVerdict::Abort
     {
         return Err(CreateVirtualStoreError::ConcurrentCheckAborted);
@@ -400,6 +399,17 @@ async fn download_one<'a, Reporter: self::Reporter>(
             force_import: batch.reuse.must_replace(snapshot_key),
         }),
     ))
+}
+fn is_version_addressed_tarball(key: &PackageKey, resolution: &LockfileResolution) -> bool {
+    let LockfileResolution::Tarball(tarball) = resolution else {
+        return false;
+    };
+    key.suffix
+        .registry_version()
+        .is_some_and(|version| {
+            tarball.revision.is_some()
+                || tarball.tarball.ends_with(&format!("/{}@{version}", key.name))
+        })
 }
 /// A failed download that [`swallow_optional_fetch_failure`] keeps from
 /// failing the batch still settles the progress row its fetch announced.

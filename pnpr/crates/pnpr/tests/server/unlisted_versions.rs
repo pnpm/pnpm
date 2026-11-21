@@ -251,12 +251,14 @@ async fn a_transient_refetch_error_can_be_retried_immediately() {
 /// The read of an expired packument already asked the upstream.
 #[tokio::test]
 async fn an_expired_packument_is_not_refetched_twice() {
-    let mut upstream = mockito::Server::new_async().await;
-    let tmp = TempDir::new().unwrap();
-    let app = app(&upstream.url(), tmp.path());
-    let failing = fail_after_caching(&mut upstream, &app, tmp.path(), TTL * 2).await;
+    for route in ["/npm/foo@1.0.1", "/npm/foo@1.0.1+r1"] {
+        let mut upstream = mockito::Server::new_async().await;
+        let tmp = TempDir::new().unwrap();
+        let app = app(&upstream.url(), tmp.path());
+        let failing = fail_after_caching(&mut upstream, &app, tmp.path(), TTL * 2).await;
 
-    let response = get(&app, "/npm/foo@1.0.1").await;
-    assert!(response.status().is_server_error());
-    failing.assert_async().await;
+        let response = get(&app, route).await;
+        assert!(response.status().is_server_error(), "{route}");
+        failing.assert_async().await;
+    }
 }

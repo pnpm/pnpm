@@ -935,8 +935,11 @@ test('verifies a locked tarball after revalidating metadata missing its version'
   pool.intercept({ path: `/${name}`, headers: { 'cache-control': 'no-cache' } }).reply(200, {
     name, 'dist-tags': { latest: version }, versions: { [version]: { name, version, dist: resolution } },
   })
-  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const opts = makeVerifierOpts()
+  const verifier = createNpmResolutionVerifier(opts)
   expect(await verifier.verify(resolution, { name, version })).toMatchObject({ ok: true })
+  const offline = createNpmResolutionVerifier({ ...opts, offline: true })
+  expect(await offline.verify(resolution, { name, version })).toMatchObject({ ok: true })
 })
 
 test('createNpmResolutionVerifier() still flags a version absent from fetched metadata as TARBALL_URL_MISMATCH', async () => {
