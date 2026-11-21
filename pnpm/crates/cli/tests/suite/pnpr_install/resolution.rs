@@ -1032,13 +1032,20 @@ fn loose_minimum_release_age_picks_are_persisted_and_reused_via_pnpr() {
     fs::write(&workspace_config, settings).expect("write release-age settings");
 
     let install = || {
-        pacquet_at(&workspace)
+        let assert = pacquet_at(&workspace)
             .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
             .with_args(["install", "--pnpr-server", &pnpr_url])
             .assert()
             .success();
+        String::from_utf8_lossy(&assert.get_output().stdout).into_owned()
     };
-    install();
+    let stdout = install();
+    assert!(
+        stdout.contains(
+            "Added 1 entry to minimumReleaseAgeExclude in pnpm-workspace.yaml (set minimumReleaseAgeStrict to true to gate these updates with a prompt):\n  @foo/no-deps@1.0.0"
+        ),
+        "loose pnpr resolution did not report the saved pick:\n{stdout}",
+    );
     let workspace_yaml = fs::read_to_string(&workspace_config).expect("read collected excludes");
     assert!(
         workspace_yaml.contains("minimumReleaseAgeExclude:")

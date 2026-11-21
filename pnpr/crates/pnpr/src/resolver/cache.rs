@@ -87,7 +87,7 @@ pub(super) fn store_resolution_with_allowed_picks(
     footprint: Footprint,
     secret: &[u8],
     lockfile: &Lockfile,
-    allowed_picks: &[String],
+    allowed_picks: Vec<String>,
 ) -> bool {
     if ttl.is_zero() {
         return false;
@@ -96,7 +96,7 @@ pub(super) fn store_resolution_with_allowed_picks(
     let descriptor_digest = footprint.digest(secret);
     let candidate = CachedResolution {
         lockfile: lockfile.clone(),
-        allowed_picks: allowed_picks.to_vec(),
+        allowed_picks,
         inserted: now,
         last_used: now,
         footprint,
@@ -148,7 +148,7 @@ pub(super) fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
         footprint.clone(),
         candidate.cache_secret,
         candidate.lockfile,
-        candidate.allowed_picks,
+        candidate.allowed_picks.to_vec(),
     );
     if footprint.is_public() {
         return;

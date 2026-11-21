@@ -68,7 +68,7 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
         private_alias_footprint("corp"),
         b"secret",
         &routed,
-        &allowed_picks,
+        allowed_picks.clone(),
     ));
     let cached = cached_resolution(
         &cache,

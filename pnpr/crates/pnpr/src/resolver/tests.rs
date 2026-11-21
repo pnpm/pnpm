@@ -103,7 +103,7 @@ fn store_resolution(
         footprint,
         secret,
         lockfile,
-        &[],
+        Vec::new(),
     )
 }
 

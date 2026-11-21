@@ -415,10 +415,6 @@ async function materializePnprLockfile (
     // zeros so the pnpr server's non-optional `stats` slot is filled.
     stats: stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     lockfile,
-    // The pnpr server enforces the whole verification policy itself and
-    // reports any violation as a terminal `violations` frame, which the
-    // client turns into a thrown error, so a resolve that got this far
-    // produced a policy-clean lockfile with nothing left to react to.
     resolutionPolicyViolations,
   }
 }
