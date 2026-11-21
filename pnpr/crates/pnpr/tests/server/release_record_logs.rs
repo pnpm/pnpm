@@ -273,6 +273,66 @@ async fn entry_bundles_are_read_only_by_who_may_read_every_package() {
     assert_eq!(decode_bundle(&body_bytes(bundle.into_body()).await).unwrap().len(), 2);
 }
 
+#[tokio::test]
+async fn log_reads_follow_grants_within_the_hosted_claims() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let reader = issue_token(&auth, "reader").await;
+    let admin = issue_token(&auth, "administrator").await;
+    let mut config = acme_config(tmp.path(), Vec::new());
+    config.identity.admins.insert(
+        auth.users
+            .account_id("administrator")
+            .await
+            .unwrap()
+            .unwrap(),
+    );
+    let rules = config.routing.hosted["acme"].rules.clone();
+    let reader_id = auth.users
+        .account_id("reader")
+        .await
+        .unwrap()
+        .unwrap();
+    let app = router_with_auth(config, auth);
+    publish(&app, &reader, "@acme/widget", "1.0.0").await;
+    wait_for_checkpoint_size(&app, 1).await;
+    rules.replace(pnpr_policy::RuleTable::new(
+        vec![access_rule("@acme/*", &reader_id)],
+        Some(AccessList::default()),
+    ));
+    for uri in ["/npm/-/log/checkpoint", "/npm/-/log/tile/entries/000.p/1"] {
+        let response = get(&app, uri, Some(&reader)).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+        assert_eq!(get(&app, uri, Some(&admin)).await.status(), StatusCode::NOT_FOUND);
+    }
+}
+
+#[tokio::test]
+async fn narrowed_claims_withhold_every_bundle_of_the_old_log() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "publisher").await;
+    let app = router_with_auth(acme_config(tmp.path(), Vec::new()), auth.clone());
+    publish(&app, &token, "@acme/widget", "1.0.0").await;
+    publish(&app, &token, "@acme/other", "1.0.0").await;
+    wait_for_checkpoint_size(&app, 2).await;
+    drop(app);
+    let mut config = acme_config(tmp.path(), Vec::new());
+    let hosted = Registry::Hosted {
+        patterns: vec![PackagePattern::parse("@acme/widget", Ecosystem::Npm).unwrap()],
+    };
+    config.routing.registries = Registries::new(
+        [("acme".to_string(), hosted)].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+    let app = router_with_auth(config, auth);
+    assert_eq!(get(&app, "/npm/-/log/checkpoint", None).await.status(), StatusCode::OK);
+    for uri in ["/npm/-/log/tile/entries/000.p/1", "/npm/-/log/tile/entries/000.p/2"] {
+        assert_eq!(get(&app, uri, None).await.status(), StatusCode::NOT_FOUND);
+    }
+}
+
 /// A hosted registry serves its namespace's log, also when addressed by
 /// name, and a registry that reaches no namespace serves none.
 #[tokio::test]

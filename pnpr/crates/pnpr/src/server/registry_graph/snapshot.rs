@@ -52,8 +52,7 @@ pub(crate) struct RoutingSnapshot {
     /// per-request path doesn't re-sort and re-hash an upstream's headers.
     pub(crate) upstream_cache_namespaces: IndexMap<String, String>,
     pub(crate) route_context: Arc<RouteContext>,
-    /// The resolver engine for this graph, built on the first resolve.
-    pub(crate) resolver: OnceLock<crate::resolver::Resolver>,
+    pub(crate) caches: RoutingCaches,
     /// The stored graph revision this snapshot was built from. `None` for a
     /// graph the configuration file declares.
     pub(crate) generation: Option<u64>,
@@ -61,6 +60,14 @@ pub(crate) struct RoutingSnapshot {
     /// snapshot starts serving; caches that outlive a snapshot key by it.
     pub(crate) epoch: u64,
     client_keys: IndexMap<String, UpstreamClientKey>,
+}
+
+pub(crate) struct RoutingCaches {
+    /// The resolver engine for this graph, built on the first resolve.
+    pub(crate) resolver: OnceLock<crate::resolver::Resolver>,
+    /// For each hosted registry, the log prefix checked against this graph's
+    /// claims. None once an entry falls outside them.
+    pub(crate) claimed_log_prefixes: IndexMap<String, tokio::sync::Mutex<Option<u64>>>,
 }
 
 impl Deref for RoutingSnapshot {
@@ -127,12 +134,16 @@ pub(crate) fn build_snapshot(
         })
         .collect();
     let route_context = Arc::new(RouteContext::from_routing(&routing, &config.http.public_url));
+    let claimed_log_prefixes = routing.hosted
+        .keys()
+        .map(|name| (name.clone(), tokio::sync::Mutex::new(Some(0))))
+        .collect();
     RoutingSnapshot {
         routing,
+        caches: RoutingCaches { resolver: OnceLock::new(), claimed_log_prefixes },
         upstream_clients,
         upstream_cache_namespaces,
         route_context,
-        resolver: OnceLock::new(),
         generation: None,
         epoch: 0,
         client_keys,

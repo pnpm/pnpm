@@ -490,7 +490,8 @@ several, serves no log.
 Anyone who may read a package of the namespace reads its checkpoint and
 hash tiles. An entry bundle names every package logged with it, so only a
 caller who may read every package of the namespace gets the entry bundles;
-anyone else gets a 404 for every bundle. When some package is closed to
+anyone else gets a 404 for every bundle. If a registry narrows its package
+patterns and stops claiming a logged name, its entry bundles also return 404. When some package is closed to
 anonymous callers, these responses are `Cache-Control: private, no-store`.
 
 A record's evidence, `/{name}/{version}+r{revision}/evidence`, is read as the

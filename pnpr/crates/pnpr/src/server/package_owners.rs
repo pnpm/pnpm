@@ -7,10 +7,13 @@
 //! neither protocol defines one.
 
 use super::{
+    Action,
     AppState,
     AuthedCaller,
+    Ownership,
     RegistrySource,
     TargetRegistry,
+    authorize_with_ownership,
     documents::{
         HostedDocument,
         read_hosted_document,
@@ -175,7 +178,10 @@ pub(super) async fn change_owners<Document: HostedDocument>(
     let current =
         storage.read_hosted_document_for_update(&key).await?.ok_or(RegistryError::NotFound)?;
     let current = parse_current::<Document>(&key, &current.bytes)?;
-    authorize_owner_change(state, identity, &key, current.owners())?;
+    let source = RegistrySource::Hosted(target.source.clone());
+    let authorize =
+        |owners: &[String]| authorize_owner_change(state, identity, &source, (&key, owners));
+    authorize(current.owners())?;
     let requested = account_ids(state, &logins, change).await?;
     let outcome = storage.update_hosted_document_with_retry(
         &key,
@@ -184,7 +190,7 @@ pub(super) async fn change_owners<Document: HostedDocument>(
         |bytes| {
             let Some(bytes) = bytes else { return Ok(None) };
             let mut document = parse_current::<Document>(&key, bytes)?;
-            authorize_owner_change(state, identity, &key, document.owners())?;
+            authorize(document.owners())?;
             apply_change(&key, document.owners_mut(), &requested, change)?;
             Ok(Some(document.to_bytes()))
         },
@@ -270,8 +276,8 @@ fn parse_current<Document: HostedDocument>(
 fn authorize_owner_change(
     state: &AppState,
     identity: &Identity,
-    key: &CanonicalPackageName,
-    owners: &[String],
+    source: &RegistrySource,
+    (key, owners): (&CanonicalPackageName, &[String]),
 ) -> Result<(), RegistryError> {
     let allowed = identity
         .user_id()
@@ -282,7 +288,13 @@ fn authorize_owner_change(
                     .any(|owner| owner == caller)
         });
     if allowed {
-        return Ok(());
+        return authorize_with_ownership(
+            state,
+            identity,
+            source,
+            (key.as_str(), &Ownership::Owners(owners)),
+            Action::Annotate,
+        );
     }
     Err(RegistryError::Forbidden {
         user: identity

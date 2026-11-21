@@ -115,6 +115,36 @@ async fn cargo_owner_lists_adds_and_removes_owners() {
 }
 
 #[tokio::test]
+async fn owner_changes_require_an_annotate_grant() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let owner = issue_token(&auth, "publisher").await;
+    let admin = issue_token(&auth, "administrator").await;
+    let mut config = cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all");
+    config.identity.admins.insert(
+        auth.users
+            .account_id("administrator")
+            .await
+            .unwrap()
+            .unwrap(),
+    );
+    let rules = config.routing.hosted["crates"].rules.clone();
+    let app = router_with_auth(config, auth);
+    assert_eq!(publish(&app, &owner, "0.1.0").await, StatusCode::OK);
+    rules.replace(
+        pnpr_policy::RuleTable::default().with_default_publish(pnpr::AccessList::default()),
+    );
+    let owners = "/cargo/api/v1/crates/demo/owners";
+    for token in [&owner, &admin] {
+        for method in ["PUT", "DELETE"] {
+            let (status, _) = owner_request(&app, method, owners, token, &["administrator"]).await;
+            assert_eq!(status, StatusCode::FORBIDDEN);
+        }
+    }
+    assert_eq!(logins(&app, owners, &owner).await, ["publisher"]);
+}
+
+#[tokio::test]
 async fn cargo_owner_rejects_an_unknown_user_and_removing_the_last_owner() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();

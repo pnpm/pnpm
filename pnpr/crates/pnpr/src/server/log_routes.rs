@@ -52,7 +52,6 @@ use pnpm_release_record::{
     StoredRecord,
 };
 use pnpm_transparency_log::TilePath;
-use pnpr_config::HostedConfig;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::transparency_log::{
     InclusionProof,
@@ -60,6 +59,9 @@ use pnpr_storage::transparency_log::{
 };
 use serde_json::json;
 use std::time::Duration;
+
+mod readers;
+use readers::LogReaders;
 
 /// How long a read of a record's evidence waits for the record's entry to
 /// be integrated before it answers that the proof is pending.
@@ -93,7 +95,12 @@ pub(super) async fn get_log_resource(
     } else {
         match resource.parse::<TilePath>() {
             Ok(TilePath::Entries { .. }) if !readers.may_read_all => (not_found(), false),
-            Ok(path @ TilePath::Entries { .. }) => {
+            Ok(path @ TilePath::Entries { index, width }) => {
+                match readers::log_still_claimed(&state, &log, index, width).await {
+                    Ok(true) => {}
+                    Ok(false) => return private_no_cache(not_found()),
+                    Err(error) => return error.into_response(),
+                }
                 (serve_tile(&state, &log, path).await, anyone.may_read_all)
             }
             Ok(path) => (serve_tile(&state, &log, path).await, anyone.may_read_some),
@@ -161,44 +168,6 @@ fn registry_log(state: &AppState, registry: Option<&str>) -> Option<LogId> {
     }
     state.inner.config.release_records.log_signing_key.as_ref()?;
     Some(LogId { namespace: namespace.to_string(), ecosystem: Ecosystem::Npm })
-}
-
-/// What one caller may read of a log.
-struct LogReaders {
-    /// The caller may read some package the log holds.
-    may_read_some: bool,
-    /// The caller may read every package the log holds.
-    may_read_all: bool,
-}
-
-impl LogReaders {
-    /// What `identity` may read of `log`, by the rules of every hosted
-    /// registry of its namespace.
-    fn of(state: &AppState, log: &LogId, identity: &Identity) -> Self {
-        let routing = state.routing();
-        let hosted: Vec<&HostedConfig> = routing.hosted
-            .iter()
-            .filter(|(name, hosted)| {
-                hosted.namespace == log.namespace
-                    && routing.registries.ecosystem(name) == Some(log.ecosystem)
-            })
-            .map(|(_, hosted)| hosted)
-            .collect();
-        let is_admin = identity
-            .user_id()
-            .is_some_and(|username| state.inner.config.identity.admins.contains(username));
-        // No registry's rules admit anyone to a log no registry holds.
-        let may_read_all = is_admin
-            || (!hosted.is_empty()
-                && hosted
-                    .iter()
-                    .all(|hosted| hosted.rules.snapshot().all_access_admit(identity)));
-        let may_read_some = may_read_all
-            || hosted
-                .iter()
-                .any(|hosted| hosted.rules.snapshot().any_access_admits(identity));
-        Self { may_read_some, may_read_all }
-    }
 }
 
 /// `GET <base>/<name>/<version>+r<revision>/evidence`: the record's digest
