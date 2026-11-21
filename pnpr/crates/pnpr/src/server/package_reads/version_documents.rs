@@ -76,8 +76,18 @@ async fn serve_registry_version_manifest(
     };
     let routing = state.routing();
     let view = dist_view(state, &routing, registry, &resolved_source, tar_integrities.as_ref());
+    render_version_document(&packument, &name, (version_or_tag, revision), view, tarball_base)
+}
+
+fn render_version_document(
+    packument: &Value,
+    name: &CanonicalPackageName,
+    (version_or_tag, revision): (&str, Option<u64>),
+    view: super::super::tar_registry::DistView<'_>,
+    tarball_base: &str,
+) -> Response {
     let manifest =
-        version_manifest(&packument, &name, (version_or_tag, view.revision_registry), tarball_base);
+        version_manifest(packument, name, (version_or_tag, view.revision_registry), tarball_base);
     let Some(manifest) = manifest.filter(|manifest| addresses(manifest, version_or_tag, revision))
     else {
         return not_found();
