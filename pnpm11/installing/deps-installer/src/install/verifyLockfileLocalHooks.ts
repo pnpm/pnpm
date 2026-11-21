@@ -173,11 +173,11 @@ async function probeSingleCandidate (
   if (needsRanged && pristine != null) recordPristineSpecs(candidate, pristine, acc.pristineSpecs)
   if (activeHooks == null) return
   const realInput = pristine != null ? await hookInput(activeHooks, pristine) : undefined
-  const input = realInput ?? await hookInput(activeHooks, placeholderManifest(candidate, PROBE_SENTINEL_SPEC))
+  const input = realInput ?? await placeholderInput(activeHooks, candidate, PROBE_SENTINEL_SPEC)
   const hooked = await runReadPackageProbe(activeHooks.hooks, { input, placeholder: realInput == null })
   const altHooked = realInput == null
     ? await runReadPackageProbe(activeHooks.hooks, {
-      input: await hookInput(activeHooks, placeholderManifest(candidate, PROBE_ALT_SENTINEL_SPEC)),
+      input: await placeholderInput(activeHooks, candidate, PROBE_ALT_SENTINEL_SPEC),
       placeholder: true,
     })
     : undefined
@@ -195,15 +195,18 @@ async function hookInput (replay: ReadPackageReplay, manifest: PackageManifest):
   return replay.preHook == null ? linked : replay.preHook(clone(linked))
 }
 
-function placeholderManifest (candidate: ProbeCandidate, sentinel: string): PackageManifest {
-  return {
-    name: candidate.name,
-    version: candidate.version ?? sentinel,
-    dependencies: sentinelMap(candidate.dependencies, sentinel),
-    optionalDependencies: sentinelMap(candidate.optionalDependencies, sentinel),
-    peerDependencies: sentinelMap(candidate.peerDependencies, sentinel),
-    devDependencies: {},
-  }
+/**
+ * A stand-in for a candidate whose real manifest is unavailable. The pre-hook
+ * transforms run first, so a range they add reaches the hooks. Each child
+ * alias they leave unset gets `sentinel`.
+ */
+async function placeholderInput (replay: ReadPackageReplay, candidate: ProbeCandidate, sentinel: string): Promise<PackageManifest> {
+  const manifest = await hookInput(replay, { name: candidate.name, version: candidate.version ?? sentinel, devDependencies: {} })
+  const aliasesByField = [candidate.dependencies, candidate.optionalDependencies, candidate.peerDependencies]
+  PROBE_FIELDS.forEach((field, idx) => {
+    manifest[field] = { ...sentinelMap(aliasesByField[idx], sentinel), ...manifest[field] }
+  })
+  return manifest
 }
 
 async function runReadPackageProbe (

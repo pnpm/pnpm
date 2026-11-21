@@ -26,8 +26,6 @@ pub struct DependencyManifestExtensions {
 }
 
 impl DependencyManifestExtensions {
-    /// The chain `config` selects.
-    ///
     /// # Errors
     ///
     /// A `packageExtensions` selector whose range does not parse.
@@ -47,7 +45,6 @@ impl DependencyManifestExtensions {
         })
     }
 
-    /// The configured `packageExtensions`, when they extend anything.
     #[must_use]
     pub fn configured(&self) -> Option<&Arc<PackageExtender>> {
         self.configured.as_ref()
