@@ -141,25 +141,28 @@ describe('lockfile minimumReleaseAge verification', () => {
 
     const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
     expect(fs.existsSync(cacheFile)).toBe(true)
-    const lines = fs.readFileSync(cacheFile, 'utf8').split('\n').filter(Boolean)
-    const records = lines.map((line) => JSON.parse(line) as {
-      lockfile: { hash: string, path: string }
-      policy: Record<string, unknown>
-    })
-    const lockfilePath = path.resolve('pnpm-lock.yaml')
-    const recordForLockfile = records.find((record) => record.lockfile.path === lockfilePath)
-    expect(recordForLockfile).toBeDefined()
-    expect(recordForLockfile!.policy).toMatchObject({ minimumReleaseAge: 1 })
+    // Recorded by content only: a stat of the path taken after the write
+    // could describe a file another process put there since.
+    const contentRecord = readVerificationRecords(cacheFile).find((record) => record.lockfile.path === '')
+    expect(contentRecord).toBeDefined()
+    expect(contentRecord!.policy).toMatchObject({ minimumReleaseAge: 1 })
 
     // Re-running install completes without hitting the registry to
     // re-verify is-positive. We can't directly observe the network skip,
     // but a clean run with --offline confirms the cache short-circuit
     // works end-to-end (the verifier would otherwise need a registry
     // round-trip to evaluate the cutoff).
+    fs.rmSync('node_modules', { recursive: true, force: true })
     execPnpmSync(
       [PUBLIC_REGISTRY, '--offline', 'install', '--frozen-lockfile'],
       { ...omitMinReleaseAgeEnv, expectSuccess: true }
     )
+
+    // That install hashed the lockfile it read, hit the content record, and
+    // indexed the path for the stat shortcut.
+    const lockfilePath = path.resolve('pnpm-lock.yaml')
+    const pathRecord = readVerificationRecords(cacheFile).find((record) => record.lockfile.path === lockfilePath)
+    expect(pathRecord?.lockfile.hash).toBe(contentRecord!.lockfile.hash)
   })
 
   test('loose mode rejects immature lockfile entries that are not on minimumReleaseAgeExclude', () => {
@@ -446,3 +449,13 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 })
+
+function readVerificationRecords (cacheFile: string): Array<{
+  lockfile: { hash: string, path: string }
+  policy: Record<string, unknown>
+}> {
+  return fs.readFileSync(cacheFile, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as { lockfile: { hash: string, path: string }, policy: Record<string, unknown> })
+}
