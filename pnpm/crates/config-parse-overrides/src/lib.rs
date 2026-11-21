@@ -201,6 +201,7 @@ pub fn parse_pkg_and_parent_selector(
 /// Split a `parent>child` selector at its delimiter, so a `>` inside the
 /// parent's range, as in `parent@>=1.0.0>child`, stays part of the parent.
 /// Returns `None` for a selector without a parent.
+#[must_use]
 pub fn split_parent_selector(selector: &str) -> Option<(&str, &str)> {
     let delimiter_idx = find_parent_delimiter(selector)?;
     Some((&selector[..delimiter_idx], &selector[delimiter_idx + 1..]))
