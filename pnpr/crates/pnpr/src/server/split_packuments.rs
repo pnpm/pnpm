@@ -114,7 +114,7 @@ fn leave_out_unlikely_picks(document: &mut Value, inline: &HashSet<String>) {
 }
 
 /// pnpr's document for an abbreviated packument, with every manifest inline.
-fn install_v2(abbreviated: &Value, config: &PackageDocumentsConfig) -> Value {
+pub(super) fn install_v2(abbreviated: &Value, config: &PackageDocumentsConfig) -> Value {
     let versions = object_field(abbreviated, "versions");
     let window = SignedDuration::try_from(config.publish_time_window).ok();
     let times_since = last_publish(versions, object_field(abbreviated, "time"))
@@ -241,6 +241,15 @@ fn likely_picks(abbreviated: &Value) -> HashSet<String> {
         .filter_map(Value::as_str)
         .map(str::to_string)
         .collect();
+    // A literal version or tag can occupy the URL of another version's record.
+    for key in object_field(abbreviated, "versions")
+        .keys()
+        .chain(object_field(abbreviated, "dist-tags").keys())
+    {
+        if let (base, Some(_)) = record_address(key) {
+            picks.insert(base.to_owned());
+        }
+    }
     let mut highest: BTreeMap<(u64, u64), (Version, &String)> = BTreeMap::new();
     let releases = object_field(abbreviated, "versions")
         .keys()

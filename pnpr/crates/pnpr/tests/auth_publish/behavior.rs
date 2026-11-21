@@ -570,8 +570,8 @@ async fn publish_followed_by_dist_tag_set_works() {
     let tags_body = body_json(tags.into_body()).await;
     assert_eq!(tags_body["latest"], "1.0.0");
 
-    // PUT a new "beta" tag pointing at 2.0.0.
-    let request = Request::put("/npm/-/package/tagpkg/dist-tags/beta")
+    // PUT a new "beta+r0" tag pointing at 2.0.0.
+    let request = Request::put("/npm/-/package/tagpkg/dist-tags/beta+r0")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_string("2.0.0").unwrap()))
@@ -594,14 +594,14 @@ async fn publish_followed_by_dist_tag_set_works() {
         .await
         .unwrap();
     let tags_body = body_json(tags.into_body()).await;
-    assert_eq!(tags_body["beta"], "2.0.0");
+    assert_eq!(tags_body["beta+r0"], "2.0.0");
     assert_eq!(tags_body["latest"], "1.0.0");
 
     // And via the version-manifest endpoint resolving the tag.
     let manifest = app
         .clone()
         .oneshot(
-            Request::get("/npm/tagpkg/beta")
+            Request::get("/npm/tagpkg/beta+r0")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -611,7 +611,7 @@ async fn publish_followed_by_dist_tag_set_works() {
     assert_eq!(manifest_body["version"], "2.0.0");
 
     // Now DELETE it.
-    let request = Request::delete("/npm/-/package/tagpkg/dist-tags/beta")
+    let request = Request::delete("/npm/-/package/tagpkg/dist-tags/beta+r0")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -631,7 +631,7 @@ async fn publish_followed_by_dist_tag_set_works() {
         .await
         .unwrap();
     let tags_body = body_json(tags.into_body()).await;
-    assert!(tags_body.get("beta").is_none(), "beta tag should be removed");
+    assert!(tags_body.get("beta+r0").is_none(), "beta+r0 tag should be removed");
 }
 
 #[tokio::test]

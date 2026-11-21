@@ -269,7 +269,7 @@ fn render_document(
     };
     let expires = cache_expiry(representation, &doc, now);
     let (body, content_type) =
-        representation.render(doc, &state.inner.config.http.package_documents, now)?;
+        representation.render(doc, &state.inner.config.http.package_documents, now, view)?;
     let etag = format!(r#""{}""#, super::super::ecosystem::sha256_hex(&body));
     Ok(RenderedPackument {
         body: body.into(),

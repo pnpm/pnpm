@@ -70,6 +70,17 @@ fn likely_picks_are_the_tag_targets_and_the_highest_of_each_line() {
 }
 
 #[test]
+fn a_split_document_keeps_versions_whose_record_urls_are_occupied() {
+    let mut source = packument();
+    source["versions"]["1.0.0+r0"] = version("sha512-i");
+    source["dist-tags"]["0.1.0+r0"] = json!("2.1.0");
+    let split = document(&source, true);
+    for base in ["1.0.0", "0.1.0"] {
+        assert!(split["versions"][base]["manifest"].is_object());
+    }
+}
+
+#[test]
 fn a_small_document_keeps_every_manifest() {
     let doc = document(&packument(), false);
     assert_eq!(doc["name"], json!("acme"));

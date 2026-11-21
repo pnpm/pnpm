@@ -110,7 +110,6 @@ use tar_registry::{
     describe_tar,
     describe_tars,
     dist_view,
-    has_settled_tar_facts,
     is_tar_registry,
     restore_tgz_integrities,
     split_package_identifier,

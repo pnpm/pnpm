@@ -3,10 +3,7 @@
 //! and the npm-format views from which pnpr's facts are removed.
 
 use super::{
-    super::{
-        describe_tar,
-        has_settled_tar_facts,
-    },
+    super::describe_tar,
     DIST_FIELDS,
     PNPR_FIELDS,
 };
@@ -68,50 +65,22 @@ pub(in super::super) fn version_document_response(
     json_response(&manifest)
 }
 
-/// The release record of `revision`. It is cached forever only once pnpr
-/// has derived every fact about its archive: until then, a later read could
-/// add one.
+/// A synthesized record's URL can later name a literal upstream version or tag.
 fn release_record_response(manifest: &Value, revision: u64, tars: TarFacts<'_>) -> Response {
     let Some(mut source) = revision_source(manifest, revision) else {
         return super::super::not_found();
     };
-    let settled = tars.is_some_and(|(table, _)| has_settled_tar_facts(&source, table));
     if let Some((table, tar_registry)) = tars {
         describe_tar(&mut source, table, tar_registry);
     }
-    let response = json_response(&named_record(manifest, &source));
-    if settled { immutable(response) } else { response }
+    json_response(&named_record(manifest, &source))
 }
 
 /// The response for the release record a version was accepted with,
 /// `bytes` as the metadata store keeps them. They never change, so they are
 /// served as they are and cached forever.
-///
-/// `tars` is the tar-integrity table of a registry that serves tars: the
-/// record is described by its tar's integrity instead of the `.tgz`'s it was
-/// accepted with, and is cached forever only once that integrity is known.
-/// Those are not the bytes the record was accepted with.
-pub(in super::super) fn accepted_record_response(
-    bytes: Vec<u8>,
-    tars: Option<&BTreeMap<String, DerivedTar>>,
-) -> Response {
-    let Some(table) = tars else { return immutable(json_bytes_response(bytes)) };
-    let mut record: Value = match serde_json::from_slice(&bytes) {
-        Ok(record) => record,
-        Err(err) => return super::super::RegistryError::Json(err).into_response(),
-    };
-    let tar_integrity = record
-        .pointer("/inputs/archive/integrity")
-        .and_then(Value::as_str)
-        .and_then(|tgz| table.get(tgz))
-        .map(|derived| derived.tar_integrity.clone());
-    let Some(fields) = record.as_object_mut() else { return json_response(&record) };
-    let Some(integrity) = tar_integrity else {
-        fields.remove("integrity");
-        return json_response(&record);
-    };
-    fields.insert("integrity".into(), Value::String(integrity));
-    immutable(json_response(&record))
+pub(in super::super) fn accepted_record_response(bytes: Vec<u8>) -> Response {
+    immutable(json_bytes_response(bytes))
 }
 
 /// `response`, marked to be cached forever when it succeeded.

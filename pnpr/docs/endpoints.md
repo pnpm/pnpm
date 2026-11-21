@@ -421,7 +421,10 @@ Each version's entry may have:
 Below [`splitThreshold`](configuration.md#packagedocuments), every entry has
 its `manifest`. Above it, only every dist-tag target and the highest release of
 each major version (of each minor version below 1.0) keep theirs. Every other
-version's manifest and facts are in its release record, at
+version's manifest and facts are in its release record, with two exceptions.
+Hosted tar routes keep every manifest inline to give clients the served tar's
+integrity. A version also stays inline if a tag or exact version occupies its
+release record URL. Release records are available at
 `/{name}/{version}+r{revision}`:
 
 ```json
@@ -459,16 +462,18 @@ has:
 
 `interpretation` is the profile the manifest was derived under, and `inputs`
 are the digests it was derived from: the `.tgz` as published, and its
-`package.json` and `npm-shrinkwrap.json` by their paths in the archive. A
-registry with `tarballs: tar` serves the record with the tar's `integrity`.
+`package.json` and `npm-shrinkwrap.json` by their paths in the archive. On hosted tar routes the record's
+`integrity` covers the published `.tgz`. The version manifest's
+`dist.integrity` covers the served tar.
 
 Revision `0` is the original artifact, also of a version without registry
-revisions. A release record never changes once pnpr has verified the archive
-it describes, so from then on it is served with
-`Cache-Control: public, max-age=31536000, immutable`. Before that, it has no
-`Cache-Control` header, since verifying the archive can add `fileCount`,
-`unpackedSize`, `requiresBuild`, and `bins`. A package closed to anonymous
+revisions. Hosted records accepted at publish time are served with
+`Cache-Control: public, max-age=31536000, immutable`. Synthesized records
+can gain archive facts, and their URLs can later name an upstream version or
+tag. A package closed to anonymous
 callers gets `Cache-Control: private, no-store` for its records.
+An existing dist-tag or upstream version ending in `+r<N>` returns its npm
+version document.
 `/{name}/{version}` keeps serving the selected revision in npm's format.
 
 ### Release record logs
