@@ -201,6 +201,7 @@ fn scoped_peer_workspace_spec_resolves_from_workspace_packages() {
         WorkspacePackageManifest {
             name: "@scope/prettier-config".to_string(),
             version: "2.0.0".to_string(),
+            private: false,
         },
     );
 
@@ -224,6 +225,7 @@ fn workspace_package_without_version_reports_missing_version() {
         WorkspacePackageManifest {
             name: "@scope/eslint-config".to_string(),
             version: String::new(),
+            private: false,
         },
     );
 
@@ -265,7 +267,11 @@ fn missing_version_help_uses_the_workspace_package_name() {
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "pkg-b".to_string(),
-        WorkspacePackageManifest { name: "pkg-b".to_string(), version: String::new() },
+        WorkspacePackageManifest {
+            name: "pkg-b".to_string(),
+            version: String::new(),
+            private: false,
+        },
     );
 
     let err = replace_workspace_protocol(
@@ -297,7 +303,11 @@ fn installed_manifest_without_name_keeps_the_missing_name_reason() {
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "pkg-b".to_string(),
-        WorkspacePackageManifest { name: "pkg-b".to_string(), version: String::new() },
+        WorkspacePackageManifest {
+            name: "pkg-b".to_string(),
+            version: String::new(),
+            private: false,
+        },
     );
 
     let err =
@@ -380,11 +390,19 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "dep-a".to_string(),
-        WorkspacePackageManifest { name: "dep-a".to_string(), version: "1.2.3".to_string() },
+        WorkspacePackageManifest {
+            name: "dep-a".to_string(),
+            version: "1.2.3".to_string(),
+            private: false,
+        },
     );
     ws_pkgs.insert(
         "dep-b".to_string(),
-        WorkspacePackageManifest { name: "dep-b".to_string(), version: "2.3.4".to_string() },
+        WorkspacePackageManifest {
+            name: "dep-b".to_string(),
+            version: "2.3.4".to_string(),
+            private: false,
+        },
     );
 
     let res =
@@ -434,7 +452,11 @@ fn prefer_workspace_resolves_from_the_workspace_manifest_first() {
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "dep-a".to_string(),
-        WorkspacePackageManifest { name: "dep-a".to_string(), version: "3.0.0".to_string() },
+        WorkspacePackageManifest {
+            name: "dep-a".to_string(),
+            version: "3.0.0".to_string(),
+            private: false,
+        },
     );
 
     let bumped = HashSet::from(["dep-a".to_string()]);
@@ -467,7 +489,11 @@ fn prefer_workspace_does_not_override_relative_path_specs() {
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "foo".to_string(),
-        WorkspacePackageManifest { name: "foo".to_string(), version: "9.9.9".to_string() },
+        WorkspacePackageManifest {
+            name: "foo".to_string(),
+            version: "9.9.9".to_string(),
+            private: false,
+        },
     );
     let bumped = HashSet::from(["foo".to_string()]);
     let lookup = super::WorkspacePackageLookup {

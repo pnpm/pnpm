@@ -45,9 +45,6 @@ pub struct CreateProjectsGraphOptions<'a> {
     /// the `--filter-prod` graph so dependency walks follow production
     /// deps only.
     pub ignore_dev_deps: bool,
-    /// Edges are `dependencies` only. Dev, optional, and peer
-    /// dependencies add no edge. Wins over [`Self::ignore_dev_deps`].
-    pub production_only: bool,
     /// Whether workspace packages are linked. The tri-state mirrors the
     /// `linkWorkspacePackages` setting.
     pub link_workspace_packages: Option<bool>,
@@ -65,7 +62,6 @@ impl fmt::Debug for CreateProjectsGraphOptions<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("CreateProjectsGraphOptions")
             .field("ignore_dev_deps", &self.ignore_dev_deps)
-            .field("production_only", &self.production_only)
             .field("link_workspace_packages", &self.link_workspace_packages)
             .field("catalogs", &self.catalogs)
             .field("dependency_rewriter", &self.dependency_rewriter.map(|_| ".."))
@@ -188,14 +184,12 @@ fn project_dependencies<Pkg>(
 where
     Pkg: GraphProject,
 {
-    if opts.dependency_rewriter.is_none() && !opts.production_only {
+    let Some(rewriter) = opts.dependency_rewriter else {
         return project.merged_dependencies(opts.ignore_dev_deps);
-    }
-    let mut groups = project.dependency_groups(opts.ignore_dev_deps || opts.production_only);
-    if let Some(rewriter) = opts.dependency_rewriter {
-        rewriter.rewrite_dependencies(project, &mut groups);
-    }
-    if opts.production_only { groups.prod } else { groups.merge() }
+    };
+    let mut groups = project.dependency_groups(opts.ignore_dev_deps);
+    rewriter.rewrite_dependencies(project, &mut groups);
+    groups.merge()
 }
 
 /// Each importer's edges resolve against the immutable lookup tables only,

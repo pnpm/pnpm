@@ -451,7 +451,6 @@ fn record_test_workspace_state(
             registry_keys_verified: true,
             registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
             kept_settings: None,
-            private_prod_deps_checked: true,
         },
         vouched: &super::validation::Vouched::All,
     });

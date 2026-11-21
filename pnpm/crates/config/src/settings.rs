@@ -1491,13 +1491,6 @@ pub struct Config {
     /// it: nothing is reported at all under that setting.
     pub disallow_workspace_cycles: bool,
 
-    /// `disallowPrivateProdDeps`. When `true`, the install fails with
-    /// `ERR_PNPM_PRIVATE_WORKSPACE_PROD_DEP` if a publishable workspace
-    /// project lists a private workspace project in `dependencies`.
-    /// Absent or `false` allows it. `devDependencies`,
-    /// `optionalDependencies`, and `peerDependencies` are not checked.
-    pub disallow_private_prod_deps: bool,
-
     /// `testPattern` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_TEST_PATTERN`, overridable by the `--test-pattern`
     /// CLI flag. Glob patterns naming test files: when a `[<since>]`

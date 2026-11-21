@@ -202,7 +202,6 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             supported_architectures: owned.projects.supported_architectures.as_ref(),
             rebuild: options.rebuild.as_ref(),
             effective_node_version: mode.effective_node_version.as_deref(),
-            private_prod_deps_checked: install.execution.mutation.is_full_install(),
         },
         verification,
         write: lockfiles.write_policy(options.save.lockfile),

@@ -208,7 +208,7 @@ fn parsed_peer_spec(dep_spec: &str) -> Option<ParsedPeer> {
 
 /// The directory a workspace dependency is installed under: the caller's, or
 /// the project's own `node_modules`.
-fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
+pub(crate) fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
     modules_dir
         .map(Path::to_path_buf)
         .unwrap_or_else(|| dir.join("node_modules"))
@@ -292,6 +292,7 @@ fn read_manifest_fields(
     Ok(value.map(|value| WorkspacePackageManifest {
         name: field(&value, "name"),
         version: field(&value, "version"),
+        private: value.get("private") == Some(&Value::Bool(true)),
     }))
 }
 
@@ -319,6 +320,8 @@ fn cannot_resolve_error(
 pub struct WorkspacePackageManifest {
     pub name: String,
     pub version: String,
+    /// The package's `"private": true`.
+    pub private: bool,
 }
 
 /// How a workspace dependency's manifest is resolved at publish time: the
@@ -392,7 +395,7 @@ fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch<'_
 
 /// Strip the `workspace:` prefix and return the path portion of a
 /// relative `workspace:./` or `workspace:../` spec.
-fn strip_workspace_relative_prefix(dep_spec: &str) -> Option<&str> {
+pub(crate) fn strip_workspace_relative_prefix(dep_spec: &str) -> Option<&str> {
     if dep_spec.starts_with("workspace:./") || dep_spec.starts_with("workspace:../") {
         return Some(&dep_spec["workspace:".len()..]);
     }

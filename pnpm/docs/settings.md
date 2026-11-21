@@ -392,7 +392,6 @@ These settings are configured in `pnpm-workspace.yaml` as well, but are document
 * [includeWorkspaceRoot](./workspaces.md#includeworkspaceroot)
 * [ignoreWorkspaceCycles](./workspaces.md#ignoreworkspacecycles)
 * [disallowWorkspaceCycles](./workspaces.md#disallowworkspacecycles)
-* [disallowPrivateProdDeps](./workspaces.md#disallowprivateproddeps)
 * [workspaceConcurrency](./workspaces.md#workspaceconcurrency)
 * [ignoreWorkspaceRootCheck](./workspaces.md#ignoreworkspacerootcheck)
 * [failIfNoMatch](./workspaces.md#failifnomatch)

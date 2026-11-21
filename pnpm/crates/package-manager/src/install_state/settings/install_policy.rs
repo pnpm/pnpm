@@ -16,8 +16,8 @@ pub(crate) fn recorded_extend_node_path_matches(
     recorded.and_then(|state| state.settings.extend_node_path).unwrap_or(true) == live
 }
 
-/// The settings that decide which builds, runtimes, bin shims, and checks an
-/// install runs. An unrecorded value reads as the default.
+/// The settings that decide which builds, runtimes, bin shims, and lockfile
+/// verification an install runs. An unrecorded value reads as the default.
 /// `dangerouslyAllowAllBuilds` is always recorded, as pnpm v11 records it.
 pub(super) fn install_policy_settings(
     config: &Config,
@@ -25,7 +25,6 @@ pub(super) fn install_policy_settings(
 ) -> WorkspaceStateSettings {
     WorkspaceStateSettings {
         dangerously_allow_all_builds: Some(config.dangerously_allow_all_builds),
-        disallow_private_prod_deps: config.disallow_private_prod_deps.then_some(true),
         extend_node_path: (!config.extend_node_path).then_some(false),
         runtime: config.skip_runtimes.then_some(false),
         runtime_on_fail: config.runtime_on_fail,
@@ -44,12 +43,6 @@ impl SettingsComparison<'_> {
             (
                 "dangerouslyAllowAllBuilds",
                 differs(recorded.dangerously_allow_all_builds, live.dangerously_allow_all_builds),
-            ),
-            // Turning the check off needs no install to take effect.
-            (
-                "disallowPrivateProdDeps",
-                live.disallow_private_prod_deps.unwrap_or(false)
-                    && !recorded.disallow_private_prod_deps.unwrap_or(false),
             ),
             (
                 "extendNodePath",

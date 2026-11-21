@@ -381,7 +381,6 @@ fn applied_carried_settings<'a>(
             resolution,
         )),
         kept_settings: None,
-        private_prod_deps_checked: inputs.scripts.mutation.is_full_install(),
     }
 }
 

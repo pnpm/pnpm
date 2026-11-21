@@ -342,7 +342,7 @@ macro_rules! identically_named_settings {
             verify_store_integrity,
             strict_store_pkg_content_check, frozen_store, store_index_format,
             include_workspace_root, fail_if_no_match,
-            ignore_workspace_cycles, disallow_workspace_cycles, disallow_private_prod_deps,
+            ignore_workspace_cycles, disallow_workspace_cycles,
             verify_deps_before_run,
             block_exotic_subdeps,
             link_workspace_packages,

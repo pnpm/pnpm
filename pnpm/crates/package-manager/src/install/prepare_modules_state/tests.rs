@@ -171,7 +171,6 @@ fn short_circuits_over(
             supported_architectures: None,
             rebuild: None,
             effective_node_version: None,
-            private_prod_deps_checked: true,
         },
         lockfile: Some(&lockfile),
         current_lockfile: Some(&lockfile),

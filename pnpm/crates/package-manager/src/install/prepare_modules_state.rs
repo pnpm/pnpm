@@ -101,7 +101,6 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
             recorded_registry_routes: up_to_date.recorded.state.and_then(|state| {
                 state.settings.registry_routes.clone()
             }),
-            private_prod_deps_checked: inputs.repeat.private_prod_deps_checked,
         };
         report_prepared_up_to_date::<Reporter>(inputs, wanted_lockfile, modules, carried_state)
             .await?;
@@ -264,7 +263,6 @@ fn frozen_tree_inputs<'a>(
             supported_architectures: inputs.repeat.supported_architectures,
             rebuild: inputs.repeat.rebuild,
             effective_node_version: inputs.repeat.effective_node_version,
-            private_prod_deps_checked: inputs.repeat.private_prod_deps_checked,
         },
 
         lockfile: inputs.lockfiles.wanted,

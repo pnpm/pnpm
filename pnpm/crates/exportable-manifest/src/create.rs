@@ -20,6 +20,10 @@
 //!    `peerDependenciesMeta` / `repository` normalization.
 
 use crate::{
+    private_dependency::{
+        PrivateWorkspaceDependencyError,
+        check_private_workspace_dependencies,
+    },
     replace::{
         ReplaceWorkspaceProtocolError,
         WorkspacePackageLookup,
@@ -141,6 +145,9 @@ pub enum CreateExportableManifestError {
     ReplaceWorkspaceProtocol(#[error(source)] ReplaceWorkspaceProtocolError),
 
     #[diagnostic(transparent)]
+    PrivateWorkspaceDependency(#[error(source)] PrivateWorkspaceDependencyError),
+
+    #[diagnostic(transparent)]
     Catalog(#[error(source)] CatalogResolutionError),
 
     #[diagnostic(transparent)]
@@ -167,6 +174,7 @@ pub fn create_exportable_manifest(
 ) -> Result<Value, CreateExportableManifestError> {
     let empty = Map::new();
     let original = original_manifest.as_object().unwrap_or(&empty);
+    check_private_workspace_dependencies(dir, original, opts)?;
 
     let mut publish = publication_fields(original, opts.skip_manifest_obfuscation);
 
