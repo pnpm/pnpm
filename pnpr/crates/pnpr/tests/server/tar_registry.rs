@@ -613,7 +613,7 @@ async fn a_tar_registry_describes_the_served_archive_in_install_metadata() {
             .await
             .unwrap()
             .status(),
-        StatusCode::CREATED
+        StatusCode::CREATED,
     );
     let old = pnpr_entry(&app, "/npm/~zstd/@acme%2Fwidget", "1.0.0").await;
     assert!(old["manifest"].is_object());
