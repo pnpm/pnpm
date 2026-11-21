@@ -1,7 +1,6 @@
 use super::{
     PrivateWorkspaceDependencyError,
     private_workspace_dependencies,
-    reject_private_workspace_dependencies,
 };
 use crate::{
     CreateExportableManifestOptions,
@@ -57,10 +56,11 @@ fn export_with(
         workspace_packages,
         bumped_workspace_packages: None,
     };
-    let private = private_workspace_dependencies(&dir, manifest, &opts).expect("find private");
+    let mut private = private_workspace_dependencies(&dir, manifest, &opts).expect("find private");
     let mut published = create_exportable_manifest(&dir, manifest, &opts).expect("exportable");
+    private.record_exported(&published);
     before_packing(&mut published);
-    reject_private_workspace_dependencies(&published, &private, &[])?;
+    private.reject(&published, &[])?;
     Ok(published)
 }
 
@@ -246,9 +246,11 @@ fn skips_the_bundled_dependencies_it_is_given() {
         bumped_workspace_packages: None,
     };
     let manifest = app("dependencies", "workspace:*");
-    let private = private_workspace_dependencies(&dir, &manifest, &opts).expect("find private");
+    let mut private = private_workspace_dependencies(&dir, &manifest, &opts).expect("find private");
     let published = create_exportable_manifest(&dir, &manifest, &opts).expect("exportable");
-    reject_private_workspace_dependencies(&published, &private, &["secret".to_string()])
+    private.record_exported(&published);
+    private
+        .reject(&published, &["secret".to_string()])
         .expect("a bundled dependency ships in the tarball");
 }
 
@@ -264,4 +266,25 @@ fn rejects_a_private_dev_dependency_a_hook_moves_into_dependencies() {
             published["dependencies"] = json!({ "secret": version });
         },
     ));
+}
+
+#[test]
+fn allows_an_untouched_registry_dependency_on_a_private_package_name() {
+    let temp = fixture(true);
+    let manifest = json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": { "secret": "^1.0.0" },
+        "devDependencies": { "secret-next": "workspace:secret@*" },
+    });
+    let packages = HashMap::from([(
+        "secret".to_string(),
+        WorkspacePackageManifest {
+            name: "secret".to_string(),
+            version: "1.0.0".to_string(),
+            private: true,
+        },
+    )]);
+    export(&temp, &manifest, Some(&packages))
+        .expect("the registry dependency is not the workspace one");
 }

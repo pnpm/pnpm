@@ -14,9 +14,9 @@ pub use create::{
     read_readme_file,
 };
 pub use private_dependency::{
+    PrivateWorkspaceDependencies,
     PrivateWorkspaceDependencyError,
     private_workspace_dependencies,
-    reject_private_workspace_dependencies,
 };
 pub use replace::{
     CannotResolveReason,

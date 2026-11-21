@@ -62,10 +62,10 @@ use pnpm_executor::{
 use pnpm_exportable_manifest::{
     CreateExportableManifestError,
     CreateExportableManifestOptions,
+    PrivateWorkspaceDependencies,
     PrivateWorkspaceDependencyError,
     create_exportable_manifest,
     private_workspace_dependencies,
-    reject_private_workspace_dependencies,
 };
 use pnpm_fs::{
     lexical_normalize,
@@ -384,12 +384,9 @@ fn reject_unshipped_private_dependencies(
             files_map.contains_key(&format!("package/node_modules/{dep_name}/package.json"))
         })
         .collect();
-    reject_private_workspace_dependencies(
-        &source.publish_manifest,
-        &source.private_workspace_packages,
-        &shipped,
-    )
-    .map_err(PackError::PrivateWorkspaceDependency)
+    source.private_workspace_dependencies
+        .reject(&source.publish_manifest, &shipped)
+        .map_err(PackError::PrivateWorkspaceDependency)
 }
 
 fn create_dest_dir<Sys: FsCreateDirAll>(dest_dir: &Path) -> Result<(), PackError> {
@@ -498,7 +495,7 @@ impl PackManifestOptions {
         project_dir: &Path,
         dir: &Path,
         manifest: &Value,
-    ) -> Result<(Value, Vec<String>), PackError> {
+    ) -> Result<(Value, PrivateWorkspaceDependencies), PackError> {
         let modules_dir = project_dir.join("node_modules");
         let options = CreateExportableManifestOptions {
             catalogs: &self.catalogs,
@@ -509,10 +506,11 @@ impl PackManifestOptions {
             workspace_packages: self.workspace_packages.as_deref(),
             bumped_workspace_packages: self.bumped_workspace_packages.as_deref(),
         };
-        let private_packages = private_workspace_dependencies(dir, manifest, &options)
+        let mut private_dependencies = private_workspace_dependencies(dir, manifest, &options)
             .map_err(PackError::CreateManifest)?;
         let mut publish_manifest =
             create_exportable_manifest(dir, manifest, &options).map_err(PackError::CreateManifest)?;
+        private_dependencies.record_exported(&publish_manifest);
 
         // Run `beforePacking` hooks against the built manifest, before the
         // file list is computed, so a hook that rewrites `files` / `bin` /
@@ -527,6 +525,6 @@ impl PackManifestOptions {
         )
         .await?;
 
-        Ok((publish_manifest, private_packages))
+        Ok((publish_manifest, private_dependencies))
     }
 }

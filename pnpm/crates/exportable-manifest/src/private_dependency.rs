@@ -44,76 +44,107 @@ pub struct PrivateWorkspaceDependencyError {
     pub dep_name: String,
 }
 
-/// The registry names of the private workspace packages that any of
-/// `original`'s dependency fields point at through a `workspace:` specifier,
-/// once a `catalog:` entry is resolved. Every field counts, because a hook
-/// can move an entry into `dependencies`. Pass them to
-/// [`reject_private_workspace_dependencies`] after the `beforePacking` hooks
-/// have settled the published manifest.
+/// The private workspace packages a manifest points at through `workspace:`
+/// specifiers, collected by [`private_workspace_dependencies`] before the
+/// `beforePacking` hooks run and checked by [`Self::reject`] after them.
+#[derive(Debug, Default)]
+pub struct PrivateWorkspaceDependencies {
+    /// Registry names of the private targets.
+    packages: Vec<String>,
+    /// Dependency keys whose `workspace:` specifier, in any dependency field,
+    /// names one of `packages`.
+    keys: Vec<String>,
+    /// The `dependencies` of the exported manifest, before the hooks.
+    exported: Map<String, Value>,
+}
+
+/// Collect the private workspace packages that any of `original`'s dependency
+/// fields point at through a `workspace:` specifier, once a `catalog:` entry
+/// is resolved. Every field counts, because a hook can move an entry into
+/// `dependencies`. Record the exported manifest with
+/// [`PrivateWorkspaceDependencies::record_exported`] before the hooks run.
 pub fn private_workspace_dependencies(
     dir: &Path,
     original: &Value,
     opts: &CreateExportableManifestOptions<'_>,
-) -> Result<Vec<String>, CreateExportableManifestError> {
+) -> Result<PrivateWorkspaceDependencies, CreateExportableManifestError> {
     let dependencies = DEPENDENCY_FIELDS
         .iter()
         .filter_map(|field| original.get(*field).and_then(Value::as_object))
         .flatten();
-    let mut private = Vec::new();
+    let mut private = PrivateWorkspaceDependencies::default();
     for (dep_name, spec) in dependencies {
         let Some(spec) = spec.as_str() else {
             continue;
         };
         let spec = replace_catalog_protocol(dep_name.clone(), spec, dir, opts)?;
-        if let Some(package) = private_workspace_package(dep_name, &spec, dir, opts)?
-            && !private.contains(&package)
-        {
-            private.push(package);
+        let Some(package) = private_workspace_package(dep_name, &spec, dir, opts)? else {
+            continue;
+        };
+        if !private.packages.contains(&package) {
+            private.packages.push(package);
         }
+        private.keys.push(dep_name.clone());
     }
     Ok(private)
 }
 
-/// Fail when a `dependencies` entry of the publishable manifest `published`
-/// installs one of the `private_packages` from the registry, under any key.
-/// The entries named in `bundled` ship inside the tarball and are not
-/// checked, and a private manifest is never published.
-pub fn reject_private_workspace_dependencies(
-    published: &Value,
-    private_packages: &[String],
-    bundled: &[String],
-) -> Result<(), PrivateWorkspaceDependencyError> {
-    let Some(published) = published.as_object() else {
-        return Ok(());
-    };
-    if private_packages.is_empty() || is_private(published) {
-        return Ok(());
+impl PrivateWorkspaceDependencies {
+    /// Keep the `dependencies` of the manifest pack exported, before the
+    /// `beforePacking` hooks change it.
+    pub fn record_exported(&mut self, exported: &Value) {
+        if let Some(dependencies) = exported.get("dependencies").and_then(Value::as_object) {
+            self.exported = dependencies.clone();
+        }
     }
-    let Some(dependencies) = published.get("dependencies").and_then(Value::as_object) else {
-        return Ok(());
-    };
-    let rejected = dependencies
-        .iter()
-        .filter(|(dep_name, _)| !bundled.contains(dep_name))
-        .filter_map(|(dep_name, spec)| Some((dep_name.as_str(), spec.as_str()?)))
-        .flat_map(|(dep_name, spec)| registry_packages(dep_name, spec))
-        .flatten()
-        .find(|package| {
-            private_packages
-                .iter()
-                .any(|private| private == package)
-        });
-    let Some(dep_name) = rejected else {
-        return Ok(());
-    };
-    let package_name = published
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    Err(PrivateWorkspaceDependencyError {
-        package_name: package_name.to_string(),
-        dep_name: dep_name.to_string(),
-    })
+
+    /// Fail when a `dependencies` entry of the publishable manifest
+    /// `published` installs one of the private packages from the registry.
+    /// An entry counts when its key was a private `workspace:` dependency, or
+    /// when a hook added or changed it, so an untouched registry dependency
+    /// that shares the private package's name is allowed. The entries named
+    /// in `bundled` ship inside the tarball and are not checked, and a
+    /// private manifest is never published.
+    pub fn reject(
+        &self,
+        published: &Value,
+        bundled: &[String],
+    ) -> Result<(), PrivateWorkspaceDependencyError> {
+        let Some(published) = published.as_object() else {
+            return Ok(());
+        };
+        if self.packages.is_empty() || is_private(published) {
+            return Ok(());
+        }
+        let Some(dependencies) = published.get("dependencies").and_then(Value::as_object) else {
+            return Ok(());
+        };
+        let rejected = dependencies
+            .iter()
+            .filter(|(dep_name, _)| !bundled.contains(dep_name))
+            .filter(|(dep_name, spec)| {
+                self.keys.contains(dep_name) || self.exported.get(dep_name.as_str()) != Some(spec)
+            })
+            .filter_map(|(dep_name, spec)| Some((dep_name.as_str(), spec.as_str()?)))
+            .flat_map(|(dep_name, spec)| registry_packages(dep_name, spec))
+            .flatten()
+            .find(|package| {
+                self.packages
+                    .iter()
+                    .any(|private| private == package)
+            });
+        let Some(dep_name) = rejected else {
+            return Ok(());
+        };
+        let package_name = published
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        Err(PrivateWorkspaceDependencyError {
+            package_name: package_name.to_string(),
+            dep_name: dep_name.to_string(),
+        })
+    }
 }
 
 /// The registry name of the private workspace package `spec` points at, when

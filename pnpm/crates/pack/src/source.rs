@@ -10,7 +10,10 @@ use std::{
 };
 
 use indexmap::IndexMap;
-use pnpm_exportable_manifest::read_readme_file;
+use pnpm_exportable_manifest::{
+    PrivateWorkspaceDependencies,
+    read_readme_file,
+};
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::Reporter;
@@ -36,8 +39,7 @@ pub(super) struct PackSource {
     pub(super) normalized_name: String,
     pub(super) published_version: String,
     pub(super) bins: Vec<PathBuf>,
-    /// See [`pnpm_exportable_manifest::private_workspace_dependencies`].
-    pub(super) private_workspace_packages: Vec<String>,
+    pub(super) private_workspace_dependencies: PrivateWorkspaceDependencies,
 }
 
 pub(super) async fn prepare_source<Reporter>(opts: &PackOptions) -> Result<PackSource, PackError>
@@ -63,7 +65,7 @@ where
 
     let name = packed_identity(&manifest)?;
 
-    let (mut publish_manifest, private_workspace_packages) =
+    let (mut publish_manifest, private_workspace_dependencies) =
         opts.manifest.export::<Reporter>(&opts.dir, &dir, &manifest).await?;
 
     let (normalized_name, published_version) = published_identity(&mut publish_manifest, name)?;
@@ -75,7 +77,7 @@ where
         normalized_name,
         published_version,
         bins,
-        private_workspace_packages,
+        private_workspace_dependencies,
     })
 }
 
