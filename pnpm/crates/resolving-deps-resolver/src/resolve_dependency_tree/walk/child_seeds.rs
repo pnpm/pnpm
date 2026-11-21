@@ -335,16 +335,31 @@ pub(super) fn overlay_lookup_names<'edge>(
 }
 
 /// Whether this package's child specifiers pass through the importer's
-/// catalogs: a `file:` directory package does, however it was declared. That
-/// makes them a property of the resolving importer
+/// catalogs: an injected workspace project does, whether it was declared by a
+/// `workspace:` specifier or by a path to a workspace project. Any other
+/// `file:` directory is not part of the workspace, so a `catalog:` spec in it
+/// stays unsupported. That makes them a property of the resolving importer
 /// rather than of the package id, the one input
 /// [`fn@crate::resolve_dependency_tree::workspace_ctx::recorded_children_match`] cannot compare, since the recorded
 /// context does not carry the catalogs the recording importer used.
 pub(super) fn resolves_children_through_catalogs(
+    ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> bool {
-    result.id.as_str().starts_with("file:")
-        && matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+    let Some(dir) = declaring_manifest_dir(&ctx.importer.lockfile_dir, result) else {
+        return false;
+    };
+    result.resolved_via == "workspace" || is_workspace_project_dir(ctx, &dir)
+}
+
+fn is_workspace_project_dir(ctx: &TreeCtx, dir: &Path) -> bool {
+    let Some(workspace_packages) = ctx.options.base.project.workspace_packages.as_deref() else {
+        return false;
+    };
+    workspace_packages
+        .values()
+        .flat_map(|versions| versions.values())
+        .any(|package| pnpm_fs::lexical_normalize(&package.root_dir) == dir)
 }
 
 pub(super) fn catalogs_for_children(
