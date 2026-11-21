@@ -126,6 +126,13 @@ fn build(
         children.push(child);
     }
 
+    // Like Yarn's virtual packages, and like the tree pnpm builds from a
+    // lockfile, a node links each transitive peer to its provider.
+    for provider in external.values() {
+        if !children.iter().any(|child| Rc::ptr_eq(child, provider)) {
+            children.push(Rc::clone(provider));
+        }
+    }
     let name = NAMES[package.0];
     let suffix: String = external
         .values()

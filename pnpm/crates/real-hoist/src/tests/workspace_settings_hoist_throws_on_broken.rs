@@ -11,6 +11,7 @@ use super::{
     SnapshotDepRef,
     SnapshotEntry,
     assert_eq,
+    child_of,
     dep_key,
     empty_lockfile,
     hoist,
@@ -594,31 +595,33 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
     assert_eq!(names, ["a", "b"], "limits keyed elsewhere don't affect root hoist: {result:#?}");
 }
 
+/// Inside a workspace, its own hoisting limits apply and the root's do
+/// not. The root's limit makes the workspace a border, so nothing escapes
+/// it, but `a`'s dependency still hoists into it. The workspace's limit
+/// names its dependency `b`, so `b`'s dependency stays below `b`. Like
+/// pnpm's `hoistingLimits`, each limit names direct dependencies of the
+/// locator it is keyed by.
 #[test]
 fn nested_hoist_uses_the_nested_root_locator() {
     let mut importers = HashMap::new();
     importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
     let mut workspace_deps = ResolvedDependencyMap::new();
     workspace_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
+    workspace_deps.insert(pkg_name("b"), resolved_dep("1.0.0"));
     importers.insert(
         "packages/foo".to_string(),
         ProjectSnapshot { dependencies: Some(workspace_deps), ..ProjectSnapshot::default() },
     );
 
     let mut snapshots = HashMap::new();
-    let mut a_deps = HashMap::new();
-    a_deps.insert(pkg_name("b"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
-    let mut b_deps = HashMap::new();
-    b_deps.insert(pkg_name("c"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
-    snapshots.insert(
-        dep_key("a", "1.0.0"),
-        SnapshotEntry { dependencies: Some(a_deps), ..SnapshotEntry::default() },
-    );
-    snapshots.insert(
-        dep_key("b", "1.0.0"),
-        SnapshotEntry { dependencies: Some(b_deps), ..SnapshotEntry::default() },
-    );
-    snapshots.insert(dep_key("c", "1.0.0"), SnapshotEntry::default());
+    for (name, child) in [("a", "x"), ("b", "c")] {
+        let deps = HashMap::from([(pkg_name(child), SnapshotDepRef::Plain(ver_peer("1.0.0")))]);
+        snapshots.insert(
+            dep_key(name, "1.0.0"),
+            SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() },
+        );
+        snapshots.insert(dep_key(child, "1.0.0"), SnapshotEntry::default());
+    }
 
     let mut opts = HoistOpts::default();
     opts.hoisting_limits.insert(".@".to_string(), BTreeSet::from(["packages%2Ffoo".to_string()]));
@@ -627,58 +630,26 @@ fn nested_hoist_uses_the_nested_root_locator() {
         BTreeSet::from(["b".to_string()]),
     );
 
-    let result = hoist(
-        &Lockfile {
-            lockfile_version: lockfile_version(),
-            settings: None,
-            catalogs: None,
-            overrides: None,
-            package_extensions_checksum: None,
-            pnpmfile_checksum: None,
-            ignored_optional_dependencies: None,
-            patched_dependencies: None,
-            importers,
-            packages: None,
-            snapshots: Some(snapshots),
-            time: None,
-            extra: pnpm_lockfile::LockfileExtra::default(),
-        },
-        &opts,
-    )
-    .expect("nested hoist with importer limits should succeed");
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+    let result = hoist(&lockfile, &opts).expect("nested hoist with importer limits should succeed");
 
-    let root_children = result.dependencies.borrow();
-    let workspace = Rc::clone(
-        &root_children
+    let names = |node: &HoisterResult| -> Vec<String> {
+        let mut names: Vec<String> = node.dependencies
+            .borrow()
             .iter()
-            .find(|dep| dep.0.name == "packages%2Ffoo")
-            .expect("workspace stays at the virtual root")
-            .0,
-    );
-    let workspace_deps = workspace.dependencies.borrow();
-    let mut workspace_names: Vec<&str> = workspace_deps
-        .iter()
-        .map(|dep| dep.0.name.as_str())
-        .collect();
-    workspace_names.sort_unstable();
+            .map(|dep| dep.0.name.clone())
+            .collect();
+        names.sort_unstable();
+        names
+    };
+    assert_eq!(names(&result), ["packages%2Ffoo"], "nothing escapes the workspace: {result:#?}");
+    let workspace = child_of(&result, "packages%2Ffoo");
+    assert_eq!(names(&workspace), ["a", "b", "x"], "a's x hoists into the workspace");
     assert_eq!(
-        workspace_names,
-        ["a", "b"],
-        "the root border no longer applies inside the workspace, while its own b border does",
+        names(&child_of(&workspace, "b")),
+        ["c"],
+        "the workspace's b border keeps c below b"
     );
-    let dep_b = Rc::clone(
-        &workspace_deps
-            .iter()
-            .find(|dep| dep.0.name == "b")
-            .expect("b hoists within workspace")
-            .0,
-    );
-    let b_deps = dep_b.dependencies.borrow();
-    let b_names: Vec<&str> = b_deps
-        .iter()
-        .map(|dep| dep.0.name.as_str())
-        .collect();
-    assert_eq!(b_names, ["c"], "the workspace's b border keeps c below b");
 }
 
 /// A conflict-nested node shared by several parents must keep its own

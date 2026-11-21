@@ -7,9 +7,7 @@ use super::{
     HoisterResult,
     HoisterTree,
     RcByPtr,
-    build_hoist_ident_map,
     hoist,
-    is_preferred_ident,
     nm_hoist,
     percent_encode_path,
 };
@@ -34,7 +32,6 @@ use std::{
     collections::{
         BTreeSet,
         HashMap,
-        VecDeque,
     },
     rc::Rc,
 };
@@ -110,34 +107,6 @@ fn pkg_metadata_with_peer(peer_name: &str) -> pnpm_lockfile::PackageMetadata {
     }
 }
 
-/// Construct a [`HoisterResult`] node directly, for unit-testing the
-/// preference machinery without going through [`hoist`] (which only ever
-/// builds the `.` root with empty `peer_names`).
-pub(super) fn result_node(
-    name: &str,
-    reference: &str,
-    peer_names: &[&str],
-    dependencies: Vec<Rc<HoisterResult>>,
-) -> Rc<HoisterResult> {
-    Rc::new(HoisterResult {
-        name: name.to_string(),
-        ident_name: name.to_string(),
-        references: RefCell::new(BTreeSet::from([reference.to_string()])),
-        peer_names: peer_names
-            .iter()
-            .map(|&peer| peer.to_string())
-            .collect(),
-        dependencies: RefCell::new(
-            dependencies
-                .into_iter()
-                .map(RcByPtr)
-                .collect::<IndexSet<_>>(),
-        ),
-        hoisted_dependencies: RefCell::new(std::collections::HashMap::new()),
-        decoupled: std::cell::Cell::new(false),
-    })
-}
-
 /// Construct a [`HoisterTree`] node directly, for feeding [`nm_hoist`] an
 /// input the lockfile converter does not produce: nodes that share a
 /// `reference` while carrying `peer_names`, the shape the TypeScript
@@ -149,6 +118,7 @@ fn tree_node(
     dependencies: Vec<Rc<HoisterTree>>,
 ) -> Rc<HoisterTree> {
     Rc::new(HoisterTree {
+        identity: None,
         name: name.to_string(),
         ident_name: name.to_string(),
         reference: reference.to_string(),
@@ -186,10 +156,11 @@ fn child_of(parent: &HoisterResult, name: &str) -> Rc<HoisterResult> {
 /// The `.` root [`hoist`] builds, over hand-made [`tree_node`] children.
 fn tree_root(dependencies: Vec<Rc<HoisterTree>>) -> Rc<HoisterTree> {
     Rc::new(HoisterTree {
+        identity: None,
         name: ".".to_string(),
         ident_name: ".".to_string(),
         reference: String::new(),
-        peer_names: BTreeSet::new(),
+        peer_names: IndexSet::new(),
         dependency_kind: HoisterDependencyKind::Workspace,
         hoist_priority: 0,
         dependencies: RefCell::new(
@@ -212,5 +183,7 @@ mod dependencies;
 mod behavior;
 
 mod peer_bindings;
+
+mod peer_layout;
 
 mod generated;

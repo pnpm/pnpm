@@ -41,11 +41,10 @@ use std::{
 /// entry wins for parent → child wiring.
 ///
 /// A lookup tries the exact snapshot key, then falls back to
-/// [`pnpm_real_hoist::pkg_id`]. A peer variant the hoister collapsed
-/// reaches the walk under the first-seen variant's key, so an edge
-/// declared against any other variant finds that node through the
-/// package id. A variant the hoister kept distinct is found by its own
-/// key.
+/// [`pnpm_real_hoist::pkg_id`]. A directory is recorded under its own
+/// key and under every peer variant the hoister deduplicated into it,
+/// so an edge finds the copy that serves the variant it declares. The
+/// package id covers an edge whose variant reached no directory.
 #[derive(Default)]
 pub(super) struct PackageLocations {
     by_pkg_id: BTreeMap<String, Vec<PathBuf>>,
@@ -64,6 +63,15 @@ impl PackageLocations {
 
     fn first_exact(&self, pkg_key: &PackageKey) -> Option<&PathBuf> {
         self.by_package_key.get(pkg_key).and_then(|locations| locations.first())
+    }
+
+    /// Record `dir` under a further snapshot key it serves: a peer
+    /// variant the hoister deduplicated into this copy.
+    fn record_served(&mut self, pkg_key: &PackageKey, dir: &Path) {
+        self.by_package_key
+            .entry(pkg_key.clone())
+            .or_default()
+            .push(dir.to_path_buf());
     }
 
     fn record(&mut self, pkg_key: &PackageKey, dir: &Path) {
@@ -302,9 +310,8 @@ pub(super) fn walk_dep(
     modules: &Path,
     dep: &RcByPtr<HoisterResult>,
 ) -> Result<Option<(PathBuf, DepHierarchy)>, HoistedDepGraphError> {
-    // The hoister keeps every absorbed reference; the first
-    // (alphabetically smallest) is the canonical depPath for this
-    // node's location.
+    // The first reference is the snapshot key of the copy that holds
+    // this directory; see `record_served_variants` for the rest.
     let Some(reference) = dep.0.references
         .borrow()
         .iter()
@@ -345,6 +352,7 @@ pub(super) fn walk_dep(
         graph_node(dep, reference.clone(), &resolved, present, dir.clone(), modules.to_path_buf()),
     );
     record_package_location(state, &resolved.pkg_key, &dir);
+    record_served_variants(state, &dep.0, &dir);
 
     record_injected_location(&mut state.result, &resolved, &reference, &dir);
 
@@ -545,6 +553,18 @@ pub(super) fn compute_children(
         }
     }
     children
+}
+
+/// The hoister lists the snapshot keys a directory serves, its own first.
+/// The rest are peer variants it deduplicated into this copy, so an edge
+/// declared against one of them resolves here.
+fn record_served_variants(state: &mut WalkState<'_>, node: &HoisterResult, dir: &Path) {
+    let references = node.references.borrow();
+    for reference in references.iter().skip(1) {
+        if let Ok(pkg_key) = reference.parse::<PackageKey>() {
+            state.package_locations.record_served(&pkg_key, dir);
+        }
+    }
 }
 
 fn record_package_location(state: &mut WalkState<'_>, pkg_key: &PackageKey, dir: &Path) {

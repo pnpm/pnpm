@@ -76,11 +76,11 @@ fn walker_resolves_peered_reference_via_peerless_packages_key() {
     // The peer itself is a plain dep of the root and must be there too.
     assert!(result.graph.contains_key(&lockfile_dir.join("node_modules").join("peer")));
 }
-/// The hoister collapses every peer variant of one package version onto
-/// a single node keyed by the first snapshot key it sees, so the graph
-/// holds no entry under the other variants' keys. Edges declared against
-/// one of those (an importer's own dependency, or a sibling package's)
-/// still have to resolve to the copy that node produced.
+/// Peer variants of one package version can deduplicate into one
+/// directory, whose graph node carries the first variant's key. Edges
+/// declared against another of them (an importer's own dependency, or a
+/// sibling package's) still have to resolve to that directory, which the
+/// hoister lists as serving the variant.
 #[test]
 fn walker_wires_edges_declared_against_a_collapsed_peer_variant() {
     let mut root_deps = ResolvedDependencyMap::new();
