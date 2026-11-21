@@ -14,6 +14,7 @@ repository.workspace = true
 server = [
   "dep:axum",
   "dep:bcrypt",
+  "dep:libsqlite3-sys",
   "dep:object_store",
   "dep:reqwest",
   "dep:rusqlite",
@@ -30,6 +31,7 @@ axum = { workspace = true, optional = true }
 bcrypt = { workspace = true, optional = true }
 derive_more = { workspace = true }
 libsql = { workspace = true, optional = true }
+libsqlite3-sys = { workspace = true, optional = true }
 object_store = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 rusqlite = { workspace = true, optional = true }
@@ -44,3 +46,6 @@ tokio = { workspace = true }
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["libsqlite3-sys"]

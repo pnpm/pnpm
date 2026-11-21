@@ -196,6 +196,7 @@ indexmap = { version = "2.14.2", features = ["serde"] }
 insta = { version = "1.49.0", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.15.0" }
 libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication", "sync"] }
+libsqlite3-sys = { version = "0.40.0", features = ["bundled"] }
 futures-util = { version = "0.3.34" }
 flate2 = { version = "1.1.11", default-features = false, features = ["zlib-rs"] }
 gethostname = { version = "1.1.0" }
@@ -246,7 +247,12 @@ regex = { version = "1.13.2" }
 regress = { version = "0.12.0" }
 rmp-serde = { version = "1.3.1" }
 rustc-demangle = { version = "0.1.28" }
-rusqlite = { version = "0.42.0", features = ["bundled"] }
+# Bundled through `libsqlite3-sys`, not rusqlite's `bundled` feature, which
+# turns on `modern_sqlite`. That feature calls `sqlite3_set_errmsg`, which
+# libsql's older SQLite lacks, and a binary that links both libraries then
+# pulls in the second SQLite and fails on duplicate symbols. Every crate that
+# depends on rusqlite also depends on `libsqlite3-sys`.
+rusqlite = { version = "0.42.0" }
 same-file = { version = "1.0.6" }
 security-framework = { version = "3.7.0" }
 security-framework-sys = { version = "2.17.0" }

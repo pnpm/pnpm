@@ -4956,6 +4956,7 @@ dependencies = [
  "insta",
  "jiff 1.0.1",
  "libc",
+ "libsqlite3-sys",
  "miette 7.6.0",
  "mimalloc",
  "mockito",
@@ -5673,6 +5674,7 @@ dependencies = [
 name = "pnpm-ffi-sqlite"
 version = "0.0.1"
 dependencies = [
+ "libsqlite3-sys",
  "rusqlite",
 ]
 
@@ -6967,6 +6969,7 @@ dependencies = [
  "derive_more",
  "dunce",
  "junction 2.1.0",
+ "libsqlite3-sys",
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
@@ -7340,6 +7343,7 @@ dependencies = [
  "jiff 1.0.1",
  "libc",
  "libsql",
+ "libsqlite3-sys",
  "miette 7.6.0",
  "mimalloc",
  "mockito",
@@ -7430,6 +7434,7 @@ dependencies = [
  "icu_normalizer",
  "jiff 1.0.1",
  "libsql",
+ "libsqlite3-sys",
  "openidconnect",
  "p256 0.14.0",
  "pnpm-crypto-hash",
@@ -7508,6 +7513,7 @@ dependencies = [
  "bcrypt",
  "derive_more",
  "libsql",
+ "libsqlite3-sys",
  "object_store",
  "reqwest",
  "rusqlite",
@@ -7710,6 +7716,7 @@ name = "pnpr-sql"
 version = "0.0.1"
 dependencies = [
  "libsql",
+ "libsqlite3-sys",
  "pnpr-config",
  "pnpr-error",
  "pnpr-libsql",
@@ -7729,6 +7736,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "libc",
+ "libsqlite3-sys",
  "node-semver",
  "object_store",
  "percent-encoding",

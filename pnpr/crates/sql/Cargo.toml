@@ -17,6 +17,7 @@ backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql"]
 
 [dependencies]
 libsql = { workspace = true, optional = true }
+libsqlite3-sys = { workspace = true }
 pnpr-config = { workspace = true }
 pnpr-error = { workspace = true, features = ["server"] }
 pnpr-libsql = { workspace = true, optional = true }
@@ -30,3 +31,6 @@ tokio = { workspace = true, features = ["test-util"] }
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["libsqlite3-sys"]

@@ -109,6 +109,7 @@ hyper = { workspace = true }
 indexmap = { workspace = true }
 libc = { workspace = true }
 libsql = { workspace = true, optional = true }
+libsqlite3-sys = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
 pep440_rs = { workspace = true }
@@ -162,3 +163,6 @@ workspace = true
 
 [target.'cfg(unix)'.dev-dependencies]
 pnpm-ffi-process = { workspace = true }
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["libsqlite3-sys"]
