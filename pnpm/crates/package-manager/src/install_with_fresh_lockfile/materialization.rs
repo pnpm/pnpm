@@ -20,12 +20,11 @@ use super::{
     finish_early_materialization,
     finish_lockfile_only,
     manifest_transforms,
+    override_warnings::warn_stale_overrides,
     persist_fresh_lockfile,
     plan_fresh_materialization,
     resolver_setup,
     run_on_disk_phases,
-    warn_stale_convergence_overrides_if_any,
-    warn_unused_overrides_if_any,
 };
 use crate::{
     AllowBuildPolicy,
@@ -138,30 +137,6 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
         )
         .await
     })
-}
-pub(super) async fn warn_stale_overrides<Reporter: self::Reporter + 'static>(
-    install: FreshInputs<'_>,
-    setup: &ResolverSetup,
-    resolved: &Resolved<'_, Reporter>,
-) {
-    if resolved.reuse.full_resolution {
-        warn_stale_convergence_overrides_if_any::<Reporter>(
-            &*setup.chain.npm_resolver,
-            resolved.overrides.parsed_overrides.as_deref(),
-            resolved.overrides.versions_overrider.as_deref(),
-            install.projects.lockfile_dir,
-            (setup.policy.published_by, setup.policy.published_by_exclude.as_ref()),
-        )
-        .await;
-        if install.drivers.config.warn_unused_overrides {
-            warn_unused_overrides_if_any::<Reporter>(
-                install.drivers.config,
-                resolved.overrides.parsed_overrides.as_deref(),
-                resolved.overrides.versions_overrider.as_deref(),
-                install.projects.lockfile_dir,
-            );
-        }
-    }
 }
 
 fn on_disk_store<'a>(
