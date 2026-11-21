@@ -113,9 +113,15 @@ fn package_yaml(rng: &mut Rng, package: u64, version: u64) -> (String, String) {
         Some(provider) => vec![Some((provider, 1)), Some((provider, 2))],
         None => vec![None],
     };
+    // Every peer variant draws from the same state: a package version has
+    // one set of dependencies, and only the provider it is bound to differs.
+    let state = rng.0;
     let snapshots = bindings
         .into_iter()
-        .map(|own_peer| snapshot_yaml(rng, &key, package, own_peer))
+        .map(|own_peer| {
+            rng.0 = state;
+            snapshot_yaml(rng, &key, package, own_peer)
+        })
         .collect();
     (entry, snapshots)
 }

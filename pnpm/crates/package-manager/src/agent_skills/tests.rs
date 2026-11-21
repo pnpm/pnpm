@@ -543,6 +543,40 @@ fn finds_a_dependency_recorded_under_another_peer_variant() {
     assert_eq!(state.pending, ["foo@1.0.0"]);
 }
 
+/// What is pending when `packages/b` depends on `foo@<version>` and the
+/// root `node_modules/foo` is recorded under `recorded`.
+fn pending_for(version: &str, recorded: &str) -> Vec<String> {
+    let (root, _) = hoisted_workspace("1.0.0");
+    let lockfile: Lockfile = serde_saphyr::from_str(&format!(
+        "lockfileVersion: '9.0'\nimporters:\n  .: {{}}\n  packages/b:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: {version}\n",
+    ))
+    .expect("parse lockfile");
+    let locations = BTreeMap::from([(recorded.to_string(), vec!["node_modules/foo".to_string()])]);
+    let config = Config { node_linker: pnpm_config::NodeLinker::Hoisted, ..config(&[], None) };
+    sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root.path(),
+        lockfile: &lockfile,
+        included: ALL_GROUPS,
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: Some(&locations),
+    })
+    .unwrap()
+    .pending
+}
+
+/// A directory recorded under another peer variant counts only when it
+/// holds the same patch of the package version.
+#[test]
+fn a_directory_of_another_patch_is_not_the_dependency() {
+    let patched = "1.0.0(patch_hash=aaaa)(react@18.0.0)";
+    assert_eq!(pending_for(patched, "foo@1.0.0(patch_hash=aaaa)(react@17.0.0)").len(), 1);
+    assert!(pending_for(patched, "foo@1.0.0(patch_hash=bbbb)(react@17.0.0)").is_empty());
+    assert!(pending_for(patched, "foo@1.0.0(react@17.0.0)").is_empty());
+    assert!(pending_for("1.0.0(react@18.0.0)", "foo@1.0.0(patch_hash=aaaa)").is_empty());
+}
+
 #[test]
 fn a_custom_modules_dir_names_only_the_root_one() {
     let root = tempfile::tempdir().expect("create workspace");

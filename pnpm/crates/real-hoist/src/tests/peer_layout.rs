@@ -441,3 +441,78 @@ snapshots:
 ";
     assert_eq!(provider(yaml, "k@1.0.0(f@2.0.0)", "f").as_deref(), Some("f@2.0.0"));
 }
+
+/// `package10` takes `provider2` from its parent `package02` and depends on
+/// `package13@2`. `packages/project2` uses `package13@1`, so `package13@2`
+/// goes no higher than `package02`. When `provider2` later moves up to the
+/// project, `package10` may not follow it: from the project it would find
+/// `package13@1`. [`hoist`] checks that. The lockfile is a generated one,
+/// reduced to what the layout needs.
+#[test]
+fn a_package_waiting_on_its_peer_provider_stays_where_its_dependency_resolves() {
+    let result = hoist_lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      package27: {specifier: '*', version: 1.0.0}
+  packages/project1:
+    dependencies:
+      package02: {specifier: '*', version: 2.0.0}
+      package26: {specifier: '*', version: 1.0.0}
+  packages/project2:
+    dependencies:
+      package02: {specifier: '*', version: 1.0.0}
+      package13: {specifier: '*', version: 1.0.0}
+      package20: {specifier: '*', version: 2.0.0(provider0@2.0.0)}
+      provider0: {specifier: '*', version: 2.0.0}
+packages:
+  package02@1.0.0: {resolution: {integrity: sha512-a}}
+  package02@2.0.0: {resolution: {integrity: sha512-b}}
+  package10@1.0.0: {resolution: {integrity: sha512-c}, peerDependencies: {provider2: '*'}}
+  package13@1.0.0: {resolution: {integrity: sha512-d}}
+  package13@2.0.0: {resolution: {integrity: sha512-e}}
+  package14@1.0.0: {resolution: {integrity: sha512-f}}
+  package20@1.0.0: {resolution: {integrity: sha512-g}, peerDependencies: {provider0: '*'}}
+  package20@2.0.0: {resolution: {integrity: sha512-h}, peerDependencies: {provider0: '*'}}
+  package26@1.0.0: {resolution: {integrity: sha512-i}}
+  package26@2.0.0: {resolution: {integrity: sha512-j}}
+  package27@1.0.0: {resolution: {integrity: sha512-k}}
+  package27@2.0.0: {resolution: {integrity: sha512-l}}
+  provider0@1.0.0: {resolution: {integrity: sha512-m}}
+  provider0@2.0.0: {resolution: {integrity: sha512-n}}
+  provider2@1.0.0: {resolution: {integrity: sha512-o}}
+  provider2@2.0.0: {resolution: {integrity: sha512-p}}
+snapshots:
+  package02@1.0.0:
+    dependencies: {package10: 1.0.0(provider2@1.0.0), provider2: 1.0.0}
+  package02@2.0.0: {}
+  package10@1.0.0(provider2@1.0.0):
+    dependencies: {package13: 2.0.0, provider2: 1.0.0}
+  package13@1.0.0:
+    dependencies: {package14: 1.0.0}
+  package13@2.0.0: {}
+  package14@1.0.0:
+    dependencies: {package20: 1.0.0(provider0@1.0.0), provider0: 1.0.0, provider2: 2.0.0}
+  package20@1.0.0(provider0@1.0.0):
+    dependencies: {provider0: 1.0.0}
+  package20@2.0.0(provider0@2.0.0):
+    dependencies: {package26: 2.0.0, package27: 2.0.0, provider0: 2.0.0}
+  package26@1.0.0: {}
+  package26@2.0.0:
+    dependencies: {package27: 1.0.0}
+  package27@1.0.0:
+    dependencies: {provider2: 2.0.0}
+  package27@2.0.0: {}
+  provider0@1.0.0: {}
+  provider0@2.0.0: {}
+  provider2@1.0.0: {}
+  provider2@2.0.0: {}
+",
+    );
+    let project = child_of(&result, "packages%2Fproject2");
+    child_of(&project, "provider2");
+    let parent = child_of(&project, "package02");
+    assert_eq!(names(&parent), ["package10", "package13"], "{result:#?}");
+}

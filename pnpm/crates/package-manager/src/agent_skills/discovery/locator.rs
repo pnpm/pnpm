@@ -145,7 +145,8 @@ impl Locator {
     }
 }
 
-/// The directories recorded for the package version of `dep_path`.
+/// The directories recorded for `dep_path` and for the other peer variants
+/// of the same package version and patch.
 ///
 /// The hoisted linker records a directory under the key of the copy that
 /// holds it. Peer variants of one package version can share a directory,
@@ -158,16 +159,22 @@ fn recorded_locations(locations: &BTreeMap<String, Vec<String>>, dep_path: &str)
             .cloned()
             .unwrap_or_default();
     };
-    let package = key.without_peer().to_string();
+    let variant = format!("{}@{}", key.name, key.suffix.without_peer_bindings());
+    let is_patched = !key.suffix.patch_group().is_empty();
     locations
-        .range::<str, _>((Bound::Included(package.as_str()), Bound::Unbounded))
-        .take_while(|(recorded, _)| recorded.starts_with(&package))
-        .filter(|(recorded, _)| {
-            let suffix = &recorded[package.len()..];
-            suffix.is_empty() || suffix.starts_with('(')
-        })
+        .range::<str, _>((Bound::Included(variant.as_str()), Bound::Unbounded))
+        .take_while(|(recorded, _)| recorded.starts_with(&variant))
+        .filter(|(recorded, _)| continues_with_peers(&recorded[variant.len()..], is_patched))
         .flat_map(|(_, dirs)| dirs.iter().cloned())
         .collect()
+}
+
+/// Whether `rest`, what a recorded key has after the requested version and
+/// patch, is empty or peer groups. A longer version is another package, and
+/// so is a patch group after a key that has none.
+fn continues_with_peers(rest: &str, is_patched: bool) -> bool {
+    let starts_a_patch = rest.starts_with("(patch_hash=");
+    rest.is_empty() || (rest.starts_with('(') && (is_patched || !starts_a_patch))
 }
 
 /// Whether `alias` names a package, `name` or `@scope/name`, and so stays
