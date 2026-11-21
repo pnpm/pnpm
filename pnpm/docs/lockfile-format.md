@@ -76,7 +76,7 @@ The project document can contain the following keys.
 
 | Key | Value |
 | --- | --- |
-| `lockfileVersion` | The format version, a string such as `'9.0'`. A lockfile that uses named registry package keys uses `12.0`. |
+| `lockfileVersion` | The format version, a string such as `'9.0'`. Current lockfiles in this format use `'9.0'`, including those with named registry keys. pnpm also reads older `'12.0'` lockfiles. |
 | `settings` | The settings the lockfile was resolved with. See [settings](#settings). |
 | `catalogs` | The resolved [catalog](./catalogs.md) entries. See [catalogs](#catalogs). |
 | `overrides` | The [`overrides`](./settings/dependency-resolution.md#overrides) in effect, in the order they are declared. |
@@ -171,7 +171,7 @@ Each dependency has two fields:
 | Version, with optional suffixes | `2.1.0(host@5.0.0)` | The snapshot key is `<dependency name>@<version>`. |
 | `<name>@<version>` | `example-utils@4.17.21` | An aliased dependency. The snapshot key is the value itself. |
 | `link:<path>` | `link:../lib` | A symlink to a directory, relative to the project directory. There is no snapshot. |
-| `file:<path>`, with optional suffixes | `file:packages/lib(host@5.0.0)` | An injected workspace project or a local directory. The path is relative to the lockfile's directory. The snapshot key is `<dependency name>@<version>`. |
+| `file:<path>`, with optional suffixes | `file:packages/lib(host@5.0.0)` | An injected workspace project, a local directory, or a local tarball. The path is relative to the lockfile's directory. The snapshot key is `<dependency name>@<version>`. |
 | URL | `https://codeload.github.com/...` | A package from a URL, such as a git host archive. The snapshot key is `<dependency name>@<version>`. |
 
 A value is an alias when a package name comes before the version: it starts
