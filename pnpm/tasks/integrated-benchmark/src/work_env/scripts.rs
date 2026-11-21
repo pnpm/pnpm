@@ -57,23 +57,6 @@ pub(super) fn wipe_bench_dir(dir: &Path) {
         fs::remove_file(output_log).expect("pre-benchmark metrics-log wipe");
     }
 }
-/// Whether `dir` contains at least one regular file, recursively.
-/// A missing/unreadable dir counts as empty.
-pub(super) fn dir_contains_file(dir: &Path) -> bool {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return false;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            return true;
-        }
-        if path.is_dir() && dir_contains_file(&path) {
-            return true;
-        }
-    }
-    false
-}
 /// Fetch `commit` into `revision_repo`, creating it if missing, and
 /// check the commit out.
 pub(super) fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {

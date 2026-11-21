@@ -49,14 +49,16 @@ pub(super) fn spawn_revision_mock(command: Command, bench_dir: &Path, cold: bool
 
 /// The command that serves one benchmark's pnpr server. A server whose
 /// registries live in the database gets [`pnpr_benchmark_public_url`].
-pub(super) fn pnpr_server_command(paths: &PnprServerPaths<'_>) -> Command {
-    let command = Command::new(paths.binary)
+pub(super) fn pnpr_server_command(paths: &PnprServerPaths) -> Command {
+    let command = Command::new(&paths.binary)
         .with_arg("--config")
-        .with_arg(paths.config)
+        .with_arg(&paths.config)
         .with_arg("--listen")
         .with_arg(format!("127.0.0.1:{}", paths.port))
         .with_arg("--storage")
-        .with_arg(paths.storage)
+        .with_arg(&paths.storage)
+        .with_arg("--cache")
+        .with_arg(paths.cache())
         // The resolver resolves against the registry the client
         // sends, caching packuments in its own store. A long TTL keeps
         // those cached packuments authoritative across the run, the

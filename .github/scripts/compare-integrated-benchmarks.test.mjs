@@ -82,8 +82,8 @@ test('all scenarios and both engines are checked, and missing reports fail', asy
     }
     const result = await renderComparison(directory)
     assert.equal(result.failed, true)
-    assert.equal(result.markdown.match(/\| Regression \|/g).length, 10)
-    assert.equal(result.markdown.match(/\| Within tolerance \|/g).length, 15 + 25)
+    assert.equal(result.markdown.match(/\| Regression \|/g).length, 11)
+    assert.equal(result.markdown.match(/\| Within tolerance \|/g).length, 16 + 27)
     const cli = new URL('./compare-integrated-benchmarks.mjs', import.meta.url)
     const run = spawnSync(process.execPath, [fileURLToPath(cli), directory], { encoding: 'utf8' })
     assert.equal(run.status, 1)

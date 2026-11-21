@@ -51,15 +51,33 @@ pub(super) struct RevisionMockRegistry {
     pub(super) url: String,
 }
 /// Where one benchmark's pnpr server binary, config and storage live.
-pub(super) struct PnprServerPaths<'a> {
-    pub(super) bench_dir: &'a Path,
-    pub(super) binary: &'a Path,
-    pub(super) config: &'a Path,
+pub(super) struct PnprServerPaths {
+    pub(super) bench_dir: PathBuf,
+    pub(super) binary: PathBuf,
+    pub(super) config: PathBuf,
     /// The registries document to import before the server starts, for a
     /// revision whose config file holds no registries.
-    pub(super) registries: Option<&'a Path>,
-    pub(super) storage: &'a Path,
+    pub(super) registries: Option<PathBuf>,
+    pub(super) storage: PathBuf,
     pub(super) port: u16,
+}
+impl PnprServerPaths {
+    /// The server's resolver cache: its cached packuments and resolutions.
+    /// It sits outside the database, so emptying it while the server is down
+    /// keeps the accounts and the token minted at startup.
+    pub(super) fn cache(&self) -> PathBuf {
+        pnpr_cache_dir(&self.storage)
+    }
+}
+/// The `--cache` of the pnpr server whose storage is `storage`.
+pub(super) fn pnpr_cache_dir(storage: &Path) -> PathBuf {
+    storage.join("cache")
+}
+/// A `pnpr@<rev>` target's resolver server, with the paths that launch it
+/// again after a restart with an empty cache.
+pub(super) struct PnprResolverServer {
+    pub(super) server: PnprServer,
+    pub(super) paths: PnprServerPaths,
 }
 /// A pnpr resolver server spawned for one `pnpr@<rev>`
 /// target. Killed on drop so it never outlives the benchmark run.
