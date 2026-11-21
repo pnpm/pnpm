@@ -1147,7 +1147,7 @@ fn failed_dedicated_import_restores_previous_projects() {
     write_file(
         &workspace,
         "pnpm-workspace.yaml",
-        "packages: ['packages/*']\nsharedWorkspaceLockfile: false\n",
+        "packages: ['packages/*']\nsharedWorkspaceLockfile: false\nmergeGitBranchLockfiles: true\n",
     );
     write_file(&workspace, "package.json", "{}");
     write_file(&workspace, "yarn.lock", "# yarn lockfile v1");
@@ -1156,11 +1156,15 @@ fn failed_dedicated_import_restores_previous_projects() {
     }
     let first = workspace.join("packages/a");
     write_file(&first, "pnpm-lock.yaml", "# original\n");
+    write_file(&first, "pnpm-lock.feature.yaml", "# branch\n");
     write_file(&workspace, "packages/c/yarn.lock", "invalid");
-    pacquet
+    let result = pacquet
         .with_arg("import")
         .assert()
         .failure();
+    let stderr = String::from_utf8_lossy(&result.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED"), "{stderr}");
+    assert_eq!(fs::read_to_string(first.join("pnpm-lock.feature.yaml")).unwrap(), "# branch\n");
     assert_eq!(fs::read_to_string(first.join("pnpm-lock.yaml")).unwrap(), "# original\n");
     assert_no_import_backups(&first);
     assert!(!workspace.join("packages/b/pnpm-lock.yaml").exists());

@@ -69,12 +69,12 @@ export async function handler (
 ): Promise<void> {
   const versionsByPackageNames = await readVersionsByPackageNames(opts.dir)
   const preferredVersions = getPreferredVersions(versionsByPackageNames)
-  const lockfilePath = path.join(opts.lockfileDir ?? opts.dir, await getWantedLockfileName(opts))
-  await ensureLockfileIsNotSymlink(lockfilePath)
-  if (opts.sharedWorkspaceLockfile === false && opts.lockfileDir == null && opts.selectedProjectsGraph) {
-    const lockfileName = path.basename(lockfilePath)
-    await Promise.all(Object.keys(opts.selectedProjectsGraph).map(dir => ensureLockfileIsNotSymlink(path.join(dir, lockfileName))))
-  }
+  const lockfileName = await getWantedLockfileName(opts)
+  const dirs = opts.workspaceDir && opts.lockfileDir == null && opts.selectedProjectsGraph
+    ? Object.keys(opts.selectedProjectsGraph)
+    : [opts.lockfileDir ?? opts.dir]
+  const destinations = dirs.map(dir => path.join(dir, lockfileName))
+  await Promise.all(destinations.map(ensureLockfileIsNotSymlink))
   const projects = await getImportedProjects(opts)
   const preferredVersionsByImporterId = await nestedYarnLockPreferredVersions(opts, projects)
   const patchedDependencies = await importYarnPatches({
@@ -83,46 +83,57 @@ export async function handler (
     workspaceDir: opts.workspaceDir ?? opts.dir,
     patchedDependencies: opts.patchedDependencies,
   }) ?? opts.patchedDependencies
-  await replaceWantedLockfile(lockfilePath, async () => installImportedLockfile(
-    { ...opts, patchedDependencies },
+  const branchOptions = opts.mergeGitBranchLockfiles ? { mergeGitBranchLockfiles: false, useGitBranchLockfile: false } : {}
+  await replaceWantedLockfiles(destinations, async () => installImportedLockfile(
+    { ...opts, ...branchOptions, patchedDependencies },
     params,
     { preferredVersions, preferredVersionsByImporterId }
   ))
 }
 
-async function replaceWantedLockfile (
-  lockfilePath: string,
-  writeImportedLockfile: () => Promise<void>
+interface LockfileBackup {
+  path: string
+  original?: string
+}
+
+async function replaceWantedLockfiles (
+  destinations: string[],
+  writeImportedLockfiles: () => Promise<void>
 ): Promise<void> {
+  const backups: LockfileBackup[] = []
+  try {
+    const prepared = await Promise.allSettled(destinations.map(lockfilePath => prepareLockfile(lockfilePath, backups)))
+    const failure = prepared.find(result => result.status === 'rejected')
+    if (failure) throw failure.reason
+    await writeImportedLockfiles()
+  } catch (error: unknown) {
+    const restored = await Promise.allSettled(backups.map(restoreLockfile))
+    const errors = restored.flatMap(result => result.status === 'rejected' ? [result.reason] : [])
+    if (errors.length) throw new AggregateError([error, ...errors], 'Failed to restore imported lockfiles', { cause: error })
+    throw error
+  }
+  await Promise.all(backups.map(backup => backup.original && fs.promises.unlink(backup.original)))
+}
+
+async function prepareLockfile (lockfilePath: string, backups: LockfileBackup[]): Promise<void> {
   const lockfileDir = path.dirname(lockfilePath)
   const lockfileName = path.basename(lockfilePath)
   await ensureLockfileIsNotSymlink(lockfilePath)
-  // The env document leads pnpm-lock.yaml, so a branch import has none to carry over.
   const envLockfile = lockfileName === WANTED_LOCKFILE ? await readEnvLockfile(lockfileDir) : undefined
-  // A backup of its own keeps overlapping imports from restoring each other's copy.
   const backupPath = `${lockfilePath}.${randomUUID()}.import.bak`
-  // The existing pnpm lockfile must not influence the imported versions.
   const lockfileExisted = await moveIfExists(lockfilePath, backupPath)
-  try {
-    if (lockfileName !== WANTED_LOCKFILE) {
-      // An absent branch lockfile would fall back to the shared lockfile.
-      await fs.promises.mkdir(lockfileDir, { recursive: true })
-      await writeWantedLockfile(lockfileDir, { lockfileVersion: LOCKFILE_VERSION, importers: {} }, { lockfileName })
-    }
-    if (envLockfile) {
-      await writeEnvLockfile(lockfileDir, envLockfile)
-    }
-    await writeImportedLockfile()
-  } catch (err: unknown) {
-    await fs.promises.rm(lockfilePath, { force: true })
-    if (lockfileExisted) {
-      await fs.promises.rename(backupPath, lockfilePath)
-    }
-    throw err
+  backups.push({ path: lockfilePath, original: lockfileExisted ? backupPath : undefined })
+  if (lockfileName !== WANTED_LOCKFILE) {
+    // An absent branch lockfile would fall back to the shared lockfile.
+    await fs.promises.mkdir(lockfileDir, { recursive: true })
+    await writeWantedLockfile(lockfileDir, { lockfileVersion: LOCKFILE_VERSION, importers: {} }, { lockfileName })
   }
-  if (lockfileExisted) {
-    await fs.promises.unlink(backupPath)
-  }
+  if (envLockfile) await writeEnvLockfile(lockfileDir, envLockfile)
+}
+
+async function restoreLockfile (backup: LockfileBackup): Promise<void> {
+  await fs.promises.rm(backup.path, { force: true })
+  if (backup.original) await fs.promises.rename(backup.original, backup.path)
 }
 
 async function moveIfExists (sourcePath: string, targetPath: string): Promise<boolean> {

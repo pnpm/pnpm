@@ -241,12 +241,10 @@ async fn import_versions<Reporter: self::Reporter + 'static>(
     lockfile_path: &std::path::Path,
     preferred_versions: PreferredVersionsOverride,
 ) -> miette::Result<()> {
-    let import_lockfile = pnpm_lockfile::LazyLockfile::preloaded(None);
-
     {
         let mut base_install =
             state.install([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]);
-        base_install.context.lockfile = pnpm_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile);
+        base_install.context.lockfile = pnpm_lockfile::MaybeLazyLockfile::Loaded(None);
         base_install.lockfile_policy.prefer_frozen = Some(false);
         base_install.lockfile_policy.trust = false;
         base_install.execution.mutation = ProjectMutation::NoInstall;
