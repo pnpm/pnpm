@@ -323,9 +323,11 @@ pub(crate) struct Partition {
 impl Partition {
     /// Reject a bare-name approval when the pending dependency is one a bare
     /// name cannot identify: a `file:`/`link:` path, a git URL, or a tarball
-    /// URL. Only a registry version is approvable by name. [`parse_dep_path_name_version`]
-    /// strips peer and patch suffixes, so a patched registry entry stays
-    /// approvable by name.
+    /// URL. Only a default-registry semver is approvable by name; a named
+    /// registry key (`name@alias:version`) lacks the registry-origin shape
+    /// that [`AllowBuildPolicy`] trusts, so it needs the exact selector too.
+    /// [`parse_dep_path_name_version`] strips peer and patch suffixes, so a
+    /// patched default-registry entry stays approvable by name.
     fn require_exact_selectors(&self, pending: &[String]) -> miette::Result<()> {
         if self.unknown.is_empty() {
             return Ok(());
