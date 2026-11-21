@@ -125,9 +125,11 @@ fn prune_index(
                 return Ok(());
             }
         };
+        // A row missing any of its files cannot be imported, and a row of
+        // an archive that is not an npm package has no `package.json`.
         if package.files
-            .get("package.json")
-            .is_some_and(|file| removed_hashes.contains(&file.digest))
+            .values()
+            .any(|file| removed_hashes.contains(&file.digest))
         {
             rows_to_delete.push(key);
         }

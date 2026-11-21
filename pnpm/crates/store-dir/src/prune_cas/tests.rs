@@ -196,6 +196,51 @@ fn keeps_undecodable_rows_and_prunes_the_rest() {
     );
 }
 
+#[test]
+fn removes_a_row_without_package_json_that_lost_any_file() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let linked_digest = format!("05{}", "e".repeat(126));
+    let orphan_digest = format!("06{}", "f".repeat(126));
+    let linked = store.file_path_by_hex_str(&linked_digest, "");
+    let orphan = store.file_path_by_hex_str(&orphan_digest, "");
+    for path in [&linked, &orphan] {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "{}").unwrap();
+    }
+    fs::hard_link(&linked, root.path().join("installed-module.py")).unwrap();
+    let file = |digest: &str| CafsFileInfo {
+        digest: digest.to_string(),
+        mode: 0o644,
+        size: 2,
+        checked_at: None,
+    };
+    let wheel = PackageFilesIndex {
+        algo: "sha512".to_string(),
+        files: HashMap::from([
+            ("demo/__init__.py".to_string(), file(&linked_digest)),
+            ("demo-1.0.0.dist-info/RECORD".to_string(), file(&orphan_digest)),
+        ]),
+        ..PackageFilesIndex::default()
+    };
+    let index = StoreIndex::open_in(&store).unwrap();
+    index.set("wheel", &wheel).unwrap();
+    drop(index);
+
+    let stats = prune_cas(&store).unwrap();
+
+    assert_eq!((stats.files, stats.packages), (1, 1));
+    assert!(linked.exists());
+    assert!(!orphan.exists());
+    assert!(
+        StoreIndex::open_in(&store)
+            .unwrap()
+            .keys()
+            .unwrap()
+            .is_empty(),
+    );
+}
+
 fn prune_cas(store: &StoreDir) -> Result<PruneCasStats, PruneCasError> {
     prune_cas_with_references(store, &std::collections::HashSet::new())
 }

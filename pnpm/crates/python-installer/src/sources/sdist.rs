@@ -148,7 +148,7 @@ impl Registry<'_> {
         sdist: &LockedSdist,
     ) -> Result<pnpm_fs::CasPaths> {
         let integrity = sdist.integrity()?;
-        let package_id = format!("python:{}", sdist.name);
+        let package_id = crate::store_keys::archive_package_id(&sdist.name);
         let fetching = pnpm_tarball::ArchiveFetchOptions {
             http_client: self.client,
             auth_headers: &self.index.auth,

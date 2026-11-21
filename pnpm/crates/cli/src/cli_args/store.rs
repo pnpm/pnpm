@@ -18,8 +18,13 @@ use clap::{
     Args,
     Subcommand,
 };
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::{
     Context,
+    Diagnostic,
     IntoDiagnostic,
 };
 use pnpm_config::{
@@ -78,7 +83,17 @@ impl StoreCommand {
     }
 }
 
+/// `pnpm store prune` asked to remove files from a store `frozenStore`
+/// keeps read-only.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Cannot prune the store because frozenStore is enabled (the store is opened read-only)")]
+#[diagnostic(code(ERR_PNPM_FROZEN_STORE_WRITE), help("Turn off frozenStore to prune the store."))]
+pub struct FrozenStorePruneError;
+
 fn prune(config: &Config) -> miette::Result<()> {
+    if config.frozen_store {
+        return Err(FrozenStorePruneError.into());
+    }
     // The dlx cache holds hard links into the store, so it is
     // cleaned first to let this prune reclaim what the expired
     // entries used.

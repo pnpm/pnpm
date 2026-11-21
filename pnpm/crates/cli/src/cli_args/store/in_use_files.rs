@@ -5,6 +5,9 @@
 //! keep it. A package linked from a modules directory not named
 //! `node_modules` is found only through the projects that the installed
 //! lockfiles list.
+//!
+//! A Python environment rewrites each wheel's `RECORD`, so that store file
+//! has no hard link either while the wheel's other files do.
 
 use pnpm_config::{
     Host,
@@ -55,6 +58,9 @@ use std::{
 ///   of every side-effects entry;
 /// - the modules directory of every project it lists.
 ///
+/// Every file of the rows of the archives each registered project's
+/// `pylock.toml` pins.
+///
 /// A project without a current lockfile, a project whose lockfile version
 /// this pnpm does not support, and a package without a row add no files. A
 /// registry error keeps its own code, and any other failure is
@@ -66,6 +72,7 @@ pub(super) fn in_use(store_dir: &StoreDir) -> Result<InUse, PruneError> {
         // The registry joins a relative link target without normalizing it.
         let project = lexical_normalize(&project);
         let modules_dir = modules_dirs.add(&project).map_err(PruneError::InUseFiles)?;
+        keys.extend(python_index_keys(&project).map_err(PruneError::InUseFiles)?);
         for lockfile in
             load_installed_lockfiles(&project, &modules_dir).map_err(PruneError::InUseFiles)?
         {
@@ -246,6 +253,23 @@ fn load_installed_lockfile(
         return Ok(None);
     }
     Err(io::Error::other(format!("{}: {error}", install_state_dir.display())))
+}
+
+/// A `pylock.toml` that cannot be parsed adds nothing, like a lockfile of an
+/// unsupported version.
+fn python_index_keys(project: &Path) -> io::Result<Vec<String>> {
+    let path = project.join("pylock.toml");
+    match pnpm_python_installer::locked_archive_store_index_keys(&path) {
+        Ok(keys) => Ok(keys.unwrap_or_default()),
+        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+            pnpm_diagnostics::eprintln!(
+                "Skipped {} because it could not be parsed: {error}",
+                path.display()
+            );
+            Ok(Vec::new())
+        }
+        Err(error) => Err(io::Error::other(format!("{}: {error}", path.display()))),
+    }
 }
 
 fn package_index_keys(lockfile: &Lockfile) -> io::Result<Vec<String>> {

@@ -37,6 +37,7 @@ pub use pep508_rs::{
     PackageName,
     VersionOrUrl,
 };
+pub use store_keys::locked_archive_store_index_keys;
 pub use update::{
     UpdateOptions,
     plan_update,
@@ -61,6 +62,7 @@ mod resolutions;
 mod resolver;
 mod settings;
 mod sources;
+mod store_keys;
 mod targets;
 mod update;
 mod workspace;
@@ -242,7 +244,27 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         .wrap_err("join Python artifact store index writer")?
         .into_diagnostic()
         .wrap_err("flush Python artifact store index")?;
-    result
+    let prepared = result?;
+    register_in_store(&context, &prepared);
+    Ok(prepared)
+}
+
+/// Register the root of every environment as a user of the store, so a
+/// store prune keeps the archives its `pylock.toml` pins.
+fn register_in_store(context: &InstallOptions, prepared: &[Prepared]) {
+    let config = context.config;
+    if config.frozen_store {
+        return;
+    }
+    for project in prepared.iter().filter(|project| project.environment.is_some()) {
+        if let Err(error) = pnpm_store_dir::register_project(&config.store_dir, &project.root) {
+            tracing::warn!(
+                target: "pnpm::python",
+                ?error,
+                "Failed to register a Python project in the store project registry; install continues",
+            );
+        }
+    }
 }
 
 impl PythonPrepare<'_> {

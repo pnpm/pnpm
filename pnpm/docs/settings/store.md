@@ -88,7 +88,7 @@ pnpm install --frozen-store --offline --frozen-lockfile
 
 The store must already contain everything the install needs, including the build output of any package whose lifecycle scripts are approved (or that has a patch applied). Under the [global virtual store](./node-modules.md#enableglobalvirtualstore), those package directories live inside the store, so if a required build is missing the install fails up front with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD`. Seed the store with those builds first.
 
-`frozenStore` is incompatible with `--force` and with a configured pnpr server, since both write into the store. The [side effects cache](./build.md#sideeffectscache) is not written either.
+`frozenStore` is incompatible with `--force` and with a configured pnpr server, since both write into the store. `pnpm store add` and `pnpm store prune` fail while it is enabled. The [side effects cache](./build.md#sideeffectscache) is not written either.
 
 ### storeIndexFormat
 
