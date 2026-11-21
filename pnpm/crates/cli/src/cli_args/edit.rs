@@ -96,10 +96,13 @@ impl EditArgs {
 }
 
 fn installed_package_dir(state: &State, parts: &[String]) -> miette::Result<PathBuf> {
-    let modules_dir_name = state.config.modules_dir
-        .file_name()
-        .unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
-    let project_modules_dir = state.project_dir().join(modules_dir_name);
+    let project_dir = state.project_dir();
+    let project_name = state.config
+        .applies_package_configs()
+        .then(|| pnpm_workspace::read_project_name(project_dir))
+        .flatten();
+    let project_modules_dir =
+        state.config.project_modules_dir(project_dir, project_name.as_deref());
     let workspace_modules_dir = dunce::canonicalize(&state.config.modules_dir).ok();
     resolve_package_dir_with_fallback(
         &project_modules_dir,
@@ -143,7 +146,12 @@ fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<Pack
                     .find(|edge| &edge.alias == part)
             })
             .and_then(|edge| edge.target.clone())
-            .ok_or_else(|| miette!("Package '{part}' is missing from the installed lockfile"))?;
+            .ok_or_else(|| {
+                miette!(
+                    help = "Name a package that is not a direct dependency through the package that depends on it, such as <parent>/{part}",
+                    "Package '{part}' is missing from the installed lockfile"
+                )
+            })?;
     }
     let TreeNodeId::Package(key) = node else {
         return Err(miette!("The selected package is not an installed dependency"));
@@ -185,7 +193,7 @@ fn resolve_package_dir(
         } else if current_dir.starts_with(&virtual_store_dir) {
             isolated_dependency_dir(&current_dir, part)?
         } else {
-            current_dir.join("node_modules").join(part)
+            hoisted_dependency_dir(&current_dir, &modules_dir, part)
         };
         if !candidate.exists() {
             let dir = current_dir.display();
@@ -209,6 +217,28 @@ fn isolated_dependency_dir(package_dir: &Path, dependency: &str) -> miette::Resu
         .ok_or_else(|| {
             miette!("Could not find package node_modules directory under isolated virtual store")
         })
+}
+
+/// Where Node.js finds `dependency` from `package_dir` in a hoisted layout:
+/// the nearest `node_modules` between the package and `modules_dir` that has
+/// it. Returns the package's own `node_modules` entry when none does.
+fn hoisted_dependency_dir(package_dir: &Path, modules_dir: &Path, dependency: &str) -> PathBuf {
+    let own = package_dir.join("node_modules").join(dependency);
+    package_dir
+        .ancestors()
+        .take_while(|ancestor| ancestor.starts_with(modules_dir))
+        .filter_map(|ancestor| {
+            let name = ancestor.file_name()?;
+            if ancestor == modules_dir || name == "node_modules" {
+                Some(ancestor.join(dependency))
+            } else if name.to_string_lossy().starts_with('@') {
+                None
+            } else {
+                Some(ancestor.join("node_modules").join(dependency))
+            }
+        })
+        .find(|candidate| candidate.exists())
+        .unwrap_or(own)
 }
 
 fn resolve_package_dir_with_fallback(
@@ -313,14 +343,14 @@ fn de_hardlink_dir(dir: &Path) -> io::Result<()> {
         if metadata.file_type().is_dir() {
             de_hardlink_dir(&path)?;
         } else if metadata.file_type().is_file() {
-            de_hardlink_file(&path, &metadata)?;
+            de_hardlink_file(&path)?;
         }
     }
     Ok(())
 }
 
-fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
-    if !is_file_hardlinked(metadata) {
+fn de_hardlink_file(path: &Path) -> io::Result<()> {
+    if !is_file_hardlinked(path)? {
         return Ok(());
     }
     let permissions = pnpm_fs::copy_permissions(path)?;
@@ -331,15 +361,19 @@ fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
     pnpm_fs::copy_file_atomic_with_permissions(path, path, &permissions)
 }
 
-fn is_file_hardlinked(metadata: &fs::Metadata) -> bool {
+fn is_file_hardlinked(path: &Path) -> io::Result<bool> {
     #[cfg(unix)]
     {
-        metadata.nlink() > 1
+        fs::symlink_metadata(path).map(|metadata| metadata.nlink() > 1)
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     {
-        let _ = metadata;
-        true
+        pnpm_ffi_fs::file_information(path).map(|info| info.hard_links > 1)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = path;
+        Ok(true)
     }
 }
 

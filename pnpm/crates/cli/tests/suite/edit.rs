@@ -398,7 +398,7 @@ fn edit_fails_with_empty_editor() {
 
 #[test]
 fn edit_uses_configured_editor() {
-    for source in ["workspace", "environment", "cli"] {
+    for source in ["environment", "cli"] {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
         fs::write(workspace.join("package.json"), r#"{"name":"test-project"}"#).unwrap();
         let package_dir = workspace.join("node_modules/test-dependency");
@@ -409,11 +409,6 @@ fn edit_uses_configured_editor() {
             .with_args(["edit", "test-dependency"])
             .with_env("EDITOR", "pnpm-edit-fallback-editor-missing");
         let mut command = match source {
-            "workspace" => {
-                fs::write(workspace.join("pnpm-workspace.yaml"), format!("editor: {editor}\n"))
-                    .unwrap();
-                command
-            }
             "environment" => command.with_env("PNPM_CONFIG_EDITOR", editor),
             "cli" => command.with_arg(format!("--config.editor={editor}")),
             _ => unreachable!(),
@@ -424,6 +419,105 @@ fn edit_uses_configured_editor() {
         assert!(stderr.contains(editor), "{source}: {stderr}");
         drop(root);
     }
+}
+
+#[test]
+fn edit_rejects_an_editor_from_the_workspace_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"test-project"}"#).unwrap();
+    let package_dir = workspace.join("node_modules/test-dependency");
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(package_dir.join("package.json"), r#"{"name":"test-dependency"}"#).unwrap();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "editor: ./tools/editor.sh\n").unwrap();
+    let output = pacquet(&workspace)
+        .with_args(["edit", "test-dependency"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_WORKSPACE_EDITOR"), "{stderr}");
+    drop(root);
+}
+
+#[test]
+fn edit_opens_a_hoisted_nested_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    append_workspace_yaml_key(&workspace, "nodeLinker", " hoisted");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let hoisted_dir = workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
+    assert!(hoisted_dir.is_dir(), "the nested dependency must be hoisted");
+    let output = pacquet(&workspace)
+        .with_args([
+            "edit",
+            "@pnpm.e2e/pkg-with-1-dep/@pnpm.e2e/dep-of-pkg-with-1-dep",
+            "--editor",
+            r#"node -e "require('fs').writeFileSync(process.argv[1]+'/edited','yes')""#,
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(fs::read_to_string(hoisted_dir.join("edited")).unwrap(), "yes");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_uses_the_member_modules_dir_setting() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(workspace.join("package.json"), r#"{"name":"root"}"#).unwrap();
+    let member_dir = workspace.join("packages/app");
+    fs::create_dir_all(&member_dir).unwrap();
+    fs::write(
+        member_dir.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "dependencies": {
+                "@pnpm.e2e/bar": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    append_workspace_yaml_key(&workspace, "packages", "\n  - 'packages/app'");
+    append_workspace_yaml_key(&workspace, "modulesDir", " www/modules");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let member_package_dir = member_dir.join("www/modules/@pnpm.e2e/bar");
+    assert!(member_package_dir.is_dir(), "the dependency must be installed under modulesDir");
+    let output = pacquet(&member_dir)
+        .with_args([
+            "edit",
+            "@pnpm.e2e/bar",
+            "--editor",
+            r#"node -e "require('fs').writeFileSync(process.argv[1]+'/edited','yes')""#,
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(fs::read_to_string(member_package_dir.join("edited")).unwrap(), "yes");
+
+    drop(npmrc_info);
+    drop(root);
 }
 
 #[test]

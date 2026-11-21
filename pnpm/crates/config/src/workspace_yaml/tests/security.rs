@@ -80,3 +80,21 @@ fn script_shell_and_node_options_null_clears_inherited_value() {
     assert_eq!(config.script_shell, None, "explicit null must clear the inherited shell");
     assert_eq!(config.node_options, None, "explicit null must clear inherited NODE_OPTIONS");
 }
+
+/// `editor` names an executable, so a committed workspace file cannot set
+/// it, while `null` stays accepted.
+#[test]
+fn committed_workspace_cannot_set_editor() {
+    let path = Path::new("/repo/pnpm-workspace.yaml");
+    let error = WorkspaceSettings::read_valid_with::<crate::workspace_yaml::SystemEnv>(
+        "editor: ./tools/editor.sh\n",
+        path,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(error, crate::workspace_yaml::LoadWorkspaceYamlError::WorkspaceEditor { .. }),
+        "{error}",
+    );
+    WorkspaceSettings::read_valid_with::<crate::workspace_yaml::SystemEnv>("editor: null\n", path)
+        .unwrap();
+}
