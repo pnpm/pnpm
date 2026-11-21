@@ -19,7 +19,7 @@
 // becomes bound through its normal use (commits).
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 // Child stderr is piped so expected git failures (such as a detached HEAD)
@@ -66,17 +66,17 @@ const isAgent = Boolean(process.env.CLAUDECODE)
 const overridden = process.env.PNPM_ALLOW_WORKTREE_REBIND === '1'
 
 const markerPath = join(gitDir, 'agent-bound-branch')
+// Records a first-observed switch rejected for lack of a source branch, so
+// pre-commit keeps rejecting until the binding is resolved.
+const unresolvedPath = join(gitDir, 'agent-unresolved-switch')
 let bound = existsSync(markerPath) ? readFileSync(markerPath, 'utf8').trim() : null
 if (bound === null) {
   bound = initialBinding(branch)
   if (bound === null) {
-    // A first-observed switch whose origin the checkout history cannot
-    // name would otherwise bind to its own destination — the exact
-    // rebind this guard exists to reject. Fail closed for agents and
-    // leave the worktree unbound.
+    writeFileSync(unresolvedPath, `${branch}\n`)
     console.error(
       [
-        `error: This worktree has no recorded branch binding, and the checkout history does not name the branch this switch to \`${branch}\` came from.`,
+        `error: This worktree has no recorded branch binding, and the checkout history does not name the branch the switch to \`${branch}\` came from.`,
         '',
         'One worktree works on one branch for its whole life. Switch back to the',
         "branch this worktree was on. If it is legitimately this worktree's own",
@@ -90,6 +90,7 @@ if (bound === null) {
     process.exit(1)
   }
   writeFileSync(markerPath, `${bound}\n`)
+  rmSync(unresolvedPath, { force: true })
 }
 
 if (bound === branch) {
@@ -118,30 +119,31 @@ console.error(
 )
 process.exit(1)
 
-// Resolves the branch a worktree binds to when no binding is recorded yet:
-// the most recent branch named as a checkout source in the worktree's HEAD
-// reflog, skipping detached sources. Binds to currentBranch on worktree
-// creation or when no checkout is recorded. Returns null for agent sessions
-// when checkouts occurred but no source branch is recorded in the reflog.
+// Resolves the branch a worktree binds to when no binding is recorded yet.
+// Returns null when an agent's switch must be rejected because its source
+// branch is unknown.
+//
+// - `--bind-only`: a checkout the guard never observed predates its
+//   activation, so the worktree binds to currentBranch, unless a rejected
+//   switch is still unresolved.
+// - post-checkout: the switch being checked binds to the most recent branch
+//   named as a checkout source in the HEAD reflog. Worktree creation binds
+//   to currentBranch.
 function initialBinding (currentBranch) {
-  const oldRef = bindOnly ? null : process.argv[2]
-  if (oldRef && /^0+$/.test(oldRef)) {
+  const mustReject = isAgent && !overridden
+  if (bindOnly) {
+    return mustReject && existsSync(unresolvedPath) ? null : currentBranch
+  }
+  if (/^0+$/.test(process.argv[2])) {
     return currentBranch
   }
-  let sawCheckout = !bindOnly
   for (const line of headReflogSubjects()) {
-    const match = /^checkout: moving from (\S+) to /.exec(line)
-    if (!match) {
-      continue
+    const source = /^checkout: moving from (\S+) to /.exec(line)?.[1]
+    if (source && !isObjectId(source)) {
+      return source
     }
-    sawCheckout = true
-    const source = match[1]
-    if (isObjectId(source)) {
-      continue
-    }
-    return source
   }
-  return sawCheckout && isAgent && !overridden ? null : currentBranch
+  return mustReject ? null : currentBranch
 }
 
 // `git branch -m` of the checked-out branch runs no checkout hook. It is
