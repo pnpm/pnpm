@@ -263,7 +263,7 @@ async function resolvePublishedAt (
   const abbreviatedShortcut = await tryAbbreviatedModifiedShortcut(context, registry, name, version)
   if (abbreviatedShortcut != null) return abbreviatedShortcut
 
-  const { meta } = await fetchAbbreviatedMeta(context, registry, name)
+  const { meta } = await fetchAbbreviatedMeta(context, { registry, name })
   const abbreviatedTime = meta?.time?.[version]
   if (abbreviatedTime) return abbreviatedTime
 
@@ -305,7 +305,7 @@ async function tryAbbreviatedModifiedShortcut (
   name: string,
   version: string
 ): Promise<string | undefined> {
-  const { meta } = await fetchAbbreviatedMeta(context, registry, name)
+  const { meta } = await fetchAbbreviatedMeta(context, { registry, name })
   const modified = meta?.modified
   if (typeof modified !== 'string') return undefined
   const modifiedMs = Date.parse(modified)
@@ -317,15 +317,14 @@ async function tryAbbreviatedModifiedShortcut (
 
 export function fetchAbbreviatedMeta (
   context: PublishedAtLookupContext,
-  registry: string,
-  name: string
+  { registry, name, cacheBypass = false }: { registry: string, name: string, cacheBypass?: boolean }
 ): Promise<AbbreviatedMetaResult> {
-  const cacheKey = `${registry}\x00${name}`
+  const cacheKey = `${registry}\x00${name}${cacheBypass ? '\x00refetched' : ''}`
   let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
   if (cachedPromise == null) {
     // Fast path: the resolver's per-install LRU already holds this
     // packument from its own pickPackage pass, abbreviated or full.
-    const shared = readSharedMeta(context.sharedMetaCache, registry, name)
+    const shared = cacheBypass ? undefined : readSharedMeta(context.sharedMetaCache, registry, name)
     const sharedProjection = shared != null ? projectSharedMeta(shared) : undefined
     if (sharedProjection != null) {
       cachedPromise = Promise.resolve({ meta: sharedProjection })
@@ -333,6 +332,7 @@ export function fetchAbbreviatedMeta (
       cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
+        cacheBypass,
         cacheDir: context.cacheDir,
         offline: context.offline,
       }).then(

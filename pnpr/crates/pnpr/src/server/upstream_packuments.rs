@@ -70,7 +70,7 @@ pub(super) async fn read_source_packument(
     identity: &Identity,
     resolved_source: &RegistrySource,
     name: &CanonicalPackageName,
-) -> Result<Option<Vec<u8>>, RegistryError> {
+) -> Result<Option<LoadedPackument>, RegistryError> {
     match resolved_source {
         RegistrySource::Upstream(source) => {
             authorize(state, identity, resolved_source, name.as_str(), Action::Read)?;
@@ -82,6 +82,7 @@ pub(super) async fn read_source_packument(
                 .for_hosted(&namespace, pnpr_registry::Ecosystem::Npm)
                 .read_hosted_document(name)
                 .await
+                .map(|bytes| bytes.map(LoadedPackument::fresh))
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     }
@@ -97,18 +98,24 @@ pub(super) async fn load_upstream_packument(
     upstream: &Upstream,
     name: &CanonicalPackageName,
     ttl: Duration,
-) -> Result<Option<Vec<u8>>, RegistryError> {
+) -> Result<Option<LoadedPackument>, RegistryError> {
     if upstream.caches() {
         let cached = read_cached_upstream_packument(state, namespace, name, ttl);
         if let Some(bytes) =
             state.inner.packuments.admissions.serve(DocumentSource::Stored, cached).await?
         {
-            return Ok(Some(bytes));
+            return Ok(Some(LoadedPackument::fresh(bytes)));
         }
     }
-    let document =
-        Box::pin(fetch_coalesced_upstream_packument(state, namespace, upstream, name, ttl)).await?;
-    Ok(document.map(|document| document.bytes.to_vec()))
+    let document = Box::pin(fetch_coalesced_upstream_packument(
+        state,
+        namespace,
+        upstream,
+        name,
+        PackumentRead::Cached(ttl),
+    ))
+    .await?;
+    Ok(document.map(|document| document.loaded()))
 }
 
 async fn read_cached_upstream_packument(
@@ -131,14 +138,47 @@ async fn read_cached_upstream_packument(
     Ok(bytes)
 }
 
+pub(super) struct LoadedPackument {
+    pub(super) bytes: Vec<u8>,
+    pub(super) stale_error: Option<Arc<RegistryError>>,
+}
+
+impl LoadedPackument {
+    fn fresh(bytes: Vec<u8>) -> Self {
+        Self { bytes, stale_error: None }
+    }
+}
+
 pub(super) struct AdmittedPackument {
+    stale_error: Option<Arc<RegistryError>>,
     pub(super) bytes: Bytes,
     _admission: SourceAdmission,
 }
 
 impl AdmittedPackument {
     fn new(bytes: Vec<u8>, admission: SourceAdmission) -> Arc<Self> {
-        Arc::new(Self { bytes: bytes.into(), _admission: admission })
+        Arc::new(Self { bytes: bytes.into(), stale_error: None, _admission: admission })
+    }
+
+    fn loaded(&self) -> LoadedPackument {
+        LoadedPackument { bytes: self.bytes.to_vec(), stale_error: self.stale_error.clone() }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum PackumentRead {
+    Cached(Duration),
+    MissingVersion,
+    Revalidate,
+}
+
+impl PackumentRead {
+    fn ttl(self) -> Option<Duration> {
+        match self {
+            Self::Cached(ttl) => Some(ttl),
+            Self::MissingVersion => Some(REFETCH_INTERVAL),
+            Self::Revalidate => None,
+        }
     }
 }
 
@@ -147,44 +187,46 @@ pub(super) async fn fetch_coalesced_upstream_packument(
     namespace: &str,
     upstream: &Upstream,
     name: &CanonicalPackageName,
-    ttl: Duration,
+    read: PackumentRead,
 ) -> Result<Option<Arc<AdmittedPackument>>, RegistryError> {
-    coalesce_upstream_packument(state, namespace, name, || async {
+    upstream.ensure_may_fetch()?;
+    let key = (namespace.to_string(), name.clone(), PackumentFlightKind::Read(read));
+    coalesce_upstream_packument_keyed(state, key, || async {
         let admission =
             state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace)).await;
-        let fetched =
-            fetch_and_cache_upstream_packument(state, namespace, upstream, name, Some(ttl)).await?;
-        Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission)))
+        match fetch_and_cache_upstream_packument(state, namespace, upstream, name, read).await {
+            Ok(fetched) => Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission))),
+            Err(err) if matches!(read, PackumentRead::Cached(_)) => {
+                let stale = recover_stale_upstream_packument(
+                    state,
+                    namespace,
+                    upstream,
+                    name,
+                    RegistryError::Shared(Arc::clone(&err)),
+                )
+                .await?;
+                Ok(stale.map(|bytes| {
+                    Arc::new(AdmittedPackument {
+                        bytes: bytes.into(),
+                        stale_error: Some(err),
+                        _admission: admission,
+                    })
+                }))
+            }
+            Err(err) => Err(err),
+        }
     })
     .await
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum PackumentFlightKind {
-    Read,
+    Read(PackumentRead),
     ForcedRefresh,
 }
 
 /// Run `read` as the one in-flight read of an upstream package's packument,
 /// or wait for the read already in flight for it.
-async fn coalesce_upstream_packument<Read, Pending>(
-    state: &AppState,
-    namespace: &str,
-    name: &CanonicalPackageName,
-    read: Read,
-) -> Result<Option<Arc<AdmittedPackument>>, RegistryError>
-where
-    Read: FnOnce() -> Pending + Send,
-    Pending: Future<Output = Result<Option<Arc<AdmittedPackument>>, Arc<RegistryError>>> + Send,
-{
-    coalesce_upstream_packument_keyed(
-        state,
-        (namespace.to_string(), name.clone(), PackumentFlightKind::Read),
-        read,
-    )
-    .await
-}
-
 async fn coalesce_upstream_packument_keyed<Read, Pending>(
     state: &AppState,
     key: (String, CanonicalPackageName, PackumentFlightKind),
@@ -204,9 +246,9 @@ async fn fetch_and_cache_upstream_packument(
     namespace: &str,
     upstream: &Upstream,
     name: &CanonicalPackageName,
-    ttl: Option<Duration>,
+    read: PackumentRead,
 ) -> Result<Option<Vec<u8>>, Arc<RegistryError>> {
-    if let Some(ttl) = ttl
+    if let Some(ttl) = read.ttl()
         && upstream.caches()
         && let Ok(Some(bytes)) = read_unpurged_upstream_document(state, namespace, name, ttl).await
     {
@@ -214,21 +256,17 @@ async fn fetch_and_cache_upstream_packument(
     }
 
     let fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
-    let fetched = match timed(
-        "packument:upstream_fetch",
-        name.as_str(),
-        upstream.fetch_packument(name, &CacheValidators::default()),
-    )
-    .await
-    {
-        Ok(fetched) => fetched,
-        Err(err) => {
-            state.inner.proxy.packument_refetches.record_failure(namespace.to_owned(), name);
-            return recover_stale_upstream_packument(state, namespace, upstream, name, err)
-                .await
-                .map_err(Arc::new);
+    let fetched = timed("packument:upstream_fetch", name.as_str(), async {
+        match read {
+            PackumentRead::Cached(_) => {
+                upstream.fetch_packument(name, &CacheValidators::default()).await
+            }
+            PackumentRead::MissingVersion | PackumentRead::Revalidate => {
+                upstream.revalidate_packument(name).await
+            }
         }
-    };
+    })
+    .await?;
     cache_upstream_packument(state, namespace, upstream, name, fetched, fetch_seq)
         .await
         .map_err(Arc::new)
@@ -302,7 +340,7 @@ pub(super) async fn load_upstream_packument_for(
     identity: &Identity,
     upstream: &str,
     name: &CanonicalPackageName,
-) -> Result<Option<Vec<u8>>, RegistryError> {
+) -> Result<Option<LoadedPackument>, RegistryError> {
     let namespace = upstream_cache_namespace(state, upstream);
     let upstream = authorized_upstream(state, identity, upstream)?;
     let ttl = upstream.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
@@ -338,6 +376,7 @@ pub(super) async fn load_packument_for_read(
         RegistrySource::Upstream(source) => {
             authorize(state, identity, &resolved_source, name.as_str(), Action::Read)?;
             load_upstream_packument_for(state, identity, source, name).await
+                .map(|doc| doc.map(|doc| doc.bytes))
         }
         RegistrySource::Hosted(source) => {
             let namespace = match hosted_gate(state, identity, source, name.as_str()) {

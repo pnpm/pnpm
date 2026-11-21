@@ -329,6 +329,74 @@ async fn an_aborting_concurrent_check_stops_the_fetch() {
             .map(ToString::to_string),
     );
 }
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn verification_can_make_a_locked_tarball_available_during_the_cold_batch() {
+    let mut batch = ColdMemCacheBatch::new(3);
+    let url = "https://registry.test/cold-01@1.0.0";
+    let integrity: ssri::Integrity = DUMMY_SHA512.parse().unwrap();
+    for (name, tarball) in
+        [("cold-00", "https://registry.test/cold-00/-/cold-00-1.0.0.tgz"), ("cold-01", url)]
+    {
+        let metadata = batch.packages
+            .get_mut(&key(name, "1.0.0"))
+            .unwrap();
+        metadata.resolution =
+            pnpm_lockfile::LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+                tarball: tarball.to_string(),
+                integrity: Some(integrity.clone()),
+                revision: None,
+                git_hosted: None,
+                path: None,
+            });
+    }
+    let canonical = pnpm_tarball::package_mem_cache_key(
+        "https://registry.test/cold-01/-/cold-01-1.0.0.tgz",
+        Some(&integrity),
+        false,
+    );
+    let explicit = pnpm_tarball::package_mem_cache_key(url, Some(&integrity), false);
+    let (_, archive) = batch.mem_cache.remove(&canonical).unwrap();
+    let package = key("cold-02", "1.0.0");
+    let mut digest = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    digest.input(b"revision tarball");
+    let integrity = digest.result();
+    let revision = pnpm_lockfile::TarballRevision::try_from(1).unwrap();
+    batch.packages.get_mut(&package).unwrap().resolution =
+        pnpm_lockfile::LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
+            integrity: integrity.clone(),
+            revision: Some(revision),
+        });
+    let original = pnpm_tarball::package_mem_cache_key(
+        "https://registry.test/cold-02/-/cold-02-1.0.0.tgz",
+        Some(&DUMMY_SHA512.parse().unwrap()),
+        false,
+    );
+    let revised = pnpm_tarball::package_mem_cache_key(
+        "https://registry.test/cold-02@1.0.0+r1",
+        Some(&integrity),
+        true,
+    );
+    let (_, revision_archive) = batch.mem_cache.remove(&original).unwrap();
+    let probe = crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::default();
+    let check: ConcurrentCheck<'_> = Box::pin(async {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while probe.total_entered() == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the canonical tarball can be linked during verification");
+        batch.mem_cache.insert(explicit, archive);
+        batch.mem_cache.insert(revised, revision_archive);
+        CheckVerdict::Continue
+    });
+    let output = batch
+        .run(&probe, Some(check))
+        .await
+        .unwrap();
+    assert_eq!(output.snapshot_placement.materialized.len(), 3);
+}
+
 /// The check only reaches its verdict once every slot is linked, so the
 /// fetch has to keep driving it after its own work is done.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

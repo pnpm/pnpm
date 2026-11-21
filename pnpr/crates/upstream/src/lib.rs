@@ -325,8 +325,6 @@ impl Upstream {
         name: &CanonicalPackageName,
         validators: &CacheValidators,
     ) -> Result<PackumentFetch> {
-        self.ensure_available()?;
-        let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
         let mut conditional_headers = HeaderMap::new();
         if let Some(etag) = &validators.etag
             && let Ok(value) = HeaderValue::from_str(etag)
@@ -338,9 +336,29 @@ impl Upstream {
         {
             conditional_headers.insert(header::IF_MODIFIED_SINCE, value);
         }
-        let sent_conditional = !conditional_headers.is_empty();
+        self.request_packument(name, &conditional_headers, !conditional_headers.is_empty()).await
+    }
+
+    /// Revalidate a packument through every cache between this registry and its origin.
+    pub async fn revalidate_packument(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<PackumentFetch> {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+        self.request_packument(name, &headers, false).await
+    }
+
+    async fn request_packument(
+        &self,
+        name: &CanonicalPackageName,
+        headers: &HeaderMap,
+        sent_conditional: bool,
+    ) -> Result<PackumentFetch> {
+        self.ensure_available()?;
+        let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
         let (response, _guard) =
-            self.get_with_scoped_headers(&url, &conditional_headers, Deadline::Whole).await?;
+            self.get_with_scoped_headers(&url, headers, Deadline::Whole).await?;
         if response.status() == StatusCode::NOT_FOUND {
             // A 404 is an authoritative answer, not an upstream failure.
             self.breaker.record_success();
@@ -556,7 +574,7 @@ impl Upstream {
     }
 
     /// Refuse a request to the origin for a [`Self::cached_only`] caller.
-    pub(crate) fn ensure_may_fetch(&self) -> Result<()> {
+    pub fn ensure_may_fetch(&self) -> Result<()> {
         let Some(user) = &self.cached_only else {
             return Ok(());
         };

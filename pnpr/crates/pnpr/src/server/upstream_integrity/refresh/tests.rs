@@ -192,7 +192,24 @@ async fn ordinary_read_failure_does_not_delay_forced_refresh_for_expired_tarball
     let upstream = &routing.upstream_clients["mirror"];
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
 
-    state.inner.proxy.packument_refetches.record_failure("ns".to_owned(), &name);
+    let outage = server
+        .mock("GET", "/example")
+        .with_status(503)
+        .create_async()
+        .await;
+    assert!(
+        crate::server::load_upstream_packument(
+            &state,
+            "ns",
+            upstream,
+            &name,
+            std::time::Duration::ZERO
+        )
+        .await
+        .is_err(),
+    );
+    outage.assert_async().await;
+    outage.remove_async().await;
     let refreshed_mock = server
         .mock("GET", "/example")
         .with_status(200)
@@ -206,7 +223,7 @@ async fn ordinary_read_failure_does_not_delay_forced_refresh_for_expired_tarball
         )
         .await
         .unwrap()
-        .expect("forced refresh runs despite earlier ordinary read failure");
+        .expect("forced refresh reads the current metadata");
     refreshed_mock.assert_async().await;
     let parsed: Value = serde_json::from_slice(&reloaded).unwrap();
     assert_eq!(parsed["versions"]["1.0.0"]["tag"], "fresh-sig");

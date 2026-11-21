@@ -201,7 +201,12 @@ pub(super) async fn bind_tarball_to_packument(
     let Some(packument) = packument else {
         return Ok(None);
     };
-    let mut result = parse_tarball_dist(state, packument, name, filename).await;
+    let mut result = parse_tarball_dist(state, packument.bytes, name, filename).await;
+    if matches!(result, Ok(None))
+        && let Some(err) = packument.stale_error
+    {
+        return Err(RegistryError::Shared(err));
+    }
     if matches!(result, Ok(None))
         && let Some(packument) =
             reload_upstream_packument_lacking_version(state, namespace, upstream, name).await?

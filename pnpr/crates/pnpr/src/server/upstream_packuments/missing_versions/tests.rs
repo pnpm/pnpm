@@ -23,20 +23,29 @@ fn package(name: &str) -> CanonicalPackageName {
 #[test]
 fn a_package_is_claimed_once_per_interval() {
     let refetches = PackumentRefetches::default();
-    assert!(refetches.claim("npmjs".to_owned(), &package("example-widget")));
-    assert!(!refetches.claim("npmjs".to_owned(), &package("example-widget")));
-    assert!(refetches.claim("npmjs".to_owned(), &package("example-gadget")));
-    assert!(refetches.claim("mirror".to_owned(), &package("example-widget")));
+    assert!(refetches.claim_forced("npmjs".to_owned(), &package("example-widget")));
+    assert!(!refetches.claim_forced("npmjs".to_owned(), &package("example-widget")));
+    assert!(refetches.claim_forced("npmjs".to_owned(), &package("example-gadget")));
+    assert!(refetches.claim_forced("mirror".to_owned(), &package("example-widget")));
 }
 
 #[test]
 fn a_new_package_is_claimed_when_recent_attempts_fill_the_table() {
     let refetches = PackumentRefetches::default();
     for index in 0..CAPACITY {
-        assert!(refetches.claim("npmjs".to_owned(), &package(&format!("example-widget-{index}"))));
+        assert!(refetches.claim_forced(
+            "npmjs".to_owned(),
+            &package(&format!("example-widget-{index}"))
+        ));
     }
-    assert!(refetches.claim("npmjs".to_owned(), &package("example-gadget")));
-    assert!(refetches.attempts.lock().unwrap().len() <= CAPACITY);
+    assert!(refetches.claim_forced("npmjs".to_owned(), &package("example-gadget")));
+    assert!(
+        refetches.forced_attempts
+            .lock()
+            .unwrap()
+            .len()
+            <= CAPACITY,
+    );
 }
 
 /// Another request can refetch the packument between the caller's read and
@@ -139,6 +148,11 @@ async fn a_packument_that_expired_since_the_read_is_refetched() {
     let cached = br#"{"name":"example-widget","versions":{}}"#;
     state.inner.storage.write_upstream_document(&namespace, &name, cached).await.unwrap();
     date_back(storage.path(), Duration::from_hours(25));
+
+    let reader = state.routing().upstream_clients["npmjs"].clone().cached_only("reader".to_owned());
+    let denied =
+        super::reload_upstream_packument_lacking_version(&state, &namespace, &reader, &name).await;
+    assert!(matches!(denied, Err(pnpr_error::RegistryError::Forbidden { .. })));
 
     let reloaded: serde_json::Value =
         serde_json::from_slice(&reload(&state, &name).await.unwrap()).unwrap();

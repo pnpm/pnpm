@@ -352,6 +352,7 @@ async fn read_upstream(state: &AppState, name: &str) -> Option<Vec<u8>> {
     )
     .await
     .unwrap()
+    .map(|doc| doc.bytes)
 }
 
 async fn stop_upstream(upstream: ControlledUpstream) {

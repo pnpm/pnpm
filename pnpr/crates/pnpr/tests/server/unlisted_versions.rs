@@ -109,6 +109,7 @@ async fn publish_after_caching(
         .await;
     upstream
         .mock("GET", "/foo")
+        .match_header("cache-control", "no-cache")
         .with_header("content-type", "application/json")
         .with_body(packument(&upstream.url(), &[("1.0.0", b"old"), ("1.0.1", new_tgz)]))
         .expect(1)
@@ -153,6 +154,28 @@ async fn a_version_published_after_the_packument_was_cached_is_served() {
         assert!(listed["versions"].get("1.0.1").is_some(), "{route} refreshed the cache");
         refetched.assert_async().await;
     }
+}
+
+#[tokio::test]
+async fn a_whole_packument_request_can_revalidate_cached_metadata() {
+    let mut upstream = mockito::Server::new_async().await;
+    let tmp = TempDir::new().unwrap();
+    let app = app(&upstream.url(), tmp.path());
+    let refetched = publish_after_caching(&mut upstream, &app, b"new").await;
+    let response = app
+        .oneshot(
+            Request::get("/npm/foo")
+                .header("cache-control", "no-cache")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let listed: serde_json::Value =
+        serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert!(listed["versions"].get("1.0.1").is_some());
+    refetched.assert_async().await;
 }
 
 #[tokio::test]
@@ -205,28 +228,37 @@ async fn an_unlisted_version_refetches_an_old_packument_once() {
 }
 
 #[tokio::test]
-async fn a_failed_refetch_is_not_retried_within_the_interval() {
+async fn a_transient_refetch_error_can_be_retried_immediately() {
     let mut upstream = mockito::Server::new_async().await;
     let tmp = TempDir::new().unwrap();
     let app = app(&upstream.url(), tmp.path());
     let failing = fail_after_caching(&mut upstream, &app, tmp.path(), Duration::from_mins(2)).await;
 
-    for _ in 0..2 {
-        let response = get(&app, "/npm/foo@1.0.1").await;
-        assert_ne!(response.status(), StatusCode::OK);
-    }
+    let response = get(&app, "/npm/foo/1.0.1").await;
+    assert!(response.status().is_server_error());
     failing.assert_async().await;
+    failing.remove_async().await;
+    let recovered = upstream
+        .mock("GET", "/foo")
+        .with_body(packument(&upstream.url(), &[("1.0.1", b"new")]))
+        .expect(1)
+        .create_async()
+        .await;
+    assert_eq!(get(&app, "/npm/foo/1.0.1").await.status(), StatusCode::OK);
+    recovered.assert_async().await;
 }
 
 /// The read of an expired packument already asked the upstream.
 #[tokio::test]
 async fn an_expired_packument_is_not_refetched_twice() {
-    let mut upstream = mockito::Server::new_async().await;
-    let tmp = TempDir::new().unwrap();
-    let app = app(&upstream.url(), tmp.path());
-    let failing = fail_after_caching(&mut upstream, &app, tmp.path(), TTL * 2).await;
+    for route in ["/npm/foo@1.0.1", "/npm/foo@1.0.1+r1"] {
+        let mut upstream = mockito::Server::new_async().await;
+        let tmp = TempDir::new().unwrap();
+        let app = app(&upstream.url(), tmp.path());
+        let failing = fail_after_caching(&mut upstream, &app, tmp.path(), TTL * 2).await;
 
-    let response = get(&app, "/npm/foo@1.0.1").await;
-    assert_ne!(response.status(), StatusCode::OK);
-    failing.assert_async().await;
+        let response = get(&app, route).await;
+        assert!(response.status().is_server_error(), "{route}");
+        failing.assert_async().await;
+    }
 }

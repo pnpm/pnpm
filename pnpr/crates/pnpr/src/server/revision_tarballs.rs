@@ -178,8 +178,18 @@ async fn load_upstream_revision_target(
         Ok(None) => return Ok(None),
         Err(err) => return Err(err.into_response()),
     };
-    match extract_upstream_revision_integrity(&bytes, name, version, revision, &source_registry) {
-        Ok(integrity) => Ok(integrity.map(|integrity| (upstream, integrity))),
+    match extract_upstream_revision_integrity(
+        &bytes.bytes,
+        name,
+        version,
+        revision,
+        &source_registry,
+    ) {
+        Ok(Some(integrity)) => Ok(Some((upstream, integrity))),
+        Ok(None) => match bytes.stale_error {
+            Some(err) => Err(RegistryError::Shared(err).into_response()),
+            None => Ok(None),
+        },
         Err(err) => Err(RegistryError::from(err).into_response()),
     }
 }

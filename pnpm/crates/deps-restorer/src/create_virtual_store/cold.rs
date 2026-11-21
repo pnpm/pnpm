@@ -1,4 +1,5 @@
 use super::{
+    CheckVerdict,
     ConcurrentCheck,
     CreateVirtualStoreError,
     CreateVirtualStoreStoreContext,
@@ -24,11 +25,14 @@ use crate::{
     InstallPackageBySnapshotError,
 };
 use futures_util::{
+    FutureExt,
     StreamExt,
+    future::Shared,
     stream::FuturesUnordered,
 };
 use miette::Diagnostic;
 use pnpm_lockfile::{
+    LockfileResolution,
     PackageKey,
     PackageMetadata,
     PkgName,
@@ -184,10 +188,12 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
         return Ok(());
     }
 
-    let batch = &batch;
+    let verification = share_check(check);
     let mut downloads: FuturesUnordered<_> = batch.cold
         .iter()
-        .map(|&(snapshot_key, snapshot)| download_one::<Reporter>(batch, snapshot_key, snapshot))
+        .map(|&(snapshot_key, snapshot)| {
+            download_one::<Reporter>(&batch, snapshot_key, snapshot, verification.as_ref())
+        })
         .collect();
     let shared_packages = batch.shared_packages;
 
@@ -223,6 +229,12 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
     run_checked(check, drain).await?;
     linker.link_pass::<Reporter>(&ready)
 }
+fn share_check<'a>(check: &mut Option<ConcurrentCheck<'a>>) -> Option<Shared<ConcurrentCheck<'a>>> {
+    let shared = check.take()?.shared();
+    *check = Some(shared.clone().boxed());
+    Some(shared)
+}
+
 /// Drive the downloads and `check` on the calling thread while a scoped
 /// thread links each batch of completed downloads.
 ///
@@ -341,10 +353,11 @@ impl ColdLinker<'_> {
 /// One cold download. A failed optional snapshot lands in the first
 /// slot instead of failing the batch; the second carries what the link
 /// pass still has to place.
-pub(super) async fn download_one<'a, Reporter: self::Reporter>(
+async fn download_one<'a, Reporter: self::Reporter>(
     batch: &ColdBatch<'a>,
     snapshot_key: &'a PackageKey,
     snapshot: &'a SnapshotEntry,
+    verification: Option<&Shared<ConcurrentCheck<'_>>>,
 ) -> Result<(Option<PackageKey>, Option<ColdCapture<'a>>), CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = batch.reuse.packages
@@ -353,6 +366,13 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             snapshot_key: snapshot_key.to_string(),
             metadata_key: metadata_key.to_string(),
         })?;
+    // A version-addressed tarball may only become available when verification refreshes its metadata.
+    if let Some(verification) = verification
+        && is_version_addressed_tarball(&metadata_key, &metadata.resolution)
+        && verification.clone().await == CheckVerdict::Abort
+    {
+        return Err(CreateVirtualStoreError::ConcurrentCheckAborted);
+    }
     let installed = match batch.installer.run::<Reporter>(snapshot_key, metadata, snapshot).await {
         Ok(installed) => installed,
         Err(err) => {
@@ -379,6 +399,20 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             force_import: batch.reuse.must_replace(snapshot_key),
         }),
     ))
+}
+fn is_version_addressed_tarball(key: &PackageKey, resolution: &LockfileResolution) -> bool {
+    if resolution.revision().is_some() {
+        return true;
+    }
+    let LockfileResolution::Tarball(tarball) = resolution else {
+        return false;
+    };
+    key.suffix
+        .registry_version()
+        .is_some_and(|version| {
+            tarball.revision.is_some()
+                || tarball.tarball.ends_with(&format!("/{}@{version}", key.name))
+        })
 }
 /// A failed download that [`swallow_optional_fetch_failure`] keeps from
 /// failing the batch still settles the progress row its fetch announced.

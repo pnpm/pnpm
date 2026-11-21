@@ -204,9 +204,12 @@ async fn read_whole_packument(
     let Some(bytes) = read_source_packument(state, identity, source, name).await? else {
         return Ok(None);
     };
-    let packument: Value = serde_json::from_slice(&bytes)?;
+    let packument: Value = serde_json::from_slice(&bytes.bytes)?;
     if lists_version(&packument, version_or_tag) {
         return Ok(Some(packument));
+    }
+    if let Some(err) = bytes.stale_error {
+        return Err(RegistryError::Shared(err));
     }
     match reload_source_packument_lacking_version(state, identity, source, name).await? {
         Some(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),

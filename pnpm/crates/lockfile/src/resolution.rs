@@ -409,6 +409,16 @@ pub enum LockfileResolution {
 }
 
 impl LockfileResolution {
+    /// The registry revision pinned by this resolution.
+    #[must_use]
+    pub fn revision(&self) -> Option<TarballRevision> {
+        match self {
+            Self::Tarball(tarball) => tarball.revision,
+            Self::Registry(registry) => registry.revision,
+            _ => None,
+        }
+    }
+
     /// Get the integrity field if available.
     #[must_use]
     pub fn integrity(&self) -> Option<&'_ Integrity> {
