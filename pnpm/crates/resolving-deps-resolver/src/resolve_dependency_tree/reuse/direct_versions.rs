@@ -459,7 +459,7 @@ where
         pick_overlay: ctx.options.base.version.preferred_versions_overlay.clone(),
         parent_dir: None,
         parent_pkg_aliases,
-        parent_is_workspace: false,
+        parent_origin: super::ParentOrigin::RootOrLocal,
     };
     purpose.try_resolve_edge(ctx, resolver, &mut wanted_dep, &edge, prior_key.as_ref()).await
 }

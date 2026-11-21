@@ -144,3 +144,70 @@ fn rejects_a_global_virtual_store_manifest_version_escape() {
     assert_invalid_dependency_name_code(&err);
     assert!(err.to_string().contains("tar-dep@"), "offender listed: {err}");
 }
+
+#[test]
+fn external_lockfile_dir_has_none_workspace_depth_while_dot_dot_build_has_depth_one() {
+    let mut external_cfg = pnpm_config::Config::new();
+    external_cfg.dir = PathBuf::from("/work/app");
+    external_cfg.workspace_dir = Some(PathBuf::from("/work"));
+    external_cfg.lockfile_dir = Some(PathBuf::from("/external-lockfiles"));
+    let external_policy = super::local_resolution_policy_for_config(&external_cfg, true)
+        .with_after_all_resolved_hook(true);
+    assert_eq!(external_policy.scope.workspace_depth_above_lockfile, None);
+
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\npnpmfileChecksum: sha256-hook\nimporters:\n  ../work/app: {}\npackages:\n  remote@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n  under-ext@file:./secret:\n    resolution: {type: directory, directory: ./secret}\nsnapshots:\n  remote@1.0.0:\n    dependencies:\n      under-ext: file:./secret\n  under-ext@file:./secret: {}\n",
+    )
+    .expect("parse external lockfile");
+    let err = pnpm_lockfile_verification::verify_lockfile_local_resolutions(
+        &lockfile,
+        Some(external_policy),
+    )
+    .expect_err("external lockfile dir must not grant containment to its own directory");
+    assert!(matches!(err, pnpm_lockfile_verification::VerifyError::LocalSubdepNotAllowed { .. }));
+
+    let mut dot_build_cfg = pnpm_config::Config::new();
+    dot_build_cfg.dir = PathBuf::from("/work/..build");
+    dot_build_cfg.workspace_dir = Some(PathBuf::from("/work"));
+    dot_build_cfg.lockfile_dir = Some(PathBuf::from("/work/..build"));
+    let dot_build_policy = super::local_resolution_policy_for_config(&dot_build_cfg, true);
+    assert_eq!(dot_build_policy.scope.workspace_depth_above_lockfile, Some(1));
+}
+
+#[test]
+fn catalogs_override_supplies_local_override_target_absent_from_config_catalogs() {
+    let mut cfg = pnpm_config::Config::new();
+    cfg.dir = PathBuf::from("/work/repo");
+    cfg.workspace_dir = Some(PathBuf::from("/work/repo"));
+    cfg.overrides =
+        Some(indexmap::IndexMap::from([("remote>helper".to_string(), "catalog:".to_string())]));
+    let catalogs_override = std::collections::BTreeMap::from([(
+        "default".to_string(),
+        std::collections::BTreeMap::from([("helper".to_string(), "file:../shared".to_string())]),
+    )]);
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      remote:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  remote@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n  helper@file:../shared:\n    resolution: {type: directory, directory: ../shared}\nsnapshots:\n  remote@1.0.0:\n    dependencies:\n      helper: file:../shared\n  helper@file:../shared: {}\n",
+    )
+    .expect("parse lockfile");
+
+    let repo_path = std::path::Path::new("/work/repo");
+    let without_override =
+        super::local_resolution_policy_for_workspace(&cfg, repo_path, repo_path, false);
+    assert!(
+        pnpm_lockfile_verification::verify_lockfile_local_resolutions(
+            &lockfile,
+            Some(without_override),
+        )
+        .is_err(),
+        "without catalogs_override, unresolved catalog: spec must reject",
+    );
+
+    let with_override = super::local_resolution_policy_for_workspace_with_catalogs(
+        &cfg,
+        Some(&catalogs_override),
+        (None, repo_path, repo_path),
+        false,
+    );
+    pnpm_lockfile_verification::verify_lockfile_local_resolutions(&lockfile, Some(with_override))
+        .expect("catalogs_override entry must authorize remote>helper -> file:../shared");
+}

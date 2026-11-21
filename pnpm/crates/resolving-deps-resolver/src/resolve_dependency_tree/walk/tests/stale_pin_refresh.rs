@@ -2,9 +2,12 @@ use pnpm_lockfile::SnapshotEntry;
 use pnpm_resolving_resolver_base::ResolveOptions;
 use std::sync::Arc;
 
-use super::super::child_seeds::{
-    ChildSeedScope,
-    child_wanted,
+use super::super::{
+    ParentOrigin,
+    child_seeds::{
+        ChildSeedScope,
+        child_wanted,
+    },
 };
 use crate::resolve_dependency_tree::{
     DependencySpec,
@@ -65,7 +68,7 @@ fn child_wanted_for_locked_react(ctx: &TreeCtx, locked: &str) -> (Option<String>
         prior_children_snapshot: Some(&snapshot),
         direct_versions: Some(Arc::new(direct_versions)),
         declaring_dir: None,
-        parent_is_workspace: false,
+        parent_origin: ParentOrigin::RootOrLocal,
     };
     let spec = DependencySpec {
         alias: "react".to_string(),

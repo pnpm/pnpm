@@ -38,11 +38,33 @@ pub(super) async fn verify_repair_if_filtered<Reporter: pnpm_reporter::Reporter>
     built_lockfile: &Lockfile,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
     exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
+    (config, http_client, hook): (
+        &Config,
+        &pnpm_network::ThrottledClient,
+        Option<&dyn pnpm_hooks::PnpmfileHooks>,
+    ),
 ) -> Result<(), InstallWithFreshLockfileError> {
     if !verify_filtered_repair {
         return Ok(());
     }
-    verify_merged_repair::<Reporter>(built_lockfile, resolution_verifiers, exotic_subdeps).await
+    let base_policy =
+        pnpm_deps_restorer::local_resolution_policy_for_config(config, hook.is_some());
+    let local_policy = pnpm_deps_restorer::enrich_local_policy_for_install(
+        base_policy,
+        built_lockfile,
+        pnpm_deps_restorer::LocalPolicyEnrichDrivers {
+            config: Some(config),
+            http_client: Some(http_client),
+            hook,
+        },
+    )
+    .await;
+    verify_merged_repair::<Reporter>(
+        built_lockfile,
+        resolution_verifiers,
+        (exotic_subdeps, Some(local_policy)),
+    )
+    .await
 }
 /// The repair copy `pacquet install --fix-lockfile` resolves against, which
 /// drops what the repair is meant to rebuild.
@@ -212,13 +234,17 @@ pub(super) struct LockfileOnlyOptions<'a> {
 pub(super) async fn verify_merged_repair<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
-    exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
+    (exotic_subdeps, local_policy): (
+        pnpm_lockfile_verification::ExoticSubdepsPolicy,
+        Option<pnpm_lockfile_verification::LocalResolutionPolicy>,
+    ),
 ) -> Result<(), InstallWithFreshLockfileError> {
     pnpm_lockfile_verification::verify_lockfile_resolutions::<Reporter>(
         lockfile,
         resolution_verifiers,
         &pnpm_lockfile_verification::VerifyLockfileResolutionsOptions {
             exotic_subdeps,
+            local_policy,
             ..Default::default()
         },
     )

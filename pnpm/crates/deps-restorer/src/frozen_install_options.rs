@@ -124,6 +124,9 @@ pub struct FrozenLockfileInputs<'a> {
     /// See [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`].
     pub planned_canonical_fetches:
         Option<&'a pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
+    /// Active workspace policy governing local (`directory`, `file:`, `link:`)
+    /// subdependencies on non-importer snapshots.
+    pub local_policy: Option<&'a pnpm_lockfile_verification::LocalResolutionPolicy>,
 }
 
 #[derive(Clone, Copy)]

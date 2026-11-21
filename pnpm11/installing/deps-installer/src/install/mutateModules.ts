@@ -8,7 +8,7 @@ import {
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
 import { getContext, type PnpmContext, type ProjectOptions } from '@pnpm/installing.context'
-import { cleanGitBranchLockfiles, getWantedLockfileName } from '@pnpm/lockfile.fs'
+import { cleanGitBranchLockfiles } from '@pnpm/lockfile.fs'
 import { streamParser } from '@pnpm/logger'
 import type { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 import { verifiedFileIntegritySince, verifiedFileIntegritySnapshot } from '@pnpm/worker'
@@ -23,7 +23,6 @@ import {
   DEV_PREINSTALL,
   installRunsDevPreinstall,
   isCheckOnlyInstall,
-  matchReplacedLockfileEntries,
   rootProjectRunsPreinstallEarly,
 } from './installPredicates.js'
 import type {
@@ -43,7 +42,6 @@ import {
 import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
 import { runMutations } from './runMutations.js'
 import { validateModules } from './validateModules.js'
-import { buildExoticSubdepsScopeFromContext, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 export async function mutateModules (
   projects: MutatedProject[],
@@ -319,48 +317,6 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
       ctx.projects[project.rootDir].pruneDirectDependencies = project.pruneDirectDependencies
     }
   }
-}
-
-/**
- * Re-validate every entry in the lockfile against the policies the
- * resolver chain was built with.
- *
- * The verification is kicked off here, right after the lockfile is loaded,
- * but not awaited inline — it would otherwise block every later install
- * stage on per-entry registry round trips. Its synchronous prologue (cache
- * lookup, lockfile hashing, candidate collection) runs now against the
- * pristine lockfile, so the async fan-out reads a stable snapshot even
- * while the install mutates `ctx.wantedLockfile` concurrently. The verdict
- * is reconciled with the install in `settleInstall`: a failure aborts the
- * install even mid-flight, and an install that finishes first is held back
- * until the verdict arrives.
- *
- * The pending verdict is returned wrapped in an object, so that awaiting
- * this function does not await the verification.
- */
-export async function startLockfileVerification (
-  { ctx, installsOnly, opts, projects }: Pick<OpenedMutationRun, 'ctx' | 'installsOnly' | 'opts' | 'projects'>,
-  { skipStatShortcut = false, disableCache = false }: { skipStatShortcut?: boolean, disableCache?: boolean } = {}
-): Promise<{ verifyLockfilePromise?: Promise<void> }> {
-  if (willDelegateToPacquet(opts, ctx, installsOnly) || opts.trustLockfile) return {}
-  const cacheActive = !disableCache && !skipStatShortcut &&
-    ctx.existsWantedLockfile && !ctx.wantedLockfileIsModified &&
-    !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles &&
-    !ctx.lockfileHadConflicts && opts.cacheDir != null &&
-    (opts.resolutionVerifiers.length > 0 || Boolean(opts.blockExoticSubdeps))
-  const wantedLockfilePath = cacheActive ? path.resolve(ctx.lockfileDir, await getWantedLockfileName(opts)) : undefined
-  const verifyLockfilePromise = verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-    cacheDir: disableCache ? undefined : opts.cacheDir,
-    lockfilePath: wantedLockfilePath,
-    isReplaced: matchReplacedLockfileEntries(projects, ctx, opts),
-    blockExoticSubdeps: opts.blockExoticSubdeps,
-    exoticSubdepsScope: opts.blockExoticSubdeps ? buildExoticSubdepsScopeFromContext(ctx, opts) : undefined,
-  })
-  // Keep the rejection from going unhandled in the window before
-  // `settleInstall` awaits the verdict — a preResolution hook or the
-  // install kickoff below could throw and bail out before we get there.
-  verifyLockfilePromise.catch(() => {})
-  return { verifyLockfilePromise }
 }
 
 /**

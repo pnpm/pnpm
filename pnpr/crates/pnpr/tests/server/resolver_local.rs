@@ -249,11 +249,11 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
     .unwrap();
     let secret = secret_dir.to_str().unwrap();
 
-    for (idx, (transitive_spec, expected_error)) in [
-        (format!("file:{secret}"), "cannot be resolved on the server"),
-        (format!("link:{secret}"), "cannot be resolved on the server"),
-        (secret.to_string(), "isn't supported by any available resolver"),
-        (format!("git+file://localhost{secret}"), "is not allowed by this pnpr server"),
+    for (idx, transitive_spec) in [
+        format!("file:{secret}"),
+        format!("link:{secret}"),
+        secret.to_string(),
+        format!("git+file://localhost{secret}"),
     ]
     .into_iter()
     .enumerate()
@@ -329,8 +329,8 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
         assert_eq!(status, StatusCode::OK);
         assert!(text.contains(r#""type":"error""#), "expected error frame: {text}");
         assert!(
-            text.contains(expected_error),
-            "expected {expected_error:?} in error frame for {pkg_name}: {text}",
+            text.contains("is not allowed in non-local package"),
+            "expected non-local subdep rejection in error frame for {pkg_name}: {text}",
         );
         assert!(!text.contains(r#""type":"done""#), "must not resolve: {text}");
         assert!(!text.contains("server-secret"), "leaked server manifest: {text}");

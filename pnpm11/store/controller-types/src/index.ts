@@ -225,6 +225,7 @@ export interface PackageResponse {
     isInstallable?: boolean
     resolution: Resolution
     manifest?: PackageManifest
+    unhookedManifest?: PackageManifest
     id: PkgResolutionId
     normalizedBareSpecifier?: string
     updated: boolean

@@ -201,7 +201,14 @@ impl DeployArgs {
         if let Some(source) = &legacy_source
             && !self.trust_lockfile(config)
         {
-            source.verify::<ReporterT>(&state, &source_importer_ids, &source_workspace_dirs).await?;
+            source
+                .verify::<ReporterT>(
+                    &state,
+                    &source_importer_ids,
+                    &source_workspace_dirs,
+                    (base_config, pnpmfile_hook.is_some()),
+                )
+                .await?;
         }
         let preferred_versions = legacy_source.as_ref().map(LegacyDeploySource::preferred_versions);
         if let Some(source) = legacy_source {
@@ -213,7 +220,9 @@ impl DeployArgs {
             legacy,
             frozen_lockfile,
             DeployInstallContext {
-                source_root: base_config.root_project_manifest_dir(deploy_dir),
+                source_root: base_config.workspace_dir
+                    .as_deref()
+                    .unwrap_or_else(|| base_config.root_project_manifest_dir(deploy_dir)),
                 pnpmfile_hook,
                 preferred_versions_override: preferred_versions,
                 extra_workspace_dirs,

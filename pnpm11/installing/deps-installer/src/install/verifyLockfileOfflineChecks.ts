@@ -1,8 +1,9 @@
 import * as dp from '@pnpm/deps.path'
 import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.fs'
-import { isGitHostedTarballUrl } from '@pnpm/lockfile.utils'
 import type { Resolution, ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
+
+import { type FileShapeContext, shapeMismatchReason } from './verifyLockfileShape.js'
 
 export const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE = 'RESOLUTION_SHAPE_MISMATCH'
 
@@ -28,14 +29,18 @@ export function collectInvalidAliases (lockfile: LockfileObject): string[] {
   return Array.from(invalidAliases)
 }
 
-export function collectShapeViolations (lockfile: LockfileObject): ResolutionPolicyViolation[] {
+export function collectShapeViolations (
+  lockfile: LockfileObject,
+  shapeCtx?: FileShapeContext
+): ResolutionPolicyViolation[] {
   const shapeViolations: ResolutionPolicyViolation[] = []
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
     const parsed = parseLockfileDepPath(depPath)
-    const version = snapshot.version ?? parsed.version
-    if (!parsed.name || !version) continue
-    if (parsed.nonSemverVersion == null && !isRegistryShapedResolution(snapshot.resolution)) {
-      shapeViolations.push(createShapeViolation(parsed.name, version, snapshot.resolution))
+    const displayVersion = snapshot.version ?? parsed.version ?? parsed.nonSemverVersion
+    if (!parsed.name || !displayVersion) continue
+    const reason = shapeMismatchReason(snapshot.resolution, parsed.nonSemverVersion, shapeCtx)
+    if (reason != null) {
+      shapeViolations.push(createShapeViolation(parsed.name, displayVersion, snapshot.resolution, reason))
     }
   }
   return shapeViolations
@@ -67,10 +72,11 @@ function collectLockfileFilePackageViolations (
     if (parsed.name != null && !isValidDependencyAlias(parsed.name)) {
       invalidAliases.add(parsed.name)
     }
-    const version = pkgInfo.version ?? parsed.version
-    if (!parsed.name || !version) continue
-    if (parsed.nonSemverVersion == null && !isRegistryShapedResolution(pkgInfo.resolution)) {
-      shapeViolations.push(createShapeViolation(parsed.name, version, pkgInfo.resolution))
+    const displayVersion = pkgInfo.version ?? parsed.version ?? parsed.nonSemverVersion
+    if (!parsed.name || !displayVersion) continue
+    const reason = shapeMismatchReason(pkgInfo.resolution, parsed.nonSemverVersion)
+    if (reason != null) {
+      shapeViolations.push(createShapeViolation(parsed.name, displayVersion, pkgInfo.resolution, reason))
     }
   }
 }
@@ -93,13 +99,18 @@ function parseLockfileDepPath (depPath: string): dp.DependencyPath {
   return dp.parse(depPath.startsWith('/') ? depPath.slice(1) : depPath)
 }
 
-function createShapeViolation (name: string, version: string, resolution: unknown): ResolutionPolicyViolation {
+function createShapeViolation (
+  name: string,
+  version: string,
+  resolution: unknown,
+  reason: string
+): ResolutionPolicyViolation {
   return {
     name,
     version,
     resolution: resolution as Resolution,
     code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-    reason: 'a registry-style dependency path is backed by a non-registry resolution',
+    reason,
   }
 }
 
@@ -108,32 +119,4 @@ function pushInvalidAliases (deps: Record<string, unknown> | undefined, invalid:
   for (const alias of Object.keys(deps)) {
     if (!isValidDependencyAlias(alias)) invalid.add(alias)
   }
-}
-
-function isRegistryShapedResolution (resolution: unknown): boolean {
-  if (resolution == null) return true
-  if (typeof resolution !== 'object') return false
-  const { type, gitHosted, tarball, variants } = resolution as {
-    type?: unknown
-    gitHosted?: unknown
-    tarball?: unknown
-    variants?: unknown
-  }
-  if (type === 'variations') return areRegistryShapedVariants(variants)
-  if (typeof type === 'string' && type.startsWith('custom:')) return true
-  if (type != null) return false
-  return isRegistryShapedTarballResolution(gitHosted, tarball)
-}
-
-function areRegistryShapedVariants (variants: unknown): boolean {
-  return Array.isArray(variants) && variants.length > 0 && variants.every((variant) => {
-    const resolution = (variant as { resolution?: unknown })?.resolution
-    return resolution != null && isRegistryShapedResolution(resolution)
-  })
-}
-
-function isRegistryShapedTarballResolution (gitHosted: unknown, tarball: unknown): boolean {
-  if (gitHosted != null && (typeof gitHosted !== 'boolean' || gitHosted)) return false
-  if (typeof tarball !== 'string' || tarball === '') return true
-  return /^https?:\/\//i.test(tarball) && !isGitHostedTarballUrl(tarball)
 }

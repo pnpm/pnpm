@@ -20,6 +20,7 @@ use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{
     ExoticSubdepsPolicy,
     ExoticSubdepsScope,
+    LocalResolutionPolicy,
     ReplacedCandidate,
     ReplacedEntries,
     VerifyLockfileResolutionsOptions,
@@ -291,32 +292,33 @@ pub struct LockfileVerificationGate(
 /// Owned form of [`ReplacedEntries`], for the spawned gate.
 pub(crate) type IsReplaced = Arc<dyn Fn(ReplacedCandidate<'_>) -> bool + Send + Sync>;
 
+pub(super) struct SpawnVerificationGateOptions<'a> {
+    pub(super) exotic_subdeps: ExoticSubdepsPolicy,
+    pub(super) lockfile_source: Option<pnpm_lockfile_verification::LockfileCacheSource<'a>>,
+    pub(super) cache_dir: &'a Path,
+    pub(super) replaced: Option<IsReplaced>,
+    pub(super) repairs_lockfile: bool,
+    pub(super) local_policy: LocalResolutionPolicy,
+}
+
 impl LockfileVerificationGate {
     /// Start the fan-out in the background, or `None` when no verifier
     /// is active (`trustLockfile`).
-    #[cfg_attr(
-        dylint_lib = "perfectionist",
-        expect(
-            perfectionist::needless_borrowed_parameters,
-            reason = "the cache dir is copied only when a verifier is active, and the caller borrows it from the config"
-        )
-    )]
     pub(super) fn spawn<Reporter: pnpm_reporter::Reporter + Send + 'static>(
         lockfile: Arc<Lockfile>,
         verifiers: &[Arc<dyn ResolutionVerifier>],
-        exotic_subdeps: ExoticSubdepsPolicy,
-        lockfile_source: Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>,
-        cache_dir: &Path,
-        replaced: Option<IsReplaced>,
-        repairs_lockfile: bool,
+        options: SpawnVerificationGateOptions<'_>,
     ) -> Option<Self> {
-        if verifiers.is_empty() && !exotic_subdeps.is_enforced() {
+        if verifiers.is_empty() && !options.exotic_subdeps.is_enforced() {
             return None;
         }
         let verifiers = verifiers.to_vec();
-        let lockfile_path = lockfile_source.map(|source| source.path.to_path_buf());
-        let lockfile_stat = lockfile_source.and_then(|source| source.stat.cloned());
-        let cache_dir = cache_dir.to_path_buf();
+        let lockfile_path = options.lockfile_source.map(|source| source.path.to_path_buf());
+        let lockfile_stat = options.lockfile_source.and_then(|source| source.stat.cloned());
+        let cache_dir = options.cache_dir.to_path_buf();
+        let SpawnVerificationGateOptions {
+            exotic_subdeps, replaced, repairs_lockfile, local_policy, ..
+        } = options;
         Some(Self(tokio::spawn(async move {
             verify_lockfile_resolutions::<Reporter>(
                 &lockfile,
@@ -329,6 +331,7 @@ impl LockfileVerificationGate {
                     replaced: replaced.as_deref().map(ReplacedEntries),
                     repairs_lockfile,
                     exotic_subdeps,
+                    local_policy: Some(local_policy),
                 },
             )
             .await

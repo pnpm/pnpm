@@ -20,13 +20,15 @@ type VerifierList = Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::Resolut
 /// under `--trust-lockfile`, which opts out only of online supply-chain policy
 /// verifiers.
 pub(super) fn verify_pnpr_input_lockfile<'a>(
+    state: &State,
     link: &PnprLink<'_>,
     lockfile: &'a Lockfile,
 ) -> miette::Result<VerifiedOfflineLockfile<'a>> {
+    let local_policy = pnpm_deps_restorer::local_resolution_policy_for_config(state.config, false);
     let result = if link.lockfile.fix {
-        VerifiedOfflineLockfile::verify_for_repair(lockfile)
+        VerifiedOfflineLockfile::verify_for_repair_with_policy(lockfile, Some(local_policy))
     } else {
-        VerifiedOfflineLockfile::verify(lockfile)
+        VerifiedOfflineLockfile::verify_with_policy(lockfile, Some(local_policy))
     };
     result.map_err(miette::Report::new)
 }
@@ -41,28 +43,40 @@ pub(super) async fn verify_settled_pnpr_lockfile<Reporter: self::Reporter + 'sta
     exotic_subdeps: &ExoticSubdepsPolicy,
     lockfile: &Lockfile,
 ) -> miette::Result<Option<VerifierList>> {
-    let verified = VerifiedOfflineLockfile::verify(lockfile).map_err(miette::Report::new)?;
+    let local_policy = pnpm_deps_restorer::enrich_local_policy_for_install(
+        pnpm_deps_restorer::local_resolution_policy_for_config(state.config, false),
+        lockfile,
+        pnpm_deps_restorer::LocalPolicyEnrichDrivers {
+            config: Some(state.config),
+            http_client: Some(&state.http_client),
+            hook: None,
+        },
+    )
+    .await;
+    let verified =
+        VerifiedOfflineLockfile::verify_with_policy(lockfile, Some(local_policy.clone()))
+            .map_err(miette::Report::new)?;
+    let settled = SettledPnprLockfile { lockfile, verified, exotic_subdeps, local_policy };
     if link.lockfile.fix && session.partial_selection {
-        return verify_merged_repair_policies::<Reporter>(
-            state,
-            link,
-            verified,
-            exotic_subdeps,
-            lockfile,
-        )
-        .await;
+        return verify_merged_repair_policies::<Reporter>(state, link, settled).await;
     }
     if !link.lockfile.trust {
-        verify_settled_exotic_subdeps::<Reporter>(state, verified, exotic_subdeps, lockfile).await?;
+        verify_settled_exotic_subdeps::<Reporter>(state, settled).await?;
     }
     Ok(None)
 }
 
+/// The settled lockfile and what its verification needs.
+struct SettledPnprLockfile<'a> {
+    lockfile: &'a Lockfile,
+    verified: VerifiedOfflineLockfile<'a>,
+    exotic_subdeps: &'a ExoticSubdepsPolicy,
+    local_policy: pnpm_lockfile_verification::LocalResolutionPolicy,
+}
+
 async fn verify_settled_exotic_subdeps<Reporter: self::Reporter + 'static>(
     state: &State,
-    verified: VerifiedOfflineLockfile<'_>,
-    exotic_subdeps: &ExoticSubdepsPolicy,
-    lockfile: &Lockfile,
+    SettledPnprLockfile { lockfile, verified, exotic_subdeps, local_policy }: SettledPnprLockfile<'_>,
 ) -> miette::Result<()> {
     if !exotic_subdeps.is_enforced()
         || verified.is_cached_by_content(&state.config.cache_dir, &[], exotic_subdeps)
@@ -74,6 +88,7 @@ async fn verify_settled_exotic_subdeps<Reporter: self::Reporter + 'static>(
         &[],
         &VerifyLockfileResolutionsOptions {
             exotic_subdeps: exotic_subdeps.clone(),
+            local_policy: Some(local_policy),
             ..Default::default()
         },
     )
@@ -84,9 +99,7 @@ async fn verify_settled_exotic_subdeps<Reporter: self::Reporter + 'static>(
 async fn verify_merged_repair_policies<Reporter: self::Reporter + 'static>(
     state: &State,
     link: &PnprLink<'_>,
-    verified: VerifiedOfflineLockfile<'_>,
-    exotic_subdeps: &ExoticSubdepsPolicy,
-    lockfile: &Lockfile,
+    SettledPnprLockfile { lockfile, verified, exotic_subdeps, local_policy }: SettledPnprLockfile<'_>,
 ) -> miette::Result<Option<VerifierList>> {
     if link.lockfile.trust {
         return Ok(Some(Vec::new()));
@@ -100,6 +113,7 @@ async fn verify_merged_repair_policies<Reporter: self::Reporter + 'static>(
             &verifiers,
             &VerifyLockfileResolutionsOptions {
                 exotic_subdeps: exotic_subdeps.clone(),
+                local_policy: Some(local_policy),
                 ..Default::default()
             },
         )

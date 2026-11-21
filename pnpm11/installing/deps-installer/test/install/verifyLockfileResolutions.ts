@@ -260,7 +260,7 @@ test('does not collapse same (name, version) with different resolutions', async 
 
 test('the verifier sees the resolution shape verbatim', async () => {
   const npmResolution = tarballResolution()
-  const gitResolution = { type: 'git', repo: 'x', commit: 'abc' }
+  const gitResolution = { type: 'git', repo: 'https://example.com/git-pkg.git', commit: 'abc' }
   const lockfile = makeLockfile({
     'npm-pkg@1.0.0': { resolution: npmResolution },
     'git-pkg@git+https://example.com/git-pkg.git#abc': { resolution: gitResolution, version: '1.0.0' },

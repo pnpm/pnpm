@@ -22,25 +22,30 @@ use super::{
     ExoticSubdepsPolicy,
     ExoticSubdepsScope,
     VerifyLockfileResolutionsOptions,
+    file_url_shape::FileShapeContext,
 };
 use crate::errors::VerifyError;
 
 pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MISMATCH";
-
-pub(super) fn verify_offline_structural_checks(lockfile: &Lockfile) -> Result<(), VerifyError> {
-    verify_lockfile_dependency_names(lockfile)?;
-    verify_lockfile_importer_snapshot_links(lockfile)?;
-    Ok(())
-}
+pub const LOCAL_SUBDEP_NOT_ALLOWED_VIOLATION_CODE: &str = "LOCAL_SUBDEP_NOT_ALLOWED";
 
 pub(super) fn verify_structure_before_install(
     lockfile: &Lockfile,
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
-    if opts.repairs_lockfile {
-        return verify_lockfile_dependency_names(lockfile);
+    verify_lockfile_dependency_names(lockfile)?;
+    let mut policy = opts.local_policy.clone();
+    if let Some(lockfile_dir) = opts.lockfile_path.and_then(std::path::Path::parent) {
+        let entry = policy.get_or_insert_with(Default::default);
+        if entry.scope.lockfile_dir.is_none() {
+            entry.scope.lockfile_dir = Some(Arc::from(lockfile_dir));
+        }
     }
-    verify_offline_structural_checks(lockfile)
+    super::local_containment::verify_lockfile_local_resolutions(lockfile, policy)?;
+    if opts.repairs_lockfile {
+        return Ok(());
+    }
+    verify_lockfile_importer_snapshot_links(lockfile)
 }
 
 /// Schema version recorded under `resolutionShapeCheck` in whole-lockfile
@@ -100,6 +105,10 @@ fn exotic_subdeps_cache_identity(scope: &ExoticSubdepsScope) -> Arc<dyn Resoluti
     Arc::new(ExoticSubdepsCacheIdentity { policy, scope_digest })
 }
 
+fn local_subdep_cache_identity() -> Arc<dyn ResolutionVerifier> {
+    offline_cache_identity("localSubdepCheck", serde_json::Value::Bool(true))
+}
+
 /// Append the always-on offline structural checks' identities to `verifiers`
 /// before consulting or recording a whole-lockfile verification cache, so a
 /// record written before one of those rules existed fails
@@ -123,6 +132,7 @@ pub(crate) fn with_offline_and_exotic_cache_identities(
             resolution_shape_cache_identity(),
             dependency_alias_cache_identity(),
             variation_resolution_cache_identity(),
+            local_subdep_cache_identity(),
         ])
         .chain(exotic_identity)
         .collect()
@@ -198,14 +208,10 @@ impl ResolutionVerifier for ExoticSubdepsCacheIdentity {
 /// binds explicit tarball URLs of semver-keyed entries to the registry's
 /// own `dist.tarball`. A git-hosted tarball is not, and trust is gated on
 /// the tarball URL rather than the `gitHosted` flag alone.
-fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
+pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {
         LockfileResolution::Registry(_) => true,
         LockfileResolution::Tarball(tarball) => {
-            // The tarball URL must be an HTTP or HTTPS registry artifact and not
-            // git-hosted. The npm verifier's tarball-URL binding skips
-            // schemes other than HTTP and HTTPS (file:, etc.), so a `file:` tarball under a
-            // name@semver key would otherwise be trusted with no safety net.
             is_http_tarball_url(&tarball.tarball)
                 && !tarball.git_hosted.unwrap_or(false)
                 && !is_git_hosted_tarball_url(&tarball.tarball)
@@ -216,9 +222,6 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
                     .iter()
                     .all(|variant| is_registry_shaped_resolution(&variant.resolution))
         }
-        // Custom resolver protocols (`type: "custom:*"`) can only be materialized
-        // by a project-configured custom fetcher, which owns its own trust
-        // decision (allowBuilds included).
         LockfileResolution::Custom(_) => true,
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
@@ -237,71 +240,99 @@ pub(super) fn is_http_tarball_url(url: &str) -> bool {
             .is_some_and(|prefix| prefix.eq_ignore_ascii_case("http://"))
 }
 
-/// A registry-style key must have a registry-shaped resolution because
-/// build approval derives the trusted package identity from that key.
-fn has_registry_shape_mismatch(
-    key: &pnpm_lockfile::PkgNameVerPeer,
-    resolution: &LockfileResolution,
-) -> bool {
-    key.suffix.prefix() == pnpm_lockfile::Prefix::None
-        && matches!(
-            key.suffix.version(),
-            pnpm_lockfile::VersionPart::Semver(_)
-                | pnpm_lockfile::VersionPart::RegistryQualified { .. },
-        )
-        && !is_registry_shaped_resolution(resolution)
-}
-
-fn resolution_shape_violation(
-    name: PkgName,
-    version: String,
-    resolution: LockfileResolution,
-) -> ResolutionPolicyViolation {
-    ResolutionPolicyViolation {
-        name,
-        version,
-        resolution,
-        code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-        reason: "a registry-style dependency path is backed by a non-registry resolution"
-            .to_string(),
-    }
-}
-
-/// Collect every registry-style `packages` entry whose resolution has a
-/// non-registry shape (`file:`, `directory`, `git`, git-hosted tarballs,
-/// non-registry `variations`, or `binary`).
+/// Collect every `packages` entry whose resolution violates key/shape
+/// invariants (registry-style key backed by non-registry resolution, local
+/// `directory` / `file:` tarball under non-`file:` or mismatched `file:` key,
+/// or local `git` under non-`git+file:` or mismatched `git+file:` key).
 #[must_use]
 pub fn collect_resolution_shape_violations(lockfile: &Lockfile) -> Vec<ResolutionPolicyViolation> {
+    collect_resolution_shape_violations_with_ctx(lockfile, FileShapeContext::default())
+}
+
+pub(super) fn collect_resolution_shape_violations_with_ctx(
+    lockfile: &Lockfile,
+    shape_ctx: FileShapeContext<'_>,
+) -> Vec<ResolutionPolicyViolation> {
     let Some(packages) = lockfile.packages.as_ref() else {
         return Vec::new();
     };
     let mut violations = Vec::new();
     for (key, metadata) in packages {
-        if !has_registry_shape_mismatch(key, &metadata.resolution) {
+        let Some(reason) =
+            super::candidates::shape_mismatch_reason(key, &metadata.resolution, shape_ctx)
+        else {
             continue;
-        }
+        };
         let version = match key.suffix.registry_qualified() {
             Some((_, version)) => version.to_string(),
             None => key.suffix.version().to_string(),
         };
-        violations.push(resolution_shape_violation(
-            key.name.clone(),
+        violations.push(ResolutionPolicyViolation {
+            name: key.name.clone(),
             version,
-            metadata.resolution.clone(),
-        ));
+            resolution: metadata.resolution.clone(),
+            code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+            reason: reason.to_string(),
+        });
     }
     violations
 }
 
-/// Reject a lockfile whose registry-style `packages` keys are backed by
-/// non-registry resolutions (`file:`, `directory`, `git`, git-hosted tarballs,
-/// non-registry `variations`, or `binary`).
+/// Reject a lockfile whose `packages` keys violate resolution-shape invariants.
 pub fn verify_lockfile_resolution_shapes(lockfile: &Lockfile) -> Result<(), VerifyError> {
-    let violations = collect_resolution_shape_violations(lockfile);
+    verify_lockfile_resolution_shapes_with_ctx(lockfile, FileShapeContext::default())
+}
+
+pub(super) fn verify_lockfile_resolution_shapes_with_ctx(
+    lockfile: &Lockfile,
+    shape_ctx: FileShapeContext<'_>,
+) -> Result<(), VerifyError> {
+    let violations = collect_resolution_shape_violations_with_ctx(lockfile, shape_ctx);
     if violations.is_empty() {
         return Ok(());
     }
     Err(super::candidates::build_verification_error(violations))
+}
+
+/// Whether `resolution` reads from the local filesystem (`directory` or a
+/// `file:` tarball, including inside `variations`).
+pub(super) fn has_local_filesystem_resolution(resolution: &LockfileResolution) -> bool {
+    match resolution {
+        LockfileResolution::Directory(_) => true,
+        LockfileResolution::Tarball(tarball) => strip_file_url_prefix(&tarball.tarball).is_some(),
+        LockfileResolution::Variations(variations) => variations.variants
+            .iter()
+            .any(|variant| has_local_filesystem_resolution(&variant.resolution)),
+        LockfileResolution::Registry(_)
+        | LockfileResolution::Custom(_)
+        | LockfileResolution::Git(_)
+        | LockfileResolution::Binary(_) => false,
+    }
+}
+
+/// Whether every selectable variant of `resolution` is a local filesystem
+/// resolution (`directory` or `file:` tarball).
+pub(super) fn is_purely_local_filesystem_resolution(resolution: &LockfileResolution) -> bool {
+    match resolution {
+        LockfileResolution::Directory(_) => true,
+        LockfileResolution::Tarball(tarball) => strip_file_url_prefix(&tarball.tarball).is_some(),
+        LockfileResolution::Variations(variations) => {
+            !variations.variants.is_empty()
+                && variations.variants
+                    .iter()
+                    .all(|variant| is_purely_local_filesystem_resolution(&variant.resolution))
+        }
+        LockfileResolution::Registry(_)
+        | LockfileResolution::Custom(_)
+        | LockfileResolution::Git(_)
+        | LockfileResolution::Binary(_) => false,
+    }
+}
+
+pub(super) fn strip_file_url_prefix(url: &str) -> Option<&str> {
+    let head = url.get(.."file:".len())?;
+    head.eq_ignore_ascii_case("file:")
+        .then(|| &url["file:".len()..])
 }
 
 /// Add every alias in `aliases` that fails
@@ -328,10 +359,6 @@ fn push_invalid_aliases<'alias>(
 /// - every `packages:` entry's package name,
 /// - every snapshot's own package name (the `snapshots:` map key), and
 /// - every snapshot's `dependencies` / `optionalDependencies` aliases.
-///
-/// A name carrying a `..` traversal, a `/`, or a reserved value such as
-/// `node_modules` / `.bin` / `.pnpm` could make an install write outside
-/// the intended directory or overwrite pnpm-owned layout.
 fn collect_invalid_dependency_names(lockfile: &Lockfile) -> BTreeSet<String> {
     let mut invalid = BTreeSet::new();
     for importer in lockfile.importers.values() {

@@ -9,6 +9,7 @@ use super::{
         Reporter,
     },
     InstallView,
+    Verification,
     lockfile_load::Loaded,
     validate_frozen::PreparedFrozenRun,
     wanted::WantedLockfile,
@@ -27,6 +28,7 @@ pub(super) async fn apply_or_run_pre_resolution_hook<Reporter: self::Reporter>(
     loaded: &mut Loaded<'_>,
     wanted: &mut WantedLockfile<'_>,
     prepared_frozen: Option<&mut PreparedFrozenRun>,
+    verification: &mut Verification,
 ) -> Result<(), InstallError> {
     if let Some(pre_resolution) =
         prepared_frozen.and_then(|prepared| prepared.pre_resolution.take())
@@ -37,11 +39,35 @@ pub(super) async fn apply_or_run_pre_resolution_hook<Reporter: self::Reporter>(
         if let Some(hooked_current) = pre_resolution.hooked_current {
             loaded.current = Some(hooked_current);
         }
-        return Ok(());
+    } else {
+        run_pre_resolution_hook::<Reporter>(install, workspace, loaded, wanted).await?;
     }
-    run_pre_resolution_hook::<Reporter>(install, workspace, loaded, wanted)
-        .await
-        .map(|_| ())
+    verification.enrich_with_pnpmfile_hook(
+        wanted.get(),
+        install.context.config,
+        install.context.http_client,
+        loaded.pnpmfile_hook.as_deref(),
+    )
+    .await;
+    Ok(())
+}
+
+pub(super) async fn run_pre_resolution_hook_and_enrich<Reporter: self::Reporter>(
+    install: InstallView<'_>,
+    workspace: &InstallWorkspace<'_>,
+    (loaded, wanted): (&mut Loaded<'_>, &mut WantedLockfile<'_>),
+    verification: &mut Verification,
+) -> Result<Option<Lockfile>, InstallError> {
+    let hooked_current =
+        run_pre_resolution_hook::<Reporter>(install, workspace, loaded, wanted).await?;
+    verification.enrich_with_pnpmfile_hook(
+        wanted.get(),
+        install.context.config,
+        install.context.http_client,
+        loaded.pnpmfile_hook.as_deref(),
+    )
+    .await;
+    Ok(hooked_current)
 }
 
 /// Run the `preResolution` hook on the settled lockfiles, before the install

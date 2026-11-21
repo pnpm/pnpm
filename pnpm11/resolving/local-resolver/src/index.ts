@@ -11,6 +11,7 @@ import { readProjectManifestOnly, safeReadParentPublishManifest } from '@pnpm/wo
 import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type LocalPackageSpec, type LocalResolvedVia, localSpecPath, parseLocalPath, parseLocalScheme, recordedLocalPath, type WantedLocalDependency } from './parseBareSpecifier.js'
 
 export { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type LocalResolvedVia, localSpecPath, recordedLocalPath, type WantedLocalDependency }
+export { escapesWorkspaceRoot, isHostFilesystemSpecifier, isNonLocalFilesystemSubdepSpec, stripPackageNameFromLocalSpec } from './hostFilesystem.js'
 export { fileSpecToPackageRootLink } from './packageRootLink.js'
 
 export interface LocalResolveResult extends ResolveResult {

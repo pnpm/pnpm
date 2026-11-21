@@ -23,6 +23,14 @@ pub use pkg_name_suffix::*;
 pub use pkg_name_ver::*;
 pub use pkg_name_ver_peer::*;
 pub use pkg_ver_peer::*;
+pub use pnpm_local_spec::{
+    escapes_workspace_root,
+    is_drive_letter_prefix,
+    is_host_filesystem_specifier,
+    is_non_local_filesystem_subdep_spec,
+    is_tarball_filename,
+    strip_package_name_from_local_spec,
+};
 pub use project_snapshot::*;
 pub use prune_env_lockfile::*;
 pub use prune_time::*;

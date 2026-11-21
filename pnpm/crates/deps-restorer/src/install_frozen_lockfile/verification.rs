@@ -13,6 +13,7 @@ use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{
     ExoticSubdepsPolicy,
     LockfileCacheSource,
+    LocalResolutionPolicy,
     VerifyLockfileResolutionsOptions,
     verify_lockfile_resolutions,
 };
@@ -36,6 +37,7 @@ pub(super) struct ConcurrentVerification<'a> {
     pub(super) precomputed: Option<LockfileVerificationOverride<'a>>,
     pub(super) lockfile_source: Option<LockfileCacheSource<'a>>,
     pub(super) cache_dir: &'a Path,
+    pub(super) local_policy: LocalResolutionPolicy,
 }
 /// Materialize the virtual store while verifying the lockfile, and
 /// return the fetch's output once the lockfile is known trusted.
@@ -103,6 +105,7 @@ impl ConcurrentVerification<'_> {
             precomputed,
             lockfile_source,
             cache_dir,
+            local_policy,
         } = self;
         if let Some(precomputed) = precomputed {
             return precomputed.await;
@@ -121,6 +124,7 @@ impl ConcurrentVerification<'_> {
                 replaced: None,
                 repairs_lockfile: false,
                 exotic_subdeps,
+                local_policy: Some(local_policy),
             },
         )
         .await

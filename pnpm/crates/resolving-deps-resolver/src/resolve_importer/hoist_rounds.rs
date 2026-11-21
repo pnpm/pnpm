@@ -202,17 +202,7 @@ impl ImporterHoistState {
     where
         Chain: Resolver + ?Sized,
     {
-        let missing_as_pairs: Vec<(String, MissingPeerInfo)> = missing_required
-            .iter()
-            .map(|(n, info)| (n.clone(), info.clone()))
-            .collect();
-        let names = || missing_as_pairs.iter().map(|(name, _)| name.as_str());
-        let resolved_versions = self.ctx.run_resolved_versions(names());
-        let hoist_preferred = self.required_peer_preferred_versions(names(), &resolved_versions);
-        let hoisted = hoist_peers(
-            &self.hoist_peers_options(&hoist_preferred, &resolved_versions),
-            &missing_as_pairs,
-        );
+        let hoisted = self.pick_validated_hoisted_peers(missing_required)?;
         if hoisted.is_empty() {
             return Ok(false);
         }
@@ -236,6 +226,33 @@ impl ImporterHoistState {
         .await?;
         self.dependencies.direct.extend(new_direct);
         Ok(true)
+    }
+
+    fn pick_validated_hoisted_peers(
+        &self,
+        missing_required: &BTreeMap<String, MissingPeerInfo>,
+    ) -> Result<BTreeMap<String, String>, ResolveImporterError> {
+        let missing_as_pairs: Vec<(String, MissingPeerInfo)> = missing_required
+            .iter()
+            .map(|(n, info)| (n.clone(), info.clone()))
+            .collect();
+        let names = || missing_as_pairs.iter().map(|(name, _)| name.as_str());
+        let resolved_versions = self.ctx.run_resolved_versions(names());
+        let hoist_preferred = self.required_peer_preferred_versions(names(), &resolved_versions);
+        let hoist_opts = self.hoist_peers_options(&hoist_preferred, &resolved_versions);
+        let hoisted = hoist_peers(&hoist_opts, &missing_as_pairs);
+        let reachability = crate::resolve_dependency_tree::HoistedPeerReachability::new(
+            &self.ctx,
+            &self.dependencies.direct,
+        );
+        for (alias, specifier) in &hoisted {
+            crate::resolve_dependency_tree::validate_hoisted_peer_spec(
+                &reachability,
+                &hoist_opts,
+                (&missing_as_pairs, alias, specifier),
+            )?;
+        }
+        Ok(hoisted)
     }
 
     pub(super) fn hoist_peers_options<'a>(

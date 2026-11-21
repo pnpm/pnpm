@@ -57,7 +57,7 @@ pub(in crate::cli_args::install) async fn install_from_local_lockfile<
     link: &PnprLink<'_>,
     local: &LocalLockfileInstall<'_>,
 ) -> miette::Result<()> {
-    let verified_input = verify_pnpr_input_lockfile(link, local.lockfile)?;
+    let verified_input = verify_pnpr_input_lockfile(state, link, local.lockfile)?;
     verify_local_lockfile_offline::<Reporter>(
         state,
         link,
@@ -93,7 +93,7 @@ pub(in crate::cli_args::install) async fn verify_frozen_pnpr_preflight<
     if link.lockfile.frozen
         && let Some(previous_wanted) = session.previous_wanted
     {
-        verify_pnpr_input_lockfile(link, previous_wanted)?;
+        verify_pnpr_input_lockfile(state, link, previous_wanted)?;
         verify_local_lockfile_offline::<Reporter>(
             state,
             link,

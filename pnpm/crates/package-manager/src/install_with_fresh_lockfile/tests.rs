@@ -75,7 +75,7 @@ async fn filtered_repair_verifies_the_merged_lockfile() {
     let error = verify_merged_repair::<SilentReporter>(
         &lockfile,
         &[],
-        pnpm_lockfile_verification::ExoticSubdepsPolicy::Allow,
+        (pnpm_lockfile_verification::ExoticSubdepsPolicy::Allow, None),
     )
     .await
     .expect_err("the merged lockfile must pass structural verification");

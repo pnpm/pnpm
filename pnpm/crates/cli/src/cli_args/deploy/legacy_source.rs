@@ -96,6 +96,7 @@ impl LegacyDeploySource {
         state: &State,
         source_importer_ids: &[String],
         source_workspace_dirs: &[String],
+        (source_config, has_pnpmfile_hook): (&Config, bool),
     ) -> miette::Result<()> {
         let verifiers = build_resolution_verifiers(
             state.config,
@@ -112,6 +113,12 @@ impl LegacyDeploySource {
             Some(source_importer_ids.iter().map(String::as_str)),
             source_workspace_dirs.iter().map(String::as_str),
         );
+        let local_policy = pnpm_deps_restorer::local_resolution_policy_for_config(
+            source_config,
+            has_pnpmfile_hook,
+        )
+        .with_deploy(true)
+        .with_lockfile_dir(state.config.lockfile_dir_for(&state.config.dir));
         verify_lockfile_resolutions::<ReporterT>(
             self.source_lockfile.as_ref().unwrap_or(&self.lockfile),
             &verifiers,
@@ -123,6 +130,7 @@ impl LegacyDeploySource {
                 replaced: None,
                 repairs_lockfile: false,
                 exotic_subdeps,
+                local_policy: Some(local_policy),
             },
         )
         .await

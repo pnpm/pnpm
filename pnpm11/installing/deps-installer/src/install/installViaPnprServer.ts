@@ -33,6 +33,7 @@ import type { InstallResult, MutatedProject, SingleProjectInstallOptions } from 
 import { applyResolvedSpecsFromLockfile, type PnprNewDep } from './pnpr.js'
 import { createRootHookOptions } from './rootProjectHooks.js'
 import { buildExoticSubdepsScopeFromProjectDirs } from './verifyLockfileExoticSubdepsScope.js'
+import { localPolicyForInstallOptions } from './verifyLockfileLocalResolutions.js'
 import {
   type ExoticSubdepsScope,
   verifyLockfileFileOffline,
@@ -201,7 +202,11 @@ async function resolveLockfileViaPnpr (
     createResolveRequest(request, { existingLockfile, frozenLockfile, patchedDependencies })
   )
   const blockExoticSubdeps = !opts.trustLockfile && Boolean(opts.blockExoticSubdeps)
-  await verifyLockfileResolutions(lockfile, [], { blockExoticSubdeps, exoticSubdepsScope })
+  await verifyLockfileResolutions(lockfile, [], {
+    blockExoticSubdeps,
+    exoticSubdepsScope,
+    localPolicy: localPolicyForInstallOptions({ ...opts, lockfileDir }),
+  })
   if (!frozenLockfile) {
     lockfile.pnpmfileChecksum = pnpmfileChecksum
     setUntrackedPnpmfileReadPackageHook(lockfile, getUntrackedPnpmfileReadPackageHook(opts.hooks ?? {}))

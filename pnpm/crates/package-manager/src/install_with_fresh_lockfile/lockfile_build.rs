@@ -73,6 +73,11 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
         &built_lockfile,
         install.resolution_verifiers,
         lockfile_handles.exotic_subdeps.clone(),
+        (
+            install.drivers.config,
+            install.drivers.http_client,
+            resolved.hooks.after_all_resolved_hook.as_deref(),
+        ),
     )
     .await?;
     tracing::info!(

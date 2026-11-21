@@ -349,6 +349,10 @@ fn override_entries(
         .iter()
         .map(|entry| pnpm_resolving_deps_resolver::OverrideEntry {
             selector: entry.selector.clone(),
+            parent_name: entry.parent_pkg.as_ref().map(|parent| parent.name.clone()),
+            parent_range: entry.parent_pkg
+                .as_ref()
+                .and_then(|parent| parent.bare_specifier.clone()),
             name: entry.target_pkg.name.clone(),
             selector_range: entry.target_pkg.bare_specifier.clone(),
             new_bare_specifier: entry.new_bare_specifier.clone(),

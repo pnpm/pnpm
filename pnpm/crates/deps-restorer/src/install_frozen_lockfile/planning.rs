@@ -80,6 +80,35 @@ impl<'a> FrozenInputs<'a> {
         self.projects.groups
     }
 
+    pub(super) async fn effective_local_policy(
+        &self,
+    ) -> pnpm_lockfile_verification::LocalResolutionPolicy {
+        if let Some(policy) = self.lockfiles.local_policy.cloned() {
+            return policy;
+        }
+        let mut base = crate::attach_live_project_manifests(
+            crate::local_resolution_policy_for_config(
+                self.drivers.config,
+                self.drivers.pnpmfile_hook.is_some(),
+            )
+            .with_lockfile_dir(self.projects.workspace_root),
+            self.projects.manifests,
+        );
+        if !self.projects.manifests.is_empty() {
+            base = crate::attach_selected_project_manifests(base, self.projects.manifests);
+        }
+        crate::enrich_local_policy_for_install(
+            base,
+            self.lockfiles.verified,
+            crate::LocalPolicyEnrichDrivers {
+                config: Some(self.drivers.config),
+                http_client: Some(self.drivers.http_client),
+                hook: self.drivers.pnpmfile_hook.map(Arc::as_ref),
+            },
+        )
+        .await
+    }
+
     // Declared projects may live outside the lockfile directory, unlike untrusted importer keys.
     pub(super) fn importer_sets(&self) -> (HashSet<String>, HashSet<String>) {
         let install = self;
@@ -167,6 +196,7 @@ impl<'a> FrozenInputs<'a> {
         &self,
         allow_build_policy: &AllowBuildPolicy,
         engine_name: Option<&str>,
+        local_policy: pnpm_lockfile_verification::LocalResolutionPolicy,
     ) -> Result<VirtualStoreLayout, InstallFrozenLockfileError> {
         let install = self;
         let LockfileEntries { packages, snapshots } = install.entries();
@@ -205,6 +235,11 @@ impl<'a> FrozenInputs<'a> {
         // install-time `layout`, so it can't live in the verifier crate.
         pnpm_lockfile_verification::verify_lockfile_dependency_names(install.lockfiles.verified)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+        pnpm_lockfile_verification::verify_lockfile_local_resolutions(
+            install.lockfiles.verified,
+            Some(local_policy),
+        )
+        .map_err(InstallFrozenLockfileError::LockfileVerification)?;
         pnpm_lockfile_verification::verify_lockfile_importer_snapshot_links(
             install.lockfiles.verified,
         )

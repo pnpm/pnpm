@@ -300,17 +300,16 @@ use workspace_state::{
 /// to overlap verification with (fresh resolve, the lockfile-only and
 /// up-to-date short-circuits); the frozen materialization path instead
 /// runs verification concurrently with the fetch inside
-/// [`InstallFrozenLockfile`]. A no-op when `verifiers` is empty.
+/// [`InstallFrozenLockfile`].
 async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
-    exotic_subdeps: ExoticSubdepsPolicy,
-    lockfile_source: Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>,
-    cache_dir: &Path,
+    (exotic_subdeps, local_policy): (
+        ExoticSubdepsPolicy,
+        pnpm_lockfile_verification::LocalResolutionPolicy,
+    ),
+    (lockfile_source, cache_dir): (Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>, &Path),
 ) -> Result<(), InstallError> {
-    if verifiers.is_empty() && !exotic_subdeps.is_enforced() {
-        return Ok(());
-    }
     verify_lockfile_resolutions::<Reporter>(
         lockfile,
         verifiers,
@@ -322,6 +321,7 @@ async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
             replaced: None,
             repairs_lockfile: false,
             exotic_subdeps,
+            local_policy: Some(local_policy),
         },
     )
     .await

@@ -719,7 +719,8 @@ fn adding_an_unrelated_dependency_reuses_the_locked_git_commit() {
 fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
     let fixture = CommandTempCwd::init();
     let (repo, commit) = say_hi_repo(fixture.root.path());
-    let spec = repo.git_url_at(&commit);
+    let served = repo.serve_http();
+    let spec = served.git_url_at(&commit);
     let CommandTempCwd {
         pacquet,
         root,
@@ -758,7 +759,7 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
         assert!(bin_path.exists(), "{bin} should be linked for the registry package");
     }
 
-    drop((root, npmrc_info));
+    drop((served, root, npmrc_info));
 }
 
 /// A git specifier names a repository, not a package, so the name the
@@ -841,7 +842,8 @@ fn an_aliased_git_root_dependency_provides_another_importers_peer() {
 fn updating_a_registry_package_that_has_a_git_dependency() {
     let fixture = CommandTempCwd::init();
     let (repo, commit) = simple_repo(fixture.root.path(), "is-positive", "1.0.0");
-    let spec = repo.git_url_at(&commit);
+    let served = repo.serve_http();
+    let spec = served.git_url_at(&commit);
     let CommandTempCwd {
         pacquet,
         root,
@@ -862,7 +864,7 @@ fn updating_a_registry_package_that_has_a_git_dependency() {
 
     assert_eq!(read_manifest(&workspace)["dependencies"]["@pnpm.e2e/has-github-dep"], "^2.0.0");
 
-    drop((root, npmrc_info));
+    drop((served, root, npmrc_info));
 }
 
 /// The store index is shared with the TypeScript CLI, which keys a git
