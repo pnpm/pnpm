@@ -357,7 +357,9 @@ async fn verification_can_make_a_locked_tarball_available_during_the_cold_batch(
     let explicit = pnpm_tarball::package_mem_cache_key(url, Some(&integrity), false);
     let (_, archive) = batch.mem_cache.remove(&canonical).unwrap();
     let package = key("cold-02", "1.0.0");
-    let integrity = ssri::Integrity::from(b"revision tarball");
+    let mut digest = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    digest.input(b"revision tarball");
+    let integrity = digest.result();
     let revision = pnpm_lockfile::TarballRevision::try_from(1).unwrap();
     batch.packages.get_mut(&package).unwrap().resolution =
         pnpm_lockfile::LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
