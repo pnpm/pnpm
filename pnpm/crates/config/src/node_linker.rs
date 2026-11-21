@@ -137,8 +137,15 @@ impl NodeLinkerSetting {
         }
     }
 
+    /// The object form for the isolated and hoisted linkers only when a
+    /// source used it, so existing `updateConfig` hooks still see a string.
     pub(crate) fn from_resolved(config: &Config) -> Self {
+        let configured_as_object =
+            config.explicit_settings.get("nodeLinker").is_some_and(serde_json::Value::is_object);
         match config.node_linker {
+            NodeLinker::Isolated | NodeLinker::Hoisted if !configured_as_object => {
+                Self::Type(config.node_linker)
+            }
             NodeLinker::Isolated => {
                 Self::Options(NodeLinkerOptions::Isolated { hoist: Some(resolved_hoist(config)) })
             }
@@ -150,6 +157,45 @@ impl NodeLinkerSetting {
             }),
             NodeLinker::Pnp => Self::Type(NodeLinker::Pnp),
         }
+    }
+}
+
+impl NodeLinkerSetting {
+    /// Mirror the linker options into the flat settings they alias, the
+    /// way the settings resolve them, so code that reads a flat setting
+    /// sees the object form too.
+    pub(crate) fn mirror_flat_aliases(
+        &self,
+        target: &mut serde_json::Map<String, serde_json::Value>,
+    ) {
+        match self {
+            Self::Options(NodeLinkerOptions::Isolated { hoist: Some(hoist) }) => {
+                mirror_hoist(hoist, target);
+            }
+            Self::Options(NodeLinkerOptions::Hoisted { hoisting_limits: Some(limits) }) => {
+                if let Ok(limits) = serde_json::to_value(limits) {
+                    target.insert("hoistingLimits".to_string(), limits);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn mirror_hoist(hoist: &HoistSetting, target: &mut serde_json::Map<String, serde_json::Value>) {
+    let (private, public) = match hoist {
+        HoistSetting::Enabled(false) => (Some(Vec::new()), Some(Vec::new())),
+        HoistSetting::Enabled(true) => {
+            (Some(crate::default_hoist_pattern()), Some(crate::default_public_hoist_pattern()))
+        }
+        HoistSetting::Patterns(patterns) => (patterns.private.clone(), patterns.public.clone()),
+    };
+    if let Some(private) = private {
+        target.insert("hoist".to_string(), (!private.is_empty()).into());
+        target.insert("hoistPattern".to_string(), private.into());
+    }
+    if let Some(public) = public {
+        target.insert("publicHoistPattern".to_string(), public.into());
     }
 }
 
@@ -200,8 +246,8 @@ fn apply_isolated_hoist(config: &mut Config, hoist: Option<HoistSetting>) {
         }
         HoistSetting::Patterns(patterns) => {
             if let Some(patterns) = patterns.private {
-                config.hoist = true;
-                *private = Some(patterns);
+                config.hoist = !patterns.is_empty();
+                *private = config.hoist.then_some(patterns);
             }
             if let Some(patterns) = patterns.public {
                 *public = Some(patterns);

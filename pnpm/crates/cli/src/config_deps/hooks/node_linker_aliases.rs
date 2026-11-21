@@ -47,17 +47,29 @@ fn drop_cli_set_options(config: &Config, linker: &mut Map<String, Value>) {
             .iter()
             .any(|key| config.cli_settings.contains(*key))
     };
-    match linker.get_mut("hoist") {
-        // `hoist: true` and `hoist: false` set both lists at once.
-        Some(Value::Bool(_)) if HOIST_LISTS.into_iter().any(set_on_cli) => {
-            linker.remove("hoist");
-        }
-        Some(Value::Object(hoist)) => hoist.retain(|option, _| !set_on_cli(option)),
-        _ => {}
+    // `hoist: true` and `hoist: false` set both lists at once, so split
+    // them to keep the list the command line left alone.
+    if let Some(&Value::Bool(enabled)) = linker.get("hoist")
+        && HOIST_LISTS.into_iter().any(set_on_cli)
+    {
+        linker.insert("hoist".to_string(), hoist_lists(enabled));
+    }
+    if let Some(Value::Object(hoist)) = linker.get_mut("hoist") {
+        hoist.retain(|option, _| !set_on_cli(option));
     }
     if set_on_cli("hoistingLimits") {
         linker.remove("hoistingLimits");
     }
+}
+
+fn hoist_lists(enabled: bool) -> Value {
+    let (private, public) = if enabled {
+        let defaults = Config::default();
+        (defaults.hoist_pattern, defaults.public_hoist_pattern)
+    } else {
+        (Some(Vec::new()), Some(Vec::new()))
+    };
+    serde_json::json!({"private": private, "public": public})
 }
 
 /// The options a `nodeLinker` value sets.

@@ -486,13 +486,21 @@ impl Config {
     ///
     /// This runs after all config sources have been merged because an explicit
     /// `shamefullyHoist` value takes precedence over `publicHoistPattern`
-    /// regardless of which source supplied either setting.
+    /// regardless of which source supplied either setting. While
+    /// `virtualStoreOnly` keeps the active pattern empty, it applies to the
+    /// pattern that mode restores.
     pub fn apply_shamefully_hoist_derivation(&mut self) {
-        match self.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool) {
-            Some(true) => self.public_hoist_pattern = Some(vec!["*".to_string()]),
-            Some(false) => self.public_hoist_pattern = None,
-            None => {}
-        }
+        let Some(shamefully_hoist) =
+            self.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool)
+        else {
+            return;
+        };
+        let public_hoist_pattern =
+            match self.hoist_patterns_before_virtual_store_only.as_mut() {
+                Some(saved) => &mut saved.public_hoist_pattern,
+                None => &mut self.public_hoist_pattern,
+            };
+        *public_hoist_pattern = shamefully_hoist.then(|| vec!["*".to_string()]);
     }
 
     /// Turn [`prefer_symlinked_executables`] on when the hoisted

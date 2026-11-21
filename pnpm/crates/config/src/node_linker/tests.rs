@@ -317,3 +317,87 @@ fn switching_loaded_linker_restores_global_virtual_store_and_keeps_modules_dir()
         assert_eq!(config.install_state_dir, original.join(".pnpm"));
     }
 }
+
+fn record_and_apply(config: &mut Config, settings_json: &serde_json::Value) {
+    let settings = TrustedSettings::from_json(settings_json).unwrap();
+    config.record_explicit_settings(&settings);
+    settings.apply_to(config, Path::new("."));
+}
+
+#[test]
+fn linker_options_are_recorded_under_their_flat_aliases() {
+    let mut config = Config::default();
+    record_and_apply(
+        &mut config,
+        &json!({
+            "publicHoistPattern": ["flat"],
+            "nodeLinker": {"type": "isolated", "hoist": {"public": ["object"], "private": []}},
+        }),
+    );
+    assert_eq!(config.explicit_settings["publicHoistPattern"], json!(["object"]));
+    assert_eq!(config.explicit_settings["hoistPattern"], json!([]));
+    assert_eq!(config.explicit_settings["hoist"], json!(false));
+}
+
+#[test]
+fn resetting_a_flat_alias_keeps_the_linker_object_option() {
+    let defaults = Config::default();
+    let mut config = Config::default();
+    record_and_apply(
+        &mut config,
+        &json!({"shamefullyHoist": true, "nodeLinker": {"type": "isolated", "hoist": {"public": ["eslint"]}}}),
+    );
+    config.explicit_settings.remove("shamefullyHoist");
+    WorkspaceSettings::reset_setting_to_default::<crate::Host>(
+        &mut config,
+        &defaults,
+        "shamefullyHoist",
+        Path::new("."),
+    );
+    assert_eq!(config.public_hoist_pattern, Some(vec!["eslint".to_string()]));
+}
+
+#[test]
+fn an_empty_private_list_turns_private_hoisting_off() {
+    let mut config = Config::default();
+    serde_saphyr::from_str::<WorkspaceSettings>(
+        "nodeLinker:\n  type: isolated\n  hoist:\n    private: []\n",
+    )
+    .unwrap()
+    .apply_to(&mut config, Path::new("."));
+    assert!(!config.hoist);
+    assert_eq!(config.hoist_pattern, None);
+}
+
+#[test]
+fn resolved_linker_is_a_string_unless_a_source_used_the_object_form() {
+    let mut config = Config::default();
+    record_and_apply(&mut config, &json!({"nodeLinker": "hoisted"}));
+    let reported = serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap();
+    assert_eq!(reported["nodeLinker"], json!("hoisted"));
+
+    record_and_apply(
+        &mut config,
+        &json!({"nodeLinker": {"type": "hoisted", "hoistingLimits": "workspaces"}}),
+    );
+    let reported = serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap();
+    assert_eq!(reported["nodeLinker"], json!({"type": "hoisted", "hoistingLimits": "workspaces"}));
+}
+
+#[test]
+fn shamefully_hoist_under_virtual_store_only_applies_to_the_restored_pattern() {
+    let mut config = Config { virtual_store_only: true, ..Config::default() };
+    config.explicit_settings.insert("shamefullyHoist".to_string(), json!(true));
+    config.apply_virtual_store_only_derivation();
+    serde_saphyr::from_str::<WorkspaceSettings>(
+        "nodeLinker:\n  type: isolated\n  hoist:\n    public: ['eslint']\n",
+    )
+    .unwrap()
+    .apply_to(&mut config, Path::new("."));
+    config.apply_shamefully_hoist_derivation();
+    config.apply_virtual_store_only_derivation();
+    assert_eq!(config.public_hoist_pattern, Some(vec![]));
+    config.virtual_store_only = false;
+    config.restore_hoist_patterns_after_virtual_store_only();
+    assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
+}

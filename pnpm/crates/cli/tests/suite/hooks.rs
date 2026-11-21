@@ -1028,10 +1028,7 @@ fn update_config_sees_cli_flags_and_resolved_defaults() {
     assert_eq!(seen["registry"], serde_json::json!("https://cli.example.com/"));
     assert_eq!(seen["registriesByScope"]["default"], serde_json::json!("https://cli.example.com/"));
     // Unset everywhere, so only the resolved default can answer.
-    assert_eq!(
-        seen["nodeLinker"],
-        serde_json::json!({"type": "isolated", "hoist": {"public": [], "private": ["*"]}}),
-    );
+    assert_eq!(seen["nodeLinker"], serde_json::json!("isolated"));
     assert_eq!(seen["autoInstallPeers"], serde_json::json!(true));
 
     drop(root);

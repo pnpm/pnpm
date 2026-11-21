@@ -30,11 +30,15 @@ fn a_cli_flat_setting_protects_the_matching_linker_option() {
 }
 
 #[test]
-fn a_cli_flat_setting_protects_against_a_boolean_hoist() {
-    let config = Config { cli_settings: ["hoistPattern".to_string()].into(), ..Config::default() };
+fn a_boolean_hoist_keeps_the_list_the_cli_left_alone() {
+    let config =
+        Config { cli_settings: ["publicHoistPattern".to_string()].into(), ..Config::default() };
     let mut changes = delta(json!({"nodeLinker": {"type": "isolated", "hoist": false}}));
     drop_cli_linker_aliases(&config, &mut changes);
-    assert_eq!(Value::Object(changes), json!({"nodeLinker": {"type": "isolated"}}));
+    assert_eq!(
+        Value::Object(changes),
+        json!({"nodeLinker": {"type": "isolated", "hoist": {"private": []}}}),
+    );
 }
 
 #[test]
