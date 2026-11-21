@@ -52,7 +52,7 @@ fn every_clap_command_has_a_webcontainer_classification() {
     for (classification, expected) in [
         ("host-blocked", BTreeSet::from(["pack-app"])),
         ("implementation-gap", BTreeSet::from(["self-update", "setup", "with"])),
-        ("host-limited", BTreeSet::from(["docs", "env", "login", "repo", "runtime"])),
+        ("host-limited", BTreeSet::from(["bugs", "docs", "env", "login", "repo", "runtime"])),
     ] {
         assert_eq!(
             classifications

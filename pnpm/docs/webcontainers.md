@@ -66,8 +66,8 @@ addons remain subject to WebContainer limitations.
 The built-in commands use the same CLI as other pnpm distributions, with these
 host-specific limits:
 
-- `pnpm docs`, `pnpm login`, and `pnpm repo` cannot open a browser. They print
-  the URL when a browser action is needed.
+- `pnpm bugs`, `pnpm docs`, `pnpm login`, and `pnpm repo` cannot open a
+  browser. They print the URL when a browser action is needed.
 - `pnpm setup` and `pnpm self-update` cannot install or switch the WebContainer
   distribution. `pnpm pack-app` cannot run its native app builder.
 
