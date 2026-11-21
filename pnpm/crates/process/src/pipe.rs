@@ -58,11 +58,13 @@ impl ReadPipe {
         #[derive(Deserialize)]
         struct Chunk {
             done: bool,
-            #[serde(default)]
-            bytes: Vec<u8>,
         }
         let chunk: Chunk = serde_json::from_value(value).map_err(io::Error::other)?;
-        self.buffered = if chunk.done { Vec::new() } else { bytes.unwrap_or(chunk.bytes) };
+        self.buffered = if chunk.done {
+            Vec::new()
+        } else {
+            bytes.ok_or_else(|| io::Error::other("Missing binary process output chunk"))?
+        };
         self.offset = 0;
         self.done = chunk.done;
         Ok(())

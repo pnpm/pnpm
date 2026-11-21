@@ -211,6 +211,9 @@ fn read_response(
         _ => return Err(HostError::new("Invalid WASM host response envelope")),
     };
     let bytes = match read_mode {
+        ResponseReadMode::Json if binary_length.is_some() => {
+            return Err(HostError::new("Binary WASM host response requires request_binary"));
+        }
         ResponseReadMode::Json => None,
         ResponseReadMode::Binary => match binary_length {
             Some(length) => {
