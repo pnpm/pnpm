@@ -20,13 +20,19 @@ fn zip_metadata(entries: &[(&str, &str)]) -> Vec<u8> {
 }
 
 fn sdist(path: &str, content: &[u8]) -> Vec<u8> {
+    tar_entries(&[(path, content)])
+}
+
+fn tar_entries(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     let mut archive = tar::Builder::new(encoder);
-    let mut header = tar::Header::new_gnu();
-    header.set_size(content.len() as u64);
-    header.set_mode(0o644);
-    header.set_cksum();
-    archive.append_data(&mut header, path, content).unwrap();
+    for &(path, content) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        archive.append_data(&mut header, path, content).unwrap();
+    }
     archive
         .into_inner()
         .unwrap()
@@ -121,4 +127,57 @@ fn refuses_source_distributions_with_another_releases_root_directory() {
         )
         .is_err(),
     );
+}
+
+#[test]
+fn zip_size_limit_includes_package_files() {
+    let filename = "sample-1.0.zip";
+    let zip = zip_metadata(&[("sample-1.0/PKG-INFO", "abc"), ("sample-1.0/module.py", "def")]);
+    let read = |limit| super::zip_metadata(&zip, filename, DistributionKind::Sdist, Some(limit));
+    assert_eq!(read(6).unwrap(), b"abc");
+    assert!(read(5).unwrap_err().contains("exceeds"));
+}
+
+#[test]
+fn sdist_paths_are_unique_after_reading_metadata() {
+    let files = [
+        ("sample-1.0/PKG-INFO", "Name: sample"),
+        ("sample-1.0/readme", ""),
+        ("sample-1.0/README", ""),
+    ];
+    let tar = tar_entries(&files.map(|(name, contents)| (name, contents.as_bytes())));
+    assert!(metadata_from_sdist(&tar, "sample-1.0.tar.gz").unwrap_err().contains("duplicate"));
+    assert!(
+        metadata_from_zip(&zip_metadata(&files), "sample-1.0.zip", DistributionKind::Sdist)
+            .unwrap_err()
+            .contains("duplicate"),
+    );
+}
+
+#[test]
+fn resolving_an_upstream_wheel_only_reads_its_metadata() {
+    let zip = zip_metadata(&[
+        ("sample-1.0.dist-info/METADATA", "Name: sample"),
+        ("README", ""),
+        ("Readme", ""),
+    ]);
+    let filename = "sample-1.0-py3-none-any.whl";
+    assert_eq!(super::metadata_from_wheel(&zip, filename).unwrap(), b"Name: sample");
+    assert!(metadata_from_zip(&zip, filename, DistributionKind::Wheel).is_err());
+}
+
+#[test]
+fn zip_paths_accept_regular_files_and_directories_with_optional_type_bits() {
+    let mut paths = pnpr_package_name::ArchivePaths::default();
+    for (name, mode) in [
+        ("pkg/", Some(0o040_755)),
+        ("a.py", Some(0o100_644)),
+        ("b.py", Some(0o644)),
+        ("c.py", None),
+    ] {
+        super::validate_zip_path(&mut paths, name, mode).unwrap();
+    }
+    for mode in [0o010_644, 0o020_600, 0o060_600, 0o120_777, 0o140_600] {
+        assert!(super::validate_zip_path(&mut paths, "entry", Some(mode)).is_err());
+    }
 }

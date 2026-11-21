@@ -230,6 +230,8 @@ pub enum CrateArchiveError {
     Read(io::Error),
     #[display("crate archive entry {path:?} is outside the {expected:?} directory")]
     EntryOutsideRoot { path: String, expected: String },
+    #[display("invalid or duplicate crate archive path {path:?}")]
+    InvalidPath { path: String },
     #[display("crate archive has no {expected}/Cargo.toml")]
     MissingManifest { expected: String },
     #[display("crate archive unpacks to more than {MAX_CRATE_ARCHIVE_UNPACKED_BYTES} bytes")]
@@ -261,11 +263,12 @@ pub(super) fn validate_crate_archive_with_limit(
     let decoder = flate2::read::MultiGzDecoder::new(archive);
     let mut limited = decoder.take(limit + 1);
     let mut tar = tar::Archive::new(&mut limited);
+    let mut paths = pnpr_package_name::ArchivePaths::default();
     let mut found_manifest = false;
     let entries = tar.entries().map_err(CrateArchiveError::Read)?;
     for entry in entries {
         let mut entry = entry.map_err(CrateArchiveError::Read)?;
-        let Some(inner) = crate_entry_path(&entry, &expected)? else {
+        let Some(inner) = crate_entry_path(&entry, &expected, &mut paths)? else {
             continue;
         };
         if inner == "Cargo.toml" && entry.header().entry_type().is_file() {
@@ -289,32 +292,26 @@ pub(super) fn validate_crate_archive_with_limit(
 pub(super) fn crate_entry_path<Reader: io::Read>(
     entry: &tar::Entry<'_, Reader>,
     expected: &str,
+    paths: &mut pnpr_package_name::ArchivePaths,
 ) -> Result<Option<String>, CrateArchiveError> {
-    let path = entry.path().map_err(CrateArchiveError::Read)?;
-    let path = path.to_string_lossy().into_owned();
+    let raw = entry.path_bytes();
+    let path = std::str::from_utf8(&raw)
+        .map_err(|err| CrateArchiveError::Read(io::Error::new(io::ErrorKind::InvalidData, err)))?;
     let entry_type = entry.header().entry_type();
+    let path = if entry_type.is_dir() { paths.insert_directory(path) } else { paths.insert(path) }
+        .ok_or_else(|| CrateArchiveError::InvalidPath { path: path.to_string() })?;
     if path == expected && entry_type.is_dir() {
         return Ok(None);
     }
-    let outside = || CrateArchiveError::EntryOutsideRoot {
-        path: path.clone(),
-        expected: expected.to_string(),
-    };
-    let Some(inner) = path
+    let inner = path
         .strip_prefix(expected)
         .and_then(|rest| rest.strip_prefix('/'))
-    else {
-        return Err(outside());
-    };
-    if path.contains(['\\', ':'])
-        || inner
-            .split('/')
-            .any(|part| part == "..")
-    {
-        return Err(outside());
-    }
+        .ok_or_else(|| CrateArchiveError::EntryOutsideRoot {
+            path: path.to_string(),
+            expected: expected.to_string(),
+        })?;
     if !entry_type.is_file() && !entry_type.is_dir() {
-        return Err(CrateArchiveError::UnsupportedEntry { path });
+        return Err(CrateArchiveError::UnsupportedEntry { path: path.to_string() });
     }
     Ok(Some(inner.to_string()))
 }

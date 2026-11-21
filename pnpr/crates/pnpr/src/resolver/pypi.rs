@@ -26,7 +26,6 @@ mod metadata;
 mod response;
 use metadata::{
     CachedDocument,
-    metadata_from_wheel,
     parse_metadata,
     parse_page,
     project_page_url,
@@ -72,7 +71,10 @@ use pnpm_python_resolver::{
     metadata_url,
     validate_url,
 };
-use pnpr_pypi::archive::MAX_METADATA_BYTES;
+use pnpr_pypi::archive::{
+    MAX_METADATA_BYTES,
+    metadata_from_wheel,
+};
 use pnpr_route::Footprint;
 
 use crate::server::StripedLocks;

@@ -110,6 +110,10 @@ Hosted registries use the [default storage namespace](storage.md#layout) when
 `namespace` is omitted. Set `namespace` to choose another namespace. Two hosted
 registries of the same ecosystem cannot share a `namespace`.
 
+Cargo and Python uploads must contain only regular files and directories with relative paths.
+Each path must be unique when compared without regard to ASCII case. Path components
+may not be empty or end in a space or period.
+
 ## Cargo
 
 A Cargo registry serves a sparse index at `/cargo/index/` and the crates API at
@@ -187,7 +191,7 @@ The project list at `/pypi/simple/` enumerates hosted projects only.
 Uploads must be valid wheel, `.tar.gz`, or `.zip` archives. The root
 `METADATA` in a wheel's `.dist-info` directory or the root `PKG-INFO` in a
 source distribution must name the same project and version as the filename
-and upload form.
+and upload form. The decompressed archive size limit is 512 MiB.
 
 Publishers can yank a file with `PUT /pypi/files/<project>/<filename>/yank`
 and a JSON body such as `{"reason":"Broken release"}`. A JSON body is required. An empty object yanks
