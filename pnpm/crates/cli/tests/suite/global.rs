@@ -309,20 +309,36 @@ fn global_add_of_several_groups_summarizes_every_group() {
 
 #[cfg(unix)]
 #[test]
-fn global_add_prints_no_summary_when_a_group_fails() {
+fn global_add_prints_no_summary_when_a_group_fails_activation() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let pnpm_home = root.path().join("pnpm-home");
     prepare_global_home(&pnpm_home, &npmrc_info);
+    let selectors = ["alpha", "beta"].map(|name| {
+        let dir = root.path().join(name);
+        fs::create_dir_all(&dir).expect("create package dir");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0", "bin": { "shared-tool": "cli.js" } })
+                .to_string(),
+        )
+        .expect("write manifest");
+        fs::write(dir.join("cli.js"), "#!/usr/bin/env node\n").expect("write bin");
+        format!("file:{}", dir.display())
+    });
 
     let output = without_colors(global_command(&workspace, &pnpm_home))
-        .with_args(["add", "-g", "is-positive", "@pnpm.e2e/this-package-does-not-exist"])
+        .with_arg("add")
+        .with_arg("-g")
+        .with_args(&selectors)
         .output()
         .expect("run add -g");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success(), "add -g should fail: {stdout}");
-    assert!(!stdout.contains("+ is-positive"), "{stdout}");
+    assert!(stderr.contains("ERR_PNPM_GLOBAL_BIN_CONFLICT"), "{stderr}");
+    assert!(!stdout.contains("+ beta"), "{stdout}");
 
     drop(npmrc_info);
     drop(root);
