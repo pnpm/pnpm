@@ -295,6 +295,22 @@ fn crate_archive_must_hold_the_crate_it_claims() {
 }
 
 #[test]
+fn crate_archive_paths_are_unique_without_regard_to_ascii_case() {
+    let archive = crate_archive(
+        "sample-1.0.0",
+        &[
+            ("Cargo.toml", "[package]\nname = \"sample\"\nversion = \"1.0.0\""),
+            ("Readme", ""),
+            ("README", ""),
+        ],
+    );
+    assert!(matches!(
+        validate_crate_archive(&archive, "sample", "1.0.0"),
+        Err(CrateArchiveError::InvalidPath { .. })
+    ));
+}
+
+#[test]
 fn crate_archive_limit_allows_equality_and_rejects_overflow() {
     let archive = crate_archive(
         "demo-0.1.0",
@@ -339,7 +355,7 @@ fn crate_archive_rejects_traversal_and_links() {
         assert!(
             matches!(
                 validate_crate_archive(&archive, "demo", "0.1.0"),
-                Err(CrateArchiveError::EntryOutsideRoot { .. }
+                Err(CrateArchiveError::InvalidPath { .. }
                     | CrateArchiveError::UnsupportedEntry { .. })
             ),
             "{path}",

@@ -20,13 +20,19 @@ fn zip_metadata(entries: &[(&str, &str)]) -> Vec<u8> {
 }
 
 fn sdist(path: &str, content: &[u8]) -> Vec<u8> {
+    tar_entries(&[(path, content)])
+}
+
+fn tar_entries(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     let mut archive = tar::Builder::new(encoder);
-    let mut header = tar::Header::new_gnu();
-    header.set_size(content.len() as u64);
-    header.set_mode(0o644);
-    header.set_cksum();
-    archive.append_data(&mut header, path, content).unwrap();
+    for &(path, content) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        archive.append_data(&mut header, path, content).unwrap();
+    }
     archive
         .into_inner()
         .unwrap()
@@ -120,5 +126,31 @@ fn refuses_source_distributions_with_another_releases_root_directory() {
             DistributionKind::Sdist
         )
         .is_err(),
+    );
+}
+
+#[test]
+fn zip_size_limit_includes_package_files() {
+    let filename = "sample-1.0.zip";
+    let zip = zip_metadata(&[("sample-1.0/PKG-INFO", "abc"), ("sample-1.0/module.py", "def")]);
+    let read =
+        |limit| super::metadata_from_zip_with_limit(&zip, filename, DistributionKind::Sdist, limit);
+    assert_eq!(read(6).unwrap(), b"abc");
+    assert!(read(5).unwrap_err().contains("exceeds"));
+}
+
+#[test]
+fn sdist_paths_are_unique_after_reading_metadata() {
+    let files = [
+        ("sample-1.0/PKG-INFO", "Name: sample"),
+        ("sample-1.0/readme", ""),
+        ("sample-1.0/README", ""),
+    ];
+    let tar = tar_entries(&files.map(|(name, contents)| (name, contents.as_bytes())));
+    assert!(metadata_from_sdist(&tar, "sample-1.0.tar.gz").unwrap_err().contains("duplicate"));
+    assert!(
+        metadata_from_zip(&zip_metadata(&files), "sample-1.0.zip", DistributionKind::Sdist)
+            .unwrap_err()
+            .contains("duplicate")
     );
 }

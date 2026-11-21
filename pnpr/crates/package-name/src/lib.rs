@@ -1,3 +1,6 @@
+mod archive_paths;
+
+pub use archive_paths::ArchivePaths;
 pub use pnpm_package_name::{
     PythonNameError,
     canonicalize_python_name,
