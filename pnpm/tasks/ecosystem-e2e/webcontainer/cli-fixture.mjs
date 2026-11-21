@@ -671,7 +671,7 @@ snapshots:
 
 function inspectDoctor (entry) {
   const result = spawnSync(process.execPath, [entry, 'doctor', '--offline', '--json'], { encoding: 'utf8' })
-  const report = JSON.parse(result.stdout)
+  const report = parseJsonOutput(result.stdout, `doctor --offline --json (exit code ${result.status}, signal ${result.signal}, stderr: ${result.stderr})`)
   assert.ok(Array.isArray(report.checks), 'doctor did not return a check list')
   assert.ok(report.checks.length > 0, 'doctor returned no checks')
   const failures = report.checks.filter(check => check.status === 'fail').map(check => `${check.title}: ${check.detail}`)
