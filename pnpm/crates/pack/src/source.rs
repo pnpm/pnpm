@@ -36,6 +36,8 @@ pub(super) struct PackSource {
     pub(super) normalized_name: String,
     pub(super) published_version: String,
     pub(super) bins: Vec<PathBuf>,
+    /// See [`pnpm_exportable_manifest::private_workspace_dependencies`].
+    pub(super) private_workspace_packages: Vec<String>,
 }
 
 pub(super) async fn prepare_source<Reporter>(opts: &PackOptions) -> Result<PackSource, PackError>
@@ -61,7 +63,8 @@ where
 
     let name = packed_identity(&manifest)?;
 
-    let mut publish_manifest = opts.manifest.export::<Reporter>(&opts.dir, &dir, &manifest).await?;
+    let (mut publish_manifest, private_workspace_packages) =
+        opts.manifest.export::<Reporter>(&opts.dir, &dir, &manifest).await?;
 
     let (normalized_name, published_version) = published_identity(&mut publish_manifest, name)?;
     let bins = executable_sources(&publish_manifest, &manifest, &dir);
@@ -72,6 +75,7 @@ where
         normalized_name,
         published_version,
         bins,
+        private_workspace_packages,
     })
 }
 

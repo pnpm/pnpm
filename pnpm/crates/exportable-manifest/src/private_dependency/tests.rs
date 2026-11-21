@@ -153,6 +153,12 @@ fn allows_a_dependency_a_before_packing_hook_removes_or_replaces() {
         published["dependencies"]["secret"] = json!(r".\vendor\public-secret.tgz");
     })
     .expect("the hook pointed the dependency at a local tarball");
+    for remote in ["https://example.com/public-secret.tgz", "github:owner/public-secret"] {
+        export_with(&temp, &manifest, None, |published| {
+            published["dependencies"]["secret"] = json!(remote);
+        })
+        .expect("the hook pointed the dependency at a remote source");
+    }
 }
 
 /// The check falls back to the workspace packages wherever the rewrite does:

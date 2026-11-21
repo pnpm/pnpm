@@ -359,6 +359,7 @@ fn packed_files_map(
     )
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(files);
+    reject_unshipped_private_dependencies(source, &files_map)?;
     files_map.retain(|name, _| !is_manifest_entry(name));
     files_map.insert("package/package.json".to_string(), project_manifest_path(&source.dir));
     inject_workspace_license(opts, &source.dir, &mut files_map);
@@ -368,6 +369,27 @@ fn packed_files_map(
         files_map.shift_remove(name);
     }
     Ok(files_map)
+}
+
+/// Fail when the published manifest still depends on a private workspace
+/// package, unless the tarball ships that package as a bundled dependency.
+/// Packlist decides what is bundled, so its file list is what is checked.
+fn reject_unshipped_private_dependencies(
+    source: &PackSource,
+    files_map: &indexmap::IndexMap<String, PathBuf>,
+) -> Result<(), PackError> {
+    let shipped: Vec<String> = root_bundle_dep_names(&source.publish_manifest)
+        .into_iter()
+        .filter(|dep_name| {
+            files_map.contains_key(&format!("package/node_modules/{dep_name}/package.json"))
+        })
+        .collect();
+    reject_private_workspace_dependencies(
+        &source.publish_manifest,
+        &source.private_workspace_packages,
+        &shipped,
+    )
+    .map_err(PackError::PrivateWorkspaceDependency)
 }
 
 fn create_dest_dir<Sys: FsCreateDirAll>(dest_dir: &Path) -> Result<(), PackError> {
@@ -476,7 +498,7 @@ impl PackManifestOptions {
         project_dir: &Path,
         dir: &Path,
         manifest: &Value,
-    ) -> Result<Value, PackError> {
+    ) -> Result<(Value, Vec<String>), PackError> {
         let modules_dir = project_dir.join("node_modules");
         let options = CreateExportableManifestOptions {
             catalogs: &self.catalogs,
@@ -504,12 +526,7 @@ impl PackManifestOptions {
             &self.before_packing_hooks,
         )
         .await?;
-        // Packlist leaves out a bundled dependency it cannot find installed.
-        let mut bundled = root_bundle_dep_names(&publish_manifest);
-        bundled.retain(|dep_name| modules_dir.join(dep_name).exists());
-        reject_private_workspace_dependencies(&publish_manifest, &private_packages, &bundled)
-            .map_err(PackError::PrivateWorkspaceDependency)?;
 
-        Ok(publish_manifest)
+        Ok((publish_manifest, private_packages))
     }
 }

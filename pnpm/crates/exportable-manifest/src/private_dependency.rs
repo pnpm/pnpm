@@ -138,9 +138,10 @@ fn private_workspace_package(
 /// - `npm:<name>@<range>` names `<name>`.
 /// - A bare `npm:<x>` is `<x>` at the default tag, or a range for `dep_name`,
 ///   so it names both.
-/// - A local path names none.
-/// - Anything else, a range, a tag, or a union with another protocol in it,
-///   is read as `dep_name`.
+/// - A local path names none, and so does a URL, a git source, or another
+///   protocol: a first `||` member with a `:` or `/`.
+/// - Anything else, a range or a tag, is read as `dep_name`, even when a
+///   later union member names another protocol.
 fn registry_packages<'a>(dep_name: &'a str, spec: &'a str) -> [Option<&'a str>; 2] {
     if is_local_filesystem_specifier(spec) {
         return [None, None];
@@ -150,8 +151,17 @@ fn registry_packages<'a>(dep_name: &'a str, spec: &'a str) -> [Option<&'a str>; 
             Some(index) if index > 0 => [Some(&aliased[..index]), None],
             _ => [Some(aliased), Some(dep_name)],
         },
+        None if names_another_source(spec) => [None, None],
         None => [Some(dep_name), None],
     }
+}
+
+fn names_another_source(spec: &str) -> bool {
+    let first_member = spec
+        .split("||")
+        .next()
+        .unwrap_or_default();
+    first_member.contains(':') || first_member.contains('/')
 }
 
 fn is_private(manifest: &Map<String, Value>) -> bool {
