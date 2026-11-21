@@ -1,11 +1,24 @@
 use crate::state::State;
 use clap::Args;
-use miette::{Context, IntoDiagnostic, miette};
-use pnpm_lockfile::{Lockfile, PackageKey, PeerEdgeOptions};
+use miette::{
+    Context,
+    IntoDiagnostic,
+    miette,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PeerEdgeOptions,
+};
 use pnpm_reporter::Reporter;
 use std::{
-    env, fs, io,
-    path::{Path, PathBuf},
+    env,
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -95,7 +108,10 @@ fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<Pack
     use pnpm_deps_inspection::{
         TreeNodeId,
         build::importer_id_for,
-        graph::{BuildGraphOptions, build_dependency_graph},
+        graph::{
+            BuildGraphOptions,
+            build_dependency_graph,
+        },
     };
     let lockfile = Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
         .into_diagnostic()
@@ -200,11 +216,9 @@ fn resolve_package_dir_with_fallback(
     virtual_store_dir: &Path,
 ) -> miette::Result<PathBuf> {
     resolve_package_dir(project_modules_dir, parts, virtual_store_dir)
-        .or_else(|_| {
-            let modules_dir = workspace_modules_dir.ok_or_else(|| {
-                miette!("Failed to canonicalize modules directory")
-            })?;
-            resolve_package_dir(modules_dir, parts, virtual_store_dir)
+        .or_else(|project_error| match workspace_modules_dir {
+            Some(modules_dir) => resolve_package_dir(modules_dir, parts, virtual_store_dir),
+            None => Err(project_error),
         })
 }
 
@@ -214,9 +228,8 @@ fn verify_package_path_within_tree(
     virtual_store_dir: &Path,
 ) -> miette::Result<()> {
     let inside_modules = path.starts_with(modules_dir);
-    let inside_virtual_store = dunce::canonicalize(virtual_store_dir)
-        .ok()
-        .is_some_and(|vs| path.starts_with(&vs));
+    let inside_virtual_store =
+        dunce::canonicalize(virtual_store_dir).is_ok_and(|vs| path.starts_with(&vs));
     if !inside_modules && !inside_virtual_store {
         let dir = path.display();
         return Err(miette!(

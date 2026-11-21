@@ -1,4 +1,7 @@
-use super::{de_hardlink_dir, parse_package_path};
+use super::{
+    de_hardlink_dir,
+    parse_package_path,
+};
 use std::fs;
 use tempfile::tempdir;
 
@@ -75,7 +78,10 @@ fn test_de_hardlink_dir() {
 #[cfg(unix)]
 #[test]
 fn de_hardlink_preserves_executable_mode_and_does_not_follow_symlinks() {
-    use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::os::unix::fs::{
+        PermissionsExt,
+        symlink,
+    };
     let root = tempdir().unwrap();
     let package = root.path().join("package");
     fs::create_dir(&package).unwrap();

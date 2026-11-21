@@ -290,8 +290,7 @@ impl RebuildOptions {
         if let Some(snapshots) = &self.selected_snapshots {
             return dep_path
                 .parse::<PackageKey>()
-                .ok()
-                .is_some_and(|key| snapshots.contains(&key));
+                .is_ok_and(|key| snapshots.contains(&key));
         }
         let (name, _) = parse_name_version_from_key(remove_suffix(dep_path));
         self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
