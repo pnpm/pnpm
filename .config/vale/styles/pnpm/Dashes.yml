@@ -5,5 +5,5 @@ level: error
 nonword: true
 tokens:
   - '[—–]'
-  # Skips the `--` before a lint directive's reason and inside a code span.
-  - '(?<!(?:eslint-disable|@ts-expect-error|@ts-ignore|cspell:)[^\n]*)(?<=(?:^|\n)[^`\n]*(?:`[^`\n]*`[^`\n]*)*)\s--\s'
+  # Skips the `--` before a cspell directive's reason and inside a code span.
+  - '(?<!cspell:(?:(?!\s--\s)[^\n])*)(?<=(?:^|\n)[^`\n]*(?:`[^`\n]*`[^`\n]*)*)\s--\s'
