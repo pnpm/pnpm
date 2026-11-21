@@ -258,11 +258,11 @@ pub(super) async fn serve_upload_artifact_blob(
             .await
     }
     .await;
-    // Only a stored blob read the upload to its end. Every other answer
-    // leaves bytes on the wire, which the connection cannot survive.
+    // A stored or verified blob read the upload to its end. A refusal may
+    // leave bytes on the wire, which the connection cannot survive.
     private_no_cache(match result {
         Ok(true) => StatusCode::CREATED.into_response(),
-        Ok(false) => last_on_its_connection(StatusCode::OK.into_response()),
+        Ok(false) => StatusCode::OK.into_response(),
         Err(err) => last_on_its_connection(err.into_response()),
     })
 }

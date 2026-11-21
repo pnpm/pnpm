@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-Fixed a shared build artifact publication failing with a broken pipe when another publisher stored the same blob at the same moment.
+Fixed a shared build artifact publication failing with a broken pipe after pnpr refused one of its blob uploads before reading it.

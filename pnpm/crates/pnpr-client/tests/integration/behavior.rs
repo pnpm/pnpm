@@ -323,13 +323,14 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
     assert_eq!(variants.len(), pnpm_shared_artifact_protocol::MAX_VARIANTS_PER_CANDIDATE);
 }
 
-/// A publisher that loses the race to store a blob is answered before its
-/// upload has arrived, so the connection cannot carry another request.
-/// The answer says so. The publisher's next request is the envelope that
-/// names the blob, and it goes to a connection of its own rather than
-/// into a socket the server has already shut.
+/// An upload the server reads to its end keeps its connection, whether it
+/// stored the blob or verified a copy already stored. One refused before
+/// its body arrived leaves that body on the wire, so the connection cannot
+/// carry another request. The answer says so, and the publisher's next
+/// request goes to a connection of its own rather than into a socket the
+/// server has already shut.
 #[tokio::test]
-async fn an_upload_of_a_stored_blob_retires_its_connection() {
+async fn only_an_upload_refused_before_it_arrives_retires_its_connection() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
     let authority = pnpr_url
         .trim_start_matches("http://")
@@ -338,38 +339,49 @@ async fn an_upload_of_a_stored_blob_retires_its_connection() {
     let blob = b"native-addon";
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(blob)));
     let integrity: String = url::form_urlencoded::byte_serialize(integrity.as_bytes()).collect();
-    let request = format!(
-        "PUT /-/pnpr/v0/artifacts/blobs/pnpr-client/{integrity} HTTP/1.1\r\n\
-         host: {authority}\r\n\
-         authorization: {pnpr_auth}\r\n\
-         content-type: application/octet-stream\r\n\
-         content-length: {}\r\n\r\n",
-        blob.len(),
-    );
+    let upload_head = |length: u64| {
+        format!(
+            "PUT /-/pnpr/v0/artifacts/blobs/pnpr-client/{integrity} HTTP/1.1\r\n\
+             host: {authority}\r\n\
+             authorization: {pnpr_auth}\r\n\
+             content-type: application/octet-stream\r\n\
+             content-length: {length}\r\n\r\n",
+        )
+    };
+    let request = upload_head(blob.len() as u64);
 
     let mut socket = tokio::net::TcpStream::connect(&authority).await.expect("connect to pnpr");
     let stored = put_blob(&mut socket, &request, blob).await;
     assert!(stored.starts_with("HTTP/1.1 201 "), "the first upload stores the blob: {stored}");
     assert!(
         !stored.to_ascii_lowercase().contains("connection: close"),
-        "an upload the server read to its end keeps its connection: {stored}",
+        "an upload that stored its blob keeps its connection: {stored}",
     );
 
     // Reaching the server at all proves the first answer kept the
-    // connection, and this upload is the one the server answers early.
-    let already_stored = put_blob(&mut socket, &request, blob).await;
+    // connection.
+    let verified = put_blob(&mut socket, &request, blob).await;
     assert!(
-        already_stored.starts_with("HTTP/1.1 200 "),
-        "an upload of a stored blob stores nothing: {already_stored}",
+        verified.starts_with("HTTP/1.1 200 "),
+        "an upload of a stored blob stores nothing: {verified}",
     );
     assert!(
-        already_stored.to_ascii_lowercase().contains("connection: close"),
-        "an upload answered before it arrived retires its connection: {already_stored}",
+        !verified.to_ascii_lowercase().contains("connection: close"),
+        "an upload verified against the stored blob keeps its connection: {verified}",
+    );
+
+    let oversized = upload_head(pnpm_shared_artifact_protocol::MAX_BLOB_SIZE + 1);
+    let refused = put_blob(&mut socket, &oversized, b"").await;
+    assert!(refused.starts_with("HTTP/1.1 400 "), "an oversized upload is refused: {refused}");
+    assert!(
+        refused.to_ascii_lowercase().contains("connection: close"),
+        "an upload refused before it arrived retires its connection: {refused}",
     );
 
     let mut remainder = Vec::new();
     socket.read_to_end(&mut remainder).await.expect("read the closed connection");
-    assert!(remainder.is_empty(), "nothing follows the answer: {remainder:?}");
+    let body = String::from_utf8_lossy(&remainder);
+    assert!(!body.contains("HTTP/1.1"), "nothing follows the refusal: {body}");
 }
 
 /// Send one blob upload on `socket` and return its response head.
