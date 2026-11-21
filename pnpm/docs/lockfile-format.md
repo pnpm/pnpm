@@ -259,8 +259,9 @@ pnpm wraps the resulting body in parentheses. Use the dependency maps to
 follow resolved edges, including when a peer group is shortened or hashed.
 
 A package that has no peer dependencies, and whose dependencies resolve none
-from outside it, has no suffix. The same package version has one snapshot for
-each distinct set of peers it was resolved with.
+from outside it, has no peer suffix. A patched package still carries
+its patch hash. The same package version has one snapshot for each distinct
+set of peers it was resolved with.
 
 ## packages
 
@@ -438,10 +439,12 @@ snapshots:
    `transitivePeerDependencies`.
 4. `url-impl` has a regular dependency on `buffer-impl`, so it has no suffix.
 
-If `url-impl` is updated to a version that drops `buffer-impl` and pnpm finds
-no provider for the optional peer, the keys of `fs-impl` and `container` lose
-their suffix. An update targeting `url-impl` can leave `buffer-impl@3.7.1`
-pinned in the lockfile. If pnpm still selects that pin, the suffix remains.
+Suppose `url-impl` is updated to a version that drops `buffer-impl`, and
+no compatible provider is available from the dependency graph or retained
+lockfile entries. The keys of `fs-impl` and `container` lose their peer
+suffix. An update targeting `url-impl` alone can leave `buffer-impl@3.7.1`
+pinned in the lockfile. If that version still supplies the optional peer,
+the suffix remains.
 
 ## Invariants
 
