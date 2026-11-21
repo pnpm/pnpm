@@ -87,6 +87,14 @@ fn deprecations_are_flushed_when_the_command_ends_without_a_footer() {
     assert!(matches!(reporter.flush_pending_deprecations(), Output::None));
 }
 
+/// The flush runs after every command, so with nothing held it must not draw
+/// an empty frame into output such as `pnpm cat-file`.
+#[test]
+fn nothing_is_flushed_when_no_warning_is_held() {
+    let mut reporter = state(false);
+    assert!(matches!(reporter.flush_pending_deprecations(), Output::None));
+}
+
 #[test]
 fn deprecations_the_summary_carried_are_not_repeated() {
     let mut reporter = state(false);

@@ -544,7 +544,7 @@ impl DisplayState {
             if lines.is_empty() { Output::None } else { Output::Lines(lines) }
         } else {
             let frame = self.frame.render();
-            if self.last_frame.as_deref() == Some(frame.as_str()) {
+            if self.last_frame.as_deref().unwrap_or_default() == frame {
                 Output::None
             } else {
                 self.last_frame = Some(frame.clone());
