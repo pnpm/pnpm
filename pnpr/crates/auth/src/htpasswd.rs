@@ -5,9 +5,7 @@ use super::{
 };
 use crate::validation::validate_username;
 
-// ---------------------------------------------------------------
 // htpasswd I/O
-// ---------------------------------------------------------------
 
 /// Parse bcrypt and Apache `{SHA}` credentials for import.
 pub fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
@@ -95,9 +93,7 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
     diff == 0
 }
 
-// ---------------------------------------------------------------
 // bcrypt helpers
-// ---------------------------------------------------------------
 
 const DUMMY_BCRYPT_BODY: &str = "L6Bc/AlTQHyd9liGgGEZyOFLPHNgyxeEPfgYfBCVxJ7JIlwxyVU3u";
 

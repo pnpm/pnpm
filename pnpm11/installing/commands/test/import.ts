@@ -49,6 +49,13 @@ const DEFAULT_OPTS = {
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
+test('import help lists the output options', () => {
+  const help = importCommand.help()
+  expect(help).toContain('--reporter append-only')
+  expect(help).toContain('--reporter ndjson')
+  expect(help).toContain('--silent, --reporter silent')
+})
+
 test('import from package-lock.json', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   testFixtures.prepare('has-package-lock-json')

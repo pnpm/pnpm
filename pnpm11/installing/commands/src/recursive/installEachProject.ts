@@ -18,6 +18,7 @@ import {
   type InstallOptions,
   mutateModules,
   type PreparedFrozenMutation,
+  runDevPreinstall,
   verifyPatchesOfLockfiles,
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.types'
@@ -103,6 +104,7 @@ export async function installEachProject (ctx: RecursiveContext): Promise<Recurs
     buildsAfterInstall: !opts.lockfileOnly && !opts.ignoreScripts &&
       (cmdFullName === 'add' || cmdFullName === 'install' || cmdFullName === 'update'),
   }
+  if (opts.workspaceDir != null) await runDevPreinstall(opts.workspaceDir, ctx.installOpts)
   await scheduleGraph(selectedProjectDependencies, {
     bail: opts.bail !== false,
     concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),

@@ -15,6 +15,7 @@ default = ["shell-emulator"]
 shell-emulator = ["pnpm-executor/shell-emulator", "pnpm-git-fetcher/shell-emulator"]
 
 [dependencies]
+pnpm-ffi-fs = { workspace = true }
 pnpm-package-name = { workspace = true }
 pnpm-catalogs-protocol-parser = { workspace = true }
 pnpm-matcher = { workspace = true }

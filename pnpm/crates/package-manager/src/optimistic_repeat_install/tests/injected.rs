@@ -58,6 +58,15 @@ fn injected_sibling_decision(
     injected_sibling_decision_with_lockfile(shared_workspace_lockfile, sibling_manifest, LOCKFILE)
 }
 
+/// [`LOCKFILE`] under `lockfileVersion: '13.0'`, which records the
+/// resolution settings at their defaults.
+fn v13_lockfile() -> String {
+    LOCKFILE.replace("'9.0'", "'13.0'").replace(
+        "settings:\n",
+        "settings:\n  autoDedupe: false\n  dedupeInjectedDeps: true\n  dedupePeerDependents: true\n  linkWorkspacePackages: false\n",
+    )
+}
+
 fn injected_sibling_decision_with_lockfile(
     shared_workspace_lockfile: bool,
     sibling_manifest: Option<&serde_json::Value>,
@@ -260,7 +269,7 @@ fn assert_skipped_for_local_file_dependency(decision: &Decision) {
 
 #[test]
 fn recorded_injected_inputs_allow_a_dedicated_lockfile_repeat_install() {
-    let lockfile = LOCKFILE.replace("'9.0'", "'13.0'");
+    let lockfile = v13_lockfile();
     assert_eq!(
         injected_sibling_decision_with_lockfile(false, Some(&unchanged_sibling()), &lockfile),
         Decision::UpToDate,
@@ -275,7 +284,7 @@ fn recorded_injected_inputs_allow_a_dedicated_lockfile_repeat_install() {
 /// its manifest.
 #[test]
 fn recorded_injected_inputs_do_not_vouch_for_a_changed_nested_project() {
-    let lockfile = LOCKFILE.replace("'9.0'", "'13.0'")
+    let lockfile = v13_lockfile()
         .replace(
             "  pkg-a: {}\n",
             "  pkg-a:\n    dependencies:\n      bar:\n        specifier: 1.0.0\n        version: 1.0.0\n\n  pkg-b: {}\n",

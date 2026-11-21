@@ -6,10 +6,10 @@ import {
   resolveFromCatalog,
 } from '@pnpm/catalogs.resolver'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
-import { OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
+import { OPTIONS, OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types } from '@pnpm/config.reader'
-import { getPublishedByPolicy } from '@pnpm/config.version-policy'
+import { getPublishedByPolicy, MINIMUM_RELEASE_AGE_OPTION_TYPES } from '@pnpm/config.version-policy'
 import { getSystemNodeVersion } from '@pnpm/engine.runtime.system-version'
 import { isError, PnpmError } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
@@ -44,6 +44,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'libc',
       'os',
     ], types),
+    ...MINIMUM_RELEASE_AGE_OPTION_TYPES,
     'shell-mode': Boolean,
   }
 }
@@ -74,6 +75,8 @@ export function help (): string {
             name: '--shell-mode',
             shortAlias: '-c',
           },
+          OPTIONS.minimumReleaseAge,
+          OPTIONS.minimumReleaseAgeExclude,
         ],
       },
       OUTPUT_OPTIONS,

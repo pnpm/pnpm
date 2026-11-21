@@ -197,6 +197,22 @@ Creates a flat `node_modules` structure, similar to that of `npm` or `yarn`.
 Do not execute any scripts defined in the project `package.json` and its
 dependencies.
 
+### --minimum-release-age &lt;minutes\>
+
+Added in: v11.28.14
+
+Sets [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) for this run, overriding the configured value. The value is in minutes. As with a configured value, it turns on [`minimumReleaseAgeStrict`](../settings/dependency-resolution.md#minimumreleaseagestrict) unless that setting is configured. A value that is not a non-negative number is an error.
+
+### --minimum-release-age-exclude &lt;package-spec\>
+
+Added in: v11.28.14
+
+Sets [`minimumReleaseAgeExclude`](../settings/dependency-resolution.md#minimumreleaseageexclude) for this run, replacing the configured list. Repeat the option to exclude several packages:
+
+```sh
+pnpm install --minimum-release-age 1440 --minimum-release-age-exclude react --minimum-release-age-exclude webpack@5.98.0
+```
+
 ### --filter &lt;package_selector>
 
 [Read more about filtering.](../filtering.md)

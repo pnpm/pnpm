@@ -47,6 +47,7 @@ url = { workspace = true }
 sha2 = { workspace = true, features = ["asm"] }
 
 [target.'cfg(windows)'.dependencies]
+pnpm-ffi-fs = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
@@ -60,3 +61,6 @@ tokio = { workspace = true, features = ["net", "signal"] }
 
 [lints]
 workspace = true
+
+[target.'cfg(target_os = "wasi")'.dependencies]
+pnpm-ffi-sqlite = { workspace = true }

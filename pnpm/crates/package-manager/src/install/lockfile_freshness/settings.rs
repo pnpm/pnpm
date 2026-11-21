@@ -146,9 +146,9 @@ pub(crate) fn check_lockfile_settings_drift(
     // from what the lockfile recorded.
     let patched_dependency_hashes =
         config.patched_dependency_hashes().map_err(FreshnessCheckError::CalcPatchHashes)?;
-    let resolution_settings = config.lockfile_include_resolution_settings.then(|| {
-        crate::fast_update_settings::resolution_settings_from_config(config)
-    });
+    let resolution_settings = config
+        .lockfile_records_resolution_settings()
+        .then(|| crate::fast_update_settings::resolution_settings_from_config(config));
     pnpm_lockfile::check_lockfile_settings(
         lockfile,
         pnpm_lockfile::LockfileSettingsCheck {

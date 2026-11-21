@@ -93,7 +93,7 @@ test('print update notification when PNPM_HOME manages the pnpm in use', async (
       },
       process: {
         pkg: true,
-      } as any, // eslint-disable-line
+      } as unknown as NodeJS.Process,
     },
     streamParser: createStreamParser(),
   })

@@ -100,6 +100,7 @@ mod install_root_engine;
 mod install_runtimes;
 mod install_stale_importers;
 mod install_state;
+mod install_summary_latest;
 mod install_test;
 mod interrupt;
 mod interrupt_windows;

@@ -52,16 +52,13 @@ pub(super) fn terminate_process(pid: u32, separate_process_group: bool, stop: St
 /// [`super::spawn_child`] created, a positive one a child or a descendant
 /// pnpm listed.
 pub(super) fn signal(target: i32, stop: Stop) {
-    // SAFETY: plain `kill`; ESRCH is harmless when the target exited
-    // concurrently.
-    let sent = unsafe { libc::kill(target, stop.signal()) } == 0;
-    let error = (!sent).then(std::io::Error::last_os_error);
+    let outcome = pnpm_ffi_signal::try_signal_target(kill_target(target), stop.signal());
     tracing::debug!(
         target: "pacquet::process_tracker",
         target_pid = target,
         signal = stop.signal(),
-        sent,
-        error = error.map(tracing::field::display),
+        sent = outcome.is_ok(),
+        error = outcome.err().map(tracing::field::display),
         "signal",
     );
 }
@@ -79,16 +76,25 @@ pub(super) fn signal_group(leader: u32, stop: Stop) {
 /// While it does, its id cannot be handed to another process or group, so
 /// a signal to it reaches only the group pnpm created.
 pub(super) fn group_has_member(target: i32) -> bool {
-    // SAFETY: signal 0 only probes.
-    unsafe { libc::kill(target, 0) == 0 }
+    pnpm_ffi_signal::target_exists(kill_target(target))
 }
 
 /// Whether `pid` is in a process group that one of `targets` signals.
 pub(super) fn in_signalled_group(pid: i32, targets: &[i32]) -> bool {
-    // SAFETY: `getpgid` only reads the process table, and fails with -1 for a
-    // process that has exited.
-    let group = unsafe { libc::getpgid(pid) };
-    group > 0 && targets.contains(&-group)
+    u32::try_from(pid)
+        .ok()
+        .and_then(pnpm_ffi_signal::process_group_of)
+        .is_some_and(|group| group > 0 && targets.contains(&-group))
+}
+
+/// Read a signed target the way `kill` reads one: a negative number is the
+/// process group that the matching positive number leads.
+fn kill_target(target: i32) -> pnpm_ffi_signal::Target {
+    if target < 0 {
+        pnpm_ffi_signal::Target::Group(target.unsigned_abs())
+    } else {
+        pnpm_ffi_signal::Target::Process(target.unsigned_abs())
+    }
 }
 
 /// A descendant of a task, found through the parent links of a process
@@ -103,23 +109,36 @@ pub(super) fn in_signalled_group(pid: i32, targets: &[i32]) -> bool {
 pub(super) struct Descendant {
     pid: i32,
     #[cfg(target_os = "linux")]
-    pidfd: Option<std::os::fd::OwnedFd>,
+    pinned: Option<pnpm_ffi_signal::PinnedTarget>,
 }
 
 impl Descendant {
     /// The descendant `pid` that the listing gave `parent`, or `None` once it
     /// is no longer that process.
     fn find(pid: u32, parent: u32) -> Option<Self> {
-        let pid = i32::try_from(pid).ok()?;
+        let signed = i32::try_from(pid).ok()?;
         #[cfg(target_os = "linux")]
         {
-            let pidfd = linux::pin(pid, parent)?;
-            Some(Self { pid, pidfd })
+            let pinned = match pnpm_ffi_signal::PinnedTarget::pin(pid) {
+                pnpm_ffi_signal::Pin::Target(pinned) => Some(pinned),
+                // Nothing pinned, so the id is signalled as it is and
+                // there is no reuse the check below could catch.
+                pnpm_ffi_signal::Pin::Unsupported => None,
+                // A kernel that pins but refused this one leaves no way to
+                // tell the process from a stranger reusing its id.
+                pnpm_ffi_signal::Pin::Refused | pnpm_ffi_signal::Pin::Gone => return None,
+            };
+            // With the process pinned its id cannot be reused, so the parent
+            // `/proc` gives it now is the one the pinned process has.
+            if pinned.is_some() && linux::parent_of(signed)? != parent {
+                return None;
+            }
+            Some(Self { pid: signed, pinned })
         }
         #[cfg(not(target_os = "linux"))]
         {
             let _ = parent;
-            Some(Self { pid })
+            Some(Self { pid: signed })
         }
     }
 
@@ -129,15 +148,14 @@ impl Descendant {
 
     pub(super) fn signal(&self, stop: Stop) {
         #[cfg(target_os = "linux")]
-        if let Some(pidfd) = &self.pidfd {
-            let sent = linux::signal(pidfd, stop.signal());
-            let error = (!sent).then(std::io::Error::last_os_error);
+        if let Some(pinned) = &self.pinned {
+            let outcome = pinned.signal(stop.signal());
             tracing::debug!(
                 target: "pacquet::process_tracker",
                 pid = self.pid,
                 signal = stop.signal(),
-                sent,
-                error = error.map(tracing::field::display),
+                sent = outcome.is_ok(),
+                error = outcome.err().map(tracing::field::display),
                 "signal a descendant through its pidfd",
             );
             return;

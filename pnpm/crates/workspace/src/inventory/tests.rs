@@ -302,13 +302,8 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
         let root_handle =
             cap_primitives::fs::open_ambient_dir(root, cap_primitives::ambient_authority())
                 .unwrap();
-        let mut probe_opens = 0;
-        super::open_directory::open_directory(
-            &root_handle,
-            std::path::Path::new("d/d"),
-            &mut probe_opens,
-        )
-        .unwrap();
+        let (_probe, probe_opens) =
+            pnpm_ffi_fs::open_directory_beneath(&root_handle, std::path::Path::new("d/d")).unwrap();
         let expected_opens = match probe_opens {
             1 => 257,
             2 => 1 + 2 * (1..=128).sum::<usize>(),
@@ -465,7 +460,7 @@ fn rejects_parent_navigation_and_absolute_descendant_paths() {
         cap_primitives::fs::open_ambient_dir(workspace.path(), cap_primitives::ambient_authority())
             .unwrap();
     for path in [std::path::Path::new("../outside"), workspace.path(), std::path::Path::new("")] {
-        let error = super::open_directory::open_directory(&root, path, &mut 0).unwrap_err();
+        let error = pnpm_ffi_fs::open_directory_beneath(&root, path).unwrap_err();
         assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
     }
 }
@@ -478,9 +473,8 @@ fn rejects_intermediate_links_to_directories_inside_the_workspace() {
     let root =
         cap_primitives::fs::open_ambient_dir(workspace.path(), cap_primitives::ambient_authority())
             .unwrap();
-    let error =
-        super::open_directory::open_directory(&root, std::path::Path::new("linked/child"), &mut 0)
-            .unwrap_err();
+    let error = pnpm_ffi_fs::open_directory_beneath(&root, std::path::Path::new("linked/child"))
+        .unwrap_err();
     eprintln!("intermediate link error: {error}");
     assert_ne!(error.kind(), std::io::ErrorKind::NotFound);
 }

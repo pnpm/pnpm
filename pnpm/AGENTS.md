@@ -460,7 +460,7 @@ are part of the public contract, not implementation detail. See
   whole suite on three platforms anyway. See
   [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks) and the
   [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill.
-- The repo-wide husky `pre-push` hook runs `pnpm run pre-push:rust`
+- The repo-wide `pre-push` git hook (`.config/githooks/pre-push`) runs `pnpm run pre-push:rust`
   (`pnpm/scripts/pre-push-rust.sh`), which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
   warnings`), `cargo doc` (with `RUSTDOCFLAGS=-D warnings`), and `cargo
   dylint`. Make sure your environment
@@ -498,7 +498,11 @@ perf(store-dir): share one read-only StoreIndex across cache lookups
   justification for pulling in a new third-party crate, ask the human to
   approve it and to add it to `[workspace.dependencies]` rather than adding
   it yourself. Consult `.config/deny.toml` when evaluating candidates.
-- Do not introduce `unsafe` without a clear justification and review.
+- Do not introduce `unsafe` outside the crates
+  [`UNSAFE_POLICY.md`](../UNSAFE_POLICY.md) names. A foreign call goes into the
+  `pnpm-ffi-*` crate that owns its surface; every other crate takes the
+  workspace's `unsafe_code` lint, and `cargo test -p pnpm-unsafe-audit`
+  says so.
 - Do not disable lints, tests, or CI checks to make a PR green.
 - Do not change what happens to the processes a command leaves running without
   changing [`PROCESS_LIFETIME.md`](./crates/executor/PROCESS_LIFETIME.md)

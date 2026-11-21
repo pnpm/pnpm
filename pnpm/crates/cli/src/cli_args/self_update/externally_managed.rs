@@ -86,7 +86,7 @@ pub(super) fn refuse_without_pin(
 /// The Homebrew formula (`pnpm`, `pnpm@11`, ...) whose keg holds `exe`, a
 /// canonical path. A keg is `<cellar>/<formula>/<version>/`, and Homebrew
 /// writes `INSTALL_RECEIPT.json` into every keg it installs.
-pub(super) fn homebrew_formula(exe: &Path) -> Option<String> {
+pub(crate) fn homebrew_formula(exe: &Path) -> Option<String> {
     exe.ancestors()
         .find_map(|keg| {
             let formula_dir = keg.parent()?;

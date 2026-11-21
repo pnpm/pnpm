@@ -1,5 +1,7 @@
 #[cfg(not(any(unix, windows)))]
 use super::is_dir_no_follow;
+#[cfg(unix)]
+use super::unix;
 #[cfg(windows)]
 use super::windows;
 use super::{
@@ -8,13 +10,6 @@ use super::{
     OpenDir,
     validate_child_name,
 };
-#[cfg(unix)]
-use super::{
-    c_name,
-    unix,
-};
-#[cfg(unix)]
-use std::os::fd::AsFd as _;
 #[cfg(any(not(unix), test))]
 use std::path::Path;
 use std::{
@@ -46,7 +41,7 @@ impl OpenDir {
     pub fn child_file_stat(&self, name: &OsStr) -> io::Result<Option<ChildFileStat>> {
         let name = validate_child_name(name)?;
         #[cfg(unix)]
-        return unix::stat_file_at(self.handle.as_fd(), &c_name(name)?);
+        return unix::stat_file_at(&self.handle, validate_child_name(name)?);
         #[cfg(windows)]
         return windows::stat_child_file(self.pinned.path(), name);
         #[cfg(not(any(unix, windows)))]
@@ -71,7 +66,7 @@ impl OpenDir {
     ) -> io::Result<Option<Vec<u8>>> {
         let name = validate_child_name(name)?;
         #[cfg(unix)]
-        return unix::read_file_at(self.handle.as_fd(), &c_name(name)?, max_bytes);
+        return unix::read_file_at(&self.handle, validate_child_name(name)?, max_bytes);
         #[cfg(windows)]
         return windows::read_child_file(&self.pinned, name, max_bytes);
         #[cfg(not(any(unix, windows)))]
@@ -104,7 +99,7 @@ impl OpenDir {
     fn publish_child_file(&self, name: &OsStr, bytes: &[u8], mode: ChildWrite) -> io::Result<()> {
         let name = validate_child_name(name)?;
         #[cfg(unix)]
-        return unix::write_file_at(self.handle.as_fd(), name, &c_name(name)?, bytes, mode);
+        return unix::write_file_at(&self.handle, name, validate_child_name(name)?, bytes, mode);
         #[cfg(windows)]
         return windows::write_child_file(&self.pinned, name, bytes, mode);
         #[cfg(not(any(unix, windows)))]
@@ -118,7 +113,7 @@ impl OpenDir {
     pub fn has_symlink_child(&self, name: &OsStr) -> io::Result<bool> {
         let name = validate_child_name(name)?;
         #[cfg(unix)]
-        return unix::is_symlink_at(self.handle.as_fd(), &c_name(name)?);
+        return unix::is_symlink_at(&self.handle, validate_child_name(name)?);
         #[cfg(windows)]
         return windows::is_reparse_child(self.pinned.path(), name);
         #[cfg(not(any(unix, windows)))]
@@ -135,7 +130,7 @@ impl OpenDir {
     pub fn remove_child_file(&self, name: &OsStr) -> io::Result<bool> {
         let name = validate_child_name(name)?;
         #[cfg(unix)]
-        return unix::unlink_file_at(self.handle.as_fd(), &c_name(name)?);
+        return unix::unlink_file_at(&self.handle, validate_child_name(name)?);
         #[cfg(windows)]
         return windows::remove_child_file(&self.pinned, name);
         #[cfg(not(any(unix, windows)))]
@@ -157,7 +152,7 @@ impl OpenDir {
     pub fn remove_empty_child_dir(&self, name: &OsStr) -> io::Result<bool> {
         let name = validate_child_name(name)?;
         #[cfg(unix)]
-        return unix::unlink_empty_dir_at(self.handle.as_fd(), &c_name(name)?);
+        return unix::unlink_empty_dir_at(&self.handle, validate_child_name(name)?);
         #[cfg(windows)]
         return windows::remove_empty_child_dir(&self.pinned, name);
         #[cfg(not(any(unix, windows)))]

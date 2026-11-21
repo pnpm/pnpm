@@ -834,9 +834,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.11.2"
+version = "1.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33ef9e3e8154a45c7a95cff4c1299702106ad94062d7bb85fdc5d3a5afd91d45"
+checksum = "02f0e023adb368345ce0ca6cdfc0f24a06554468d0e8503e14a0841de79bfa69"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -959,9 +959,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.8"
+version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac230478587d0269d8d6998b82ae69ea51509d55df66d9e92edd1f986904cd4a"
+checksum = "844c5c0b65be192cb68d570cca1b21a6444431d24e39c084dc0336177015337c"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -981,9 +981,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.6.8"
+version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "895c9d8d2ac2dd8b8a29f3724a14e72aaaa6debcf8c38c82f97305c6a172767a"
+checksum = "b4c174f11f949b9ca8c60580925e282b9cbd5454750e506f08648b2038080cd7"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1423,6 +1423,12 @@ dependencies = [
  "cmov",
  "subtle",
 ]
+
+[[package]]
+name = "cty"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b365fabc795046672053e29c954733ec3b05e4be654ab130fe8f1f94d7051f35"
 
 [[package]]
 name = "curve25519-dalek"
@@ -3391,6 +3397,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonc-parser"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ecded084f9b9a718d39668a42657c32253663d1f6afb3fbb9134f0305f73f48"
+
+[[package]]
 name = "junction"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3502,6 +3514,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a45a52f43e1c16f667ccfe4dd8c85b7f7c204fd5e3bf46c5b0db9a5c3c0b8e9"
 dependencies = [
  "cc",
+ "cty",
 ]
 
 [[package]]
@@ -4732,29 +4745,29 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "1.1.13"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2466b2336ed02bcdca6b294417127b90ec92038d1d5c4fbeac971a922e0e0924"
+checksum = "a6c2123f4708bbd422630a6dae7c03f678b1ce1f1c99e4c4b3beac69c8174cc9"
 dependencies = [
  "pin-project-internal",
 ]
 
 [[package]]
 name = "pin-project-internal"
-version = "1.1.13"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c96395f0a926bc13b1c17622aaddda1ecb55d49c8f1bf9777e4d877800a43f8b"
+checksum = "358938fd6df944c1e44bb328b60fb275f13c804aac47ba26a1165d45a3f87756"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.10",
 ]
 
 [[package]]
 name = "pin-project-lite"
-version = "0.2.17"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+checksum = "c938015719552d665fd0553b90d96cd7ff58e83e4c061ca99e6bb78865a72752"
 
 [[package]]
 name = "pipe-trait"
@@ -4967,6 +4980,10 @@ dependencies = [
  "pnpm-env-installer",
  "pnpm-env-replace",
  "pnpm-executor",
+ "pnpm-ffi-fs",
+ "pnpm-ffi-process",
+ "pnpm-ffi-signal",
+ "pnpm-ffi-terminal",
  "pnpm-fs",
  "pnpm-fs-packlist",
  "pnpm-git-fetcher",
@@ -5102,6 +5119,7 @@ dependencies = [
  "pnpm-config-dir",
  "pnpm-detect-libc",
  "pnpm-env-replace",
+ "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-git-utils",
  "pnpm-lockfile",
@@ -5296,6 +5314,7 @@ dependencies = [
  "pnpm-detect-libc",
  "pnpm-directory-fetcher",
  "pnpm-executor",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-git-fetcher",
  "pnpm-graph-hasher",
@@ -5558,10 +5577,15 @@ dependencies = [
  "dunce",
  "libc",
  "miette 7.6.0",
+ "pnpm-ffi-fs",
+ "pnpm-ffi-process",
+ "pnpm-ffi-signal",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-process",
  "pnpm-reporter",
+ "pnpm-signal-registry",
+ "pnpm-testing-utils",
  "pnpm-which",
  "pretty_assertions",
  "serde_json",
@@ -5589,6 +5613,80 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-ffi-fs"
+version = "0.0.1"
+dependencies = [
+ "cap-primitives",
+ "libc",
+ "pnpm-ffi-process",
+ "tempfile",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-ffi-mimalloc"
+version = "0.0.1"
+dependencies = [
+ "ctor",
+ "libmimalloc-sys",
+]
+
+[[package]]
+name = "pnpm-ffi-process"
+version = "0.0.1"
+dependencies = [
+ "command-extra",
+ "libc",
+ "pipe-trait",
+ "text-block-macros",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-ffi-security"
+version = "0.0.1"
+dependencies = [
+ "core-foundation",
+ "security-framework",
+ "security-framework-sys",
+]
+
+[[package]]
+name = "pnpm-ffi-signal"
+version = "0.0.1"
+dependencies = [
+ "libc",
+ "pnpm-testing-utils",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-ffi-sqlite"
+version = "0.0.1"
+dependencies = [
+ "rusqlite",
+]
+
+[[package]]
+name = "pnpm-ffi-terminal"
+version = "0.0.1"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-ffi-webcontainer"
+version = "0.0.1"
+dependencies = [
+ "futures-util",
+ "libc",
+ "pnpm-webcontainer-sys",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pnpm-fs"
 version = "0.0.1"
 dependencies = [
@@ -5603,13 +5701,18 @@ dependencies = [
  "pathdiff",
  "pipe-trait",
  "pnpm-crypto-hash",
+ "pnpm-ffi-fs",
+ "pnpm-ffi-process",
+ "pnpm-ffi-signal",
+ "pnpm-ffi-webcontainer",
+ "pnpm-signal-registry",
+ "pnpm-testing-utils",
  "pnpm-wasm-host",
  "pretty_assertions",
  "reflink-copy",
  "same-file",
  "sha2 0.10.9",
  "tempfile",
- "text-block-macros",
  "tracing",
  "windows-sys 0.61.2",
 ]
@@ -5734,6 +5837,7 @@ dependencies = [
  "derive_more",
  "libc",
  "pnpm-crypto-hash",
+ "pnpm-ffi-process",
  "pnpm-lockfile",
  "pnpm-process",
  "pnpm-resolving-resolver-base",
@@ -5769,6 +5873,7 @@ dependencies = [
  "miette 7.6.0",
  "pnpm-cmd-shim",
  "pnpm-directory-fetcher",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-modules-yaml",
  "pnpm-package-manifest",
@@ -5789,6 +5894,7 @@ dependencies = [
  "libc",
  "miette 7.6.0",
  "pnpm-crypto-hash",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "tempfile",
  "tokio",
@@ -5988,7 +6094,6 @@ dependencies = [
  "command-extra",
  "dashmap",
  "indexmap 2.14.2",
- "libc",
  "miette 7.6.0",
  "mockito",
  "napi",
@@ -6004,6 +6109,7 @@ dependencies = [
  "pnpm-engine-runtime-bun-resolver",
  "pnpm-engine-runtime-deno-resolver",
  "pnpm-engine-runtime-node-resolver",
+ "pnpm-ffi-terminal",
  "pnpm-hooks",
  "pnpm-lockfile",
  "pnpm-matcher",
@@ -6039,12 +6145,12 @@ version = "0.0.1"
 dependencies = [
  "bytes",
  "command-extra",
- "core-foundation",
  "derive_more",
  "flate2",
  "futures-util",
  "miette 7.6.0",
  "mockito",
+ "pnpm-ffi-security",
  "pnpm-http",
  "pnpm-process",
  "pnpm-testing-utils",
@@ -6052,7 +6158,6 @@ dependencies = [
  "reqwest",
  "rustls",
  "security-framework",
- "security-framework-sys",
  "tokio",
  "tracing",
  "webpki-root-certs",
@@ -6184,6 +6289,7 @@ dependencies = [
  "pnpm-engine-runtime-deno-resolver",
  "pnpm-engine-runtime-node-resolver",
  "pnpm-executor",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-git-fetcher",
  "pnpm-graph-hasher",
@@ -6256,6 +6362,7 @@ dependencies = [
  "derive_more",
  "insta",
  "json5",
+ "jsonc-parser",
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
@@ -6361,6 +6468,7 @@ dependencies = [
 name = "pnpm-process"
 version = "0.0.1"
 dependencies = [
+ "pnpm-ffi-process",
  "pnpm-wasm-host",
  "serde",
  "serde_json",
@@ -6708,6 +6816,7 @@ dependencies = [
  "percent-encoding",
  "pipe-trait",
  "pnpm-deps-path",
+ "pnpm-ffi-process",
  "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
@@ -6799,6 +6908,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-crypto-shasums-file",
  "pnpm-detect-libc",
+ "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-http",
  "pnpm-network",
@@ -6814,7 +6924,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6837,6 +6946,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-signal-registry"
+version = "0.0.1"
+
+[[package]]
 name = "pnpm-store-dir"
 version = "0.0.1"
 dependencies = [
@@ -6850,6 +6963,8 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-deps-path",
  "pnpm-diagnostics",
+ "pnpm-ffi-fs",
+ "pnpm-ffi-sqlite",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-package-name",
@@ -6921,6 +7036,8 @@ dependencies = [
  "dunce",
  "flate2",
  "futures-util",
+ "libc",
+ "libsql",
  "pipe-trait",
  "pnpm-fs",
  "pnpm-workspace-state",
@@ -6937,6 +7054,7 @@ dependencies = [
  "tokio",
  "url",
  "walkdir",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6977,6 +7095,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-unsafe-audit"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "serde",
+ "tempfile",
+ "text-block-macros",
+ "toml",
+]
+
+[[package]]
 name = "pnpm-version-policy"
 version = "0.0.1"
 dependencies = [
@@ -7013,10 +7142,13 @@ dependencies = [
 name = "pnpm-wasm-host"
 version = "0.0.1"
 dependencies = [
- "futures-util",
- "serde",
+ "pnpm-ffi-webcontainer",
  "serde_json",
 ]
+
+[[package]]
+name = "pnpm-webcontainer-sys"
+version = "0.0.1"
 
 [[package]]
 name = "pnpm-which"
@@ -7039,6 +7171,7 @@ dependencies = [
  "pathdiff",
  "pnpm-catalogs-types",
  "pnpm-env-replace",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-local-spec",
  "pnpm-package-manifest",
@@ -7214,6 +7347,8 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-diagnostics",
  "pnpm-env-replace",
+ "pnpm-ffi-mimalloc",
+ "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
@@ -7861,9 +7996,9 @@ dependencies = [
 
 [[package]]
 name = "qrcode"
-version = "0.14.1"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+checksum = "ace1a365f55004297f2cf24acfd96d02966246ca423385273b58a7dc873ee14d"
 
 [[package]]
 name = "quick-xml"
@@ -8719,9 +8854,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.24.0"
+version = "3.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df9adc193c780ef8f159aee8b61e2d5801aaa555e6eb0947fe45530ec506296f"
+checksum = "56cb1ca7c93ae63d6439b5250f6b6b040f7e121f32e5dd2f5d523dd4149b3204"
 dependencies = [
  "base64 0.23.1",
  "bs58",
@@ -8730,6 +8865,7 @@ dependencies = [
  "indexmap 1.9.3",
  "indexmap 2.14.2",
  "jiff 0.2.46",
+ "jiff 1.0.1",
  "schemars 0.9.0",
  "schemars 1.2.3",
  "serde_core",
@@ -8740,9 +8876,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.24.0"
+version = "3.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e17bbc68e28663bbbb90df47e058aa7eda4fb445b89fe70457bb94fbccf6e49"
+checksum = "cff15a7c864bbec77d9586ca6822bc7c369bdf19e9243134a62b0b51ce26b31f"
 dependencies = [
  "darling 0.24.1",
  "proc-macro2",
@@ -11314,9 +11450,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.7.3"
+version = "9.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63e50f7b2212e4635244be3c363b53273d159f2523eb7db3096c1d2861c1b603"
+checksum = "a9534624d547e3f516ecde0ed9a70d37788f01d340efcfdd03bf3ea8e163c1d0"
 dependencies = [
  "constant_time_eq",
  "crc32fast",

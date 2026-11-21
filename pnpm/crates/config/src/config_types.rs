@@ -5,11 +5,12 @@
 //! - the merged `types` table (`pnpmTypes` ∪ `npmConfigTypes`),
 //!   reduced to the only fact the config command reads off a type: whether the
 //!   type list includes `Number` (used by `castField` to coerce a value).
-//! - [`is_ini_config_key`] / [`is_config_file_key`].
+//! - [`is_ini_config_key`] / [`is_config_file_key`] / [`is_never_a_file_setting`].
 
 pub use routing::{
     is_config_file_key,
     is_ini_config_key,
+    is_never_a_file_setting,
 };
 
 use std::{

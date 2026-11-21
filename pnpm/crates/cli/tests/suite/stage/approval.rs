@@ -4,14 +4,17 @@ use super::{
     Mutex,
     SECOND_STAGE_ID,
     STAGE_ID,
+    apply_test_registry,
     assert_failure_with_code,
     assert_success,
     json,
     package_tarball,
+    pacquet,
     stage,
     staged_item_of,
     write_registry_config,
 };
+use command_extra::CommandExtra;
 
 #[test]
 fn approve_and_reject_send_the_configured_otp_and_stage_headers() {
@@ -53,6 +56,33 @@ fn approve_and_reject_send_the_configured_otp_and_stage_headers() {
         stdout.contains(&format!("Staged package {STAGE_ID} has been rejected.")),
         "stdout: {stdout}",
     );
+}
+
+/// `stage`'s non-publish subcommands answer a 2FA challenge, so
+/// `PNPM_CONFIG_OTP` has to reach them the same way it reaches `stage publish`.
+#[test]
+fn approve_sends_an_otp_from_the_environment() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_registry_config(dir.path(), &registry);
+    let approve_mock = server
+        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
+        .match_header("npm-otp", "654321")
+        .with_status(201)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    let mut command = pacquet(dir.path());
+    apply_test_registry(&mut command, dir.path());
+    let approve = command
+        .with_args(["stage", "approve", STAGE_ID])
+        .with_env("PNPM_CONFIG_OTP", "654321")
+        .output()
+        .expect("spawn pacquet stage");
+    approve_mock.assert();
+    assert_success(&approve);
 }
 
 #[test]

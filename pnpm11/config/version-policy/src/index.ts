@@ -45,12 +45,43 @@ export interface PublishedByPolicy {
 }
 
 /**
+ * Option types of the `--minimum-release-age` and `--minimum-release-age-exclude`
+ * CLI flags. nopt silently drops a non-numeric value given to a plain `Number`
+ * option, which would leave the configured age in effect, so the age also
+ * accepts a string. The config reader converts that string to a number, which
+ * {@link validateMinimumReleaseAge} then rejects.
+ */
+export const MINIMUM_RELEASE_AGE_OPTION_TYPES = {
+  'minimum-release-age': [Number, String],
+  'minimum-release-age-exclude': [String, Array],
+}
+
+/**
+ * Reject `NaN`, `Infinity`, and negative `minimumReleaseAge` values. All three
+ * silently break the supply-chain maturity gate: `NaN` falsies out and disables
+ * the check, `Infinity` produces an invalid `Date` whose `toISOString()` throws,
+ * and a negative pushes the cutoff into the future so every version looks mature.
+ * Shared by the resolver-time and lockfile-verifier paths so neither can bypass it.
+ */
+export function validateMinimumReleaseAge (value: number): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new PnpmError(
+      'INVALID_MINIMUM_RELEASE_AGE',
+      `minimumReleaseAge must be a finite, non-negative number of minutes, got ${value}`
+    )
+  }
+}
+
+/**
  * Derives the resolver's `publishedBy` cutoff date and `publishedByExclude`
  * policy from the user's `minimumReleaseAge` / `minimumReleaseAgeExclude`
  * config. Centralized so every call site computes the cutoff at the same
  * instant and surfaces invalid exclude patterns under the same error code.
  */
 export function getPublishedByPolicy (opts: PublishedByPolicyOptions, now: number = Date.now()): PublishedByPolicy {
+  if (opts.minimumReleaseAge != null) {
+    validateMinimumReleaseAge(opts.minimumReleaseAge)
+  }
   return {
     publishedBy: opts.minimumReleaseAge
       ? new Date(now - opts.minimumReleaseAge * 60 * 1000)

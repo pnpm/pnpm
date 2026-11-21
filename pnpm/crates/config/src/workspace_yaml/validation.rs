@@ -19,8 +19,9 @@ use super::{
 };
 
 impl WorkspaceSettings {
-    /// Validate every post-parse section (`registries`, `tasks`, `pipelines`).
+    /// Validate every post-parse section (`noProxy`, `registries`, `tasks`, `pipelines`).
     pub(super) fn validate_all_sections(&self) -> Result<(), LoadWorkspaceYamlError> {
+        self.validate_no_proxy()?;
         self.validate_registries()?;
         self.validate_tasks()?;
         self.validate_pipelines()
@@ -30,6 +31,9 @@ impl WorkspaceSettings {
     /// unreadable section does not take the file's other settings with it
     /// (see [`crate::Config::settings_read`]).
     pub(super) fn drop_invalid_sections(&mut self) {
+        if self.validate_no_proxy().is_err() {
+            self.no_proxy = None;
+        }
         if self.validate_registries().is_err() {
             self.registries = None;
         }
@@ -39,6 +43,19 @@ impl WorkspaceSettings {
         if self.validate_pipelines().is_err() {
             self.pipelines = None;
         }
+    }
+
+    pub(super) fn validate_no_proxy(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let received_type = match self.no_proxy.as_ref() {
+            None
+            | Some(
+                serde_json::Value::Null | serde_json::Value::String(_) | serde_json::Value::Bool(_),
+            ) => return Ok(()),
+            Some(serde_json::Value::Number(_)) => "number",
+            Some(serde_json::Value::Array(_)) => "array",
+            Some(serde_json::Value::Object(_)) => "object",
+        };
+        Err(LoadWorkspaceYamlError::InvalidNoProxy { received_type })
     }
 
     /// Reject a `registries` map pnpm would read as something other than what

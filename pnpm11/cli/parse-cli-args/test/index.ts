@@ -957,3 +957,37 @@ test('candidate command shorthands do not let later positional args hijack earli
   expect(result.options.loglevel).toBe('info')
   expect(result.params).toStrictEqual(['patch'])
 })
+
+test('a non-numeric --minimum-release-age reaches the config as a string', async () => {
+  const { options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ 'minimum-release-age': [Number, String] }),
+  }, ['install', '--minimum-release-age', 'abc'])
+  expect(options['minimum-release-age']).toBe('abc')
+})
+
+test('--minimum-release-age-exclude is parsed as an array for the install command', async () => {
+  const { options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'install') {
+        return {
+          'minimum-release-age': [Number, String],
+          'minimum-release-age-exclude': [String, Array],
+        }
+      }
+      return {}
+    },
+  }, ['install', '--minimum-release-age', '1440', '--minimum-release-age-exclude', 'foo', '--minimum-release-age-exclude', 'bar'])
+  expect(cmd).toBe('install')
+  expect(options['minimum-release-age']).toBe(1440)
+  expect(options['minimum-release-age-exclude']).toStrictEqual(['foo', 'bar'])
+})
+
+test('a single --minimum-release-age-exclude is parsed as a one-element array', async () => {
+  const { options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ 'minimum-release-age-exclude': [String, Array] }),
+  }, ['install', '--minimum-release-age-exclude', 'foo'])
+  expect(options['minimum-release-age-exclude']).toStrictEqual(['foo'])
+})

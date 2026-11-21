@@ -644,7 +644,7 @@ test('pin_recorded_only_from_full_config_at_lockfile_dir', async () => {
     // 5. Corrupted pnpm-lock.yaml is skipped when the pin does not consult the lockfile
     fs.writeFileSync(path.join(globalConfigDir, 'config.yaml'), '', 'utf8')
     fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - .\n', 'utf8')
-    fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), '---\n: : : not valid yaml [ [ [\n---\n', 'utf8')
+    fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), '---\nnot valid yaml: [ [ [\n---\n', 'utf8')
     fs.writeFileSync(
       path.join(root, 'package.json'),
       JSON.stringify({

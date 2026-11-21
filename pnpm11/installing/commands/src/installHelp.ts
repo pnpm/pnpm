@@ -136,6 +136,8 @@ by any dependencies, so it is an emulation of a flat node_modules',
     description: 'Ignore trust downgrades for packages published more than specified minutes ago',
     name: '--trust-policy-ignore-after <minutes>',
   },
+  OPTIONS.minimumReleaseAge,
+  OPTIONS.minimumReleaseAgeExclude,
   {
     description: 'Trust the lockfile and skip the supply-chain verification step that re-applies minimumReleaseAge / trustPolicy to each lockfile entry. Use only when the lockfile is part of the trusted base (closed-source projects, CI runs against an already-verified lockfile)',
     name: '--trust-lockfile',

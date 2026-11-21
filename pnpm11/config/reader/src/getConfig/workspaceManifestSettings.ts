@@ -4,8 +4,10 @@ import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { ProjectManifest, RemoteSideEffectsCacheSettings } from '@pnpm/types'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import kebabCase from 'lodash.kebabcase'
 
 import type { Config, ConfigContext, VerifyDepsBeforeRun } from '../Config.js'
+import { isNeverAFileSetting } from '../configFileKey.js'
 import { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from '../getOptionsFromRootManifest.js'
 import { CONFIG_CONTEXT_KEY_SET } from './configContext.js'
 import { anchorRawLockfileDir } from './rawLockfileDir.js'
@@ -37,7 +39,7 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
   workspaceDir,
 }: WorkspaceManifestSettingsOptions): OptionsFromRootManifest {
   const skipped: ReadonlySet<string> | undefined = skipSettings
-  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource, warnings })
+  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, omitNeverAFileSettings(workspaceManifest), { manifest: projectManifest, expandRequestDestinationEnv, trustedSource, warnings })
   resolveLockfileDir(pnpmConfig, settingsFromManifest as { lockfileDir?: unknown }, {
     configFromCliOpts,
     skipped,
@@ -62,6 +64,17 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
   return settingsFromManifest
+}
+
+/**
+ * The manifest without the settings no file may carry. They are dropped
+ * before the manifest's `${VAR}` placeholders are expanded, so an unset
+ * variable in one cannot fail the config load.
+ */
+function omitNeverAFileSettings (workspaceManifest: WorkspaceManifest): WorkspaceManifest {
+  return Object.fromEntries(
+    Object.entries(workspaceManifest).filter(([key]) => !isNeverAFileSetting(kebabCase(key)))
+  ) as WorkspaceManifest
 }
 
 interface WorkspaceSetting {

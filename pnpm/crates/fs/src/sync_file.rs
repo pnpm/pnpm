@@ -11,7 +11,7 @@ use std::{
 /// `fsync`, as `SQLite` and Node.js do.
 pub fn sync_file(file: &File) -> io::Result<()> {
     #[cfg(target_vendor = "apple")]
-    return sync_with_fallback(|| file.sync_all(), || fsync(file));
+    return sync_with_fallback(|| file.sync_all(), || pnpm_ffi_fs::fsync(file));
     #[cfg(not(target_vendor = "apple"))]
     file.sync_all()
 }
@@ -32,17 +32,6 @@ fn sync_with_fallback(
             fsync()
         }
         result => result,
-    }
-}
-
-#[cfg(target_vendor = "apple")]
-fn fsync(file: &File) -> io::Result<()> {
-    use std::os::fd::AsRawFd as _;
-    // SAFETY: `file` keeps the descriptor open for the whole call.
-    if unsafe { libc::fsync(file.as_raw_fd()) } == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
     }
 }
 

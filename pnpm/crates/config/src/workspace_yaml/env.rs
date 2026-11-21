@@ -179,6 +179,7 @@ impl WorkspaceSettings {
         unresolved: &mut UnresolvedPlaceholders,
     ) {
         substitute_optional_string::<Sys>(&mut self.tag, unresolved);
+        substitute_optional_string::<Sys>(&mut self.access, unresolved);
         substitute_optional_string::<Sys>(&mut self.store_dir, unresolved);
         substitute_optional_string::<Sys>(&mut self.modules_dir, unresolved);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir, unresolved);

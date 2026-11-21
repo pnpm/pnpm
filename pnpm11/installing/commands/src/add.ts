@@ -3,6 +3,7 @@ import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
+import { MINIMUM_RELEASE_AGE_OPTION_TYPES } from '@pnpm/config.version-policy'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd, selectsPnpmCli } from '@pnpm/global.commands'
@@ -112,7 +113,10 @@ const RC_OPTION_NAMES = [
 ] as const
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return pick(RC_OPTION_NAMES, allTypes)
+  return {
+    ...pick(RC_OPTION_NAMES, allTypes),
+    ...MINIMUM_RELEASE_AGE_OPTION_TYPES,
+  }
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
@@ -200,6 +204,8 @@ For options that may be used with `-r`, see "pnpm help recursive"',
     description: 'A list of package names that are allowed to run postinstall scripts during installation. Prefix a name with ! to deny its scripts instead',
     name: '--allow-build',
   },
+  OPTIONS.minimumReleaseAge,
+  OPTIONS.minimumReleaseAgeExclude,
 ]
 
 export function help (): string {

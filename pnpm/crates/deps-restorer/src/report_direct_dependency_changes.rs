@@ -13,6 +13,7 @@
 
 use crate::{
     HoistedLinkerInputs,
+    LatestVersions,
     SkippedSnapshots,
     symlink_direct_dependencies::fallback_version,
 };
@@ -55,7 +56,7 @@ pub fn report_direct_dependency_changes<Reporter: self::Reporter>(
         );
         report_importer::<Reporter>(
             inputs.prior.current_lockfile,
-            wanted,
+            Wanted { lockfile: wanted, latest_versions: inputs.graph.latest_versions },
             inputs.projects.dependency_groups,
             SkipSets { previously: inputs.prior.previously_skipped, now: skipped },
             &importer_id,
@@ -75,10 +76,18 @@ struct SkipSets<'a> {
     now: &'a SkippedSnapshots,
 }
 
+/// What this install resolved: the lockfile it links and the `latest`
+/// dist-tags the resolver read on the way.
+#[derive(Clone, Copy)]
+struct Wanted<'a> {
+    lockfile: &'a Lockfile,
+    latest_versions: Option<&'a LatestVersions>,
+}
+
 /// One importer's share of [`report_direct_dependency_changes`].
 fn report_importer<Reporter: self::Reporter>(
     previous: Option<&Lockfile>,
-    wanted: &Lockfile,
+    wanted: Wanted<'_>,
     dependency_groups: &[DependencyGroup],
     skipped: SkipSets<'_>,
     importer_id: &str,
@@ -90,8 +99,11 @@ fn report_importer<Reporter: self::Reporter>(
         dependency_groups,
         skipped.previously,
     );
-    let after =
-        direct_dependencies(wanted.importers.get(importer_id), dependency_groups, skipped.now);
+    let after = direct_dependencies(
+        wanted.lockfile.importers.get(importer_id),
+        dependency_groups,
+        skipped.now,
+    );
     for &(name, group, spec) in &after {
         if let Some(&(_, was_group, was_spec)) = before
             .iter()
@@ -102,7 +114,7 @@ fn report_importer<Reporter: self::Reporter>(
             }
             emit_removed::<Reporter>(name, was_group, was_spec, previous_packages, prefix);
         }
-        emit_added::<Reporter>(name, group, spec, wanted.packages.as_ref(), prefix);
+        emit_added::<Reporter>(name, group, spec, wanted, prefix);
     }
     for &(name, group, spec) in &before {
         if after
@@ -151,12 +163,15 @@ fn emit_added<Reporter: self::Reporter>(
     name: &PkgName,
     group: DependencyGroup,
     spec: &ResolvedDependencySpec,
-    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    wanted: Wanted<'_>,
     prefix: &str,
 ) {
     let Some(dependency_type) = dependency_type(group) else {
         return;
     };
+    let latest = wanted.latest_versions
+        .and_then(|latest| latest.get(&spec.version.resolved_key(name)?.without_peer()))
+        .cloned();
     Reporter::emit(&LogEvent::Root(RootLog {
         level: LogLevel::Debug,
         message: RootMessage::Added {
@@ -164,10 +179,10 @@ fn emit_added<Reporter: self::Reporter>(
             added: AddedRoot {
                 name: name.to_string(),
                 real_name: real_name(name, spec),
-                version: Some(resolved_version(name, spec, packages)),
+                version: Some(resolved_version(name, spec, wanted.lockfile.packages.as_ref())),
                 dependency_type: Some(dependency_type),
                 id: None,
-                latest: None,
+                latest,
                 linked_from: None,
             },
         },

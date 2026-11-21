@@ -49,7 +49,7 @@ fn timeout_stops_dependents_and_reports_the_accepted_upload() {
         .expect_at_least(1)
         .expect_at_most(2)
         .create();
-    let output = clear_ci(pacquet)
+    let output = clear_ci(pacquet, &workspace)
         .with_args([
             "publish",
             "-r",
@@ -90,7 +90,7 @@ fn already_published_version_still_needs_an_available_tarball() {
         .expect_at_least(1)
         .expect_at_most(2)
         .create();
-    let output = clear_ci(pacquet)
+    let output = clear_ci(pacquet, &workspace)
         .with_args([
             "publish",
             "-r",
@@ -134,7 +134,7 @@ fn batch_timeout_records_every_accepted_package() {
         .expect_at_least(1)
         .expect_at_most(2)
         .create();
-    let output = clear_ci(pacquet)
+    let output = clear_ci(pacquet, &workspace)
         .with_args([
             "publish",
             "-r",
@@ -225,7 +225,7 @@ fn confirms_a_dependency_before_publishing_its_dependent() {
         .mock("HEAD", "/b.tgz")
         .expect(1)
         .create();
-    let output = clear_ci(pacquet)
+    let output = clear_ci(pacquet, &workspace)
         .with_args([
             "publish",
             "-r",

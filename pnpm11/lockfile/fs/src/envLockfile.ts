@@ -2,7 +2,6 @@ import path from 'node:path'
 
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
-import yaml from 'js-yaml'
 
 import { envLockfileFromNextFormat, isNextFormatDocument, type NextEnvDocument } from './envLockfileNextFormat.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
@@ -14,6 +13,7 @@ import {
   YAML_DOCUMENT_SEPARATOR,
   YAML_DOCUMENT_START,
 } from './yamlDocuments.js'
+import { loadLockfileYamlDocument } from './yamlLoad.js'
 
 export function createEnvLockfile (): EnvLockfile {
   return {
@@ -34,7 +34,7 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
   if (rawContent == null) {
     return null
   }
-  const parsed = yaml.load(rawContent)
+  const parsed = loadLockfileYamlDocument(rawContent)
   if (parsed == null || typeof parsed !== 'object') {
     return null
   }

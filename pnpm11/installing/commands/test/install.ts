@@ -9,8 +9,9 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { rimrafSync } from '@zkochan/rimraf'
 import delay from 'delay'
 import { loadJsonFileSync } from 'load-json-file'
+import { writeJsonFile } from 'write-json-file'
 
-import { DEFAULT_OPTS } from './utils/index.js'
+import { DEFAULT_OPTS, minimumReleaseAgeRejectingIsOdd011 } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
@@ -211,6 +212,62 @@ test('do not install Node.js when devEngines runtime is not set to onFail=downlo
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].devDependencies).toBeUndefined()
+})
+
+test('install fails when a dependency is newer than minimumReleaseAge', async () => {
+  prepareEmpty()
+
+  await writeJsonFile('package.json', {
+    dependencies: {
+      'is-odd': '0.1.1',
+    },
+  })
+
+  const minimumReleaseAge = minimumReleaseAgeRejectingIsOdd011()
+  await expect(install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    minimumReleaseAge,
+    minimumReleaseAgeStrict: true,
+  })).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
+})
+
+test('install fails on a minimumReleaseAge that is not a number', async () => {
+  prepareEmpty()
+
+  await writeJsonFile('package.json', {
+    dependencies: {
+      'is-odd': '0.1.1',
+    },
+  })
+
+  await expect(install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    minimumReleaseAge: NaN,
+  })).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('install skips the minimumReleaseAge check for packages in minimumReleaseAgeExclude', async () => {
+  prepareEmpty()
+
+  await writeJsonFile('package.json', {
+    dependencies: {
+      'is-odd': '0.1.1',
+    },
+  })
+
+  const minimumReleaseAge = minimumReleaseAgeRejectingIsOdd011()
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    minimumReleaseAge,
+    minimumReleaseAgeStrict: true,
+    minimumReleaseAgeExclude: ['is-odd'],
+  })
+
+  expect(fs.existsSync(path.resolve('node_modules/is-odd/package.json'))).toBe(true)
 })
 
 test('install restores a deleted pnpm-lock.yaml from the current lockfile without resolution', async () => {

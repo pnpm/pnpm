@@ -8,6 +8,7 @@
 //! moving its dist-tags, so what gates a release is what ships to users.
 
 mod filesystem;
+mod install_method;
 mod probe_path;
 
 use crate::{
@@ -16,6 +17,7 @@ use crate::{
 };
 use clap::Args;
 use filesystem::check_filesystem_capabilities;
+use install_method::check_install_method;
 use pnpm_config::{
     Config,
     PNPM_VERSION,
@@ -144,7 +146,7 @@ impl DoctorArgs {
     pub async fn run(&self, config: &Config) -> miette::Result<DoctorResult> {
         prefetch_config_paths(config);
         let mut checks =
-            vec![check_versions(), check_install_method(), check_global_bin_dir(config)];
+            vec![check_versions(), check_install_method(config), check_global_bin_dir(config)];
         checks.push(check_writable_dir("Cache directory", &config.cache_dir));
         checks.push(check_writable_dir("Store directory", config.store_dir.root()));
         let fs_started = Instant::now();
@@ -225,18 +227,6 @@ fn node_version() -> Option<String> {
             .trim_start_matches('v')
             .to_owned(),
     )
-}
-
-fn check_install_method() -> CheckResult {
-    let title = "Install method";
-    if std::env::var_os("COREPACK_ROOT").is_some() {
-        return CheckResult::warn(
-            title,
-            "pnpm, run by Corepack",
-            r#"Corepack manages the pnpm version itself; "pnpm self-update" is unavailable under it."#,
-        );
-    }
-    CheckResult::pass(title, "pnpm")
 }
 
 /// Check the global executables directory, where the CLI links binaries and

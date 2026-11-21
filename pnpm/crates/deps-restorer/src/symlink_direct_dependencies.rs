@@ -44,8 +44,6 @@ use pnpm_cmd_shim::{
 };
 use pnpm_lockfile::{
     ImporterDepVersion,
-    PackageKey,
-    PackageMetadata,
     PkgName,
     ProjectSnapshot,
 };
@@ -55,7 +53,6 @@ use rayon::prelude::*;
 use std::{
     collections::{
         BTreeMap,
-        HashMap,
         HashSet,
     },
     path::{
@@ -323,11 +320,10 @@ impl ImporterPass<'_> {
             importer_id,
             self.context.layout,
             project_snapshot,
-            self.graph.packages,
+            self.graph,
             &project_dir,
             real_modules_dir.as_deref().unwrap_or(&modules_dir),
             self.dependency_groups.iter().copied(),
-            self.graph.skipped,
             self.policy.link_only,
             dedupe_against,
             self.context.config.symlink,
@@ -503,7 +499,7 @@ fn link_resolved_entry<Reporter: self::Reporter>(
     importer_id: &str,
     modules_dir: &Path,
     symlink: bool,
-    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    graph: &crate::ImporterDependencyGraph<'_>,
     prefix: &str,
 ) -> Result<(), SymlinkDirectDependenciesError> {
     let ResolvedEntry { name_str, target, .. } = entry;
@@ -521,7 +517,7 @@ fn link_resolved_entry<Reporter: self::Reporter>(
         }
     }
 
-    emit_root_added::<Reporter>(entry, packages, prefix);
+    emit_root_added::<Reporter>(entry, graph, prefix);
     Ok(())
 }
 
@@ -552,11 +548,10 @@ fn link_one_importer<Reporter: self::Reporter>(
     importer_id: &str,
     layout: &VirtualStoreLayout,
     project_snapshot: &ProjectSnapshot,
-    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    graph: crate::ImporterDependencyGraph<'_>,
     project_dir: &Path,
     modules_dir: &Path,
     dependency_groups: impl IntoIterator<Item = DependencyGroup>,
-    skipped: &SkippedSnapshots,
     link_only: bool,
     dedupe_against: Option<&BTreeMap<String, PathBuf>>,
     symlink: bool,
@@ -568,7 +563,7 @@ fn link_one_importer<Reporter: self::Reporter>(
         project_snapshot,
         project_dir,
         dependency_groups,
-        skipped,
+        graph.skipped,
         link_only,
     );
 
@@ -591,7 +586,7 @@ fn link_one_importer<Reporter: self::Reporter>(
                 importer_id,
                 modules_dir,
                 symlink,
-                packages,
+                &graph,
                 &prefix,
             )
         })?;

@@ -4,9 +4,6 @@ catalog:
   # above pnpm's supported floor of Node.js >=22.13.
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
-  '@commitlint/cli': ^21.2.4
-  '@commitlint/config-conventional': ^21.2.4
-  '@commitlint/prompt-cli': ^21.2.4
   '@cyclonedx/cyclonedx-library': 10.5.1
   '@emnapi/wasi-threads': 2.2.0
   '@eslint/js': ^10.0.1
@@ -42,7 +39,6 @@ catalog:
   '@types/is-windows': ^1.0.2
   '@types/isexe': 2.0.4
   '@types/jest': ^30.0.0
-  '@types/js-yaml': ^4.0.9
   '@types/libnpmpublish': ^11.2.0
   '@types/lodash.kebabcase': 4.1.9
   '@types/lodash.throttle': 4.1.9
@@ -151,7 +147,6 @@ catalog:
   http-proxy-agent: ^9.1.0
   https-proxy-agent: ^9.1.0
   https-proxy-server-express: 0.1.2
-  husky: ^9.1.7
   hyperdrive-schemas: ^2.0.0
   # ini 7.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
   # supported floor of Node.js >=22.13.
@@ -164,7 +159,7 @@ catalog:
   jest: 30.4.2
   jest-diff: 30.4.1
   human-id: ^4.2.2
-  js-yaml: ^4.3.2
+  js-yaml: ^5.5.0
   json5: ^2.2.3
   keyv: 6.1.0
   lcov-result-merger: ^6.0.0
@@ -248,7 +243,7 @@ catalog:
   shlex: ^3.0.1
   shx: ^0.4.0
   signal-exit: ^4.1.0
-  socks: ^2.8.10
+  socks: ^2.8.11
   socks-proxy-agent: ^10.1.0
   sort-keys: ^6.0.1
   spdx-expression-parse: 5.0.0

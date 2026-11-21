@@ -48,7 +48,7 @@ fn recursive_publish_skips_manifests_with_empty_name_or_empty_version() {
         .expect(1)
         .create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_args(["-r", "publish", "--no-git-checks"])
         .assert()
         .success();

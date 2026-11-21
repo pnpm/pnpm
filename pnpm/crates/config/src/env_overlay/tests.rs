@@ -313,6 +313,40 @@ fn empty_scope_env_var_survives_to_clobber_lower_layers() {
 }
 
 #[test]
+fn access_reads_from_environment() {
+    struct Env;
+    impl EnvVar for Env {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_ACCESS").then(|| "restricted".to_owned())
+        }
+    }
+    let settings = TrustedSettings::from_pnpm_config_env::<Env>().settings;
+    assert_eq!(settings.access.as_deref(), Some("restricted"));
+}
+
+#[test]
+fn an_access_env_var_outside_the_closed_set_is_ignored() {
+    struct Env;
+    impl EnvVar for Env {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_ACCESS").then(|| "Public".to_owned())
+        }
+    }
+    assert_eq!(TrustedSettings::from_pnpm_config_env::<Env>().settings.access, None);
+}
+
+#[test]
+fn provenance_env_var_parses_false() {
+    struct Env;
+    impl EnvVar for Env {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_PROVENANCE").then(|| "false".to_owned())
+        }
+    }
+    assert_eq!(TrustedSettings::from_pnpm_config_env::<Env>().settings.provenance, Some(false));
+}
+
+#[test]
 fn tri_array_env_var_parses_arrays_and_rejects_null() {
     assert_eq!(parse_tri_array(r#"["a","b"]"#), Some(Some(vec!["a".to_owned(), "b".to_owned()])));
     assert_eq!(parse_tri_array("null"), None);

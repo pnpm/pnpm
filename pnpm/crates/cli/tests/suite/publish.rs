@@ -12,6 +12,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
+use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::{
     Value,
     json,
@@ -31,6 +32,12 @@ fn pacquet(workspace: &Path) -> Command {
         .without_env("NPM_ID_TOKEN")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
+        // These tests turn on publish settings a developer may also have set
+        // globally, so pin every layer below `pnpm-workspace.yaml` to nothing.
+        // `XDG_CONFIG_HOME` points at the workspace, which has no `pnpm/`
+        // subdirectory to read a global `config.yaml` from.
+        .with_env("XDG_CONFIG_HOME", workspace)
+        .without_ambient_pnpm_config()
 }
 
 /// Run `pacquet publish --no-git-checks` in `workspace` with `args` appended.
@@ -259,6 +266,207 @@ fn tag_flag_registers_the_version_under_that_dist_tag() {
 
     assert_success(&publish(dir.path(), &["--tag", "next"]));
     mock.assert();
+}
+
+#[test]
+fn workspace_yaml_supplies_the_dist_tag_and_access() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "@scope/from-yaml", "version": "2.3.4" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "tag: next\naccess: restricted\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/@scope%2ffrom-yaml")
+        .match_body(Matcher::AllOf(vec![
+            Matcher::PartialJsonString(r#"{"dist-tags":{"next":"2.3.4"}}"#.to_owned()),
+            Matcher::PartialJsonString(r#"{"access":"restricted"}"#.to_owned()),
+        ]))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &[]));
+    mock.assert();
+}
+
+#[test]
+fn the_tag_flag_outranks_the_workspace_yaml_tag() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-tag-flag", "version": "1.2.3" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "tag: from-yaml\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/test-publish-tag-flag")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"from-flag":"1.2.3"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &["--tag", "from-flag"]));
+    mock.assert();
+}
+
+#[test]
+fn pnpm_config_tag_env_var_outranks_the_workspace_yaml_tag() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-tag-env", "version": "1.2.3" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "tag: from-yaml\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/test-publish-tag-env")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"from-env":"1.2.3"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    let output = pacquet(dir.path())
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .with_env("PNPM_CONFIG_TAG", "from-env")
+        .output()
+        .expect("spawn pacquet publish");
+    assert_success(&output);
+    mock.assert();
+}
+
+/// The manifest's `publishConfig.access` is the fallback for an *unset*
+/// access level, so a configured one has to win over it.
+#[test]
+fn the_configured_access_outranks_publish_config_access() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({
+            "name": "@scope/access-precedence",
+            "version": "1.0.0",
+            "publishConfig": { "access": "public" },
+        }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "access: restricted\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/@scope%2faccess-precedence")
+        .match_body(Matcher::PartialJsonString(r#"{"access":"restricted"}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &[]));
+    mock.assert();
+}
+
+/// `--config.<key>=<value>` is applied after the whole config chain, so it has
+/// to beat both `pnpm-workspace.yaml` and `PNPM_CONFIG_*`.
+#[test]
+fn the_config_override_outranks_the_workspace_yaml_and_the_env_var() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-config-override", "version": "1.2.3" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "tag: from-yaml\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let mock = server
+        .mock("PUT", "/test-publish-config-override")
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"from-cli":"1.2.3"}}"#.to_owned()))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    let output = pacquet(dir.path())
+        .with_arg("--config.tag=from-cli")
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .with_env("PNPM_CONFIG_TAG", "from-env")
+        .output()
+        .expect("spawn pacquet publish");
+    assert_success(&output);
+    mock.assert();
+}
+
+/// The OTP rides on the first `PUT` rather than waiting for a 2FA challenge,
+/// so whichever channel supplies it is observable as a header. A one-time
+/// password is not a file setting: `pnpm-workspace.yaml` supplies nothing,
+/// `PNPM_CONFIG_OTP` supplies the header.
+#[test]
+fn the_otp_comes_from_the_environment_and_never_from_the_workspace_yaml() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-otp", "version": "1.0.0" }),
+    );
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "otp: '135791'\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let from_yaml = server
+        .mock("PUT", "/test-publish-otp")
+        .match_header("npm-otp", "135791")
+        .expect(0)
+        .create();
+    let without_otp = server
+        .mock("PUT", "/test-publish-otp")
+        .match_header("npm-otp", Matcher::Missing)
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &[]));
+    from_yaml.assert();
+    without_otp.assert();
+
+    let from_env = server
+        .mock("PUT", "/test-publish-otp")
+        .match_header("npm-otp", "246810")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    let output = pacquet(dir.path())
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .with_env("PNPM_CONFIG_OTP", "246810")
+        .output()
+        .expect("spawn pacquet publish");
+    assert_success(&output);
+    from_env.assert();
 }
 
 #[test]

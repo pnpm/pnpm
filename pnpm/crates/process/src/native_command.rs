@@ -116,19 +116,31 @@ impl Command {
         self
     }
 
-    #[cfg(unix)]
-    /// # Safety
+    /// Spawn with the child announcing the process group it leads, so the
+    /// watchdog learns of the group before the child can start anything of
+    /// its own.
     ///
-    /// The callback must be safe to run after `fork` and before `exec`.
-    pub unsafe fn pre_exec<Function>(&mut self, function: Function) -> &mut Self
-    where
-        Function: FnMut() -> io::Result<()> + Send + Sync + 'static,
-    {
-        use std::os::unix::process::CommandExt;
+    /// A passthrough rather than a way to reach the command itself, which a
+    /// caller could spawn without the lock [`Self::spawn`] takes. The second
+    /// half of the answer is the group a failed spawn had already announced.
+    #[cfg(unix)]
+    pub fn spawn_announcing_group(
+        &mut self,
+        lifeline: std::os::fd::BorrowedFd<'_>,
+    ) -> (io::Result<Child>, Option<u32>) {
+        pnpm_ffi_process::spawn_announcing_group(
+            &mut self.inner,
+            lifeline,
+            std::process::Command::spawn,
+        )
+    }
 
-        // SAFETY: the caller guarantees the callback is safe between fork and exec.
-        unsafe { self.inner.pre_exec(function) };
-        self
+    /// The command itself, for a test that has to arrange something no
+    /// passthrough covers. Behind a feature, because a caller holding this
+    /// can spawn without the lock [`Self::spawn`] takes.
+    #[cfg(feature = "test")]
+    pub fn as_std_mut(&mut self) -> &mut std::process::Command {
+        &mut self.inner
     }
 
     pub fn spawn(&mut self) -> io::Result<Child> {
@@ -265,18 +277,14 @@ impl AsyncCommand {
         self
     }
 
-    #[cfg(unix)]
-    /// # Safety
+    /// Arrange for the child to close every descriptor it inherits except
+    /// its stdio.
     ///
-    /// The function must be safe to run in the child process after `fork` and before `exec`.
-    pub unsafe fn pre_exec<Function>(&mut self, function: Function) -> &mut Self
-    where
-        Function: FnMut() -> io::Result<()> + Send + Sync + 'static,
-    {
-        unsafe {
-            // SAFETY: the caller guarantees the function is safe to run between `fork` and `exec`.
-            self.inner.pre_exec(function)
-        };
+    /// A passthrough rather than a way to reach the command itself, which
+    /// a caller could spawn without the lock [`Self::spawn`] takes.
+    #[cfg(target_vendor = "apple")]
+    pub fn inherit_only_stdio(&mut self) -> &mut Self {
+        pnpm_ffi_process::inherit_only_stdio(self.inner.as_std_mut());
         self
     }
 

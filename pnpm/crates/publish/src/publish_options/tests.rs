@@ -1,5 +1,4 @@
 use super::{
-    Access,
     CreatePublishOptionsError,
     CreatePublishOptionsInput,
     OidcTokenProvenance,
@@ -95,9 +94,20 @@ fn rejects_unsupported_protocol() {
 #[test]
 fn access_prefers_explicit_then_manifest() {
     let manifest = json!({ "publishConfig": { "access": "restricted" } });
-    assert_eq!(resolve_access(Some(Access::Public), &manifest), Some(Access::Public));
-    assert_eq!(resolve_access(None, &manifest), Some(Access::Restricted));
+    assert_eq!(resolve_access(Some("public"), &manifest), Some("public".to_owned()));
+    assert_eq!(resolve_access(None, &manifest), Some("restricted".to_owned()));
     assert_eq!(resolve_access(None, &json!({})), None);
+}
+
+/// pnpm validates `publishConfig.access` and nothing else. An `access` the
+/// caller resolved from the config chain is sent verbatim for the registry to
+/// reject, and must not fall back to the manifest's, which can be the more
+/// permissive level.
+#[test]
+fn an_unrecognized_explicit_access_is_kept_and_the_manifest_is_not_consulted() {
+    let manifest = json!({ "publishConfig": { "access": "public" } });
+    assert_eq!(resolve_access(Some("everyone"), &manifest), Some("everyone".to_owned()));
+    assert_eq!(resolve_access(None, &json!({ "publishConfig": { "access": "everyone" } })), None);
 }
 
 const REGISTRY: &str = "https://registry.npmjs.org/";

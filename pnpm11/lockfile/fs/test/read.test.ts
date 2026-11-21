@@ -3,9 +3,11 @@ import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import type { DepPath, ProjectId } from '@pnpm/types'
-import yaml from 'js-yaml'
 import { temporaryDirectory } from 'tempy'
 
+const actualYaml = await import('js-yaml')
+const loadYaml = jest.fn(actualYaml.load)
+jest.unstable_mockModule('js-yaml', () => ({ ...actualYaml, load: loadYaml }))
 jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn(), getBranchesContainingHead: jest.fn(() => Promise.resolve([])) }))
 
 const { getBranchesContainingHead, getCurrentBranch } = await import('@pnpm/network.git-utils')
@@ -118,7 +120,7 @@ test('readWantedLockfile() does not use a YAML exception message when its reason
   const projectPath = temporaryDirectory()
   const secret = 'aws_secret_access_key = marker-secret'
   await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'broken')
-  jest.spyOn(yaml, 'load').mockImplementationOnce(() => {
+  loadYaml.mockImplementationOnce(() => {
     throw {
       name: 'YAMLException',
       message: `Unable to parse YAML\n${secret}`,
@@ -421,8 +423,8 @@ test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
 test('readWantedLockfile preserves a __proto__ importer when merging branch lockfiles', async () => {
   const dir = temporaryDirectory()
   const branch = JSON.parse('{"lockfileVersion":"9.0","importers":{"__proto__":{"dependencies":{"foo":{"specifier":"link:../foo","version":"link:../foo"}}}}}')
-  await writeFile(path.join(dir, 'pnpm-lock.yaml'), yaml.dump({ lockfileVersion: '9.0', importers: {} }))
-  await writeFile(path.join(dir, 'pnpm-lock.branch.yaml'), yaml.dump(branch))
+  await writeFile(path.join(dir, 'pnpm-lock.yaml'), actualYaml.dump({ lockfileVersion: '9.0', importers: {} }))
+  await writeFile(path.join(dir, 'pnpm-lock.branch.yaml'), actualYaml.dump(branch))
 
   const lockfile = await readWantedLockfile(dir, {
     ignoreIncompatible: false,

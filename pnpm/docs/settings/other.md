@@ -66,6 +66,8 @@ saves the first of these that exists:
 3. The range a matching [override](./dependency-resolution.md#overrides) sets.
 4. The version registered under the tag from this setting.
 
+`pnpm publish` also publishes under this tag when `--tag` is not passed.
+
 ### globalDir
 
 * Default:

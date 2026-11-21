@@ -62,7 +62,6 @@
     "@jest/globals": "catalog:",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@types/js-yaml": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/write-file-atomic": "catalog:",

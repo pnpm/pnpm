@@ -130,6 +130,10 @@ mod registry_network_concurrency;
 
 mod provenance;
 
+mod access;
+
+mod otp;
+
 mod publish_wait_timeout;
 
 mod publish_branch;
@@ -137,5 +141,7 @@ mod publish_branch;
 mod env_placeholders;
 
 mod readable_settings;
+
+mod no_proxy;
 
 mod side_effects_cache_exclude;

@@ -15,7 +15,6 @@
 
 use crate::{
     _utils::{
-        inotify::record_opens,
         pacquet_in,
         v11_in,
     },
@@ -24,10 +23,13 @@ use crate::{
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
-use pnpm_testing_utils::bin::{
-    AddMockedRegistry,
-    CommandTempCwd,
-    read_v11_bundle_path,
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+        read_v11_bundle_path,
+    },
+    open_counter::record_opens,
 };
 use pnpm_workspace_state::{
     Validation,

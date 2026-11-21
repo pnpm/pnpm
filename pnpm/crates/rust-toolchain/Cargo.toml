@@ -30,6 +30,9 @@ tempfile = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+pnpm-ffi-process = { workspace = true }
+
 [dev-dependencies]
 mockito = { workspace = true }
 pnpm-store-dir = { workspace = true }
@@ -39,9 +42,6 @@ tokio = { workspace = true, features = ["macros", "rt"] }
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 reqwest = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, features = ["Win32_System_LibraryLoader", "Win32_System_SystemInformation"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 pnpm-http = { workspace = true }

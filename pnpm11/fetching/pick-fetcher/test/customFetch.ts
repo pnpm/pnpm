@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, jest, test } from '@jest/globals'
-import type { Fetchers, FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
+import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import { createTarballFetcher } from '@pnpm/fetching.tarball-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'
@@ -39,9 +39,9 @@ function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
     localTarball: noop,
     remoteTarball: noop,
     gitHostedTarball: noop,
-    directory: noop as any,
-    git: noop as any,
-    binary: noop as any,
+    directory: noop as unknown as DirectoryFetcher,
+    git: noop as unknown as GitFetcher,
+    binary: noop as unknown as BinaryFetcher,
     ...partial,
   }
 }
@@ -49,7 +49,7 @@ function createMockFetchers (partial: Partial<Fetchers> = {}): Fetchers {
 function createMockCafs (partial: Partial<Cafs> = {}): Cafs {
   return {
     addFilesFromDir: jest.fn(),
-    addFilesFromTarball: jest.fn() as any,
+    addFilesFromTarball: jest.fn() as unknown as Cafs['addFilesFromTarball'],
     ...partial,
   } as Cafs
 }
@@ -95,7 +95,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'test-package@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         createMockCafs(),
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions()
@@ -122,7 +122,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         createMockCafs(),
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions()
@@ -146,7 +146,7 @@ describe('custom fetcher implementation examples', () => {
       )
 
       await expect(
-        fetcher(
+        (fetcher as FetchFunction)(
           createMockCafs(),
           createMockResolution({ tarball: 'http://example.com/package.tgz' }),
           createMockFetchOptions()
@@ -175,8 +175,8 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      const mockCafs = createMockCafs({ addFilesFromTarball: jest.fn() as any })
-      await fetcher(
+      const mockCafs = createMockCafs({ addFilesFromTarball: jest.fn() as unknown as Cafs['addFilesFromTarball'] })
+      await (fetcher as FetchFunction)(
         mockCafs,
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions()
@@ -193,7 +193,7 @@ describe('custom fetcher implementation examples', () => {
         () => true,
         async (_cafs, _resolution, opts) => {
           opts.onStart?.(100, 1)
-          ;(opts.onProgress as any)?.({ done: 50, total: 100 })
+          ;(opts.onProgress as unknown as ((p: { done: number, total: number }) => void) | undefined)?.({ done: 50, total: 100 })
 
           return {
             filesMap: new Map(),
@@ -209,7 +209,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      await fetcher(
+      await (fetcher as FetchFunction)(
         createMockCafs(),
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions({ onStart: onStartFn, onProgress: onProgressFn })
@@ -229,7 +229,7 @@ describe('custom fetcher implementation examples', () => {
         (_pkgId, resolution) => resolution.type === 'custom:cdn',
         async (_cafs, resolution) => {
           expect(resolution.type).toBe('custom:cdn')
-          expect((resolution as any).cdnUrl).toBe('https://cdn.example.com/pkg.tgz')
+          expect((resolution as unknown as Record<string, string>).cdnUrl).toBe('https://cdn.example.com/pkg.tgz')
 
           return {
             filesMap: new Map(),
@@ -245,7 +245,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      await fetcher(createMockCafs(), customResolution, createMockFetchOptions())
+      await (fetcher as FetchFunction)(createMockCafs(), customResolution, createMockFetchOptions())
     })
 
     test('should allow custom fetcher.fetch to return partial manifest', async () => {
@@ -264,7 +264,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'pkg@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         createMockCafs(),
         createMockResolution({ tarball: 'http://example.com/package.tgz' }),
         createMockFetchOptions()
@@ -387,10 +387,10 @@ describe('custom fetcher implementation examples', () => {
 
         // Custom fetcher that maps custom URLs to tarballs
         const customFetcher = createMockCustomFetcher(
-          (_pkgId, resolution) => resolution.type === 'custom:url' && Boolean((resolution as any).customUrl),
+          (_pkgId, resolution) => resolution.type === 'custom:url' && Boolean((resolution as unknown as Record<string, string>).customUrl),
           async (cafs, resolution, opts, fetchers) => {
             const tarballResolution = {
-              tarball: (resolution as any).customUrl,
+              tarball: (resolution as unknown as Record<string, string>).customUrl,
               integrity: tarballIntegrity,
             }
 
@@ -409,7 +409,7 @@ describe('custom fetcher implementation examples', () => {
           { customFetchers: [customFetcher], packageId: 'custom-pkg@1.0.0' }
         )
 
-        const result = await fetcher(
+        const result = await (fetcher as FetchFunction)(
           cafs,
           customResolution,
           createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
@@ -436,10 +436,10 @@ describe('custom fetcher implementation examples', () => {
 
       // Custom fetcher that maps custom local paths to tarballs
       const customFetcher = createMockCustomFetcher(
-        (_pkgId, resolution) => resolution.type === 'custom:local' && Boolean((resolution as any).localPath),
+        (_pkgId, resolution) => resolution.type === 'custom:local' && Boolean((resolution as unknown as Record<string, string>).localPath),
         async (cafs, resolution, opts, fetchers) => {
           const tarballResolution = {
-            tarball: `file:${(resolution as any).localPath}`,
+            tarball: `file:${(resolution as unknown as Record<string, string>).localPath}`,
             integrity: tarballIntegrity,
           }
 
@@ -458,7 +458,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'local-pkg@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         cafs,
         customResolution,
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
@@ -576,7 +576,7 @@ describe('custom fetcher implementation examples', () => {
         const customFetcher = createMockCustomFetcher(
           (_pkgId, resolution) => resolution.type === 'custom:registry',
           async (cafs, resolution, opts, fetchers) => {
-            const tarballUrl = `${registry}${(resolution as any).packageName}.tgz`
+            const tarballUrl = `${registry}${(resolution as unknown as Record<string, string>).packageName}.tgz`
 
             const tarballResolution = {
               tarball: tarballUrl,
@@ -598,7 +598,7 @@ describe('custom fetcher implementation examples', () => {
           { customFetchers: [customFetcher], packageId: 'transformed-pkg@1.0.0' }
         )
 
-        const result = await fetcher(
+        const result = await (fetcher as FetchFunction)(
           cafs,
           customResolution,
           createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
@@ -628,7 +628,7 @@ describe('custom fetcher implementation examples', () => {
         (_pkgId, resolution) => resolution.type === 'custom:git',
         async (cafs, resolution, opts, fetchers) => {
           const tarballResolution = {
-            tarball: `https://codeload.github.com/${(resolution as any).repo}/tar.gz/${(resolution as any).commit}`,
+            tarball: `https://codeload.github.com/${(resolution as unknown as Record<string, string>).repo}/tar.gz/${(resolution as unknown as Record<string, string>).commit}`,
           }
 
           return fetchers.gitHostedTarball(cafs, tarballResolution, opts)
@@ -647,7 +647,7 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'git-pkg@1.0.0' }
       )
 
-      const result = await fetcher(
+      const result = await (fetcher as FetchFunction)(
         cafs,
         customResolution,
         createMockFetchOptions({ filesIndexFile, lockfileDir: process.cwd() })
@@ -667,14 +667,14 @@ describe('custom fetcher implementation examples', () => {
         async (_cafs, resolution) => {
           fetchCalls.push(Date.now())
 
-          const cacheKey = `${(resolution as any).url}@${(resolution as any).version}`
+          const cacheKey = `${(resolution as unknown as Record<string, string>).url}@${(resolution as unknown as Record<string, string>).version}`
           if (cache.has(cacheKey)) {
             return cache.get(cacheKey)
           }
 
           const result = {
             filesMap: new Map([['package.json', '/store/pkg.json']]),
-            manifest: { name: 'cached-pkg', version: (resolution as any).version },
+            manifest: { name: 'cached-pkg', version: (resolution as unknown as Record<string, string>).version },
           }
 
           cache.set(cacheKey, result)
@@ -736,10 +736,10 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'auth-pkg@1.0.0' }
       )
 
-      const result = await fetcher(createMockCafs(), customResolution, createMockFetchOptions())
+      const result = await (fetcher as FetchFunction)(createMockCafs(), customResolution, createMockFetchOptions())
 
       expect(authCalls).toEqual(['initial-token'])
-      expect((result as any).authToken).toBe('refreshed-token')
+      expect((result as unknown as { authToken: string }).authToken).toBe('refreshed-token')
     })
   })
 })

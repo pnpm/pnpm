@@ -187,7 +187,7 @@ impl NodeWorker {
             .stdout(Stdio::piped())
             .kill_on_drop(true);
         #[cfg(target_vendor = "apple")]
-        inherited_descriptors::inherit_only_stdio(&mut command);
+        command.inherit_only_stdio();
         let mut child = command
             .spawn()
             .map_err(|err| err.to_string())
@@ -481,9 +481,6 @@ fn build_runner(file_escaped: &str) -> String {
 
 mod dispatch;
 use dispatch::spawn_stdout_reader;
-
-#[cfg(target_vendor = "apple")]
-mod inherited_descriptors;
 
 #[cfg(test)]
 mod tests;

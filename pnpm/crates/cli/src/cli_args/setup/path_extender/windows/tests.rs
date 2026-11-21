@@ -11,11 +11,16 @@ use super::{
     add_dir_to_windows_env_path_inner,
     first_number,
     get_env_value_from_registry,
+    persisted_path_from_registry,
     run_capture_mode_with,
+    split_registry_path,
     update_env_variable_with,
 };
 use pretty_assertions::assert_eq;
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const SAMPLE: &str = "\r\nHKEY_CURRENT_USER\\Environment\r\n    Path    REG_EXPAND_SZ    C:\\Users\\me\\bin\r\n    PNPM_HOME    REG_SZ    C:\\pnpm\r\n";
 
@@ -224,4 +229,95 @@ fn mode_propagates_non_not_found_errors_without_fallback() {
     assert!(matches!(res, Err(PathExtenderError::CommandFailed { .. })));
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].0, "mode.com");
+}
+
+#[test]
+fn persisted_path_expands_only_expandable_values() {
+    let machine = "\r\nHKEY_LOCAL_MACHINE\\...\\Environment\r\n    \
+                   Path    REG_EXPAND_SZ    %SystemRoot%\\system32;;%Missing%\\bin;C:\\50%\r\n";
+    let user = "\r\nHKEY_CURRENT_USER\\Environment\r\n    \
+                Path    REG_SZ    %SystemRoot%\\tools;C:\\npm\r\n";
+    let process_env = |name: &str| (name == "SystemRoot").then(|| r"C:\Windows".to_string());
+
+    let dirs = persisted_path_from_registry(machine, user, process_env).unwrap();
+    assert_eq!(
+        dirs,
+        [
+            PathBuf::from(r"C:\Windows\system32"),
+            PathBuf::from(r"%Missing%\bin"),
+            PathBuf::from(r"C:\50%"),
+            PathBuf::from(r"%SystemRoot%\tools"),
+            PathBuf::from(r"C:\npm"),
+        ],
+    );
+}
+
+#[test]
+fn split_registry_path_drops_quotes_and_keeps_quoted_separators() {
+    let dirs = split_registry_path(r#""C:\npm";C:\pnpm-home\bin;"C:\a;b""#);
+    assert_eq!(
+        dirs,
+        [PathBuf::from(r"C:\npm"), PathBuf::from(r"C:\pnpm-home\bin"), PathBuf::from(r"C:\a;b")],
+    );
+}
+
+#[test]
+fn persisted_path_expands_each_scope_with_its_own_variables() {
+    let machine = "\r\nHKEY_LOCAL_MACHINE\\...\\Environment\r\n    \
+                   Path    REG_EXPAND_SZ    %TOOLS%;C:\\Windows\r\n    \
+                   TOOLS    REG_EXPAND_SZ    %SystemDrive%\\npm\r\n";
+    let user = "\r\nHKEY_CURRENT_USER\\Environment\r\n    \
+                Path    REG_EXPAND_SZ    %TOOLS%;%PNPM_HOME%\\bin\r\n    \
+                PNPM_HOME    REG_SZ    C:\\pnpm-home\r\n    \
+                TOOLS    REG_SZ    C:\\user-tools\r\n";
+    let process_env = |name: &str| (name == "SystemDrive").then(|| "C:".to_string());
+
+    let dirs = persisted_path_from_registry(machine, user, process_env).unwrap();
+    assert_eq!(
+        dirs,
+        [
+            PathBuf::from(r"C:\npm"),
+            PathBuf::from(r"C:\Windows"),
+            PathBuf::from(r"C:\user-tools"),
+            PathBuf::from(r"C:\pnpm-home\bin"),
+        ],
+    );
+}
+
+#[test]
+fn a_user_path_reference_to_path_is_the_machine_path() {
+    let machine = "\r\nHKEY_LOCAL_MACHINE\\...\\Environment\r\n    \
+                   Path    REG_EXPAND_SZ    C:\\Windows\r\n";
+    let user = "\r\nHKEY_CURRENT_USER\\Environment\r\n    \
+                Path    REG_EXPAND_SZ    %Path%;C:\\pnpm-home\\bin\r\n";
+
+    let dirs = persisted_path_from_registry(machine, user, |_: &str| None).unwrap();
+    assert_eq!(
+        dirs,
+        [
+            PathBuf::from(r"C:\Windows"),
+            PathBuf::from(r"C:\Windows"),
+            PathBuf::from(r"C:\pnpm-home\bin"),
+        ],
+    );
+}
+
+#[test]
+fn a_user_path_resolves_a_machine_variable_in_the_machine_scope() {
+    let machine = "\r\nHKEY_LOCAL_MACHINE\\...\\Environment\r\n    \
+                   Path    REG_EXPAND_SZ    C:\\Windows\r\n    \
+                   TOOLS    REG_EXPAND_SZ    %SystemDrive%\\npm\r\n";
+    let user = "\r\nHKEY_CURRENT_USER\\Environment\r\n    \
+                Path    REG_EXPAND_SZ    %TOOLS%;C:\\pnpm-home\\bin\r\n";
+    let process_env = |name: &str| (name == "SystemDrive").then(|| "C:".to_string());
+
+    let dirs = persisted_path_from_registry(machine, user, process_env).unwrap();
+    assert_eq!(
+        dirs,
+        [
+            PathBuf::from(r"C:\Windows"),
+            PathBuf::from(r"C:\npm"),
+            PathBuf::from(r"C:\pnpm-home\bin")
+        ],
+    );
 }

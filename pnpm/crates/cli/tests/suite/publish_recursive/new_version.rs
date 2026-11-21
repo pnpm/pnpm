@@ -52,7 +52,7 @@ fn recursive_new_version_bumps_and_publishes_every_selected_package() {
         .expect(1)
         .create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--new-version")
@@ -103,7 +103,7 @@ fn recursive_new_version_bumps_but_skips_private_packages() {
         .expect(0)
         .create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--new-version")
@@ -177,7 +177,7 @@ fn recursive_new_version_packs_workspace_deps_at_the_bumped_version() {
         .expect(1)
         .create();
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--new-version")
@@ -233,7 +233,7 @@ fn recursive_new_version_keeps_the_pre_bump_filter_selection() {
             .create()
     });
 
-    clear_ci(pacquet)
+    clear_ci(pacquet, &workspace)
         .with_arg("-r")
         .with_arg("--filter")
         .with_arg("...dep")

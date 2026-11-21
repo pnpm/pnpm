@@ -430,7 +430,7 @@ jobs:
             pnpm11/pnpm/artifacts/verify-binary.mjs
 
       - name: Upload TypeScript executable artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           name: ts-executable-artifacts
@@ -476,7 +476,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Download TypeScript executable artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ts-executable-artifacts
 
@@ -486,7 +486,7 @@ jobs:
 
       - name: Install Node
         if: matrix.type != 'alpine'
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           runtime: node@22
           install: false
@@ -1312,7 +1312,7 @@ jobs:
           # kernel environments on standard GitHub Actions runners.
     steps:
       - name: Download Artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: binaries-rust-${{ matrix.target }}
 
@@ -1794,7 +1794,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
         with:
           tool: cross
 

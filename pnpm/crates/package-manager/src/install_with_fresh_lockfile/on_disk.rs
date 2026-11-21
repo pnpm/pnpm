@@ -109,6 +109,7 @@ pub(super) struct OnDiskRuntime<'a> {
         Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
     pub(super) known_requires_build: Option<&'a pnpm_deps_restorer::RequiresBuildBySnapshot>,
     pub(super) known_bins: Option<&'a pnpm_deps_restorer::PackageBins>,
+    pub(super) latest_versions: Option<&'a pnpm_deps_restorer::LatestVersions>,
 }
 
 /// What the on-disk phases leave for the install's result.
@@ -230,6 +231,7 @@ impl<'a> OnDiskInputs<'a> {
                     requires_build_by_snapshot: Some(&materialized.requires_build_by_snapshot),
                     cas_paths_by_pkg_id: materialized.cas_paths_by_pkg_id.take(),
                     cas_paths_by_snapshot: materialized.cas_paths_by_snapshot.take(),
+                    latest_versions: self.runtime.latest_versions,
                 },
                 prior: self.install.prior.link_state(),
                 projects: pnpm_deps_restorer::LinkProjects {

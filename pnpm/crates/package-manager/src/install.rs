@@ -77,6 +77,7 @@ pub(crate) use workspace_state::{
     workspace_packages_for_freshness,
 };
 
+pub use lifecycle::SharedDevPreinstall;
 pub(crate) use verification_gate::IsReplaced;
 pub use verification_gate::LockfileVerificationGate;
 
@@ -592,6 +593,7 @@ pub struct DedicatedProjectInstall {
     /// installs of the workspace projects it depends on produce. `None`
     /// waits for nothing.
     pub dependencies_installed: Option<WorkspaceDependenciesInstalled>,
+    pub dev_preinstall: SharedDevPreinstall,
 }
 
 /// Every project of a workspace and the workspace-package index built from

@@ -1166,3 +1166,8 @@ test('createNpmResolutionVerifier() inspects and verifies inner resolutions in v
   expect(missingIntegrityResult).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
 })
 
+
+test.each([NaN, Infinity, -1])('createNpmResolutionVerifier() throws INVALID_MINIMUM_RELEASE_AGE for %s', (minimumReleaseAge) => {
+  expect(() => createNpmResolutionVerifier(makeVerifierOpts({ minimumReleaseAge })))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})

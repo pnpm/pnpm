@@ -27,6 +27,7 @@ shell-emulator = [
 ]
 
 [dependencies]
+pnpm-ffi-fs = { workspace = true }
 pnpm-package-name = { workspace = true }
 pnpm-matcher = { workspace = true }
 rustc-hash = { workspace = true }
