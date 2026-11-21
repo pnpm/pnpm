@@ -18,6 +18,18 @@ use super::{
 };
 
 impl ThrottledClient {
+    async fn read_response(
+        &self,
+        response: reqwest::Response,
+        body_limit: usize,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        let status = response.status();
+        let url = response.url().to_string();
+        let body = read_limited_body(response, body_limit).await
+            .inspect_err(|error| self.downscale_on_timeout(&url, error))?;
+        Ok(SecureAuthResponse { status, body: body.bytes, body_truncated: body.truncated, url })
+    }
+
     /// Send a GET whose URL-scoped credentials are re-evaluated for every
     /// redirect target. Credentials are limited to TLS and loopback URLs by
     /// [`AuthHeaders::for_secure_url`].
@@ -76,7 +88,10 @@ impl ThrottledClient {
         body_limit: usize,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
         let authorize = authorize_without_downgrade(auth_headers, url);
-        retry::get_bytes(self, url, authorize, accept, retry_opts, body_limit).await
+        retry::get_bytes(url, retry_opts, || {
+            self.get_limited_bytes_with_scoped_auth(url, authorize, accept, body_limit)
+        })
+        .await
     }
 
     /// Negotiate an ecosystem's metadata representation while retaining the
@@ -98,6 +113,13 @@ impl ThrottledClient {
         accept: Option<&str>,
         body_limit: usize,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Some(value) = accept.map(str::parse).and_then(Result::ok) {
+            headers.insert(reqwest::header::ACCEPT, value);
+        }
+        if let Some(response) = auth_headers.fetch_local(url, None, headers) {
+            return self.read_response(response.await, body_limit).await;
+        }
         let authorize = |url: &str| auth_headers.for_secure_url(url);
         self.get_limited_bytes_with_scoped_auth(url, authorize, accept, body_limit).await
     }
@@ -120,11 +142,7 @@ impl ThrottledClient {
             request
         })
         .await?;
-        let status = response.status();
-        let url = response.url().to_string();
-        let body = read_limited_body(response, body_limit).await
-            .inspect_err(|error| self.downscale_on_timeout(&url, error))?;
-        Ok(SecureAuthResponse { status, body: body.bytes, body_truncated: body.truncated, url })
+        self.read_response(response, body_limit).await
     }
 
     /// Follow a GET's redirects, rebuilding its headers for each destination.

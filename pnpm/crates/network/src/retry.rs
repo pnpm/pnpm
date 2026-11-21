@@ -303,35 +303,20 @@ pub(crate) async fn get_secure_bytes(
     retry_opts: RetryOpts,
     body_limit: usize,
 ) -> Result<SecureAuthResponse, reqwest::Error> {
-    let mut headers = reqwest::header::HeaderMap::new();
-    if let Some(value) = accept.map(str::parse).and_then(Result::ok) {
-        headers.insert(reqwest::header::ACCEPT, value);
-    }
-    if let Some(response) = auth.fetch_local(url, None, headers) {
-        let response = response.await;
-        let status = response.status();
-        let url = response.url().to_string();
-        let body = crate::read_limited_body(response, body_limit).await?;
-        return Ok(SecureAuthResponse {
-            status,
-            url,
-            body: body.bytes,
-            body_truncated: body.truncated,
-        });
-    }
-    let authorize = |url: &str| auth.for_secure_url(url);
-    get_bytes(client, url, authorize, accept, retry_opts, body_limit).await
+    get_bytes(url, retry_opts, || {
+        client.get_limited_bytes_with_secure_auth_and_accept(url, auth, accept, body_limit)
+    })
+    .await
 }
 
-/// Retry a GET whose `authorize` header is chosen for each redirect hop's URL.
-pub(crate) async fn get_bytes(
-    client: &ThrottledClient,
+pub(crate) async fn get_bytes<Fut>(
     url: &str,
-    authorize: impl Fn(&str) -> Option<String> + Copy + Sync,
-    accept: Option<&str>,
     retry_opts: RetryOpts,
-    body_limit: usize,
-) -> Result<SecureAuthResponse, reqwest::Error> {
+    fetch: impl Fn() -> Fut + Send + Sync,
+) -> Result<SecureAuthResponse, reqwest::Error>
+where
+    Fut: Future<Output = Result<SecureAuthResponse, reqwest::Error>> + Send,
+{
     let result = retry_async(
         url,
         retry_opts,
@@ -342,9 +327,7 @@ pub(crate) async fn get_bytes(
             }
         },
         || async {
-            let response = client
-                .get_limited_bytes_with_scoped_auth(url, authorize, accept, body_limit)
-                .await
+            let response = fetch().await
                 .map_err(reqwest::Error::without_url)
                 .map_err(SecureAttemptError::Request)?;
             if !response.body_truncated && should_retry_status(response.status) {

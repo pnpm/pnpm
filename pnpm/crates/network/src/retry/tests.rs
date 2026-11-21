@@ -61,6 +61,48 @@ fn instant_retry_opts(retries: u32) -> RetryOpts {
 }
 
 #[tokio::test]
+async fn transient_local_metadata_response_is_retried() {
+    struct LocalMetadata(String);
+    impl crate::UpstreamRouteHook for LocalMetadata {
+        fn authorize(&self, _: &str, _: Option<&str>) -> Option<String> {
+            None
+        }
+
+        fn fetch_local(
+            &self,
+            _: &str,
+            _: reqwest::header::HeaderMap,
+        ) -> Option<crate::LocalResponse> {
+            let url = self.0.clone();
+            Some(Box::pin(async move { reqwest::get(url).await.unwrap() }))
+        }
+    }
+
+    let mut server = mockito::Server::new_async().await;
+    let unavailable = server
+        .mock("GET", "/")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
+    let available = server
+        .mock("GET", "/")
+        .with_body("ok")
+        .expect(1)
+        .create_async()
+        .await;
+    let auth = AuthHeaders::default().with_route_hook(Arc::new(LocalMetadata(server.url())));
+    let client = ThrottledClient::new_for_installs_with_redirect_guard(|_| false);
+    let response =
+        get_secure_bytes(&client, "https://index.invalid/", &auth, None, instant_retry_opts(1), 16)
+            .await
+            .unwrap();
+    assert_eq!(response.body, b"ok");
+    unavailable.assert_async().await;
+    available.assert_async().await;
+}
+
+#[tokio::test]
 async fn manual_metadata_redirects_preserve_the_configured_guard() {
     for allow in [false, true] {
         eprintln!("allow={allow}");

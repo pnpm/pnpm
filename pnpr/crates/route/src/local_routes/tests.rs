@@ -191,3 +191,73 @@ fn footprint_serde_roundtrip_and_extend_preserve_descriptors() {
     assert_eq!(decoded, expected);
     assert_eq!(decoded.digest(b"secret"), expected.digest(b"secret"));
 }
+
+#[test]
+fn local_index_cache_scopes_follow_registry_grants() {
+    use crate::{
+        Footprint,
+        RouteHook,
+    };
+    use pnpm_network::{
+        MetadataCacheScope,
+        UpstreamRouteHook,
+    };
+    use pnpr_config::HostedConfig;
+    use pnpr_policy::{
+        AccessList,
+        Identity,
+        PackageRules,
+    };
+    use pnpr_registry::{
+        Ecosystem,
+        Registries,
+        Registry,
+    };
+    use std::sync::{
+        Arc,
+        Mutex,
+    };
+
+    for (ecosystem, entry) in
+        [(Ecosystem::Cargo, "index/wi/dg/widget"), (Ecosystem::Pypi, "simple/widget/")]
+    {
+        let mut config = Config::proxy("127.0.0.1:7677".parse().unwrap(), "unused".into());
+        let registry = "internal";
+        config.routing.registries = Registries::new(
+            std::iter::once((registry.to_string(), Registry::Hosted { patterns: vec![] }))
+                .collect(),
+            None,
+        )
+        .with_ecosystem(registry.to_string(), ecosystem)
+        .with_defaults(std::iter::once((ecosystem, registry.to_string())).collect());
+        config.routing.hosted.insert(
+            registry.to_string(),
+            HostedConfig::new(
+                registry,
+                PackageRules::new(vec![], Some(AccessList::from_tokens(["reader"]))),
+            ),
+        );
+        let context = Arc::new(RouteContext::from_config(&config));
+        let hook = |identity| {
+            RouteHook::new(
+                Arc::clone(&context),
+                identity,
+                Arc::new(Mutex::new(Footprint::default())),
+                Arc::from(b"secret".as_slice()),
+            )
+        };
+        let reader = hook(Identity::user("reader"));
+        let outsider = hook(Identity::user("outsider"));
+        for prefix in ["", "~internal/"] {
+            let url = format!(
+                "{}/{ecosystem}/{prefix}{entry}",
+                config.http.public_url.trim_end_matches('/'),
+            );
+            let allowed = reader.metadata_scope(&url, None);
+            let denied = outsider.metadata_scope(&url, None);
+            assert_ne!(allowed, MetadataCacheScope::Public);
+            assert_ne!(denied, MetadataCacheScope::Public);
+            assert_ne!(allowed, denied);
+        }
+    }
+}
