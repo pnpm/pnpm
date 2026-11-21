@@ -1,3 +1,5 @@
+pub(crate) mod file_read;
+
 pub use error::LoadLockfileError;
 pub use selection::WantedLockfileSelection;
 
@@ -41,7 +43,6 @@ use std::{
 };
 
 mod error;
-mod file_read;
 mod selection;
 use file_read::{
     read_lockfile_file,

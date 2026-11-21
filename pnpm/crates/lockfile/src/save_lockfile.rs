@@ -195,24 +195,19 @@ fn read_normalized_lockfile(path: &Path) -> Result<Option<String>, SaveLockfileE
     Ok(read_existing_lockfile(path)?.map(|file| file.text))
 }
 
-/// The normalized text of the lockfile at `path` and the metadata of the
-/// handle it was read through.
+/// The normalized text of the lockfile at `path`, and the metadata of the
+/// handle it was read through when no in-place change raced the read.
 struct ExistingLockfile {
     text: String,
     metadata: Option<fs::Metadata>,
 }
 
 fn read_existing_lockfile(path: &Path) -> Result<Option<ExistingLockfile>, SaveLockfileError> {
-    let mut file = match fs::File::open(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(SaveLockfileError::WriteFile(error)),
-    };
-    let mut text = String::new();
-    io::Read::read_to_string(&mut file, &mut text).map_err(SaveLockfileError::WriteFile)?;
-    Ok(Some(ExistingLockfile {
+    let existing = crate::load_lockfile::file_read::read_file_with_stable_metadata(path)
+        .map_err(SaveLockfileError::WriteFile)?;
+    Ok(existing.map(|(text, metadata)| ExistingLockfile {
         text: normalize_lockfile_content(&text).into_owned(),
-        metadata: file.metadata().ok(),
+        metadata,
     }))
 }
 

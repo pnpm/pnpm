@@ -1,5 +1,4 @@
 use crate::LoadLockfileError;
-use pipe_trait::Pipe;
 use std::{
     fs,
     io::ErrorKind,
@@ -16,14 +15,22 @@ use std::{
 pub(super) fn read_lockfile_file(
     file_path: &Path,
 ) -> Result<Option<(String, Option<fs::Metadata>)>, LoadLockfileError> {
+    read_file_with_stable_metadata(file_path).map_err(LoadLockfileError::ReadFile)
+}
+
+/// [`read_lockfile_file`] reporting the I/O error itself, for callers with
+/// their own error type.
+pub(crate) fn read_file_with_stable_metadata(
+    file_path: &Path,
+) -> std::io::Result<Option<(String, Option<fs::Metadata>)>> {
     let mut file = match fs::File::open(file_path) {
         Ok(file) => file,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return error.pipe(LoadLockfileError::ReadFile).pipe(Err),
+        Err(error) => return Err(error),
     };
     let before = file.metadata().ok();
     let mut content = String::new();
-    std::io::Read::read_to_string(&mut file, &mut content).map_err(LoadLockfileError::ReadFile)?;
+    std::io::Read::read_to_string(&mut file, &mut content)?;
     let after = file.metadata().ok();
     let stable = stable_open_file_metadata(before.as_ref(), after, content.len());
     Ok(Some((content, stable)))

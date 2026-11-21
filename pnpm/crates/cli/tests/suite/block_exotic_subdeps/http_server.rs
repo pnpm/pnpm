@@ -159,6 +159,8 @@ fn spawn_connection_handler(
     hits: Arc<AtomicUsize>,
 ) {
     thread::spawn(move || {
+        // macOS hands out accepted sockets with the listener's non-blocking mode.
+        let _ = stream.set_nonblocking(false);
         let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
         let Some(path) = read_request_path(&mut stream) else { return };
         if path == "/exotic.tgz" {
