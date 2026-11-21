@@ -330,7 +330,7 @@ export function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, confi
     if (isPluginName(configDepName)) {
       const pluginDir = path.join(configModulesDir, configDepName)
       // If the plugin directory itself is missing, the install didn't run
-      // (or hasn't run yet) — skip silently. If the plugin directory exists
+      // (or hasn't run yet), so skip silently. If the plugin directory exists
       // but contains no pnpmfile, fall through to yield the .cjs path so
       // requireHooks surfaces PNPMFILE_NOT_FOUND for the misconfigured plugin.
       if (!fs.existsSync(pluginDir)) continue

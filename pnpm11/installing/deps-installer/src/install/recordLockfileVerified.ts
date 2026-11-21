@@ -11,7 +11,7 @@ import { recordVerificationByHash } from './verifyLockfileResolutionsCache.js'
 
 export interface RecordLockfileVerifiedOptions {
   cacheDir?: string
-  /** The writer's canonical return value — see {@link writeWantedLockfile}.
+  /** The writer's canonical return value. See {@link writeWantedLockfile}.
    *  Passing the raw in-memory write object would record a hash the
    *  next install can't match (YAML drops undefined fields). */
   lockfile: LockfileObject

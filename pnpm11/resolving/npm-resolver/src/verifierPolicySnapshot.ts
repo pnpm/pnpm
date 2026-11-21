@@ -7,8 +7,8 @@ import type { CreateNpmResolutionVerifierOptions } from './createNpmResolutionVe
 
 // Snapshot the exclude lists (sorted, deduped) and require an exact
 // match in `canTrustPastCheck`: cache identity == policy identity.
-// Any change to either exclude list — adding, removing, or
-// substituting an entry — invalidates the cached run. This is
+// Any change to either exclude list (adding, removing, or
+// substituting an entry) invalidates the cached run. This is
 // stricter than a pure correctness check would require (adding to
 // either list is more permissive and the cached pass would still
 // hold), but it makes the cache contract trivial to reason about and
@@ -62,7 +62,7 @@ export function canTrustPastCheck (current: VerifierPolicy, cached: Record<strin
     // Missing-time tolerance: a cached run that failed closed on an
     // absent `time` field accepted a subset of what today's tolerant
     // policy accepts, so it stays trustworthy. Turning the tolerance
-    // off invalidates it — entries the past run waved through are the
+    // off invalidates it. Entries the past run waved through are the
     // ones today's policy exists to reject. Older records (no field)
     // read as intolerant, which is the safe direction.
     !(cached.minimumReleaseAgeIgnoreMissingTime === true && !current.minimumReleaseAgeIgnoreMissingTime)
@@ -104,9 +104,9 @@ function cachedRunEnforcedUnconditionalChecks (current: VerifierPolicy, cached: 
 
 function cachedMinimumReleaseAgeCovers (current: VerifierPolicy, cached: Record<string, unknown>): boolean {
   // Maturity: a previously cached run under a larger cutoff
-  // (stricter window) is trustworthy under a smaller current one —
-  // its set of accepted versions is a subset of today's. The
-  // reverse — tightening the cutoff — invalidates the cached run:
+  // (stricter window) is trustworthy under a smaller current one.
+  // Its set of accepted versions is a subset of today's. The
+  // reverse (tightening the cutoff) invalidates the cached run:
   // versions that passed before may now be in-window. Non-number
   // cached values come from an older record shape and aren't trusted.
   const past = cached.minimumReleaseAge

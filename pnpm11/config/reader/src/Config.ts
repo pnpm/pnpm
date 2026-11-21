@@ -38,7 +38,7 @@ export interface PackageManagerNetworkConfig {
 
 /**
  * Runtime state, workspace context, and CLI metadata.
- * These fields are NOT user-facing settings — they are computed at startup
+ * These fields are NOT user-facing settings. They are computed at startup
  * or populated later by the CLI harness (e.g. workspace filtering, hook loading).
  */
 export interface ConfigContext {
@@ -106,7 +106,7 @@ export interface WantedPackageManager extends EngineDependency {
 
 /**
  * User-facing settings + auth/network config.
- * Does NOT include runtime state — see {@link ConfigContext} for that.
+ * Does NOT include runtime state. See {@link ConfigContext} for that.
  */
 export interface Config extends OptionsFromRootManifest {
   allowNew: boolean
@@ -301,7 +301,7 @@ export interface Config extends OptionsFromRootManifest {
   packageManagerNetworkConfig?: PackageManagerNetworkConfig
   /**
    * As the user wrote it. Built-ins are filled in by
-   * `normalizeRegistriesByPrefix` where a lookup happens, not here — this value
+   * `normalizeRegistriesByPrefix` where a lookup happens, not here. This value
    * is also forwarded to a pnpr server, which must only be asked about
    * registries the project actually declares.
    */

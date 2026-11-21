@@ -99,7 +99,7 @@ test('records nothing when the in-memory lockfile has no packages', async () => 
 test('records the load-equivalent hash — matches what the next install computes off-disk', async () => {
   // Use a fixture that carries an explicit `undefined` optional field
   // (the real divergence case install-time code produces), then pass
-  // the *writer's return value* to recordLockfileVerified — same flow
+  // the *writer's return value* to recordLockfileVerified, the same flow
   // as the production call sites. Passing the in-memory input here
   // instead would silently regress the moment the writer's
   // canonicalization stops matching the reader's output.
@@ -161,7 +161,7 @@ test('records a cache entry that the next install hits by content, then by the s
   // Mirror real call sites: hand `recordLockfileVerified` the
   // writer's return value rather than the in-memory input. With an
   // explicit `undefined` optional field in the fixture, those two
-  // diverge structurally — the in-memory variant would record a hash
+  // diverge structurally. The in-memory variant would record a hash
   // the next install can't match, and this test would silently miss
   // that regression.
   const inMemoryLockfile = {

@@ -18,7 +18,7 @@ test('a task starts as soon as its dependencies finish, without waiting for unre
   await using server = await createTestIpcServer()
 
   // slow waits for a marker only mid writes, and mid may start only once
-  // dep is done — so the run completes only if mid is dispatched while the
+  // dep is done, so the run completes only if mid is dispatched while the
   // unrelated slow is still in flight. Any barrier between
   // dependency-independent tasks deadlocks this fixture.
   preparePackages([

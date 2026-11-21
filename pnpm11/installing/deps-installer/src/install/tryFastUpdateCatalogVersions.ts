@@ -28,8 +28,8 @@ import {
  *
  * An override moves a package everywhere it appears. A catalog entry governs
  * only the importers that reference it, so anything else reaching the package
- * would have to keep the old version while those importers move — a graph
- * holding both, which this cannot express.
+ * would have to keep the old version while those importers move. This cannot
+ * express a graph holding both.
  */
 export type CatalogVersionRewrite =
   /** Every entry that moved was rewritten. */

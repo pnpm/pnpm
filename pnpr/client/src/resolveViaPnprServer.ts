@@ -59,7 +59,7 @@ export interface ResolveViaPnprServerOptions {
   /**
    * `Authorization` for the pnpr server's own URL (`undefined` if none):
    * identifies the caller to pnpr's gate. The client never forwards its
-   * own upstream registry credentials — pnpr selects upstream credentials
+   * own upstream registry credentials. pnpr selects upstream credentials
    * from its route policy, so none are placed in the request body.
    */
   authorization?: string
@@ -75,7 +75,7 @@ export interface ResolveViaPnprServerOptions {
    * Workspace catalogs (`catalog:` / `catalogs:` from `pnpm-workspace.yaml`),
    * keyed by catalog name with the default catalog under `default`. The
    * server resolves `catalog:` specifiers in dependencies and overrides
-   * against these — it never reads the workspace manifest itself.
+   * against these. It never reads the workspace manifest itself.
    */
   catalogs?: Catalogs
   /** Node.js version for resolution */
@@ -98,7 +98,7 @@ export interface ResolveViaPnprServerOptions {
   /**
    * The client's supply-chain verification policy. The client runs offline
    * structural and resolution-shape checks locally, while the server enforces
-   * the online supply-chain policy on the pnpr path — so every policy field
+   * the online supply-chain policy on the pnpr path, so every policy field
    * has to travel with the request. Anything omitted is not merely defaulted
    * server-side: the server clears the field from its config, which enforces a
    * *stricter* policy than the user configured (an omitted
@@ -118,7 +118,7 @@ export interface ResolveViaPnprServerOptions {
    */
   trustLockfile?: boolean
   /**
-   * Resolution behavior — whether the server uses the lockfile as-is or
+   * Resolution behavior: whether the server uses the lockfile as-is or
    * reuses its pins and resolves what changed. Distinct from the policy
    * fields above: neither affects whether the input lockfile is verified.
    */
@@ -154,8 +154,8 @@ type ResolveFrame =
  *
  * `POST /-/pnpr/v0/resolve` answers with an `application/x-ndjson` stream: one
  * `package` frame per resolved tarball as the server's tree walk yields
- * it, then exactly one terminal frame — `done` (full lockfile + stats),
- * `error`, or `violations`. pnpr serves no file content — the caller
+ * it, then exactly one terminal frame: `done` (full lockfile + stats),
+ * `error`, or `violations`. pnpr serves no file content. The caller
  * fetches every tarball itself, in parallel, like a normal install
  * ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
  */
@@ -308,7 +308,7 @@ function equalStringRecords (
  * directory on its importer: the server rebuilds each project's manifest from
  * the request, so a server that ignored `publishConfig` would have the caller
  * link the project root and install different code than a local install does.
- * Only an importer the server did return is checked — a request may be merged
+ * Only an importer the server did return is checked. A request may be merged
  * into a lockfile that leaves other importers alone.
  */
 function assertPublishDirectories (lockfile: LockfileFile, projects: PnprProject[]): void {
@@ -331,7 +331,7 @@ type DoneFrame = Extract<ResolveFrame, { type: 'done' }>
 
 /**
  * Parse the NDJSON `/-/pnpr/v0/resolve` body and return its single terminal
- * frame. `package` frames are skipped — this client fetches tarballs the
+ * frame. `package` frames are skipped. This client fetches tarballs the
  * normal way after resolution rather than overlapping fetch with the
  * stream. Throws on an unknown frame type (so a protocol mismatch fails
  * fast here rather than as a confusing lockfile error downstream) or if
@@ -352,7 +352,7 @@ function parseTerminalFrame (body: string): TerminalFrame {
 
 const gunzipAsync = promisify(gunzip)
 
-const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be slow on first run
+const REQUEST_TIMEOUT = 600_000 // 10 minutes. Server-side resolution can be slow on first run
 
 /**
  * `POST /-/pnpr/v0/resolve` and return the full response body, decompressed.
@@ -412,7 +412,7 @@ async function readResolveResponse (res: http.IncomingMessage): Promise<Buffer> 
   const raw = await bufferResponse(res)
   // The server gzips both the install body and its JSON error bodies
   // (e.g. a 401/403 access denial), so decompress *before* branching
-  // on the status code — otherwise an error surfaces as binary
+  // on the status code. Otherwise an error surfaces as binary
   // garbage instead of the server's message. Skip it only when the
   // HTTP stack already decompressed (no gzip magic bytes).
   const body = res.headers['content-encoding'] === 'gzip' || (raw[0] === 0x1f && raw[1] === 0x8b)

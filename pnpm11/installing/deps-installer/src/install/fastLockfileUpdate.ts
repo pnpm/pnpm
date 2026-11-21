@@ -105,8 +105,8 @@ function planDriftUpdate ({ ctx, opts }: MutationRun, { additions, settings }: F
     return added == null ? project : { ...project, ...added }
   })
   // A catalog move can change the effective value of an override whose
-  // configured value is a `catalog:` reference — an effect no catalog
-  // rewrite can express — so catalog drift under such an override goes to
+  // configured value is a `catalog:` reference (an effect no catalog
+  // rewrite can express), so catalog drift under such an override goes to
   // the resolver. Override drift alone composes: override values are
   // compared catalog-resolved, so a settled `catalog:` override shows no
   // drift and only the genuinely changed entries reach the override
@@ -165,11 +165,11 @@ function canComposeOntoLockfile (
     !opts.force &&
     !opts.forceFullResolution &&
     !forceResolutionFromHook &&
-    // A pnpmfile's `readPackage` hook is safe here — `getContext` applies
+    // A pnpmfile's `readPackage` hook is safe here. `getContext` applies
     // it to every project manifest and a changed pnpmfile surfaces as
-    // `pnpmfileChecksum` drift. A hook the checksum cannot vouch for — a
-    // programmatic one, or one from the checksum-excluded global pnpmfile
-    // — keeps forcing the resolver.
+    // `pnpmfileChecksum` drift. A hook the checksum cannot vouch for (a
+    // programmatic one, or one from the checksum-excluded global pnpmfile)
+    // keeps forcing the resolver.
     !checksums.untrackedReadPackageHookMayHaveChanged &&
     !checksums.pnpmfileChecksumIgnored &&
     !opts.hooks.preResolution?.length &&

@@ -171,7 +171,7 @@ async function createPackedManifest (
   publishManifest.version = stripBuildMetadata(rawPublishedVersion)
   assertValidTarballVersion(publishManifest.version, rawPublishedVersion)
   // Read back off the publish manifest so a `publishConfig.name` rename reaches
-  // the filename too — the tarball name, the packed manifest, and the registry
+  // the filename too. The tarball name, the packed manifest, and the registry
   // metadata all name one artifact. The rename never went through the check on
   // `manifest.name` above, so it is validated here: it lands in the tarball
   // filename, where a separator would smuggle path components into the join and
@@ -321,7 +321,7 @@ async function withRegistryReadme (manifest: ExportedManifest, projectDir: strin
  * (an ordinary `pnpm pack` of a package that is not mid-release).
  */
 /**
- * `pkgName` keys the parked section — the workspace, the ledger, and every
+ * `pkgName` keys the parked section. The workspace, the ledger, and every
  * intent address the project by its manifest name. `publishedName` is the only
  * name the registry knows, so it selects the previous changelog to build on and
  * titles the composed one.

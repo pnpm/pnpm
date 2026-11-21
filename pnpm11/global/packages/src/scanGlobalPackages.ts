@@ -16,7 +16,7 @@ const isUrlFriendly = (segment: string): boolean => encodeURIComponent(segment) 
 // absolute path to escape the install dir, so only valid npm package names
 // are trusted. This applies the same `validForOldPackages` rules that
 // `validate-npm-package-name` (and `@pnpm/fs.symlink-dependency`'s
-// `safeJoinModulesDir`) enforce — implemented inline to avoid adding a
+// `safeJoinModulesDir`) enforce, implemented inline to avoid adding a
 // dependency to this low-level package.
 export function isValidGlobalDependencyAlias (alias: string): boolean {
   if (alias.length === 0) return false

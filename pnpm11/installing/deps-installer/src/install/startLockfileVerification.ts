@@ -32,7 +32,7 @@ async function resolveContextLocalPolicy (ctx: PnpmContext, opts: StrictInstallO
  * resolver chain was built with.
  *
  * The verification is kicked off here, right after the lockfile is loaded,
- * but not awaited inline — it would otherwise block every later install
+ * but not awaited inline. It would otherwise block every later install
  * stage on per-entry registry round trips. Its synchronous prologue (cache
  * lookup, lockfile hashing, candidate collection) runs now against the
  * pristine lockfile, so the async fan-out reads a stable snapshot even
@@ -66,7 +66,7 @@ export async function startLockfileVerification (
     localPolicy,
   })
   // Keep the rejection from going unhandled in the window before
-  // `settleInstall` awaits the verdict — a preResolution hook or the
+  // `settleInstall` awaits the verdict. A preResolution hook or the
   // install kickoff below could throw and bail out before we get there.
   verifyLockfilePromise.catch(() => {})
   return { verifyLockfilePromise }
