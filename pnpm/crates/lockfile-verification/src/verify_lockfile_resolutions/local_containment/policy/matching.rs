@@ -19,6 +19,7 @@ use super::{
             file_url_shape::{
                 canonical_slash_path,
                 decode_file_url_path,
+                percent_decode,
             },
             local_git_shape::extract_local_git_target,
             offline_checks::strip_file_url_prefix,
@@ -214,7 +215,8 @@ fn normalize_target_for_match(target: &str) -> String {
     if target.starts_with("//")
         && let Some(decoded) = decode_file_url_path(target)
     {
-        return decoded;
+        let steps_back = percent_decode(target).is_none_or(|raw| has_inner_parent_segment(&raw));
+        return if steps_back { format!("\0{target}") } else { decoded };
     }
     let slash = target.replace('\\', "/");
     if has_inner_parent_segment(&slash) {

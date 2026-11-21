@@ -746,7 +746,9 @@ test('the hook replay sees in-archive file: dependencies as package-root links',
     filesIndexFile: '/nonexistent',
   }))
   const store = { fetchPackage } as unknown as StoreController
+  const subSpecsSeenByHook: Array<string | undefined> = []
   const rejectsRawFileSpecs: ReadPackageHook = (pkg) => {
+    subSpecsSeenByHook.push(pkg.dependencies?.sub)
     if (Object.values(pkg.dependencies ?? {}).some((spec) => spec.startsWith('file:'))) {
       throw new Error('raw file: specifier')
     }
@@ -776,4 +778,142 @@ test('the hook replay sees in-archive file: dependencies as package-root links',
     hooks: { readPackage: [rejectsRawFileSpecs] },
     storeController: store,
   })).resolves.toBeDefined()
+  expect(subSpecsSeenByHook).toContain('link:<root>/sub')
+})
+
+test('a regular dependency named like a local peer is not a resolved peer', async () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { plugin: '1.0.0' },
+        specifiers: { plugin: '1.0.0' },
+      },
+    },
+    packages: {
+      ['plugin@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { helper: '1.0.0' },
+        peerDependencies: { helper: 'file:../unused' },
+      },
+      ['helper@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-helper' },
+      },
+    },
+  }
+  await expect(verifyLockfileResolutions(lockfile, [], { localPolicy: buildPolicy({}) })).resolves.toBeUndefined()
+})
+
+test('a file URL target does not match a path that steps back through a segment', async () => {
+  const lockfile = (target: string): LockfileObject => ({
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { 'remote-pkg': '1.0.0' },
+        specifiers: { 'remote-pkg': '1.0.0' },
+      },
+    },
+    packages: {
+      ['remote-pkg@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { helper: `link:${target}` },
+      },
+    },
+  })
+  const policy = () => buildPolicy({ overrides: { 'remote-pkg>helper': 'link:/work/app/shared' } })
+  await expect(verifyLockfileResolutions(lockfile('///work/app/shared'), [], { localPolicy: policy() })).resolves.toBeUndefined()
+  for (const steppingBack of ['///work/app/linked/../shared', '///work/app/linked/%2e%2e/shared']) {
+    // eslint-disable-next-line no-await-in-loop -- sequential assertion per target spelling
+    await expect(verifyLockfileResolutions(lockfile(steppingBack), [], { localPolicy: policy() })).rejects.toMatchObject({
+      code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+    })
+  }
+})
+
+test('an empty package version does not skip the shape check', () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { remote: '1.0.0' },
+        specifiers: { remote: '1.0.0' },
+      },
+    },
+    packages: {
+      ['remote@1.0.0' as DepPath]: {
+        version: '',
+        resolution: { type: 'directory', directory: '../outside' },
+      },
+    },
+  }
+  expect(() => verifyLockfileResolutionShapes(lockfile)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  }))
+})
+
+test('a pristine spec lookup ignores inherited properties such as constructor', async () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { plugin: '1.0.0(constructor@c)' },
+        specifiers: { plugin: '1.0.0' },
+      },
+    },
+    packages: {
+      ['plugin@1.0.0(constructor@c)' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { constructor: 'link:c' },
+        peerDependencies: { constructor: '^1.0.0' },
+      },
+    },
+  }
+  const policy = appendPristineDeclaredSpecs(
+    buildPolicy({ overrides: { 'plugin>constructor@^1.0.0': 'link:./c' } }),
+    new Map([
+      [pristineSpecMapKey('plugin@1.0.0', 'dependencies'), {}],
+      [pristineSpecMapKey('plugin@1.0.0', 'peerDependencies'), { constructor: '^1.0.0' }],
+    ])
+  )
+  await expect(verifyLockfileResolutions(lockfile, [], { localPolicy: policy })).resolves.toBeUndefined()
+})
+
+posixOnly('the first verification pass anchors file URL keys on the lockfile directory', async () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { helper: 'file:///work/helper' },
+        specifiers: { helper: 'file:../helper' },
+      },
+    },
+    packages: {
+      ['helper@file:///work/helper' as DepPath]: {
+        resolution: { type: 'directory', directory: '../helper' },
+      },
+    },
+  }
+  await expect(verifyLockfileResolutions(lockfile, [], { lockfilePath: '/work/app/pnpm-lock.yaml' })).resolves.toBeUndefined()
+})
+
+posixOnly('a deployed directory named like a tarball matches its target', () => {
+  const lockfile = (directory: string): LockfileObject => ({
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { helper: 'file:///work/helper.tgz' },
+        specifiers: { helper: 'file:../helper.tgz' },
+      },
+    },
+    packages: {
+      ['helper@file:///work/helper.tgz' as DepPath]: {
+        resolution: { type: 'directory', directory },
+      },
+    },
+  })
+  const deployPolicy = { ...buildPolicy({ lockfileDir: '/work/app' }), allowDeployFileUrlKeys: true }
+  expect(() => verifyLockfileResolutionShapes(lockfile('../helper.tgz'), deployPolicy)).not.toThrow()
+  expect(() => verifyLockfileResolutionShapes(lockfile('../other'), deployPolicy)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  }))
 })

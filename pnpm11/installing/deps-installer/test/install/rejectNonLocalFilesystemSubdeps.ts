@@ -20,6 +20,7 @@ import {
 import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
 import { commitLocalGitRepo } from '../utils/commitLocalGitRepo.js'
 import { testDefaults } from '../utils/index.js'
+import { serveGitRepoOverHttp } from '../utils/serveGitRepoOverHttp.js'
 
 function createMinimalTarball (manifest: Record<string, unknown>): { bytes: Buffer, integrity: string } {
   const jsonBytes = Buffer.from(JSON.stringify(manifest), 'utf8')
@@ -343,13 +344,24 @@ test('install rejects non-local packages declaring file:, link:, workspace-path,
     version: '1.0.0',
     dependencies: { 'host-parent': 'file:../secret' },
   }))
-  const gitSpec = await commitLocalGitRepo(gitRepoDir)
+  const localGitSpec = await commitLocalGitRepo(gitRepoDir)
   await expect(install(
-    { name: 'app', version: '1.0.0', dependencies: { 'git-remote': gitSpec } },
+    { name: 'app', version: '1.0.0', dependencies: { 'git-remote': localGitSpec } },
     testDefaults({ blockExoticSubdeps: false })
   )).rejects.toMatchObject({
     code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
   })
+  const served = await serveGitRepoOverHttp(gitRepoDir, localGitSpec.slice(localGitSpec.lastIndexOf('#') + 1))
+  try {
+    await expect(install(
+      { name: 'app', version: '1.0.0', dependencies: { 'git-remote': served.gitSpec } },
+      testDefaults({ blockExoticSubdeps: false })
+    )).rejects.toMatchObject({
+      code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+    })
+  } finally {
+    await served.close()
+  }
 })
 
 test('install preserves workspace overrides, packageExtensions, readPackage hooks, and deep workspace links', async () => {

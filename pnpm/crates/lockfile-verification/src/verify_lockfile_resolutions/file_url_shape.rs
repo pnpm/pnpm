@@ -66,7 +66,7 @@ fn strip_local_file_authority(decoded: &str) -> Option<&str> {
         .map(|_| &decoded[prefix.len()..])
 }
 
-fn percent_decode(input: &str) -> Option<String> {
+pub(super) fn percent_decode(input: &str) -> Option<String> {
     let bytes = input.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut idx = 0;

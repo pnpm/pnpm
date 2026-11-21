@@ -150,7 +150,7 @@ export function recordPristineSpecs (
     const entries = manifest[field]
     if (entries == null) continue
     const key = pristineSpecMapKey(candidate.baseKey, field)
-    const record = out.get(key) ?? {}
+    const record = out.get(key) ?? Object.create(null) as Record<string, string>
     for (const [alias, spec] of Object.entries(entries)) {
       if (typeof spec === 'string') record[alias] = spec
     }

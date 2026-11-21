@@ -191,7 +191,6 @@ function directoryTargetMismatches (
   if (!keyPath.startsWith('//')) {
     return normalizeRelDir(keyPath) !== normalizeRelDir(directory)
   }
-  if (isTarballFilename(keyPath)) return true
   return !fileUrlMatchesTarget(keyPath, directory, ctx)
 }
 

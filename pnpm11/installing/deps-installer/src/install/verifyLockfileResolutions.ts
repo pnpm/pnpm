@@ -114,6 +114,15 @@ export async function verifyLockfileResolutions (
   await startLockfileResolutionsVerification(lockfile, verifiers, options)
 }
 
+/** Anchor the local checks on the verified lockfile's directory unless the policy names one. */
+function withLockfileDir (
+  localPolicy: LocalResolutionPolicy | undefined,
+  lockfilePath: string | undefined
+): LocalResolutionPolicy | undefined {
+  if (lockfilePath == null || localPolicy?.lockfileDir != null) return localPolicy
+  return { ...(localPolicy ?? { workspaceDepthAboveLockfile: 0 }), lockfileDir: path.dirname(lockfilePath) }
+}
+
 export function verifyLockfileDependencyAliases (lockfile: LockfileObject): void {
   const invalidAliases = collectInvalidAliases(lockfile)
   if (invalidAliases.length > 0) {
@@ -171,7 +180,7 @@ export function startLockfileResolutionsVerification (
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
 ): Promise<void> | undefined {
-  verifyLockfileLocalResolutions(lockfile, options?.localPolicy)
+  verifyLockfileLocalResolutions(lockfile, withLockfileDir(options?.localPolicy, options?.lockfilePath))
   if (!lockfile.packages) return undefined
 
   const hasPolicyVerifiers = verifiers.length > 0 || Boolean(options?.blockExoticSubdeps)

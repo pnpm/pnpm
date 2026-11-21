@@ -69,15 +69,10 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
         await_lockfile_gate(&mut lockfile_handles.verification_gate).await?;
     }
     verify_repair_if_filtered::<Reporter>(
-        verify_filtered_repair,
+        verify_filtered_repair.then_some(install),
         &built_lockfile,
-        install.resolution_verifiers,
         lockfile_handles.exotic_subdeps.clone(),
-        (
-            install.drivers.config,
-            install.drivers.http_client,
-            resolved.hooks.after_all_resolved_hook.as_deref(),
-        ),
+        resolved.hooks.after_all_resolved_hook.as_deref(),
     )
     .await?;
     tracing::info!(

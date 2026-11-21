@@ -52,9 +52,9 @@ impl RunExecution<'_> {
         scope: &InstallScope<'_>,
     ) -> (pnpm_lockfile_verification::LocalResolutionPolicy, bool) {
         let config = self.install.context.config;
-        let has_pnpmfile_hook = !config.ignore_pnpmfile
-            && (self.owned.projects.pnpmfile_hook_override.is_some()
-                || !pnpm_hooks::finder::find_pnpmfiles(
+        let has_pnpmfile_hook = self.owned.projects.pnpmfile_hook_override.is_some()
+            || (!config.ignore_pnpmfile
+                && !pnpm_hooks::finder::find_pnpmfiles(
                     config.lockfile_dir_for(&self.workspace.dirs.workspace_root),
                     crate::pnpmfile_selection(config),
                 )

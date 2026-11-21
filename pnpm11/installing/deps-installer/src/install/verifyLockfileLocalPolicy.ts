@@ -276,10 +276,20 @@ export function computeWorkspaceDepth (
 }
 
 function normalizeTargetForMatch (target: string): string {
-  if (target.startsWith('//')) return decodeFileUrlOrSlashPath(target)
+  if (target.startsWith('//')) {
+    return fileUrlStepsBack(target) ? `\0${target}` : decodeFileUrlOrSlashPath(target)
+  }
   const slash = target.replace(/\\/g, '/')
   if (hasInnerParentSegment(slash)) return `\0${slash}`
   return slash.startsWith('/') || isDriveLetterPrefix(slash) ? canonicalSlashPath(slash) : normalizeRelDir(slash)
+}
+
+function fileUrlStepsBack (target: string): boolean {
+  try {
+    return hasInnerParentSegment(decodeURIComponent(target))
+  } catch {
+    return true
+  }
 }
 
 /**
@@ -320,8 +330,9 @@ function lookupPristineDeclaredSpec (
   field: LocalDepField,
   alias: string
 ): string | undefined {
-  const raw = policy.pristineDeclaredSpecs?.get(pristineSpecMapKey(baseKey, field))?.[alias]
-  return raw != null ? derefCatalogSpec(policy.catalogs, alias, raw) : undefined
+  const record = policy.pristineDeclaredSpecs?.get(pristineSpecMapKey(baseKey, field))
+  const raw = record != null && Object.hasOwn(record, alias) ? record[alias] : undefined
+  return typeof raw === 'string' ? derefCatalogSpec(policy.catalogs, alias, raw) : undefined
 }
 
 function afterAllResolvedAllows (policy: LocalResolutionPolicy, lockfile: LockfileObject, target: string): boolean {

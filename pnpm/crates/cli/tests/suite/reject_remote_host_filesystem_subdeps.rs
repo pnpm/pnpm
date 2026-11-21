@@ -126,10 +126,10 @@ fn assert_no_leaked_host_files(workspace: &Path) {
     if !nm.exists() {
         return;
     }
-    for entry in WalkDir::new(&nm).into_iter().flatten() {
-        if entry.path_is_symlink()
-            && let Ok(target) = fs::read_link(entry.path())
-        {
+    for entry in walk_node_modules(&nm, false) {
+        if entry.path_is_symlink() {
+            let target = fs::read_link(entry.path())
+                .unwrap_or_else(|err| panic!("read link {:?}: {err}", entry.path()));
             let target_str = target.to_string_lossy();
             assert!(
                 !target_str.contains(".config/gh") && !target_str.contains("secret"),
@@ -139,11 +139,7 @@ fn assert_no_leaked_host_files(workspace: &Path) {
             );
         }
     }
-    for entry in WalkDir::new(&nm)
-        .follow_links(true)
-        .into_iter()
-        .flatten()
-    {
+    for entry in walk_node_modules(&nm, true) {
         let name = entry.file_name().to_string_lossy();
         assert!(
             name != "hosts.yml" && name != "credentials.txt",
@@ -151,6 +147,27 @@ fn assert_no_leaked_host_files(workspace: &Path) {
             entry.path(),
         );
     }
+}
+
+/// Every entry under `nm`. A dangling link is skipped, since a rejected
+/// install can leave one behind. Any other error fails the test rather than
+/// hiding the subtree below it.
+fn walk_node_modules(nm: &Path, follow_links: bool) -> Vec<walkdir::DirEntry> {
+    WalkDir::new(nm)
+        .follow_links(follow_links)
+        .into_iter()
+        .filter_map(|entry| match entry {
+            Ok(entry) => Some(entry),
+            Err(err)
+                if err
+                    .io_error()
+                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) =>
+            {
+                None
+            }
+            Err(err) => panic!("cannot inspect {nm:?}: {err}"),
+        })
+        .collect()
 }
 
 #[test]
@@ -283,12 +300,13 @@ fn rejects_remote_tarball_and_git_packages_with_host_filesystem_subdependencies(
         .to_string(),
     );
     let commit = git_repo.commit("init");
+    let served_git = git_repo.serve_http();
     fs::write(
         workspace.join("package.json"),
         json!({
             "name": "app",
             "version": "1.0.0",
-            "dependencies": { "git-remote": git_repo.git_url_at(&commit) },
+            "dependencies": { "git-remote": served_git.git_url_at(&commit) },
         })
         .to_string(),
     )

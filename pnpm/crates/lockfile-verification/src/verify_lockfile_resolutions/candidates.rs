@@ -1,5 +1,3 @@
-use pnpm_lockfile::is_tarball_filename;
-
 use super::{
     Arc,
     BTreeMap,
@@ -158,8 +156,7 @@ pub(super) fn file_key_mismatches_local_target(
             if !key_path.starts_with("//") {
                 return normalize_rel_dir(key_path) != normalize_rel_dir(&dir.directory);
             }
-            is_tarball_filename(key_path)
-                || !file_url_matches_target(key_path, &dir.directory, shape_ctx)
+            !file_url_matches_target(key_path, &dir.directory, shape_ctx)
         }
         LockfileResolution::Tarball(tarball) => {
             // A remote tarball has its own URL key, so one behind a `file:`

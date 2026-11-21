@@ -36,7 +36,7 @@ export function collectShapeViolations (
   const shapeViolations: ResolutionPolicyViolation[] = []
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
     const parsed = parseLockfileDepPath(depPath)
-    const displayVersion = snapshot.version ?? parsed.version ?? parsed.nonSemverVersion
+    const displayVersion = snapshot.version || parsed.version || parsed.nonSemverVersion
     if (!parsed.name || !displayVersion) continue
     const reason = shapeMismatchReason(snapshot.resolution, parsed.nonSemverVersion, shapeCtx)
     if (reason != null) {
@@ -72,7 +72,7 @@ function collectLockfileFilePackageViolations (
     if (parsed.name != null && !isValidDependencyAlias(parsed.name)) {
       invalidAliases.add(parsed.name)
     }
-    const displayVersion = pkgInfo.version ?? parsed.version ?? parsed.nonSemverVersion
+    const displayVersion = pkgInfo.version || parsed.version || parsed.nonSemverVersion
     if (!parsed.name || !displayVersion) continue
     const reason = shapeMismatchReason(pkgInfo.resolution, parsed.nonSemverVersion, shapeCtx)
     if (reason != null) {

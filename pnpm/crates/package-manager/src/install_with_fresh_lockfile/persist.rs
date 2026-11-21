@@ -34,21 +34,24 @@ use std::{
 };
 
 pub(super) async fn verify_repair_if_filtered<Reporter: pnpm_reporter::Reporter>(
-    verify_filtered_repair: bool,
+    filtered_repair: Option<super::FreshInputs<'_>>,
     built_lockfile: &Lockfile,
-    resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
     exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
-    (config, http_client, hook): (
-        &Config,
-        &pnpm_network::ThrottledClient,
-        Option<&dyn pnpm_hooks::PnpmfileHooks>,
-    ),
+    hook: Option<&dyn pnpm_hooks::PnpmfileHooks>,
 ) -> Result<(), InstallWithFreshLockfileError> {
-    if !verify_filtered_repair {
+    let Some(install) = filtered_repair else {
         return Ok(());
-    }
-    let base_policy =
-        pnpm_deps_restorer::local_resolution_policy_for_config(config, hook.is_some());
+    };
+    let (config, http_client) = (install.drivers.config, install.drivers.http_client);
+    let overrides_root_dir = install.manifests.overrides_root_dir;
+    let containment_root =
+        overrides_root_dir.or(config.workspace_dir.as_deref()).unwrap_or(&config.dir);
+    let base_policy = pnpm_deps_restorer::local_resolution_policy_for_workspace_with_catalogs(
+        config,
+        None,
+        (overrides_root_dir, containment_root, config.lockfile_dir_for(&config.dir)),
+        hook.is_some(),
+    );
     let local_policy = pnpm_deps_restorer::enrich_local_policy_for_install(
         base_policy,
         built_lockfile,
@@ -62,7 +65,7 @@ pub(super) async fn verify_repair_if_filtered<Reporter: pnpm_reporter::Reporter>
     .map_err(InstallWithFreshLockfileError::PnpmfileHook)?;
     verify_merged_repair::<Reporter>(
         built_lockfile,
-        resolution_verifiers,
+        install.resolution_verifiers,
         (exotic_subdeps, Some(local_policy)),
     )
     .await

@@ -643,3 +643,64 @@ fn ranged_override_covers_a_peer_only_declaration() {
         .expect_err("a peer declared at ^2.0.0 is not covered");
     assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{err:?}");
 }
+
+#[test]
+fn a_regular_dependency_named_like_a_local_peer_is_not_a_resolved_peer() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      plugin:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  plugin@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n    peerDependencies:\n      helper: file:../unused\n  helper@1.0.0:\n    resolution: {integrity: sha512-helper}\nsnapshots:\n  plugin@1.0.0:\n    dependencies:\n      helper: 1.0.0\n  helper@1.0.0: {}\n",
+    );
+    crate::verify_lockfile_local_resolutions(&lockfile, None)
+        .expect("a regular `helper` dependency does not bind the local peer declaration");
+}
+
+#[test]
+fn file_url_target_does_not_match_a_path_that_steps_back_through_a_segment() {
+    let lockfile = |target: &str| {
+        parse(&format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      remote-pkg:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  remote-pkg@1.0.0:\n    resolution: {{integrity: sha512-deadbeef}}\nsnapshots:\n  remote-pkg@1.0.0:\n    dependencies:\n      helper: link:{target}\n",
+        ))
+    };
+    let policy = || {
+        LocalResolutionPolicy::from_scoped_inputs(
+            [("remote-pkg>helper", "link:/work/app/shared")],
+            [],
+            false,
+            None,
+        )
+    };
+    crate::verify_lockfile_local_resolutions(&lockfile("///work/app/shared"), Some(policy()))
+        .expect("the overridden file URL target must pass");
+    for stepping_back in ["///work/app/linked/../shared", "///work/app/linked/%2e%2e/shared"] {
+        let err =
+            crate::verify_lockfile_local_resolutions(&lockfile(stepping_back), Some(policy()))
+                .expect_err(stepping_back);
+        assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{err:?}");
+    }
+}
+
+#[tokio::test]
+async fn deployed_directory_named_like_a_tarball_matches_its_target() {
+    let lockfile = |directory: &str| {
+        parse(&format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      helper:\n        specifier: file:../helper.tgz\n        version: file:///work/helper.tgz\npackages:\n  helper@file:///work/helper.tgz:\n    resolution: {{type: directory, directory: {directory}}}\nsnapshots:\n  helper@file:///work/helper.tgz: {{}}\n",
+        ))
+    };
+    let verify = |lockfile: pnpm_lockfile::Lockfile| async move {
+        verify_lockfile_resolutions::<SilentReporter>(
+            &lockfile,
+            &[],
+            &VerifyLockfileResolutionsOptions {
+                local_policy: Some(
+                    LocalResolutionPolicy::default()
+                        .with_deploy(true)
+                        .with_lockfile_dir(Path::new("/work/app")),
+                ),
+                ..VerifyLockfileResolutionsOptions::default()
+            },
+        )
+        .await
+    };
+    verify(lockfile("../helper.tgz")).await.expect("the directory is the one the key names");
+    let err = verify(lockfile("../other")).await.expect_err("a different directory must not match");
+    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "{err:?}");
+}

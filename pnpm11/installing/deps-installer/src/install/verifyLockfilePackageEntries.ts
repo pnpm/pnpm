@@ -62,7 +62,7 @@ function inspectPackageEntry (
   const pkgVer = parsed.version ?? snapshot.version
   const displayVer = pkgVer ?? parsed.nonSemverVersion ?? '0.0.0'
   if (scan.selectedSnapshots == null || scan.selectedSnapshots.has(depPath)) {
-    checkSnapshotPeerSpecs(scan, { name: pkgName, version: pkgVer, displayVer, baseKey, nonSemverVersion: parsed.nonSemverVersion, snapshot }, violations)
+    checkSnapshotPeerSpecs(scan, { name: pkgName, version: pkgVer, displayVer, baseKey, nonSemverVersion: parsed.nonSemverVersion, peerSuffix: parsed.peerDepGraphHash, snapshot }, violations)
   }
   if (parsed.nonSemverVersion?.startsWith('file:')) {
     checkFilePackageEntry(scan, shapeCtx, { pkgName, baseKey, nonSemverVersion: parsed.nonSemverVersion, snapshot }, violations)
@@ -113,7 +113,7 @@ function checkLocalGitPackageEntry (
 
 function checkSnapshotPeerSpecs (
   scan: PackageEntryScan,
-  pkg: { name: string, version?: string, displayVer: string, baseKey: string, nonSemverVersion?: string, snapshot: PackageSnapshot },
+  pkg: { name: string, version?: string, displayVer: string, baseKey: string, nonSemverVersion?: string, peerSuffix?: string, snapshot: PackageSnapshot },
   violations: ResolutionPolicyViolation[]
 ): void {
   const peers = pkg.snapshot.peerDependencies
@@ -121,7 +121,7 @@ function checkSnapshotPeerSpecs (
   const isAuthorizedGit = isLocalGitPackage(pkg.nonSemverVersion, pkg.snapshot.resolution) &&
     scan.authorizedGitPackages.has(pkg.baseKey)
   for (const [alias, spec] of Object.entries(peers)) {
-    if (isPeerResolved(pkg.snapshot, alias) && isUnauthorizedPeerSpec(scan, pkg, { alias, spec, isAuthorizedGit })) {
+    if (isPeerResolved(pkg, alias) && isUnauthorizedPeerSpec(scan, pkg, { alias, spec, isAuthorizedGit })) {
       violations.push(packageViolation(pkg.name, pkg.displayVer, pkg.snapshot, LOCAL_SUBDEP_CODE, 'a package entry declares an unauthorized local filesystem peer dependency'))
     }
   }
@@ -131,8 +131,22 @@ function checkSnapshotPeerSpecs (
  * A peer left unresolved (for example under `autoInstallPeers: false`)
  * creates no edge, so its declaration reaches nothing on disk.
  */
-function isPeerResolved (snapshot: PackageSnapshot, alias: string): boolean {
-  return snapshot.dependencies?.[alias] != null || snapshot.optionalDependencies?.[alias] != null
+function isPeerResolved (
+  { peerSuffix, snapshot }: { peerSuffix?: string, snapshot: PackageSnapshot },
+  alias: string
+): boolean {
+  const takesAlias = snapshot.dependencies?.[alias] != null || snapshot.optionalDependencies?.[alias] != null
+  return takesAlias && peerSuffixBinds(peerSuffix, alias)
+}
+
+/**
+ * Whether the dependency path's peer suffix binds `alias`. A regular
+ * dependency of the same name is not a resolved peer. A hashed suffix names
+ * no peers, so it counts as binding every alias.
+ */
+function peerSuffixBinds (peerSuffix: string | undefined, alias: string): boolean {
+  if (!peerSuffix) return false
+  return !peerSuffix.startsWith('(') || peerSuffix.includes(`(${alias}@`)
 }
 
 function snapshotSkipsPeerCheck (

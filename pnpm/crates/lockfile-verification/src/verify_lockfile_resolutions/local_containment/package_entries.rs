@@ -226,17 +226,29 @@ fn index_resolved_aliases(
             selected_snapshots.is_none_or(|selected| selected.contains(snap_key))
         });
     for (snap_key, snapshot) in snapshots {
+        let peer_suffix = snap_key.suffix.peer();
         let names = [&snapshot.dependencies, &snapshot.optional_dependencies]
             .into_iter()
             .flatten()
             .flat_map(HashMap::keys)
-            .map(ToString::to_string);
+            .map(ToString::to_string)
+            .filter(|name| peer_suffix_binds(peer_suffix, name));
         by_base
             .entry(snap_key.without_peer())
             .or_default()
             .extend(names);
     }
     by_base
+}
+
+/// Whether the snapshot key's peer suffix binds `alias`. A regular
+/// dependency of the same name is not a resolved peer. A hashed suffix names
+/// no peers, so it counts as binding every alias.
+fn peer_suffix_binds(peer_suffix: &str, alias: &str) -> bool {
+    if peer_suffix.is_empty() {
+        return false;
+    }
+    !peer_suffix.starts_with('(') || peer_suffix.contains(&format!("({alias}@"))
 }
 
 /// Whether an authorized local package declares the same peer, which lets
