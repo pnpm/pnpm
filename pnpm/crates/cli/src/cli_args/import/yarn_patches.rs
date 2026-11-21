@@ -152,31 +152,43 @@ pub(super) fn convert_yarn_patches(
             .wrap_err_with(|| format!("saving {}", manifest.path().display()))?;
         converted.manifests_changed = true;
         for (alias, patch) in patches {
-            let patch_file = single_patch_file(
-                &alias,
-                &patch.patch_paths,
-                yarn_root,
-                &project_dir,
-                workspace_dir,
-            );
-            let patch_file = match patch_file {
-                Ok(patch_file) => patch_file,
-                Err(DroppedPatch::Missing { .. })
-                    if patched_dependencies.contains_key(&patch.patch_key) =>
-                {
-                    continue;
-                }
-                Err(dropped) => {
-                    converted.dropped.push(dropped);
-                    continue;
-                }
-            };
-            let Some(patch_file) = patch_file else { continue };
-            let recorded = RecordedPatch { key: patch.patch_key, file: &patch_file, alias };
-            converted.dropped.extend(recorded.record(patched_dependencies, workspace_dir));
+            let dropped =
+                patch.record(alias, yarn_root, &project_dir, workspace_dir, patched_dependencies);
+            converted.dropped.extend(dropped);
         }
     }
     Ok(converted)
+}
+
+impl YarnPatchSpecifier {
+    fn record(
+        self,
+        alias: String,
+        yarn_root: &Path,
+        project_dir: &Path,
+        workspace_dir: &Path,
+        patched_dependencies: &mut IndexMap<String, String>,
+    ) -> Option<DroppedPatch> {
+        let file = match single_patch_file(
+            &alias,
+            &self.patch_paths,
+            yarn_root,
+            project_dir,
+            workspace_dir,
+        ) {
+            Ok(file) => file?,
+            Err(DroppedPatch::Missing { .. })
+                if patched_dependencies.contains_key(&self.patch_key) =>
+            {
+                return None;
+            }
+            Err(dropped) => return Some(dropped),
+        };
+        RecordedPatch { key: self.patch_key, file: &file, alias }.record(
+            patched_dependencies,
+            workspace_dir,
+        )
+    }
 }
 
 /// The one patch file pnpm can apply, or `None` when Yarn listed only

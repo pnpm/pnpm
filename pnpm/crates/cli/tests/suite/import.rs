@@ -596,7 +596,7 @@ fn import_writes_through_a_symlinked_lockfile_when_allowed() {
     assert!(stderr.contains("symlink"), "{stderr}");
     assert_eq!(
         fs::read_to_string(source.join("pnpm-lock.yaml")).unwrap(),
-        "# stale placeholder lockfile\n"
+        "# stale placeholder lockfile\n",
     );
 
     pacquet

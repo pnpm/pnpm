@@ -128,7 +128,7 @@ async fn import_workspace<Reporter: self::Reporter + 'static>(
                 project_dir,
                 super::pipelines::project_manifest_name(project),
                 false,
-                Some(state.http_client.clone()),
+                Some(std::sync::Arc::clone(&state.http_client)),
             )?;
             child.discovered_workspace = Some(workspace.clone());
             replace_lockfile::<Reporter>(&child, pins).await?;
