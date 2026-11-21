@@ -1,12 +1,14 @@
+pub(crate) mod peers;
+
+mod aliased;
+
 use super::{
-    BTreeSet,
-    Cell,
     HashMap,
     HoistError,
     HoistOpts,
     HoisterDependencyKind,
-    HoisterResult,
     HoisterTree,
+    IndexMap,
     IndexSet,
     Lockfile,
     PkgName,
@@ -18,14 +20,22 @@ use super::{
     SnapshotEntry,
     VersionPart,
 };
-use std::fmt::Write as _;
+use std::{
+    collections::BTreeSet,
+    fmt::Write as _,
+};
+
+/// The peers of each snapshot that the hoister handles as regular
+/// dependencies. See [`crate::repair`].
+pub(crate) type RegularPeers = HashMap<PkgNameVerPeer, BTreeSet<String>>;
 
 pub(super) fn external_placeholder(dep: &str) -> Rc<HoisterTree> {
     Rc::new(HoisterTree {
+        identity: None,
         name: dep.to_string(),
         ident_name: dep.to_string(),
         reference: "link:".to_string(),
-        peer_names: BTreeSet::new(),
+        peer_names: IndexSet::new(),
         dependency_kind: HoisterDependencyKind::ExternalSoftLink,
         hoist_priority: 0,
         dependencies: RefCell::new(IndexSet::new()),
@@ -40,14 +50,25 @@ fn package_root_link_node(
     dep_ref: &pnpm_lockfile::SnapshotDepRef,
 ) -> Rc<HoisterTree> {
     Rc::new(HoisterTree {
+        identity: None,
         name: alias.to_string(),
         ident_name: alias.to_string(),
         reference: dep_ref.to_string(),
-        peer_names: BTreeSet::new(),
+        peer_names: IndexSet::new(),
         dependency_kind: HoisterDependencyKind::Workspace,
         hoist_priority: 0,
         dependencies: RefCell::new(IndexSet::new()),
     })
+}
+
+/// Empty every node's children. Dependency cycles in the lockfile make
+/// the tree a web of reference cycles that would otherwise never be freed.
+pub(super) fn tear_down(root: &Rc<HoisterTree>) {
+    let mut pending = vec![Rc::clone(root)];
+    while let Some(node) = pending.pop() {
+        let children = std::mem::take(&mut *node.dependencies.borrow_mut());
+        pending.extend(children.into_iter().map(|child| child.0));
+    }
 }
 
 /// `HashMap` iteration order is non-deterministic; sort so the
@@ -67,33 +88,54 @@ pub(super) fn importer_node(
     children: IndexSet<RcByPtr<HoisterTree>>,
 ) -> Rc<HoisterTree> {
     Rc::new(HoisterTree {
+        identity: None,
         name: percent_encode_path(importer_id),
         ident_name: percent_encode_path(importer_id),
         reference: format!("workspace:{importer_id}"),
-        peer_names: BTreeSet::new(),
+        peer_names: IndexSet::new(),
         dependency_kind: HoisterDependencyKind::Workspace,
         hoist_priority: 0,
         dependencies: RefCell::new(children),
     })
 }
 
-/// Conversion-phase caches. `nodes` interns one [`HoisterTree`] per
-/// `(alias, snapshot key)` edge target. `dep_key_by_pkg_id` maps a
-/// package id (see [`pkg_id`]) to the first snapshot key seen for it.
-///
-/// A node without peer names gets that first key as its `reference`,
-/// so the hoister sees one locator per package version and dedups the
-/// peer variants instead of nesting a copy of each. Its children still
-/// come from its own snapshot. Ports `depPathByPkgId` from pnpm v11's
-/// `@pnpm/real-hoist` wrapper.
-///
-/// A node with peer names keeps its own snapshot key. The hoister then
-/// nests the variant wherever its peers resolve differently, and the
-/// walker knows which snapshot each copy holds.
+/// Conversion-phase cache: one [`HoisterTree`] per `(alias, snapshot
+/// key)` edge target. Every node carries its own snapshot key as its
+/// `reference`; the hoister collapses the peer variants of one package
+/// version into one identity itself (see [`pkg_id`]).
 #[derive(Default)]
 pub(super) struct TreeCache {
     pub(super) nodes: HashMap<String, Rc<HoisterTree>>,
-    pub(super) dep_key_by_pkg_id: HashMap<String, PkgNameVerPeer>,
+    pub(super) regular_peers: RegularPeers,
+    /// The peers each node binds, by the node's `reference`.
+    pub(super) bound_peers: peers::BoundPeersByKey,
+}
+
+/// Whether the lockfile may leave out the snapshot an edge points at.
+#[derive(Clone, Copy)]
+enum Edge {
+    Required,
+    /// An `optionalDependencies` entry, whose snapshot pnpm drops when it
+    /// skips the dependency (platform mismatch, fetch failure), or an edge
+    /// to a peer provider that is added only when its snapshot exists.
+    Optional,
+}
+
+/// Dependency groups merged as pnpm v11 spreads them into one object:
+/// group by group, each in the alias order the lockfile writes, and a
+/// later group overwrites an alias without moving it.
+fn spread_groups<'map, Value>(
+    groups: &[(&'map Option<HashMap<PkgName, Value>>, Edge)],
+) -> IndexMap<&'map PkgName, (&'map Value, Edge)> {
+    let mut merged = IndexMap::new();
+    for (deps, edge) in groups {
+        let mut entries: Vec<(&PkgName, &Value)> = deps.iter().flatten().collect();
+        entries.sort_by_key(|(alias, _)| alias.to_string());
+        for (alias, value) in entries {
+            merged.insert(alias, (value, *edge));
+        }
+    }
+    merged
 }
 
 pub(super) fn collect_importer_deps(
@@ -103,26 +145,12 @@ pub(super) fn collect_importer_deps(
     cache: &mut TreeCache,
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
-    // Merge `dependencies + devDependencies + optionalDependencies`
-    // into one alias-keyed object; on a duplicate alias the last
-    // write wins. `ResolvedDependencyMap` is a HashMap so declaration
-    // order is lost; merge into a `HashMap` (last write wins) and emit
-    // in alias-sorted order so the build is deterministic regardless
-    // of map seed.
-    let mut merged: HashMap<&PkgName, (&pnpm_lockfile::ResolvedDependencySpec, bool)> =
-        HashMap::new();
-    for (deps, optional) in [
-        (&importer.dependencies, false),
-        (&importer.dev_dependencies, false),
-        (&importer.optional_dependencies, true),
-    ] {
-        for (alias, spec) in deps.iter().flatten() {
-            merged.insert(alias, (spec, optional));
-        }
-    }
-    let mut entries: Vec<_> = merged.into_iter().collect();
-    entries.sort_by_key(|(alias, _)| alias.to_string());
-    for (alias, (spec, optional)) in entries {
+    let groups = [
+        (&importer.dependencies, Edge::Required),
+        (&importer.dev_dependencies, Edge::Required),
+        (&importer.optional_dependencies, Edge::Optional),
+    ];
+    for (alias, (spec, edge)) in spread_groups(&groups) {
         // For an aliased importer dep (`ImporterDepVersion::Alias`),
         // the snapshot key is the alias's own (name, suffix);
         // [`ImporterDepVersion::resolved_key`] returns that.
@@ -137,24 +165,39 @@ pub(super) fn collect_importer_deps(
         let Some(dep_key) = spec.version.resolved_key(alias) else {
             continue;
         };
-        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, cache)? else {
+        let Some(node) = build_dep_node(alias, &dep_key, edge, lockfile, opts, cache)? else {
             continue;
         };
         out.insert(RcByPtr(node));
     }
+    let holder = aliased::Holder { name: "", key: None, peer_names: &IndexSet::new() };
+    link_aliased_peer_providers(&holder, (lockfile, opts), cache, out)
+}
+
+/// See [`aliased`].
+fn link_aliased_peer_providers(
+    holder: &aliased::Holder<'_>,
+    (lockfile, opts): (&Lockfile, &HoistOpts),
+    cache: &mut TreeCache,
+    children: &mut IndexSet<RcByPtr<HoisterTree>>,
+) -> Result<(), HoistError> {
+    for (peer, key) in aliased::aliased_peer_providers(holder, children, &cache.bound_peers) {
+        let Ok(alias) = PkgName::parse(peer.as_str()) else { continue };
+        if let Some(node) = build_dep_node(&alias, &key, Edge::Optional, lockfile, opts, cache)? {
+            children.insert(RcByPtr(node));
+        }
+    }
     Ok(())
 }
 
-/// Returns `Ok(None)` for an optional edge whose target snapshot is
-/// missing, a skipped optional dependency (platform mismatch, fetch
-/// failure) is filtered out of the current lockfile, and pnpm skips
-/// such an edge rather than treating the lockfile as broken. A
-/// missing snapshot behind a non-optional edge is still
+/// Returns `Ok(None)` for an [`Edge::Optional`] whose target snapshot is
+/// missing: pnpm skips such an edge rather than treating the lockfile as
+/// broken. A missing snapshot behind an [`Edge::Required`] is
 /// [`HoistError::LockfileMissingDependency`].
 fn build_dep_node(
     alias: &PkgName,
     dep_key: &PkgNameVerPeer,
-    optional: bool,
+    edge: Edge,
     lockfile: &Lockfile,
     opts: &HoistOpts,
     cache: &mut TreeCache,
@@ -168,7 +211,7 @@ fn build_dep_node(
         return Ok(Some(Rc::clone(existing)));
     }
 
-    let Some(snapshot) = lookup_snapshot(dep_key, optional, lockfile)? else {
+    let Some(snapshot) = lookup_snapshot(dep_key, edge, lockfile)? else {
         return Ok(None);
     };
 
@@ -179,21 +222,17 @@ fn build_dep_node(
     // outer call returns the cell holds the populated set, and the
     // shared-by-identity invariant the hoister algorithm relies on
     // survives.
-    let peer_names = peer_names_of(dep_key, snapshot, lockfile, opts);
-    // See [`TreeCache`] for when a variant keeps its own key.
-    let reference = if peer_names.is_empty() {
-        cache.dep_key_by_pkg_id
-            .entry(pkg_id(dep_key))
-            .or_insert_with(|| dep_key.clone())
-            .to_string()
-    } else {
-        dep_key.to_string()
-    };
+    let peers =
+        peers::peer_view(dep_key, snapshot, lockfile, opts, cache.regular_peers.get(dep_key));
+    cache.bound_peers
+        .entry(dep_key.to_string())
+        .or_insert_with(|| Rc::new(peers::bound_peers(dep_key, snapshot, &peers.names, lockfile)));
     let node = Rc::new(HoisterTree {
+        identity: peers.identity,
         name: alias.to_string(),
         ident_name: dep_key.name.to_string(),
-        reference,
-        peer_names,
+        reference: dep_key.to_string(),
+        peer_names: peers.names,
         dependency_kind: HoisterDependencyKind::Regular,
         hoist_priority: 0,
         dependencies: RefCell::new(IndexSet::new()),
@@ -202,62 +241,68 @@ fn build_dep_node(
 
     let mut children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
     collect_snapshot_deps(snapshot, lockfile, opts, cache, &mut children)?;
+    let context = (lockfile, opts);
+    link_transitive_peer_providers(dep_key, snapshot, context, cache, &mut children)?;
+    let holder =
+        aliased::Holder { name: &node.name, key: Some(dep_key), peer_names: &node.peer_names };
+    link_aliased_peer_providers(&holder, context, cache, &mut children)?;
     *node.dependencies.borrow_mut() = children;
     Ok(Some(node))
 }
 
+/// Give each transitive peer an edge to the provider the snapshot key's
+/// peer suffix records, as a Yarn virtual package links its peers.
+///
+/// A lockfile lists a transitive peer only by name. Without the edge the
+/// hoister's peer check stops at this node and calls the peer satisfied,
+/// so a descendant could be deduplicated into a copy that resolves the
+/// peer to another version. A peer edge is never hoisted and never
+/// emitted, so the edge adds no directory.
+fn link_transitive_peer_providers(
+    dep_key: &PkgNameVerPeer,
+    snapshot: &SnapshotEntry,
+    (lockfile, opts): (&Lockfile, &HoistOpts),
+    cache: &mut TreeCache,
+    children: &mut IndexSet<RcByPtr<HoisterTree>>,
+) -> Result<(), HoistError> {
+    let has_edge = |name: &str| {
+        children
+            .iter()
+            .any(|child| child.0.name == name)
+    };
+    let bound = cache.bound_peers
+        .get(&dep_key.to_string())
+        .map(Rc::clone)
+        .unwrap_or_default();
+    let providers = peers::unlinked_peer_providers((dep_key, snapshot), lockfile, &bound, has_edge);
+    for provider in providers {
+        if let Some(provider_node) =
+            build_dep_node(&provider.name, &provider, Edge::Optional, lockfile, opts, cache)?
+        {
+            children.insert(RcByPtr(provider_node));
+        }
+    }
+    Ok(())
+}
+
 /// `dep_key`'s entry in the `snapshots:` map. A missing entry is an error
-/// unless the dependency is optional, in which case there is nothing
+/// unless the edge is [`Edge::Optional`], in which case there is nothing
 /// to hoist.
 fn lookup_snapshot<'a>(
     dep_key: &PkgNameVerPeer,
-    optional: bool,
+    edge: Edge,
     lockfile: &'a Lockfile,
 ) -> Result<Option<&'a SnapshotEntry>, HoistError> {
-    match lockfile.snapshots
+    let snapshot = lockfile.snapshots
         .as_ref()
-        .and_then(|snapshots| snapshots.get(dep_key))
-    {
-        Some(snapshot) => Ok(Some(snapshot)),
-        None if optional => Ok(None),
-        None => Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() }),
+        .and_then(|snapshots| snapshots.get(dep_key));
+    match (snapshot, edge) {
+        (Some(snapshot), _) => Ok(Some(snapshot)),
+        (None, Edge::Optional) => Ok(None),
+        (None, Edge::Required) => {
+            Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() })
+        }
     }
-}
-
-/// The node's peer-name set: `peerDependencies` (from the `packages:` map)
-/// plus `transitivePeerDependencies` (from the `snapshots:` map). Empty when
-/// `auto_install_peers` is on, so the hoister moves freely.
-fn peer_names_of(
-    dep_key: &PkgNameVerPeer,
-    snapshot: &SnapshotEntry,
-    lockfile: &Lockfile,
-    opts: &HoistOpts,
-) -> BTreeSet<String> {
-    if opts.auto_install_peers {
-        return BTreeSet::new();
-    }
-    let mut peer_names = declared_peer_names(dep_key, lockfile);
-    peer_names.extend(
-        snapshot.transitive_peer_dependencies
-            .iter()
-            .flatten()
-            .cloned(),
-    );
-    peer_names
-}
-
-fn declared_peer_names(dep_key: &PkgNameVerPeer, lockfile: &Lockfile) -> BTreeSet<String> {
-    let Some(packages) = lockfile.packages.as_ref() else {
-        return BTreeSet::new();
-    };
-    let Some(meta) = packages.get(&dep_key.without_peer()) else {
-        return BTreeSet::new();
-    };
-    meta.peer_dependencies
-        .iter()
-        .flatten()
-        .map(|(name, _)| name.clone())
-        .collect()
 }
 
 fn collect_snapshot_deps(
@@ -267,17 +312,11 @@ fn collect_snapshot_deps(
     cache: &mut TreeCache,
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
-    let mut merged: HashMap<&PkgName, (&pnpm_lockfile::SnapshotDepRef, bool)> = HashMap::new();
-    for (deps, optional) in
-        [(&snapshot.dependencies, false), (&snapshot.optional_dependencies, true)]
-    {
-        for (alias, dep_ref) in deps.iter().flatten() {
-            merged.insert(alias, (dep_ref, optional));
-        }
-    }
-    let mut entries: Vec<_> = merged.into_iter().collect();
-    entries.sort_by_key(|(alias, _)| alias.to_string());
-    for (alias, (dep_ref, optional)) in entries {
+    let groups = [
+        (&snapshot.dependencies, Edge::Required),
+        (&snapshot.optional_dependencies, Edge::Optional),
+    ];
+    for (alias, (dep_ref, edge)) in spread_groups(&groups) {
         // `dep_ref.resolve(alias)` returns the *snapshot lookup
         // key*: `<alias>@<ver>` for `Plain`, `<target>@<ver>` for
         // an npm-alias `Alias`. Pass that as `dep_key` so the
@@ -294,7 +333,7 @@ fn collect_snapshot_deps(
             }
             continue;
         };
-        let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, cache)? else {
+        let Some(node) = build_dep_node(alias, &dep_key, edge, lockfile, opts, cache)? else {
             continue;
         };
         out.insert(RcByPtr(node));
@@ -306,16 +345,12 @@ fn collect_snapshot_deps(
 /// onto: the snapshot key with its peer suffix (and the patch hash
 /// that sits alongside it) removed.
 ///
-/// The hoister maps the id to the first snapshot key it sees for it
-/// and stamps that key on every variant, so only that first key
-/// survives as their shared `reference`. Anything indexing the hoist
-/// result by package therefore has to key *and* look up by this id
-/// rather than by the snapshot key an edge declares; otherwise every
-/// edge on a collapsed variant finds nothing and drops out of the
-/// layout.
+/// The hoister deduplicates nodes by this id, and a directory lists
+/// the snapshot key of every variant it serves in
+/// [`HoisterResult::references`](crate::HoisterResult::references).
 ///
-/// One id can still cover several directories: [`HoisterTree`] nodes
-/// are interned per `(alias, snapshot key)`, so an alias exposing a
+/// One id can cover several directories: [`HoisterTree`] nodes are
+/// interned per `(alias, snapshot key)`, so an alias exposing a
 /// package under a second name gets a node, and a directory, of its
 /// own. An index over the result holds the list and resolves an edge
 /// to its first entry.
@@ -385,51 +420,4 @@ pub fn percent_encode_path(text: &str) -> String {
         }
     }
     out
-}
-
-#[derive(Default)]
-pub(super) struct ConvertContext {
-    pub(super) result_by_tree: HashMap<*const HoisterTree, Rc<HoisterResult>>,
-}
-
-pub(super) fn convert(tree: &HoisterTree, context: &mut ConvertContext) -> Rc<HoisterResult> {
-    let ptr = std::ptr::from_ref::<HoisterTree>(tree);
-    if let Some(existing) = context.result_by_tree.get(&ptr) {
-        return Rc::clone(existing);
-    }
-    // Stash a node with empty `dependencies`, then recurse and
-    // populate the cell in place. Anyone reached via a back-edge
-    // gets `Rc::clone` of the same allocation and reads the
-    // (eventually-populated) cell, matches the in-place mutation
-    // semantics the real hoist algorithm needs.
-    let mut refs = BTreeSet::new();
-    refs.insert(tree.reference.clone());
-    let node = Rc::new(HoisterResult {
-        name: tree.name.clone(),
-        ident_name: tree.ident_name.clone(),
-        references: RefCell::new(refs),
-        peer_names: tree.peer_names.clone(),
-        dependencies: RefCell::new(IndexSet::new()),
-        hoisted_dependencies: RefCell::new(HashMap::new()),
-        decoupled: Cell::new(false),
-    });
-    context.result_by_tree.insert(ptr, Rc::clone(&node));
-
-    // Collect the children before recursing so we can drop the
-    // `Ref<'_, IndexSet<...>>` borrow on `tree.dependencies`. The
-    // recursion only reads (not mutates) `HoisterTree` cells, so
-    // holding the borrow across recursive calls is technically
-    // safe, but releasing it keeps the panic surface smaller if
-    // the algorithm later grows a mutation pass over the input.
-    let to_convert: Vec<RcByPtr<HoisterTree>> = tree.dependencies
-        .borrow()
-        .iter()
-        .cloned()
-        .collect();
-    let mut children: IndexSet<RcByPtr<HoisterResult>> = IndexSet::new();
-    for child in to_convert {
-        children.insert(RcByPtr(convert(&child.0, context)));
-    }
-    *node.dependencies.borrow_mut() = children;
-    node
 }

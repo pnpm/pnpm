@@ -17,6 +17,7 @@ pnpm-local-spec = { workspace = true }
 derive_more = { workspace = true }
 indexmap = { workspace = true }
 miette = { workspace = true }
+rustc-hash = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

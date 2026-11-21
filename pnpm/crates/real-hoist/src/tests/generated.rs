@@ -126,6 +126,7 @@ fn build(
         children.push(child);
     }
 
+    link_transitive_peer_providers(&external, &mut children);
     let name = NAMES[package.0];
     let suffix: String = external
         .values()
@@ -140,6 +141,16 @@ fn build(
         .entry(reference.clone())
         .or_insert_with(|| tree_node(name, &reference, &peer_names, children));
     (Rc::clone(node), external)
+}
+
+/// Like Yarn's virtual packages, and like the tree pnpm builds from a
+/// lockfile, a node links each transitive peer to its provider.
+fn link_transitive_peer_providers(external: &ExternalPeers, children: &mut Vec<Rc<HoisterTree>>) {
+    for provider in external.values() {
+        if !children.iter().any(|child| Rc::ptr_eq(child, provider)) {
+            children.push(Rc::clone(provider));
+        }
+    }
 }
 
 fn importer(seed: u64) -> Rc<HoisterTree> {

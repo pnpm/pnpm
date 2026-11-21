@@ -8,10 +8,15 @@ use pnpm_deps_restorer::{
     parse_dep_path_name_version,
     validate_importer_id,
 };
+use pnpm_lockfile::PackageKey;
 use serde_json::Value;
 use std::{
-    collections::HashMap,
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     fs,
+    ops::Bound,
     path::{
         Path,
         PathBuf,
@@ -66,8 +71,11 @@ impl Locator {
         if input.config.node_linker != NodeLinker::Hoisted {
             return Some(self.modules_dirs.of_importer_id(importer_id).join(alias));
         }
-        let recorded = input.hoisted_locations?.get(dep_path)?;
-        self.hoisted_package_dir(input, importer_id, alias, recorded)
+        let recorded = recorded_locations(input.hoisted_locations?, dep_path);
+        if recorded.is_empty() {
+            return None;
+        }
+        self.hoisted_package_dir(input, importer_id, alias, &recorded)
     }
 
     /// The installed symlink and expected target directory of a `link:` direct
@@ -135,6 +143,38 @@ impl Locator {
             .or_insert_with(|| fs::canonicalize(workspace_root.join(loc)).ok())
             .clone()
     }
+}
+
+/// The directories recorded for `dep_path` and for the other peer variants
+/// of the same package version and patch.
+///
+/// The hoisted linker records a directory under the key of the copy that
+/// holds it. Peer variants of one package version can share a directory,
+/// so the one a project resolves may be recorded under another variant's
+/// key.
+fn recorded_locations(locations: &BTreeMap<String, Vec<String>>, dep_path: &str) -> Vec<String> {
+    let Ok(key) = dep_path.parse::<PackageKey>() else {
+        return locations
+            .get(dep_path)
+            .cloned()
+            .unwrap_or_default();
+    };
+    let variant = format!("{}@{}", key.name, key.suffix.without_peer_bindings());
+    let is_patched = !key.suffix.patch_group().is_empty();
+    locations
+        .range::<str, _>((Bound::Included(variant.as_str()), Bound::Unbounded))
+        .take_while(|(recorded, _)| recorded.starts_with(&variant))
+        .filter(|(recorded, _)| continues_with_peers(&recorded[variant.len()..], is_patched))
+        .flat_map(|(_, dirs)| dirs.iter().cloned())
+        .collect()
+}
+
+/// Whether `rest`, what a recorded key has after the requested version and
+/// patch, is empty or peer groups. A longer version is another package, and
+/// so is a patch group after a key that has none.
+fn continues_with_peers(rest: &str, is_patched: bool) -> bool {
+    let starts_a_patch = rest.starts_with("(patch_hash=");
+    rest.is_empty() || (rest.starts_with('(') && (is_patched || !starts_a_patch))
 }
 
 /// Whether `alias` names a package, `name` or `@scope/name`, and so stays

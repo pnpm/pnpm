@@ -4,10 +4,8 @@ use super::{
     Lockfile,
     ProjectSnapshot,
     assert_eq,
-    build_hoist_ident_map,
     hoist,
     lockfile_version,
-    result_node,
 };
 
 #[test]
@@ -98,55 +96,5 @@ fn hoist_workspace_packages_false_keeps_workspace_children() {
         children,
         vec!["packages%2Ffoo".to_string()],
         "non-root importers stay in the tree regardless of the knob",
-    );
-}
-
-/// A candidate whose name the root declares as its own peer dependency is
-/// kept out of the ident map, even when reachable through the root's
-/// non-peer descendants. Ports yarn's `!rootNode.peerNames.has(name)`
-/// guard in `getHoistIdentMap`.
-///
-/// [`hoist`] always builds the `.` root with empty `peer_names`, so the
-/// guard is unreachable from the public entry point. This drives
-/// [`build_hoist_ident_map`] directly with a root that declares a peer,
-/// the shape a per-importer hoisting root would take once those land.
-#[test]
-fn build_hoist_ident_map_skips_root_peer_names() {
-    let react = result_node("react", "react@18.0.0", &[], vec![]);
-    let app = result_node("app", "app@1.0.0", &[], vec![react]);
-    let root = result_node(".", "", &["react"], vec![app]);
-
-    let ident_map = build_hoist_ident_map(&root);
-    dbg!(&ident_map);
-    assert!(ident_map.contains_key("app"), "the non-peer child is recorded");
-    assert!(
-        !ident_map.contains_key("react"),
-        "a name the root declares as a peer is skipped even when reachable transitively",
-    );
-}
-
-/// When a *non-root* node declares one of its own children as a peer,
-/// `add_dependent` records that child as a peer-dependent but does not
-/// recurse into it (yarn's `entry.peerDependents.add` branch). The
-/// child's own exclusive subtree is therefore never discovered.
-///
-/// Reachable from `hoist` only with an exotic lockfile where a package
-/// lists the same name in both `dependencies` and `peerDependencies`;
-/// driving [`build_hoist_ident_map`] directly is simpler and lets the
-/// "subtree not walked" effect be asserted unambiguously.
-#[test]
-fn build_hoist_ident_map_records_node_peers_without_walking_their_subtree() {
-    let scheduler = result_node("scheduler", "scheduler@1.0.0", &[], vec![]);
-    let react = result_node("react", "react@18.0.0", &[], vec![scheduler]);
-    let app = result_node("app", "app@1.0.0", &["react"], vec![react]);
-    let root = result_node(".", "", &[], vec![app]);
-
-    let ident_map = build_hoist_ident_map(&root);
-    dbg!(&ident_map);
-    assert!(ident_map.contains_key("app"), "the regular dep is recorded");
-    assert!(ident_map.contains_key("react"), "the node's peer is still a candidate ident");
-    assert!(
-        !ident_map.contains_key("scheduler"),
-        "a peer's exclusive subtree is not walked, so its child never enters the map",
     );
 }

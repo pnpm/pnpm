@@ -8,16 +8,14 @@ use super::{
     ResolvedDependencyMap,
     SnapshotDepRef,
     SnapshotEntry,
-    VecDeque,
     assert_eq,
+    child_of,
     dep_key,
     empty_lockfile,
     hoist,
-    is_preferred_ident,
     lockfile_version,
     pkg_name,
     resolved_dep,
-    result_node,
     ver_peer,
 };
 
@@ -282,27 +280,16 @@ fn self_alias_keeps_its_entry_and_only_the_alias_repeat_is_cut() {
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("self-alias hoist should succeed");
-    let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children
-        .iter()
-        .map(|dep| dep.0.name.as_str())
-        .collect();
-    names.sort_unstable();
-    assert_eq!(
-        names,
-        ["b", "c"],
-        "the alias keeps its own node_modules entry instead of being cut as a cycle",
+    let aliased = child_of(&result, "b");
+    assert_eq!(result.dependencies.borrow().len(), 1, "only b sits at the root: {result:#?}");
+    // Upstream refuses to hoist a node whose ident is its parent's, so
+    // the alias stays in b's own node_modules.
+    let alias = child_of(&aliased, "c");
+    assert!(alias.references.borrow().contains("b@1.0.0"), "the alias is b itself: {alias:#?}");
+    assert!(
+        alias.dependencies.borrow().is_empty(),
+        "the alias-repeat back-edge is cut: {alias:#?}",
     );
-
-    // The alias copy's own self-alias edge repeats both the alias
-    // name and the locator, so that one *is* cut, the result must
-    // not retain the cycle.
-    for child in root_children.iter() {
-        assert!(
-            child.0.dependencies.borrow().is_empty(),
-            "the alias-repeat back-edge is cut: {child:#?}",
-        );
-    }
 }
 
 /// A nearer ancestor holding a different version of a name blocks
@@ -431,33 +418,4 @@ fn nested_root_does_not_shadow_names_its_subtree_uses_from_above() {
         .iter()
         .any(|dep| dep.0.name == "m" && dep.0.references.borrow().contains("m@1.0.0"));
     assert!(m_kept, "d@1 keeps its own m@1 nested: {d_nested:#?}");
-}
-
-/// `is_preferred_ident` returns `true` for a name with no entry in the
-/// ident map. Unreachable from `hoist` (the map covers every name the
-/// walk encounters except root peers, and `hoist` builds the `.` root
-/// with no peers), so it is exercised by calling the guard directly.
-#[test]
-fn is_preferred_ident_allows_names_absent_from_the_map() {
-    let child = result_node("ghost", "ghost@1.0.0", &[], vec![]);
-    let ident_map: HashMap<String, VecDeque<String>> = HashMap::new();
-    assert!(
-        is_preferred_ident(&child, &ident_map),
-        "a name with no preference entry carries no constraint and hoists freely",
-    );
-}
-
-/// `is_preferred_ident` returns `true` when a name maps to an empty
-/// candidate list. [`build_hoist_ident_map`] never emits an empty
-/// `VecDeque` (every entry gets at least one ident), so this defensive
-/// guard is only reachable by constructing the empty list directly.
-#[test]
-fn is_preferred_ident_allows_empty_candidate_lists() {
-    let child = result_node("ghost", "ghost@1.0.0", &[], vec![]);
-    let ident_map: HashMap<String, VecDeque<String>> =
-        HashMap::from([("ghost".to_string(), VecDeque::new())]);
-    assert!(
-        is_preferred_ident(&child, &ident_map),
-        "an empty candidate list carries no constraint and hoists freely",
-    );
 }
