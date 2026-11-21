@@ -406,6 +406,88 @@ fn install_accepts_unversioned_path_dependency_on_prerelease_workspace_member() 
         .success();
 }
 
+/// Write a library crate named `name` at `dir`, with `manifest_tail` after
+/// its `[package]`.
+fn write_library(dir: &Path, name: &str, manifest_tail: &str) {
+    fs::create_dir_all(dir.join("src")).expect("create library source directory");
+    fs::write(dir.join("src/lib.rs"), "").expect("write library source");
+    fs::write(
+        dir.join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n{manifest_tail}",
+        ),
+    )
+    .expect("write library Cargo.toml");
+}
+
+#[test]
+fn install_locks_a_path_dependency_outside_the_workspace() {
+    let outside = TempDir::new().expect("create a directory outside the workspace");
+    let path_of = |name: &str| {
+        outside
+            .path()
+            .join(name)
+            .display()
+            .to_string()
+    };
+    write_library(&outside.path().join("opt"), "opt", "");
+    write_library(&outside.path().join("devonly"), "devonly", "");
+    write_library(
+        &outside.path().join("libfoo"),
+        "libfoo",
+        &format!(
+            "[dependencies]\nopt = {{ path = '{}', optional = true }}\n\n[dev-dependencies]\ndevonly = {{ path = '{}' }}\n\n[features]\nx = [\"dep:opt\"]\n",
+            path_of("opt"),
+            path_of("devonly"),
+        ),
+    );
+    let root = TempDir::new().expect("create Cargo workspace");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "cargo:\n  enabled: true\n")
+        .expect("enable Cargo");
+    write_library(
+        root.path(),
+        "app",
+        &format!(
+            "[dependencies]\nlibfoo = {{ path = '{}', features = [\"x\"] }}\n",
+            path_of("libfoo"),
+        ),
+    );
+
+    install_in(&root, &["install", "--offline"]);
+    install_in(&root, &["install", "--frozen-lockfile", "--offline"]);
+
+    let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo.lock");
+    assert!(lockfile.contains(r#"name = "libfoo""#), "{lockfile}");
+    assert!(lockfile.contains(r#"name = "opt""#), "{lockfile}");
+    assert!(!lockfile.contains("devonly"), "{lockfile}");
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["check", "--locked", "--offline"])
+        .assert()
+        .success();
+
+    let libfoo_manifest = outside.path().join("libfoo/Cargo.toml");
+    fs::write(
+        &libfoo_manifest,
+        fs::read_to_string(&libfoo_manifest)
+            .expect("read libfoo Cargo.toml")
+            .replace(r#"version = "0.1.0""#, r#"version = "0.2.0""#),
+    )
+    .expect("write libfoo Cargo.toml");
+    let cargo_home = TempDir::new().expect("create isolated Cargo home");
+    let output =
+        install_command(&root, &cargo_home, &["install", "--frozen-lockfile", "--offline"])
+            .output()
+            .expect("run pnpm install");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "{stderr}");
+    assert_diagnostic_contains(
+        &stderr,
+        "Cargo.lock does not lock the path dependency libfoo 0.2.0",
+    );
+}
+
 #[test]
 fn frozen_install_rejects_a_lockfile_that_does_not_satisfy_the_manifest() {
     let mut registry = mockito::Server::new();

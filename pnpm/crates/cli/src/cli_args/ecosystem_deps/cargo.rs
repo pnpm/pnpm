@@ -5,6 +5,7 @@ use super::{
     EcosystemUpdateStepOptions,
     cargo_manifest_ops::{
         DeclaredCargoDep,
+        ManifestEdit,
         apply_manifest_edits,
         declared_cargo_deps,
         find_cargo_workspace_root,
@@ -296,8 +297,6 @@ async fn execute_cargo_update<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
-type ManifestEdit = (PathBuf, &'static str, String, String);
-
 /// A targeted update moves only what the selected crates require, as
 /// `cargo update -p` does. An untargeted one re-resolves every crate, as
 /// `cargo update` does.
@@ -343,14 +342,23 @@ async fn build_cargo_update_edits<Reporter: self::Reporter>(
 }
 
 /// The edits that pin each dependency the update leaves alone to its
-/// locked version while Cargo resolves. A crate `[patch.crates-io]`
-/// replaces is left as declared: that requirement is what selects the
-/// replacement, and its `Cargo.lock` entry is not a registry version.
+/// locked version while Cargo resolves. Left as declared are:
+///
+/// - a crate `[patch.crates-io]` replaces: that requirement is what selects
+///   the replacement, and its `Cargo.lock` entry is not a registry version.
+/// - a declaration locked to the same crate version as an updated one, such
+///   as a crate in both `[dependencies]` and `[dev-dependencies]` when only
+///   one group is updated. Cargo unifies both on one version, so pinning one
+///   to the old version would conflict with the other's new one.
 fn pin_unchanged_deps(
     scope: &CargoWorkspaceScope,
     locked: &HashMap<String, Vec<Version>>,
     updated: &[&DeclaredCargoDep],
 ) -> Vec<ManifestEdit> {
+    let updated_crates = updated
+        .iter()
+        .filter_map(|dep| Some((dep.package_name.as_str(), select_locked_version(locked, dep)?)))
+        .collect::<Vec<_>>();
     scope.declared
         .iter()
         .filter(|dep| {
@@ -359,9 +367,12 @@ fn pin_unchanged_deps(
         })
         .filter_map(|dep| {
             let locked_ver = select_locked_version(locked, dep)?;
+            if updated_crates.contains(&(dep.package_name.as_str(), locked_ver)) {
+                return None;
+            }
             Some((
                 dep.manifest_path.clone(),
-                dep.table,
+                dep.table.clone(),
                 dep.manifest_key.clone(),
                 format!("={}", without_build_metadata(locked_ver)),
             ))
@@ -406,11 +417,12 @@ async fn resolve_selected_cargo_edit<Reporter: self::Reporter>(
     let saved_spec = format_cargo_saved_spec(&dep.raw_spec, &resolved, explicit_spec);
     let staged = (
         dep.manifest_path.clone(),
-        dep.table,
+        dep.table.clone(),
         dep.manifest_key.clone(),
         format!("={}", without_build_metadata(&resolved)),
     );
-    let finalized = (dep.manifest_path.clone(), dep.table, dep.manifest_key.clone(), saved_spec);
+    let finalized =
+        (dep.manifest_path.clone(), dep.table.clone(), dep.manifest_key.clone(), saved_spec);
     Ok(Some((staged, finalized)))
 }
 

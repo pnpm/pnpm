@@ -2,12 +2,14 @@ use crate::{
     features::{
         DependencyOptions,
         dependencies_from_parts,
+        widen_selection,
     },
     model::{
         CargoMetadata,
         FeatureSelection,
         MetadataPackage,
         RegistryDependency,
+        accepts_declared_version,
     },
 };
 use miette::{
@@ -15,7 +17,11 @@ use miette::{
     Result,
     WrapErr,
 };
-use std::collections::BTreeMap;
+use semver::VersionReq;
+use std::collections::{
+    BTreeMap,
+    VecDeque,
+};
 
 pub(crate) fn parse_metadata(metadata: &str) -> Result<CargoMetadata> {
     serde_json::from_str(metadata).into_diagnostic().wrap_err("parse cargo metadata")
@@ -129,23 +135,121 @@ fn retained_keys(
         .collect()
 }
 
-pub(crate) fn root_dependencies(metadata: &CargoMetadata) -> Result<Vec<RegistryDependency>> {
+/// A package Cargo locks without a source: a workspace member, or a path
+/// dependency that is not one.
+pub(crate) struct LocalPackage<'a> {
+    pub(crate) package: &'a MetadataPackage,
+    pub(crate) member: bool,
+    /// The dependencies Cargo records for it. A member records every one it
+    /// declares, as Cargo locks members with all their features and
+    /// dev-dependencies. A path dependency outside the workspace records only
+    /// the ones the features its dependents ask for activate, without its
+    /// dev-dependencies.
+    pub(crate) dependencies: Vec<RegistryDependency>,
+}
+
+/// The workspace members and every path dependency they reach, in the order
+/// of `metadata.packages`.
+///
+/// `cargo metadata --no-deps` lists only the members, so the caller appends
+/// the packages of path dependencies outside the workspace. A path
+/// dependency on a package `metadata` does not list is not walked.
+pub(crate) fn local_packages(metadata: &CargoMetadata) -> Result<Vec<LocalPackage<'_>>> {
+    let mut locked = member_dependencies(metadata)?;
+    let mut pending = locked
+        .values()
+        .flat_map(|dependencies| path_dependencies(dependencies))
+        .collect::<VecDeque<_>>();
+    let mut selections = BTreeMap::<usize, FeatureSelection>::new();
+    while let Some(dependency) = pending.pop_front() {
+        let Some(position) =
+            path_package_position(metadata, &dependency.name, &dependency.requirement)
+        else {
+            continue;
+        };
+        let package = &metadata.packages[position];
+        if metadata.workspace_members.contains(&package.id)
+            || !widen_selection(&mut selections, &dependency, &position)
+        {
+            continue;
+        }
+        let dependencies = activated_dependencies(
+            package,
+            &selections[&position],
+            DependencyOptions { include_dev: false, lockfile: true },
+        )?;
+        pending.extend(path_dependencies(&dependencies));
+        locked.insert(position, dependencies);
+    }
+    Ok(locked
+        .into_iter()
+        .map(|(position, dependencies)| {
+            let package = &metadata.packages[position];
+            let member = metadata.workspace_members.contains(&package.id);
+            LocalPackage { package, member, dependencies }
+        })
+        .collect())
+}
+
+/// The dependencies of each workspace member, by position, with all its
+/// features and dev-dependencies.
+fn member_dependencies(
+    metadata: &CargoMetadata,
+) -> Result<BTreeMap<usize, Vec<RegistryDependency>>> {
     metadata.packages
         .iter()
-        .filter(|package| metadata.workspace_members.contains(&package.id))
-        .map(locked_metadata_dependencies)
-        .collect::<Result<Vec<_>>>()
-        .map(|dependencies| {
-            dependencies
-                .into_iter()
-                .flatten()
-                .filter(|dependency| dependency.registry.is_some())
-                .collect()
+        .enumerate()
+        .filter(|(_, package)| metadata.workspace_members.contains(&package.id))
+        .map(|(position, package)| {
+            let selection = FeatureSelection {
+                default_features: true,
+                features: package.features
+                    .keys()
+                    .cloned()
+                    .collect(),
+            };
+            let options = DependencyOptions { include_dev: true, lockfile: true };
+            Ok((position, activated_dependencies(package, &selection, options)?))
+        })
+        .collect()
+}
+
+/// The registry and git dependencies of every local package.
+pub(crate) fn root_dependencies(metadata: &CargoMetadata) -> Result<Vec<RegistryDependency>> {
+    Ok(local_packages(metadata)?
+        .into_iter()
+        .flat_map(|local| local.dependencies)
+        .filter(|dependency| dependency.registry.is_some())
+        .collect())
+}
+
+/// The position of the package a path dependency on `name` with `requirement`
+/// points to, `None` when `metadata` does not list it.
+pub(crate) fn path_package_position(
+    metadata: &CargoMetadata,
+    name: &str,
+    requirement: &VersionReq,
+) -> Option<usize> {
+    metadata.packages
+        .iter()
+        .position(|package| {
+            package.name == name && accepts_declared_version(requirement, None, &package.version)
         })
 }
 
-pub(crate) fn locked_metadata_dependencies(
+fn path_dependencies(
+    dependencies: &[RegistryDependency],
+) -> impl Iterator<Item = RegistryDependency> + '_ {
+    dependencies
+        .iter()
+        .filter(|dependency| dependency.registry.is_none())
+        .cloned()
+}
+
+fn activated_dependencies(
     package: &MetadataPackage,
+    selection: &FeatureSelection,
+    options: DependencyOptions,
 ) -> Result<Vec<RegistryDependency>> {
     let dependencies = package.dependencies
         .iter()
@@ -163,16 +267,5 @@ pub(crate) fn locked_metadata_dependencies(
                 .collect(),
         })
         .collect::<Vec<_>>();
-    dependencies_from_parts(
-        &dependencies,
-        &package.features,
-        &FeatureSelection {
-            default_features: true,
-            features: package.features
-                .keys()
-                .cloned()
-                .collect(),
-        },
-        DependencyOptions { include_dev: true, lockfile: true },
-    )
+    dependencies_from_parts(&dependencies, &package.features, selection, options)
 }

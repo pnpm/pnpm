@@ -26,7 +26,7 @@ fn tower_0_4() -> DeclaredCargoDep {
         version_req: VersionReq::parse("0.4.0").unwrap(),
         group: DependencyGroup::Prod,
         manifest_path: PathBuf::from("Cargo.toml"),
-        table: "workspace.dependencies",
+        table: ["workspace", "dependencies"].map(String::from).to_vec(),
     }
 }
 

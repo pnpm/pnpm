@@ -1,8 +1,11 @@
 use crate::{
-    metadata::parse_metadata,
+    metadata::{
+        LocalPackage,
+        local_packages,
+        parse_metadata,
+    },
     model::{
-        MetadataDependency,
-        MetadataPackage,
+        RegistryDependency,
         accepts_declared_version,
     },
 };
@@ -10,6 +13,7 @@ use cargo_lock::{
     Dependency,
     Lockfile,
     Package,
+    SourceId,
 };
 use miette::{
     IntoDiagnostic,
@@ -17,57 +21,56 @@ use miette::{
     Result,
     WrapErr,
 };
-use semver::Version;
 use std::str::FromStr;
 
-/// Check that, for every registry or git dependency a workspace member
-/// declares, `lockfile` records an edge from that member to a version the
-/// requirement accepts, and that the member has no locked edge that none of
-/// its declared dependencies accounts for.
+/// Check that `lockfile` locks every [local package](local_packages) with an
+/// edge for each dependency Cargo records for it, to a version the
+/// requirement accepts, and with no edge that none of those dependencies
+/// accounts for.
 ///
-/// `metadata` is the output of `cargo metadata --no-deps`. Path dependencies
-/// need no edge of their own, and account for a source-less edge with their
-/// name whose version their requirement accepts.
-/// Sources are not compared, because a `[patch]` legitimately locks a
-/// dependency from a source other than the one its manifest names.
+/// `metadata` is the output of `cargo metadata --no-deps`, with the packages
+/// of path dependencies outside the workspace appended. A path dependency
+/// accounts for a source-less edge. A git dependency does not account for an
+/// edge to another reference of the same repository. Other sources are not
+/// compared, because a `[patch]` legitimately locks a dependency from a source
+/// other than the one its manifest names.
 pub fn verify_lockfile(metadata: &str, lockfile: &str) -> Result<()> {
     let metadata = parse_metadata(metadata)?;
     let lockfile = Lockfile::from_str(lockfile).into_diagnostic().wrap_err("parse Cargo.lock")?;
-    metadata.packages
-        .iter()
-        .filter(|package| metadata.workspace_members.contains(&package.id))
-        .try_for_each(|member| verify_member(member, &lockfile))
+    local_packages(&metadata)?.iter().try_for_each(|local| verify_local_package(local, &lockfile))
 }
 
-fn verify_member(member: &MetadataPackage, lockfile: &Lockfile) -> Result<()> {
-    let locked_member = lockfile.packages
+fn verify_local_package(local: &LocalPackage<'_>, lockfile: &Lockfile) -> Result<()> {
+    let LocalPackage { package, member, dependencies } = local;
+    let locked_package = lockfile.packages
         .iter()
-        .find(|package| {
-            package.source.is_none()
-                && package.name.as_str() == member.name
-                && package.version == member.version
+        .find(|locked| {
+            locked.source.is_none()
+                && locked.name.as_str() == package.name
+                && locked.version == package.version
         })
         .ok_or_else(|| {
+            let kind = if *member { "workspace member" } else { "path dependency" };
             outdated(&format!(
-                "Cargo.lock does not lock the workspace member {} {}",
-                member.name, member.version,
+                "Cargo.lock does not lock the {kind} {} {}",
+                package.name, package.version,
             ))
         })?;
-    member.dependencies
+    dependencies
         .iter()
-        .filter(|dependency| dependency.source.is_some())
-        .try_for_each(|dependency| verify_edge(&member.name, dependency, locked_member))?;
-    verify_no_stale_edge(member, locked_member)
+        .try_for_each(|dependency| verify_edge(&package.name, dependency, locked_package))?;
+    verify_no_stale_edge(&package.name, dependencies, locked_package)
 }
 
-/// Fail when a locked edge of `locked_member` has no declared dependency of
-/// its own. One declaration resolves to a single version, so it accounts for
-/// at most one edge, while several declarations may share an edge.
-fn verify_no_stale_edge(member: &MetadataPackage, locked_member: &Package) -> Result<()> {
+fn verify_no_stale_edge(
+    member: &str,
+    declarations: &[RegistryDependency],
+    locked_member: &Package,
+) -> Result<()> {
     let mut claims = EdgeClaims {
-        declarations: &member.dependencies,
+        declarations,
         edges: &locked_member.dependencies,
-        claimed_edge: vec![None; member.dependencies.len()],
+        claimed_edge: vec![None; declarations.len()],
     };
     let stale = (0..claims.edges.len()).find(|&edge| {
         !claims.claim(edge, &mut vec![false; claims.declarations.len()])
@@ -75,8 +78,8 @@ fn verify_no_stale_edge(member: &MetadataPackage, locked_member: &Package) -> Re
     match stale.map(|edge| &claims.edges[edge]) {
         None => Ok(()),
         Some(edge) => Err(outdated(&format!(
-            "Cargo.lock locks {} {} for {}, which no dependency of {} accounts for",
-            edge.name, edge.version, member.name, member.name,
+            "Cargo.lock locks {} for {member}, which no dependency of {member} accounts for",
+            describe_edge(edge),
         ))),
     }
 }
@@ -84,7 +87,7 @@ fn verify_no_stale_edge(member: &MetadataPackage, locked_member: &Package) -> Re
 /// An assignment of locked edges to distinct declarations that accept them,
 /// grown one edge at a time along augmenting paths.
 struct EdgeClaims<'a> {
-    declarations: &'a [MetadataDependency],
+    declarations: &'a [RegistryDependency],
     edges: &'a [Dependency],
     claimed_edge: Vec<Option<usize>>,
 }
@@ -111,45 +114,68 @@ impl EdgeClaims<'_> {
     }
 }
 
-fn accounts_for(declaration: &MetadataDependency, edge: &Dependency) -> bool {
+fn accounts_for(declaration: &RegistryDependency, edge: &Dependency) -> bool {
     declaration.name == edge.name.as_str()
-        && match declaration.source {
-            None => edge.source.is_none() && accepts_version(declaration, &edge.version),
-            Some(_) => accepts_version(declaration, &edge.version),
+        && match declaration.registry.as_deref() {
+            None => edge.source.is_none(),
+            Some(source) => !is_other_git_reference(source, edge.source.as_ref()),
         }
+        && accepts_declared_version(
+            &declaration.requirement,
+            declaration.registry.as_deref(),
+            &edge.version,
+        )
 }
 
-fn accepts_version(declaration: &MetadataDependency, version: &Version) -> bool {
-    accepts_declared_version(&declaration.req, declaration.source.as_deref(), version)
+/// Whether `locked` is the git repository `declared` names, checked out at a
+/// different branch, tag, or revision. Cargo refuses a `[patch]` that points
+/// to the repository it patches, so only a stale lockfile records that.
+fn is_other_git_reference(declared: &str, locked: Option<&SourceId>) -> bool {
+    let (Ok(declared), Some(locked)) = (SourceId::from_url(declared), locked) else {
+        return false;
+    };
+    declared.is_git()
+        && locked.is_git()
+        && declared.url() == locked.url()
+        && declared.git_reference() != locked.git_reference()
 }
 
 fn verify_edge(
     member: &str,
-    dependency: &MetadataDependency,
+    dependency: &RegistryDependency,
     locked_member: &Package,
 ) -> Result<()> {
+    if locked_member.dependencies.iter().any(|edge| accounts_for(dependency, edge)) {
+        return Ok(());
+    }
     let locked = locked_member.dependencies
         .iter()
         .filter(|edge| edge.name.as_str() == dependency.name)
-        .map(|edge| &edge.version)
-        .collect::<Vec<&Version>>();
-    if locked.iter().any(|version| accepts_version(dependency, version)) {
-        return Ok(());
-    }
-    let (name, requirement) = (&dependency.name, &dependency.req);
+        .map(describe_edge)
+        .collect::<Vec<_>>();
+    let name = &dependency.name;
+    let declared = match dependency.registry.as_deref() {
+        Some(source) if source.starts_with("git+") => {
+            format!("{name} {} from {source}", dependency.requirement)
+        }
+        _ => format!("{name} {}", dependency.requirement),
+    };
     if locked.is_empty() {
         return Err(outdated(&format!(
-            "{member} depends on {name} {requirement}, but Cargo.lock locks no {name} for {member}",
+            "{member} depends on {declared}, but Cargo.lock locks no {name} for {member}",
         )));
     }
-    let versions = locked
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join(", ");
-    Err(outdated(&format!(
-        "{member} depends on {name} {requirement}, but Cargo.lock locks {name} {versions}",
-    )))
+    let locked = locked.join(", ");
+    Err(outdated(&format!("{member} depends on {declared}, but Cargo.lock locks {locked}")))
+}
+
+/// An edge as the messages name it, with its source when it is a git one,
+/// since the reference is what tells two locks of one repository apart.
+fn describe_edge(edge: &Dependency) -> String {
+    match edge.source.as_ref().filter(|source| source.is_git()) {
+        Some(source) => format!("{} {} from {source}", edge.name, edge.version),
+        None => format!("{} {}", edge.name, edge.version),
+    }
 }
 
 fn outdated(message: &str) -> Report {

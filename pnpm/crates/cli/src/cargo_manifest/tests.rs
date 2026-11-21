@@ -6,13 +6,15 @@ use super::{
 };
 use miette::Result;
 
+/// [`upsert_dependency_in_dir`] with `table` spelled as dotted keys.
 fn upsert_dependency(
     contents: &str,
     table: &str,
     name: &str,
     version_spec: &str,
 ) -> Result<String> {
-    upsert_dependency_in_dir(contents, None, table, name, version_spec)
+    let table = table.split('.').collect::<Vec<_>>();
+    upsert_dependency_in_dir(contents, None, &table, name, version_spec)
 }
 
 #[test]
@@ -260,4 +262,31 @@ fn replaces_workspace_inheritance_when_setting_an_explicit_version() {
     let updated_dotted = upsert_dependency(dotted, "dependencies", "foo", "1.0.0").unwrap();
     eprintln!("UPDATED:\n{updated_dotted}\n");
     assert_eq!(updated_dotted, "[dependencies]\nfoo.version = \"1.0.0\"\nfoo.features = [\"a\"]\n");
+}
+
+#[test]
+fn updates_and_appends_a_target_specific_dependency_table() {
+    let manifest = "[package]\nname = \"app\"\n\n[target.'cfg(target_os = \"linux\")'.dependencies]\nfoo = \"1.0.0\"\n";
+    let table = ["target", r#"cfg(target_os = "linux")"#, "dependencies"];
+
+    let updated = upsert_dependency_in_dir(manifest, None, &table, "foo", "1.0.1").unwrap();
+    let appended = upsert_dependency_in_dir(
+        manifest,
+        None,
+        &["target", "x86_64-pc-windows-msvc", "dependencies"],
+        "bar",
+        "2",
+    )
+    .unwrap();
+
+    assert_eq!(updated, manifest.replace(r#"foo = "1.0.0""#, r#"foo = "1.0.1""#));
+    assert!(
+        appended.ends_with("\n[target.x86_64-pc-windows-msvc.dependencies]\nbar = \"2\"\n"),
+        "{appended}",
+    );
+    let parsed = toml::from_str::<toml::Table>(&appended).unwrap();
+    assert_eq!(
+        parsed["target"]["x86_64-pc-windows-msvc"]["dependencies"]["bar"].as_str(),
+        Some("2"),
+    );
 }

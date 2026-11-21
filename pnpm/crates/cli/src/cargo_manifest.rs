@@ -44,6 +44,7 @@ use spans::{
     quoted,
     replace_range,
     section_end,
+    table_header,
 };
 use std::{
     fs,
@@ -87,7 +88,7 @@ pub(crate) fn add_dependencies(
     let mut updated = original.clone();
     for (name, version_spec) in dependencies {
         updated =
-            upsert_dependency_in_dir(&updated, manifest_dir, kind.table(), name, version_spec)?;
+            upsert_dependency_in_dir(&updated, manifest_dir, &[kind.table()], name, version_spec)?;
     }
     if updated != original {
         pnpm_fs::write_atomic(manifest_path, updated.as_bytes())
@@ -100,7 +101,7 @@ pub(crate) fn add_dependencies(
 pub(crate) fn upsert_dependency_in_dir(
     contents: &str,
     manifest_dir: Option<&Path>,
-    table: &str,
+    table: &[&str],
     name: &str,
     version_spec: &str,
 ) -> Result<String> {
@@ -115,7 +116,7 @@ pub(crate) fn upsert_dependency_in_dir(
 fn upsert_sanitized_dependency(
     contents: &str,
     resolved_ws: Option<&ResolvedWorkspaceDep>,
-    table: &str,
+    table: &[&str],
     name: &str,
     version_spec: &str,
 ) -> Result<String> {
@@ -130,7 +131,10 @@ fn upsert_sanitized_dependency(
     let deps_table = target
         .get_ref()
         .as_table()
-        .ok_or_else(|| miette::miette!("`{table}` in Cargo.toml is not a table"))?;
+        .ok_or_else(|| {
+            let table = table_header(table);
+            miette::miette!("`{table}` in Cargo.toml is not a table")
+        })?;
     let target_span = target.span();
 
     if let Some((dep_key, dep_val)) = find_entry(deps_table, name) {
@@ -158,7 +162,7 @@ fn insert_new_dependency(
     contents: &str,
     header_spans: &[Range<usize>],
     (target_span, deps_table): (&Range<usize>, &DeTable<'_>),
-    table: &str,
+    table: &[&str],
     (name, version_spec): (&str, &str),
 ) -> String {
     let entry = format!("{} = {}", format_key(name), quoted(version_spec));

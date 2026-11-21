@@ -1323,7 +1323,7 @@ fn locks_an_unversioned_path_dependency_on_a_prerelease_workspace_member() {
     let mismatched = PRERELEASE_PATH_METADATA.replace(r#""req": "*""#, r#""req": "^1.0""#);
     let error =
         resolve_lockfile(&mismatched, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap_err().to_string();
-    assert_eq!(error, "workspace dependency shared is not a workspace member");
+    assert_eq!(error, "path dependency shared ^1.0 does not match the package at its path");
 }
 
 mod cancellation;

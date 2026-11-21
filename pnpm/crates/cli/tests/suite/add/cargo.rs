@@ -218,6 +218,42 @@ fn mixed_add_restores_metadata_when_an_ecosystem_fails() {
 }
 
 #[test]
+fn add_crate_rejects_a_virtual_cargo_workspace_manifest() {
+    let root = TempDir::new().expect("create Cargo workspace");
+    let cache_dir = root.path().join("cache");
+    cache_foo_index(&cache_dir);
+    let manifest = "[workspace]\nmembers = [\"member\"]\nresolver = \"2\"\n";
+    std::fs::write(root.path().join("Cargo.toml"), manifest)
+        .expect("write Cargo workspace manifest");
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), "cargo:\n  enabled: true\n")
+        .expect("enable Cargo dependency management");
+    let member = root.path().join("member");
+    std::fs::create_dir_all(member.join("src")).expect("create member source directory");
+    std::fs::write(member.join("src/lib.rs"), "").expect("write member source");
+    std::fs::write(
+        member.join("Cargo.toml"),
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write member Cargo manifest");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "crate:foo@1", "--offline", "--lockfile-only"])
+        .output()
+        .expect("run pnpm add");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "{stderr}");
+    assert!(stderr.contains("ERR_PNPM_CARGO_VIRTUAL_MANIFEST"), "{stderr}");
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("Cargo.toml")).expect("read Cargo manifest"),
+        manifest,
+    );
+}
+
+#[test]
 fn add_crate_in_a_cargo_workspace_member_updates_the_workspace_lockfile() {
     let root = TempDir::new().expect("create Cargo workspace");
     let cache_dir = root.path().join("cache");

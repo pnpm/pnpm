@@ -256,7 +256,7 @@ fn collect_feature_selections(
             None => newest_line_package(registry, &dependency, preferred_versions)?,
         };
         let Some(package) = package else { continue };
-        if !widen_line_selection(&mut selections, &dependency, &package) {
+        if !widen_selection(&mut selections, &dependency, &package) {
             continue;
         }
         let Some(selected_version) = solution.and_then(|solution| solution.get(&package)) else {
@@ -274,10 +274,10 @@ fn collect_feature_selections(
 
 /// Fold what `dependency` asks for into `package`'s selection, reporting
 /// whether that added anything, which is what makes it worth walking again.
-fn widen_line_selection(
-    selections: &mut BTreeMap<PackageKey, FeatureSelection>,
+pub(crate) fn widen_selection<Package: Ord + Clone>(
+    selections: &mut BTreeMap<Package, FeatureSelection>,
     dependency: &RegistryDependency,
-    package: &PackageKey,
+    package: &Package,
 ) -> bool {
     let previous = selections.get(package).cloned();
     let selection = selections.entry(package.clone()).or_default();

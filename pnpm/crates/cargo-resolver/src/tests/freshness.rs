@@ -8,7 +8,10 @@ use crate::{
     resolve_lockfile,
     verify_lockfile,
 };
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+};
 
 fn locked_foo_and_bar() -> String {
     let files = BTreeMap::from([
@@ -91,10 +94,158 @@ fn reports_a_stale_lockfile_as_outdated() {
 }
 
 #[test]
-fn ignores_path_dependencies_the_lockfile_does_not_lock() {
+fn rejects_a_path_dependency_the_lockfile_does_not_lock() {
     let metadata = with_app_dependency(r#""name": "baz", "source": null, "req": "*""#);
 
-    verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap();
+    let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
+
+    assert_eq!(error.to_string(), "app depends on baz *, but Cargo.lock locks no baz for app");
+}
+
+/// `app` depends on `libfoo`, a path dependency outside the workspace, asking
+/// for its `x` feature. `x` activates `foo`, and `libfoo`'s dev-dependency on
+/// `bar` is not locked, as Cargo locks no dev-dependency outside the
+/// workspace.
+const PATH_PACKAGE_METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#app@0.1.0",
+      "name": "app",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "libfoo",
+        "source": null,
+        "req": "*",
+        "features": ["x"]
+      }]
+    },
+    {
+      "id": "path+file:///libfoo#0.2.0",
+      "name": "libfoo",
+      "version": "0.2.0",
+      "dependencies": [
+        {
+          "name": "foo",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "req": "^1.0",
+          "optional": true
+        },
+        {
+          "name": "bar",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "req": "^2",
+          "kind": "dev"
+        }
+      ],
+      "features": {"x": ["dep:foo"]}
+    }
+  ],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+
+fn locked_path_package() -> String {
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), FOO_INDEX.to_string()),
+    ]);
+    resolve_lockfile(PATH_PACKAGE_METADATA, &files, CRATES_IO_SOURCE).unwrap()
+}
+
+#[test]
+fn locks_a_path_dependency_outside_the_workspace() {
+    let lockfile = cargo_lock::Lockfile::from_str(&locked_path_package()).unwrap();
+    let libfoo = lockfile.packages
+        .iter()
+        .find(|package| package.name.as_str() == "libfoo")
+        .expect("libfoo is locked");
+    let edges = libfoo.dependencies
+        .iter()
+        .map(|edge| edge.name.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(libfoo.source.is_none());
+    assert_eq!(edges, ["foo"]);
+    verify_lockfile(PATH_PACKAGE_METADATA, &locked_path_package()).unwrap();
+}
+
+#[test]
+fn rejects_an_edge_a_path_dependency_no_longer_activates() {
+    let metadata = PATH_PACKAGE_METADATA.replace(r#""features": ["x"]"#, r#""features": []"#);
+
+    let error = verify_lockfile(&metadata, &locked_path_package()).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "Cargo.lock locks foo 1.1.0 for libfoo, which no dependency of libfoo accounts for",
+    );
+}
+
+#[test]
+fn rejects_a_lockfile_without_a_feature_activated_path_dependency_edge() {
+    let metadata = PATH_PACKAGE_METADATA.replace(r#""features": ["x"]"#, r#""features": []"#);
+    let unlocked = resolve_lockfile(
+        &metadata,
+        &BTreeMap::from([("foo".to_string(), FOO_INDEX.to_string())]),
+        CRATES_IO_SOURCE,
+    )
+    .unwrap();
+
+    let error = verify_lockfile(PATH_PACKAGE_METADATA, &unlocked).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "libfoo depends on foo ^1.0, but Cargo.lock locks no foo for libfoo",
+    );
+}
+
+#[test]
+fn rejects_a_lockfile_with_another_version_of_a_path_dependency() {
+    let metadata = PATH_PACKAGE_METADATA.replace(r#""version": "0.2.0""#, r#""version": "0.3.0""#);
+
+    let error = verify_lockfile(&metadata, &locked_path_package()).unwrap_err();
+
+    assert_eq!(error.to_string(), "Cargo.lock does not lock the path dependency libfoo 0.3.0");
+}
+
+const GIT_FOO_LOCKFILE: &str = r#"version = 4
+
+[[package]]
+name = "app"
+version = "0.1.0"
+dependencies = [
+ "foo",
+]
+
+[[package]]
+name = "foo"
+version = "1.0.0"
+source = "git+https://example.test/foo?branch=main#0123456789abcdef0123456789abcdef01234567"
+"#;
+
+#[test]
+fn accepts_a_git_dependency_locked_at_its_reference() {
+    let metadata = METADATA.replace(CRATES_IO_SOURCE, "git+https://example.test/foo?branch=main");
+
+    verify_lockfile(&metadata, GIT_FOO_LOCKFILE).unwrap();
+}
+
+#[test]
+fn rejects_a_git_dependency_locked_at_another_reference() {
+    let metadata = METADATA.replace(CRATES_IO_SOURCE, "git+https://example.test/foo?rev=abc123");
+
+    let error = verify_lockfile(&metadata, GIT_FOO_LOCKFILE).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "app depends on foo ^1.0 from git+https://example.test/foo?rev=abc123, but Cargo.lock locks foo 1.0.0 from git+https://example.test/foo?branch=main#0123456789abcdef0123456789abcdef01234567",
+    );
+}
+
+#[test]
+fn accepts_a_git_dependency_a_patch_locks_from_another_repository() {
+    let metadata = METADATA.replace(CRATES_IO_SOURCE, "git+https://example.test/upstream");
+
+    verify_lockfile(&metadata, GIT_FOO_LOCKFILE).unwrap();
 }
 
 const TWO_FOO_LOCKFILE: &str = r#"version = 4
@@ -154,10 +305,7 @@ fn rejects_a_registry_edge_for_a_path_dependency() {
 
     let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
 
-    assert_eq!(
-        error.to_string(),
-        "Cargo.lock locks foo 1.1.0 for app, which no dependency of app accounts for",
-    );
+    assert_eq!(error.to_string(), "app depends on foo ^1.0, but Cargo.lock locks foo 1.1.0");
 }
 
 const PATH_FOO_LOCKFILE: &str = r#"version = 4
@@ -203,10 +351,7 @@ fn rejects_a_path_edge_outside_the_path_dependency_requirement() {
 
     let error = verify_lockfile(&metadata, PATH_FOO_LOCKFILE).unwrap_err();
 
-    assert_eq!(
-        error.to_string(),
-        "Cargo.lock locks foo 1.0.0-alpha.1 for app, which no dependency of app accounts for",
-    );
+    assert_eq!(error.to_string(), "app depends on foo ^2, but Cargo.lock locks foo 1.0.0-alpha.1");
 }
 
 fn with_app_dependency(dependency: &str) -> String {

@@ -44,7 +44,7 @@ pub(super) struct PreparedDetach {
 pub(super) fn prepare_workspace_detach(
     contents: &str,
     manifest_dir: Option<&Path>,
-    table: &str,
+    table: &[&str],
     name: &str,
 ) -> Result<Option<PreparedDetach>> {
     let doc = DeTable::parse(contents).into_diagnostic().wrap_err("parse Cargo.toml")?;
@@ -76,7 +76,7 @@ pub(super) fn prepare_workspace_detach(
 
 fn strip_ignored_member_fields(
     contents: String,
-    table: &str,
+    table: &[&str],
     name: &str,
     retention: PackageRetention<'_>,
 ) -> Result<String> {
@@ -89,7 +89,7 @@ fn strip_ignored_member_fields(
 
 fn next_ignored_field_range(
     contents: &str,
-    table: &str,
+    table: &[&str],
     name: &str,
     retention: PackageRetention<'_>,
 ) -> Result<Option<Range<usize>>> {
