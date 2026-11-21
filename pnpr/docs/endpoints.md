@@ -558,8 +558,9 @@ name and target rules. A package-document update cannot remove `latest` while
 published versions remain.
 
 Unpublishing a version removes every dist-tag pointing at it. If `latest`
-pointed at it, `latest` moves to the highest remaining stable version, or to
-the highest prerelease if only prereleases remain. When `latest` moves, the
+pointed at it, pnpr restores the most recent former `latest` that is still
+published. If none remains, pnpr picks the highest remaining stable version,
+or the highest prerelease if only prereleases remain. When `latest` moves, the
 package README and its filename follow the new target.
 
 npm visibility and collaborator endpoints return `404` with the

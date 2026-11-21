@@ -2,6 +2,7 @@
 
 use super::{
     Expected,
+    Freshness,
     PackageKey,
     adapter::{
         Connection,
@@ -27,6 +28,7 @@ use super::{
     to_column,
 };
 use crate::{
+    Storage,
     database::{
         TagChange,
         TagUpdate,
@@ -40,7 +42,10 @@ use crate::{
     },
 };
 use pnpr_error::Result;
-use pnpr_package_name::Ecosystem;
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_sql::DialectSql;
 use serde_json::{
     Map,
@@ -259,6 +264,36 @@ fn stamp_modified(state: &mut Map<String, Value>) {
         .or_insert_with(|| Value::Object(Map::new()));
     if let Some(time) = time.as_object_mut() {
         time.insert("modified".to_string(), Value::String(now_iso()));
+    }
+}
+
+impl Storage {
+    /// The most recent former npm `latest` that will survive removal of `version`.
+    pub async fn previous_published_latest(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+    ) -> Result<Option<String>> {
+        let key = self.metadata.key(name);
+        if key.ecosystem != Ecosystem::Npm {
+            return Ok(None);
+        }
+        let version = version.to_owned();
+        self.database.read(key.namespace.clone(), Freshness::Current, move |connection, _| {
+            let (namespace, name) = key.params_in(Ecosystem::Npm);
+            connection
+                .query_optional(
+                    "SELECT h.previous FROM npm_tag_history h
+                     JOIN npm_versions v ON v.namespace = h.namespace AND v.name = h.name
+                                        AND v.version = h.previous
+                     WHERE h.namespace = ?1 AND h.name = ?2 AND h.tag = 'latest' AND h.previous <> ?3
+                     ORDER BY h.generation DESC LIMIT 1",
+                    params![namespace, name, version],
+                )?
+                .map(|mut row| row.get(0))
+                .transpose()
+        })
+        .await
     }
 }
 

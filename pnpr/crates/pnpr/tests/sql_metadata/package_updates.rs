@@ -70,9 +70,11 @@ async fn latest_moves_replace_the_package_readme() {
     let tmp = TempDir::new().unwrap();
     let app = router(sqlite_config(tmp.path()));
     let token = token(&app).await;
-    for version in ["1.0.0", "2.0.0", "3.0.0-beta.1"] {
+    for version in ["1.0.0", "2.0.0", "3.0.0-beta.1", "4.0.0", "5.0.0-beta.1"] {
         let mut doc = publish_doc("sql-pkg", version, version.as_bytes());
-        if version == "3.0.0-beta.1" {
+        if version == "4.0.0" {
+            doc["dist-tags"] = json!({"next": version});
+        } else if version.contains("beta") {
             doc["dist-tags"] = json!({"beta": version});
         } else if version == "2.0.0" {
             doc["readme"] = json!(version);
@@ -101,16 +103,22 @@ async fn latest_moves_replace_the_package_readme() {
     let path = "/npm/sql-pkg/-/sql-pkg-2.0.0.tgz";
     assert!(send(&app, request("DELETE", path, &token, None)).await.0.is_success());
     let (_, document) = packument(&app, &token).await;
+    assert_eq!(document["dist-tags"]["latest"], "3.0.0-beta.1");
+    assert!(document.get("readme").is_none());
+    assert!(document.get("readmeFilename").is_none());
+
+    let path = "/npm/sql-pkg/-/sql-pkg-3.0.0-beta.1.tgz";
+    assert!(send(&app, request("DELETE", path, &token, None)).await.0.is_success());
+    let (_, document) = packument(&app, &token).await;
     assert_eq!(document["dist-tags"]["latest"], "1.0.0");
     assert_eq!(document["readme"], "1.0.0");
     assert_eq!(document["readmeFilename"], "1.0.0.md");
 
-    let path = "/npm/sql-pkg/-/sql-pkg-1.0.0.tgz";
-    assert!(send(&app, request("DELETE", path, &token, None)).await.0.is_success());
-    let (_, document) = packument(&app, &token).await;
-    assert_eq!(document["dist-tags"]["latest"], "3.0.0-beta.1");
-    assert!(document.get("readme").is_none());
-    assert!(document.get("readmeFilename").is_none());
+    for (removed, expected) in [("1.0.0", "4.0.0"), ("4.0.0", "5.0.0-beta.1")] {
+        let path = format!("/npm/sql-pkg/-/sql-pkg-{removed}.tgz");
+        assert!(send(&app, request("DELETE", &path, &token, None)).await.0.is_success());
+        assert_eq!(packument(&app, &token).await.1["dist-tags"]["latest"], expected);
+    }
 }
 
 #[tokio::test]

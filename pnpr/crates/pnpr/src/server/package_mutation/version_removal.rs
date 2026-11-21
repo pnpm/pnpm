@@ -27,8 +27,8 @@ use serde_json::{
 
 /// Remove `version` from `name`'s packument when it still lists it, and
 /// reclaim the archives only it mapped. Reports whether it was listed. The
-/// `latest` tag prefers the highest remaining stable version, then the highest
-/// prerelease. Other tags naming the removed version are dropped.
+/// `latest` tag returns to its most recent surviving target. Other tags
+/// naming the removed version are dropped.
 /// The removed version and former maintainers are recorded together.
 pub(super) async fn remove_listed_version(
     state: &AppState,
@@ -66,8 +66,18 @@ async fn try_remove_listed_version(
         }
         return Ok(Some(false));
     };
+    let replacement = if packument.pointer("/dist-tags/latest").and_then(Value::as_str)
+        == Some(version)
+    {
+        storage
+            .previous_published_latest(name, version)
+            .await?
+            .or_else(|| highest_remaining_version(packument.get("versions")?.as_object()?, version))
+    } else {
+        None
+    };
     let Some(object) = packument.as_object_mut() else { return Ok(Some(false)) };
-    if !drop_version(object, version) {
+    if !drop_version(object, version, replacement.as_deref()) {
         return Ok(Some(false));
     }
     let removed = [version.to_string()];
@@ -85,40 +95,49 @@ async fn try_remove_listed_version(
     }
 }
 
+fn highest_remaining_version(versions: &Map<String, Value>, removed: &str) -> Option<String> {
+    versions
+        .keys()
+        .filter(|key| key.as_str() != removed)
+        .filter_map(|key| {
+            let parsed = node_semver::Version::parse(key).ok()?;
+            Some((!parsed.is_prerelease(), parsed, key))
+        })
+        .max()
+        .map(|(_, _, key)| key.clone())
+}
+
 /// Drop `version` from `packument`, with its `time` entry, and update the
 /// tags that named it. Reports whether the packument listed it.
-fn drop_version(packument: &mut Map<String, Value>, version: &str) -> bool {
+fn drop_version(
+    packument: &mut Map<String, Value>,
+    version: &str,
+    replacement: Option<&str>,
+) -> bool {
     let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) else {
         return false;
     };
     if versions.shift_remove(version).is_none() {
         return false;
     }
-    let highest = versions
-        .keys()
-        .map(node_semver::Version::parse)
-        .filter_map(Result::ok)
-        .map(|version| (!version.is_prerelease(), version))
-        .max()
-        .map(|(_, highest)| highest.to_string());
     if let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) {
         time.shift_remove(version);
     }
     if let Some(tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut) {
-        move_tags(tags, version, highest.as_deref());
+        move_tags(tags, version, replacement);
     }
     true
 }
 
-fn move_tags(tags: &mut Map<String, Value>, version: &str, highest: Option<&str>) {
+fn move_tags(tags: &mut Map<String, Value>, version: &str, replacement: Option<&str>) {
     tags.retain(|tag, target| {
         if target.as_str() != Some(version) {
             return true;
         }
         if tag == "latest"
-            && let Some(highest) = highest
+            && let Some(replacement) = replacement
         {
-            *target = Value::String(highest.to_string());
+            *target = Value::String(replacement.to_string());
             return true;
         }
         false
