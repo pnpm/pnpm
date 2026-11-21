@@ -174,6 +174,7 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
   storeIndexFormat: 'pnpm v12',
   symlinkedLockfileTargetDirs: 'pnpm v12',
   tools: 'pnpm v12',
+  warnUnusedOverrides: 'pnpm v12',
 }
 
 const KNOWN_SETTING_KEYS_LIST = [...KNOWN_SETTING_KEYS]
