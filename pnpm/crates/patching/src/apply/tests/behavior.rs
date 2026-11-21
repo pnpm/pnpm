@@ -877,6 +877,6 @@ fn rejects_a_patch_that_creates_a_symlink() {
             .path()
             .join("link")
             .symlink_metadata()
-            .is_err()
+            .is_err(),
     );
 }
