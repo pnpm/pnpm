@@ -88,6 +88,46 @@ fn installed_version(project_dir: &Path, dep: &str) -> String {
 }
 
 #[test]
+fn frozen_install_detects_a_catalog_entry_used_only_by_a_directory_peer() {
+    for format in ["v9", "v13"] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let local = workspace.join("local");
+        fs::create_dir(&local).unwrap();
+        write_manifest(
+            &local,
+            &serde_json::json!({"name":"local","version":"1.0.0","peerDependencies":{"@pnpm.e2e/foo":"catalog:peers"}}),
+        );
+        write_manifest(
+            &workspace,
+            &serde_json::json!({"dependencies":{"local":"file:local","@pnpm.e2e/foo":"100.0.0"}}),
+        );
+        let config = workspace.join("pnpm-workspace.yaml");
+        let original = fs::read_to_string(&config).unwrap();
+        let settings = format!(
+            "{original}lockfile:\n  format: {format}\ncatalogs:\n  peers:\n    '@pnpm.e2e/foo': ^100.0.0\n",
+        );
+        fs::write(&config, &settings).unwrap();
+        let run = |args: &[&str]| {
+            Command::cargo_bin("pnpm")
+                .unwrap()
+                .with_current_dir(&workspace)
+                .with_args(args)
+                .assert()
+        };
+        run(&["install"]).success();
+        run(&["install", "--frozen-lockfile"]).success();
+        fs::write(config, settings.replace("^100.0.0", "100.0.0")).unwrap();
+        let failure = run(&["install", "--frozen-lockfile"]).failure();
+        let stderr = String::from_utf8_lossy(&failure.get_output().stderr);
+        assert!(stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"), "{stderr}");
+        run(&["install", "--no-frozen-lockfile"]).success();
+        run(&["install", "--frozen-lockfile"]).success();
+        drop((root, npmrc_info));
+    }
+}
+
+#[test]
 fn local_catalog_entries_resolve_from_the_workspace_directory() {
     let CommandTempCwd {
         pacquet,

@@ -376,7 +376,7 @@ function createNewLockfile (
 
   newLockfile.catalogs = getCatalogSnapshots(
     Object.values(resolution.resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
-    updatedCatalogs)
+    { graph: dependenciesGraph, catalogs: opts.catalogs, updatedCatalogs })
   addCatalogEntriesOfImporters(
     newLockfile.catalogs,
     Object.entries(newLockfile.importers)

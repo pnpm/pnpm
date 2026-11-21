@@ -170,6 +170,9 @@ test('re-resolves an auto-installed catalog peer of a file dependency when the c
   await install(manifest, opts('^1.0.0'))
   expect(lockedPeers()).toStrictEqual(['@pnpm.e2e/peer-c@1.0.1'])
   await install(manifest, opts('^1.0.0', true))
+  await expect(install(manifest, opts('1.0.1', true))).rejects.toMatchObject({
+    code: 'ERR_PNPM_LOCKFILE_CONFIG_MISMATCH',
+  })
 
   await install(manifest, opts('^2.0.0'))
   expect(lockedPeers()).toStrictEqual(['@pnpm.e2e/peer-c@2.0.0'])

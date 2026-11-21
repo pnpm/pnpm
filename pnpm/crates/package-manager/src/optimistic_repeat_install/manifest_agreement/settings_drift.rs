@@ -17,6 +17,7 @@ pub(super) fn check_settings_match_lockfile(
         check.config,
         check.catalogs,
         crate::install::CheckLockfileSettingsDriftOptions {
+            ignore_manifest_check: false,
             parsed_overrides,
             // `pnpmfileChecksum` is not compared here: every caller already
             // compared the pnpmfile list and trusted their contents by their

@@ -141,7 +141,11 @@ fn links_workspace_package_selected_by_plain_range() {
         &modules_dirs(dir.path(), "node_modules"),
         &[(project_dir.clone(), &manifest)],
         None,
-        Some(WorkspaceLinks { packages: &workspace_packages, catalogs: &catalogs }),
+        Some(WorkspaceLinks {
+            packages: Some(&workspace_packages),
+            workspace_dir: dir.path(),
+            catalogs: &catalogs,
+        }),
         all_dependencies(),
         &LinkBinsOptions::default(),
     )

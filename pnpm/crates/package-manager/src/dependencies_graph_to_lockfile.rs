@@ -207,7 +207,7 @@ pub fn dependencies_graph_to_lockfile(
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
             .expect("the generated lockfile version is supported"),
         settings: Some(opts.settings),
-        catalogs: build_catalog_snapshots(&importers, opts.catalogs),
+        catalogs: build_catalog_snapshots(&importers, opts.catalogs, opts.graph),
         overrides: opts.manifest_settings.overrides.filter(|map| !map.is_empty()),
         package_extensions_checksum: opts.manifest_settings.package_extensions_checksum,
         pnpmfile_checksum: opts.manifest_settings.pnpmfile_checksum,
@@ -243,8 +243,12 @@ pub fn dependencies_graph_to_lockfile(
 fn build_catalog_snapshots(
     importers: &HashMap<String, ProjectSnapshot>,
     catalogs: &Catalogs,
+    graph: &DependenciesGraph,
 ) -> Option<CatalogSnapshots> {
-    let mut snapshots: CatalogSnapshots = BTreeMap::new();
+    if catalogs.is_empty() {
+        return None;
+    }
+    let mut snapshots = directory_peer_catalogs(graph, catalogs);
     for importer in importers.values() {
         let Some(specifiers) = importer.specifiers.as_ref() else { continue };
         for (alias, specifier) in specifiers {
@@ -268,6 +272,59 @@ fn build_catalog_snapshots(
         }
     }
     (!snapshots.is_empty()).then_some(snapshots)
+}
+
+/// Different consumers can supply different versions of a peer. Keep one
+/// deterministic representative when no importer records the catalog entry.
+fn directory_peer_catalogs(graph: &DependenciesGraph, catalogs: &Catalogs) -> CatalogSnapshots {
+    let mut snapshots = CatalogSnapshots::new();
+    if catalogs.is_empty() {
+        return snapshots;
+    }
+    for node in graph.values() {
+        if matches!(node.resolve_result.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+        {
+            record_peer_catalogs(node, graph, catalogs, &mut snapshots);
+        }
+    }
+    snapshots
+}
+
+fn record_peer_catalogs(
+    node: &DependenciesGraphNode,
+    graph: &DependenciesGraph,
+    catalogs: &Catalogs,
+    snapshots: &mut CatalogSnapshots,
+) {
+    for (alias, peer) in node.edges.peer_set.declared() {
+        let Some(name) = parse_catalog_protocol(&peer.version) else { continue };
+        if !node.edges.peer_set.taken().contains_key(alias) {
+            continue;
+        }
+        let Some(specifier) = catalogs
+            .get(name)
+            .and_then(|catalog| catalog.get(alias))
+        else {
+            continue;
+        };
+        let version = node.edges.children
+            .get(alias)
+            .and_then(|path| graph.get(path))
+            .and_then(|provider| provider.resolve_result.package.name_ver.as_ref())
+            .map(|provider| provider.suffix.to_string())
+            .unwrap_or_else(|| specifier.clone());
+        let entry = snapshots
+            .entry(name.to_string())
+            .or_default()
+            .entry(alias.clone())
+            .or_insert_with(|| ResolvedCatalogEntry {
+                specifier: specifier.clone(),
+                version: version.clone(),
+            });
+        if version < entry.version {
+            entry.version = version;
+        }
+    }
 }
 
 /// Re-derive each snapshot's `optional` flag by walking the graph

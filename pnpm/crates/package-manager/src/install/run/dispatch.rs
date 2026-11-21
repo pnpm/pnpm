@@ -353,7 +353,10 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
     let Some(lockfile) = dispatch.lockfile else { return Ok(false) };
     // Auto-frozen via `preferFrozenLockfile`. Skip when the user opted out
     // (`--no-prefer-frozen-lockfile` / `preferFrozenLockfile: false`).
-    if !dispatch.prefer_frozen_lockfile {
+    if !dispatch.prefer_frozen_lockfile
+        || lockfile.lockfile_version
+            != dispatch.freshness.config.lockfile_format.version()
+    {
         return Ok(false);
     }
     auto_frozen_path(dispatch, lockfile).await

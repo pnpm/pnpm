@@ -6,7 +6,7 @@ title: pnpm fetch
 Fetch packages from a lockfile into virtual store, package manifest is ignored.
 A missing package manifest is not created.
 
-`pnpm fetch` requires `pnpm-lock.yaml` and does not update it. When the project pins a pnpm version that commands would switch to, `pnpm fetch` also downloads that pnpm into the store, so a later `pnpm install --offline` finds it.
+`pnpm fetch` requires `pnpm-lock.yaml` and does not update it. Fetch uses the resolution settings in the lockfile even when the workspace configuration and pnpmfile are absent. When the project pins a pnpm version that commands would switch to, `pnpm fetch` also downloads that pnpm into the store, so a later `pnpm install --offline` finds it.
 
 ## Workspaces
 

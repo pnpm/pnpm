@@ -285,7 +285,7 @@ When a peer dependency is updated, only the lines that record it change.
 
 #### Reading and writing the format
 
-pnpm reads lockfiles in both formats whatever this setting is. It writes the format this setting names whenever it resolves dependencies, and when you run `pnpm install --lockfile-only`. Versions of pnpm without this setting cannot read a lockfile in the `v13` format. The format is still changing, so a lockfile written with this setting may need regenerating with a later pnpm.
+pnpm reads lockfiles in both formats whatever this setting is. A regular install converts the lockfile when you change this setting. `pnpm install --lockfile-only` also writes the selected format. Versions of pnpm without this setting cannot read a lockfile in the `v13` format. The format is still changing, so a lockfile written with this setting may need regenerating with a later pnpm.
 
 The `v13` format records the [resolution settings](#lockfileincluderesolutionsettings). The next install resolves again a lockfile that does not record them yet, such as a `v9` lockfile written without `lockfile.includeResolutionSettings`, or a `v13` lockfile written by an earlier pnpm. `pnpm install --frozen-lockfile` fails on such a lockfile until a regular install records them. An install that is not frozen fails when `pnprServer` is set, because pnpr does not receive these settings.
 

@@ -2,17 +2,18 @@ import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CatalogSnapshots, ProjectSnapshot } from '@pnpm/lockfile.types'
 
+import type { DependenciesGraph, DependenciesGraphNode } from './index.js'
 import type { ResolvedDirectDependency } from './resolveDependencyTree.js'
 
 export function getCatalogSnapshots (
   resolvedDirectDeps: readonly ResolvedDirectDependency[],
-  updatedCatalogs?: Catalogs
+  { graph, catalogs, updatedCatalogs }: { graph: DependenciesGraph, catalogs?: Catalogs, updatedCatalogs?: Catalogs }
 ): CatalogSnapshots {
-  const catalogSnapshots: CatalogSnapshots = {}
+  const catalogSnapshots = directoryPeerCatalogs(graph, catalogs)
   const catalogedDeps = resolvedDirectDeps.filter(isCatalogedDep)
 
   for (const dep of catalogedDeps) {
-    const snapshotForSingleCatalog = (catalogSnapshots[dep.catalogLookup.catalogName] ??= {})
+    const snapshotForSingleCatalog = (catalogSnapshots[dep.catalogLookup.catalogName] ??= Object.create(null) as CatalogSnapshots[string])
     const updatedSpecifier = updatedCatalogs?.[dep.catalogLookup.catalogName]?.[dep.alias]
 
     snapshotForSingleCatalog[dep.alias] = {
@@ -26,6 +27,29 @@ export function getCatalogSnapshots (
   }
 
   return catalogSnapshots
+}
+
+function directoryPeerCatalogs (graph: DependenciesGraph, catalogs: Catalogs = {}): CatalogSnapshots {
+  const snapshots: CatalogSnapshots = Object.create(null)
+  if (Object.keys(catalogs).length === 0) return snapshots
+  for (const node of Object.values(graph) as DependenciesGraphNode[]) {
+    if (node.resolution.type !== 'directory') continue
+    for (const { name, alias, specifier, version } of peerCatalogEntries(node, { graph, catalogs })) {
+      const entries = snapshots[name] ??= Object.create(null) as CatalogSnapshots[string]
+      if (entries[alias] == null || version < entries[alias].version) entries[alias] = { specifier, version }
+    }
+  }
+  return snapshots
+}
+
+function * peerCatalogEntries (node: DependenciesGraphNode, { graph, catalogs }: { graph: DependenciesGraph, catalogs: Catalogs }) {
+  for (const [alias, peer] of Object.entries(node.peers.declared)) {
+    const name = parseCatalogProtocol(peer.version)
+    if (name == null || !Object.hasOwn(node.peers.taken, alias)) continue
+    const specifier = catalogs[name]?.[alias]
+    if (specifier == null) continue
+    yield { name, alias, specifier, version: graph[node.children[alias]]?.version ?? specifier }
+  }
 }
 
 /**

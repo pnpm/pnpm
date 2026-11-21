@@ -100,13 +100,18 @@ fn retarget_catalog_entry(
         .get(catalog_name)
         .and_then(|catalog| catalog.get(alias))
     else {
-        if catalog_entry_is_referenced(lockfile, catalog_name, alias) {
+        if importer_references_catalog(lockfile, catalog_name, alias)
+            || directory_peer_references_catalog(lockfile, catalog_name, alias)
+        {
             return None;
         }
         return Some(CatalogEntryUpdate::Dropped);
     };
     if specifier == &entry.specifier {
         return Some(CatalogEntryUpdate::Kept(entry.clone()));
+    }
+    if directory_peer_references_catalog(lockfile, catalog_name, alias) {
+        return None;
     }
     let (Ok(version), Some(range)) =
         (Version::parse(&entry.version), parse_strict_semver_range(specifier))
@@ -153,7 +158,7 @@ pub(crate) fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &
         })
 }
 
-pub(crate) fn catalog_entry_is_referenced(
+pub(crate) fn importer_references_catalog(
     lockfile: &Lockfile,
     catalog_name: &str,
     alias: &str,
@@ -179,6 +184,30 @@ pub(crate) fn catalog_entry_is_referenced(
                             == Some(catalog_name)
                     })
             })
+        })
+}
+
+pub(crate) fn directory_peer_references_catalog(
+    lockfile: &Lockfile,
+    catalog_name: &str,
+    alias: &str,
+) -> bool {
+    directory_peer_catalog_references(lockfile).any(|entry| entry == (catalog_name, alias))
+}
+
+pub(crate) fn directory_peer_catalog_references(
+    lockfile: &Lockfile,
+) -> impl Iterator<Item = (&str, &str)> {
+    lockfile.packages
+        .iter()
+        .flat_map(|packages| packages.values())
+        .filter(|package| {
+            matches!(package.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+        })
+        .filter_map(|package| package.peer_dependencies.as_ref())
+        .flatten()
+        .filter_map(|(alias, spec)| {
+            Some((pnpm_catalogs_protocol_parser::parse_catalog_protocol(spec)?, alias.as_str()))
         })
 }
 

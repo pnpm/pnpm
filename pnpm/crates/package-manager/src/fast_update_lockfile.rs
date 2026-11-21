@@ -337,12 +337,14 @@ fn snapshot_optional_children(
         })
 }
 
-/// Drop every catalog snapshot entry that no importer references any
+/// Drop every catalog snapshot entry that no dependency references any
 /// more, matching what a full resolution records after the same removal.
 pub(crate) fn prune_unreferenced_catalog_entries(lockfile: &mut Lockfile) {
     let Some(catalogs) = lockfile.catalogs.as_ref() else {
         return;
     };
+    let peer_references: HashSet<_> =
+        crate::fast_update_catalogs::directory_peer_catalog_references(lockfile).collect();
     let stale: Vec<(String, String)> = catalogs
         .iter()
         .flat_map(|(catalog_name, entries)| {
@@ -351,7 +353,12 @@ pub(crate) fn prune_unreferenced_catalog_entries(lockfile: &mut Lockfile) {
                 .map(move |alias| (catalog_name.clone(), alias.clone()))
         })
         .filter(|(catalog_name, alias)| {
-            !crate::fast_update_catalogs::catalog_entry_is_referenced(lockfile, catalog_name, alias)
+            !peer_references.contains(&(catalog_name.as_str(), alias.as_str()))
+                && !crate::fast_update_catalogs::importer_references_catalog(
+                    lockfile,
+                    catalog_name,
+                    alias,
+                )
         })
         .collect();
     if stale.is_empty() {

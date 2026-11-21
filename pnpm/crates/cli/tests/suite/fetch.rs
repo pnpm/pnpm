@@ -110,7 +110,12 @@ fn fetch_populates_every_group_by_default() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
+    let config_path = workspace.join("pnpm-workspace.yaml");
+    let fetch_config = fs::read(&config_path).unwrap();
+    append_workspace_yaml_key(&workspace, "autoInstallPeers", false);
     write_manifest_and_lockfile(&workspace);
+    fs::write(config_path, fetch_config).unwrap();
+    fs::remove_file(workspace.join("package.json")).unwrap();
 
     pacquet_at(&workspace)
         .with_arg("fetch")

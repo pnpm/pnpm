@@ -101,6 +101,40 @@ fn local_packages_with_an_ordinary_alias_of_a_peer_write_v13() {
     }
 }
 
+#[test]
+fn changing_the_lockfile_format_converts_a_warm_install() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();
+    let local = workspace.join("local");
+    fs::create_dir(&local).unwrap();
+    write_manifest_value(&local, &json!({"name": "local", "version": "1.0.0"}));
+    write_manifest_value(&workspace, &json!({"dependencies": {"local": "file:local"}}));
+    for format in ["v13", "v9", "v13"] {
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("lockfile:\n  format: {format}\n"),
+        )
+        .unwrap();
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        let text = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+        assert_eq!(
+            records_directory_inputs(&text, &workspace.join("pnpm-lock.yaml")),
+            format == "v13",
+            "{text}",
+        );
+        if format == "v9" {
+            assert!(text.starts_with("lockfileVersion: '9.0'"), "{text}");
+        }
+        pacquet_in(&workspace)
+            .with_args(["dedupe", "--check"])
+            .assert()
+            .success();
+    }
+    drop(root);
+}
+
 fn install_and_read_lockfile(workspace: &Path) -> Lockfile {
     pacquet_in(workspace)
         .with_args(["install", "--lockfile-only"])

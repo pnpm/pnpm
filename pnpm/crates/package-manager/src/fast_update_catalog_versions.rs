@@ -86,6 +86,10 @@ fn catalog_version_update(
     if specifier == &entry.specifier {
         return Some(CatalogVersionUpdate::Unmoved(entry.clone()));
     }
+    if crate::fast_update_catalogs::directory_peer_references_catalog(lockfile, catalog_name, alias)
+    {
+        return None;
+    }
     // Read after the unchanged case, which holds for an entry with no
     // version of its own, a `file:` / `link:` entry records its path
     // here, so one of those does not close the path for its siblings.

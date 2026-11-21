@@ -55,6 +55,8 @@ You may use the `catalog:` protocol in the next fields:
 * `pnpm-workspace.yaml`
     * `overrides`
 
+When a local directory package uses a catalog entry for a peer dependency, pnpm records that entry in the lockfile. Run `pnpm install` after changing the entry so frozen installs can use the updated lockfile.
+
 The `catalog:` protocol allows an optional name after the colon (ex: `catalog:name`) to specify which catalog should be used. When a name is omitted, the default catalog is used.
 
 Depending on the scenario, the `catalog:` protocol offers a few [advantages](#advantages) compared to writing version ranges directly that are detailed next.

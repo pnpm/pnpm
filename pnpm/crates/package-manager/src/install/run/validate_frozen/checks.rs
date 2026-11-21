@@ -159,6 +159,7 @@ impl RunExecution<'_> {
             self.install.context.config,
             &self.workspace.catalogs,
             CheckLockfileSettingsDriftOptions {
+                ignore_manifest_check: self.install.lockfile_policy.ignore_manifest_check,
                 parsed_overrides: parsed_overrides.as_deref(),
                 pnpmfile_checksum: if skip_checksum {
                     PnpmfileChecksumCheck::Skip

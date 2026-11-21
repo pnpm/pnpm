@@ -1,6 +1,6 @@
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import type { LockfileObject, ProjectSnapshot, ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import type { LockfileObject, PackageSnapshot, ProjectSnapshot, ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import semver from 'semver'
 
 export function tryFastUpdateCatalogs (
@@ -29,7 +29,7 @@ function rewriteCatalogRanges (
   const updatedCatalogs: Array<[string, Record<string, ResolvedCatalogEntry>]> = []
   for (const [catalogName, catalog] of Object.entries(lockfile.catalogs ?? {})) {
     const entries = Object.entries(catalog).flatMap(([alias, entry]) => {
-      const nextEntry = nextCatalogEntry(lockfile.importers, {
+      const nextEntry = nextCatalogEntry(lockfile, {
         alias,
         catalogName,
         entry,
@@ -49,7 +49,7 @@ function rewriteCatalogRanges (
  * it is dropped.
  */
 function nextCatalogEntry (
-  importers: LockfileObject['importers'],
+  lockfile: LockfileObject,
   { alias, catalogName, entry, specifier }: {
     alias: string
     catalogName: string
@@ -58,9 +58,10 @@ function nextCatalogEntry (
   }
 ): ResolvedCatalogEntry | undefined {
   if (specifier == null) {
-    return catalogEntryIsReferenced(importers, catalogName, alias) ? entry : undefined
+    return importerReferencesCatalog(lockfile.importers, catalogName, alias) || directoryPeerReferencesCatalog(lockfile, catalogName, alias) ? entry : undefined
   }
   if (specifier === entry.specifier) return entry
+  if (directoryPeerReferencesCatalog(lockfile, catalogName, alias)) return entry
   if (!lockedVersionSatisfies(entry.version, specifier)) return entry
   return { specifier, version: entry.version }
 }
@@ -71,7 +72,7 @@ function lockedVersionSatisfies (version: string, specifier: string): boolean {
     semver.satisfies(version, specifier)
 }
 
-function catalogEntryIsReferenced (
+function importerReferencesCatalog (
   importers: LockfileObject['importers'],
   catalogName: string,
   alias: string
@@ -81,6 +82,23 @@ function catalogEntryIsReferenced (
   return Object.values(importers).some(
     (importer) => parseCatalogProtocol(ownSpecifier(importer, alias)) === catalogName
   )
+}
+
+export function directoryPeerReferencesCatalog (lockfile: LockfileObject, catalogName: string, alias: string): boolean {
+  for (const [name, dependency] of directoryPeerCatalogReferences(lockfile)) {
+    if (catalogName === name && alias === dependency) return true
+  }
+  return false
+}
+
+function * directoryPeerCatalogReferences (lockfile: LockfileObject): Generator<[string, string]> {
+  for (const pkg of Object.values(lockfile.packages ?? {}) as PackageSnapshot[]) {
+    if (!('type' in pkg.resolution) || pkg.resolution.type !== 'directory') continue
+    for (const [alias, specifier] of Object.entries(pkg.peerDependencies ?? {})) {
+      const name = parseCatalogProtocol(specifier)
+      if (name != null) yield [name, alias]
+    }
+  }
 }
 
 /**
@@ -118,12 +136,11 @@ export function catalogReferencesHaveSnapshots (
  */
 export function pruneUnreferencedCatalogEntries (lockfile: LockfileObject): void {
   if (lockfile.catalogs == null) return
+  const peerReferences = indexDirectoryPeerCatalogReferences(lockfile)
+  const isReferenced = (name: string, alias: string): boolean =>
+    peerReferences.get(name)?.has(alias) === true || importerReferencesCatalog(lockfile.importers, name, alias)
   for (const [catalogName, catalog] of Object.entries(lockfile.catalogs)) {
-    for (const alias of Object.keys(catalog)) {
-      if (!catalogEntryIsReferenced(lockfile.importers, catalogName, alias)) {
-        delete catalog[alias]
-      }
-    }
+    pruneCatalog(catalog, alias => isReferenced(catalogName, alias))
     if (Object.keys(catalog).length === 0) {
       delete lockfile.catalogs[catalogName]
     }
@@ -131,4 +148,19 @@ export function pruneUnreferencedCatalogEntries (lockfile: LockfileObject): void
   if (Object.keys(lockfile.catalogs).length === 0) {
     delete lockfile.catalogs
   }
+}
+
+function pruneCatalog (catalog: Record<string, ResolvedCatalogEntry>, isReferenced: (alias: string) => boolean): void {
+  for (const alias of Object.keys(catalog)) {
+    if (!isReferenced(alias)) delete catalog[alias]
+  }
+}
+
+function indexDirectoryPeerCatalogReferences (lockfile: LockfileObject): Map<string, Set<string>> {
+  const peerReferences = new Map<string, Set<string>>()
+  for (const [name, alias] of directoryPeerCatalogReferences(lockfile)) {
+    if (!peerReferences.has(name)) peerReferences.set(name, new Set())
+    peerReferences.get(name)!.add(alias)
+  }
+  return peerReferences
 }

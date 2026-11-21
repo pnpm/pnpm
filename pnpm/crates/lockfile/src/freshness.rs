@@ -514,6 +514,16 @@ pub fn check_lockfile_patches(
     check_patched_dep_paths(lockfile)
 }
 
+/// Settings that govern the content fetched from an already resolved lockfile.
+pub fn check_fetch_settings(
+    lockfile: &Lockfile,
+    patched_dependencies: Option<&BTreeMap<String, String>>,
+    integrity_target: crate::IntegrityTarget,
+) -> Result<(), StalenessReason> {
+    check_lockfile_patches(lockfile, patched_dependencies)?;
+    check_integrity_target(lockfile, integrity_target)
+}
+
 fn check_patched_dep_paths(lockfile: &Lockfile) -> Result<(), StalenessReason> {
     match crate::check_patched_dep_paths(lockfile) {
         crate::PatchedDepPathsStatus::Stale => Err(StalenessReason::InconsistentPatchHashes),
