@@ -188,6 +188,45 @@ pub fn replace_workspace_protocol_peer_dependency(
     Ok(rewritten)
 }
 
+/// The manifest a `workspace:` specifier resolves to, read with the same
+/// precedence and fallbacks as [`replace_workspace_protocol`]. A target the
+/// rewrite cannot use, because its manifest lacks a `name` or `version`, is
+/// still returned as found. `None` when `dep_spec` is not a `workspace:`
+/// specifier or names no package at all.
+pub(crate) fn workspace_target_manifest(
+    dep_name: &str,
+    dep_spec: &str,
+    dir: &Path,
+    modules_dir: Option<&Path>,
+    lookup: WorkspacePackageLookup<'_>,
+) -> Result<Option<WorkspacePackageManifest>, ReplaceWorkspaceProtocolError> {
+    let Some(workspace_spec) = WorkspaceSpec::parse(dep_spec) else {
+        return Ok(None);
+    };
+    let (target_name, target_dir, lookup) = match strip_workspace_relative_prefix(dep_spec) {
+        Some(relative) => (
+            dep_name,
+            dir.join(relative),
+            WorkspacePackageLookup { prefer_workspace_for: None, ..lookup },
+        ),
+        None => (
+            workspace_spec.alias.as_deref().unwrap_or(dep_name),
+            installed_modules_dir(dir, modules_dir).join(dep_name),
+            lookup,
+        ),
+    };
+    match read_and_check_manifest(dep_name, target_name, &target_dir, lookup) {
+        Ok(manifest) => Ok(Some(manifest)),
+        Err(ReplaceWorkspaceProtocolError::CannotResolve(_)) => {
+            let workspace_manifest = lookup.packages
+                .and_then(|packages| packages.get(target_name))
+                .cloned();
+            Ok(read_manifest_fields(&target_dir)?.or(workspace_manifest))
+        }
+        Err(error) => Err(error),
+    }
+}
+
 /// What a `workspace:` peer specifier parses as, when it parses as one whole.
 enum ParsedPeer {
     /// An `npm:` alias the published manifest records verbatim.
@@ -292,6 +331,7 @@ fn read_manifest_fields(
     Ok(value.map(|value| WorkspacePackageManifest {
         name: field(&value, "name"),
         version: field(&value, "version"),
+        private: value.get("private") == Some(&Value::Bool(true)),
     }))
 }
 
@@ -319,6 +359,8 @@ fn cannot_resolve_error(
 pub struct WorkspacePackageManifest {
     pub name: String,
     pub version: String,
+    /// The package's `"private": true`.
+    pub private: bool,
 }
 
 /// How a workspace dependency's manifest is resolved at publish time: the

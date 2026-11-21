@@ -302,7 +302,7 @@ fn convert_dependency_for_publish(
 /// the package being exported, so it means the same place a local
 /// dependency written directly in that package's manifest would. Both
 /// are read relative to the exported manifest.
-fn replace_catalog_protocol(
+pub(crate) fn replace_catalog_protocol(
     alias: String,
     spec: &str,
     dir: &Path,

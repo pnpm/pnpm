@@ -13,6 +13,11 @@ pub use create::{
     create_exportable_manifest,
     read_readme_file,
 };
+pub use private_dependency::{
+    PrivateWorkspaceDependencies,
+    PrivateWorkspaceDependencyError,
+    private_workspace_dependencies,
+};
 pub use replace::{
     CannotResolveReason,
     CannotResolveWorkspaceProtocolError,
@@ -25,6 +30,7 @@ pub use replace::{
 pub use transform::TransformError;
 
 mod create;
+mod private_dependency;
 mod replace;
 mod transform;
 

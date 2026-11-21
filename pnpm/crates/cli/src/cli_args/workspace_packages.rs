@@ -33,6 +33,7 @@ pub fn build_workspace_package_manifest_map(
                 .or_insert_with(|| WorkspacePackageManifest {
                     name: name.to_string(),
                     version: version.to_string(),
+                    private: manifest.get("private") == Some(&serde_json::Value::Bool(true)),
                 });
             if entry.version.is_empty() && !version.is_empty() {
                 entry.version = version.to_string();

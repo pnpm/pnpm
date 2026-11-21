@@ -25,6 +25,15 @@ Without `files`, pnpm reads `.npmignore`, falling back to `.gitignore`.
 Negated ignore patterns can re-include default exclusions such as `*.orig` and
 `npm-debug.log`. Root lockfiles and `.npmrc` stay excluded.
 
+## Private workspace dependencies
+
+A package that is not private cannot list a private workspace package in
+`dependencies`, because the private package is never published. Packing
+such a package fails with `ERR_PNPM_PRIVATE_WORKSPACE_DEPENDENCY`. List the
+private package in `devDependencies` instead, bundle it by listing it in
+`bundleDependencies` with it installed, or remove the dependency in a
+[`beforePacking`](../pnpmfile.md#hooksbeforepackingpkg-pkg--promisepkg) hook.
+
 ## Options
 
 ### --recursive, -r

@@ -23,6 +23,7 @@ use std::{
 };
 
 mod output;
+mod private_dependency;
 mod publish_directory;
 
 #[test]

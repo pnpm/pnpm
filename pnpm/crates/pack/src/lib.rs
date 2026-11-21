@@ -62,7 +62,10 @@ use pnpm_executor::{
 use pnpm_exportable_manifest::{
     CreateExportableManifestError,
     CreateExportableManifestOptions,
+    PrivateWorkspaceDependencies,
+    PrivateWorkspaceDependencyError,
     create_exportable_manifest,
+    private_workspace_dependencies,
 };
 use pnpm_fs::{
     lexical_normalize,
@@ -72,6 +75,7 @@ use pnpm_fs_packlist::{
     PacklistError,
     PacklistOptions,
     packlist_with_sources,
+    root_bundle_dep_names,
 };
 use pnpm_hooks::{
     HookContext,
@@ -228,6 +232,9 @@ pub enum PackError {
     CreateManifest(#[error(source)] CreateExportableManifestError),
 
     #[diagnostic(transparent)]
+    PrivateWorkspaceDependency(#[error(source)] PrivateWorkspaceDependencyError),
+
+    #[diagnostic(transparent)]
     Packlist(#[error(source)] PacklistError),
 
     #[diagnostic(transparent)]
@@ -352,6 +359,7 @@ fn packed_files_map(
     )
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(files);
+    reject_unshipped_private_dependencies(source, &files_map)?;
     files_map.retain(|name, _| !is_manifest_entry(name));
     files_map.insert("package/package.json".to_string(), project_manifest_path(&source.dir));
     inject_workspace_license(opts, &source.dir, &mut files_map);
@@ -361,6 +369,24 @@ fn packed_files_map(
         files_map.shift_remove(name);
     }
     Ok(files_map)
+}
+
+/// Fail when the published manifest still depends on a private workspace
+/// package, unless the tarball ships that package as a bundled dependency.
+/// Packlist decides what is bundled, so its file list is what is checked.
+fn reject_unshipped_private_dependencies(
+    source: &PackSource,
+    files_map: &indexmap::IndexMap<String, PathBuf>,
+) -> Result<(), PackError> {
+    let shipped: Vec<String> = root_bundle_dep_names(&source.publish_manifest)
+        .into_iter()
+        .filter(|dep_name| {
+            files_map.contains_key(&format!("package/node_modules/{dep_name}/package.json"))
+        })
+        .collect();
+    source.private_workspace_dependencies
+        .reject(&source.publish_manifest, &shipped)
+        .map_err(PackError::PrivateWorkspaceDependency)
 }
 
 fn create_dest_dir<Sys: FsCreateDirAll>(dest_dir: &Path) -> Result<(), PackError> {
@@ -469,22 +495,22 @@ impl PackManifestOptions {
         project_dir: &Path,
         dir: &Path,
         manifest: &Value,
-    ) -> Result<Value, PackError> {
+    ) -> Result<(Value, PrivateWorkspaceDependencies), PackError> {
         let modules_dir = project_dir.join("node_modules");
-        let mut publish_manifest = create_exportable_manifest(
-            dir,
-            manifest,
-            &CreateExportableManifestOptions {
-                catalogs: &self.catalogs,
-                workspace_dir: self.catalogs_dir.as_deref(),
-                modules_dir: Some(&modules_dir),
-                skip_manifest_obfuscation: self.skip_obfuscation,
-                embed_readme: self.embed_readme,
-                workspace_packages: self.workspace_packages.as_deref(),
-                bumped_workspace_packages: self.bumped_workspace_packages.as_deref(),
-            },
-        )
-        .map_err(PackError::CreateManifest)?;
+        let options = CreateExportableManifestOptions {
+            catalogs: &self.catalogs,
+            workspace_dir: self.catalogs_dir.as_deref(),
+            modules_dir: Some(&modules_dir),
+            skip_manifest_obfuscation: self.skip_obfuscation,
+            embed_readme: self.embed_readme,
+            workspace_packages: self.workspace_packages.as_deref(),
+            bumped_workspace_packages: self.bumped_workspace_packages.as_deref(),
+        };
+        let mut private_dependencies = private_workspace_dependencies(dir, manifest, &options)
+            .map_err(PackError::CreateManifest)?;
+        let mut publish_manifest =
+            create_exportable_manifest(dir, manifest, &options).map_err(PackError::CreateManifest)?;
+        private_dependencies.record_exported(&publish_manifest);
 
         // Run `beforePacking` hooks against the built manifest, before the
         // file list is computed, so a hook that rewrites `files` / `bin` /
@@ -499,6 +525,6 @@ impl PackManifestOptions {
         )
         .await?;
 
-        Ok(publish_manifest)
+        Ok((publish_manifest, private_dependencies))
     }
 }
