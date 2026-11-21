@@ -3,21 +3,20 @@ import path from 'node:path'
 import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { withCollapsedVariants } from '@pnpm/deps.path'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
-import {
-  getLockfileImporterId,
-  type LockfileObject,
-  type PackageSnapshots,
-  type ProjectSnapshot,
-  type ResolvedDependencies,
+import type {
+  LockfileObject,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
-import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { DependenciesField, DependencyManifest, DepPath, Finder, RegistriesByScope } from '@pnpm/types'
 import { realpathMissing } from 'realpath-missing'
 
-import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
+import type { DependencyGraph } from './buildDependencyGraph.js'
+import { buildSelectedProjectsGraph } from './buildSelectedProjectsGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
 import {
   compareDependentsTrees,
@@ -98,6 +97,7 @@ interface BuildDependentsTreeOptions {
   nameFormatter?: NameFormatter
   resolvePeersFromWorkspaceRoot?: boolean
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  excludePeerDependencies?: boolean
 }
 
 export async function buildDependentsTree (
@@ -148,33 +148,6 @@ export async function buildDependentsTree (
   trees.sort(compareDependentsTrees)
   storeIndex?.close()
   return trees
-}
-
-function buildSelectedProjectsGraph (projectPaths: string[], opts: BuildDependentsTreeOptions): DependencyGraph {
-  const include = opts.include ?? {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-  }
-
-  const allRootIds: TreeNodeId[] = []
-  for (const projectPath of projectPaths) {
-    const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
-    if (opts.lockfile.importers[importerId]) {
-      allRootIds.push({ type: 'importer', importerId })
-    }
-  }
-
-  return buildDependencyGraph(allRootIds, {
-    currentPackages: opts.lockfile.packages ?? {},
-    importers: opts.lockfile.importers,
-    include,
-    lockfileDir: opts.lockfileDir,
-    peerSatisfactionEdges: getPeerSatisfactionEdgesToSkip(opts.lockfile, {
-      include,
-      resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
-    }),
-  })
 }
 
 // Scan all package nodes for matches.

@@ -84,6 +84,7 @@ export async function handler (
     nodeLinker: opts.nodeLinker,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     checkWantedLockfileOnly: opts.lockfileOnly,
+    excludePeerDependencies: opts.excludePeers,
     finders,
   }
 

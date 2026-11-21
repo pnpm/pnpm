@@ -18,7 +18,13 @@ function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
   return relative
 }
 
-type MockPackages = Record<string, { version: string, manifest: Record<string, unknown>, deps?: string[] }>
+type MockPackages = Record<string, {
+  version: string
+  manifest: Record<string, unknown>
+  deps?: string[]
+  peerDeps?: string[]
+  topLevel?: boolean
+}>
 
 function resolveMockDependencies (depNames: string[], packages: MockPackages): Record<string, string> {
   const deps: Record<string, string> = {}
@@ -78,6 +84,7 @@ function createMockProject (packages: MockPackages): {
     currentPackages[depPath] = {
       resolution: { integrity: `${pkgName}-mock-integrity` },
       dependencies: resolveMockDependencies(info.deps ?? [], packages),
+      ...(info.peerDeps && { peerDependencies: Object.fromEntries(info.peerDeps.map((dep) => [dep, '*'])) }),
     }
   }
 
@@ -86,6 +93,7 @@ function createMockProject (packages: MockPackages): {
   // Single root importer that depends on all top-level packages
   const rootDeps: Record<string, string> = {}
   for (const [pkgName, info] of Object.entries(packages)) {
+    if (info.topLevel === false) continue
     rootDeps[pkgName] = info.version
   }
 
@@ -107,6 +115,66 @@ function createMockProject (packages: MockPackages): {
 }
 
 describe('buildDependentsTree', () => {
+  describe('excludePeerDependencies', () => {
+    async function whyTree (pkg: string, project: ReturnType<typeof createMockProject>, excludePeerDependencies: boolean) {
+      return buildDependentsTree([pkg], [project.lockfileDir], {
+        lockfileDir: project.lockfileDir,
+        excludePeerDependencies,
+        importerInfoMap: new Map([['.', { name: 'my-project', version: '0.0.0' }]]),
+        lockfile: {
+          lockfileVersion: '9.0',
+          importers: project.importers,
+          packages: project.currentPackages,
+        },
+      })
+    }
+
+    test('drops packages that are reached only as a resolved peer, along with their own dependencies', async () => {
+      const project = createMockProject({
+        parent: { version: '1.0.0(peer@1.0.0)', manifest: {}, deps: ['peer'], peerDeps: ['peer'] },
+        peer: { version: '1.0.0', manifest: {}, deps: ['peer-dep'], topLevel: false },
+        'peer-dep': { version: '1.0.0', manifest: {}, topLevel: false },
+      })
+      try {
+        expect(await whyTree('peer', project, true)).toStrictEqual([])
+        expect(await whyTree('peer-dep', project, true)).toStrictEqual([])
+        expect((await whyTree('peer', project, false))[0].dependents.map(({ name }) => name)).toStrictEqual(['parent'])
+        expect((await whyTree('peer-dep', project, false))[0].dependents.map(({ name }) => name)).toStrictEqual(['peer'])
+      } finally {
+        project.cleanup()
+      }
+    })
+
+    test('keeps a dependency that is also declared as a peer when the key does not bind it', async () => {
+      const project = createMockProject({
+        wrapper: { version: '1.0.0', manifest: {}, deps: ['mid'], peerDeps: ['mid'] },
+        mid: { version: '1.0.0', manifest: {}, topLevel: false },
+      })
+      try {
+        expect((await whyTree('mid', project, true))[0].dependents.map(({ name }) => name)).toStrictEqual(['wrapper'])
+      } finally {
+        project.cleanup()
+      }
+    })
+
+    test('keeps the non-peer paths to a package that is also a resolved peer', async () => {
+      const project = createMockProject({
+        parent: { version: '1.0.0(peer@1.0.0)', manifest: {}, deps: ['peer'], peerDeps: ['peer'] },
+        peer: { version: '1.0.0', manifest: {} },
+      })
+      try {
+        const trees = await whyTree('peer', project, true)
+
+        expect(trees).toHaveLength(1)
+        expect(trees[0].dependents).toStrictEqual([
+          { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
+        ])
+      } finally {
+        project.cleanup()
+      }
+    })
+  })
+
   test('a devDependency that only satisfies an optional peer has no dependents in a production tree', async () => {
     // The key records both peers as bindings, as a resolved lockfile does.
     const ABC_REF = '1.0.0(peer-a@1.0.0)(peer-c@1.0.0)'

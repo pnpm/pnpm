@@ -54,6 +54,29 @@ test('"why" should show reverse dependency tree for a non-direct dependency', as
   expect(lines.some(l => l.includes('@pnpm.e2e/pkg-with-1-dep@100.0.0'))).toBe(true)
 })
 
+test('"why --exclude-peers" leaves out a package that a production dependency receives only as a peer', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/has-pkg-with-1-dep-peer': '1.0.0',
+    },
+    devDependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
+
+  const whyProd = async (excludePeers: boolean) => stripAnsi(await why.handler({
+    dev: false,
+    dir: process.cwd(),
+    excludePeers,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep']))
+
+  expect(await whyProd(false)).toContain('@pnpm.e2e/has-pkg-with-1-dep-peer@1.0.0')
+  expect(await whyProd(true)).toBe('')
+})
+
 test('"why" should find packages by alias name when using npm: protocol', async () => {
   prepare({
     dependencies: {

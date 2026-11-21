@@ -25,6 +25,7 @@ use crate::{
                 render_dependents_tree,
             },
             graph::{
+                BoundPeerEdges,
                 BuildGraphOptions,
                 DependencyGraph,
                 build_dependency_graph,
@@ -77,9 +78,8 @@ pub struct WhyArgs {
     /// renders the whole tree.
     #[clap(long, value_parser = parse_depth_limit)]
     pub depth: Option<usize>,
-    /// Exclude peer dependencies. Ignored: `pnpm why` always includes them.
-    // The flag is there for parity: pnpm 11's `why` declares it and never
-    // forwards it either.
+    /// Leave out the dependents that reach a package only as a resolved
+    /// peer dependency.
     #[clap(long)]
     pub exclude_peers: bool,
     /// Search by a finder function declared in `.pnpmfile.cjs`.
@@ -230,6 +230,7 @@ impl WhyArgs {
                 include,
                 only_projects: false,
                 peer_edges: config.peer_edge_options(),
+                bound_peer_edges: self.bound_peer_edges(),
             },
         );
         let searcher = self.searcher(&env, &graph, finders).await?;
@@ -241,6 +242,10 @@ impl WhyArgs {
             manifest_fields: &[],
             dependency_specifiers: self.dependency_specifiers(),
         })))
+    }
+
+    fn bound_peer_edges(&self) -> BoundPeerEdges {
+        if self.exclude_peers { BoundPeerEdges::Skip } else { BoundPeerEdges::Follow }
     }
 
     fn included_dependencies(&self, config: &Config) -> IncludedDependencies {

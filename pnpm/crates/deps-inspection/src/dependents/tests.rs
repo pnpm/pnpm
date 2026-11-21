@@ -25,6 +25,7 @@ use super::{
 use crate::{
     TreeNodeId,
     graph::{
+        BoundPeerEdges,
         BuildGraphOptions,
         build_dependency_graph,
     },
@@ -152,6 +153,7 @@ fn requires_of_dependents(
             },
             only_projects: false,
             peer_edges: PeerEdgeOptions::default(),
+            bound_peer_edges: BoundPeerEdges::Follow,
         },
     );
     let trees = build_dependents_tree(&BuildDependentsOptions {
