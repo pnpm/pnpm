@@ -26,7 +26,9 @@ export interface StageContext {
 
 export async function createStageContext (opts: StageOptions, packageFilter?: string): Promise<StageContext> {
   const override = opts.cliOptions?.registry
-  const manifest = typeof override === 'string' ? undefined : await safeReadProjectManifestOnly(opts.dir)
+  const inferAuthScope = packageFilter == null && Object.values(opts.configByUri ?? {})
+    .some(config => Object.keys(config).some(key => key.startsWith('@') && key !== '@'))
+  const manifest = typeof override !== 'string' || inferAuthScope ? await safeReadProjectManifestOnly(opts.dir) : undefined
   const localName = manifest ? publishedName(manifest) : undefined
   const packageName = packageFilter ?? localName
   const registries = getRegistries(opts)

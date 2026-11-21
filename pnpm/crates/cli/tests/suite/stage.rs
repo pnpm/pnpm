@@ -182,7 +182,7 @@ fn list_uses_package_scoped_auth_for_package_filters() {
         .match_query(Matcher::Any)
         .match_header("authorization", "Bearer scoped-token")
         .with_body(json!({ "items": [], "page": 0, "perPage": 100, "total": 0 }).to_string())
-        .expect(1)
+        .expect(2)
         .create();
 
     let mut command = pacquet(dir.path());
@@ -190,13 +190,20 @@ fn list_uses_package_scoped_auth_for_package_filters() {
     let output = command
         .with_arg("--npmrc-auth-file")
         .with_arg(&auth_file)
-        .with_arg("stage")
-        .with_args(["list", "@scope/example-package", "--registry", &registry])
+        .with_args(["stage", "list", "--registry", &registry, "@scope/example-package"])
         .output()
         .expect("spawn pacquet stage");
 
-    mock.assert();
     assert_success(&output);
+    write_project(dir.path(), &registry, &json!({ "name": "@scope/example-package" }));
+    let unfiltered = pacquet(dir.path())
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_args(["stage", "list", "--registry", &registry])
+        .output()
+        .expect("list with local package credentials");
+    assert_success(&unfiltered);
+    mock.assert();
 }
 
 #[test]

@@ -210,8 +210,11 @@ describe('stage command against the registry mock', () => {
     })
     try {
       const registryUrl = new URL(registry.url)
-      const result = await stage.handler({
+      const dir = temporaryDirectory()
+      const opts = {
         ...stageOpts(registry.url),
+        dir,
+        cliOptions: { registry: registry.url },
         argv: { original: ['stage', 'list'] },
         configByUri: {
           [`//${registryUrl.host}/`]: {
@@ -219,7 +222,10 @@ describe('stage command against the registry mock', () => {
             '@scope': { authToken: 'scoped-token' },
           },
         },
-      }, ['list', '@scope/example-package'])
+      }
+      const result = await stage.handler(opts, ['list', '@scope/example-package'])
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: '@scope/example-package' }))
+      await stage.handler(opts, ['list'])
 
       expect(result).toBe('No staged versions of package name "@scope/example-package".')
     } finally {

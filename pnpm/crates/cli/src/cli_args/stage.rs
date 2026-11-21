@@ -379,10 +379,11 @@ impl StageArgs {
         config: &Config,
         package_name: Option<&str>,
     ) -> miette::Result<StageContext> {
-        let manifest = if config.cli.registry.is_some() {
-            None
-        } else {
+        let infer_auth_scope = package_name.is_none() && config.auth_headers.uses_package_name();
+        let manifest = if config.cli.registry.is_none() || infer_auth_scope {
             pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)?
+        } else {
+            None
         };
         let local_name = manifest
             .as_ref()
