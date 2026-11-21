@@ -56,10 +56,17 @@ docker compose cp registries.yaml pnpr:/tmp/registries.yaml
 docker compose exec pnpr pnpr registries import /tmp/registries.yaml
 ```
 
+Then drop the scope override and sign in at the router:
+
+```sh
+pnpm config delete @acme:registry
+pnpm login --registry http://localhost:7677/npm/
+```
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PNPR_IMAGE_TAG` | none, required | The `ghcr.io/pnpm/pnpr` tag to run. |
-| `PNPR_SECRET` | none, required | The [`secret`](configuration.md#secret), at least 16 bytes, without `"` or `\`. |
+| `PNPR_SECRET` | none, required | The [`secret`](configuration.md#secret): a hex string of at least 16 bytes, such as `openssl rand -hex 32` prints. |
 | `PNPR_PUBLIC_URL` | `http://localhost:7677` | The URL clients reach pnpr at. pnpr rewrites `dist.tarball` URLs onto it, so set it to the public HTTPS URL in production. |
 | `PNPR_CACHE_MAX_SIZE` | `20GB` | The largest the proxy cache grows before pnpr evicts the least recently used entries. Anonymous reads of the public npm registry fill it. |
 | `PNPR_LOG_FORMAT` | `json` | `json` or `pretty`. |
