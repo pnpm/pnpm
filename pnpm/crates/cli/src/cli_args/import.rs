@@ -52,7 +52,9 @@ impl ImportArgs {
         let Some(workspace) = state.config.workspace_dir.as_deref() else {
             return replace_lockfile::<Reporter>(&state, shared.into()).await;
         };
-        let (projects, _) = super::recursive::discover_workspace_projects(workspace, state.config)?;
+        let (mut projects, _) =
+            super::recursive::discover_workspace_projects(workspace, state.config)?;
+        pnpm_package_manager::apply_runtime_on_fail_to_projects(state.config, &mut projects);
         check_workspace_cycles::<Reporter>(state.config, &projects, workspace)?;
         let discovered = DiscoveredWorkspace::new(projects);
         state.discovered_workspace = Some(discovered.clone());
