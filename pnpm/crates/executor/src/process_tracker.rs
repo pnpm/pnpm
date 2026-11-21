@@ -304,9 +304,9 @@ impl SpawnedChild<'_> {
 
     /// Wait for the child, and after a relayed signal for its whole process
     /// group: a shell that died from the signal may have left the script it
-    /// started still shutting down. A group that drains is no longer
-    /// watched, so whatever the child left running in it is not ended by
-    /// pnpm's own exit; one that does not drain keeps its watch.
+    /// started still shutting down. pnpm then stops watching the group, so
+    /// whatever the child left running in it is not ended by pnpm's own
+    /// exit.
     pub fn wait(&mut self) -> io::Result<crate::process::ExitStatus> {
         let status = self.child.wait()?;
         tracing::debug!(
@@ -324,9 +324,7 @@ impl SpawnedChild<'_> {
             if let Some(registration) = &self.registration {
                 registration.keep_group_only();
             }
-            if !wait_for_process_group(self.child.id()) {
-                return Ok(status);
-            }
+            wait_for_process_group(self.child.id());
         }
         self.registration = None;
         #[cfg(unix)]
@@ -346,29 +344,25 @@ impl SpawnedChild<'_> {
 const PROCESS_GROUP_SHUTDOWN_GRACE: Duration = Duration::from_secs(30);
 
 /// Block until no process of the group led by `leader` is still running,
-/// and report whether the group drained within
-/// [`PROCESS_GROUP_SHUTDOWN_GRACE`].
+/// or [`PROCESS_GROUP_SHUTDOWN_GRACE`] has passed.
 #[cfg(unix)]
-fn wait_for_process_group(leader: u32) -> bool {
-    let Ok(leader) = i32::try_from(leader) else { return true };
+fn wait_for_process_group(leader: u32) {
+    let Ok(leader) = i32::try_from(leader) else { return };
     let table = cfg!(target_os = "linux").then(|| Path::new("/proc"));
     let deadline = Instant::now() + PROCESS_GROUP_SHUTDOWN_GRACE;
     while group_is_running(leader, table) {
         if Instant::now() >= deadline {
             tracing::warn!(
-                "a process the script started has not stopped, so pnpm's own exit ends it",
+                "a process the script started has not stopped, so pnpm stops waiting for it",
             );
-            return false;
+            return;
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    true
 }
 
 #[cfg(not(unix))]
-fn wait_for_process_group(_: u32) -> bool {
-    true
-}
+fn wait_for_process_group(_: u32) {}
 
 /// Whether the group led by `leader` may still hold a process that has not
 /// exited, once the members that are pnpm's own children are reaped.
