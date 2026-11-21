@@ -123,16 +123,19 @@ process.exit(1)
 // Returns null when an agent's switch must be rejected because its source
 // branch is unknown.
 //
+// - A rejected switch that is still unresolved keeps rejecting agents.
 // - `--bind-only`: a checkout the guard never observed predates its
-//   activation, so the worktree binds to currentBranch, unless a rejected
-//   switch is still unresolved.
+//   activation, so the worktree binds to currentBranch.
 // - post-checkout: the switch being checked binds to the most recent branch
 //   named as a checkout source in the HEAD reflog. Worktree creation binds
 //   to currentBranch.
 function initialBinding (currentBranch) {
   const mustReject = isAgent && !overridden
+  if (mustReject && existsSync(unresolvedPath)) {
+    return null
+  }
   if (bindOnly) {
-    return mustReject && existsSync(unresolvedPath) ? null : currentBranch
+    return currentBranch
   }
   if (/^0+$/.test(process.argv[2])) {
     return currentBranch
