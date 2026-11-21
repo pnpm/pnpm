@@ -13,6 +13,7 @@ use miette::{
     IntoDiagnostic,
 };
 use pnpm_config::Config;
+use pnpm_lockfile::PackageKey;
 use pnpm_modules_yaml::{
     Host,
     read_modules_layout,
@@ -163,6 +164,8 @@ pub(crate) struct RebuildSelection {
     /// Allow-build keys of the dependencies to rebuild, or `None` for
     /// every build-needing package.
     pub(crate) names: Option<Vec<String>>,
+    /// Exact snapshot keys, overriding the name selection for `edit`.
+    pub(crate) snapshots: Option<Vec<PackageKey>>,
     /// [`RebuildOptions::pending_projects`]; only `--pending` populates it.
     pub(crate) projects: Vec<String>,
 }
@@ -183,14 +186,22 @@ fn resolve_selection(
 ) -> miette::Result<RebuildSelection> {
     let config = state.config;
     if !packages.is_empty() {
-        return Ok(RebuildSelection { names: Some(packages.to_vec()), projects: Vec::new() });
+        return Ok(RebuildSelection {
+            snapshots: None,
+            names: Some(packages.to_vec()),
+            projects: Vec::new(),
+        });
     }
     if !pending {
         return Ok(RebuildSelection::default());
     }
     let Some(modules) = read_modules_manifest::<Host>(&config.modules_dir).into_diagnostic()?
     else {
-        return Ok(RebuildSelection { names: Some(Vec::new()), projects: Vec::new() });
+        return Ok(RebuildSelection {
+            snapshots: None,
+            names: Some(Vec::new()),
+            projects: Vec::new(),
+        });
     };
     let lockfile_dir = config.modules_dir_anchor().unwrap_or(&config.modules_dir);
     let active_importer_id = state.active_importer_id();
@@ -199,6 +210,7 @@ fn resolve_selection(
         .iter()
         .partition(|entry| pending_entry_is_project(lockfile_dir, &active_importer_id, entry));
     Ok(RebuildSelection {
+        snapshots: None,
         names: Some(
             dep_paths
                 .into_iter()
@@ -237,6 +249,9 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         selected_names: selection.names
             .map(std::iter::IntoIterator::into_iter)
             .map(std::iter::Iterator::collect::<HashSet<_>>),
+        selected_snapshots: selection.snapshots
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         pending_projects: selection.projects,
         check_lockfile_patches_only: false,
         skip_if_has_side_effects_cache: false,

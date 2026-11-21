@@ -1,3 +1,4 @@
+mod rebuild_selection;
 mod workspace;
 
 mod links;

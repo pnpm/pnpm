@@ -14,6 +14,7 @@ pub(super) use maintenance::{
     unlink,
 };
 pub(super) use patches::{
+    edit,
     patch,
     patch_commit,
     patch_remove,
@@ -43,6 +44,7 @@ use super::{
         apply_update_config,
     },
     dlx::DlxArgs,
+    edit::EditArgs,
     env::{
         EnvArgs,
         EnvSubcommand,

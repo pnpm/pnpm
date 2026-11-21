@@ -193,6 +193,7 @@ const NPM_CONFIG_TYPES: &[(&str, bool)] = &[
     ("cert", false),
     ("commit-hooks", false),
     ("depth", true),
+    ("editor", false),
     ("description", false),
     ("dev", false),
     ("dry-run", false),
