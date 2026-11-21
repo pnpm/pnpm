@@ -1,5 +1,6 @@
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { directoryPeerCatalogReferences } from '@pnpm/installing.deps-resolver'
 import type { LockfileObject, PackageSnapshot, ProjectSnapshot, ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import semver from 'semver'
 
@@ -85,20 +86,10 @@ function importerReferencesCatalog (
 }
 
 export function directoryPeerReferencesCatalog (lockfile: LockfileObject, catalogName: string, alias: string): boolean {
-  for (const [name, dependency] of directoryPeerCatalogReferences(lockfile)) {
+  for (const [name, dependency] of directoryPeerCatalogReferences(Object.values(lockfile.packages ?? {}) as PackageSnapshot[])) {
     if (catalogName === name && alias === dependency) return true
   }
   return false
-}
-
-function * directoryPeerCatalogReferences (lockfile: LockfileObject): Generator<[string, string]> {
-  for (const pkg of Object.values(lockfile.packages ?? {}) as PackageSnapshot[]) {
-    if (!('type' in pkg.resolution) || pkg.resolution.type !== 'directory') continue
-    for (const [alias, specifier] of Object.entries(pkg.peerDependencies ?? {})) {
-      const name = parseCatalogProtocol(specifier)
-      if (name != null) yield [name, alias]
-    }
-  }
 }
 
 /**
@@ -158,7 +149,7 @@ function pruneCatalog (catalog: Record<string, ResolvedCatalogEntry>, isReferenc
 
 function indexDirectoryPeerCatalogReferences (lockfile: LockfileObject): Map<string, Set<string>> {
   const peerReferences = new Map<string, Set<string>>()
-  for (const [name, alias] of directoryPeerCatalogReferences(lockfile)) {
+  for (const [name, alias] of directoryPeerCatalogReferences(Object.values(lockfile.packages ?? {}) as PackageSnapshot[])) {
     if (!peerReferences.has(name)) peerReferences.set(name, new Set())
     peerReferences.get(name)!.add(alias)
   }

@@ -15,7 +15,7 @@ import type {
 import semver from 'semver'
 
 import { extendGraph } from './extendGraph.js'
-import { addCatalogEntriesOfImporters, getCatalogSnapshots } from './getCatalogSnapshots.js'
+import { getCatalogSnapshots, retainCatalogEntries } from './getCatalogSnapshots.js'
 import { getWantedDependencies, hasAlias, type ManifestWantedDependency, type WantedDependency } from './getWantedDependencies.js'
 import type { ResolvedPkgsById } from './resolutionTypes.js'
 import type { DependenciesTree, UpdateMatchingFunction } from './resolveDependencies.js'
@@ -57,6 +57,7 @@ export {
 }
 export { createCyclicPeerPredicate, type PeerGraphEntry } from './cyclicPeerContexts.js'
 export { type DependencyManifestContext, lockedVersionSatisfies, prepareDependencyManifest } from './dependencyManifest.js'
+export { copyCatalogEntries, directoryPeerCatalogReferences } from './getCatalogSnapshots.js'
 export { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
 export { linkPathToPeerVersion } from './linkPathToPeerVersion.js'
 export { getPeerSet } from './resolvedPackage.js'
@@ -377,13 +378,7 @@ function createNewLockfile (
   newLockfile.catalogs = getCatalogSnapshots(
     Object.values(resolution.resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
     { graph: dependenciesGraph, catalogs: opts.catalogs, updatedCatalogs })
-  addCatalogEntriesOfImporters(
-    newLockfile.catalogs,
-    Object.entries(newLockfile.importers)
-      .filter(([projectId]) => resolution.resolvedImporters[projectId] == null)
-      .map(([, importer]) => importer),
-    opts.wantedLockfile.catalogs
-  )
+  retainCatalogEntries(newLockfile, opts.wantedLockfile.catalogs, { graph: dependenciesGraph, importers: resolution.resolvedImporters })
 
   if (
     opts.patchedDependencies &&

@@ -198,17 +198,9 @@ pub(crate) fn directory_peer_references_catalog(
 pub(crate) fn directory_peer_catalog_references(
     lockfile: &Lockfile,
 ) -> impl Iterator<Item = (&str, &str)> {
-    lockfile.packages
-        .iter()
-        .flat_map(|packages| packages.values())
-        .filter(|package| {
-            matches!(package.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
-        })
-        .filter_map(|package| package.peer_dependencies.as_ref())
-        .flatten()
-        .filter_map(|(alias, spec)| {
-            Some((pnpm_catalogs_protocol_parser::parse_catalog_protocol(spec)?, alias.as_str()))
-        })
+    crate::directory_peer_catalog_references(
+        lockfile.packages.iter().flat_map(|packages| packages.values()),
+    )
 }
 
 #[cfg(test)]

@@ -2,8 +2,9 @@ import path from 'node:path'
 
 import { parse as parseDepPath, refToRelative } from '@pnpm/deps.path'
 import type { PnpmContext } from '@pnpm/installing.context'
+import { copyCatalogEntries, directoryPeerCatalogReferences } from '@pnpm/installing.deps-resolver'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import type { LockfileObject, PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.types'
+import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.types'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectId,
@@ -82,13 +83,13 @@ function isLocalDependency (alias: string, ref: string): boolean {
 /**
  * The resolution rewrites the importer of every project it resolves. A
  * project missing from disk keeps the entry the lockfile recorded, with the
- * packages of `previousPackages` that entry reaches. The resolution prunes
+ * packages from the previous lockfile that entry reaches. The resolution prunes
  * the packages only the recorded entry reaches, such as `file:` dependencies,
  * which its stand-in leaves out.
  */
 export function keepImportersOfProjectsMissingFromDisk (
   lockfile: LockfileObject,
-  { projects, previousPackages }: { projects: readonly ImporterToUpdate[], previousPackages: PackageSnapshots | undefined }
+  { projects, previous }: { projects: readonly ImporterToUpdate[], previous: Pick<LockfileObject, 'packages' | 'catalogs'> }
 ): LockfileObject {
   let keepsAnImporter = false
   for (const { id, keptLockfileImporter } of projects) {
@@ -97,8 +98,15 @@ export function keepImportersOfProjectsMissingFromDisk (
     keepsAnImporter = true
   }
   if (!keepsAnImporter) return lockfile
-  return pruneSharedLockfile({
+  const retained = pruneSharedLockfile({
     ...lockfile,
-    packages: { ...previousPackages, ...lockfile.packages },
+    packages: { ...previous.packages, ...lockfile.packages },
   })
+  if (previous.catalogs != null) {
+    const packages = Object.entries(retained.packages ?? {})
+      .filter(([key]) => !Object.hasOwn(lockfile.packages ?? {}, key))
+      .map(([, pkg]) => pkg)
+    copyCatalogEntries(retained.catalogs ??= Object.create(null), previous.catalogs, directoryPeerCatalogReferences(packages))
+  }
+  return retained
 }
