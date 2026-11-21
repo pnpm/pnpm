@@ -88,11 +88,14 @@ export async function importYarnPatches (opts: ImportYarnPatchesOptions): Promis
     patch,
     patchFile: patch.patchPaths.length === 1 ? resolvePatchFile(patch.patchPaths[0], opts.yarnRootDir, project.rootDir) : undefined,
   })))
-  const statuses = await Promise.all(patchFiles.map(({ patchFile }) => patchFile == null ? undefined : patchFileStatus(patchFile, opts.workspaceDir)))
+  const checked = await Promise.all(patchFiles.map(async (entry) => {
+    const status = entry.patchFile == null ? undefined : await patchFileStatus(entry.patchFile, opts.workspaceDir)
+    const kept = getOwnValue(opts.patchedDependencies, entry.patch.patchKey)
+    const keptPath = await checkedExistingPath(kept, status, opts.workspaceDir)
+    return { ...entry, status, keptPath }
+  }))
   const recorded: Record<string, string> = Object.create(null)
-  for (const [index, patchFile] of patchFiles.entries()) {
-    recordPatchFile(opts, recorded, { ...patchFile, status: statuses[index] })
-  }
+  for (const entry of checked) recordPatchFile(opts, recorded, entry)
   if (Object.keys(recorded).length === 0) return undefined
   return writeRecordedPatches(opts, recorded)
 }
@@ -101,20 +104,21 @@ interface ImportedPatchFile {
   alias: string
   patch: YarnPatchSpecifier
   patchFile?: string
+  keptPath?: string
   status?: PatchFileStatus
 }
 
 function recordPatchFile (
   opts: ImportYarnPatchesOptions,
   recorded: Record<string, string>,
-  { alias, patch, patchFile, status }: ImportedPatchFile
+  { alias, patch, patchFile, status, keptPath }: ImportedPatchFile
 ): void {
   if (patch.patchPaths.length > 1) {
     globalWarn(`"${alias}" has several Yarn patches, and pnpm applies one patch per dependency. "${alias}" was imported without the patches.`)
     return
   }
   if (patchFile == null || status == null) return
-  const kept = getOwnValue(opts.patchedDependencies, patch.patchKey) ?? recorded[patch.patchKey]
+  const kept = keptPath ?? recorded[patch.patchKey]
   if (status === 'outside') {
     globalWarn(`The patch file ${patchFile} of "${alias}" is outside the workspace. "${alias}" was imported without the patch.`)
     return
@@ -131,6 +135,14 @@ function recordPatchFile (
   } else if (path.resolve(opts.workspaceDir, kept) !== checkedFile) {
     globalWarn(`The Yarn patch ${toWorkspacePath(checkedFile, opts.workspaceDir)} of "${alias}" was not applied, because "${patch.patchKey}" already uses the patch ${toWorkspacePath(kept, opts.workspaceDir)}.`)
   }
+}
+
+async function checkedExistingPath (kept: string | undefined, status: PatchFileStatus | undefined, workspaceDir: string): Promise<string | undefined> {
+  if (kept == null || typeof status !== 'object') return kept
+  const existing = path.resolve(workspaceDir, kept)
+  if (existing === status.path) return existing
+  const checked = await patchFileStatus(existing, workspaceDir)
+  return typeof checked === 'object' ? checked.path : kept
 }
 
 function getOwnValue (record: Record<string, string> | undefined, key: string): string | undefined {

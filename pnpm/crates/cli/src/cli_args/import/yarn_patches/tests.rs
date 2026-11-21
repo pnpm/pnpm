@@ -138,5 +138,9 @@ fn records_the_checked_target_of_a_patch_symlink() {
         dir.path(),
     )
     .unwrap();
-    assert_eq!(checked, Some(target));
+    assert_eq!(checked.as_ref(), Some(&target));
+    let mut patches =
+        indexmap::IndexMap::from([("example@1".to_string(), "link.patch".to_string())]);
+    let same = RecordedPatch { key: "example@1".into(), file: &target, alias: "example".into() };
+    assert!(same.record(&mut patches, dir.path()).is_none());
 }

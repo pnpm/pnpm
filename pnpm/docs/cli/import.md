@@ -14,7 +14,7 @@ pnpm import
 
 The import is not a one-to-one conversion. The versions in the source lockfile are preferred during a fresh resolution, so the result can differ where the source lockfile does not satisfy the manifests. In a workspace, the `yarn.lock` files of individual projects are read too. Dependencies that use Yarn's `patch:` protocol become [`patchedDependencies`](./patch.md#patcheddependencies) entries.
 
-With `sharedWorkspaceLockfile: false`, each project receives its own lockfile. Import follows the workspace cycle settings.
+With `sharedWorkspaceLockfile: false`, each project receives its own lockfile unless `lockfileDir` specifies a shared destination. Import follows the workspace cycle settings.
 
 An existing `pnpm-lock.yaml` is replaced. If the import fails, the previous file is restored.
 

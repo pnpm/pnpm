@@ -69,7 +69,13 @@ export async function handler (
 ): Promise<void> {
   const versionsByPackageNames = await readVersionsByPackageNames(opts.dir)
   const preferredVersions = getPreferredVersions(versionsByPackageNames)
+  const lockfilePath = path.join(opts.lockfileDir ?? opts.dir, await getWantedLockfileName(opts))
+  await ensureLockfileIsNotSymlink(lockfilePath)
   const projects = await getImportedProjects(opts)
+  if (opts.sharedWorkspaceLockfile === false && opts.lockfileDir == null) {
+    const lockfileName = path.basename(lockfilePath)
+    await Promise.all(projects.map(project => ensureLockfileIsNotSymlink(path.join(project.rootDir, lockfileName))))
+  }
   const preferredVersionsByImporterId = await nestedYarnLockPreferredVersions(opts, projects)
   const patchedDependencies = await importYarnPatches({
     projects,
@@ -77,7 +83,7 @@ export async function handler (
     workspaceDir: opts.workspaceDir ?? opts.dir,
     patchedDependencies: opts.patchedDependencies,
   }) ?? opts.patchedDependencies
-  await replaceWantedLockfile(opts, async () => installImportedLockfile(
+  await replaceWantedLockfile(lockfilePath, async () => installImportedLockfile(
     { ...opts, patchedDependencies },
     params,
     { preferredVersions, preferredVersionsByImporterId }
@@ -85,17 +91,11 @@ export async function handler (
 }
 
 async function replaceWantedLockfile (
-  opts: Pick<ImportCommandOptions, 'dir' | 'lockfileDir' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>,
+  lockfilePath: string,
   writeImportedLockfile: () => Promise<void>
 ): Promise<void> {
-  const lockfileDir = opts.lockfileDir ?? opts.dir
-  // Resolved the way the installer resolves it, so the backed up file and the
-  // file the import writes back are the same one.
-  const lockfileName = await getWantedLockfileName({
-    useGitBranchLockfile: opts.useGitBranchLockfile,
-    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-  })
-  const lockfilePath = path.join(lockfileDir, lockfileName)
+  const lockfileDir = path.dirname(lockfilePath)
+  const lockfileName = path.basename(lockfilePath)
   await ensureLockfileIsNotSymlink(lockfilePath)
   // The env document leads pnpm-lock.yaml, so a branch import has none to carry over.
   const envLockfile = lockfileName === WANTED_LOCKFILE ? await readEnvLockfile(lockfileDir) : undefined

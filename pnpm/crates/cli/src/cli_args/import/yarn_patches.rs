@@ -247,7 +247,9 @@ impl RecordedPatch<'_> {
             }
             Entry::Occupied(entry)
                 if lexical_normalize(&workspace_dir.join(entry.get()))
-                    == lexical_normalize(self.file) =>
+                    == lexical_normalize(self.file)
+                    || same_file::is_same_file(workspace_dir.join(entry.get()), self.file)
+                        .unwrap_or(false) =>
             {
                 None
             }
@@ -292,11 +294,18 @@ pub(super) fn import_yarn_patches<Reporter: self::Reporter>(
     let config = state.config;
     let workspace_dir = config.workspace_dir.clone().unwrap_or_else(|| yarn_root.to_path_buf());
     let mut manifests = match &config.workspace_dir {
-        Some(workspace_dir) => discover_workspace_projects(workspace_dir, config)?
-            .0
-            .into_iter()
-            .map(|project| project.manifest)
-            .collect(),
+        Some(workspace_dir) => {
+            let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
+            if !config.shares_one_lockfile() {
+                for project in &projects {
+                    super::checked_lockfile_path(config, &project.root_dir)?;
+                }
+            }
+            projects
+                .into_iter()
+                .map(|project| project.manifest)
+                .collect()
+        }
         None => vec![state.manifest.clone()],
     };
     let mut patched_dependencies = config.patched_dependencies.clone().unwrap_or_default();

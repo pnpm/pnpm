@@ -51,6 +51,7 @@ impl ImportArgs {
         self.warn_ignored_pnpr_server::<Reporter>(state.config);
 
         let shared = to_preferred_versions(&read_foreign_lockfile_versions(&dir)?);
+        checked_lockfile_path(state.config, &dir)?;
         let mut state = yarn_patches::import_yarn_patches::<Reporter>(state, &dir)?;
         let mut backups = Vec::new();
         let result = match state.config.workspace_dir.as_deref() {
@@ -162,6 +163,11 @@ fn nested_yarn_preferences(dir: &Path) -> miette::Result<Option<PreferredVersion
     Ok(Some(to_preferred_versions(&read_foreign_lockfile_versions(dir)?)))
 }
 
+fn checked_lockfile_path(config: &pnpm_config::Config, project: &Path) -> miette::Result<PathBuf> {
+    let path = config.lockfile_dir_for(project).join(config.wanted_lockfile_name());
+    Ok(lockfile_write_target(&path, config.symlinked_lockfile()).into_diagnostic()?.into_owned())
+}
+
 async fn replace_lockfile<Reporter: self::Reporter + 'static>(
     state: &State,
     preferred_versions: PreferredVersionsOverride,
@@ -169,8 +175,7 @@ async fn replace_lockfile<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     let lockfile_dir = state.lockfile_dir();
     let symlinked = state.config.symlinked_lockfile();
-    let lockfile_path =
-        lockfile_write_target(&state.lockfile_path(), symlinked).into_diagnostic()?.into_owned();
+    let lockfile_path = checked_lockfile_path(state.config, state.project_dir())?;
     let env_lockfile = if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
         EnvLockfile::read(lockfile_dir)
             .into_diagnostic()
