@@ -426,8 +426,8 @@ fn install_reports_a_deprecation_without_the_notice_and_keeps_the_metadata_on_re
         .success();
     let stdout = String::from_utf8_lossy(&assertion.get_output().stdout).into_owned();
     assert!(
-        stdout.contains("deprecated @pnpm.e2e/deprecated@1.0.0"),
-        "the install should name the deprecated dependency:\n{stdout}",
+        stdout.contains("+ @pnpm.e2e/deprecated 1.0.0 deprecated"),
+        "the install summary should mark the deprecated dependency:\n{stdout}",
     );
     assert!(
         !stdout.contains("This package is deprecated."),
@@ -452,14 +452,63 @@ fn install_reports_a_deprecation_without_the_notice_and_keeps_the_metadata_on_re
     )
     .expect("extend package.json");
 
-    new_pacquet_command(&workspace)
+    let assertion = new_pacquet_command(&workspace)
         .with_arg("install")
         .assert()
         .success();
+    let stdout = String::from_utf8_lossy(&assertion.get_output().stdout).into_owned();
+    assert!(
+        stdout.contains("1 deprecated package is still installed")
+            && !stdout.contains("deprecated: @pnpm.e2e/deprecated"),
+        "an installed deprecated dependency should only be counted:\n{stdout}",
+    );
     let second = fs::read_to_string(&lockfile_path).expect("re-read pnpm-lock.yaml");
     assert!(
         second.contains("deprecated: This package is deprecated."),
         "lockfile reuse should preserve deprecation metadata:\n{second}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Peer resolution runs after the dependency walk and installs missing
+/// peers, so a deprecation it reports is still collected.
+#[test]
+fn install_reports_a_deprecated_auto_installed_peer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let local = workspace.join("local");
+    fs::create_dir_all(&local).expect("create the local package");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({
+            "name": "local",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/deprecated": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the local package.json");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "local": "file:./local" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    let assertion = pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assertion.get_output().stdout).into_owned();
+    assert!(
+        stdout.contains("[WARN] deprecated: @pnpm.e2e/deprecated@1.0.0"),
+        "the auto-installed peer's deprecation should be reported:\n{stdout}",
     );
 
     drop((root, mock_instance));

@@ -625,6 +625,10 @@ pub struct DeprecationLog {
     pub depth: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub non_deprecated_alternative: Option<NonDeprecatedAlternative>,
+    /// Whether the previous install already installed this package, so the
+    /// deprecation is not news. Skipped from the wire when `false`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub already_installed: bool,
 }
 
 /// A version of the same package that is not deprecated, as the resolver read

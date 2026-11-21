@@ -581,27 +581,63 @@ fn skipped_optional_log_fn<Reporter: self::Reporter>()
     })
 }
 
-/// Build the resolver's deprecation sink: each notification emits a
-/// `pnpm:deprecation` debug event through the install's reporter,
-/// matching pnpm's `deprecationLogger.debug` payload.
-fn deprecation_log_fn<Reporter: self::Reporter>() -> pnpm_resolving_deps_resolver::DeprecationLogFn
-{
-    Arc::new(|deprecation: pnpm_resolving_deps_resolver::Deprecation| {
-        Reporter::emit(&LogEvent::Deprecation(DeprecationLog {
-            level: LogLevel::Debug,
-            pkg_name: deprecation.pkg_name,
-            pkg_version: deprecation.pkg_version,
-            pkg_id: deprecation.pkg_id,
-            prefix: deprecation.prefix,
-            depth: deprecation.depth,
-            non_deprecated_alternative: deprecation.non_deprecated_alternative.map(|alt| {
-                pnpm_reporter::NonDeprecatedAlternative {
-                    version: alt.version,
-                    outside_declared_range: alt.outside_declared_range,
-                }
-            }),
-        }));
-    })
+/// The deprecations resolution reports. They are emitted once resolution
+/// ends, when each can be checked against the current lockfile, which the
+/// resolver's `'static` sink cannot borrow.
+#[derive(Default)]
+struct DeprecationCollector(Arc<std::sync::Mutex<Vec<pnpm_resolving_deps_resolver::Deprecation>>>);
+
+impl DeprecationCollector {
+    fn sink(&self) -> pnpm_resolving_deps_resolver::DeprecationLogFn {
+        let collected = Arc::clone(&self.0);
+        Arc::new(move |deprecation| {
+            collected
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(deprecation);
+        })
+    }
+
+    /// Emit a `pnpm:deprecation` event per collected deprecation, matching
+    /// pnpm's `deprecationLogger.debug` payload, flagged when `installed`
+    /// (the current lockfile) already has the package.
+    fn emit<Reporter: self::Reporter>(&self, installed: Option<&Lockfile>) {
+        let deprecations =
+            std::mem::take(&mut *self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
+        let installed_packages = installed.and_then(|lockfile| lockfile.packages.as_ref());
+        for deprecation in deprecations {
+            let already_installed =
+                installed_packages.is_some_and(|packages| is_installed(packages, &deprecation));
+            Reporter::emit(&LogEvent::Deprecation(DeprecationLog {
+                level: LogLevel::Debug,
+                pkg_name: deprecation.pkg_name,
+                pkg_version: deprecation.pkg_version,
+                pkg_id: deprecation.pkg_id,
+                prefix: deprecation.prefix,
+                depth: deprecation.depth,
+                non_deprecated_alternative: deprecation
+                    .non_deprecated_alternative
+                    .map(|alt| pnpm_reporter::NonDeprecatedAlternative {
+                        version: alt.version,
+                        outside_declared_range: alt.outside_declared_range,
+                    }),
+                already_installed,
+            }));
+        }
+    }
+}
+
+/// Whether `packages` has the deprecated package. Its id is the package's
+/// lockfile key, so a tarball or git resolution of the same version stays
+/// distinct from the registry one. An id that is no package key counts as
+/// not installed, which names the package rather than hiding it.
+fn is_installed(
+    packages: &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>,
+    deprecation: &pnpm_resolving_deps_resolver::Deprecation,
+) -> bool {
+    deprecation.pkg_id
+        .parse::<pnpm_lockfile::PackageKey>()
+        .is_ok_and(|key| packages.contains_key(&key.without_peer()))
 }
 
 /// The importer selection the patch-usage check is scoped by.

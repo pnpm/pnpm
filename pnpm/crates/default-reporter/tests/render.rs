@@ -193,7 +193,11 @@ fn summary() -> LogEvent {
 }
 
 fn summary_at(prefix: &str) -> LogEvent {
-    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: prefix.to_string() })
+    LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix: prefix.to_string(),
+        new_projects: None,
+    })
 }
 
 fn pnpm_log(level: LogLevel, message: &str) -> LogEvent {
@@ -219,7 +223,17 @@ fn deprecation_with_alternative(
         prefix: prefix.to_string(),
         depth,
         non_deprecated_alternative,
+        already_installed: false,
     })
+}
+
+/// A deprecation of a package the previous install already installed.
+fn installed_deprecation(name: &str, version: &str, depth: i32) -> LogEvent {
+    let LogEvent::Deprecation(mut log) = deprecation(name, version, depth, CWD) else {
+        unreachable!("deprecation() builds a deprecation event");
+    };
+    log.already_installed = true;
+    LogEvent::Deprecation(log)
 }
 
 fn resolution_done() -> LogEvent {
@@ -411,3 +425,9 @@ mod script_output;
 
 #[path = "render/peers.rs"]
 mod peers;
+
+#[path = "render/deprecations.rs"]
+mod deprecations;
+
+#[path = "render/workspace_summary.rs"]
+mod workspace_summary;

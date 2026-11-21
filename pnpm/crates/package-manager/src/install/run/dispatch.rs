@@ -168,6 +168,7 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: workspace.prefix.clone(),
+        new_projects: None,
     }));
     Ok(())
 }

@@ -450,7 +450,11 @@ fn emit_global_update_result<Reporter: self::Reporter>(global_pkg_dir: &Path, up
         }));
     }
     let prefix = global_pkg_dir.to_string_lossy().into_owned();
-    Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+    Reporter::emit(&LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix,
+        new_projects: None,
+    }));
 }
 
 /// Surface a non-fatal problem on the `pnpm:global` channel, matching

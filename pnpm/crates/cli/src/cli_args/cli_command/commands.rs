@@ -539,6 +539,11 @@ impl CliCommand {
         }
     }
 
+    /// See [`pnpm_default_reporter::set_edits_manifests`].
+    pub(crate) fn edits_manifests(&self) -> bool {
+        matches!(self, CliCommand::Add(_) | CliCommand::Remove(_) | CliCommand::Update(_))
+    }
+
     pub(crate) fn default_reporter_summary_scope(&self) -> SummaryScope {
         match self {
             CliCommand::Access(_) => SummaryScope::CurrentPrefix,
