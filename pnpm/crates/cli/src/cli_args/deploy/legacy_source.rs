@@ -166,9 +166,8 @@ impl LegacyDeploySource {
             },
         )
         .await
-        .map_err(|error| {
-            miette::Report::new(pnpm_package_manager::InstallError::ReadPackageHook(error))
-        })
+        .map_err(pnpm_package_manager::InstallError::from)
+        .map_err(miette::Report::new)
     }
 }
 

@@ -191,21 +191,6 @@ impl PackageExtender {
         self.apply(&mut cloned);
         Arc::new(cloned)
     }
-
-    /// Wrap `self` in a [`pnpm_resolving_deps_resolver::ManifestHook`]
-    /// the deps-resolver can plumb through `TreeCtx`. Returns `None`
-    /// when the extender is empty so the install pipeline can pass
-    /// `None` and skip the per-resolve dispatch entirely. The captured
-    /// `Arc<PackageExtender>` keeps the grouped-by-name index alive
-    /// across every concurrent resolve.
-    #[must_use]
-    pub fn into_manifest_hook(self) -> Option<pnpm_resolving_deps_resolver::ManifestHook> {
-        if self.is_empty() {
-            return None;
-        }
-        let shared = Arc::new(self);
-        Some(Arc::new(move |manifest: Arc<Value>| shared.apply_to_arc(manifest)))
-    }
 }
 
 /// `true` when an entry's range covers `version`. `RangeFilter::Any`

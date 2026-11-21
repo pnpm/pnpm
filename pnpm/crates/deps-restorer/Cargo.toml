@@ -36,6 +36,7 @@ pnpm-lockfile-verification = { workspace = true }
 pnpm-modules-yaml = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
+pnpm-package-extensions = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-patching = { workspace = true }
 pnpm-pnpr-client = { workspace = true }

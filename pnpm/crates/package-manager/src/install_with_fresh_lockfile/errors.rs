@@ -191,9 +191,7 @@ pub enum InstallWithFreshLockfileError {
     /// at install start, not at the first per-manifest match, so the
     /// user sees the bad selector before any tarballs are fetched.
     #[diagnostic(transparent)]
-    InvalidPackageExtensionSelector(
-        #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
-    ),
+    InvalidPackageExtensionSelector(#[error(source)] crate::InvalidPackageExtensionSelector),
 
     /// A value in `pnpm.overrides` couldn't be parsed before the
     /// fresh resolver's read-package hook was built.
@@ -255,6 +253,19 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pnpm_hooks::HookError),
 }
+impl From<pnpm_deps_restorer::EnrichLocalPolicyError> for InstallWithFreshLockfileError {
+    fn from(err: pnpm_deps_restorer::EnrichLocalPolicyError) -> Self {
+        match err {
+            pnpm_deps_restorer::EnrichLocalPolicyError::ReadPackageHook(err) => {
+                Self::PnpmfileHook(err)
+            }
+            pnpm_deps_restorer::EnrichLocalPolicyError::InvalidPackageExtensionSelector(err) => {
+                Self::InvalidPackageExtensionSelector(err)
+            }
+        }
+    }
+}
+
 impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFreshLockfileError {
     fn from(error: crate::install_frozen_lockfile::HoistedLinkerError) -> Self {
         use crate::install_frozen_lockfile::HoistedLinkerError;

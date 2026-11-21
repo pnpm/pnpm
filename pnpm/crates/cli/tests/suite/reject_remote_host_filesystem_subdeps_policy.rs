@@ -162,6 +162,58 @@ fn range_conditional_pnpmfile_read_package_hook_reinstalls_under_frozen_lockfile
 }
 
 #[test]
+fn hook_keyed_on_a_package_extension_reinstalls_with_pnpm_ci() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (home, auth_file) = setup_host_secrets(root.path());
+    let mut server = mockito::Server::new();
+
+    let shared_dir = root.path().join("shared-outside");
+    fs::create_dir_all(&shared_dir).expect("create shared-outside");
+    fs::write(
+        shared_dir.join("package.json"),
+        json!({ "name": "shared", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write shared manifest");
+
+    let remote_manifest = json!({ "name": "remote-pkg", "version": "1.0.0" });
+    let _mocks = serve_remote_pkg(&mut server, "remote-pkg", "1.0.0", &remote_manifest);
+
+    fs::write(workspace.join(".npmrc"), format!("registry={}/\n", server.url()))
+        .expect("write .npmrc");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packageExtensions:\n  remote-pkg:\n    dependencies:\n      shared: ^1.0.0\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage(pkg) {\n  if (pkg.name === 'remote-pkg' && pkg.dependencies && pkg.dependencies.shared === '^1.0.0') {\n    pkg.dependencies.shared = 'link:../shared-outside';\n  }\n  return pkg;\n} } };\n",
+    )
+    .expect("write .pnpmfile.cjs");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "remote-pkg": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pnpm_cmd(&workspace, &home, &auth_file)
+        .with_arg("install")
+        .assert()
+        .success();
+    pnpm_cmd(&workspace, &home, &auth_file)
+        .with_arg("ci")
+        .assert()
+        .success();
+
+    drop((root, server));
+}
+
+#[test]
 fn absent_workspace_project_with_outside_file_dep_does_not_block_frozen_install_and_removed_local_dep_stops_authorizing_peer()
  {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

@@ -269,15 +269,11 @@ async fn read_package_error_on_a_real_manifest_reaches_the_caller() {
     };
     let mut rewrites = Vec::new();
     let pristine = serde_json::json!({ "name": "remote", "dependencies": { "helper": "^1.0.0" } });
-    super::collect_probed_parent_rewrites(
-        &ThrowingReadPackage,
-        &parent,
-        Some(&pristine),
-        &mut rewrites,
-    )
-    .await
-    .expect_err("the hook's error on the real manifest must surface");
-    super::collect_probed_parent_rewrites(&ThrowingReadPackage, &parent, None, &mut rewrites)
+    let replay = super::ReadPackageReplay { hook: &ThrowingReadPackage, extensions: None };
+    super::collect_probed_parent_rewrites(&replay, &parent, Some(&pristine), &mut rewrites)
+        .await
+        .expect_err("the hook's error on the real manifest must surface");
+    super::collect_probed_parent_rewrites(&replay, &parent, None, &mut rewrites)
         .await
         .expect("an error on a placeholder manifest only withholds rewrites");
     assert!(rewrites.is_empty());
@@ -352,7 +348,7 @@ async fn hook_replay_sees_in_archive_file_deps_as_package_root_links() {
     let pristine = serde_json::json!({ "name": "remote", "dependencies": { "sub": "file:./sub" } });
     let mut rewrites = Vec::new();
     super::collect_probed_parent_rewrites(
-        &RejectsRawFileSpecs,
+        &super::ReadPackageReplay { hook: &RejectsRawFileSpecs, extensions: None },
         &parent,
         Some(&pristine),
         &mut rewrites,
@@ -360,4 +356,92 @@ async fn hook_replay_sees_in_archive_file_deps_as_package_root_links() {
     .await
     .expect("fresh resolution hands the hook `link:<root>/sub`, so the replay must too");
     assert!(rewrites.is_empty());
+}
+
+/// Redirects `helper` to a local directory only when the manifest asks for
+/// `helper@^1.0.0`, which only a `packageExtensions` entry adds.
+struct RedirectsExtendedHelper;
+
+#[async_trait::async_trait]
+impl pnpm_hooks::PnpmfileHooks for RedirectsExtendedHelper {
+    async fn read_package(
+        &self,
+        mut pkg: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
+        if let Some(helper) = pkg.pointer_mut("/dependencies/helper")
+            && helper == "^1.0.0"
+        {
+            *helper = serde_json::Value::from("link:../helper");
+        }
+        Ok(std::sync::Arc::new(pkg))
+    }
+
+    async fn after_all_resolved(
+        &self,
+        _: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+        Ok(serde_json::Value::Null)
+    }
+
+    async fn pre_resolution(
+        &self,
+        ctx: pnpm_hooks::PreResolutionHookContext,
+        _: pnpm_hooks::PreResolutionHookLogger,
+    ) -> Result<pnpm_hooks::PreResolutionHookContext, pnpm_hooks::HookError> {
+        Ok(ctx)
+    }
+
+    async fn filter_log(&self, _: serde_json::Value, _: pnpm_hooks::HookContext) -> bool {
+        true
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        None
+    }
+
+    fn source_path(&self) -> Option<&std::path::Path> {
+        None
+    }
+}
+
+#[tokio::test]
+async fn hook_replay_sees_package_extensions() {
+    let parent = pnpm_lockfile_verification::LocalResolutionProbeParent {
+        pkg_key: "remote@1.0.0".parse().expect("parse key"),
+        resolution: None,
+        name: "remote".to_string(),
+        version: Some("1.0.0".to_string()),
+        dep_aliases: vec!["helper".to_string()],
+        optional_aliases: Vec::new(),
+        peer_aliases: Vec::new(),
+    };
+    let pristine = serde_json::json!({ "name": "remote", "version": "1.0.0" });
+    let mut config = pnpm_config::Config::new();
+    config.package_extensions = Some(indexmap::IndexMap::from([(
+        "remote".to_string(),
+        pnpm_config::PackageExtension {
+            dependencies: Some([("helper".to_string(), "^1.0.0".to_string())].into()),
+            ..Default::default()
+        },
+    )]));
+    let drivers = super::LocalPolicyEnrichDrivers {
+        config: Some(&config),
+        http_client: None,
+        hook: Some(&RedirectsExtendedHelper),
+    };
+    let modes = super::ProbeModes { pristine_specs: false, read_package: true };
+    let replay = super::ReadPackageReplay::for_probe(drivers, modes)
+        .expect("valid selector")
+        .expect("a hook to replay");
+    let mut rewrites = Vec::new();
+    super::collect_probed_parent_rewrites(&replay, &parent, Some(&pristine), &mut rewrites)
+        .await
+        .expect("the hook accepts the manifest");
+    let rewritten: Vec<_> = rewrites
+        .iter()
+        .map(|(_, _, _, alias, spec)| (alias.as_str(), spec.as_str()))
+        .collect();
+    assert_eq!(rewritten, [("helper", "link:../helper")]);
 }

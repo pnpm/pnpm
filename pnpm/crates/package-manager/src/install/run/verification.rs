@@ -142,7 +142,7 @@ impl Verification {
                 },
             )
             .await
-            .map_err(InstallError::ReadPackageHook)?;
+            .map_err(InstallError::from)?;
         }
         Ok(())
     }

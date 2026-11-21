@@ -108,7 +108,14 @@ impl<'a> FrozenInputs<'a> {
             },
         )
         .await
-        .map_err(super::InstallFrozenLockfileError::ReadPackageHook)
+        .map_err(|error| match error {
+            crate::EnrichLocalPolicyError::ReadPackageHook(error) => {
+                super::InstallFrozenLockfileError::ReadPackageHook(error)
+            }
+            crate::EnrichLocalPolicyError::InvalidPackageExtensionSelector(error) => {
+                super::InstallFrozenLockfileError::InvalidPackageExtensionSelector(error)
+            }
+        })
     }
 
     // Declared projects may live outside the lockfile directory, unlike untrusted importer keys.

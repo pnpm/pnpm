@@ -38,9 +38,7 @@ pub(crate) enum FreshnessCheckError {
     /// A `packageExtensions` selector could not be parsed while applying the
     /// extensions to an injected dependency's manifest.
     #[diagnostic(transparent)]
-    InvalidPackageExtensionSelector(
-        #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
-    ),
+    InvalidPackageExtensionSelector(#[error(source)] crate::InvalidPackageExtensionSelector),
 
     /// The pnpmfile's `readPackage` failed on an injected dependency's
     /// manifest.

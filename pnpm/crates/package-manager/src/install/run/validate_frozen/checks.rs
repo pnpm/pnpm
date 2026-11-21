@@ -119,7 +119,7 @@ impl RunExecution<'_> {
                     },
                 )
                 .await
-                .map_err(InstallError::ReadPackageHook)?;
+                .map_err(InstallError::from)?;
                 verify_lockfile_offline_and_policies(
                     lockfile,
                     &[],

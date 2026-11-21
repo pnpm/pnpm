@@ -5334,6 +5334,7 @@ dependencies = [
  "pnpm-matcher",
  "pnpm-modules-yaml",
  "pnpm-network",
+ "pnpm-package-extensions",
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
  "pnpm-package-name",
@@ -6249,6 +6250,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-package-extensions"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap 2.14.2",
+ "miette 7.6.0",
+ "node-semver",
+ "pnpm-config",
+ "pnpm-resolving-parse-wanted-dependency",
+ "pretty_assertions",
+ "serde_json",
+]
+
+[[package]]
 name = "pnpm-package-is-installable"
 version = "0.0.1"
 dependencies = [
@@ -6317,6 +6332,7 @@ dependencies = [
  "pnpm-matcher",
  "pnpm-modules-yaml",
  "pnpm-network",
+ "pnpm-package-extensions",
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
  "pnpm-package-name",

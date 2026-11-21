@@ -62,7 +62,7 @@ pub(super) async fn verify_repair_if_filtered<Reporter: pnpm_reporter::Reporter>
         },
     )
     .await
-    .map_err(InstallWithFreshLockfileError::PnpmfileHook)?;
+    .map_err(InstallWithFreshLockfileError::from)?;
     verify_merged_repair::<Reporter>(
         built_lockfile,
         install.resolution_verifiers,

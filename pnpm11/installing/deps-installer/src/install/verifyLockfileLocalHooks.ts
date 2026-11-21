@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
 import * as dp from '@pnpm/deps.path'
+import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { linkFileDepsInsidePackage } from '@pnpm/installing.package-requester'
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { isNonLocalFilesystemSubdepSpec } from '@pnpm/resolving.local-resolver'
@@ -53,6 +54,7 @@ export interface InstallLocalPolicyOptions {
     afterAllResolved?: unknown[]
     untrackedPnpmfileReadPackageHook?: boolean
   }
+  ignoreCompatibilityDb?: boolean
   ignorePackageManifest?: boolean
   lockfileDir?: string
   overrides?: Record<string, string>
@@ -102,7 +104,7 @@ export async function resolveLocalPolicyForInstall (
     return basePolicy
   }
   verifyLockfileResolutionShapes(lockfile, basePolicy)
-  const activeHooks = selectActiveReadPackageHooks(lockfile, opts.hooks?.readPackage)
+  const activeHooks = selectActiveReadPackageHooks(lockfile, opts)
   const needsRanged = policyHasChildRangedEdges(basePolicy)
   if (activeHooks == null && !needsRanged) return basePolicy
   const candidates = collectProbeCandidates(lockfile, basePolicy)
@@ -110,20 +112,38 @@ export async function resolveLocalPolicyForInstall (
   return enrichPolicyFromCandidates(basePolicy, candidates, { activeHooks, needsRanged, opts })
 }
 
+/**
+ * The pnpmfile's `readPackage` hooks, preceded by the transforms fresh
+ * resolution runs on a dependency's manifest before them, or `undefined` when
+ * the lockfile was not built with a hook.
+ */
 function selectActiveReadPackageHooks (
   lockfile: LockfileObject,
-  hooks: ReadPackageHook[] | undefined
-): ReadPackageHook[] | undefined {
+  opts: Pick<InstallLocalPolicyOptions, 'hooks' | 'ignoreCompatibilityDb' | 'lockfileDir' | 'packageExtensions'>
+): ReadPackageReplay | undefined {
+  const hooks = opts.hooks?.readPackage
   if (!hooks?.length) return undefined
   const lockfileHasHook = lockfile.pnpmfileChecksum != null || lockfile.untrackedPnpmfileReadPackageHook === true
-  return lockfileHasHook ? hooks : undefined
+  if (!lockfileHasHook) return undefined
+  const preHook = createReadPackageHook({
+    ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
+    // Only overrides read this directory, and none are passed.
+    lockfileDir: opts.lockfileDir ?? '',
+    packageExtensions: opts.packageExtensions,
+  })
+  return { hooks, preHook }
+}
+
+interface ReadPackageReplay {
+  hooks: ReadPackageHook[]
+  preHook: ReadPackageHook | undefined
 }
 
 async function enrichPolicyFromCandidates (
   basePolicy: LocalResolutionPolicy,
   candidates: ProbeCandidate[],
   ctx: {
-    activeHooks: ReadPackageHook[] | undefined
+    activeHooks: ReadPackageReplay | undefined
     needsRanged: boolean
     opts: InstallLocalPolicyOptions
   }
@@ -140,7 +160,7 @@ async function enrichPolicyFromCandidates (
 async function probeSingleCandidate (
   candidate: ProbeCandidate,
   { activeHooks, needsRanged, opts }: {
-    activeHooks: ReadPackageHook[] | undefined
+    activeHooks: ReadPackageReplay | undefined
     needsRanged: boolean
     opts: InstallLocalPolicyOptions
   },
@@ -152,30 +172,45 @@ async function probeSingleCandidate (
   const pristine = await loadPristineCandidateManifest(candidate, opts.storeController, opts.lockfileDir)
   if (needsRanged && pristine != null) recordPristineSpecs(candidate, pristine, acc.pristineSpecs)
   if (activeHooks == null) return
-  // Fresh resolution rewrites in-archive `file:` dependencies before hooks
-  // run, so the replay and its rewrite baseline do too.
-  const prepared = pristine != null ? linkFileDepsInsidePackage(pristine as DependencyManifest) : undefined
-  const hooked = await runReadPackageProbe(activeHooks, { candidate, pristine: prepared, sentinel: PROBE_SENTINEL_SPEC })
-  const altHooked = prepared == null
-    ? await runReadPackageProbe(activeHooks, { candidate, sentinel: PROBE_ALT_SENTINEL_SPEC })
+  const realInput = pristine != null ? await hookInput(activeHooks, pristine) : undefined
+  const input = realInput ?? await hookInput(activeHooks, placeholderManifest(candidate, PROBE_SENTINEL_SPEC))
+  const hooked = await runReadPackageProbe(activeHooks.hooks, { input, placeholder: realInput == null })
+  const altHooked = realInput == null
+    ? await runReadPackageProbe(activeHooks.hooks, {
+      input: await hookInput(activeHooks, placeholderManifest(candidate, PROBE_ALT_SENTINEL_SPEC)),
+      placeholder: true,
+    })
     : undefined
-  if (hooked != null) recordHookedCandidateRewrites(candidate, { pristine: prepared, hooked, altHooked }, acc.rewrites)
+  if (hooked != null) {
+    recordHookedCandidateRewrites(candidate, { input, hooked, altHooked, placeholder: realInput == null }, acc.rewrites)
+  }
+}
+
+/**
+ * `manifest` as fresh resolution hands it to the `readPackage` hooks:
+ * in-archive `file:` dependencies rewritten, then the pre-hook transforms run.
+ */
+async function hookInput (replay: ReadPackageReplay, manifest: PackageManifest): Promise<PackageManifest> {
+  const linked = linkFileDepsInsidePackage(manifest as DependencyManifest)
+  return replay.preHook == null ? linked : replay.preHook(clone(linked))
+}
+
+function placeholderManifest (candidate: ProbeCandidate, sentinel: string): PackageManifest {
+  return {
+    name: candidate.name,
+    version: candidate.version ?? sentinel,
+    dependencies: sentinelMap(candidate.dependencies, sentinel),
+    optionalDependencies: sentinelMap(candidate.optionalDependencies, sentinel),
+    peerDependencies: sentinelMap(candidate.peerDependencies, sentinel),
+    devDependencies: {},
+  }
 }
 
 async function runReadPackageProbe (
   hooks: ReadPackageHook[],
-  { candidate, pristine, sentinel }: { candidate: ProbeCandidate, pristine?: PackageManifest, sentinel: string }
+  { input, placeholder }: { input: PackageManifest, placeholder: boolean }
 ): Promise<PackageManifest | undefined> {
-  let pkg: PackageManifest = pristine != null
-    ? clone(pristine)
-    : {
-      name: candidate.name,
-      version: candidate.version ?? sentinel,
-      dependencies: sentinelMap(candidate.dependencies, sentinel),
-      optionalDependencies: sentinelMap(candidate.optionalDependencies, sentinel),
-      peerDependencies: sentinelMap(candidate.peerDependencies, sentinel),
-      devDependencies: {},
-    }
+  let pkg = clone(input)
   try {
     for (const hook of hooks) {
       // Fresh resolution passes no directory for a dependency's manifest.
@@ -186,7 +221,7 @@ async function runReadPackageProbe (
   } catch (err: unknown) {
     // The hook may not handle a placeholder manifest. Only an error on the
     // real manifest is one the install would also hit.
-    if (pristine != null) throw err
+    if (!placeholder) throw err
     return undefined
   }
 }
@@ -199,42 +234,41 @@ function sentinelMap (aliases: Set<string>, sentinel: string): Record<string, st
 
 function recordHookedCandidateRewrites (
   candidate: ProbeCandidate,
-  { pristine, hooked, altHooked }: {
-    pristine: PackageManifest | undefined
+  { input, hooked, altHooked, placeholder }: {
+    input: PackageManifest
     hooked: PackageManifest
     altHooked: PackageManifest | undefined
+    placeholder: boolean
   },
   out: Array<{ parentBaseKey: string, parentName: string, parentRange?: string, childAlias: string, spec: string }>
 ): void {
   for (const field of PROBE_FIELDS) {
-    recordFieldRewrites(candidate, { preMap: pristine?.[field], postMap: hooked[field], altMap: altHooked?.[field], hasPristine: pristine != null }, out)
+    recordFieldRewrites(candidate, { preMap: input[field], postMap: hooked[field], altMap: altHooked?.[field], placeholder }, out)
   }
 }
 
 function recordFieldRewrites (
   candidate: ProbeCandidate,
-  { preMap, postMap, altMap, hasPristine }: {
+  { preMap, postMap, altMap, placeholder }: {
     preMap: Record<string, string> | undefined
     postMap: Record<string, string> | undefined
     altMap: Record<string, string> | undefined
-    hasPristine: boolean
+    placeholder: boolean
   },
   out: Array<{ parentBaseKey: string, parentName: string, parentRange?: string, childAlias: string, spec: string }>
 ): void {
   for (const [alias, value] of Object.entries(postMap ?? {})) {
     if (typeof value !== 'string') continue
-    const rewritten = hasPristine
-      ? value !== preMap?.[alias]
-      : value !== PROBE_SENTINEL_SPEC && value !== PROBE_ALT_SENTINEL_SPEC && altMap?.[alias] === value
-    if (rewritten) {
-      out.push({
-        parentBaseKey: candidate.baseKey,
-        parentName: candidate.name,
-        parentRange: candidate.version,
-        childAlias: alias,
-        spec: value,
-      })
-    }
+    if (value === preMap?.[alias]) continue
+    // A placeholder rewrite counts only when the hook makes it for both sentinels.
+    if (placeholder && (value === PROBE_SENTINEL_SPEC || value === PROBE_ALT_SENTINEL_SPEC || altMap?.[alias] !== value)) continue
+    out.push({
+      parentBaseKey: candidate.baseKey,
+      parentName: candidate.name,
+      parentRange: candidate.version,
+      childAlias: alias,
+      spec: value,
+    })
   }
 }
 

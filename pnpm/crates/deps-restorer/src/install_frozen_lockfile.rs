@@ -186,6 +186,13 @@ pub enum InstallFrozenLockfileError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     ReadPackageHook(#[error(not(source))] pnpm_hooks::HookError),
 
+    /// A `packageExtensions` selector, which the `readPackage` replay runs
+    /// before the hook, has a range that does not parse.
+    #[diagnostic(transparent)]
+    InvalidPackageExtensionSelector(
+        #[error(source)] pnpm_package_extensions::InvalidPackageExtensionSelector,
+    ),
+
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
 

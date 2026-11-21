@@ -13,10 +13,10 @@ use super::{
     resolved_overrides_map,
 };
 use crate::{
+    InvalidPackageExtensionSelector,
     VersionsOverrider,
     apply_deploy_manifest_hook,
     install::apply_deploy_manifest_hook_to_arc,
-    package_extender::InvalidPackageExtensionSelector,
 };
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
@@ -25,6 +25,7 @@ use pnpm_matcher::{
     Matcher,
     create_matcher,
 };
+use pnpm_package_extensions::DependencyManifestExtensions;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{
     DependencyOverrider,
@@ -131,22 +132,11 @@ pub(crate) fn resolver_manifest_hooks(
     Ok(ImporterTransforms::new(config, versions_overrider, false)?.into_hooks())
 }
 
-/// The user's `packageExtensions`, when they extend anything at all.
-fn configured_package_extender(
-    config: &Config,
-) -> Result<Option<Arc<crate::PackageExtender>>, InvalidPackageExtensionSelector> {
-    let Some(extensions) = config.package_extensions.as_ref() else { return Ok(None) };
-    let extender = crate::PackageExtender::new(extensions)?;
-    Ok((!extender.is_empty()).then(|| Arc::new(extender)))
-}
-
 /// Everything that rewrites an importer's manifest before the resolve reads
 /// it. An empty overrider is dropped at construction: it would rewrite
 /// nothing and install hooks that rewrite nothing.
 struct ImporterTransforms {
-    compat_package_extender: Option<&'static crate::PackageExtender>,
-    package_extender: Option<Arc<crate::PackageExtender>>,
-    add_missing_peer_types: bool,
+    dependency_extensions: Arc<DependencyManifestExtensions>,
     versions_overrider: Option<Arc<VersionsOverrider>>,
     deploy_manifest_hook: bool,
     ignored_optional_matcher: Matcher,
@@ -181,11 +171,7 @@ impl ImporterTransforms {
         deploy_manifest_hook: bool,
     ) -> Result<Self, InvalidPackageExtensionSelector> {
         Ok(Self {
-            compat_package_extender: (!config.ignore_compatibility_db).then(
-                crate::compat_package_extensions::compat_package_extender,
-            ),
-            package_extender: configured_package_extender(config)?,
-            add_missing_peer_types: config.add_missing_peer_types,
+            dependency_extensions: Arc::new(DependencyManifestExtensions::from_config(config)?),
             versions_overrider: versions_overrider.filter(|overrider| !overrider.is_empty()),
             deploy_manifest_hook,
             ignored_optional_matcher: create_matcher(
@@ -195,7 +181,7 @@ impl ImporterTransforms {
     }
 
     fn is_active(&self) -> bool {
-        self.package_extender.is_some()
+        self.dependency_extensions.configured().is_some()
             || self.versions_overrider.is_some()
             || self.deploy_manifest_hook
             || !self.ignored_optional_matcher.is_empty()
@@ -221,24 +207,10 @@ impl ImporterTransforms {
     }
 
     fn manifest_hook(&self) -> Option<ManifestHook> {
-        let compat_package_extensions_hook: Option<ManifestHook> = self
-            .compat_package_extender
-            .map(|extender| {
-                Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
-            });
-        let package_extensions_hook: Option<ManifestHook> = self
-            .package_extender
-            .as_ref()
-            .map(|extender| {
-                let extender = Arc::clone(extender);
-                Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
-            });
-        let add_missing_peer_types_hook: Option<ManifestHook> = self
-            .add_missing_peer_types
-            .then(|| Arc::new(crate::missing_peer_types::add_missing_peer_types) as ManifestHook);
-        [compat_package_extensions_hook, package_extensions_hook, add_missing_peer_types_hook]
-            .into_iter()
-            .fold(None, compose_manifest_hooks)
+        (!self.dependency_extensions.is_empty()).then(|| {
+            let extensions = Arc::clone(&self.dependency_extensions);
+            Arc::new(move |manifest| extensions.apply(manifest)) as ManifestHook
+        })
     }
 
     fn override_bare_specifier(&self) -> Option<Arc<DependencyOverrider>> {
@@ -290,7 +262,7 @@ fn transform_importer_manifest(
     transforms: &ImporterTransforms,
 ) -> PackageManifest {
     let mut cloned = manifest.clone();
-    if let Some(extender) = transforms.package_extender.as_deref() {
+    if let Some(extender) = transforms.dependency_extensions.configured() {
         extender.apply(cloned.value_mut());
     }
     if transforms.deploy_manifest_hook {
