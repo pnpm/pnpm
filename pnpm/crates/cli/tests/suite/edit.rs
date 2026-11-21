@@ -283,7 +283,7 @@ fn edit_fails_for_package_that_is_not_installed() {
 fn edit_rejects_path_traversal() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), r#"{"name":"test-project"}"#).unwrap();
-    for traversal in ["../outside", "foo/../bar", ".."] {
+    for traversal in ["../outside", "foo/../bar", "..", r"..\outside", r"foo\..\bar"] {
         let output = pacquet(&workspace)
             .with_args(["edit", traversal])
             .output()
