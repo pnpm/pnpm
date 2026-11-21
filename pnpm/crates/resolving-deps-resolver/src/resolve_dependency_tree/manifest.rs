@@ -45,10 +45,11 @@ use super::{
 ///    `ERR_PNPM_UNUSED_PATCH` check sees the hit.
 ///
 /// Packages whose resolver didn't supply [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`]
-/// use the manifest's `name` and `version`. A local directory is matched by the locator its key records,
-/// as a frozen install reads it back, so only a wildcard patch reaches it.
-/// A `link:` dependency is never patched. The lookup is skipped when no
-/// version is known or no patches are configured.
+/// use the manifest's `name` and `version`. A local directory is matched by
+/// the `file:` locator its key records instead, as a frozen install reads it
+/// back, so only a wildcard patch reaches it. A `link:` dependency is never
+/// patched. The lookup is skipped when no version is known or no patches are
+/// configured.
 pub(super) async fn build_pkg_id_with_patch_hash(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
