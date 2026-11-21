@@ -391,39 +391,11 @@ impl DeployArgs {
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<SharedDeployOutcome> {
         let deploy_dir = &real_deploy_dir(deploy_dir)?;
-        // The shared lockfile, and the importer ids naming the projects in
-        // it, belong to the lockfile dir, which `lockfileDir` can move
-        // away from the workspace this deploy selected its project from.
-        let lockfile_dir = config.lockfile_dir_for(workspace_dir);
-        let lockfile = match load_deploy_lockfile(workspace_dir, lockfile_dir)? {
-            Ok(lockfile) => lockfile,
-            Err(warning) => return Ok(SharedDeployOutcome::Fallback(warning)),
-        };
-
-        let project_id = importer_id_from_root_dir(lockfile_dir, &selected.project.root_dir);
-        let dependency_groups = self.install_args.dependency_options
-            .dependency_groups(config.optional)
-            .collect::<Vec<_>>();
-        if lockfile::has_external_link(
-            &lockfile,
-            selected,
-            lockfile_dir,
-            &project_id,
-            &dependency_groups,
-        ) {
-            return Ok(SharedDeployOutcome::Fallback(
-                "Resolving dependencies for a linked package outside the workspace.".to_owned(),
-            ));
-        }
-        let deploy_files = create_deploy_files(
-            &lockfile,
-            selected,
-            &project_id,
-            lockfile_dir,
-            deploy_dir,
-            config,
-            &dependency_groups,
-        )?;
+        let deploy_files =
+            match self.prepare_shared_deploy(config, workspace_dir, selected, deploy_dir)? {
+                Ok(files) => files,
+                Err(warning) => return Ok(SharedDeployOutcome::Fallback(warning)),
+            };
         write_deploy_files(deploy_dir, &deploy_files)?;
         // Boxed for the same large-future reason as the legacy path above.
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
@@ -439,6 +411,48 @@ impl DeployArgs {
         ))
         .await?;
         Ok(SharedDeployOutcome::Deployed)
+    }
+    fn prepare_shared_deploy(
+        &self,
+        config: &Config,
+        workspace_dir: &Path,
+        selected: &SelectedProject,
+        deploy_dir: &Path,
+    ) -> miette::Result<Result<DeployFiles, String>> {
+        // The shared lockfile, and the importer ids naming the projects in
+        // it, belong to the lockfile dir, which `lockfileDir` can move
+        // away from the workspace this deploy selected its project from.
+        let lockfile_dir = config.lockfile_dir_for(workspace_dir);
+        let lockfile = match load_deploy_lockfile(workspace_dir, lockfile_dir)? {
+            Ok(lockfile) => lockfile,
+            Err(warning) => return Ok(Err(warning)),
+        };
+
+        let project_id = importer_id_from_root_dir(lockfile_dir, &selected.project.root_dir);
+        let dependency_groups = self.install_args.dependency_options
+            .dependency_groups(config.optional)
+            .collect::<Vec<_>>();
+        if external_links::has_external_link(
+            &lockfile,
+            selected,
+            lockfile_dir,
+            &project_id,
+            &dependency_groups,
+        ) {
+            return Ok(Err(
+                "Resolving dependencies for a linked package outside the workspace.".to_owned()
+            ));
+        }
+        let deploy_files = create_deploy_files(
+            &lockfile,
+            selected,
+            &project_id,
+            lockfile_dir,
+            deploy_dir,
+            config,
+            &dependency_groups,
+        )?;
+        Ok(Ok(deploy_files))
     }
 }
 
@@ -554,6 +568,7 @@ mod resolution;
 
 mod peers;
 
+mod external_links;
 mod lockfile;
 
 mod install;

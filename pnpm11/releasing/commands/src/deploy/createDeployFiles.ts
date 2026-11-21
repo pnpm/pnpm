@@ -93,7 +93,7 @@ export function hasExternalLink (opts: CreateDeployFilesOptions): boolean {
 function * linkedDirectories (opts: CreateDeployFilesOptions, id: ProjectId): Iterable<string> {
   const snapshot = opts.lockfile.importers[id]
   if (snapshot == null) return
-  const fields = DEPENDENCIES_FIELD.filter(field => opts.include[field] && (field !== 'devDependencies' || id === opts.projectId))
+  const fields = DEPENDENCIES_FIELD.filter(field => id === opts.projectId ? opts.include[field] : field === 'dependencies' || (field === 'optionalDependencies' && opts.include[field]))
   for (const field of fields) {
     for (const ref of Object.values(snapshot[field] ?? {})) {
       if (ref.startsWith('link:')) yield path.resolve(opts.lockfileDir, id, ref.slice('link:'.length))
