@@ -36,6 +36,7 @@ pub struct GetChangedProjectsOptions<'a> {
     pub changed_files_ignore_pattern: &'a [String],
     pub project_dependencies: Option<&'a ProjectDependencies>,
     pub use_glob_dir_filtering: bool,
+    pub include_untracked: bool,
 }
 
 /// The two selection groups a `[<since>]` diff produces.
@@ -179,7 +180,11 @@ fn get_changed_dirs_since_commit(
     let working_dir = opts.working_dir.unwrap_or(opts.workspace_dir);
     let manifest_paths = workspace_manifest_paths(opts.workspace_dir, repo_root);
 
-    let diff = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_paths, repo_root)?;
+    let mut diff =
+        git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_paths, repo_root)?;
+    if opts.include_untracked {
+        diff.push_str(&git_untracked_names(working_dir, &manifest_paths, repo_root)?);
+    }
     if diff.is_empty() {
         return Ok(ChangedDirsResult {
             changed_dirs: IndexMap::new(),
@@ -336,6 +341,26 @@ fn git_diff_names(
         });
     }
 
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn git_untracked_names(
+    working_dir: &Path,
+    manifest_paths: &[PathBuf],
+    repo_root: &Path,
+) -> Result<String, FilterError> {
+    let output = Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard", "--full-name", "-z", "--"])
+        .arg(working_dir)
+        .args(manifest_paths.iter().filter(|path| is_inside_repo(path, repo_root)))
+        .current_dir(repo_root)
+        .output()
+        .map_err(|error| FilterError::FilterChanged { stderr: error.to_string() })?;
+    if !output.status.success() {
+        return Err(FilterError::FilterChanged {
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        });
+    }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 

@@ -329,6 +329,7 @@ fn detect_changed_dirs(
         .map(|project| project.root_dir.clone())
         .collect();
     let opts = GetChangedProjectsOptions {
+        include_untracked: false,
         workspace_dir,
         working_dir: None,
         test_pattern: &config.test_pattern,

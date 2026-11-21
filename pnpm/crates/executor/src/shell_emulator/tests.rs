@@ -350,7 +350,7 @@ fn bounds_fruitless_scanning_without_bounding_a_body() {
 
     for unclosed_sub in ["$(".repeat(20_000), format!("`{}", "${".repeat(20_000))] {
         let input = format!("echo {unclosed_sub}");
-        assert_eq!(super::braced_parameters::expand(&input, &env), input);
+        assert_eq!(super::braced_parameters::prepare(&input).text, input);
     }
 }
 
@@ -513,4 +513,72 @@ fn rejects_a_script_the_shell_cannot_parse() {
     .expect_err("an unparsable script is an error, not an exit code");
     dbg!(&error);
     assert!(matches!(error, ShellEmulatorError::Parse { .. }));
+}
+
+#[test]
+fn parameter_expansion_reads_assignments_at_execution_time() {
+    let dir = tempdir().unwrap();
+    let script = "export MODE=prod && echo ${MODE:-dev} && MODE=local && echo ${MODE:+set} && MODE= && echo ${MODE:-empty} && echo ${MODE-default} && echo ${MODE+present}";
+    let (code, lines) = run(script, dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), ["prod", "set", "empty", "", "present"]);
+}
+
+#[test]
+fn parameter_expansion_is_lazy_and_respects_subshell_scope() {
+    let dir = tempdir().unwrap();
+    let script = "MODE=outer && echo ${MODE:-$(touch unexpected)} && (MODE=inner && echo ${MODE:-missing}) && echo ${MODE:-missing} && echo $(MODE=nested && echo ${MODE:-missing}) && echo ${MODE:+${MISSING:-fallback}}";
+    let (code, lines) = run(script, dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert!(!dir.path().join("unexpected").exists());
+    assert_eq!(
+        lines_from(&lines, LifecycleStdio::Stdout),
+        ["outer", "inner", "outer", "nested", "fallback"],
+    );
+}
+
+#[test]
+fn runtime_parameter_values_never_become_shell_source() {
+    let dir = tempdir().unwrap();
+    let script =
+        r#"MODE='$(touch injected); & | > <' && echo "${MODE:-fallback}" && echo "${MODE:+safe}""#;
+    let (code, lines) = run(script, dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert!(!dir.path().join("injected").exists());
+    assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), ["$(touch injected); & | > <", "safe"]);
+}
+
+#[test]
+fn parameter_replacement_words_preserve_field_boundaries_and_suffixes() {
+    let dir = tempdir().unwrap();
+    let script = r#"echo pre${MISSING:- one two }post && echo "pre${MISSING:- one two }post" && echo pre${MISSING:-"one two"}post && echo ${MISSING:-{a,b}}"#;
+    let (code, lines) = run(script, dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert_eq!(
+        lines_from(&lines, LifecycleStdio::Stdout),
+        ["pre one two post", "pre one two post", "preone twopost", "{a,b}"],
+    );
+}
+
+#[test]
+fn runtime_parameters_preserve_argument_count_and_empty_values() {
+    let dir = tempdir().unwrap();
+    let env = HashMap::from([("PATH".to_string(), std::env::var("PATH").unwrap())]);
+    let script = r#"MODE= && node -e "console.log(JSON.stringify(process.argv.slice(1)))" ${MODE:-} "${MODE:-}" pre${MODE:- one two }post ${MODE:-"one two"} && MODE=value && node -e "console.log(JSON.stringify(process.argv.slice(1)))" "${MODE:+}" ${MODE:+}"#;
+    let (code, lines) = run(script, dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(
+        lines_from(&lines, LifecycleStdio::Stdout),
+        [r#"["","pre","one","two","post","one two"]"#, r#"[""]"#],
+    );
+}
+
+#[test]
+fn parameter_placeholders_do_not_alias_user_variables() {
+    let dir = tempdir().unwrap();
+    let script =
+        "__PNPM_PARAMETER_0_0=user && MODE=prod && echo $__PNPM_PARAMETER_0_0 ${MODE:-dev}";
+    let (code, lines) = run(script, dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), ["user prod"]);
 }

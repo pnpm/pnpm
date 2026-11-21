@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["pnpm/crates/*", "pnpm/tasks/*", "pnpr/crates/*"]
-exclude = ["vendor/tar"]
+exclude = ["vendor/tar", "vendor/deno_task_shell"]
 
 [workspace.package]
 authors = ["Yagiz Nizipli <yagiz@nizipli.com"]
@@ -333,6 +333,7 @@ mockito = { version = "1.7.2" }
 # (February 2025); drop this once it does.
 [patch.crates-io]
 tar = { path = "vendor/tar" }
+deno_task_shell = { path = "vendor/deno_task_shell" }
 # Reuses HTTP connections after a cursor query. Drop once a release carries
 # <https://github.com/tursodatabase/libsql/pull/2301>. Also carries
 # <https://github.com/tursodatabase/libsql/pull/2261>, released in 0.10.0,

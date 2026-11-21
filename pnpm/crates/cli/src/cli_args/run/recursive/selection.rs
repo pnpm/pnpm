@@ -1,5 +1,4 @@
 use super::{
-    super::listing::split_regex_literal,
     BuildTaskGraphOptions,
     Config,
     ExecutionStatus,
@@ -38,12 +37,6 @@ use super::{
     write_recursive_summary,
 };
 use pnpm_workspace_projects_graph::BaseProject;
-
-/// Whether a task name addresses scripts by `RegExp` literal rather than by
-/// name.
-fn is_selector_task(task_name: &str) -> bool {
-    split_regex_literal(task_name).is_some()
-}
 
 /// Before anything is dispatched: when no selected project has the
 /// script, the run is a user error, and the tasks `dependsOn` pulled in
@@ -433,7 +426,7 @@ pub(super) fn build_run_task_graph(
         task_name: script_name,
         requested_projects: None,
         tasks: run_tasks(args, config),
-        is_selector_task,
+        is_selector_task: ScriptSelector::is_selector,
     });
     if args.workspace.reverse {
         task_graph = reverse_task_graph(&task_graph);

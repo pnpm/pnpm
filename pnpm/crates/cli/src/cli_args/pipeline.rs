@@ -219,15 +219,7 @@ pub fn run_pipeline(
     let graph = build_full_graph(&projects, config, run.workspace_root)?;
 
     let base = pipeline_base(invocation, config);
-    let selection = select_affected_projects(&SelectAffectedOptions {
-        graph: &graph,
-        workspace_root: run.workspace_root,
-        keeps_workspace_root: keeps_workspace_root(config, patterns.as_deref()),
-        base: &base,
-        full: invocation.full,
-        config,
-        emit: run.emit,
-    })?;
+    let selection = run.select_projects(&graph, &projects, patterns.as_deref(), &base)?;
 
     let report = RunReport::new(
         name.to_owned(),
@@ -269,6 +261,43 @@ struct PipelinePlan<'a, 'graph> {
 }
 
 impl<'a> PipelineRun<'a> {
+    fn select_projects(
+        &self,
+        graph: &ProjectGraph<GraphPkg<'_>>,
+        projects: &[Project],
+        patterns: Option<&[String]>,
+        base: &str,
+    ) -> miette::Result<Selection> {
+        let config = self.config;
+        let filtered = if !config.filter.is_empty() || !config.filter_prod.is_empty() {
+            Some(super::recursive::select_recursive_projects(
+                projects,
+                config,
+                self.dir,
+                super::recursive::AutoExcludeRoot::Enabled { workspace_patterns: patterns },
+            )?)
+        } else {
+            None
+        };
+        let mut selection = select_affected_projects(&SelectAffectedOptions {
+            graph,
+            workspace_root: self.workspace_root,
+            keeps_workspace_root: keeps_workspace_root(config, patterns)
+                || filtered
+                    .as_ref()
+                    .is_some_and(|filtered| filtered.selected.contains_key(self.workspace_root)),
+            base,
+            full: self.invocation.full,
+            config,
+            emit: self.emit,
+        })?;
+        if let Some(filtered) = filtered {
+            selection.requested.retain(|dir| filtered.selected.contains_key(dir));
+        }
+
+        Ok(selection)
+    }
+
     fn info(&self, message: String) {
         (self.emit)(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
@@ -425,6 +454,7 @@ impl<'a> PipelineRun<'a> {
             project_dependencies: &project_dependencies,
             select_scripts,
             task_names: &task_names,
+            is_selector_task: ScriptSelector::is_selector,
             requested_projects: Some(&plan.selection.requested),
             tasks: (!self.config.tasks.is_empty()).then_some(&self.config.tasks),
         })

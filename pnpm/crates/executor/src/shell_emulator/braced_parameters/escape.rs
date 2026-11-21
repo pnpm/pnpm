@@ -140,7 +140,7 @@ pub(super) fn push_bare_word_char(expanded: &mut String, character: char) {
         // it opens a comment at the start of a word, and a carriage return
         // because the parser splits the word on it where POSIX keeps it as the
         // ordinary character it is.
-        ';' | '&' | '|' | '<' | '>' | '(' | ')' | '#' | '\r' => {
+        ';' | '&' | '|' | '<' | '>' | '(' | ')' | '{' | '}' | '#' | '\r' => {
             expanded.push('"');
             expanded.push(character);
             expanded.push('"');

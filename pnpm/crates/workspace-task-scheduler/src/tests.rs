@@ -356,6 +356,7 @@ fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
                 .collect()
         },
         task_names: &["build", "lint"],
+        is_selector_task: |_| false,
         requested_projects: Some(&requested),
         tasks: None::<&IndexMap<String, TestTask>>,
     });

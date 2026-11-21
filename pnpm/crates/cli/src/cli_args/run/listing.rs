@@ -23,6 +23,10 @@ pub(in super::super) struct ScriptSelector<'a> {
 }
 
 impl<'a> ScriptSelector<'a> {
+    pub(in super::super) fn is_selector(name: &str) -> bool {
+        split_regex_literal(name).is_some()
+    }
+
     pub(in super::super) fn new(name: &'a str) -> Result<ScriptSelector<'a>, RunError> {
         Ok(ScriptSelector { name, pattern: try_build_regex_from_command(name)? })
     }

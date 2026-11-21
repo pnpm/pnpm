@@ -266,6 +266,7 @@ fn changed_selector_projects<Pkg: BaseProject>(
         projects_graph.keys().cloned().collect(),
         diff,
         &GetChangedProjectsOptions {
+            include_untracked: false,
             workspace_dir: &opts.workspace_dir,
             working_dir: selector.parent_dir.as_deref(),
             test_pattern: &opts.test_pattern,

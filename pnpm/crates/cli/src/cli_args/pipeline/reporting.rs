@@ -161,6 +161,7 @@ struct KeyPlanContext<'a, 'graph> {
     config: &'a Config,
     lockfile_selection: pnpm_lockfile::WantedLockfileSelection,
     base_extra_env: HashMap<String, String>,
+    sibling_outputs: HashMap<PathBuf, Vec<Vec<String>>>,
 }
 
 /// Pass-through tasks contribute keys to invalidate their dependents.
@@ -178,7 +179,8 @@ pub(super) fn compute_task_keys(
         cache,
         config,
         lockfile_selection: config.wanted_lockfile_selection(),
-        base_extra_env: config.extra_env_with_node_options(),
+        base_extra_env: cache_environment(config),
+        sibling_outputs: project_output_patterns(graph, config),
     };
     let mut plans: HashMap<TaskKey, TaskCachePlan> = HashMap::with_capacity(task_graph.len());
     let mut warned_projects: HashSet<PathBuf> = HashSet::new();
@@ -222,7 +224,12 @@ fn compute_single_task_plan(
         lockfile_selection: &ctx.lockfile_selection,
         dependency_keys: &dependency_keys,
         script_bodies: &script_bodies,
-        environment: &task_environment(ctx.config, &node.project, &ctx.base_extra_env),
+        sibling_outputs: &ctx.sibling_outputs[&node.project],
+        environment: cache::TaskKeyEnvironment {
+            variables: &task_environment(ctx.config, &node.project, &ctx.base_extra_env),
+            shell_emulator: ctx.config.shell_emulator,
+            script_shell: ctx.config.script_shell.as_deref(),
+        },
     })?;
     let output_cache_key = task_key
         .clone()
@@ -310,4 +317,38 @@ impl PipelineResults {
             abort: Mutex::new(None),
         }
     }
+}
+
+fn cache_environment(config: &Config) -> HashMap<String, String> {
+    let mut environment = crate::env_file::loaded_environment();
+    environment.extend(config.extra_env_with_node_options());
+    if !environment.contains_key("NODE_OPTIONS")
+        && let Ok(value) = std::env::var("NODE_OPTIONS")
+    {
+        environment.insert("NODE_OPTIONS".to_string(), value);
+    }
+    environment
+}
+
+fn project_output_patterns(
+    graph: &ProjectGraph<GraphPkg<'_>>,
+    config: &Config,
+) -> HashMap<PathBuf, Vec<Vec<String>>> {
+    graph
+        .iter()
+        .map(|(project, node)| {
+            let scripts = node.package.project.manifest.value().get("scripts");
+            let outputs = config.tasks
+                .iter()
+                .filter(|(name, _)| {
+                    scripts
+                        .and_then(|scripts| scripts.get(*name))
+                        .and_then(Value::as_str)
+                        .is_some_and(|body| !body.is_empty())
+                })
+                .filter_map(|(_, task)| task.outputs.clone())
+                .collect();
+            (project.clone(), outputs)
+        })
+        .collect()
 }

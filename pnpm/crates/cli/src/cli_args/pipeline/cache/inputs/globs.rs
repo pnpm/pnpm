@@ -1,8 +1,8 @@
 use super::{
     FileIterator,
-    Glob,
     HashedFile,
     IntoDiagnostic,
+    OutputGlobs,
     Path,
     PathBuf,
     Program,
@@ -15,11 +15,14 @@ use super::{
     validate_relative_path,
 };
 use std::path::Component;
-use wax::walk::{
-    Entry,
-    EntryResidue,
-    GlobEntry,
-    WalkError,
+use wax::{
+    Glob,
+    walk::{
+        Entry,
+        EntryResidue,
+        GlobEntry,
+        WalkError,
+    },
 };
 
 pub(super) enum InputSelection<'a> {
@@ -206,14 +209,14 @@ fn literal_directory_prefix(body: &str) -> PathBuf {
 struct AdditiveWalk<'a> {
     cache: &'a TaskCache,
     project: &'a Path,
-    output_globs: &'a [Glob<'a>],
+    output_globs: &'a [OutputGlobs<'a>],
     exclude: &'a [ParentGlob],
 }
 
 pub(super) fn walk_additive_inputs(
     cache: &TaskCache,
     project: &Path,
-    output_globs: &[Glob<'_>],
+    output_globs: &[OutputGlobs<'_>],
     configured: &ConfiguredInputs<'_>,
 ) -> miette::Result<Vec<HashedFile>> {
     let walk = AdditiveWalk { cache, project, output_globs, exclude: &configured.exclude };

@@ -74,7 +74,6 @@ pnpm trusts the operating system's certificate store for registry connections. I
 [`shellEmulator`](./settings/other.md#shellemulator) runs scripts with pnpm's built-in shell instead of `@yarnpkg/shell`. In that shell:
 
 - The command receives `${NAME:=word}`, `${NAME=word}`, and `${#NAME}` as literal text.
-- `${NAME:-word}` and `${NAME:+word}` read `NAME` from the environment the script starts with, not from an assignment earlier in the same script.
 - A script the shell cannot parse fails with `ERR_PNPM_EXECUTOR_SHELL_EMULATOR_PARSE`.
 
 ### `scriptsPrependNodePath`

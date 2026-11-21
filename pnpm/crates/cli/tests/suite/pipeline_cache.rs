@@ -29,7 +29,7 @@ fn configured_environment_changes_invalidate_task_outputs() {
             .with_env("XDG_CONFIG_HOME", storage.path().join("config"))
     };
     for (index, value) in ["one", "two", "two"].into_iter().enumerate() {
-        fs::write(project.path().join("pnpm-workspace.yaml"), String::from("packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: ['src/**']\n    outputs: ['out/**']\n    env: [BUILD_MODE]\n")).unwrap();
+        fs::write(project.path().join("pnpm-workspace.yaml"), String::from("packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: ['src/**']\n    outputs: ['out/**']\n")).unwrap();
         if index == 0 {
             command()
                 .with_env("PIPELINE_TEST_MODE", value)
@@ -808,4 +808,95 @@ fn git_branch_lockfile_fallback_and_detached_head_invalidate_task_cache() {
     fs::write(&branch_lock, branch_text).unwrap();
     run_pipeline_cmd(&workspace, &storage, &[], &["pipeline", "--full"]);
     assert_eq!(fs::read_to_string(workspace.join("runs")).unwrap(), "xxx");
+}
+
+#[test]
+fn env_files_and_node_options_invalidate_outputs_without_declared_env() {
+    let project = tempfile::tempdir().unwrap();
+    pnpm_testing_utils::git_repo::init_isolated_repo(project.path());
+    fs::write(project.path().join("package.json"), serde_json::json!({
+        "name": "env-probe", "version": "1.0.0", "scripts": {
+            "build": r#"node -e "require('fs').writeFileSync('result', process.env.PIPELINE_VALUE + '|' + (process.env.NODE_OPTIONS || ''))""#
+        }
+    }).to_string()).unwrap();
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    inputs: []\n    outputs: [result]\n").unwrap();
+    fs::write(project.path().join(".env.one"), "PIPELINE_VALUE=one\n").unwrap();
+    fs::write(project.path().join(".env.two"), "PIPELINE_VALUE=two\n").unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let cases = [
+        (".env.one", "", None, "one", false),
+        (".env.two", "", None, "two", false),
+        (".env.two", "", None, "two", true),
+        (".env.two", "--no-warnings", None, "two", false),
+        (".env.two", "--no-warnings", Some("ambient"), "ambient", false),
+        (".env.two", "--no-warnings", Some("ambient"), "ambient", true),
+    ];
+    for (env_file, node_options, ambient, expected, cached) in cases {
+        let command = Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .with_current_dir(project.path())
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"))
+            .with_env("XDG_CACHE_HOME", storage.path())
+            .with_env("NODE_OPTIONS", node_options)
+            .with_args(["--env-file", env_file, "pipeline", "--full"]);
+        let mut command = match ambient {
+            Some(value) => command.with_env("PIPELINE_VALUE", value),
+            None => command.without_env("PIPELINE_VALUE"),
+        };
+        let result = command.assert().success();
+        let output = String::from_utf8_lossy(&result.get_output().stdout);
+        assert_eq!(output.contains("restored from cache"), cached, "{output}");
+        assert_eq!(
+            fs::read_to_string(project.path().join("result")).unwrap(),
+            format!("{expected}|{node_options}"),
+        );
+    }
+}
+
+#[test]
+fn sibling_outputs_do_not_invalidate_default_inputs_and_negative_outputs_are_not_restored() {
+    let project = tempfile::tempdir().unwrap();
+    pnpm_testing_utils::git_repo::init_isolated_repo(project.path());
+    fs::write(project.path().join("package.json"), serde_json::json!({
+        "name": "output-probe", "version": "1.0.0", "scripts": {
+            "build": r#"node -e "require('fs').mkdirSync('dist',{recursive:true}); require('fs').writeFileSync('dist/code.js','code'); require('fs').writeFileSync('dist/code.map','map')""#,
+            "test": r#"node -e "require('fs').writeFileSync('test-result','passed')""#
+        }
+    }).to_string()).unwrap();
+    fs::write(project.path().join(".gitignore"), "*.map\n").unwrap();
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build, test]\ntasks:\n  build:\n    outputs: ['dist/**', '!dist/*.map']\n  test:\n    outputs: [test-result]\n  absent:\n    outputs: ['**']\n").unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    for (index, cached) in [false, true, true, false].into_iter().enumerate() {
+        if index == 3 {
+            fs::write(project.path().join("new-source"), "changed").unwrap();
+        }
+        let result = Command::cargo_bin("pnpm")
+            .unwrap()
+            .without_ambient_pnpm_config()
+            .with_current_dir(project.path())
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"))
+            .with_env("XDG_CACHE_HOME", storage.path())
+            .with_args(["pipeline", "--full"])
+            .assert()
+            .success();
+        let output = String::from_utf8_lossy(&result.get_output().stdout);
+        assert_eq!(
+            output.matches("restored from cache").count(),
+            if cached { 2 } else { 0 },
+            "{output}",
+        );
+        assert_eq!(fs::read_to_string(project.path().join("dist/code.js")).unwrap(), "code");
+        assert_eq!(fs::read_to_string(project.path().join("test-result")).unwrap(), "passed");
+        if cached {
+            assert!(
+                !project
+                    .path()
+                    .join("dist/code.map")
+                    .exists(),
+            );
+        } else {
+            fs::remove_file(project.path().join("dist/code.map")).unwrap();
+        }
+    }
 }
