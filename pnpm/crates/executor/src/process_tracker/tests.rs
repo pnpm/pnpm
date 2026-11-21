@@ -554,23 +554,32 @@ fn a_signal_taken_before_a_child_exists_reaches_it_once_it_joins() {
 #[test]
 fn two_signals_taken_while_a_child_is_spawned_both_reach_it() {
     let directory = TempDir::new().expect("create a temporary directory");
-    let (ready, received) = (directory.path().join("ready"), directory.path().join("received"));
+    let received = directory.path().join("received");
+    let (int_ready, term_ready) =
+        (directory.path().join("int-ready"), directory.path().join("term-ready"));
     let mut spawning = crate::interrupt::spawning_child();
     let mut command = Command::new("sh");
+    // One shell per signal: bash runs only one trap for an `INT` and a
+    // `TERM` that land together, and the relay sends them back to back.
+    // The `TERM` recorder is started before the leader ignores `TERM`, and
+    // a background job ignores `INT`, which it never needs to trap.
     command
         .arg("-c")
         .arg(format!(
-            "trap 'echo INT >> {received}' INT; trap 'echo TERM >> {received}' TERM; \
-             : > {ready}; while :; do sleep 0.05; done",
+            "sh -c \"trap 'echo TERM >> {received}' TERM; : > {term_ready}; while :; do sleep 0.05; done\" & \
+             trap 'echo INT >> {received}' INT; trap '' TERM; \
+             : > {int_ready}; while :; do sleep 0.05; done",
             received = received.display(),
-            ready = ready.display(),
+            int_ready = int_ready.display(),
+            term_ready = term_ready.display(),
         ))
         .process_group(0);
     // Recording rather than exiting, so the second signal has something
     // to arrive at and neither races the child's exit.
     let mut child = KillGroupOnDrop(command.spawn().expect("spawn the child"));
     spawning.spawned();
-    wait_for_marker(&mut child.0, &ready);
+    wait_for_marker(&mut child.0, &int_ready);
+    wait_for_marker(&mut child.0, &term_ready);
 
     take_interrupt();
     take_interrupt();
