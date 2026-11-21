@@ -583,7 +583,9 @@ way no writer's update is silently discarded. See
 ### Packument revisions
 
 Fetch `/{package}?write=true` to get a hosted package's current full metadata
-document and its `_rev`, even when requesting install metadata. The response
+document and its `_rev`, even when requesting install metadata. This read requires
+an authenticated account with `publish` or `annotate` access. It includes
+versions hidden from install metadata by OSV advisories. The response
 carries `Cache-Control: private, no-store`.
 
 Whole-package deletes, partial unpublishes, and maintainer updates through a

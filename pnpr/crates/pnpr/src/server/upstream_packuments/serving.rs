@@ -130,7 +130,7 @@ impl UpstreamDocument<'_> {
             self.response.tarball_base,
             view,
             self.state,
-            self.response.headers,
+            crate::server::package_responses::PackumentRequest::Read(self.response.headers),
             self.upstream
                 .response_ttl()
                 .unwrap_or(self.state.inner.config.http.packument_ttl)

@@ -178,6 +178,14 @@ impl Storage {
         if let Some(table) = self.tar_integrity_cache.get(name) {
             return Ok(table);
         }
+        self.refresh_tar_integrities(name).await
+    }
+
+    /// Reload the archive metadata from the hosted backend for a package write.
+    pub async fn refresh_tar_integrities(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Arc<BTreeMap<String, DerivedTar>>> {
         let read_at = Instant::now();
         let document = self.tar_integrities.read_document(name).await?;
         let table: Arc<BTreeMap<String, DerivedTar>> = Arc::new(

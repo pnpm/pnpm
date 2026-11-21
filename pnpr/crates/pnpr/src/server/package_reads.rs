@@ -23,7 +23,10 @@ use super::{
     is_osv_vulnerable_packument_version,
     is_tar_registry,
     not_found,
-    package_responses::processing::admission::DocumentSource,
+    package_responses::{
+        PackumentRequest,
+        processing::admission::DocumentSource,
+    },
     packument_response,
     read_source_packument,
     registry_endpoint,
@@ -43,7 +46,7 @@ mod version_documents;
 pub(super) async fn serve_packument(
     state: &AppState,
     identity: &Identity,
-    mut headers: HeaderMap,
+    headers: HeaderMap,
     registry: Option<&str>,
     raw_name: &str,
     query: Option<&str>,
@@ -56,14 +59,9 @@ pub(super) async fn serve_packument(
         url::form_urlencoded::parse(query.as_bytes())
             .any(|(key, value)| key == "write" && value == "true")
     });
-    if for_write {
-        headers.remove(axum::http::header::ACCEPT);
-        headers.remove(axum::http::header::IF_NONE_MATCH);
-        headers.remove(axum::http::header::IF_MODIFIED_SINCE);
-    }
-    let request = PackumentRequest { headers: &headers, for_write };
     let response =
-        serve_registry_packument(state, identity, request, &target, raw_name, &base).await;
+        serve_registry_packument(state, identity, (&headers, for_write), &target, raw_name, &base)
+            .await;
     if for_write {
         return super::private_no_cache(response);
     }
@@ -189,16 +187,11 @@ pub(super) fn resolves_to_private_source(
     }
 }
 
-struct PackumentRequest<'a> {
-    headers: &'a HeaderMap,
-    for_write: bool,
-}
-
 /// Serve a packument addressed to `/~<name>/<pkg>` through the registry graph.
 async fn serve_registry_packument(
     state: &AppState,
     identity: &Identity,
-    request: PackumentRequest<'_>,
+    (headers, for_write): (&HeaderMap, bool),
     registry: &str,
     raw_name: &str,
     tarball_base: &str,
@@ -229,7 +222,7 @@ async fn serve_registry_packument(
             serve_packument_via_upstream(
                 state,
                 identity,
-                request.headers,
+                headers,
                 source,
                 &name,
                 tarball_base,
@@ -241,6 +234,8 @@ async fn serve_registry_packument(
         // for a caller who reads nothing in the registry, a loud denial
         // otherwise, so clients can prompt for auth.
         RegistrySource::Hosted(source) => {
+            let request =
+                if for_write { PackumentRequest::Write } else { PackumentRequest::Read(headers) };
             serve_hosted_packument(state, identity, request, source, &name, tarball_base, view)
                 .await
         }
@@ -371,37 +366,49 @@ async fn serve_hosted_packument(
     // definitive not-found. Reads come from its storage namespace.
     let response = async {
         let storage = state.inner.storage.for_hosted(&namespace, pnpr_registry::Ecosystem::Npm);
-        let view = if request.for_write {
-            storage.read_current_hosted_package_view(name).await
-        } else {
-            storage.read_hosted_package_view(name).await
+        let view = match request {
+            PackumentRequest::Write => {
+                let target = RegistrySource::Hosted(source.to_owned());
+                authorize_write_read(state, identity, &target, name, &namespace).await?;
+                storage.read_current_hosted_package_view(name).await?
+            }
+            PackumentRequest::Read(_) => storage.read_hosted_package_view(name).await?,
         };
-        let view = match view {
-            Ok(Some(view)) => view,
-            Ok(None) => return not_found(),
-            Err(err) => return err.into_response(),
-        };
-        let table = match state.inner.storage.read_tar_integrities(name).await {
-            Ok(table) => table,
-            Err(err) => return err.into_response(),
+        let Some(view) = view else { return Ok(not_found()) };
+        let table = match request {
+            PackumentRequest::Write => storage.refresh_tar_integrities(name).await?,
+            PackumentRequest::Read(_) => storage.read_tar_integrities(name).await?,
         };
         let view_options = DistView { tar_integrities: Some(&table), ..view_options };
-        match packument_response(
+        let response = packument_response(
             name,
             axum::body::Bytes::from_owner(view.bytes),
             tarball_base,
             view_options,
             state,
-            request.headers,
+            request,
             max_age,
         )
-        .await
-        {
-            Ok(response) => super::with_generation(response, Some(&view.generation)),
-            Err(err) => err.into_response(),
-        }
+        .await?;
+        Ok::<_, RegistryError>(super::with_generation(response, Some(&view.generation)))
     };
-    state.inner.packuments.admissions.serve(DocumentSource::Stored, response).await
+    state.inner.packuments.admissions
+        .serve(DocumentSource::Stored, response)
+        .await
+        .unwrap_or_else(IntoResponse::into_response)
+}
+
+async fn authorize_write_read(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    name: &CanonicalPackageName,
+    namespace: &str,
+) -> Result<(), RegistryError> {
+    if matches!(identity, Identity::Anonymous) {
+        return Err(RegistryError::Unauthenticated { resource: name.as_str().to_owned() });
+    }
+    super::authorize_package_write(state, identity, source, name.as_str(), Some(namespace)).await
 }
 
 pub(super) async fn serve_hosted_tarball(

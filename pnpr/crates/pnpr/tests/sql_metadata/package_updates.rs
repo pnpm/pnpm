@@ -74,6 +74,9 @@ async fn latest_moves_replace_the_package_readme() {
         let mut doc = publish_doc("sql-pkg", version, version.as_bytes());
         if version == "3.0.0-beta.1" {
             doc["dist-tags"] = json!({"beta": version});
+        } else if version == "2.0.0" {
+            doc["readme"] = json!(version);
+            doc["readmeFilename"] = json!(format!("{version}.md"));
         } else {
             doc["versions"][version]["readme"] = json!(version);
             doc["versions"][version]["readmeFilename"] = json!(format!("{version}.md"));
@@ -83,6 +86,7 @@ async fn latest_moves_replace_the_package_readme() {
             StatusCode::CREATED,
         );
     }
+    assert_eq!(packument(&app, &token).await.1["readme"], "2.0.0");
     for version in ["3.0.0-beta.1", "2.0.0"] {
         let tag = "/npm/-/package/sql-pkg/dist-tags/latest";
         assert_eq!(
@@ -126,4 +130,52 @@ async fn a_publish_requires_versions_before_it_can_claim_a_name() {
         send(&app, request("GET", "/npm/sql-pkg", &token, None)).await.0,
         StatusCode::NOT_FOUND,
     );
+}
+
+#[tokio::test]
+async fn write_reads_preserve_advisory_filtered_versions_during_partial_unpublish() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = sqlite_config(tmp.path());
+    let osv = crate::server::osv_database("sql-pkg", &["1.0.0"]);
+    crate::server::enable_osv(&mut config, osv.path());
+    let app = router(config);
+    let token = token(&app).await;
+    for version in ["1.0.0", "1.1.0", "1.2.0"] {
+        let doc = publish_doc("sql-pkg", version, version.as_bytes());
+        assert_eq!(
+            send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&doc))).await.0,
+            StatusCode::CREATED,
+        );
+    }
+    assert!(packument(&app, &token).await.1["versions"].get("1.0.0").is_none());
+    let path = "/npm/sql-pkg?write=true";
+    let anonymous = axum::http::Request::get(path)
+        .body(axum::body::Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(anonymous)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
+    let (status, _, bytes) = send(&app, request("GET", path, &token, None)).await;
+    assert_eq!(status, StatusCode::OK);
+    let mut doc: Value = serde_json::from_slice(&bytes).unwrap();
+    let revision = format!("/npm/sql-pkg/-rev/{}", doc["_rev"].as_str().unwrap());
+    assert!(doc["versions"]["1.0.0"].is_object());
+    doc["versions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.1.0");
+    assert_eq!(
+        send(&app, request("PUT", &revision, &token, Some(&doc))).await.0,
+        StatusCode::CREATED,
+    );
+    let (_, _, bytes) = send(&app, request("GET", path, &token, None)).await;
+    let doc: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(doc["versions"]["1.0.0"].is_object());
+    assert!(doc["versions"].get("1.1.0").is_none());
+    assert!(packument(&app, &token).await.1["versions"].get("1.0.0").is_none());
 }

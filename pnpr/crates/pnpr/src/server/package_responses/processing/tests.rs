@@ -4,7 +4,6 @@ use super::{
     CACHE_BUDGET,
     CanonicalPackageName,
     DistView,
-    HeaderMap,
     OwnedView,
     PackumentProcessing,
     RenderInput,
@@ -189,7 +188,6 @@ async fn large_packument_render_leaves_the_request_thread_available() {
     let mut doc: Value = serde_json::from_slice(&document()).unwrap();
     doc["readme"] = "x".repeat(16 * 1024 * 1024).into();
     let bytes = serde_json::to_vec(&doc).unwrap();
-    let headers = HeaderMap::new();
     let input = render_input(
         &name,
         bytes.clone().into(),
@@ -216,7 +214,7 @@ async fn large_packument_render_leaves_the_request_thread_available() {
     let cold = started.elapsed();
     assert!(yields > 1, "render monopolized the request thread");
     let started = Instant::now();
-    render(&name, bytes.into(), "https://registry.example", view(), &state, &headers)
+    render(&name, bytes.into(), "https://registry.example", view(), &state, Representation::Full)
         .await
         .unwrap();
     eprintln!(
@@ -301,15 +299,12 @@ async fn measure_large_packument_rendering() {
     }
     let bytes = Bytes::from(serde_json::to_vec(&doc).unwrap());
     drop(doc);
-    for (representation, accept) in [
-        (Representation::Full, "application/json"),
-        (Representation::Abbreviated, super::super::super::ABBREVIATED_CONTENT_TYPE),
-        (Representation::InstallV2, super::super::super::split_packuments::INSTALL_V2_CONTENT_TYPE),
-    ] {
-        let headers = HeaderMap::from_iter([(axum::http::header::ACCEPT, accept.parse().unwrap())]);
+    for representation in
+        [Representation::Full, Representation::Abbreviated, Representation::InstallV2]
+    {
         let mut uncached = Vec::new();
         let mut cached = Vec::new();
-        render(&name, bytes.clone(), "https://registry.example", view(), &state, &headers)
+        render(&name, bytes.clone(), "https://registry.example", view(), &state, representation)
             .await
             .unwrap();
         for _ in 0..3 {
@@ -328,7 +323,7 @@ async fn measure_large_packument_rendering() {
             drop(rendered);
             let fresh = Bytes::copy_from_slice(&bytes);
             let start = Instant::now();
-            render(&name, fresh, "https://registry.example", view(), &state, &headers)
+            render(&name, fresh, "https://registry.example", view(), &state, representation)
                 .await
                 .unwrap();
             cached.push(start.elapsed());
@@ -382,7 +377,7 @@ async fn concurrent_misses_share_one_rendered_document() {
             let name =
                 CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm)
                     .unwrap();
-            render(&name, bytes, "https://registry.example", view(), &state, &HeaderMap::new())
+            render(&name, bytes, "https://registry.example", view(), &state, Representation::Full)
                 .await
                 .unwrap()
         }));
@@ -401,11 +396,16 @@ async fn warm_documents_do_not_wait_for_render_workers() {
     Arc::get_mut(&mut state.inner).unwrap().packuments.workers = Workers::new(1);
     let name =
         CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let headers = HeaderMap::new();
-    let first =
-        render(&name, document().into(), "https://registry.example", view(), &state, &headers)
-            .await
-            .unwrap();
+    let first = render(
+        &name,
+        document().into(),
+        "https://registry.example",
+        view(),
+        &state,
+        Representation::Full,
+    )
+    .await
+    .unwrap();
     let (started_tx, started_rx) = tokio::sync::oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
     let worker_state = state.clone();
@@ -419,8 +419,14 @@ async fn warm_documents_do_not_wait_for_render_workers() {
             .unwrap();
     });
     started_rx.await.unwrap();
-    let response =
-        render(&name, document().into(), "https://registry.example", view(), &state, &headers);
+    let response = render(
+        &name,
+        document().into(),
+        "https://registry.example",
+        view(),
+        &state,
+        Representation::Full,
+    );
     let cached = tokio::time::timeout(std::time::Duration::from_secs(5), response)
         .await
         .unwrap()

@@ -430,7 +430,7 @@ fn sha1_hex_of(bytes: &[u8]) -> String {
         })
 }
 
-fn osv_database(package: &str, versions: &[&str]) -> TempDir {
+pub(crate) fn osv_database(package: &str, versions: &[&str]) -> TempDir {
     let dir = TempDir::new().unwrap();
     let versions: Vec<Value> = versions
         .iter()
@@ -447,7 +447,7 @@ fn osv_database(package: &str, versions: &[&str]) -> TempDir {
     dir
 }
 
-fn enable_osv(config: &mut Config, path: &Path) {
+pub(crate) fn enable_osv(config: &mut Config, path: &Path) {
     config.osv.enabled = true;
     config.osv.path = Some(path.to_path_buf());
 }

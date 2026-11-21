@@ -433,7 +433,7 @@ async fn rendered_cache_and_response_bytes_do_not_retain_fetch_admission() {
     let response = crate::server::serve_packument_via_upstream(
         &upstream.state,
         &crate::server::Identity::Anonymous,
-        &super::HeaderMap::new(),
+        &axum::http::HeaderMap::new(),
         "npmjs",
         &name,
         "https://registry.example",
@@ -459,7 +459,7 @@ async fn fetched_responses_wait_for_stored_capacity_before_rendering() {
         crate::server::serve_packument_via_upstream(
             &state,
             &crate::server::Identity::Anonymous,
-            &super::HeaderMap::new(),
+            &axum::http::HeaderMap::new(),
             "npmjs",
             &name,
             "https://registry.example",

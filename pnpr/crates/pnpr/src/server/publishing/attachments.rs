@@ -390,6 +390,7 @@ async fn prepare_publish_document(
         base.revision_checked = true;
     } else {
         doc.name.validate_npm_publish()?;
+        super::manifest::keep_published_readme(&mut doc.incoming, &doc.prepared);
     }
     if let Some(object) = doc.incoming.as_object_mut() {
         object.remove("_rev");

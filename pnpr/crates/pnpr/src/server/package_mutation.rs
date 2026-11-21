@@ -160,7 +160,8 @@ async fn try_rewrite_packument(
     let (hosted, version) = read_packument_for_rewrite(state, identity, target, name).await?;
     let mut packument = incoming_val.clone();
     let storage = hosted_storage(state, Some(&target.namespace));
-    let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
+    let tar_integrities =
+        storage.refresh_tar_integrities(name).await.map_err(IntoResponse::into_response)?;
     let removed = prepare_packument_rewrite(hosted, &tar_integrities, name, &mut packument)?;
     let bytes = serde_json::to_vec_pretty(&packument)
         .map_err(RegistryError::Json)
