@@ -240,8 +240,9 @@ function addJsonAuthScopes (
   env: NodeJS.ProcessEnv
 ): void {
   for (const [scope, creds] of Object.entries(scopes)) {
-    if (!isJsonAuthScope(scope) || !isRecord(creds) || typeof creds.authToken !== 'string') continue
-    auth.entries.push([`${registry.nerfDart}:${scope === '@' ? '' : `${scope}:`}_authToken`, expandEnv(creds.authToken, env)])
+    const token = jsonAuthToken(creds)
+    if (!isJsonAuthScope(scope) || token == null) continue
+    auth.entries.push([`${registry.nerfDart}:${scope === '@' ? '' : `${scope}:`}_authToken`, expandEnv(token, env)])
     auth.routes.set(scope, registry.href)
   }
 }
@@ -255,6 +256,12 @@ function jsonAuthRegistry (registryUrl: string): { href: string, nerfDart: strin
   }
   if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password || url.search || url.hash) return undefined
   return { href: url.href, nerfDart: `//${url.host}${url.pathname}` }
+}
+
+/** The `authToken` of `{ authToken }`, the only shape pnpm accepts. */
+function jsonAuthToken (creds: unknown): string | undefined {
+  if (!isRecord(creds) || Object.keys(creds).some((field) => field !== 'authToken')) return undefined
+  return typeof creds.authToken === 'string' ? creds.authToken : undefined
 }
 
 function isJsonAuthScope (scope: string): boolean {

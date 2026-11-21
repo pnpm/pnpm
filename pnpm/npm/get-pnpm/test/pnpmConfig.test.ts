@@ -161,6 +161,25 @@ describe('pnpmRegistryConfig', () => {
     })
   })
 
+  test('skips an _auth entry with a field pnpm does not accept', () => {
+    const { cwd, home } = layout({
+      user: ['registry=https://registry.example.test/', '//registry.example.test/:_authToken=user-token'],
+    })
+    const configHome = writeGlobalConfig(home, [
+      '_auth:',
+      '  "https://registry.example.test/":',
+      '    "@pnpm":',
+      '      authToken: yaml-token',
+      '      username: legacy',
+    ].join('\n'))
+
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { XDG_CONFIG_HOME: configHome } }), {
+      registry: 'https://registry.example.test/',
+      headers: { authorization: 'Bearer user-token' },
+      authPath: '/',
+    })
+  })
+
   test('routes to the registries of _auth in the global config.yaml only where no .npmrc declares one', () => {
     const { cwd, home } = layout()
     const configHome = writeGlobalConfig(home, [
