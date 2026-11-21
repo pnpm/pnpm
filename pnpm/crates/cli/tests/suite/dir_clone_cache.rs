@@ -43,7 +43,8 @@ fn canonical_pkg_dir(store_dir: &Path, name: &str, version: &str) -> PathBuf {
     let matches: Vec<PathBuf> = read_dir(&content_dir)
         .iter()
         .flat_map(|shard| read_dir(shard))
-        .map(|slot| slot.join("node_modules").join(name))
+        .map(|slot| slot.join("node_modules"))
+        .map(|modules_dir| modules_dir.join(name))
         .filter(|pkg_dir| {
             fs::read(pkg_dir.join("package.json"))
                 .ok()
