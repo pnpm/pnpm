@@ -21,7 +21,7 @@ A lockfile document records three layers:
 | --- | --- | --- |
 | [`importers`](#importers) | The direct dependencies of each project | Project directory |
 | [`packages`](#packages) | Facts about a package version that do not depend on where it is installed | [Package key](#package-keys) without suffixes |
-| [`snapshots`](#snapshots) | One installed instance of a package and the packages it is linked to | Full [package key](#package-keys) |
+| [`snapshots`](#snapshots) | The resolved dependencies for a package in a particular peer context | Full [package key](#package-keys) |
 
 A project's dependency points to a snapshot. A snapshot's dependencies point to
 other snapshots. Each snapshot has one `packages` entry, and several snapshots
@@ -94,8 +94,9 @@ pnpm compares the recorded `settings`, `catalogs`, `overrides`, checksums,
 configuration. If one differs, the lockfile is out of date, and
 `pnpm install --frozen-lockfile` fails.
 
-pnpm keeps top-level keys it does not define when it rewrites the file.
-Readers can look up keys by name regardless of their order.
+Loading and saving an existing project document preserves unrecognized
+top-level keys. Fresh resolution can omit these keys. Readers can look up
+keys by name regardless of their order.
 
 ### settings
 
@@ -312,9 +313,11 @@ For what `integrity` pins, see [Which hash `integrity` pins](./lockfile.md#which
 
 ## snapshots
 
-One installed instance of a package. pnpm creates one directory in
-`node_modules/.pnpm` for each snapshot, and links every dependency listed in
-the snapshot into that directory's `node_modules`.
+A snapshot records a package's resolved dependencies in a particular peer
+context. For example, `pnpm install --lockfile-only` writes snapshots without
+installing packages. When the [isolated linker](./settings/node-modules.md#nodelinker)
+installs a package, it uses its snapshot to link the package's dependencies
+in the [virtual store](./settings/node-modules.md#virtualstoredir).
 
 ```yaml
 snapshots:
