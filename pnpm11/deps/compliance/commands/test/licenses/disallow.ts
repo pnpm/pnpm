@@ -10,12 +10,12 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 describe('pnpm licenses disallow', () => {
   test('adds a license to the disallowed list', async () => {
     const dir = tempDir()
-    f.copy('simple-licenses', dir)
+    testFixtures.copy('simple-licenses', dir)
 
     const { output, exitCode } = await licenses.handler({
       ...DEFAULT_OPTS,
@@ -34,7 +34,7 @@ describe('pnpm licenses disallow', () => {
 
   test('adds multiple licenses at once', async () => {
     const dir = tempDir()
-    f.copy('simple-licenses', dir)
+    testFixtures.copy('simple-licenses', dir)
 
     const { exitCode } = await licenses.handler({
       ...DEFAULT_OPTS,
@@ -52,7 +52,7 @@ describe('pnpm licenses disallow', () => {
 
   test('does not duplicate existing licenses', async () => {
     const dir = tempDir()
-    f.copy('simple-licenses', dir)
+    testFixtures.copy('simple-licenses', dir)
 
     await licenses.handler({
       ...DEFAULT_OPTS,
@@ -91,7 +91,7 @@ describe('pnpm licenses disallow', () => {
 
   test('rejects a compound (AND/OR) expression instead of storing it', async () => {
     const dir = tempDir()
-    f.copy('simple-licenses', dir)
+    testFixtures.copy('simple-licenses', dir)
 
     // A stored compound like "GPL-3.0-only OR GPL-2.0-only" would match no
     // leaf candidate on the disallow side (the evaluator only matches leaf

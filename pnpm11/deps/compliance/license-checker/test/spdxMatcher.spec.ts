@@ -436,44 +436,44 @@ describe('matchLicenseAgainstPolicy', () => {
 
 describe('matchLicenseAgainstPolicy — hardened semantics', () => {
   test('case-insensitive: lowercase "mit" is caught by disallowed MIT', () => {
-    const r = matchLicenseAgainstPolicy('mit', { disallowed: new Set(['MIT']), mode: 'loose' })
-    expect(r.allowed).toBe(false)
-    expect(r.reason).toBe('explicitly-disallowed')
+    const result = matchLicenseAgainstPolicy('mit', { disallowed: new Set(['MIT']), mode: 'loose' })
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toBe('explicitly-disallowed')
   })
 
   test('plus-range: GPL-3.0-only satisfies allowed GPL-2.0+', () => {
-    const r = matchLicenseAgainstPolicy('GPL-3.0-only', { allowed: new Set(['GPL-2.0+']), mode: 'strict' })
-    expect(r.allowed).toBe(true)
+    const result = matchLicenseAgainstPolicy('GPL-3.0-only', { allowed: new Set(['GPL-2.0+']), mode: 'strict' })
+    expect(result.allowed).toBe(true)
   })
 
   test('OR-launder: disallowed GPL cannot be escaped via an unknown LicenseRef', () => {
-    const r = matchLicenseAgainstPolicy('GPL-3.0-only OR LicenseRef-proprietary', {
+    const result = matchLicenseAgainstPolicy('GPL-3.0-only OR LicenseRef-proprietary', {
       allowed: new Set(['MIT']),
       disallowed: new Set(['GPL-3.0-only']),
       mode: 'strict',
     })
-    expect(r.allowed).toBe(false)
+    expect(result.allowed).toBe(false)
   })
 
   test('legitimate dual-license: MIT OR GPL-3.0 passes when MIT is allowed', () => {
-    const r = matchLicenseAgainstPolicy('MIT OR GPL-3.0-only', {
+    const result = matchLicenseAgainstPolicy('MIT OR GPL-3.0-only', {
       allowed: new Set(['MIT']),
       disallowed: new Set(['GPL-3.0-only']),
       mode: 'strict',
     })
-    expect(r.allowed).toBe(true)
+    expect(result.allowed).toBe(true)
   })
 
   test('AND: MIT AND GPL-3.0 is rejected in strict mode when only MIT is allowed', () => {
-    const r = matchLicenseAgainstPolicy('MIT AND GPL-3.0-only', { allowed: new Set(['MIT']), mode: 'strict' })
-    expect(r.allowed).toBe(false)
+    const result = matchLicenseAgainstPolicy('MIT AND GPL-3.0-only', { allowed: new Set(['MIT']), mode: 'strict' })
+    expect(result.allowed).toBe(false)
   })
 
   test('unparseable license is not silently allowed against a disallow list of a different case', () => {
-    const r = matchLicenseAgainstPolicy('Apache 2.0', { disallowed: new Set(['Apache-2.0']), mode: 'loose' })
+    const result = matchLicenseAgainstPolicy('Apache 2.0', { disallowed: new Set(['Apache-2.0']), mode: 'loose' })
     // "Apache 2.0" (space) is not the SPDX id; it is treated as unknown, not a bypass of Apache-2.0
-    expect(r.reason).not.toBe('explicitly-disallowed')
-    expect(r.allowed).toBe(true) // loose + no allowed list ⇒ allowed-by-default, documented
+    expect(result.reason).not.toBe('explicitly-disallowed')
+    expect(result.allowed).toBe(true) // loose + no allowed list ⇒ allowed-by-default, documented
   })
 })
 
@@ -481,26 +481,26 @@ describe('matchLicenseAgainstPolicy — regression fixes', () => {
   test('does not throw when an allowed entry is not valid SPDX', () => {
     expect(() => matchLicenseAgainstPolicy('MIT', { allowed: new Set(['Apache 2.0', 'MIT']), mode: 'strict' })).not.toThrow()
     expect(matchLicenseAgainstPolicy('MIT', { allowed: new Set(['Apache 2.0', 'MIT']), mode: 'strict' }).allowed).toBe(true)
-    const r = matchLicenseAgainstPolicy('GPL-3.0-only', { allowed: new Set(['Apache 2.0']), mode: 'strict' })
-    expect(r.allowed).toBe(false)
-    expect(r.reason).toBe('not-in-allowed-list')
+    const result = matchLicenseAgainstPolicy('GPL-3.0-only', { allowed: new Set(['Apache 2.0']), mode: 'strict' })
+    expect(result.allowed).toBe(false)
+    expect(result.reason).toBe('not-in-allowed-list')
   })
 
   test('a standalone LicenseRef is not falsely reported as disallowed', () => {
-    const r = matchLicenseAgainstPolicy('LicenseRef-proprietary', { disallowed: new Set(['GPL-3.0-only']), mode: 'loose' })
-    expect(r.allowed).toBe(true)
-    expect(r.reason).not.toBe('explicitly-disallowed')
+    const result = matchLicenseAgainstPolicy('LicenseRef-proprietary', { disallowed: new Set(['GPL-3.0-only']), mode: 'loose' })
+    expect(result.allowed).toBe(true)
+    expect(result.reason).not.toBe('explicitly-disallowed')
   })
 
   test('LicenseRef in an AND with a non-disallowed license is not blocked', () => {
-    const r = matchLicenseAgainstPolicy('MIT AND LicenseRef-x', { disallowed: new Set(['GPL-3.0-only']), mode: 'loose' })
-    expect(r.allowed).toBe(true)
+    const result = matchLicenseAgainstPolicy('MIT AND LicenseRef-x', { disallowed: new Set(['GPL-3.0-only']), mode: 'loose' })
+    expect(result.allowed).toBe(true)
   })
 
   test('a non-disallowed real license is a valid OR escape from a disallowed sibling', () => {
     // GPL OR BSD with only GPL disallowed: BSD is a real escape, disallow passes
-    const r = matchLicenseAgainstPolicy('GPL-3.0-only OR BSD-3-Clause', { disallowed: new Set(['GPL-3.0-only']), mode: 'loose' })
-    expect(r.allowed).toBe(true)
+    const result = matchLicenseAgainstPolicy('GPL-3.0-only OR BSD-3-Clause', { disallowed: new Set(['GPL-3.0-only']), mode: 'loose' })
+    expect(result.allowed).toBe(true)
   })
 })
 
@@ -509,17 +509,17 @@ describe('matchLicenseAgainstPolicy — compound entries in the allowed list', (
     // spdx-satisfies throws if ANY element of the approved-licenses array is a
     // compound (AND/OR) expression. A single bad entry must not fail every
     // other entry in the list.
-    const r = matchLicenseAgainstPolicy('MIT', {
+    const result = matchLicenseAgainstPolicy('MIT', {
       allowed: new Set(['MIT', 'MIT AND Apache-2.0']),
       mode: 'strict',
     })
-    expect(r.allowed).toBe(true)
-    expect(r.reason).toBe('explicitly-allowed')
+    expect(result.allowed).toBe(true)
+    expect(result.reason).toBe('explicitly-allowed')
   })
 
   test('a compound-only allowed list rejects without throwing', () => {
     expect(() => matchLicenseAgainstPolicy('MIT', { allowed: new Set(['A AND B']), mode: 'strict' })).not.toThrow()
-    const r = matchLicenseAgainstPolicy('MIT', { allowed: new Set(['A AND B']), mode: 'strict' })
-    expect(r.allowed).toBe(false)
+    const result = matchLicenseAgainstPolicy('MIT', { allowed: new Set(['A AND B']), mode: 'strict' })
+    expect(result.allowed).toBe(false)
   })
 })

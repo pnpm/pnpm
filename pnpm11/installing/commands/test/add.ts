@@ -517,7 +517,7 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
 // observe log output (see core/logger/test/index.test.ts): `globalWarn`
 // writes through bole's shared output pipeline, which the singleton
 // `streamParser` is already subscribed to, so no module mocking is needed.
-async function captureWarnings<T> (fn: () => Promise<T>): Promise<{ result: T, warnings: string[] }> {
+async function captureWarnings<Result> (fn: () => Promise<Result>): Promise<{ result: Result, warnings: string[] }> {
   const warnings: string[] = []
   const handleLog = (msg: LogBase): void => {
     if (msg.level === 'warn') {

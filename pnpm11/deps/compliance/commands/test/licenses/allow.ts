@@ -11,12 +11,12 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { licensesAllow } from '../../src/licenses/licensesAllow.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 describe('pnpm licenses allow', () => {
   test('adds a license to the allowed list', async () => {
     const dir = tempDir()
-    f.copy('simple-licenses', dir)
+    testFixtures.copy('simple-licenses', dir)
 
     const { output, exitCode } = await licenses.handler({
       ...DEFAULT_OPTS,
@@ -35,7 +35,7 @@ describe('pnpm licenses allow', () => {
 
   test('adds multiple licenses at once', async () => {
     const dir = tempDir()
-    f.copy('simple-licenses', dir)
+    testFixtures.copy('simple-licenses', dir)
 
     const { exitCode } = await licenses.handler({
       ...DEFAULT_OPTS,
@@ -53,7 +53,7 @@ describe('pnpm licenses allow', () => {
 
   test('does not duplicate existing licenses', async () => {
     const dir = tempDir()
-    f.copy('simple-licenses', dir)
+    testFixtures.copy('simple-licenses', dir)
 
     const { exitCode: exitCode1 } = await licenses.handler({
       ...DEFAULT_OPTS,
@@ -171,7 +171,7 @@ describe('pnpm licenses allow', () => {
 
   test('allowing a license removes its case-insensitive match from the disallowed list', async () => {
     const dir = tempDir()
-    f.copy('simple-licenses', dir)
+    testFixtures.copy('simple-licenses', dir)
 
     const { output, exitCode } = await licenses.handler({
       ...DEFAULT_OPTS,

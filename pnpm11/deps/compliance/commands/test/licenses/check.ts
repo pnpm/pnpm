@@ -12,11 +12,11 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 async function setupProject (fixtureName: string): Promise<{ dir: string, storeDir: string }> {
   const dir = tempDir()
-  f.copy(fixtureName, dir)
+  testFixtures.copy(fixtureName, dir)
 
   const storeDir = path.join(dir, 'store')
   await install.handler({
@@ -25,7 +25,7 @@ async function setupProject (fixtureName: string): Promise<{ dir: string, storeD
     pnpmHomeDir: '',
     storeDir,
     // Fixtures under the shared `__fixtures__` dir are installed by CI's
-    // `prepare-fixtures` step, so `f.copy` brings their `node_modules` (and its
+    // `prepare-fixtures` step, so `testFixtures.copy` brings their `node_modules` (and its
     // `.modules.yaml`, which records a different store) into the temp dir. The
     // install then wants to purge that modules dir, and the purge prompts for
     // confirmation — which aborts on a machine with no TTY. Tests always want
@@ -241,7 +241,7 @@ describe('pnpm licenses check', () => {
     //   foo/ depends on react, react-dom (MIT) — direct deps
     // Their transitive deps should be excluded by shallow mode
     const workspaceDir = tempDir()
-    f.copy('workspace-licenses', workspaceDir)
+    testFixtures.copy('workspace-licenses', workspaceDir)
 
     const { allProjects, allProjectsGraph, selectedProjectsGraph } =
       await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])

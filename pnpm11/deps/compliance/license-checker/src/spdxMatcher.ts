@@ -43,44 +43,12 @@ export function matchLicenseAgainstPolicy (
   }
 
   if (hasAllowedList) {
-    const allowedList = [...opts.allowed!]
-    // `satisfies` throws on any approved entry that is not valid SPDX (e.g.
-    // "Apache 2.0" or a lowercased id — states `pnpm licenses allow` can
-    // create and documents). Split the list: run the SPDX-parseable entries
-    // through `satisfies`, and match the rest literally (case-insensitively)
-    // against the license's own leaf candidates.
-    const spdxAllowed = allowedList.filter(isParseableSpdx)
-    const literalAllowed = allowedList.filter((a) => !isParseableSpdx(a))
-    let allowedMatch = false
-    // `satisfies` throws if ANY element of the array it is given is a
-    // compound (AND/OR) expression, so a single bad entry (e.g. a
-    // hand-edited "MIT AND Apache-2.0" in pnpm-workspace.yaml — `pnpm
-    // licenses allow/disallow` reject these at input, but hand edits bypass
-    // that) must not poison every other entry in the list. Drop compound
-    // entries rather than evaluating one-by-one: `satisfies` treats the
-    // array itself as an OR, and evaluating an AND-license expression (e.g.
-    // "MIT AND BSD-3-Clause") needs to see multiple simple entries together
-    // in one call to be satisfied — splitting the call per entry would break
-    // that.
-    const batchAllowed = spdxAllowed.filter((a) => !isCompoundLicenseExpression(a))
-    if (batchAllowed.length > 0) {
-      try {
-        allowedMatch = satisfies(license, batchAllowed)
-      } catch {
-        allowedMatch = false
-      }
-    }
-    if (!allowedMatch && literalAllowed.length > 0) {
-      const candidates = collectLeafCandidates(tree)
-      allowedMatch = literalAllowed.some((lit) => candidates.some((c) => c.toLowerCase() === lit.toLowerCase()))
-    }
-    if (allowedMatch) {
-      return { allowed: true, reason: 'explicitly-allowed' }
-    }
     // Not in the allowed list ⇒ allowed:false in BOTH modes. `checkLicenses`
     // turns this into a violation in strict mode and a (non-blocking) warning
     // in loose mode.
-    return { allowed: false, reason: 'not-in-allowed-list' }
+    return isAllowedByList(license, tree, [...opts.allowed!])
+      ? { allowed: true, reason: 'explicitly-allowed' }
+      : { allowed: false, reason: 'not-in-allowed-list' }
   }
 
   return { allowed: true, reason: 'allowed-by-default' }
@@ -94,7 +62,7 @@ export function extractLicenseIds (license: string): string[] {
   }
 }
 
-// True iff `s` parses as a valid SPDX expression AND that expression is a
+// True iff `expression` parses as a valid SPDX expression AND that expression is a
 // compound (AND/OR) of two or more license terms. Simple ids ("MIT"), `+`
 // ranges ("GPL-2.0+"), `WITH` exceptions ("Apache-2.0 WITH LLVM-exception"),
 // and unparseable/literal strings all return false — those are the forms
@@ -102,14 +70,45 @@ export function extractLicenseIds (license: string): string[] {
 // expressions are rejected because flattening them (e.g. storing "MIT AND
 // Apache-2.0" and matching either half individually) silently changes their
 // meaning, and passing one through unflattened to `spdx-satisfies` throws.
-export function isCompoundLicenseExpression (s: string): boolean {
+export function isCompoundLicenseExpression (expression: string): boolean {
   let tree: SpdxNode
   try {
-    tree = spdxParse(s)
+    tree = spdxParse(expression)
   } catch {
     return false
   }
   return containsConjunction(tree)
+}
+
+// `satisfies` throws on any approved entry that is not valid SPDX (e.g.
+// "Apache 2.0" or a lowercased id — states `pnpm licenses allow` can create
+// and documents). Split the list: run the SPDX-parseable entries through
+// `satisfies`, and match the rest literally (case-insensitively) against the
+// license's own leaf candidates.
+function isAllowedByList (license: string, tree: SpdxNode, allowedList: string[]): boolean {
+  const spdxAllowed = allowedList.filter(isParseableSpdx)
+  // `satisfies` throws if ANY element of the array it is given is a compound
+  // (AND/OR) expression, so a single bad entry must not poison every other
+  // entry in the list. Drop compound entries rather than evaluating
+  // one-by-one: `satisfies` treats the array itself as an OR, and evaluating
+  // an AND-license expression (e.g. "MIT AND BSD-3-Clause") needs to see
+  // multiple simple entries together in one call to be satisfied.
+  const batchAllowed = spdxAllowed.filter((entry) => !isCompoundLicenseExpression(entry))
+  if (batchAllowed.length > 0 && satisfiesSafely(license, batchAllowed)) {
+    return true
+  }
+  const literalAllowed = allowedList.filter((entry) => !isParseableSpdx(entry))
+  if (literalAllowed.length === 0) return false
+  const candidates = collectLeafCandidates(tree).map((candidate) => candidate.toLowerCase())
+  return literalAllowed.some((literal) => candidates.includes(literal.toLowerCase()))
+}
+
+function satisfiesSafely (license: string, approved: string[]): boolean {
+  try {
+    return satisfies(license, approved)
+  } catch {
+    return false
+  }
 }
 
 // -- helpers --
@@ -153,7 +152,7 @@ function isBlockedByDisallowed (node: SpdxNode, opts: MatchPolicyOptions, asEsca
 
 function leafIsBlocked (node: spdxParse.SpdxLicense, opts: MatchPolicyOptions, asEscape: boolean): boolean {
   const candidates = leafCandidates(node)
-  if (candidates.some((c) => setHasCaseInsensitive(opts.disallowed!, c))) {
+  if (candidates.some((candidate) => setHasCaseInsensitive(opts.disallowed!, candidate))) {
     return true
   }
   // Not disallowed. A standalone (non-escape) leaf never forces a disallowed
@@ -181,9 +180,9 @@ function collectLeafCandidates (node: SpdxNode): string[] {
   return leafCandidates(node)
 }
 
-function isParseableSpdx (s: string): boolean {
+function isParseableSpdx (expression: string): boolean {
   try {
-    spdxParse(s)
+    spdxParse(expression)
     return true
   } catch {
     return false

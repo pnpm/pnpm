@@ -187,7 +187,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'resolutionMode'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
-| 'licenses' // On the type for add/update license checking; pnpm install intentionally does not trigger license checks per issue #10570
+| 'licenses' // On the type for add/update license checking; pnpm install intentionally does not trigger license checks per pnpm/pnpm#10570
 | 'updateConfig'
 | 'overrides'
 | 'packageExtensions'
@@ -261,7 +261,7 @@ export async function handler (
   }
   await installDeps(installDepsOptions, [])
   // NOTE: plain `pnpm install` intentionally does not run the license check.
-  // Per the feature spec (#10570) the check runs only after `add`/`update`, so
+  // Per the feature spec (pnpm/pnpm#10570) the check runs only after `add`/`update`, so
   // routine installs and CI `--frozen-lockfile` runs are not gated. Enforcement
   // for install-time is a separate, opt-in decision.
 }

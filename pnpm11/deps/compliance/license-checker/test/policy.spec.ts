@@ -14,9 +14,9 @@ describe('resolveLicensePolicy', () => {
   })
 
   test('active with a disallowed list and no explicit mode, defaults to loose', () => {
-    const p = resolveLicensePolicy({ disallowed: ['GPL-3.0-only'] })
-    expect(p).not.toBeNull()
-    expect(p!.mode).toBe('loose')
+    const policy = resolveLicensePolicy({ disallowed: ['GPL-3.0-only'] })
+    expect(policy).not.toBeNull()
+    expect(policy!.mode).toBe('loose')
   })
 
   test('active with overrides only', () => {

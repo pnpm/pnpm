@@ -184,22 +184,27 @@ function assertValidWorkspaceManifestLicenses (manifest: { licenses?: unknown, [
   assertStringArray(config, 'allowed')
   assertStringArray(config, 'disallowed')
 
-  if (config.overrides != null) {
-    if (typeof config.overrides !== 'object' || Array.isArray(config.overrides)) {
-      throw new InvalidWorkspaceManifestError('licenses.overrides must be an object')
-    }
-    for (const [key, value] of Object.entries(config.overrides as Record<string, unknown>)) {
-      if (typeof value !== 'boolean' && typeof value !== 'string') {
-        throw new InvalidWorkspaceManifestError(
-          `licenses.overrides["${key}"] must be a boolean or string, got ${typeof value}`
-        )
-      }
-    }
-  }
+  assertLicenseOverrides(config.overrides)
 
   assertEnum(config, 'mode', ['strict', 'loose', 'none'])
   assertEnum(config, 'environment', ['prod', 'dev', 'all'])
   assertEnum(config, 'depth', ['deep', 'shallow'])
+}
+
+function assertLicenseOverrides (overrides: unknown): void {
+  if (overrides == null) {
+    return
+  }
+  if (typeof overrides !== 'object' || Array.isArray(overrides)) {
+    throw new InvalidWorkspaceManifestError('licenses.overrides must be an object')
+  }
+  for (const [key, value] of Object.entries(overrides as Record<string, unknown>)) {
+    if (typeof value !== 'boolean' && typeof value !== 'string') {
+      throw new InvalidWorkspaceManifestError(
+        `licenses.overrides["${key}"] must be a boolean or string, got ${typeof value}`
+      )
+    }
+  }
 }
 
 function assertStringArray (config: Record<string, unknown>, field: string): void {

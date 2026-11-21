@@ -1,6 +1,6 @@
 import type { DependenciesField, LicensesConfig } from '@pnpm/types'
 
-import { matchLicenseAgainstPolicy } from './spdxMatcher.js'
+import { type LicenseMatchResult, matchLicenseAgainstPolicy, type MatchPolicyOptions } from './spdxMatcher.js'
 
 export interface LicensePackageInfo {
   name: string
@@ -38,54 +38,61 @@ export function checkLicenseCompliance (
   }
 
   const mode = config.mode ?? 'loose'
-  const environment = config.environment ?? 'all'
-  const filtered = filterByEnvironment(packages, environment)
-  const allowed = config.allowed ? new Set(config.allowed) : undefined
-  const disallowed = config.disallowed ? new Set(config.disallowed) : undefined
+  const matchLicense = createCachedLicenseMatcher({
+    allowed: config.allowed ? new Set(config.allowed) : undefined,
+    disallowed: config.disallowed ? new Set(config.disallowed) : undefined,
+    mode,
+  })
   const overrides = config.overrides ?? {}
-  const matchCache = new Map<string, ReturnType<typeof matchLicenseAgainstPolicy>>()
 
-  for (const pkg of filtered) {
+  for (const pkg of filterByEnvironment(packages, config.environment ?? 'all')) {
     result.checkedCount++
-
-    const overrideResult = applyOverride(overrides, pkg.name, pkg.version)
-    if (overrideResult === true) {
-      continue
-    }
-
-    const effectiveLicense = typeof overrideResult === 'string'
-      ? overrideResult
-      : pkg.license
-
-    let match = matchCache.get(effectiveLicense)
-    if (match == null) {
-      match = matchLicenseAgainstPolicy(effectiveLicense, {
-        allowed,
-        disallowed,
-        mode,
-      })
-      matchCache.set(effectiveLicense, match)
-    }
-
-    if (!match.allowed) {
-      const violation: LicenseViolation = {
-        packageName: pkg.name,
-        packageVersion: pkg.version,
-        license: effectiveLicense,
-        belongsTo: pkg.belongsTo,
-        reason: formatReason(match.reason, effectiveLicense),
-      }
-      // Explicitly disallowed licenses are always violations, even in loose mode.
-      // Any other policy failure in loose mode is downgraded to a warning.
-      if (mode === 'strict' || match.reason === 'explicitly-disallowed') {
-        result.violations.push(violation)
-      } else {
-        result.warnings.push(violation)
-      }
+    const failure = findPolicyFailure(pkg, overrides, matchLicense)
+    if (failure == null) continue
+    // Explicitly disallowed licenses are always violations, even in loose mode.
+    // Any other policy failure in loose mode is downgraded to a warning.
+    if (mode === 'strict' || failure.reason === 'explicitly-disallowed') {
+      result.violations.push(failure.violation)
+    } else {
+      result.warnings.push(failure.violation)
     }
   }
 
   return result
+}
+
+function findPolicyFailure (
+  pkg: LicensePackageInfo,
+  overrides: Record<string, boolean | string>,
+  matchLicense: (license: string) => LicenseMatchResult
+): { violation: LicenseViolation, reason: LicenseMatchResult['reason'] } | undefined {
+  const overrideResult = applyOverride(overrides, pkg.name, pkg.version)
+  if (overrideResult === true) return undefined
+  const effectiveLicense = typeof overrideResult === 'string' ? overrideResult : pkg.license
+  const match = matchLicense(effectiveLicense)
+  if (match.allowed) return undefined
+  return {
+    reason: match.reason,
+    violation: {
+      packageName: pkg.name,
+      packageVersion: pkg.version,
+      license: effectiveLicense,
+      belongsTo: pkg.belongsTo,
+      reason: formatReason(match.reason, effectiveLicense),
+    },
+  }
+}
+
+function createCachedLicenseMatcher (opts: MatchPolicyOptions): (license: string) => LicenseMatchResult {
+  const cache = new Map<string, LicenseMatchResult>()
+  return (license) => {
+    let match = cache.get(license)
+    if (match == null) {
+      match = matchLicenseAgainstPolicy(license, opts)
+      cache.set(license, match)
+    }
+    return match
+  }
 }
 
 function filterByEnvironment (

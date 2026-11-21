@@ -68,7 +68,7 @@ export async function scanAndCheckLicenses (opts: ScanOptions): Promise<ScanResu
   })
 
   const includedImporterIds = opts.selectedProjectsGraph
-    ? Object.keys(opts.selectedProjectsGraph).map((p) => getLockfileImporterId(lockfileDir, p))
+    ? Object.keys(opts.selectedProjectsGraph).map((projectDir) => getLockfileImporterId(lockfileDir, projectDir))
     : undefined
 
   let licensePackages = await findDependencyLicenses({

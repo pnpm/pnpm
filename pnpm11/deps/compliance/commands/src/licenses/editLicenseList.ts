@@ -1,5 +1,5 @@
 import { writeSettings } from '@pnpm/config.writer'
-import { isCompoundLicenseExpression } from '@pnpm/deps.compliance.license-checker'
+import { assertNoCompoundPolicyEntries } from '@pnpm/deps.compliance.license-checker'
 import { PnpmError } from '@pnpm/error'
 import type { LicensesConfig, ProjectManifest } from '@pnpm/types'
 
@@ -32,36 +32,20 @@ export async function editLicenseList (
   }
 
   const other: 'allowed' | 'disallowed' = target === 'allowed' ? 'disallowed' : 'allowed'
-  const ids = [...new Set(licenses.map((l) => l.trim()).filter((l) => l.length > 0))]
+  const ids = [...new Set(licenses.map((license) => license.trim()).filter((license) => license.length > 0))]
+  assertNoCompoundPolicyEntries({ [target]: ids })
 
-  const compound = ids.filter(isCompoundLicenseExpression)
-  if (compound.length > 0) {
-    throw new PnpmError(
-      'LICENSES_COMPOUND_EXPRESSION',
-      `Compound license expressions (AND/OR) are not supported in the allowed/disallowed list: ${compound.join(', ')}. ` +
-      'List each license identifier separately, e.g. "pnpm licenses allow MIT Apache-2.0".'
-    )
-  }
-
-  const currentTarget = opts.licenses?.[target] ?? []
-  const currentOther = opts.licenses?.[other] ?? []
   // Case-insensitive throughout: the matcher treats "mit" and "MIT" as the same
   // license, so allowing "mit" must not add a case-variant duplicate alongside an
   // existing "MIT" in the same list, and must prune "MIT" from the opposite list.
-  const currentTargetLower = new Set(currentTarget.map((l) => l.toLowerCase()))
-  const added: string[] = []
-  const addedLower = new Set<string>()
-  for (const id of ids) {
-    const lower = id.toLowerCase()
-    if (currentTargetLower.has(lower) || addedLower.has(lower)) continue
-    addedLower.add(lower)
-    added.push(id)
-  }
-  const newTarget = [...currentTarget, ...added]
-  const newOther = currentOther.filter((l) => !ids.some((id) => id.toLowerCase() === l.toLowerCase()))
+  const currentTarget = opts.licenses?.[target] ?? []
+  const currentOther = opts.licenses?.[other] ?? []
+  const added = findLicensesNotInList(ids, currentTarget)
+  const removedFromOther = currentOther.filter((license) => includesCaseInsensitive(ids, license))
 
-  const updatedConfig: LicensesConfig = { ...opts.licenses, [target]: newTarget }
-  if (newOther.length !== currentOther.length) {
+  const updatedConfig: LicensesConfig = { ...opts.licenses, [target]: [...currentTarget, ...added] }
+  if (removedFromOther.length > 0) {
+    const newOther = currentOther.filter((license) => !includesCaseInsensitive(ids, license))
     updatedConfig[other] = newOther.length > 0 ? newOther : undefined
   }
 
@@ -71,13 +55,30 @@ export async function editLicenseList (
     updatedSettings: { licenses: updatedConfig },
   })
 
-  const lines: string[] = []
-  lines.push(added.length > 0
-    ? `Added to ${target} licenses: ${added.join(', ')}`
-    : `All specified licenses are already in the ${target} list`)
-  const removedFromOther = currentOther.filter((l) => ids.some((id) => id.toLowerCase() === l.toLowerCase()))
+  const lines = [
+    added.length > 0
+      ? `Added to ${target} licenses: ${added.join(', ')}`
+      : `All specified licenses are already in the ${target} list`,
+  ]
   if (removedFromOther.length > 0) {
     lines.push(`Removed from ${other} licenses: ${removedFromOther.join(', ')}`)
   }
   return { output: lines.join('\n'), exitCode: 0 }
+}
+
+function findLicensesNotInList (ids: string[], list: string[]): string[] {
+  const seen = new Set(list.map((license) => license.toLowerCase()))
+  const missing: string[] = []
+  for (const id of ids) {
+    const lower = id.toLowerCase()
+    if (seen.has(lower)) continue
+    seen.add(lower)
+    missing.push(id)
+  }
+  return missing
+}
+
+function includesCaseInsensitive (list: string[], value: string): boolean {
+  const lower = value.toLowerCase()
+  return list.some((entry) => entry.toLowerCase() === lower)
 }

@@ -12,19 +12,23 @@ export function renderCheckTable (
   if (violations.length > 0) {
     lines.push(chalk.red(`${violations.length} license violation(s) found:`))
     lines.push('')
-    for (const v of violations) {
-      lines.push(`  ${chalk.red('x')} ${sanitizeForTerminal(v.packageName)}@${sanitizeForTerminal(v.packageVersion)} - ${sanitizeForTerminal(v.license)} - ${sanitizeForTerminal(v.reason)}`)
+    for (const violation of violations) {
+      lines.push(`  ${chalk.red('x')} ${formatViolation(violation)}`)
     }
   }
   if (warnings.length > 0) {
     if (lines.length > 0) lines.push('')
     lines.push(chalk.yellow(`${warnings.length} license warning(s):`))
     lines.push('')
-    for (const w of warnings) {
-      lines.push(`  ${chalk.yellow('!')} ${sanitizeForTerminal(w.packageName)}@${sanitizeForTerminal(w.packageVersion)} - ${sanitizeForTerminal(w.license)} - ${sanitizeForTerminal(w.reason)}`)
+    for (const warning of warnings) {
+      lines.push(`  ${chalk.yellow('!')} ${formatViolation(warning)}`)
     }
   }
   lines.push('')
   lines.push(`Checked ${checkedCount} ${checkedCount === 1 ? 'package' : 'packages'}`)
   return { output: lines.join('\n'), exitCode: violations.length > 0 ? 1 : 0 }
+}
+
+function formatViolation (violation: LicenseViolation): string {
+  return `${sanitizeForTerminal(violation.packageName)}@${sanitizeForTerminal(violation.packageVersion)} - ${sanitizeForTerminal(violation.license)} - ${sanitizeForTerminal(violation.reason)}`
 }
