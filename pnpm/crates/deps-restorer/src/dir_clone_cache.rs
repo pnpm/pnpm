@@ -68,7 +68,10 @@ use pnpm_lockfile::{
     SnapshotEntry,
 };
 use pnpm_reporter::Reporter;
-use sha2::{Digest as _, Sha256};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use std::{
     collections::HashMap,
     fs,
@@ -232,7 +235,11 @@ impl<'install> DirCloneCache<'install> {
         }
         // A snapshot the layout has no precomputed suffix for goes
         // through the per-file import.
-        if self.layout().hashed_slot_dir(package_key).is_none() {
+        if self
+            .layout()
+            .hashed_slot_dir(package_key)
+            .is_none()
+        {
             return false;
         }
         let canonical_node_modules = self.content_slot_dir(cas_paths).join("node_modules");
@@ -284,7 +291,10 @@ impl<'install> DirCloneCache<'install> {
             hasher.update([0]);
         }
         let hex = format!("{:x}", hasher.finalize());
-        self.layout_inputs.cache_dir.join("content").join(&hex[..2]).join(&hex[2..])
+        self.layout_inputs.cache_dir
+            .join("content")
+            .join(&hex[..2])
+            .join(&hex[2..])
     }
 
     /// Whether the canonical slot holds the package's files. Outside a
