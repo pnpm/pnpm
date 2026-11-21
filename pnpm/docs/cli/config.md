@@ -96,7 +96,7 @@ Remove the config key from the config file.
 
 Show all the config settings. Output is a JSON object.
 
-Auth-related settings are hidden from the output; use `pnpm config get <key>` to read them explicitly.
+`pnpm config list` masks tokens, usernames, passwords, TLS private keys, and credentials in proxy URLs. `pnpm config get` fails when asked for a protected auth setting.
 
 ## Options
 

@@ -40,6 +40,8 @@ test('config list --json', async () => {
 test('config list censors protected settings', async () => {
   const authConfig = {
     username: 'general-username',
+    '//registry.example/:key': 'private-key',
+    'http-proxy': 'http://test:password@proxy.example:8080',
     '@my-org:registry': 'https://my-org.example.com/registry',
     '//my-org.example.com:username': 'my-username-in-my-org',
   }
@@ -59,6 +61,8 @@ test('config list censors protected settings', async () => {
     '@my-org:registry': 'https://my-org.example.com/registry',
     '//my-org.example.com:username': '(protected)',
     username: '(protected)',
+    '//registry.example/:key': '(protected)',
+    'http-proxy': 'http://proxy.example:8080/',
   })
 })
 

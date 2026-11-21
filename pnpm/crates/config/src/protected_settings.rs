@@ -8,7 +8,7 @@ use serde_json::{
     Value,
 };
 
-const PROTECTED_SUFFIXES: &[&str] = &["_auth", "_authToken", "username", "_password"];
+const PROTECTED_SUFFIXES: &[&str] = &["_auth", "_authToken", "username", "_password", "key"];
 
 /// The placeholder written in place of a protected value.
 pub const PROTECTED_PLACEHOLDER: &str = "(protected)";
@@ -44,6 +44,14 @@ pub fn censor_protected_setting_value(key: &str, value: &mut Value) {
         return;
     }
     match key {
+        "httpProxy" | "httpsProxy" | "http-proxy" | "https-proxy" | "proxy" => {
+            if let Some(url) = value
+                .as_str()
+                .filter(|url| url.contains('@'))
+            {
+                *value = Value::String(pnpm_network::redact_url_for_display(url));
+            }
+        }
         "remoteCache" | "remoteSideEffectsCache" => censor_private_key_field(value),
         "sideEffectsCache" => {
             if let Some(remote) = value

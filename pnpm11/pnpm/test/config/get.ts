@@ -296,7 +296,7 @@ test('pnpm config get shows settings from global config.yaml', () => {
 test('pnpm config get --global and --location=global read only the global config', () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', { nodeLinker: 'hoisted' })
-  fs.writeFileSync('.npmrc', '//project.test/:_authToken=project-token\n')
+  fs.writeFileSync('.npmrc', '@project:registry=https://project.test/\n')
 
   const XDG_CONFIG_HOME = path.resolve('.config')
   fs.mkdirSync(path.join(XDG_CONFIG_HOME, 'pnpm'), { recursive: true })
@@ -316,14 +316,14 @@ test('pnpm config get --global and --location=global read only the global config
   expect(pnpm(['get', 'nodeLinker', '--location=global'])).toBe('undefined')
   expect(pnpm(['config', 'get', 'nodeLinker', '--global', '--location=project'])).toBe('hoisted')
   expect(pnpm(['config', 'get', 'dlxCacheMaxAge', '--location=global'])).toBe('1234')
-  expect(pnpm(['config', 'get', '//project.test/:_authToken'])).toBe('project-token')
-  expect(pnpm(['config', 'get', '//project.test/:_authToken', '--global'])).toBe('undefined')
-  expect(pnpm(['config', 'get', '//project.test/:_authToken', '--location=global'])).toBe('undefined')
+  expect(pnpm(['config', 'get', '@project:registry'])).toBe('https://project.test/')
+  expect(pnpm(['config', 'get', '@project:registry', '--global'])).toBe('undefined')
+  expect(pnpm(['config', 'get', '@project:registry', '--location=global'])).toBe('undefined')
 
   for (const scope of ['--global', '--location=global']) {
     const list = JSON.parse(pnpm(['config', 'list', scope]))
     expect(list).not.toHaveProperty('nodeLinker')
-    expect(list).not.toHaveProperty(['//project.test/:_authToken'])
+    expect(list).not.toHaveProperty(['@project:registry'])
     expect(list).toHaveProperty('dlxCacheMaxAge', 1234)
   }
 })

@@ -91,6 +91,37 @@ fn set_cafile_global_writes_auth_ini() {
 }
 
 #[test]
+fn token_helper_can_only_be_written_to_global_auth_config() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+    for key in ["tokenHelper", "//registry.example/:tokenHelper"] {
+        config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, false),
+            key.to_owned(),
+            Some("helper".into()),
+        )
+        .unwrap();
+        assert_eq!(
+            read_ini(&config_dir.join("auth.ini")).get(key).map(String::as_str),
+            Some("helper"),
+        );
+        let error = config_set(
+            &config,
+            tmp.path(),
+            flags(false, Some(ConfigLocation::Project), false),
+            key.to_owned(),
+            Some("helper".into()),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("tokenHelper must not be configured"));
+        assert!(!tmp.path().join(".npmrc").exists());
+    }
+}
+
+#[test]
 fn set_scoped_registry_project_creates_npmrc() {
     let tmp = TempDir::new().unwrap();
     let config = config_with_dir(&tmp.path().join("global-config"));

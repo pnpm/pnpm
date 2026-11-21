@@ -328,7 +328,6 @@ use tls::{
     load_cafile,
     parse_bool,
     resolve_cafile,
-    split_inline_identity_key,
     split_ssl_key,
 };
 

@@ -2,7 +2,7 @@ use super::{
     DEFAULT_REGISTRY_SCOPE,
     LoadWorkspaceYamlError,
     NpmrcAuth,
-    split_inline_identity_key,
+    split_ssl_key,
 };
 
 /// Reject a `tokenHelper` that a workspace or project `.npmrc` contributed.
@@ -98,9 +98,16 @@ const INI_CREDS_SUFFIXES: &[&str] =
 pub(super) fn is_auth_value_key(key: &str) -> bool {
     matches!(
         key,
-        "_authToken" | "_auth" | "_password" | "username" | "tokenHelper" | "cert" | "key",
+        "_authToken"
+            | "_auth"
+            | "_password"
+            | "username"
+            | "tokenHelper"
+            | "cert"
+            | "key"
+            | "cafile",
     ) || split_ini_creds_key(key).is_some()
-        || split_inline_identity_key(key).is_some()
+        || split_ssl_key(key).is_some_and(|(_, field, is_file)| is_file || field != "ca")
 }
 
 /// Match a `npm_config_//…` / `pnpm_config_//…` environment variable name.

@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isNeverAFileSetting, isProjectManifestSkippedKey, types, whereRefusedKeyBelongs } from '@pnpm/config.reader'
+import { type ConfigFileKey, isConfigFileKey, isIniConfigKey, isNeverAFileSetting, isProjectManifestSkippedKey, TokenHelperInProjectConfigError, types, whereRefusedKeyBelongs } from '@pnpm/config.reader'
 import { GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { parsePropertyPath } from '@pnpm/object.property-path'
@@ -55,6 +55,9 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
 }
 
 async function setAuthSetting (opts: ConfigCommandOptions, key: string, value: unknown): Promise<void> {
+  if (!opts.global && value != null && (key === 'tokenHelper' || key.endsWith(':tokenHelper'))) {
+    throw new TokenHelperInProjectConfigError(key)
+  }
   const configPath = opts.global
     ? path.join(opts.configDir, 'auth.ini')
     : path.join(opts.dir, '.npmrc')
@@ -268,7 +271,7 @@ function validateWorkspaceKey (key: string): string {
   return key
 }
 
-const STRING_ONLY_INI_KEYS = ['_auth', '_authToken', '_password', 'username', 'registry']
+const STRING_ONLY_INI_KEYS = ['_auth', '_authToken', '_password', 'username', 'tokenHelper', 'registry']
 
 function isStringOnlyIniKey (key: string): boolean {
   if (STRING_ONLY_INI_KEYS.includes(key)) return true

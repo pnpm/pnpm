@@ -157,9 +157,7 @@ pub enum LoadWorkspaceYamlError {
     #[display("tokenHelper must not be configured in project-level .npmrc")]
     #[diagnostic(
         code(ERR_PNPM_TOKEN_HELPER_IN_PROJECT_CONFIG),
-        help(
-            "The key {key:?} was found in project config. Move it to ~/.npmrc or the global pnpm auth.ini."
-        )
+        help("Set {key:?} in ~/.npmrc or the global pnpm auth.ini.")
     )]
     TokenHelperInProjectConfig { key: String },
     /// A repository-controlled file names a registry whose URL holds a

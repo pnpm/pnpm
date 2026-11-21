@@ -586,6 +586,7 @@ async fn pipeline_report_redirects_are_not_followed() {
     let redirect = server
         .mock("PUT", "/-/pnpr/v0/pipeline/runs")
         .with_status(307)
+        .with_body("Cannot PUT /?token=report-secret")
         .with_header("location", "/unexpected")
         .create_async()
         .await;
@@ -602,13 +603,13 @@ async fn pipeline_report_redirects_are_not_followed() {
         summary: json!({}),
         events: Vec::new(),
     };
-    assert!(
-        client
-            .publish_pipeline_run(&request, Some("Bearer secret"))
-            .await
-            .is_err(),
-        "report redirects must not receive credentials",
-    );
+    let error = client
+        .publish_pipeline_run(&request, Some("Bearer secret"))
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("307"), "{error}");
+    assert!(!error.contains("report-secret"), "{error}");
     redirect.assert_async().await;
     destination.assert_async().await;
 }

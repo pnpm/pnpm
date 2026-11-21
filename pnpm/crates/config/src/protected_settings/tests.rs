@@ -22,6 +22,8 @@ fn censors_in_place() {
     let mut map = json!({
         "storeDir": "~/store",
         "username": "general-username",
+        "//registry.example/:key": "private-key",
+        "httpsProxy": "http://test:password@proxy.example:8080",
         "@my-org:registry": "https://my-org.example.com/registry",
         "//my-org.example.com:username": "my-username-in-my-org",
     })
@@ -34,6 +36,8 @@ fn censors_in_place() {
     assert_eq!(map["storeDir"], json!("~/store"));
     assert_eq!(map["@my-org:registry"], json!("https://my-org.example.com/registry"));
     assert_eq!(map["username"], json!("(protected)"));
+    assert_eq!(map["//registry.example/:key"], json!("(protected)"));
+    assert_eq!(map["httpsProxy"], json!("http://proxy.example:8080/"));
     assert_eq!(map["//my-org.example.com:username"], json!("(protected)"));
 }
 

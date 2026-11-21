@@ -165,7 +165,7 @@ interface ParsedSslKey {
   isFile: boolean
 }
 
-function tryParseSslKey (key: string): ParsedSslKey | undefined {
+export function tryParseSslKey (key: string): ParsedSslKey | undefined {
   const match = key.match(SSL_SUFFIX_RE)
   if (!match?.groups) {
     return undefined

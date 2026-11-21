@@ -1,8 +1,12 @@
+import { redactUrlForDisplay } from '@pnpm/error'
+
+const PROXY_KEYS = new Set(['proxy', 'httpProxy', 'httpsProxy', 'http-proxy', 'https-proxy'])
 const PROTECTED_SUFFICES = [
   '_auth',
   '_authToken',
   'username',
   '_password',
+  'key',
 ]
 
 /** Protected settings are settings which `npm config get` refuses to print. */
@@ -11,13 +15,14 @@ export const isSettingProtected = (key: string): boolean =>
     ? PROTECTED_SUFFICES.some(suffix => key.endsWith(`:${suffix}`))
     : PROTECTED_SUFFICES.includes(key)
 
-/** Hide all protected settings by setting them to `(protected)`. */
-export function censorProtectedSettings (config: Record<string, unknown>): Record<string, unknown> {
-  config = { ...config }
-  for (const key in config) {
-    if (isSettingProtected(key)) {
-      config[key] = '(protected)'
-    }
+export function censorProtectedSettingValue (key: string, value: unknown): unknown {
+  if (isSettingProtected(key)) return '(protected)'
+  if (PROXY_KEYS.has(key) && typeof value === 'string' && value.includes('@')) {
+    return redactUrlForDisplay(value)
   }
-  return config
+  return value
+}
+
+export function censorProtectedSettings (config: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(config).map(([key, value]) => [key, censorProtectedSettingValue(key, value)]))
 }

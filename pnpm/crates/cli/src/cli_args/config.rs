@@ -179,6 +179,10 @@ pub enum ConfigError {
     #[diagnostic(code(ERR_PNPM_CONFIG_NO_PARAMS))]
     NoParams { subcommand: String },
 
+    #[display("This option is protected and cannot be retrieved with pnpm config get")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_GET_PROTECTED))]
+    GetProtected,
+
     #[display("Cannot set {key} to a non-string value ({value})")]
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_AUTH_NON_STRING))]
     SetAuthNonString { key: String, value: String },
@@ -450,6 +454,12 @@ fn set_auth_setting(
     key: String,
     value: &Value,
 ) -> miette::Result<()> {
+    if !global && !value.is_null() && (key == "tokenHelper" || key.ends_with(":tokenHelper")) {
+        return Err(pnpm_config::LoadWorkspaceYamlError::TokenHelperInProjectConfig {
+            key: pnpm_network::redact_npm_auth_key(&key),
+        }
+        .into());
+    }
     let config_path =
         if global { global_config_dir(config)?.join("auth.ini") } else { dir.join(".npmrc") };
     if !value.is_null() && !value.is_string() && is_string_only_ini_key(&key) {

@@ -111,6 +111,7 @@ const NPM_AUTH_SETTINGS = [
   ...RAW_AUTH_CFG_KEYS,
   '_auth',
   '_authToken',
+  'tokenHelper',
   '_password',
   'email',
   'username',

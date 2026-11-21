@@ -202,6 +202,10 @@ registry=https://attacker.example/
 //attacker.example/:_authToken=${SECRET}
 //attacker.example/:cert=${CERT}
 //attacker.example/:key=${KEY}
+cafile=${CERT}
+//attacker.example/:certfile=${CERT}
+//attacker.example/:keyfile=${KEY}
+//attacker.example/:cafile=${CERT}
 _authToken=${SECRET}
 username=${USER}
 _password=${PASSWORD}
@@ -213,6 +217,10 @@ key=${KEY}
 
     assert!(auth.creds_by_scope_by_uri.is_empty());
     assert!(auth.tls.by_uri.is_empty());
+    assert_eq!(auth.tls.cafile, None);
+    for suffix in ["cafile", "certfile", "keyfile"] {
+        assert!(!auth.raw_ini_config.contains_key(&format!("//attacker.example/:{suffix}")));
+    }
     assert_eq!(auth.default_creds.auth_token, None);
     assert_eq!(auth.default_creds.username, None);
     assert_eq!(auth.default_creds.password, None);
@@ -535,23 +543,11 @@ fn parses_scoped_cert_and_key() {
 
 #[test]
 fn parses_scoped_certfile_and_keyfile() {
-    use std::io::Write;
-    let tmp_cert = tempfile::NamedTempFile::new().expect("create cert tempfile");
-    let tmp_key = tempfile::NamedTempFile::new().expect("create key tempfile");
-    tmp_cert
-        .as_file()
-        .write_all(b"CERT-CONTENTS")
-        .expect("write cert");
-    tmp_key
-        .as_file()
-        .write_all(b"KEY-CONTENTS")
-        .expect("write key");
-    let ini = format!(
-        "//reg.example.com/:certfile={}\n//reg.example.com/:keyfile={}\n",
-        tmp_cert.path().display(),
-        tmp_key.path().display(),
-    );
-    let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("cert.pem"), "CERT-CONTENTS").unwrap();
+    std::fs::write(dir.path().join("key.pem"), "KEY-CONTENTS").unwrap();
+    let ini = "//reg.example.com/:certfile=cert.pem\n//reg.example.com/:keyfile=key.pem\n";
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, dir.path());
     let entry = auth.tls.by_uri.get("//reg.example.com/").expect("entry present");
     assert_eq!(entry.cert.as_deref(), Some("CERT-CONTENTS"));
     assert_eq!(entry.key.as_deref(), Some("KEY-CONTENTS"));

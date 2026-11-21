@@ -228,6 +228,34 @@ fn a_run_report_needs_the_organization_to_record_it_under() {
     assert!(output.contains("remoteCache.org does not name the organization"), "{output}");
 }
 
+#[test]
+fn a_failed_run_report_redacts_server_credentials() {
+    let root = tempfile::tempdir().unwrap();
+    let project = workspace(root.path());
+    let machine = root.path().join("machine");
+    let runs = root.path().join("runs");
+    pnpm_on_machine(&project, &machine, &runs)
+        .with_arg("install")
+        .assert()
+        .success();
+    let result = pnpm_on_machine(&project, &machine, &runs)
+        .with_args([
+            "pipeline",
+            "--full",
+            "--report-to",
+            "http://example:password@127.0.0.1:9/?token=report-secret",
+        ])
+        .assert()
+        .success();
+    let output = combined_output(result.get_output());
+    assert!(
+        output.contains("failed to publish the pipeline run to http://127.0.0.1:9"),
+        "{output}",
+    );
+    assert!(!output.contains("password"), "{output}");
+    assert!(!output.contains("report-secret"), "{output}");
+}
+
 /// A machine that publishes dependency builds has not agreed to share task
 /// outputs and their logs: only `remoteCache.publish` publishes tasks.
 #[test]
