@@ -27,7 +27,7 @@ impl PackageRequest<'_> {
         client: &'client ThrottledClient,
         retry: RetryOpts,
     ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
-        let mut retry = RequestRetry::new(client, self.url, retry);
+        let mut retry = RequestRetry::new(self.url, retry);
         loop {
             if let Some(result) = retry.finish_attempt(self.send_once(client).await).await {
                 return result;
@@ -46,7 +46,11 @@ impl PackageRequest<'_> {
             if let Some(value) = self.auth.for_url_with_package(self.url, Some(self.package)) {
                 request = request.header(reqwest::header::AUTHORIZATION, value);
             }
-            return Ok((guard, request.send().await?));
+            let response = request
+                .send()
+                .await
+                .inspect_err(|error| client.downscale_on_timeout(self.url, error))?;
+            return Ok((guard, response));
         };
         let origin = reqwest::Url::parse(self.url).ok().map(|url| url.origin());
         let configure = |request: RequestBuilder, url: &str| {

@@ -153,12 +153,13 @@ pub async fn send_with_retry_at_priority<'client>(
     retry_opts: RetryOpts,
     mut build_request: impl FnMut(&Client) -> RequestBuilder,
 ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
-    let mut retry = RequestRetry::new(http_client, url, retry_opts);
+    let mut retry = RequestRetry::new(url, retry_opts);
     loop {
         let client = http_client.acquire_for_url_with_priority(url, priority).await;
         let result = build_request(&client)
             .send()
             .await
+            .inspect_err(|error| http_client.downscale_on_timeout(url, error))
             .map(|response| (client, response));
         if let Some(result) = retry.finish_attempt(result).await {
             return result;
@@ -167,15 +168,14 @@ pub async fn send_with_retry_at_priority<'client>(
 }
 
 pub(super) struct RequestRetry<'a> {
-    client: &'a ThrottledClient,
     url: &'a str,
     opts: RetryOpts,
     attempt: u32,
 }
 
 impl<'a> RequestRetry<'a> {
-    pub(super) fn new(client: &'a ThrottledClient, url: &'a str, opts: RetryOpts) -> Self {
-        Self { client, url, opts, attempt: 0 }
+    pub(super) fn new(url: &'a str, opts: RetryOpts) -> Self {
+        Self { url, opts, attempt: 0 }
     }
 
     pub(super) async fn finish_attempt<'client>(
@@ -193,7 +193,6 @@ impl<'a> RequestRetry<'a> {
             }
             Ok(result) => return Some(Ok(result)),
             Err(error) => {
-                self.client.downscale_on_timeout(self.url, &error);
                 if self.attempt >= self.opts.retries || is_permanent_error(&error) {
                     return Some(Err(error));
                 }
