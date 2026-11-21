@@ -1071,7 +1071,8 @@ fn prefetched_bin_pass_reads_a_link_dep_from_disk() {
 }
 
 /// The second importer linking the same target reuses the manifest the
-/// first one read: its own `node_modules` has no `sibling` entry to read.
+/// first one read. Neither its own `node_modules` nor the target has a
+/// manifest left to read.
 #[test]
 fn prefetched_bin_pass_reads_a_link_target_manifest_once_per_lookup() {
     let tmp = tempdir().unwrap();
@@ -1090,14 +1091,17 @@ fn prefetched_bin_pass_reads_a_link_target_manifest_once_per_lookup() {
     let packages = HashMap::new();
     let lookup = PrefetchedBinLookup::new(Some(&packages), None, None);
     let deps = [("sibling".to_string(), sibling_dir, None)];
-    for modules in [&first_modules, &second_modules] {
+    let link = |modules: &Path| {
         link_bins_dir(
             modules,
             BinCandidates::Prefetched(&deps, &lookup),
             BinsDirPass::new(&LinkBinsOptions::default()),
         )
         .unwrap();
-    }
+    };
+    link(&first_modules);
+    std::fs::remove_file(first_modules.join("sibling/package.json")).unwrap();
+    link(&second_modules);
     assert!(second_modules.join(".bin/sibling").exists(), "memoized manifest links the bin");
 }
 
