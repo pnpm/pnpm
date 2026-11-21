@@ -48,22 +48,27 @@ pnpm login --registry http://localhost:7677/npm/~local/
 pnpm publish
 ```
 
-To serve both from one URL, import a router as shown in the
-[Quick start](quick-start.md) with
-`docker compose exec pnpr pnpr registries import <file>`.
+To serve both from one URL, write a router as shown in the
+[Quick start](quick-start.md) and import it inside the container:
+
+```sh
+docker compose cp registries.yaml pnpr:/tmp/registries.yaml
+docker compose exec pnpr pnpr registries import /tmp/registries.yaml
+```
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PNPR_IMAGE_TAG` | none, required | The `ghcr.io/pnpm/pnpr` tag to run. |
-| `PNPR_SECRET` | none, required | The [`secret`](configuration.md#secret), at least 16 bytes. |
+| `PNPR_SECRET` | none, required | The [`secret`](configuration.md#secret), at least 16 bytes, without `"` or `\`. |
 | `PNPR_PUBLIC_URL` | `http://localhost:7677` | The URL clients reach pnpr at. pnpr rewrites `dist.tarball` URLs onto it, so set it to the public HTTPS URL in production. |
 | `PNPR_CACHE_MAX_SIZE` | `20GB` | The largest the proxy cache grows before pnpr evicts the least recently used entries. Anonymous reads of the public npm registry fill it. |
 | `PNPR_LOG_FORMAT` | `json` | `json` or `pretty`. |
 | `PNPR_LOG_LEVEL` | `info` | `trace`, `debug`, `http`, `info`, `warn`, or `error`. |
 
-pnpr reads every other [CLI option](cli.md#environment-variables) from a
-`PNPR_*` variable, so add those to the `environment` block. Settings without a
-flag go in `pnpr.yaml`.
+Add other [CLI options](cli.md#environment-variables) to the `environment`
+block as `PNPR_*` variables, and settings without a flag to `pnpr.yaml`. The
+exceptions are `PNPR_LISTEN`, `PNPR_STORAGE`, and `PNPR_CACHE`: the image's
+command passes those flags, and a flag wins over its variable.
 
 The `pnpr-storage` volume holds published packages and the database with
 accounts and tokens. Back it up as described in
@@ -83,12 +88,14 @@ and puts its Traefik proxy, with automatic HTTPS, in front of it.
 4. Assign a domain to the `pnpr` service with port `7677`, such as
    `https://registry.example.com:7677`. Coolify routes the domain to that
    container port and provisions the certificate.
-5. Set the environment variables: `PNPR_IMAGE_TAG`, `PNPR_SECRET`, and
+5. Enable **Preserve Repository During Deployment**, so that `pnpr.yaml` is
+   there to mount.
+6. Set the environment variables: `PNPR_IMAGE_TAG`, `PNPR_SECRET`, and
    `PNPR_PUBLIC_URL` set to the domain from the previous step without the
    port, such as `https://registry.example.com`.
-6. Deploy, then create the first account from the container's terminal in
+7. Deploy, then create the first account from the container's terminal in
    Coolify: `pnpr add-user alice`.
-7. Point clients at `https://registry.example.com/npm/` and your scope at
+8. Point clients at `https://registry.example.com/npm/` and your scope at
    `https://registry.example.com/npm/~local/`, as in [Run it](#run-it).
 
 Coolify keeps the named volumes across redeploys. Without them, every

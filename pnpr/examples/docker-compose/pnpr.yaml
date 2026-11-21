@@ -4,7 +4,7 @@
 
 # Keys the private cache. The cache volume outlives the container, and pnpr
 # refuses to start on a cache from a previous run unless a secret is set.
-secret: ${PNPR_SECRET}
+secret: "${PNPR_SECRET}"
 
 # Caps the proxy cache, which anonymous reads of the public npm registry fill.
 # pnpr evicts the least recently used entries beyond it.
