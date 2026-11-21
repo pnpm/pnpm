@@ -229,7 +229,7 @@ pub fn is_verified_publish_dir(root_dir: &Path, publish_dir: &Path) -> bool {
     true
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum SubpathScope {
     AllowBaseDir,
     StrictDescendant,
@@ -241,7 +241,11 @@ fn confined_subpath<'p>(
     scope: SubpathScope,
 ) -> Option<&'p Path> {
     let relative = target_dir.strip_prefix(base_dir).ok()?;
-    let valid = (scope == SubpathScope::AllowBaseDir || !relative.as_os_str().is_empty())
+    let scope_allows = match scope {
+        SubpathScope::AllowBaseDir => true,
+        SubpathScope::StrictDescendant => !relative.as_os_str().is_empty(),
+    };
+    let valid = scope_allows
         && relative
             .components()
             .all(|component| {

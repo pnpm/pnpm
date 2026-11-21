@@ -1151,7 +1151,6 @@ test('invalidates lockfile-verified.jsonl when blockExoticSubdeps is enabled aft
 
     recordLockfileVerified({
       cacheDir,
-      lockfilePath,
       lockfile,
       resolutionVerifiers: [verifier],
       blockExoticSubdeps: false,
@@ -1952,7 +1951,6 @@ test('settlePreparedMutationHooksAndVerification re-verifies hooked lockfiles ag
     recordLockfileVerified({
       cacheDir: preparedTempDir,
       lockfile: cleanL0,
-      lockfilePath,
       resolutionVerifiers: [],
       blockExoticSubdeps: true,
       exoticSubdepsScope: { knownImporterIds: new Set(['.']), extraWorkspaceDirs: ['.'] },
