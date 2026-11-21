@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use super::{
     Config,
     EnvVar,
@@ -237,12 +239,37 @@ impl Config {
         if self.settings_read == crate::SettingsRead::PinDecision {
             return Ok(AuthSources::none());
         }
+        let global_settings = global_settings.map(|global| self.global_auth_settings(global));
         self.collect_auth_sources::<Sys>(
             start_dir,
             workspace_yaml,
-            global_settings.map(|global| &global.settings),
+            global_settings.as_deref(),
             global_config_dir,
         )
+    }
+
+    /// The global `config.yaml` settings that name credential sources. A
+    /// command that acts on the global packages takes `_auth` and
+    /// `npmrcAuthFile` from `globalPackagesConfig` over the top level.
+    fn global_auth_settings<'global>(
+        &self,
+        global: &'global TrustedSettings,
+    ) -> Cow<'global, WorkspaceSettings> {
+        let section = global.machine.global_packages_config
+            .as_deref()
+            .filter(|_| self.cli.command_target == crate::CommandTarget::GlobalPackages)
+            .filter(|section| section.auth.is_some() || section.npmrc_auth_file.is_some());
+        let Some(section) = section else {
+            return Cow::Borrowed(&global.settings);
+        };
+        let mut settings = global.settings.clone();
+        if section.auth.is_some() {
+            settings.auth.clone_from(&section.auth);
+        }
+        if section.npmrc_auth_file.is_some() {
+            settings.npmrc_auth_file.clone_from(&section.npmrc_auth_file);
+        }
+        Cow::Owned(settings)
     }
 
     /// The `.npmrc` layers that contribute credentials, folded into the merged

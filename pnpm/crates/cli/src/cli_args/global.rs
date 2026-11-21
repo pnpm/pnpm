@@ -308,16 +308,8 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
     };
-    for group in groups {
-        target.add_group::<Reporter>(
-            &group,
-            range_spec_style,
-            supported_architectures.clone(),
-            allow_build,
-        )
-        .await?;
-    }
-    Ok(())
+    target.add_groups::<Reporter>(&groups, range_spec_style, supported_architectures, allow_build)
+        .await
 }
 
 /// `pnpm update -g`. Reinstalls each matching group (within its existing
@@ -449,6 +441,11 @@ fn emit_global_update_result<Reporter: self::Reporter>(global_pkg_dir: &Path, up
             prefix: String::new(),
         }));
     }
+    emit_global_summary::<Reporter>(global_pkg_dir);
+}
+
+/// Close a global command that installs several groups with one summary.
+fn emit_global_summary<Reporter: self::Reporter>(global_pkg_dir: &Path) {
     let prefix = global_pkg_dir.to_string_lossy().into_owned();
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,

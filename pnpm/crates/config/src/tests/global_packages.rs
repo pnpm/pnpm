@@ -180,6 +180,23 @@ fn a_global_packages_load_drops_the_build_policy_of_the_workspace_layer() {
 }
 
 #[test]
+fn a_global_packages_load_keeps_the_top_level_build_policy() {
+    fake_env!();
+    let machine = Machine::with_global_config("dangerouslyAllowAllBuilds: true\n");
+    write_file(
+        &machine.pnpm_home.path().join("pnpm-workspace.yaml"),
+        "dangerouslyAllowAllBuilds: false\n",
+    );
+    set_fake_env(&[("XDG_CONFIG_HOME", machine.xdg_config_home())]);
+
+    let config =
+        global_packages_load().current::<FakeEnv>(machine.pnpm_home.path()).expect("load config");
+
+    assert!(config.dangerously_allow_all_builds);
+    assert_eq!(config.explicit_settings.get("dangerouslyAllowAllBuilds"), Some(&true.into()));
+}
+
+#[test]
 fn a_global_packages_load_ignores_workspace_env_vars_and_parent_workspaces() {
     fake_env!();
     let outer = tempdir().expect("outer tempdir");
@@ -206,4 +223,47 @@ fn a_global_packages_load_ignores_workspace_env_vars_and_parent_workspaces() {
 
     assert_eq!(config.workspace_dir, None);
     assert_eq!(config.pnpmfile, None);
+}
+
+#[test]
+fn global_packages_auth_applies_to_a_global_packages_load() {
+    fake_env!();
+    let machine = Machine::with_global_config(
+        "_auth:\n  \"https://shared.example.com\":\n    \"@\":\n      authToken: top-level-token\n\
+         globalPackagesConfig:\n  _auth:\n    \"https://shared.example.com\":\n      \"@\":\n        authToken: global-packages-token\n",
+    );
+    set_fake_env(&[("XDG_CONFIG_HOME", machine.xdg_config_home())]);
+
+    let global = global_packages_load()
+        .current::<FakeEnv>(machine.pnpm_home.path())
+        .expect("load global packages config");
+    let project =
+        Config::default().current::<FakeEnv>(machine.pnpm_home.path()).expect("load config");
+
+    let header = |config: &Config| config.auth_headers.for_url("https://shared.example.com/pkg");
+    assert_eq!(header(&global).as_deref(), Some("Bearer global-packages-token"));
+    assert_eq!(header(&project).as_deref(), Some("Bearer top-level-token"));
+}
+
+#[test]
+fn global_packages_npmrc_auth_file_applies_to_a_global_packages_load() {
+    fake_env!();
+    let auth = tempdir().expect("auth tempdir");
+    let auth_file = auth.path().join("global-npmrc");
+    write_file(&auth_file, "//registry.example.com/:_authToken=global-packages-token\n");
+    let machine = Machine::with_global_config(&format!(
+        "globalPackagesConfig:\n  npmrcAuthFile: {}\n",
+        auth_file.to_str().expect("UTF-8 path"),
+    ));
+    set_fake_env(&[("XDG_CONFIG_HOME", machine.xdg_config_home())]);
+
+    let global = global_packages_load()
+        .current::<FakeEnv>(machine.pnpm_home.path())
+        .expect("load global packages config");
+    let project =
+        Config::default().current::<FakeEnv>(machine.pnpm_home.path()).expect("load config");
+
+    let header = |config: &Config| config.auth_headers.for_url("https://registry.example.com/pkg");
+    assert_eq!(header(&global).as_deref(), Some("Bearer global-packages-token"));
+    assert_eq!(header(&project), None);
 }

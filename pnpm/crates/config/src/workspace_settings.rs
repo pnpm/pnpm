@@ -35,6 +35,7 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        let below_workspace = self.global_packages_build_policy();
         // Capture the "did yaml set this field" booleans *before*
         // applying yaml so the GVS derivation downstream can tell apart
         // user-pinned values from SmartDefault fallbacks. Without these
@@ -98,7 +99,7 @@ impl Config {
                 )?;
             }
         }
-        self.apply_global_packages_layer(explicit, declared_registries);
+        self.apply_global_packages_layer(below_workspace, explicit, declared_registries);
         Ok(())
     }
 
