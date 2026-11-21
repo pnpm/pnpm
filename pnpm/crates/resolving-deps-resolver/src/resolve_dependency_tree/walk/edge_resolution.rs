@@ -44,6 +44,7 @@ use super::{
     pin_patched_revision,
     project_relative_cache_scope,
     register_shadowable_dep_names,
+    reject_non_local_filesystem_subdep,
     resolve_wanted_cached,
     resolves_children_through_catalogs,
     seed_reused_node,
@@ -87,7 +88,13 @@ where
         && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
         && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), edge.depth)
     {
-        reject_exotic_subdep(ctx, &wanted, &reused.result, edge.depth, edge.parent_is_workspace)?;
+        reject_exotic_subdep(
+            ctx,
+            &wanted,
+            &reused.result,
+            edge.depth,
+            edge.parent_origin.is_workspace(),
+        )?;
         resolver.on_reused(&reused.result);
         return seed_reused_node(ctx, wanted, &edge, current_is_optional, reused).await;
     }
@@ -116,7 +123,8 @@ where
         lock_recoverable(&ctx.workspace.policy.policy_violations).push(violation);
     }
 
-    reject_exotic_subdep(ctx, &wanted, &result, edge.depth, edge.parent_is_workspace)?;
+    reject_non_local_filesystem_subdep(ctx, &wanted, &result, &edge)?;
+    reject_exotic_subdep(ctx, &wanted, &result, edge.depth, edge.parent_origin.is_workspace())?;
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 

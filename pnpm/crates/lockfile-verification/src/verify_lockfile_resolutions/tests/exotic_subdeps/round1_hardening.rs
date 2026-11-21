@@ -162,7 +162,11 @@ snapshots:
         .await
         .expect_err("locked workspace: target must not exempt unverified directory");
         assert!(
-            matches!(link_err, VerifyError::ExoticSubdep { count: 1, .. }),
+            matches!(
+                link_err,
+                VerifyError::ExoticSubdep { count: 1, .. }
+                    | VerifyError::LocalSubdepNotAllowed { count: 1, .. }
+            ),
             "forged_dir={forged_dir}, got: {link_err:?}",
         );
     }

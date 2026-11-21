@@ -20,6 +20,7 @@ import { omit } from 'ramda'
 import { addResolvedPackageToGraph, type ResolvedManifest } from './addResolvedPackageToGraph.js'
 import { prepareDependencyManifest } from './dependencyManifest.js'
 import type { WantedDependency } from './getWantedDependencies.js'
+import { assertLocalSubdepAllowed, validateAndRecordNonLocalManifest } from './nonLocalSubdeps.js'
 import { startPackageResolution, waitForPackageResolutionTurn } from './packageResolutionBarrier.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {
@@ -152,6 +153,7 @@ async function resolvePackageFromResponse (
     ctx.resolutionPolicyViolations.push(policyViolation)
   }
 
+  assertLocalSubdepAllowed(request, pkgResponse)
   assertExoticSubdepAllowed(request, pkgResponse)
   recordPreferredVersionOfResolvedPackage(ctx, pkgResponse)
 
@@ -268,13 +270,15 @@ function isRepeatedInParentPath (options: ResolveDependencyOptions, pkgId: PkgRe
 }
 
 async function readResolvedManifest (
-  { ctx, currentPkg, options, wantedDependency }: DependencyRequest,
+  request: DependencyRequest,
   pkgResponse: PackageResponse
 ): Promise<PackageManifest> {
+  const { ctx, currentPkg, options, wantedDependency } = request
   let pkg: PackageManifest = copyResolvedManifest(getManifestFromResponse(pkgResponse, wantedDependency, currentPkg))
   if (ctx.readPackageHook != null && !pkgResponse.body.hooked) {
     pkg = await ctx.readPackageHook(pkg)
   }
+  validateAndRecordNonLocalManifest(request, pkgResponse, pkg)
   keepLockedPeerDependencies({ ctx, currentPkg, options }, pkgResponse, pkg)
   if (!pkg.version) {
     pkg.version = '0.0.0'

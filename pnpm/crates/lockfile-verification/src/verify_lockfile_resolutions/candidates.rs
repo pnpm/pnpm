@@ -14,6 +14,22 @@ use super::{
     StreamExt,
     VerifyCtx,
     VerifyError,
+    file_url_shape::{
+        FileShapeContext,
+        file_url_matches_target,
+    },
+    local_containment::roots::normalize_rel_dir,
+    local_git_shape::{
+        has_local_git_resolution,
+        is_local_git_key,
+        local_git_key_mismatches_target,
+        local_git_key_raw_path,
+    },
+    offline_checks::{
+        has_local_filesystem_resolution,
+        is_registry_shaped_resolution,
+        strip_file_url_prefix,
+    },
 };
 
 /// One `(name, version, resolution)` tuple deduplicated from
@@ -75,6 +91,94 @@ pub(super) fn collect_candidates(lockfile: &Lockfile) -> Vec<Candidate> {
     deduped.into_values().collect()
 }
 
+/// Check offline invariants between a `packages:` key and its resolution:
+/// - a registry-style key must have a registry-shaped resolution;
+/// - a local-filesystem resolution (`directory` or `file:` tarball) must have
+///   a `file:` key whose workspace containment agrees with its target path;
+/// - a local-git resolution must have a matching `git+file:` key.
+pub(super) fn shape_mismatch_reason(
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    resolution: &pnpm_lockfile::LockfileResolution,
+    shape_ctx: FileShapeContext<'_>,
+) -> Option<&'static str> {
+    if has_registry_shape_mismatch(key, resolution) {
+        return Some("a registry-style dependency path is backed by a non-registry resolution");
+    }
+    if !matches!(key.suffix.version(), pnpm_lockfile::VersionPart::File(_))
+        && has_local_filesystem_resolution(resolution)
+    {
+        return Some("a non-file dependency path is backed by a local filesystem resolution");
+    }
+    if let pnpm_lockfile::VersionPart::File(key_path) = key.suffix.version()
+        && file_key_mismatches_local_target(key_path, resolution, shape_ctx)
+    {
+        return Some("a file dependency path does not match its local resolution target");
+    }
+    local_git_shape_mismatch_reason(key, resolution, shape_ctx)
+}
+
+fn local_git_shape_mismatch_reason(
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    resolution: &pnpm_lockfile::LockfileResolution,
+    shape_ctx: FileShapeContext<'_>,
+) -> Option<&'static str> {
+    if !is_local_git_key(key) && has_local_git_resolution(resolution) {
+        return Some("a non-local-git dependency path is backed by a local git resolution");
+    }
+    if let Some(key_path) = local_git_key_raw_path(key)
+        && local_git_key_mismatches_target(key_path, resolution, shape_ctx)
+    {
+        return Some("a local git dependency path does not match its git repository target");
+    }
+    None
+}
+
+fn has_registry_shape_mismatch(
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    resolution: &pnpm_lockfile::LockfileResolution,
+) -> bool {
+    key.suffix.prefix() == pnpm_lockfile::Prefix::None
+        && matches!(
+            key.suffix.version(),
+            pnpm_lockfile::VersionPart::Semver(_)
+                | pnpm_lockfile::VersionPart::RegistryQualified { .. },
+        )
+        && !is_registry_shaped_resolution(resolution)
+}
+
+pub(super) fn file_key_mismatches_local_target(
+    key_path: &str,
+    resolution: &LockfileResolution,
+    shape_ctx: FileShapeContext<'_>,
+) -> bool {
+    match resolution {
+        LockfileResolution::Directory(dir) => {
+            if !key_path.starts_with("//") {
+                return normalize_rel_dir(key_path) != normalize_rel_dir(&dir.directory);
+            }
+            !file_url_matches_target(key_path, &dir.directory, shape_ctx)
+        }
+        LockfileResolution::Tarball(tarball) => {
+            // A remote tarball has its own URL key, so one behind a `file:`
+            // key disguises its source.
+            let Some(tar_path) = strip_file_url_prefix(&tarball.tarball) else {
+                return true;
+            };
+            if !key_path.starts_with("//") {
+                return normalize_rel_dir(key_path) != normalize_rel_dir(tar_path);
+            }
+            !file_url_matches_target(key_path, tar_path, shape_ctx)
+        }
+        LockfileResolution::Variations(variations) => variations.variants
+            .iter()
+            .any(|variant| {
+                file_key_mismatches_local_target(key_path, &variant.resolution, shape_ctx)
+            }),
+        LockfileResolution::Git(_) => true,
+        _ => false,
+    }
+}
+
 /// Run every active verifier against every candidate with a
 /// concurrency cap. Each candidate stops at the first verifier that
 /// rejects it.
@@ -99,10 +203,6 @@ pub(super) async fn run_fan_out(
 
         let semaphore = Arc::clone(&semaphore);
         futures.push(async move {
-            // Holding the permit across every verifier .await keeps
-            // the effective in-flight count bounded by the semaphore.
-            // Releasing per-verifier would let N candidates × M
-            // verifiers race past the cap.
             let _permit = semaphore.acquire().await.expect("semaphore not closed during fan-out");
             evaluate_candidate(candidate, &verifiers).await
         });
@@ -134,9 +234,6 @@ async fn drain_fan_out(
             on_entry_checked();
         }
     }
-    // A registry that couldn't be reached takes precedence over collected
-    // violations: the pass never finished, so the batch is incomplete and the
-    // actionable failure is the transport error.
     match fetch_error {
         Some(message) => Err(message),
         None => Ok(violations),

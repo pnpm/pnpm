@@ -639,6 +639,9 @@ fn subset_headless_install_keeps_other_projects_packages_in_current_lockfile() {
 #[test]
 fn subset_headless_install_deeply_materializes_workspace_linked_dependencies() {
     let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "overrides:\n  '@pnpm.e2e/external-depend-on-internal-dep>@pnpm.e2e/internal-f': workspace:*\n",
+    );
     let f_project = fixture.project(
         "f",
         "@pnpm.e2e/internal-f",
@@ -653,19 +656,6 @@ fn subset_headless_install_deeply_materializes_workspace_linked_dependencies() {
         },
     );
     fixture.run(["install", "--lockfile-only"]);
-    // Pacquet's resolver records the external manifest's
-    // `link:packages/f` relative to the dependent importer
-    // (`link:packages/g/packages/f`); the upstream fixture lockfile
-    // records it relative to the lockfile dir. Rewrite the snapshot to
-    // the upstream (lockfile-relative) shape, the subject under test
-    // is the headless materialization of snapshot-level links, and
-    // upstream drives it from a hand-authored lockfile too.
-    repin_snapshot_dependency(
-        &fixture.workspace.join("pnpm-lock.yaml"),
-        "@pnpm.e2e/external-depend-on-internal-dep@1.0.0",
-        "@pnpm.e2e/internal-f",
-        "link:packages/f",
-    );
 
     fixture.run(["--filter", "@pnpm.e2e/internal-g", "install", "--frozen-lockfile"]);
 

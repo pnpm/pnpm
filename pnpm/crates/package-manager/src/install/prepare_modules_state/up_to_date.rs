@@ -245,6 +245,11 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
 ) -> Result<(), InstallError> {
     pnpm_lockfile_verification::verify_lockfile_dependency_names(context.wanted_lockfile)
         .map_err(InstallError::LockfileVerification)?;
+    pnpm_lockfile_verification::verify_lockfile_local_resolutions(
+        context.wanted_lockfile,
+        Some(context.verification.local_policy.clone()),
+    )
+    .map_err(InstallError::LockfileVerification)?;
     pnpm_lockfile_verification::verify_lockfile_importer_snapshot_links(context.wanted_lockfile)
         .map_err(InstallError::LockfileVerification)?;
     // Nothing to materialize means no fetch to overlap; verify
@@ -253,7 +258,7 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
         context.wanted_lockfile,
         context.verification.override_check.take(),
         context.verification.verifiers,
-        context.verification.exotic_subdeps.clone(),
+        (context.verification.exotic_subdeps.clone(), context.verification.local_policy.clone()),
         (context.verification.source, &context.tree.config.cache_dir),
     )
     .await?;
@@ -338,17 +343,15 @@ pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'stati
     wanted_lockfile: &Lockfile,
     lockfile_verification_override: Option<super::super::LockfileVerificationOverride<'_>>,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
-    exotic_subdeps: ExoticSubdepsPolicy,
+    policies: (ExoticSubdepsPolicy, pnpm_lockfile_verification::LocalResolutionPolicy),
     paths: (Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>, &Path),
 ) -> Result<(), InstallError> {
-    let (derived_lockfile_source, cache_dir) = paths;
     let Some(lockfile_verification_override) = lockfile_verification_override else {
         return verify_lockfile_eagerly::<Reporter>(
             wanted_lockfile,
             resolution_verifiers,
-            exotic_subdeps,
-            derived_lockfile_source,
-            cache_dir,
+            policies,
+            paths,
         )
         .await;
     };

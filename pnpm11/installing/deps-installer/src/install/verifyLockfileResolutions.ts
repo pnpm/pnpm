@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
@@ -12,15 +14,18 @@ import type {
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
+import { withOfflineCheckCacheIdentities } from './verifyLockfileCacheIdentities.js'
 import {
   buildExoticSubdepsScopeFromContext,
-  canTrustPolicyIdentities,
   collectExoticSubdepViolations,
   EXOTIC_SUBDEP_VIOLATION_CODE,
-  exoticSubdepsCacheIdentity,
   type ExoticSubdepsScope,
-  snapshotPolicyIdentities,
 } from './verifyLockfileExoticSubdeps.js'
+import {
+  collectLocalResolutionViolations,
+  LOCAL_SUBDEP_NOT_ALLOWED_VIOLATION_CODE,
+  type LocalResolutionPolicy,
+} from './verifyLockfileLocalResolutions.js'
 import {
   collectInvalidAliases,
   collectLockfileFileOfflineViolations,
@@ -34,88 +39,36 @@ import {
   type tryLockfileVerificationCache,
   type VerifierCacheIdentity,
 } from './verifyLockfileResolutionsCache.js'
+import type { FileShapeContext } from './verifyLockfileShape.js'
 
 export {
   buildExoticSubdepsScopeFromContext,
   EXOTIC_SUBDEP_VIOLATION_CODE,
   type ExoticSubdepsScope,
   hasInvalidDependencyAliases,
+  LOCAL_SUBDEP_NOT_ALLOWED_VIOLATION_CODE,
+  type LocalResolutionPolicy,
   RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
 }
 
-// Re-exported for back-compat with the existing import surface.
-// The interface itself lives in resolver-base so deps-resolver can
-// participate in the same shape; see the doc there.
 export type { ResolutionPolicyViolation }
 
-// Cap the per-entry breakdown so a verifier rejecting hundreds of entries
-// (e.g. a poisoned lockfile) doesn't flood the terminal / CI log; the full
-// count is in the header and the remainder is summarized at the end.
 const MAX_VIOLATIONS_TO_PRINT = 20
-
-// 64 mirrors the floor of pnpm's package-requester network-concurrency
-// (Math.min(96, Math.max(workers*3, 64))); keep them aligned so the
-// verification pass doesn't push past what the rest of the install respects.
 const DEFAULT_CONCURRENCY = 64
 
-// Violations from policies the user can relax. Relaxing a policy cannot clear
-// any other violation.
 const POLICY_VIOLATION_CODES = new Set([
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
   EXOTIC_SUBDEP_VIOLATION_CODE,
 ])
 
-// Same code the sink-level guards (`safeJoinModulesDir`) throw.
 export const INVALID_DEPENDENCY_ALIAS_CODE = 'INVALID_DEPENDENCY_NAME'
-
-export const RESOLUTION_SHAPE_CACHE_VERSION = 2
-
-const RESOLUTION_SHAPE_CACHE_IDENTITY: VerifierCacheIdentity = {
-  policy: { resolutionShapeCheck: RESOLUTION_SHAPE_CACHE_VERSION },
-  canTrustPastCheck: (cached) => cached.resolutionShapeCheck === RESOLUTION_SHAPE_CACHE_VERSION,
-}
-
-const DEPENDENCY_ALIAS_CACHE_IDENTITY: VerifierCacheIdentity = {
-  policy: { dependencyAliasCheck: true },
-  canTrustPastCheck: (cached) => cached.dependencyAliasCheck === true,
-}
-
-const VARIATION_RESOLUTION_CACHE_IDENTITY: VerifierCacheIdentity = {
-  policy: { variationResolutionCheck: true },
-  canTrustPastCheck: (cached) => cached.variationResolutionCheck === true,
-}
-
-/**
- * Append the always-on offline structural checks' identities (plus
- * `blockExoticSubdeps` when active) to `verifiers` before consulting or
- * recording the verification cache, so a record written before one of those
- * rules existed fails `canTrustPastCheck` and forces re-verification.
- */
-export function withOfflineCheckCacheIdentities (
-  verifiers: readonly VerifierCacheIdentity[],
-  options?: { blockExoticSubdeps?: boolean, exoticSubdepsScope?: ExoticSubdepsScope }
-): VerifierCacheIdentity[] {
-  const base = [RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY, VARIATION_RESOLUTION_CACHE_IDENTITY]
-  return options?.blockExoticSubdeps
-    ? [...verifiers, ...base, exoticSubdepsCacheIdentity(options.exoticSubdepsScope)]
-    : [...verifiers, ...base]
-}
-
-export function snapshotVerificationPolicy (
-  verifiers: readonly VerifierCacheIdentity[],
-  options?: { blockExoticSubdeps?: boolean, exoticSubdepsScope?: ExoticSubdepsScope }
-): Record<string, unknown> {
-  return snapshotPolicyIdentities(withOfflineCheckCacheIdentities(verifiers, options))
-}
-
-export function canTrustPreparedPolicy (
-  recordedPolicy: Record<string, unknown>,
-  verifiers: readonly VerifierCacheIdentity[],
-  options?: { blockExoticSubdeps?: boolean, exoticSubdepsScope?: ExoticSubdepsScope }
-): boolean {
-  return canTrustPolicyIdentities(recordedPolicy, withOfflineCheckCacheIdentities(verifiers, options))
-}
+export {
+  canTrustPreparedPolicy,
+  RESOLUTION_SHAPE_CACHE_VERSION,
+  snapshotVerificationPolicy,
+  withOfflineCheckCacheIdentities,
+} from './verifyLockfileCacheIdentities.js'
 
 export interface ReplacedCandidate {
   nonSemverVersion?: string
@@ -124,31 +77,14 @@ export interface ReplacedCandidate {
 
 export interface VerifyLockfileResolutionsOptions {
   concurrency?: number
-  /**
-   * pnpm's on-disk cache directory. When set together with
-   * `lockfilePath`, verification results are memoized in
-   * `<cacheDir>/lockfile-verified.jsonl` and the gate short-circuits on
-   * a repeat run against an unchanged lockfile + same-or-stricter
-   * policy. Omit to disable the cache entirely (every call rehashes
-   * the lockfile and re-verifies).
-   */
   cacheDir?: string
-  /** Absolute path of the lockfile being verified. Used by the cache's stat shortcut. */
   lockfilePath?: string
-  /**
-   * Entries the install re-resolves instead of reusing, such as the
-   * targets of `pnpm update <pkg>` or plain keys whose scope route moved.
-   * The resolver applies the policies to whatever it picks for them, so
-   * the verifiers skip their locked versions, which may no longer be
-   * served by the registry. The offline shape and alias checks still
-   * cover them. A run that skips an entry does not record the lockfile as
-   * verified.
-   */
   isReplaced?: (name: string, version: string, candidate?: ReplacedCandidate) => boolean
   /** Whether `blockExoticSubdeps` is enforced on lockfile subdependencies. */
   blockExoticSubdeps?: boolean
   /** Trusted workspace importers, deployed workspace dirs, and runtime mirrors for `blockExoticSubdeps`. */
   exoticSubdepsScope?: ExoticSubdepsScope
+  localPolicy?: LocalResolutionPolicy
 }
 
 /**
@@ -175,22 +111,91 @@ export async function verifyLockfileResolutions (
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
+  await startLockfileResolutionsVerification(lockfile, verifiers, options)
+}
+
+/** Anchor the local checks on the verified lockfile's directory unless the policy names one. */
+function withLockfileDir (
+  localPolicy: LocalResolutionPolicy | undefined,
+  lockfilePath: string | undefined
+): LocalResolutionPolicy | undefined {
+  if (lockfilePath == null || localPolicy?.lockfileDir != null) return localPolicy
+  return { ...(localPolicy ?? { workspaceDepthAboveLockfile: 0 }), lockfileDir: path.dirname(lockfilePath) }
+}
+
+export function verifyLockfileDependencyAliases (lockfile: LockfileObject): void {
+  const invalidAliases = collectInvalidAliases(lockfile)
+  if (invalidAliases.length > 0) {
+    throw buildInvalidAliasError(invalidAliases)
+  }
+}
+
+export function verifyLockfileFileOffline (lockfile: LockfileFile, shapeCtx?: FileShapeContext): void {
+  const { invalidAliases, shapeViolations } = collectLockfileFileOfflineViolations(lockfile, shapeCtx)
+  if (invalidAliases.length > 0) {
+    throw buildInvalidAliasError(invalidAliases)
+  }
+  if (shapeViolations.length > 0) {
+    throw buildVerificationError(shapeViolations)
+  }
+}
+
+export function verifyLockfileResolutionShapes (
+  lockfile: LockfileObject,
+  localPolicy?: LocalResolutionPolicy,
+  lockfilePath?: string
+): void {
   verifyLockfileDependencyAliases(lockfile)
-  if (!lockfile.packages) return
+  const shapeCtx: FileShapeContext = {
+    allowDeployFileUrlKeys: Boolean(localPolicy?.allowDeployFileUrlKeys),
+    lockfileDir: localPolicy?.lockfileDir ?? (lockfilePath ? path.dirname(lockfilePath) : undefined),
+    skipFileKeyTargetCheck: false,
+  }
+  const shapeViolations = collectShapeViolations(lockfile, shapeCtx)
+  if (shapeViolations.length > 0) {
+    throw buildVerificationError(shapeViolations)
+  }
+}
+
+export function verifyLockfileLocalResolutions (
+  lockfile: LockfileObject,
+  localPolicy?: LocalResolutionPolicy
+): void {
+  verifyLockfileDependencyAliases(lockfile)
+  const localViolations = collectLocalResolutionViolations(lockfile, localPolicy)
+  if (localViolations.length > 0) {
+    verifyLockfileResolutionShapes(lockfile, localPolicy)
+    throw buildVerificationError(localViolations)
+  }
+}
+
+/**
+ * Runs the synchronous offline prologue of {@link verifyLockfileResolutions}
+ * immediately (throwing before any package materialization begins if offline
+ * checks fail) and returns a promise only when async {@link ResolutionVerifier}
+ * checks remain.
+ */
+export function startLockfileResolutionsVerification (
+  lockfile: LockfileObject,
+  verifiers: ResolutionVerifier[],
+  options?: VerifyLockfileResolutionsOptions
+): Promise<void> | undefined {
+  verifyLockfileLocalResolutions(lockfile, withLockfileDir(options?.localPolicy, options?.lockfilePath))
+  if (!lockfile.packages) return undefined
 
   const hasPolicyVerifiers = verifiers.length > 0 || Boolean(options?.blockExoticSubdeps)
   const cacheContext = createVerificationCacheContext(lockfile, verifiers, options, hasPolicyVerifiers)
   if (isVerifiedByCache(cacheContext, hasPolicyVerifiers, options?.lockfilePath)) return
 
-  verifyLockfileResolutionShapes(lockfile)
+  verifyLockfileResolutionShapes(lockfile, options?.localPolicy, options?.lockfilePath)
   if (!hasPolicyVerifiers) return
 
   const candidates = collectCandidatesToVerify(lockfile, cacheContext, options)
   if (verifiers.length === 0 || candidates.size === 0) {
     recordVerifiedLockfile(cacheContext)
-    return
+    return undefined
   }
-  await verifyCandidates(candidates, verifiers, { cacheContext, options })
+  return verifyCandidates(candidates, verifiers, { cacheContext, options })
 }
 
 function collectCandidatesToVerify (
@@ -220,7 +225,6 @@ interface VerificationCacheContext {
   cache?: { cacheDir: string, lockfilePath?: string }
   cacheVerifiers: VerifierCacheIdentity[]
   hashLockfile: () => string
-  // On a miss the stat+hash the lookup computed flow to recordVerification.
   precomputed?: CachePrecomputed
 }
 
@@ -230,7 +234,6 @@ function createVerificationCacheContext (
   options: VerifyLockfileResolutionsOptions | undefined,
   hasPolicyVerifiers: boolean
 ): VerificationCacheContext {
-  // hashObject streams and is key-order-stable, unlike JSON.stringify.
   let cachedHash: string | undefined
   const useCache = Boolean(options?.cacheDir) && (options?.lockfilePath != null || hasPolicyVerifiers)
   return {
@@ -248,13 +251,6 @@ function createVerificationCacheContext (
   }
 }
 
-/**
- * Cache lookup runs before any registry I/O — the fast path is a
- * single stat() of the lockfile when the previous install already
- * verified it under a policy that's at least as strict as today's.
- * The content key is hashed lazily from the in-memory lockfile (not
- * the file bytes) so we never read the file a second time.
- */
 function isVerifiedByCache (
   cacheContext: VerificationCacheContext,
   hasPolicyVerifiers: boolean,
@@ -290,7 +286,6 @@ function recordVerifiedLockfile (cacheContext: VerificationCacheContext): void {
   }, cacheContext.precomputed)
 }
 
-/** Remove the candidates the install re-resolves; whether any was removed. */
 function dropReplacedCandidates (
   candidates: Map<string, Candidate>,
   isReplaced: VerifyLockfileResolutionsOptions['isReplaced']
@@ -317,12 +312,6 @@ async function verifyCandidates (
     entries: candidates.size,
     lockfilePath: options?.lockfilePath,
   })
-  // Guarantee a terminal `done` or `failed` event on every exit path
-  // that emitted `started`. Without this, an unexpected throw from the
-  // registry fan-out (or the policy-violation throw below) would leave
-  // the transient "Verifying lockfile..." line as the last frame the
-  // reporter rendered for this block, hanging spinner-style above the
-  // failure output.
   let terminalStatus: 'done' | 'failed' = 'failed'
   try {
     const violations = await iterateLockfileViolations(candidates, verifiers, options?.concurrency)
@@ -358,14 +347,7 @@ function buildInvalidAliasError (aliases: string[]): PnpmError {
 }
 
 function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmError {
-  // Stable order so the error output is deterministic.
   violations.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
-  // Pick the throw code: a single-code batch keeps the per-policy code
-  // (so existing handlers / docs / search keywords still route correctly);
-  // a mixed batch (e.g. minimumReleaseAge + trust-downgrade on the same
-  // lockfile) escalates to the generic `LOCKFILE_RESOLUTION_VERIFICATION`
-  // and the per-entry code goes into the breakdown so the user can see
-  // which policy each entry tripped.
   const distinctCodes = new Set(violations.map((violation) => violation.code))
   const isMixed = distinctCodes.size > 1
   const errorCode = isMixed ? 'LOCKFILE_RESOLUTION_VERIFICATION' : violations[0].code
@@ -375,13 +357,7 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
     ? (violation: ResolutionPolicyViolation): string => `  ${violation.name}@${violation.version} [${violation.code}] ${violation.reason}`
     : (violation: ResolutionPolicyViolation): string => `  ${violation.name}@${violation.version} ${violation.reason}`
   const breakdown = visible.map(formatEntry).join('\n')
-  const details = omitted > 0
-    ? `${breakdown}\n  …and ${omitted} more`
-    : breakdown
-  // Registry fetch failures (auth/network/5xx) don't reach this batch — the
-  // verifier throws the registry's own error and the gate aborts with it. So
-  // every violation here is a genuine policy rejection, and the hint points at
-  // the lockfile rather than at connectivity.
+  const details = omitted > 0 ? `${breakdown}\n  …and ${omitted} more` : breakdown
   return new PnpmError(
     errorCode,
     `${violations.length} lockfile entries failed verification:\n${details}`,
@@ -404,18 +380,6 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
   )
 }
 
-/**
- * Collect-mode sibling of {@link verifyLockfileResolutions}: runs the
- * same fan-out over every verifier and every lockfile entry, but
- * returns the violations as data instead of throwing on the first batch.
- * No cache lookup or write — the throw-mode `verifyLockfileResolutions`
- * is what populates / honors the cache; this is for callers that need
- * to inspect violations.
- *
- * Returns offline resolution-shape violations immediately without invoking
- * `verifiers`, and returns an empty array when the lockfile has no packages or
- * when shapes are valid and `verifiers` is empty.
- */
 export async function collectResolutionPolicyViolations (
   lockfile: LockfileObject,
   verifiers: ResolutionVerifier[],
@@ -425,30 +389,6 @@ export async function collectResolutionPolicyViolations (
   const shapeViolations = collectShapeViolations(lockfile)
   if (shapeViolations.length > 0 || verifiers.length === 0) return shapeViolations
   return iterateLockfileViolations(collectCandidates(lockfile), verifiers, options?.concurrency)
-}
-
-export function verifyLockfileDependencyAliases (lockfile: LockfileObject): void {
-  const invalidAliases = collectInvalidAliases(lockfile)
-  if (invalidAliases.length > 0) {
-    throw buildInvalidAliasError(invalidAliases)
-  }
-}
-
-export function verifyLockfileFileOffline (lockfile: LockfileFile): void {
-  const { invalidAliases, shapeViolations } = collectLockfileFileOfflineViolations(lockfile)
-  if (invalidAliases.length > 0) {
-    throw buildInvalidAliasError(invalidAliases)
-  }
-  if (shapeViolations.length > 0) {
-    throw buildVerificationError(shapeViolations)
-  }
-}
-
-function verifyLockfileResolutionShapes (lockfile: LockfileObject): void {
-  const shapeViolations = collectShapeViolations(lockfile)
-  if (shapeViolations.length > 0) {
-    throw buildVerificationError(shapeViolations)
-  }
 }
 
 interface Candidate {
@@ -482,13 +422,6 @@ async function iterateLockfileViolations (
   concurrency: number | undefined
 ): Promise<ResolutionPolicyViolation[]> {
   const violations: ResolutionPolicyViolation[] = []
-  // A verifier may throw rather than return a violation when it can't reach the
-  // registry to verify an entry (auth/network/5xx) — that's not a per-entry
-  // policy pick, it's an incomplete verification, so the registry's own error
-  // should abort the install. Capture the first such error and rethrow it after
-  // the fan-out settles: rethrowing straight into Promise.all would leave the
-  // sibling tasks (all failing against the same dead registry) as unhandled
-  // rejections once Promise.all rejects on the first.
   let fetchError: unknown
   const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
   const verifyCandidate = async (candidate: Candidate): Promise<void> => {
@@ -502,20 +435,10 @@ async function iterateLockfileViolations (
   await Promise.all(
     Array.from(candidates.values(), (candidate) => limit(async () => verifyCandidate(candidate)))
   )
-  // A registry that couldn't be reached takes precedence over collected
-  // violations: the run never finished verifying, so the batch is incomplete
-  // and the actionable failure is the transport error. Once it's resolved the
-  // re-run surfaces any remaining violations.
   if (fetchError != null) throw fetchError
   return violations
 }
 
-/**
- * Fan out across every active verifier; each handles its own protocol
- * short-circuit (e.g. the npm verifier returns ok:true for git resolutions).
- * We stop at the first failure per entry so a multi-verifier setup doesn't
- * produce duplicate violations for the same (name, version).
- */
 async function findFirstViolation (
   { name, version, nonSemverVersion, registryName, resolution }: Candidate,
   verifiers: readonly ResolutionVerifier[]

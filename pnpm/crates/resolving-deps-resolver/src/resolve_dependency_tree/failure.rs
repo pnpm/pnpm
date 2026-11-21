@@ -195,6 +195,19 @@ pub enum ResolveDependencyTreeError {
         resolved_via: String,
     },
 
+    /// A non-local package declared a dependency targeting the host filesystem
+    /// or workspace without a workspace hook or override authorizing it.
+    #[display(
+        "Local dependency \"{alias}\" ({specifier}) is not allowed in non-local package \"{parent}\""
+    )]
+    #[diagnostic(code(ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED))]
+    LocalSubdepNotAllowed {
+        #[error(not(source))]
+        parent: String,
+        alias: String,
+        specifier: String,
+    },
+
     /// A dependency alias contained a path-separator segment that would
     /// escape the intended `node_modules` directory when joined onto a
     /// modules path, raised with the `ERR_PNPM_INVALID_DEPENDENCY_NAME` code.

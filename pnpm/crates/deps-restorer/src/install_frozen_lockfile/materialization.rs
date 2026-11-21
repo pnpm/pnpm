@@ -161,6 +161,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             // Timed from here: a pnpmfile's fetcher setup is hook work, not
             // materialization, and the integrated benchmark reads this phase.
             let phase_start = std::time::Instant::now();
+            let local_policy = install.effective_local_policy().await?;
             let output = fetch_verified::<Reporter>(
                 install.virtual_store(
                     ctx,
@@ -173,10 +174,11 @@ impl<'a> InstallFrozenLockfile<'a> {
                 ConcurrentVerification {
                     lockfile: install.lockfiles.verified,
                     verifiers: install.lockfiles.resolution_verifiers,
-                    exotic_subdeps: install.lockfiles.exotic_subdeps.clone(),
+                    exotic_subdeps: install.lockfiles.policies.exotic_subdeps.clone(),
                     precomputed: phase.verification_override,
                     lockfile_source: install.lockfiles.source,
                     cache_dir: &install.drivers.config.cache_dir,
+                    local_policy,
                 },
             )
             .await?;
@@ -257,7 +259,12 @@ impl<'a> InstallFrozenLockfile<'a> {
                 known_requires_build,
             )
             .await;
-            let layout = install.verified_layout(allow_build_policy, host.engine_name.as_deref())?;
+            let local_policy = install.effective_local_policy().await?;
+            let layout = install.verified_layout(
+                allow_build_policy,
+                host.engine_name.as_deref(),
+                local_policy,
+            )?;
             // Built after the offline lockfile checks above: constructing
             // the cache probes the filesystem (a store-side write), which a
             // rejected lockfile must never reach.

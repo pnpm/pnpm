@@ -17,6 +17,10 @@ import { hasChangedProjectSpecifiers } from './tryFastUpdateImporters.js'
 import { tryFastUpdateLockfile } from './tryFastUpdateLockfile.js'
 import { warnUnusedPatches } from './tryFastUpdatePatchedDependencies.js'
 import { buildExoticSubdepsScopeFromContext } from './verifyLockfileExoticSubdeps.js'
+import {
+  resolveLocalPolicyForInstall,
+  withContextLocalPolicyOptions,
+} from './verifyLockfileLocalResolutions.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 const COMPOSABLE_CHANGED_FIELDS = new Set<ChangedField>([
@@ -65,14 +69,17 @@ export async function tryFastLockfileUpdate (
   // policies rejects a malformed pattern, which is the resolver's error
   // to report on a run that has no use for them.
   const rewriteOptions = plan.hasAsyncDrift ? createRewriteOptions(run, isLockfileUpToDate) : undefined
+  const policyOpts = withContextLocalPolicyOptions(run.opts, ctx.workspacePackages, plan.contextProjects)
   const updated = await tryFastUpdateLockfile(ctx.wantedLockfile, {
     update: async (candidate) => tryComposeFastUpdates(candidate, createComposeOptions(run, { input, plan, rewriteOptions })),
     isLockfileUpToDate,
-    verifyLockfile: (lockfile) => {
+    verifyLockfile: async (lockfile) => {
       const blockExoticSubdeps = !run.opts.trustLockfile && Boolean(run.opts.blockExoticSubdeps)
-      return verifyLockfileResolutions(lockfile, [], {
+      const localPolicy = await resolveLocalPolicyForInstall(lockfile, policyOpts, plan.contextProjects)
+      await verifyLockfileResolutions(lockfile, [], {
         blockExoticSubdeps,
         exoticSubdepsScope: blockExoticSubdeps ? buildExoticSubdepsScopeFromContext(ctx, run.opts) : undefined,
+        localPolicy,
       })
     },
   })

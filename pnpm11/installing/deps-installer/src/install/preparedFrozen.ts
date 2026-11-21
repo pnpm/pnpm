@@ -1,14 +1,16 @@
+
 import type { PnpmContext } from '@pnpm/installing.context'
 import { isEmptyLockfile } from '@pnpm/lockfile.fs'
 import { clone, equals } from 'ramda'
 
 import type { ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
-import { runPreResolutionHooks, startLockfileVerification } from './mutateModules.js'
+import { runPreResolutionHooks } from './mutateModules.js'
 import type {
   MutatedProject,
   MutateModulesOptions,
   PreparedFrozenMutation,
 } from './mutationTypes.js'
+import { startLockfileVerification } from './startLockfileVerification.js'
 import { buildExoticSubdepsScopeFromContext } from './verifyLockfileExoticSubdeps.js'
 import { canTrustPreparedPolicy } from './verifyLockfileResolutions.js'
 

@@ -1,11 +1,13 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { isDriveLetterPrefix, isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
+import { isHostFilesystemSpecifier, isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { PackageExtension, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import type { MutatedProject } from './mutationTypes.js'
+
+export { isHostFilesystemSpecifier }
 
 export interface FindLocalSpecForPnprOptions {
   lockfileDir: string
@@ -31,33 +33,6 @@ export function findLocalSpecForPnpr (input: FindLocalSpecForPnprOptions): strin
     findLocalCatalogSpec(input.opts.catalogs, isDeclaredPrefix) ??
     findLocalExtensionSpec(input.opts.packageExtensions, isDeclaredPrefix) ??
     findLocalOverrideSpec(input.opts.overrides, isDeclaredPrefix)
-}
-
-/**
- * Whether `specifier`, declared by an importer at POSIX-relative `importerDir`
- * (`.` for the workspace root), resolves against the host filesystem outside an
- * in-memory workspace package map.
- */
-export function isHostFilesystemSpecifier (
-  specifier: string,
-  importerDir: string,
-  isDeclaredPrefix: (prefix: string) => boolean
-): boolean {
-  if (hasLocalFileProtocol(specifier)) return true
-  const workspaceSuffix = stripAsciiCasePrefix(specifier, 'workspace:')
-  if (workspaceSuffix != null) {
-    return workspaceSpecEscapesRoot(workspaceSuffix, importerDir)
-  }
-  const npmAlias = stripAsciiCasePrefix(specifier, 'npm:')
-  if (npmAlias != null) {
-    return npmAliasWrapsLocalProtocol(npmAlias)
-  }
-  if (isDriveLetterPrefix(specifier)) {
-    const afterColon = specifier.slice(2)
-    return afterColon.startsWith('/') || afterColon.startsWith('\\') || !isDeclaredPrefix(specifier.slice(0, 1))
-  }
-  if (isUnambiguousBarePath(specifier)) return true
-  return !specifier.includes(':') && isUnprefixedLocalPath(specifier)
 }
 
 function findLocalProjectSpec (
@@ -185,89 +160,4 @@ function findInDepMap (
 function toPosixImporterDir (lockfileDir: string, rootDir: string): string {
   const relative = path.relative(lockfileDir, rootDir).split(path.sep).join('/')
   return relative || '.'
-}
-
-function hasLocalFileProtocol (specifier: string): boolean {
-  return stripAsciiCasePrefix(specifier, 'file:') != null ||
-    stripAsciiCasePrefix(specifier, 'link:') != null ||
-    stripAsciiCasePrefix(specifier, 'git+file:') != null
-}
-
-function npmAliasWrapsLocalProtocol (aliased: string): boolean {
-  const atIndex = aliased.lastIndexOf('@')
-  return atIndex >= 1 && hasLocalFileProtocol(aliased.slice(atIndex + 1))
-}
-
-function workspaceSpecEscapesRoot (suffix: string, importerDir: string): boolean {
-  if (
-    suffix.startsWith('~/') ||
-    suffix.startsWith('~\\') ||
-    suffix.includes('\\') ||
-    isDriveLetterPrefix(suffix)
-  ) {
-    return true
-  }
-  return (suffix.startsWith('.') || suffix.startsWith('/')) && escapesWorkspaceRoot(importerDir, suffix)
-}
-
-function escapesWorkspaceRoot (importerDir: string, relPath: string): boolean {
-  if (isRootedOrWindowsPath(relPath)) return true
-  return climbsAboveDepth(relPath, importerDepth(importerDir))
-}
-
-function isRootedOrWindowsPath (relPath: string): boolean {
-  return relPath.startsWith('/') || relPath.includes('\\') || isDriveLetterPrefix(relPath)
-}
-
-function climbsAboveDepth (relPath: string, initialDepth: number): boolean {
-  let depth = initialDepth
-  for (const segment of relPath.split('/')) {
-    const nextDepth = applyPathSegment(depth, segment)
-    if (nextDepth < 0) return true
-    depth = nextDepth
-  }
-  return false
-}
-
-function applyPathSegment (depth: number, segment: string): number {
-  if (segment === '' || segment === '.') return depth
-  if (segment === '..') return depth - 1
-  return depth + 1
-}
-
-function importerDepth (importerDir: string): number {
-  if (importerDir === '.' || importerDir === '') return 0
-  let depth = 0
-  for (const segment of importerDir.split('/')) {
-    if (segment !== '' && segment !== '.') depth += 1
-  }
-  return depth
-}
-
-function isUnambiguousBarePath (specifier: string): boolean {
-  return specifier.startsWith('.') ||
-    specifier.startsWith('/') ||
-    specifier.startsWith('\\') ||
-    specifier.startsWith('~/') ||
-    specifier.startsWith('~\\')
-}
-
-function isUnprefixedLocalPath (specifier: string): boolean {
-  const hashIndex = specifier.indexOf('#')
-  const pathPart = hashIndex === -1 ? specifier : specifier.slice(0, hashIndex)
-  if (pathPart.includes('\\')) return true
-  if (!pathPart.includes('/') || pathPart.startsWith('@')) return false
-  let segments = 0
-  for (const segment of pathPart.split('/')) {
-    if (segment === '' || segment === '.' || segment === '..') return true
-    segments += 1
-  }
-  return segments >= 3
-}
-
-function stripAsciiCasePrefix (specifier: string, prefix: string): string | undefined {
-  if (specifier.length < prefix.length) return undefined
-  return specifier.slice(0, prefix.length).toLowerCase() === prefix
-    ? specifier.slice(prefix.length)
-    : undefined
 }

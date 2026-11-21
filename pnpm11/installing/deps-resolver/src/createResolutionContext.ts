@@ -31,20 +31,25 @@ type ResolutionPolicies = Pick<ResolutionContext,
 
 type ResolutionState = Pick<ResolutionContext,
 | 'allPeerDepNames'
+| 'authorizedNonLocalPeerSpecsByPkgId'
 | 'childrenByParentId'
 | 'childrenResolutionByPkgId'
 | 'childrenResolutionId'
 | 'dependenciesTree'
+| 'hookAuthorizedLocalChildrenByPkgId'
 | 'importerResolutionOrder'
+| 'localPkgPeerSpecsByPkgId'
 | 'lockedDepPathByPkgId'
 | 'missingPeersOfChildrenByPkgId'
 | 'nodeResolutionContextByNodeId'
 | 'outdatedDependencies'
 | 'packageResolutionBarrier'
 | 'pendingNodes'
+| 'pkgNameVerByPkgId'
 | 'resolutionPolicyViolations'
 | 'resolvedPkgsById'
 | 'skipped'
+| 'untrustedLocalPeerParentsByPkgId'
 | 'updatedSet'
 >
 
@@ -142,6 +147,11 @@ function createResolutionState (
     childrenResolutionByPkgId: {},
     childrenResolutionId: 0,
     dependenciesTree: new Map() as DependenciesTree<ResolvedPackage>,
+    authorizedNonLocalPeerSpecsByPkgId: new Map(),
+    hookAuthorizedLocalChildrenByPkgId: new Map(),
+    localPkgPeerSpecsByPkgId: new Map(),
+    pkgNameVerByPkgId: new Map(),
+    untrustedLocalPeerParentsByPkgId: new Map(),
     importerResolutionOrder: Object.fromEntries(importers.map(({ id }, index) => [id, index])),
     lockedDepPathByPkgId: getLockedDepPathByPkgId(wantedLockfile),
     missingPeersOfChildrenByPkgId: {},

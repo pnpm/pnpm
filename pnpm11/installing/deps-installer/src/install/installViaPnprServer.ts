@@ -33,6 +33,7 @@ import type { InstallResult, MutatedProject, SingleProjectInstallOptions } from 
 import { applyResolvedSpecsFromLockfile, type PnprNewDep } from './pnpr.js'
 import { createRootHookOptions } from './rootProjectHooks.js'
 import { buildExoticSubdepsScopeFromProjectDirs } from './verifyLockfileExoticSubdepsScope.js'
+import { localPolicyForInstallOptions } from './verifyLockfileLocalResolutions.js'
 import {
   type ExoticSubdepsScope,
   verifyLockfileFileOffline,
@@ -194,14 +195,18 @@ async function resolveLockfileViaPnpr (
   )
   const exoticSubdepsScope = buildPnprExoticSubdepsScope(request)
   const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
-  await verifyExistingPnprLockfile({ existingLockfile, exoticSubdepsScope, frozenLockfile, opts, pnpmfileChecksum })
+  await verifyExistingPnprLockfile({ existingLockfile, exoticSubdepsScope, frozenLockfile, lockfileDir, opts, pnpmfileChecksum })
 
   logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
   const { lockfile, stats: pnprStats } = await request.resolveViaPnprServer(
     createResolveRequest(request, { existingLockfile, frozenLockfile, patchedDependencies })
   )
   const blockExoticSubdeps = !opts.trustLockfile && Boolean(opts.blockExoticSubdeps)
-  await verifyLockfileResolutions(lockfile, [], { blockExoticSubdeps, exoticSubdepsScope })
+  await verifyLockfileResolutions(lockfile, [], {
+    blockExoticSubdeps,
+    exoticSubdepsScope,
+    localPolicy: localPolicyForInstallOptions({ ...opts, lockfileDir }),
+  })
   if (!frozenLockfile) {
     lockfile.pnpmfileChecksum = pnpmfileChecksum
     setUntrackedPnpmfileReadPackageHook(lockfile, getUntrackedPnpmfileReadPackageHook(opts.hooks ?? {}))
@@ -225,23 +230,26 @@ async function verifyExistingPnprLockfile ({
   existingLockfile,
   exoticSubdepsScope,
   frozenLockfile,
+  lockfileDir,
   opts,
   pnpmfileChecksum,
 }: {
   existingLockfile: LockfileFile | null
   exoticSubdepsScope: ExoticSubdepsScope | undefined
   frozenLockfile: boolean
+  lockfileDir: string
   opts: SingleProjectInstallOptions
   pnpmfileChecksum: string | undefined
 }): Promise<void> {
   if (existingLockfile == null) return
-  verifyLockfileFileOffline(existingLockfile)
+  verifyLockfileFileOffline(existingLockfile, { lockfileDir })
   if (!frozenLockfile) return
   assertFrozenPnprPnpmfileChecksum(opts, existingLockfile.pnpmfileChecksum, pnpmfileChecksum)
   if (!opts.trustLockfile && opts.blockExoticSubdeps) {
     await verifyLockfileResolutions(convertToLockfileObject(existingLockfile), [], {
       blockExoticSubdeps: true,
       exoticSubdepsScope,
+      localPolicy: localPolicyForInstallOptions({ ...opts, lockfileDir }),
     })
   }
 }

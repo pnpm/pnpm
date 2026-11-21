@@ -257,7 +257,7 @@ snapshots:
     .await
     .expect_err("file: key with remote tarball URL must be rejected");
 
-    assert!(matches!(err, VerifyError::ExoticSubdep { count: 1, .. }), "got: {err:?}");
+    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { count: 1, .. }), "got: {err:?}");
 }
 
 #[tokio::test]
@@ -327,6 +327,7 @@ snapshots:
 
   ws-injected@file:packages/ws-injected:
     dependencies:
+      local-tgz: file:vendor/local.tgz
       ws-git: git+https://example.com/ws-git.git#22222222
 
   ext-ws@file:../ext-ws:
@@ -339,7 +340,6 @@ snapshots:
   react-dom@18.2.0(direct-tarball@https://example.com/direct.tgz):
     dependencies:
       direct-tarball: https://example.com/direct.tgz
-      local-tgz: file:vendor/local.tgz
       node: runtime:22.0.0
 
   local-tgz@file:vendor/local.tgz: {}

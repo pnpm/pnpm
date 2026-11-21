@@ -117,13 +117,23 @@ pub struct FrozenLockfileInputs<'a> {
     /// when verification is disabled (`trustLockfile`), in which case the
     /// gate is a no-op.
     pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
-    pub exotic_subdeps: &'a pnpm_lockfile_verification::ExoticSubdepsPolicy,
+    pub policies: FrozenVerificationPolicies<'a>,
     /// Fetch-evidence cell `CreateVirtualStore` fills after its
     /// warm/cold partition so the concurrent verification fan-out's
     /// age gate can lean on this install's canonical tarball fetches.
     /// See [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`].
     pub planned_canonical_fetches:
         Option<&'a pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
+}
+
+/// The lockfile policies the frozen install's verification enforces beside
+/// [`FrozenLockfileInputs::resolution_verifiers`].
+#[derive(Clone, Copy)]
+pub struct FrozenVerificationPolicies<'a> {
+    pub exotic_subdeps: &'a pnpm_lockfile_verification::ExoticSubdepsPolicy,
+    /// Active workspace policy governing local (`directory`, `file:`, `link:`)
+    /// subdependencies on non-importer snapshots.
+    pub local_policy: Option<&'a pnpm_lockfile_verification::LocalResolutionPolicy>,
 }
 
 #[derive(Clone, Copy)]

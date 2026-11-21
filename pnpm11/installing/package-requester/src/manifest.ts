@@ -1,10 +1,12 @@
 import { installabilityUnderForce, packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { fileSpecToPackageRootLink } from '@pnpm/resolving.local-resolver'
-import type { RequestPackageOptions } from '@pnpm/store.controller-types'
+import type { Resolution } from '@pnpm/resolving.resolver-base'
+import type { PkgRequestFetchResult, RequestPackageOptions } from '@pnpm/store.controller-types'
 import {
   DEPENDENCIES_OR_PEER_FIELDS,
   type DependencyManifest,
 } from '@pnpm/types'
+import { loadJsonFile } from 'load-json-file'
 
 export function manifestForEngineCheck (
   manifest: DependencyManifest,
@@ -98,4 +100,38 @@ export function checkInstallability (check: InstallabilityCheck, manifest: Depen
     optional: check.optional,
     supportedArchitectures: check.options.supportedArchitectures,
   })
+}
+
+export async function prepareResolvedManifest (
+  resolvedManifest: DependencyManifest | undefined,
+  resolution: Resolution,
+  options: RequestPackageOptions
+): Promise<{ manifest?: DependencyManifest, unhookedManifest?: DependencyManifest, hooked: boolean }> {
+  let unhookedManifest = resolvedManifest
+  if (unhookedManifest != null && resolution.type !== 'directory') {
+    unhookedManifest = linkFileDepsInsidePackage(unhookedManifest)
+  }
+  if (options.readPackageHook == null || unhookedManifest == null) {
+    return { manifest: unhookedManifest, unhookedManifest, hooked: false }
+  }
+  return {
+    manifest: await applyReadPackageHook(options.readPackageHook, unhookedManifest),
+    unhookedManifest,
+    hooked: true,
+  }
+}
+
+export async function readFetchedManifest (fetchedResult: PkgRequestFetchResult): Promise<DependencyManifest | undefined> {
+  let manifest: DependencyManifest | undefined
+  if (fetchedResult.bundledManifest) {
+    manifest = fetchedResult.bundledManifest as DependencyManifest
+  } else if (fetchedResult.files.filesMap.has('package.json')) {
+    const loadedManifest = await loadJsonFile<Record<string, unknown>>(fetchedResult.files.filesMap.get('package.json')!)
+    // Skip placeholder package.json added as a completion marker by the worker
+    // for packages that genuinely lack one.
+    if (!loadedManifest._pnpmPlaceholder) {
+      manifest = loadedManifest as unknown as DependencyManifest
+    }
+  }
+  return manifest != null ? linkFileDepsInsidePackage(manifest) : manifest
 }

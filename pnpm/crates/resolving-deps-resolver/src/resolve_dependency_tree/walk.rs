@@ -31,6 +31,13 @@ pub(super) use edge_resolution::{
     try_resolve_edge_detached,
 };
 
+pub(super) use non_local_subdeps::ParentOrigin;
+pub(crate) use non_local_subdeps::{
+    HoistedPeerReachability,
+    is_detached_peer_spec_allowed,
+    validate_hoisted_peer_spec,
+};
+
 mod warm_children;
 
 mod manifest_hooks;
@@ -71,6 +78,12 @@ use locked_versions::{
 mod edge_resolution;
 
 mod failed_edge;
+
+mod non_local_subdeps;
+use non_local_subdeps::{
+    reject_non_local_filesystem_subdep,
+    validate_and_record_non_local_manifest,
+};
 
 mod package_root_link;
 use package_root_link::{
@@ -343,7 +356,7 @@ pub(super) struct ChildEdge<'e> {
     pub(super) pick_overlay: Option<Arc<PreferredVersionsOverlay>>,
     pub(super) parent_dir: Option<&'e Path>,
     pub(super) parent_pkg_aliases: &'e Arc<ParentPkgAliases>,
-    pub(super) parent_is_workspace: bool,
+    pub(super) parent_origin: ParentOrigin<'e>,
 }
 
 /// One occurrence whose children the walk still has to seed, with the

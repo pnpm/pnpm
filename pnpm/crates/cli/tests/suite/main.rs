@@ -179,6 +179,8 @@ mod recursive_project_requirements;
 mod registry_metadata_mismatch;
 mod registry_prefix_keys;
 mod registry_routes;
+mod reject_remote_host_filesystem_subdeps;
+mod reject_remote_host_filesystem_subdeps_policy;
 mod release_notes;
 mod release_notes_versioning;
 mod relocated_install;

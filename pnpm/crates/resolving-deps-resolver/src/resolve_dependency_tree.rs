@@ -40,6 +40,11 @@ pub use workspace_ctx::WorkspaceTreeCtx;
 pub(crate) use catalogs::resolve_catalog_specifiers;
 
 pub(crate) use importer::importer_direct_wanted_specs;
+pub(crate) use walk::{
+    HoistedPeerReachability,
+    is_detached_peer_spec_allowed,
+    validate_hoisted_peer_spec,
+};
 
 pub(crate) use reuse::{
     direct_dep_specifier_unchanged,
@@ -118,6 +123,7 @@ use reuse::{
 use walk::{
     ChildEdge,
     NodeSeed,
+    ParentOrigin,
     level_aliases,
     level_versions,
     resolve_node_seed,
@@ -533,7 +539,7 @@ where
             pick_overlay: root.base_overlay.clone(),
             parent_dir: None,
             parent_pkg_aliases: root.parent_pkg_aliases,
-            parent_is_workspace: false,
+            parent_origin: ParentOrigin::RootOrLocal,
         },
     )
     .await?;

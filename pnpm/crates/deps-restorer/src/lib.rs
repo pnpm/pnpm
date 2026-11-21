@@ -77,6 +77,7 @@ pub use frozen_install_options::{
     FrozenLockfileInputs,
     FrozenPlatformOptions,
     FrozenProjectInputs,
+    FrozenVerificationPolicies,
     PriorMaterialization,
     SharedFetchCaches,
 };

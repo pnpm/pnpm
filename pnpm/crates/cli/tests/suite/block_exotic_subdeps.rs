@@ -173,7 +173,8 @@ fn frozen_and_warm_installs_reject_git_subdep() {
     );
     git_repo.write_file("index.js", "module.exports = 'git';\n");
     let _commit = git_repo.commit("init");
-    let git_spec = git_repo.git_url_at("main");
+    let served_git = git_repo.serve_http();
+    let git_spec = served_git.git_url_at("main");
 
     let registry_server = TestHttpServer::start(
         Vec::new(),

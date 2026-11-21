@@ -148,6 +148,12 @@ struct DeployInstallContext<'a> {
     extra_workspace_dirs: Vec<String>,
 }
 
+fn deploy_source_root<'a>(base_config: &'a Config, deploy_dir: &'a Path) -> &'a Path {
+    base_config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| base_config.root_project_manifest_dir(deploy_dir))
+}
+
 fn legacy_source_importer_ids(mode: &DeployInstallMode) -> Vec<String> {
     match mode {
         DeployInstallMode::Legacy {
@@ -183,8 +189,7 @@ impl DeployArgs {
         let legacy = matches!(&mode, DeployInstallMode::Legacy { .. });
         let extra_workspace_dirs =
             deployed_workspace_project_dirs(mode.project_package_dirs(), deploy_dir);
-        let source_importer_ids = legacy_source_importer_ids(&mode);
-        let source_workspace_dirs = legacy_source_workspace_dirs(&mode);
+        let source_scope = (legacy_source_importer_ids(&mode), legacy_source_workspace_dirs(&mode));
         let config = self.deploy_install_config(
             base_config,
             deploy_dir,
@@ -198,28 +203,53 @@ impl DeployArgs {
         if legacy {
             state.lockfile = deployed_lockfile(&state, deploy_dir, frozen_lockfile);
         }
-        if let Some(source) = &legacy_source
-            && !self.trust_lockfile(config)
-        {
-            source.verify::<ReporterT>(&state, &source_importer_ids, &source_workspace_dirs).await?;
-        }
-        let preferred_versions = legacy_source.as_ref().map(LegacyDeploySource::preferred_versions);
-        if let Some(source) = legacy_source {
-            state.lockfile = LazyLockfile::preloaded(Some(source.lockfile));
-        }
+        let preferred_versions = self.apply_legacy_source::<ReporterT>(
+            &mut state,
+            legacy_source,
+            &source_scope,
+            (base_config, pnpmfile_hook.as_deref()),
+        )
+        .await?;
         self.install_deployed_state::<ReporterT>(
             &state,
             deploy_dir,
             legacy,
             frozen_lockfile,
             DeployInstallContext {
-                source_root: base_config.root_project_manifest_dir(deploy_dir),
+                source_root: deploy_source_root(base_config, deploy_dir),
                 pnpmfile_hook,
                 preferred_versions_override: preferred_versions,
                 extra_workspace_dirs,
             },
         )
         .await
+    }
+
+    /// Verify the legacy deploy's source lockfile unless the lockfile is
+    /// trusted, then preload it into `state`. Returns the preferred versions
+    /// it records.
+    async fn apply_legacy_source<ReporterT: Reporter + 'static>(
+        &self,
+        state: &mut State,
+        source: Option<LegacyDeploySource>,
+        (source_importer_ids, source_workspace_dirs): &(Vec<String>, Vec<String>),
+        source_policy: (&Config, Option<&dyn pnpm_hooks::PnpmfileHooks>),
+    ) -> miette::Result<Option<PreferredVersions>> {
+        let Some(source) = source else {
+            return Ok(None);
+        };
+        if !self.trust_lockfile(state.config) {
+            source.verify::<ReporterT>(
+                state,
+                source_importer_ids,
+                source_workspace_dirs,
+                source_policy,
+            )
+            .await?;
+        }
+        let preferred_versions = source.preferred_versions();
+        state.lockfile = LazyLockfile::preloaded(Some(source.lockfile));
+        Ok(Some(preferred_versions))
     }
 
     fn trust_lockfile(&self, config: &Config) -> bool {

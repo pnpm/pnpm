@@ -61,6 +61,7 @@ pub(in crate::install) struct Verification {
         pnpm_resolving_resolver_base::PlannedCanonicalFetches,
     pub(in crate::install) resolution_verifiers: Vec<Arc<dyn super::super::ResolutionVerifier>>,
     pub(in crate::install) exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
+    pub(in crate::install) local_policy: pnpm_lockfile_verification::LocalResolutionPolicy,
     pub(in crate::install) derived_lockfile: Option<DerivedLockfileSource>,
     /// The record an `autoDedupe` `--lockfile-only` install that resolves the
     /// whole workspace writes once it saves the lockfile, and that a later one
@@ -96,6 +97,11 @@ impl Verification {
             (&planned_canonical_fetches, shared_caches),
         )?;
         let exotic_subdeps = build_run_exotic_subdeps_policy(execution, scope, project_manifests);
+        let local_policy = build_local_policy(
+            execution,
+            loaded.pnpmfile_hook.is_some(),
+            (scope, project_manifests),
+        );
         let derived_lockfile = lockfiles.wanted
             .matches_single_on_disk_file(loaded)
             .then(|| {
@@ -111,9 +117,34 @@ impl Verification {
             planned_canonical_fetches,
             resolution_verifiers,
             exotic_subdeps,
+            local_policy,
             derived_lockfile,
             auto_dedupe_baseline: execution.auto_dedupe_baseline(scope, project_manifests),
         })
+    }
+
+    pub(super) async fn enrich_with_pnpmfile_hook(
+        &mut self,
+        wanted: Option<&pnpm_lockfile::Lockfile>,
+        config: &Config,
+        http_client: &pnpm_network::ThrottledClient,
+        hook: Option<&dyn pnpm_hooks::PnpmfileHooks>,
+    ) -> Result<(), InstallError> {
+        if let Some(wanted) = wanted {
+            let current = std::mem::take(&mut self.local_policy);
+            self.local_policy = pnpm_deps_restorer::enrich_local_policy_for_install(
+                current,
+                wanted,
+                pnpm_deps_restorer::LocalPolicyEnrichDrivers {
+                    config: Some(config),
+                    http_client: Some(http_client),
+                    hook,
+                },
+            )
+            .await
+            .map_err(InstallError::ReadPackageHook)?;
+        }
+        Ok(())
     }
 
     pub(super) fn take_valid_override<'install, Reporter: super::super::Reporter + 'static>(
@@ -158,6 +189,7 @@ impl Verification {
         };
         let verifiers = self.resolution_verifiers.clone();
         let exotic_subdeps = self.exotic_subdeps.clone();
+        let local_policy = self.local_policy.clone();
         Box::pin(async move {
             override_check.await?;
             pnpm_lockfile_verification::verify_lockfile_resolutions::<Reporter>(
@@ -165,6 +197,7 @@ impl Verification {
                 &verifiers,
                 &pnpm_lockfile_verification::VerifyLockfileResolutionsOptions {
                     exotic_subdeps,
+                    local_policy: Some(local_policy),
                     ..Default::default()
                 },
             )
@@ -172,6 +205,40 @@ impl Verification {
             .map_err(pnpm_deps_restorer::InstallFrozenLockfileError::LockfileVerification)
         })
     }
+}
+
+fn build_local_policy(
+    execution: &RunExecution<'_>,
+    has_pnpmfile_hook: bool,
+    (scope, project_manifests): (&InstallScope<'_>, &[(PathBuf, &PackageManifest)]),
+) -> pnpm_lockfile_verification::LocalResolutionPolicy {
+    let config = execution.install.context.config;
+    let overrides_root = execution.options.manifests.overrides_root_dir;
+    let containment_root =
+        overrides_root.unwrap_or(&execution.workspace.dirs.workspace_manifest_dir);
+    let base = pnpm_deps_restorer::local_resolution_policy_for_workspace_with_catalogs(
+        config,
+        Some(&execution.workspace.catalogs),
+        (
+            overrides_root,
+            containment_root,
+            config.lockfile_dir_for(&execution.workspace.dirs.workspace_root),
+        ),
+        has_pnpmfile_hook,
+    )
+    .with_deploy(matches!(execution.install.execution.mutation, crate::ProjectMutation::Deploy));
+    if execution.options.manifests.deploy_hook
+        || execution.install.lockfile_policy.ignore_manifest_check
+    {
+        return base;
+    }
+    let with_live = pnpm_deps_restorer::attach_live_project_manifests(
+        base,
+        project_manifests
+            .iter()
+            .chain(scope.workspace_projects.iter().flatten()),
+    );
+    pnpm_deps_restorer::attach_selected_project_manifests(with_live, project_manifests)
 }
 
 fn build_run_exotic_subdeps_policy(

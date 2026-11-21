@@ -7,6 +7,7 @@ use super::{
     FrontierNode,
     HashSet,
     NodeSeed,
+    ParentOrigin,
     Path,
     PendingNode,
     Pipe,
@@ -146,11 +147,11 @@ pub(super) struct ChildSeedScope<'s> {
     /// whole child fanout instead of locking per edge.
     pub(super) direct_versions: Option<Arc<super::super::workspace_ctx::DirectDepVersions>>,
     pub(super) declaring_dir: Option<Arc<Path>>,
-    pub(super) parent_is_workspace: bool,
+    pub(super) parent_origin: ParentOrigin<'s>,
 }
 
 impl<'s> ChildSeedScope<'s> {
-    pub(super) fn of(ctx: &'s TreeCtx, pending: &PendingNode) -> Self {
+    pub(super) fn of(ctx: &'s TreeCtx, pending: &'s PendingNode) -> Self {
         let landed_prior = pending.lockfile.prior_key
             .as_ref()
             .filter(|key| {
@@ -167,7 +168,7 @@ impl<'s> ChildSeedScope<'s> {
     /// lockfile entry `landed_prior` when it has one.
     pub(super) fn for_result(
         ctx: &'s TreeCtx,
-        result: &pnpm_resolving_resolver_base::ResolveResult,
+        result: &'s pnpm_resolving_resolver_base::ResolveResult,
         landed_prior: Option<&PkgNameVerPeer>,
     ) -> Self {
         Self {
@@ -182,7 +183,7 @@ impl<'s> ChildSeedScope<'s> {
                 .get(&ctx.importer.id)
                 .map(Arc::clone),
             declaring_dir: declaring_manifest_dir(&ctx.importer.lockfile_dir, result),
-            parent_is_workspace: result.resolved_via == "workspace",
+            parent_origin: ParentOrigin::of(result),
         }
     }
 }
@@ -211,7 +212,7 @@ where
             pick_overlay: node.children_overlay.clone(),
             parent_dir: scope.declaring_dir.as_deref(),
             parent_pkg_aliases: &node.children_pkg_aliases,
-            parent_is_workspace: scope.parent_is_workspace,
+            parent_origin: scope.parent_origin,
         },
     )
     .await?;

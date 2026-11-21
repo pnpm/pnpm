@@ -35,7 +35,7 @@ use super::{
         load_wanted_lockfile,
         spawn_current_lockfile_load,
     },
-    pre_resolution::run_pre_resolution_hook,
+    pre_resolution::run_pre_resolution_hook_and_enrich,
     reject_frozen_with_update_checksums,
     settle_wanted_lockfile,
     settled::Settled,
@@ -356,11 +356,11 @@ impl<'a> RunExecution<'a> {
         .await?;
         let mut verification =
             Verification::set_up(&self, loaded, &lockfiles, (scope, project_manifests))?;
-        let hooked_current = run_pre_resolution_hook::<HookOnlyReporter<Reporter>>(
+        let hooked_current = run_pre_resolution_hook_and_enrich::<HookOnlyReporter<Reporter>>(
             self.install,
             &self.workspace,
-            loaded,
-            &mut lockfiles.wanted,
+            (loaded, &mut lockfiles.wanted),
+            &mut verification,
         )
         .await?;
         verification.sync_derived_lockfile_path(&lockfiles.wanted, loaded);

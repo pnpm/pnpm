@@ -162,6 +162,11 @@ export interface ResolutionContext extends RegistryContext {
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
+  hookAuthorizedLocalChildrenByPkgId: Map<PkgResolutionId, ReadonlySet<string>>
+  localPkgPeerSpecsByPkgId: Map<PkgResolutionId, Set<string>>
+  authorizedNonLocalPeerSpecsByPkgId: Map<PkgResolutionId, Set<string>>
+  untrustedLocalPeerParentsByPkgId: Map<PkgResolutionId, Map<string, string>>
+  pkgNameVerByPkgId: Map<PkgResolutionId, { name: string, version: string }>
 }
 
 export interface PackageResolutionBarrier {

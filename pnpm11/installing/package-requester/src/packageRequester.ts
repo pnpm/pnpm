@@ -26,7 +26,6 @@ import {
   calcMaxWorkers,
   readPkgFromCafs as _readPkgFromCafs,
 } from '@pnpm/worker'
-import { loadJsonFile } from 'load-json-file'
 import PQueue from 'p-queue'
 import { pick } from 'ramda'
 
@@ -38,7 +37,8 @@ import {
   checkInstallability,
   createInstallabilityCheck,
   type InstallabilityCheck,
-  linkFileDepsInsidePackage,
+  prepareResolvedManifest,
+  readFetchedManifest,
 } from './manifest.js'
 import { getExpectedIntegrity } from './storeEntry.js'
 
@@ -159,6 +159,7 @@ interface ResolvedRequest {
 
 interface ManifestState {
   manifest?: DependencyManifest
+  unhookedManifest?: DependencyManifest
   hooked: boolean
   isInstallable: boolean | null | undefined
 }
@@ -291,21 +292,6 @@ function createLocalDirectoryResponse (
   }
 }
 
-async function prepareResolvedManifest (
-  resolvedManifest: DependencyManifest | undefined,
-  resolution: Resolution,
-  options: RequestPackageOptions
-): Promise<Pick<ManifestState, 'manifest' | 'hooked'>> {
-  let manifest = resolvedManifest
-  if (manifest != null && resolution.type !== 'directory') {
-    manifest = linkFileDepsInsidePackage(manifest)
-  }
-  if (options.readPackageHook == null || manifest == null) {
-    return { manifest, hooked: false }
-  }
-  return { manifest: await applyReadPackageHook(options.readPackageHook, manifest), hooked: true }
-}
-
 async function pickResolutionFetcher (
   ctx: ResolveAndFetchContext,
   resolution: Resolution,
@@ -340,6 +326,7 @@ function createPackageResponseBody (request: ResolvedRequest, state: ManifestSta
     latest: resolveResult.latest,
     nonDeprecatedAlternative: resolveResult.nonDeprecatedAlternative,
     manifest: state.manifest,
+    unhookedManifest: state.unhookedManifest,
     normalizedBareSpecifier: resolveResult.normalizedBareSpecifier,
     resolution: resolveResult.resolution,
     resolvedVia: resolveResult.resolvedVia,
@@ -372,13 +359,7 @@ async function fetchResolvedPackage (request: ResolvedRequest, initialState: Man
   })
 
   if (!state.manifest) {
-    const fetchedResult = await fetchResult.fetching()
-    state = { ...state, manifest: (await readFetchedManifest(fetchedResult)) ?? state.manifest }
-    // Add computed integrity to tarball resolutions. `variations` spans multiple
-    // platform variants, so do not write one machine's integrity into the shared resolution.
-    if (resolution.type !== 'variations') {
-      addFetchedIntegrity(resolution, fetchedResult)
-    }
+    state = await loadFetchedManifestIntoState(fetchResult.fetching, resolution, state)
   }
 
   const fetching = request.resolutionNeedsFetch
@@ -396,25 +377,29 @@ async function fetchResolvedPackage (request: ResolvedRequest, initialState: Man
   }
 }
 
+async function loadFetchedManifestIntoState (
+  fetchPackage: () => Promise<PkgRequestFetchResult>,
+  resolution: Resolution,
+  state: ManifestState
+): Promise<ManifestState> {
+  const fetchedResult = await fetchPackage()
+  const fetchedManifest = await readFetchedManifest(fetchedResult)
+  // Add computed integrity to tarball resolutions. `variations` spans multiple
+  // platform variants, so do not write one machine's integrity into the shared resolution.
+  if (resolution.type !== 'variations') {
+    addFetchedIntegrity(resolution, fetchedResult)
+  }
+  return {
+    ...state,
+    manifest: fetchedManifest ?? state.manifest,
+    unhookedManifest: fetchedManifest ?? state.unhookedManifest,
+  }
+}
+
 function pickPkgNameVersion ({ options, updated }: ResolvedRequest, manifest: DependencyManifest | undefined): PkgNameVersion {
   const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   if (options.expectedPkg?.name == null) return pkg
   return updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg
-}
-
-async function readFetchedManifest (fetchedResult: PkgRequestFetchResult): Promise<DependencyManifest | undefined> {
-  let manifest: DependencyManifest | undefined
-  if (fetchedResult.bundledManifest) {
-    manifest = fetchedResult.bundledManifest as DependencyManifest
-  } else if (fetchedResult.files.filesMap.has('package.json')) {
-    const loadedManifest = await loadJsonFile<Record<string, unknown>>(fetchedResult.files.filesMap.get('package.json')!)
-    // Skip placeholder package.json added as a completion marker by the worker
-    // for packages that genuinely lack one.
-    if (!loadedManifest._pnpmPlaceholder) {
-      manifest = loadedManifest as unknown as DependencyManifest
-    }
-  }
-  return manifest != null ? linkFileDepsInsidePackage(manifest) : manifest
 }
 
 function addFetchedIntegrity (resolution: Resolution, fetchedResult: PkgRequestFetchResult): void {
@@ -450,5 +435,10 @@ async function checkFetchedManifestInstallability (
     manifest = await applyReadPackageHook(options.readPackageHook, manifest)
     hooked = true
   }
-  return { manifest, hooked, isInstallable: checkInstallability(installability, manifest) }
+  return {
+    manifest,
+    unhookedManifest: state.unhookedManifest,
+    hooked,
+    isInstallable: checkInstallability(installability, manifest),
+  }
 }

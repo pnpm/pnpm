@@ -126,7 +126,7 @@ impl CommandTempCwd<()> {
 
     /// Create a mock registry whose generated fixture manifests have exact
     /// strings replaced for this test run. The storage lives under the
-    /// command fixture's temp root, so `git+file://` replacements remain
+    /// command fixture's temp root, so local HTTP git replacements remain
     /// valid for the registry's lifetime.
     #[must_use]
     pub fn add_mocked_registry_with_substitutions(

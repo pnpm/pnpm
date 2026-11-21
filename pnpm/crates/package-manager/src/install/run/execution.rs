@@ -171,6 +171,7 @@ impl<'a> RunExecution<'a> {
             loaded,
             &mut lockfiles.wanted,
             self.options.manifests.prepared_frozen.as_mut(),
+            verification,
         )
         .await?;
         verification.sync_derived_lockfile_path(&lockfiles.wanted, loaded);

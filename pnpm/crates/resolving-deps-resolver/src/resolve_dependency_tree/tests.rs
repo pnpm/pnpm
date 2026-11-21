@@ -148,6 +148,8 @@ fn override_entry(
 ) -> crate::OverrideEntry {
     crate::OverrideEntry {
         selector: selector.to_string(),
+        parent_name: None,
+        parent_range: None,
         name: "acme".to_string(),
         selector_range: selector_range.map(str::to_string),
         new_bare_specifier: new_bare_specifier.to_string(),

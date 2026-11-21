@@ -454,7 +454,7 @@ Added in: v10.26.0
 * Default: **true**
 * Type: **Boolean**
 
-When set to `true`, only direct dependencies (those listed in your root `package.json`) may use exotic sources (like git repositories or direct tarball URLs). All transitive dependencies must be resolved from a trusted source, such as the configured registry, local file paths, workspace links, or trusted GitHub repositories (node, bun, deno).
+When set to `true`, only direct dependencies (those listed in your root `package.json`) may use exotic sources (like git repositories or direct tarball URLs). All transitive dependencies must be resolved from a trusted source, such as the configured registry, workspace packages, or trusted GitHub repositories (node, bun, deno). Non-local packages cannot resolve host filesystem paths (`file:` or `link:`) outside their own package archive unless rewritten by workspace `overrides`, `packageExtensions`, or `.pnpmfile.cjs`.
 
 This setting helps secure the dependency supply chain by preventing transitive dependencies from pulling in code from untrusted locations.
 

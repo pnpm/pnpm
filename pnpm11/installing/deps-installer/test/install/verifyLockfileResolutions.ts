@@ -260,7 +260,7 @@ test('does not collapse same (name, version) with different resolutions', async 
 
 test('the verifier sees the resolution shape verbatim', async () => {
   const npmResolution = tarballResolution()
-  const gitResolution = { type: 'git', repo: 'x', commit: 'abc' }
+  const gitResolution = { type: 'git', repo: 'https://example.com/git-pkg.git', commit: 'abc' }
   const lockfile = makeLockfile({
     'npm-pkg@1.0.0': { resolution: npmResolution },
     'git-pkg@git+https://example.com/git-pkg.git#abc': { resolution: gitResolution, version: '1.0.0' },
@@ -1028,7 +1028,7 @@ test('rejects a tampered file: depPath backed by a remote tarball', async () => 
   } as unknown as LockfileObject
 
   await expect(verifyLockfileResolutions(lockfile, [], { blockExoticSubdeps: true })).rejects.toMatchObject({
-    code: 'ERR_PNPM_EXOTIC_SUBDEP',
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
   })
 })
 
@@ -1062,7 +1062,10 @@ test('allows direct importer, workspace snapshot, peer-provided exotic, local-fi
       },
       'ws-injected@file:packages/ws-injected': {
         resolution: { type: 'directory', directory: 'packages/ws-injected' },
-        dependencies: { 'ws-git': 'git+https://example.com/ws-git.git#22222222' },
+        dependencies: {
+          'local-tgz': 'file:vendor/local.tgz',
+          'ws-git': 'git+https://example.com/ws-git.git#22222222',
+        },
       },
       'ext-ws@file:../ext-ws': {
         resolution: { type: 'directory', directory: '../ext-ws' },
@@ -1081,7 +1084,6 @@ test('allows direct importer, workspace snapshot, peer-provided exotic, local-fi
         peerDependencies: { 'direct-tarball': '*' },
         dependencies: {
           'direct-tarball': 'https://example.com/direct.tgz',
-          'local-tgz': 'file:vendor/local.tgz',
           node: 'runtime:22.0.0',
         },
       },
@@ -2263,7 +2265,7 @@ test('blockExoticSubdeps indexes active transitive peers once across unrelated l
 
   await expect(
     verifyLockfileResolutions(floodedLockfile, [], { blockExoticSubdeps: true })
-  ).rejects.toMatchObject({ code: 'ERR_PNPM_EXOTIC_SUBDEP' })
+  ).rejects.toMatchObject({ code: expect.stringMatching(/^ERR_PNPM_(EXOTIC_SUBDEP|LOCAL_SUBDEP_NOT_ALLOWED)$/) })
 })
 
 test('buildExoticSubdepsScopeFromContext trusts clean-checkout missing publishConfig.directory and rejects symlinks', () => {
@@ -2449,7 +2451,7 @@ test('workspace: path scope trusts real paths including outside lockfileDir, rej
       importers: {
         'packages/app': {
           specifiers: { outsidePkg: 'workspace:../../../outside-pkg' },
-          dependencies: { outsidePkg: 'file:../outside-pkg' },
+          dependencies: { outsidePkg: 'outside-pkg@file:../outside-pkg' },
         },
       },
       packages: {
@@ -2590,13 +2592,13 @@ test('follows chained workspace: path targets recursively without cycles or non-
       importers: {
         'packages/app': {
           specifiers: { siblingB: 'workspace:../../../sibling-b' },
-          dependencies: { siblingB: 'file:../sibling-b' },
+          dependencies: { siblingB: 'sibling-b@file:../sibling-b' },
         },
       },
       packages: {
         'sibling-b@file:../sibling-b': {
           resolution: { type: 'directory', directory: '../sibling-b' },
-          dependencies: { siblingC: 'file:../sibling-c' },
+          dependencies: { siblingC: 'sibling-c@file:../sibling-c' },
         },
         'sibling-c@file:../sibling-c': {
           resolution: { type: 'directory', directory: '../sibling-c' },

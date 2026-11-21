@@ -152,9 +152,8 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
     verification_override: Option<super::super::LockfileVerificationOverride<'install>>,
     lockfile: &Lockfile,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
-    exotic_subdeps: ExoticSubdepsPolicy,
-    derived_lockfile_source: Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>,
-    cache_dir: &Path,
+    policies: (ExoticSubdepsPolicy, pnpm_lockfile_verification::LocalResolutionPolicy),
+    paths: (Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>, &Path),
 ) -> Result<Option<super::super::LockfileVerificationOverride<'install>>, InstallError> {
     if requested_importer_ids.is_none() {
         return Ok(verification_override);
@@ -164,14 +163,8 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
             verification_override.await.map_err(map_frozen_lockfile_error)?;
         }
         None => {
-            verify_lockfile_eagerly::<Reporter>(
-                lockfile,
-                resolution_verifiers,
-                exotic_subdeps,
-                derived_lockfile_source,
-                cache_dir,
-            )
-            .await?;
+            verify_lockfile_eagerly::<Reporter>(lockfile, resolution_verifiers, policies, paths)
+                .await?;
         }
     }
     Ok(None)

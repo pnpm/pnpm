@@ -12,8 +12,18 @@ pub use exotic_subdeps::{
     ExoticSubdepsPolicy,
     ExoticSubdepsScope,
 };
+pub use local_containment::{
+    LocalDepField,
+    LocalResolutionPolicy,
+    LocalResolutionProbeParent,
+    PristineDeclaredSpecs,
+    local_resolution_candidate_parents,
+    local_resolution_candidate_parents_for_policy,
+    verify_lockfile_local_resolutions,
+};
 pub(crate) use offline_checks::with_offline_and_exotic_cache_identities;
 pub use offline_checks::{
+    LOCAL_SUBDEP_NOT_ALLOWED_VIOLATION_CODE,
     RESOLUTION_SHAPE_CACHE_VERSION,
     RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
     can_trust_prepared_policy,
@@ -105,6 +115,9 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     pub repairs_lockfile: bool,
     /// Whether `blockExoticSubdeps` is enforced on lockfile subdependencies.
     pub exotic_subdeps: ExoticSubdepsPolicy,
+    /// Active workspace policy for local (`directory`, `file:`, `link:`)
+    /// entries referenced by non-importer snapshots.
+    pub local_policy: Option<LocalResolutionPolicy>,
 }
 
 /// One deduplicated lockfile entry offered to [`ReplacedEntries`].
@@ -132,27 +145,49 @@ impl std::fmt::Debug for ReplacedEntries<'_> {
 }
 
 /// Proof that `lockfile` passed offline dependency-name, importer-snapshot
-/// link (except in [`Self::verify_for_repair`]), and resolution-shape
-/// validation, allowing a subsequent verification-cache lookup to skip
-/// repeating those scans.
+/// link (except in [`Self::verify_for_repair`]), local containment, and
+/// resolution-shape validation, allowing a subsequent verification-cache lookup
+/// to skip repeating those scans.
 #[derive(Debug, Clone, Copy)]
 pub struct VerifiedOfflineLockfile<'a>(&'a Lockfile);
 
 impl<'a> VerifiedOfflineLockfile<'a> {
-    /// Validate offline dependency names, importer-snapshot links, and
-    /// resolution shapes of `lockfile`.
+    /// Validate offline dependency names, local containment, importer-snapshot
+    /// links, and resolution shapes of `lockfile`.
     pub fn verify(lockfile: &'a Lockfile) -> Result<Self, VerifyError> {
-        verify_offline_structural_checks(lockfile)?;
-        verify_lockfile_resolution_shapes(lockfile)?;
+        Self::verify_with_policy(lockfile, None)
+    }
+
+    /// Validate offline dependency names, local containment under
+    /// `local_policy`, importer-snapshot links, and resolution shapes.
+    pub fn verify_with_policy(
+        lockfile: &'a Lockfile,
+        local_policy: Option<LocalResolutionPolicy>,
+    ) -> Result<Self, VerifyError> {
+        verify_lockfile_dependency_names(lockfile)?;
+        let shape_ctx = shape_context_from_policy(local_policy.as_ref(), None);
+        verify_lockfile_resolution_shapes_with_ctx(lockfile, shape_ctx)?;
+        verify_lockfile_local_resolutions(lockfile, local_policy)?;
+        verify_lockfile_importer_snapshot_links(lockfile)?;
         Ok(Self(lockfile))
     }
 
-    /// Validate offline dependency names and resolution shapes of `lockfile`
-    /// while allowing missing importer-snapshot links that `--fix-lockfile`
-    /// re-resolves.
+    /// Validate offline dependency names, local containment, and resolution
+    /// shapes while allowing missing importer-snapshot links that
+    /// `--fix-lockfile` re-resolves.
     pub fn verify_for_repair(lockfile: &'a Lockfile) -> Result<Self, VerifyError> {
+        Self::verify_for_repair_with_policy(lockfile, None)
+    }
+
+    /// Policy-aware counterpart of [`Self::verify_for_repair`].
+    pub fn verify_for_repair_with_policy(
+        lockfile: &'a Lockfile,
+        local_policy: Option<LocalResolutionPolicy>,
+    ) -> Result<Self, VerifyError> {
         verify_lockfile_dependency_names(lockfile)?;
-        verify_lockfile_resolution_shapes(lockfile)?;
+        let shape_ctx = shape_context_from_policy(local_policy.as_ref(), None);
+        verify_lockfile_resolution_shapes_with_ctx(lockfile, shape_ctx)?;
+        verify_lockfile_local_resolutions(lockfile, local_policy)?;
         Ok(Self(lockfile))
     }
 
@@ -306,7 +341,8 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     // `record_lockfile_verified_by_content`) can reinstall cleanly, while any
     // uncached lockfile or cacheless check rejects shape mismatches even with
     // empty `verifiers`.
-    verify_lockfile_resolution_shapes(lockfile)?;
+    let shape_ctx = shape_context_from_policy(opts.local_policy.as_ref(), opts.lockfile_path);
+    verify_lockfile_resolution_shapes_with_ctx(lockfile, shape_ctx)?;
     if !has_policy_verifiers {
         return Ok(());
     }
@@ -327,6 +363,20 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Ok(());
     }
     Err(build_verification_error(violations))
+}
+
+fn shape_context_from_policy<'p>(
+    local_policy: Option<&'p LocalResolutionPolicy>,
+    lockfile_path: Option<&'p Path>,
+) -> file_url_shape::FileShapeContext<'p> {
+    file_url_shape::FileShapeContext {
+        lockfile_dir: local_policy
+            .and_then(|policy| policy.scope.lockfile_dir.as_deref())
+            .or_else(|| lockfile_path.and_then(Path::parent)),
+        allow_deploy_file_url_keys: local_policy.is_some_and(|policy| {
+            policy.allow_deploy_file_url_keys
+        }),
+    }
 }
 
 fn resolve_cache_target<'a>(
@@ -390,8 +440,6 @@ fn collect_candidates_to_verify(
     Ok(CollectedCandidates { candidates, skipped_replaced })
 }
 
-/// Run the verifiers over every candidate, reporting the run to the
-/// reporter as a [`VerificationProgress`].
 async fn verify_candidates<Reporter: self::Reporter>(
     candidates: Vec<Candidate>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -410,34 +458,22 @@ async fn verify_candidates<Reporter: self::Reporter>(
     Ok(violations)
 }
 
-/// What the verification cache had to say about this lockfile.
 enum CacheOutcome {
-    /// A previous run already verified it under the same identities.
     Hit,
-    /// Nothing reusable; carries what the recorder need not recompute.
     Miss(CachePrecomputed),
 }
 
-/// What a cache lookup needs to report a hit.
 #[derive(Clone, Copy)]
 struct CachedVerdict<'a> {
-    /// Whether any policy verifier is active. The shape-only run that every
-    /// install performs reports nothing.
     has_policy_verifiers: bool,
     lockfile_path: Option<&'a String>,
 }
 
-/// Share the lazy hash between cache lookup and recording. A stat-only
-/// lookup never computes it.
 fn memoized_lockfile_hash(lockfile: &Lockfile) -> impl FnMut() -> String + '_ {
     let mut cached_hash: Option<String> = None;
     move || cached_hash.get_or_insert_with(|| hash_lockfile(lockfile)).clone()
 }
 
-/// Reuse a previous verdict for this lockfile, if the cache holds one.
-///
-/// A silent short-circuit would look like the policy gate never ran, so a
-/// reused verdict is surfaced.
 fn reuse_cached_verdict<Reporter: self::Reporter>(
     cache_target: Option<(&Path, Option<(&Path, &LockfileStat)>)>,
     cache_verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -472,7 +508,6 @@ fn reuse_cached_verdict<Reporter: self::Reporter>(
     CacheOutcome::Hit
 }
 
-/// Persist a successful verification, when caching is wired up.
 fn record_verdict(
     cache_target: Option<(&Path, Option<(&Path, &LockfileStat)>)>,
     cache_verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -516,6 +551,9 @@ mod tests;
 
 mod candidates;
 mod exotic_subdeps;
+mod file_url_shape;
+mod local_containment;
+mod local_git_shape;
 mod offline_checks;
 mod progress;
 
@@ -527,7 +565,7 @@ use candidates::{
 };
 use exotic_subdeps::collect_exotic_subdep_violations;
 use offline_checks::{
-    verify_offline_structural_checks,
+    verify_lockfile_resolution_shapes_with_ctx,
     verify_structure_before_install,
 };
 use progress::{

@@ -144,3 +144,220 @@ fn rejects_a_global_virtual_store_manifest_version_escape() {
     assert_invalid_dependency_name_code(&err);
     assert!(err.to_string().contains("tar-dep@"), "offender listed: {err}");
 }
+
+#[test]
+fn external_lockfile_dir_has_none_workspace_depth_while_dot_dot_build_has_depth_one() {
+    let mut external_cfg = pnpm_config::Config::new();
+    external_cfg.dir = PathBuf::from("/work/app");
+    external_cfg.workspace_dir = Some(PathBuf::from("/work"));
+    external_cfg.lockfile_dir = Some(PathBuf::from("/external-lockfiles"));
+    let external_policy = super::local_resolution_policy_for_config(&external_cfg, true)
+        .with_after_all_resolved_hook(true);
+    assert_eq!(external_policy.scope.workspace_depth_above_lockfile, None);
+
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\npnpmfileChecksum: sha256-hook\nimporters:\n  ../work/app: {}\npackages:\n  remote@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n  under-ext@file:./secret:\n    resolution: {type: directory, directory: ./secret}\nsnapshots:\n  remote@1.0.0:\n    dependencies:\n      under-ext: file:./secret\n  under-ext@file:./secret: {}\n",
+    )
+    .expect("parse external lockfile");
+    let err = pnpm_lockfile_verification::verify_lockfile_local_resolutions(
+        &lockfile,
+        Some(external_policy),
+    )
+    .expect_err("external lockfile dir must not grant containment to its own directory");
+    assert!(matches!(err, pnpm_lockfile_verification::VerifyError::LocalSubdepNotAllowed { .. }));
+
+    let mut dot_build_cfg = pnpm_config::Config::new();
+    dot_build_cfg.dir = PathBuf::from("/work/..build");
+    dot_build_cfg.workspace_dir = Some(PathBuf::from("/work"));
+    dot_build_cfg.lockfile_dir = Some(PathBuf::from("/work/..build"));
+    let dot_build_policy = super::local_resolution_policy_for_config(&dot_build_cfg, true);
+    assert_eq!(dot_build_policy.scope.workspace_depth_above_lockfile, Some(1));
+}
+
+#[test]
+fn catalogs_override_supplies_local_override_target_absent_from_config_catalogs() {
+    let mut cfg = pnpm_config::Config::new();
+    cfg.dir = PathBuf::from("/work/repo");
+    cfg.workspace_dir = Some(PathBuf::from("/work/repo"));
+    cfg.overrides =
+        Some(indexmap::IndexMap::from([("remote>helper".to_string(), "catalog:".to_string())]));
+    let catalogs_override = std::collections::BTreeMap::from([(
+        "default".to_string(),
+        std::collections::BTreeMap::from([("helper".to_string(), "file:../shared".to_string())]),
+    )]);
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      remote:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  remote@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n  helper@file:../shared:\n    resolution: {type: directory, directory: ../shared}\nsnapshots:\n  remote@1.0.0:\n    dependencies:\n      helper: file:../shared\n  helper@file:../shared: {}\n",
+    )
+    .expect("parse lockfile");
+
+    let repo_path = std::path::Path::new("/work/repo");
+    let without_override =
+        super::local_resolution_policy_for_workspace(&cfg, repo_path, repo_path, false);
+    assert!(
+        pnpm_lockfile_verification::verify_lockfile_local_resolutions(
+            &lockfile,
+            Some(without_override),
+        )
+        .is_err(),
+        "without catalogs_override, unresolved catalog: spec must reject",
+    );
+
+    let with_override = super::local_resolution_policy_for_workspace_with_catalogs(
+        &cfg,
+        Some(&catalogs_override),
+        (None, repo_path, repo_path),
+        false,
+    );
+    pnpm_lockfile_verification::verify_lockfile_local_resolutions(&lockfile, Some(with_override))
+        .expect("catalogs_override entry must authorize remote>helper -> file:../shared");
+}
+
+struct ThrowingReadPackage;
+
+#[async_trait::async_trait]
+impl pnpm_hooks::PnpmfileHooks for ThrowingReadPackage {
+    async fn read_package(
+        &self,
+        _: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
+        Err(pnpm_hooks::HookError::Execution {
+            pnpmfile: ".pnpmfile.cjs".to_string(),
+            message: "hook exploded".to_string(),
+        })
+    }
+
+    async fn after_all_resolved(
+        &self,
+        _: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+        Ok(serde_json::Value::Null)
+    }
+
+    async fn pre_resolution(
+        &self,
+        ctx: pnpm_hooks::PreResolutionHookContext,
+        _: pnpm_hooks::PreResolutionHookLogger,
+    ) -> Result<pnpm_hooks::PreResolutionHookContext, pnpm_hooks::HookError> {
+        Ok(ctx)
+    }
+
+    async fn filter_log(&self, _: serde_json::Value, _: pnpm_hooks::HookContext) -> bool {
+        true
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        None
+    }
+
+    fn source_path(&self) -> Option<&std::path::Path> {
+        None
+    }
+}
+
+#[tokio::test]
+async fn read_package_error_on_a_real_manifest_reaches_the_caller() {
+    let parent = pnpm_lockfile_verification::LocalResolutionProbeParent {
+        pkg_key: "remote@1.0.0".parse().expect("parse key"),
+        resolution: None,
+        name: "remote".to_string(),
+        version: Some("1.0.0".to_string()),
+        dep_aliases: vec!["helper".to_string()],
+        optional_aliases: Vec::new(),
+        peer_aliases: Vec::new(),
+    };
+    let mut rewrites = Vec::new();
+    let pristine = serde_json::json!({ "name": "remote", "dependencies": { "helper": "^1.0.0" } });
+    super::collect_probed_parent_rewrites(
+        &ThrowingReadPackage,
+        &parent,
+        Some(&pristine),
+        &mut rewrites,
+    )
+    .await
+    .expect_err("the hook's error on the real manifest must surface");
+    super::collect_probed_parent_rewrites(&ThrowingReadPackage, &parent, None, &mut rewrites)
+        .await
+        .expect("an error on a placeholder manifest only withholds rewrites");
+    assert!(rewrites.is_empty());
+}
+
+struct RejectsRawFileSpecs;
+
+#[async_trait::async_trait]
+impl pnpm_hooks::PnpmfileHooks for RejectsRawFileSpecs {
+    async fn read_package(
+        &self,
+        pkg: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
+        let declares_raw_file = pkg["dependencies"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .any(|(_, spec)| {
+                spec.as_str()
+                    .is_some_and(|spec| spec.starts_with("file:"))
+            });
+        if declares_raw_file {
+            return Err(pnpm_hooks::HookError::Execution {
+                pnpmfile: ".pnpmfile.cjs".to_string(),
+                message: "raw file: specifier".to_string(),
+            });
+        }
+        Ok(std::sync::Arc::new(pkg))
+    }
+
+    async fn after_all_resolved(
+        &self,
+        _: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+        Ok(serde_json::Value::Null)
+    }
+
+    async fn pre_resolution(
+        &self,
+        ctx: pnpm_hooks::PreResolutionHookContext,
+        _: pnpm_hooks::PreResolutionHookLogger,
+    ) -> Result<pnpm_hooks::PreResolutionHookContext, pnpm_hooks::HookError> {
+        Ok(ctx)
+    }
+
+    async fn filter_log(&self, _: serde_json::Value, _: pnpm_hooks::HookContext) -> bool {
+        true
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        None
+    }
+
+    fn source_path(&self) -> Option<&std::path::Path> {
+        None
+    }
+}
+
+#[tokio::test]
+async fn hook_replay_sees_in_archive_file_deps_as_package_root_links() {
+    let parent = pnpm_lockfile_verification::LocalResolutionProbeParent {
+        pkg_key: "remote@1.0.0".parse().expect("parse key"),
+        resolution: None,
+        name: "remote".to_string(),
+        version: Some("1.0.0".to_string()),
+        dep_aliases: vec!["sub".to_string()],
+        optional_aliases: Vec::new(),
+        peer_aliases: Vec::new(),
+    };
+    let pristine = serde_json::json!({ "name": "remote", "dependencies": { "sub": "file:./sub" } });
+    let mut rewrites = Vec::new();
+    super::collect_probed_parent_rewrites(
+        &RejectsRawFileSpecs,
+        &parent,
+        Some(&pristine),
+        &mut rewrites,
+    )
+    .await
+    .expect("fresh resolution hands the hook `link:<root>/sub`, so the replay must too");
+    assert!(rewrites.is_empty());
+}

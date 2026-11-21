@@ -17,6 +17,10 @@ use super::ResolveDependencyTreeError;
 pub struct OverrideEntry {
     /// The entry's key as the user wrote it, e.g. `foo@^1`.
     pub selector: String,
+    /// Optional parent package name from a `parent>child` selector.
+    pub parent_name: Option<String>,
+    /// Optional parent version range from a `parent@range>child` selector.
+    pub parent_range: Option<String>,
     /// The package the entry targets.
     pub name: String,
     /// The version range of the target in the selector, if it has one.

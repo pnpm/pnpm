@@ -146,10 +146,11 @@ export function pickHoistedVersion (
  * merge of `missingPeersOfWave`. `undefined` when a required peer would stay
  * unmet, as the merge drops it or `pickVersion` finds it does not resolve.
  */
-export function pickMergedPeerVersions ({ merged, missingPeersOfWave, pickVersion }: {
+export function pickMergedPeerVersions ({ merged, missingPeersOfWave, declaringWave, pickVersion }: {
   merged: CandidatePeers
   missingPeersOfWave: CandidatePeers[]
-  pickVersion: (name: string, range: string) => string | null | undefined
+  declaringWave?: ReadonlyArray<{ name: string, version: string }>
+  pickVersion: (name: string, range: string, declaringParents?: ReadonlyArray<{ name: string, version: string }>) => string | null | undefined
 }): Map<string, string> | undefined {
   const dropsAnyPeer = missingPeersOfWave.some((missingPeers) =>
     Object.entries(missingPeers).some(([name, { optional }]) => !optional && merged[name] == null))
@@ -157,7 +158,11 @@ export function pickMergedPeerVersions ({ merged, missingPeersOfWave, pickVersio
   const versions = new Map<string, string>()
   for (const [name, { range, optional }] of Object.entries(merged)) {
     if (optional) continue
-    const version = pickVersion(name, range)
+    const declaringParents = declaringWave?.filter((_, index) => {
+      const peer = missingPeersOfWave[index]?.[name]
+      return peer != null && !peer.optional
+    })
+    const version = pickVersion(name, range, declaringParents)
     if (version === null) return undefined
     if (version != null) versions.set(name, version)
   }
@@ -176,7 +181,7 @@ export function acceptsOptionalPeerCandidate (
   { getCandidatePeers, pickRequiredPeerVersions, providedVersions }: {
     getCandidatePeers: (name: string, version: string) => CandidatePeers | undefined
     /** Picks the versions to hoist for the missing peers that each package of a wave declares, or `undefined` when a required one conflicts. */
-    pickRequiredPeerVersions: (missingPeersOfWave: CandidatePeers[]) => Map<string, string> | undefined
+    pickRequiredPeerVersions: (missingPeersOfWave: CandidatePeers[], declaringWave?: ReadonlyArray<{ name: string, version: string }>) => Map<string, string> | undefined
     providedVersions: Map<string, string>
   },
   candidate: { name: string, version: string }
@@ -186,10 +191,10 @@ export function acceptsOptionalPeerCandidate (
   const peersOfHoisted: CandidatePeers[] = []
   let wave = [candidate]
   while (wave.length) {
-    const peersOfWave = wave.map(({ name, version }) => getCandidatePeers(name, version)).filter((peers) => peers != null)
+    const { knownWave, peersOfWave } = collectKnownWavePeers(wave, getCandidatePeers)
     if (!peersOfWave.every((peers) => peersAcceptVersions(peers, versionOf))) return false
     peersOfHoisted.push(...peersOfWave)
-    const picked = pickRequiredPeerVersions(peersOfWave.map((peers) => pickMissingPeers(peers, versionOf)))
+    const picked = pickRequiredPeerVersions(peersOfWave.map((peers) => pickMissingPeers(peers, versionOf)), knownWave)
     if (picked == null) return false
     wave = []
     for (const [name, version] of picked) {
@@ -198,6 +203,22 @@ export function acceptsOptionalPeerCandidate (
     }
   }
   return peersOfHoisted.every((peers) => peersAcceptVersions(peers, versionOf))
+}
+
+function collectKnownWavePeers (
+  wave: Array<{ name: string, version: string }>,
+  getCandidatePeers: (name: string, version: string) => CandidatePeers | undefined
+): { knownWave: Array<{ name: string, version: string }>, peersOfWave: CandidatePeers[] } {
+  const knownWave: Array<{ name: string, version: string }> = []
+  const peersOfWave: CandidatePeers[] = []
+  for (const pkg of wave) {
+    const peers = getCandidatePeers(pkg.name, pkg.version)
+    if (peers != null) {
+      knownWave.push(pkg)
+      peersOfWave.push(peers)
+    }
+  }
+  return { knownWave, peersOfWave }
 }
 
 function pickMissingPeers (peers: CandidatePeers, versionOf: (name: string) => string | undefined): CandidatePeers {

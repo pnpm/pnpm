@@ -176,9 +176,8 @@ async fn verify_dispatched_lockfile<Reporter: self::Reporter + 'static>(
     verify_lockfile_eagerly::<Reporter>(
         lockfile,
         &settled.verification.resolution_verifiers,
-        settled.verification.exotic_subdeps.clone(),
-        settled.verification.cache_source(),
-        &settled.install.context.config.cache_dir,
+        (settled.verification.exotic_subdeps.clone(), settled.verification.local_policy.clone()),
+        (settled.verification.cache_source(), &settled.install.context.config.cache_dir),
     )
     .await
 }
@@ -488,6 +487,7 @@ impl<'r> Settled<'r, '_> {
             verifiers: &self.verification.resolution_verifiers,
             exotic_subdeps: &self.verification.exotic_subdeps,
             source: self.verification.cache_source(),
+            local_policy: self.verification.local_policy.clone(),
             override_check: self.verification.take_valid_override::<Reporter>(
                 &self.lockfiles.wanted,
                 &mut options.verification,

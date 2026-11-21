@@ -105,6 +105,14 @@ pub enum VerifyError {
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED), help("{STRUCTURAL_HINT}"))]
+    LocalSubdepNotAllowed {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
+
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
     #[diagnostic(code(ERR_PNPM_TARBALL_URL_MISMATCH), help("{STRUCTURAL_HINT}"))]
     TarballUrlMismatch {
         #[error(not(source))]
@@ -246,6 +254,9 @@ impl VerifyError {
             codes::MISSING_NAMED_REGISTRY => VerifyError::MissingNamedRegistry { count, breakdown },
             crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
                 VerifyError::ResolutionShapeMismatch { count, breakdown }
+            }
+            crate::LOCAL_SUBDEP_NOT_ALLOWED_VIOLATION_CODE => {
+                VerifyError::LocalSubdepNotAllowed { count, breakdown }
             }
             _ => VerifyError::LockfileResolutionVerification { count, breakdown, hint },
         }

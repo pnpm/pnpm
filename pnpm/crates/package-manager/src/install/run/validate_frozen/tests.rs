@@ -102,6 +102,7 @@ fn take_valid_override_rejects_weaker_prepared_policy() {
             std::iter::empty(),
             std::iter::empty(),
         )),
+        local_policy: pnpm_lockfile_verification::LocalResolutionPolicy::default(),
         derived_lockfile: None,
         auto_dedupe_baseline: None,
     };
