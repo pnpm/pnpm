@@ -150,6 +150,10 @@ fn allows_a_dependency_a_before_packing_hook_removes_or_replaces() {
         published["dependencies"]["secret"] = json!("npm:public-secret@^1.0.0");
     })
     .expect("the hook pointed the dependency at a public package");
+    export_with(&temp, &manifest, None, |published| {
+        published["dependencies"]["secret"] = json!(r".\vendor\public-secret.tgz");
+    })
+    .expect("the hook pointed the dependency at a local tarball");
 }
 
 /// The check falls back to the workspace packages wherever the rewrite does:
@@ -199,7 +203,6 @@ fn rejects_a_private_workspace_package_without_a_version() {
     assert_rejected(export(&temp, &app("dependencies", "workspace:^1.0.0"), Some(&packages)));
 }
 
-/// A hook that only changes the range still depends on the private package.
 #[test]
 fn rejects_a_private_workspace_package_a_hook_gives_a_new_range() {
     let temp = fixture(true);

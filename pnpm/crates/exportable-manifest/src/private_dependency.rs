@@ -18,6 +18,7 @@ use derive_more::{
     Error,
 };
 use miette::Diagnostic;
+use pnpm_local_spec::is_local_filesystem_specifier;
 use serde_json::{
     Map,
     Value,
@@ -134,6 +135,9 @@ fn is_private_workspace_package(
 /// specifier.
 fn registry_package<'a>(dep_name: &'a str, spec: Option<&'a Value>) -> Option<&'a str> {
     let spec = spec?.as_str()?;
+    if is_local_filesystem_specifier(spec) {
+        return None;
+    }
     if let Some(aliased) = spec.strip_prefix("npm:") {
         return Some(match aliased.rfind('@') {
             Some(index) if index > 0 => &aliased[..index],

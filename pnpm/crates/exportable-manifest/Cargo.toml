@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-catalogs-resolver = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
+pnpm-local-spec = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-resolving-jsr-specifier-parser = { workspace = true }
 pnpm-workspace-spec = { workspace = true }

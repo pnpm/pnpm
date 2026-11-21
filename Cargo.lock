@@ -5605,6 +5605,7 @@ dependencies = [
  "miette 7.6.0",
  "pnpm-catalogs-resolver",
  "pnpm-catalogs-types",
+ "pnpm-local-spec",
  "pnpm-package-manifest",
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-workspace-spec",
