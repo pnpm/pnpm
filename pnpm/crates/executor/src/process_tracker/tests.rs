@@ -637,14 +637,14 @@ fn record_signals(received: &Path, ready: &Path) -> Command {
     let mut command = Command::new("sh");
     command
         .arg("-c")
-        .arg(format!(
-            "sh -c \"trap 'echo TERM >> {received}' TERM; : > {term_ready}; while :; do sleep 0.05; done\" & \
-             trap 'echo INT >> {received}' INT; trap '' TERM; \
-             : > {int_ready}; while :; do sleep 0.05; done",
-            received = received.display(),
-            int_ready = ready.with_extension("int").display(),
-            term_ready = ready.with_extension("term").display(),
+        .arg(concat!(
+            r#"sh -c "trap 'echo TERM >> \"\$RECEIVED\"' TERM; : > \"\$TERM_READY\"; while :; do sleep 0.05; done" & "#,
+            r#"trap 'echo INT >> "$RECEIVED"' INT; trap '' TERM; "#,
+            r#": > "$INT_READY"; while :; do sleep 0.05; done"#,
         ))
+        .env("RECEIVED", received)
+        .env("INT_READY", ready.with_extension("int"))
+        .env("TERM_READY", ready.with_extension("term"))
         .process_group(0);
     command
 }
