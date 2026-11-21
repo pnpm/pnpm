@@ -729,23 +729,27 @@ fn explicit_and_hashed_peer_suffixes_both_bind_a_local_peer() {
 fn a_local_peer_declaration_authorizes_only_within_its_importer() {
     // `app-a` links `helper` itself, so `remote`'s resolved peer edge is
     // authorized either way. Only `local-lib` vouches for the declared spec.
-    let lockfile = |local_lib_importer: &str| {
-        let local_lib = "      local-lib:\n        specifier: file:local-lib\n        version: file:local-lib\n";
-        let (app_a_extra, app_b) = match local_lib_importer {
-            "app-a" => (local_lib, "    dependencies: {}\n".to_string()),
-            _ => ("", format!("    dependencies:\n{local_lib}")),
-        };
+    let local_lib =
+        "      local-lib:\n        specifier: file:local-lib\n        version: file:local-lib\n";
+    let plain_remote = "      remote:\n        specifier: 1.0.0\n        version: 1.0.0\n";
+    let lockfile = |app_a_extra: &str, app_b: &str| {
         parse(&format!(
-            "lockfileVersion: '9.0'\nimporters:\n  app-a:\n    dependencies:\n      helper:\n        specifier: file:helper\n        version: file:helper\n      remote:\n        specifier: 1.0.0\n        version: 1.0.0(helper@file:helper)\n{app_a_extra}  app-b:\n{app_b}packages:\n  local-lib@file:local-lib:\n    resolution: {{type: directory, directory: local-lib}}\n    peerDependencies:\n      helper: file:../outside\n  remote@1.0.0:\n    resolution: {{integrity: sha512-deadbeef}}\n    peerDependencies:\n      helper: file:../outside\n  helper@file:helper:\n    resolution: {{type: directory, directory: helper}}\nsnapshots:\n  helper@file:helper: {{}}\n  local-lib@file:local-lib: {{}}\n  remote@1.0.0(helper@file:helper):\n    dependencies:\n      helper: file:helper\n",
+            "lockfileVersion: '9.0'\nimporters:\n  app-a:\n    dependencies:\n      helper:\n        specifier: file:helper\n        version: file:helper\n      remote:\n        specifier: 1.0.0\n        version: 1.0.0(helper@file:helper)\n{app_a_extra}  app-b:\n    dependencies:\n{app_b}packages:\n  local-lib@file:local-lib:\n    resolution: {{type: directory, directory: local-lib}}\n    peerDependencies:\n      helper: file:../outside\n  remote@1.0.0:\n    resolution: {{integrity: sha512-deadbeef}}\n    peerDependencies:\n      helper: file:../outside\n  helper@file:helper:\n    resolution: {{type: directory, directory: helper}}\nsnapshots:\n  helper@file:helper: {{}}\n  local-lib@file:local-lib: {{}}\n  remote@1.0.0: {{}}\n  remote@1.0.0(helper@file:helper):\n    dependencies:\n      helper: file:helper\n",
         ))
     };
     let both_selected = || {
         LocalResolutionPolicy::default()
             .with_selected_importer_ids(["app-a".to_string(), "app-b".to_string()])
     };
-    crate::verify_lockfile_local_resolutions(&lockfile("app-a"), Some(both_selected()))
-        .expect("the importer that reaches `remote` also reaches the declaring local package");
-    let err = crate::verify_lockfile_local_resolutions(&lockfile("app-b"), Some(both_selected()))
-        .expect_err("a declaration in another importer does not authorize the peer");
-    assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{err:?}");
+    crate::verify_lockfile_local_resolutions(
+        &lockfile(local_lib, plain_remote),
+        Some(both_selected()),
+    )
+    .expect("the importer that resolves the peer also reaches the declaring local package");
+    for app_b in [local_lib.to_string(), format!("{local_lib}{plain_remote}")] {
+        let err =
+            crate::verify_lockfile_local_resolutions(&lockfile("", &app_b), Some(both_selected()))
+                .expect_err("a declaration in another importer does not authorize the peer");
+        assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{app_b}: {err:?}");
+    }
 }

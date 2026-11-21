@@ -35,7 +35,7 @@ export interface PackageEntryScan {
   reachableFilter?: Set<string>
   /** Snapshots the selected importers reach. Peers resolved only elsewhere do not count. */
   selectedSnapshots?: Set<DepPath>
-  importers: Array<Pick<ImporterScope, 'reachableBaseKeys'>>
+  importers: Array<Pick<ImporterScope, 'reachableBaseKeys' | 'reachableSnapshots'>>
   /** Built by `authorizedLocalPackageDeclaresPeer` on first use, in `importers` order. */
   authorizedPeerDeclarations?: Array<Set<string>>
 }
@@ -63,7 +63,7 @@ function inspectPackageEntry (
   const pkgVer = parsed.version ?? snapshot.version
   const displayVer = pkgVer ?? parsed.nonSemverVersion ?? '0.0.0'
   if (scan.selectedSnapshots == null || scan.selectedSnapshots.has(depPath)) {
-    checkSnapshotPeerSpecs(scan, { name: pkgName, version: pkgVer, displayVer, baseKey, nonSemverVersion: parsed.nonSemverVersion, peerBindings: dp.parsePeerBindings(depPath), snapshot }, violations)
+    checkSnapshotPeerSpecs(scan, { name: pkgName, version: pkgVer, displayVer, depPath, baseKey, nonSemverVersion: parsed.nonSemverVersion, peerBindings: dp.parsePeerBindings(depPath), snapshot }, violations)
   }
   if (parsed.nonSemverVersion?.startsWith('file:')) {
     checkFilePackageEntry(scan, shapeCtx, { pkgName, baseKey, nonSemverVersion: parsed.nonSemverVersion, snapshot }, violations)
@@ -114,7 +114,7 @@ function checkLocalGitPackageEntry (
 
 function checkSnapshotPeerSpecs (
   scan: PackageEntryScan,
-  pkg: { name: string, version?: string, displayVer: string, baseKey: string, nonSemverVersion?: string, peerBindings?: dp.PeerBindings, snapshot: PackageSnapshot },
+  pkg: { name: string, version?: string, displayVer: string, depPath: DepPath, baseKey: string, nonSemverVersion?: string, peerBindings?: dp.PeerBindings, snapshot: PackageSnapshot },
   violations: ResolutionPolicyViolation[]
 ): void {
   const peers = pkg.snapshot.peerDependencies
@@ -163,29 +163,29 @@ function snapshotSkipsPeerCheck (
 
 function isUnauthorizedPeerSpec (
   scan: PackageEntryScan,
-  pkg: { baseKey: string, name: string, version?: string },
+  pkg: { depPath: DepPath, baseKey: string, name: string, version?: string },
   { alias, spec, isAuthorizedGit }: { alias: string, spec: string, isAuthorizedGit: boolean }
 ): boolean {
   if (isAuthorizedGit && /^git\+file:/i.test(spec.trim())) return false
   if (dp.packageRootLinkTarget(spec) != null) return false
   return isNonLocalFilesystemSubdepSpec(spec, () => false) &&
     !policyAuthorizesPeerSpec(scan, pkg, { alias, rawSpec: spec }) &&
-    !authorizedLocalPackageDeclaresPeer(scan, pkg.baseKey, { alias, spec })
+    !authorizedLocalPackageDeclaresPeer(scan, pkg.depPath, { alias, spec })
 }
 
 /**
  * Whether an authorized local package declares the same peer within an
- * importer that reaches `baseKey`. Resolution hoists that local peer for the
- * importer's non-local packages too, never for another importer's.
+ * importer that reaches the snapshot `depPath`. Resolution hoists that local
+ * peer for the importer's non-local packages too, never for another importer's.
  */
 function authorizedLocalPackageDeclaresPeer (
   scan: PackageEntryScan,
-  baseKey: string,
+  depPath: DepPath,
   { alias, spec }: { alias: string, spec: string }
 ): boolean {
   const declarations = scan.authorizedPeerDeclarations ??= indexAuthorizedPeerDeclarations(scan)
   const key = peerDeclarationKey(alias, spec)
-  return scan.importers.some((importer, idx) => importer.reachableBaseKeys.has(baseKey) && declarations[idx].has(key))
+  return scan.importers.some((importer, idx) => importer.reachableSnapshots.has(depPath) && declarations[idx].has(key))
 }
 
 function indexAuthorizedPeerDeclarations (scan: PackageEntryScan): Array<Set<string>> {

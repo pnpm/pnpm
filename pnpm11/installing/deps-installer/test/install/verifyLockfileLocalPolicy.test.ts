@@ -618,41 +618,47 @@ test('a peer resolved only for an unselected importer does not count', () => {
 test('a local peer declaration authorizes only within its importer', () => {
   // `app-a` links `helper` itself, so `remote`'s resolved peer edge is
   // authorized either way. Only `local-lib` vouches for the declared spec.
-  const lockfile = (localLibImporter: 'app-a' | 'app-b'): LockfileObject => {
-    const localLib = { dependencies: { 'local-lib': 'file:local-lib' }, specifiers: { 'local-lib': 'file:local-lib' } }
-    const appA = {
-      dependencies: { helper: 'file:helper', remote: '1.0.0(helper@file:helper)' },
-      specifiers: { helper: 'file:helper', remote: '1.0.0' },
-    }
-    return {
-      lockfileVersion: '9.0',
-      importers: {
-        ['app-a' as ProjectId]: localLibImporter === 'app-a'
-          ? { dependencies: { ...appA.dependencies, ...localLib.dependencies }, specifiers: { ...appA.specifiers, ...localLib.specifiers } }
-          : appA,
-        ['app-b' as ProjectId]: localLibImporter === 'app-b' ? localLib : { specifiers: {} },
+  const localLib = { 'local-lib': 'file:local-lib' }
+  const plainRemote = { remote: '1.0.0' }
+  const importer = (dependencies: Record<string, string>) => ({
+    dependencies,
+    specifiers: Object.fromEntries(Object.keys(dependencies).map((alias) => [alias, alias === 'remote' ? '1.0.0' : 'file:local-lib'])),
+  })
+  const lockfile = (appAExtra: Record<string, string>, appB: Record<string, string>): LockfileObject => ({
+    lockfileVersion: '9.0',
+    importers: {
+      ['app-a' as ProjectId]: {
+        dependencies: { helper: 'file:helper', remote: '1.0.0(helper@file:helper)', ...appAExtra },
+        specifiers: { helper: 'file:helper', remote: '1.0.0', ...importer(appAExtra).specifiers },
       },
-      packages: {
-        ['local-lib@file:local-lib' as DepPath]: {
-          resolution: { type: 'directory', directory: 'local-lib' },
-          peerDependencies: { helper: 'file:../outside' },
-        },
-        ['remote@1.0.0(helper@file:helper)' as DepPath]: {
-          resolution: { integrity: 'sha512-deadbeef' },
-          dependencies: { helper: 'file:helper' },
-          peerDependencies: { helper: 'file:../outside' },
-        },
-        ['helper@file:helper' as DepPath]: {
-          resolution: { type: 'directory', directory: 'helper' },
-        },
+      ['app-b' as ProjectId]: importer(appB),
+    },
+    packages: {
+      ['local-lib@file:local-lib' as DepPath]: {
+        resolution: { type: 'directory', directory: 'local-lib' },
+        peerDependencies: { helper: 'file:../outside' },
       },
-    }
-  }
+      ['remote@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        peerDependencies: { helper: 'file:../outside' },
+      },
+      ['remote@1.0.0(helper@file:helper)' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { helper: 'file:helper' },
+        peerDependencies: { helper: 'file:../outside' },
+      },
+      ['helper@file:helper' as DepPath]: {
+        resolution: { type: 'directory', directory: 'helper' },
+      },
+    },
+  })
   const bothSelected = () => buildPolicy({ selectedImporterIds: new Set(['app-a', 'app-b']) })
-  expect(() => verifyLockfileLocalResolutions(lockfile('app-a'), bothSelected())).not.toThrow()
-  expect(() => verifyLockfileLocalResolutions(lockfile('app-b'), bothSelected())).toThrow(expect.objectContaining({
-    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
-  }))
+  expect(() => verifyLockfileLocalResolutions(lockfile(localLib, plainRemote), bothSelected())).not.toThrow()
+  for (const appB of [localLib, { ...localLib, ...plainRemote }]) {
+    expect(() => verifyLockfileLocalResolutions(lockfile({}, appB), bothSelected())).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+    }))
+  }
 })
 
 test('a ranged override covers a peer-only declaration', async () => {
