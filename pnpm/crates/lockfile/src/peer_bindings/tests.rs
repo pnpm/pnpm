@@ -7,9 +7,12 @@ use crate::{
     PkgNameVerPeer,
 };
 use pretty_assertions::assert_eq;
-use std::path::{
-    Path,
-    PathBuf,
+use std::{
+    fmt::Write,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn key(text: &str) -> PkgNameVerPeer {
@@ -71,6 +74,37 @@ snapshots:
     let recorded = BoundProviders::from_recorded_snapshot((&lockfile).into(), &pkg_key);
     assert!(recorded.is_hashed());
     assert!(recorded.binds(&key("own@2.0.0")));
+}
+
+#[test]
+fn linked_peer_does_not_spend_the_snapshot_recovery_budget() {
+    let suffix = PeerBindings::Explicit(vec!["bound@1.0.0".to_string()]).to_suffix(3).unwrap();
+    let consumer = key(&format!("consumer@1.0.0{suffix}"));
+    let mut declarations = String::from("      linked: '*'\n");
+    let mut dependencies = String::from("      linked: link:packages/linked\n");
+    for name in
+        std::iter::once("bound".to_owned()).chain((0..11).map(|index| format!("provider-{index}")))
+    {
+        writeln!(declarations, "      {name}: '*'").unwrap();
+        writeln!(dependencies, "      {name}: 1.0.0").unwrap();
+    }
+    let lockfile: Lockfile = serde_saphyr::from_str(&format!(
+        "lockfileVersion: '9.0'
+packages:
+  consumer@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+    peerDependencies:
+{declarations}snapshots:
+  {consumer}:
+    dependencies:
+{dependencies}",
+    ))
+    .unwrap();
+    let providers = BoundProviders::of_snapshot((&lockfile).into(), &consumer);
+    assert!(!providers.is_hashed());
+    assert!(providers.binds(&key("bound@1.0.0")));
+    assert!(!providers.binds(&key("linked@packages+linked")));
+    assert!(!providers.binds(&key("provider-0@1.0.0")));
 }
 
 #[test]

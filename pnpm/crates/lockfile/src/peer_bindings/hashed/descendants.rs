@@ -37,7 +37,8 @@ impl<'peer> PeerLookup<'peer> {
     }
 }
 
-struct DescendantWalk<'snap, 'peer> {
+struct DescendantWalk<'snap, 'peer, 'links> {
+    links: &'links mut LinkCandidates,
     snapshots: &'snap HashMap<PkgNameVerPeer, SnapshotEntry>,
     lookup: PeerLookup<'peer>,
     by_peer: HashMap<PkgName, Vec<PkgNameVerPeer>>,
@@ -51,8 +52,10 @@ pub(super) fn collect_descendant_targets<'snap, 'peer>(
     snapshots: &'snap HashMap<PkgNameVerPeer, SnapshotEntry>,
     root: &'snap SnapshotEntry,
     transitive_peers: &'peer [(PkgName, &'peer str)],
+    links: &mut LinkCandidates,
 ) -> Option<HashMap<PkgName, Vec<PkgNameVerPeer>>> {
     let mut walk = DescendantWalk {
+        links,
         snapshots,
         lookup: PeerLookup::new(transitive_peers),
         by_peer: HashMap::new(),
@@ -68,7 +71,7 @@ pub(super) fn collect_descendant_targets<'snap, 'peer>(
 }
 
 fn step_descendant_children<'snap>(
-    walk: &mut DescendantWalk<'snap, '_>,
+    walk: &mut DescendantWalk<'snap, '_, '_>,
     current: &'snap SnapshotEntry,
     active: &HashSet<usize>,
 ) -> Option<()> {
@@ -103,7 +106,7 @@ fn resolve_child_snapshot<'a>(
 }
 
 fn record_child_peers(
-    walk: &mut DescendantWalk<'_, '_>,
+    walk: &mut DescendantWalk<'_, '_, '_>,
     child_key: &PkgNameVerPeer,
     child: &SnapshotEntry,
     active: &HashSet<usize>,
@@ -182,7 +185,7 @@ struct ChildPeerHit {
 }
 
 fn visit_child_peer(
-    walk: &mut DescendantWalk<'_, '_>,
+    walk: &mut DescendantWalk<'_, '_, '_>,
     child_key: &PkgNameVerPeer,
     child: &SnapshotEntry,
     hit: ChildPeerHit,
@@ -194,7 +197,7 @@ fn visit_child_peer(
         return false;
     }
     let (peer, _) = &walk.lookup.peers[hit.idx];
-    let target = resolved_peer_target(child, peer);
+    let target = resolved_peer_target(child, peer, walk.links);
     if target.is_none() && !hit.propagates {
         return false;
     }
@@ -214,17 +217,24 @@ pub(super) fn push_unique_target(targets: &mut Vec<PkgNameVerPeer>, target: PkgN
     }
 }
 
+pub(super) enum LinkCandidates {
+    Exclude { seen: bool },
+    Include,
+}
+
 pub(super) fn resolved_peer_target(
     snapshot: &SnapshotEntry,
     peer: &PkgName,
+    links: &mut LinkCandidates,
 ) -> Option<PkgNameVerPeer> {
-    let dep_ref = snapshot_dep_ref(snapshot, peer)?;
-    dep_ref
-        .resolve(peer)
-        .or_else(|| {
-            let path = dep_ref.as_link_target()?;
-            format!("{peer}@{}", pnpm_deps_path::link_path_to_peer_version(path)).parse().ok()
-        })
+    let reference = snapshot_dep_ref(snapshot, peer)?;
+    if let LinkCandidates::Exclude { seen } = links
+        && reference.as_link_target().is_some()
+    {
+        *seen = true;
+        return None;
+    }
+    reference.peer_provider_key(peer)
 }
 
 fn snapshot_dep_ref<'a>(snapshot: &'a SnapshotEntry, name: &PkgName) -> Option<&'a SnapshotDepRef> {

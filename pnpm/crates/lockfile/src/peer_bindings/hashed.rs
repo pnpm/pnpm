@@ -18,6 +18,7 @@ use crate::{
 };
 use cycle_probe::CycleProbe;
 use descendants::{
+    LinkCandidates,
     all_dep_refs,
     collect_descendant_targets,
     push_unique_target,
@@ -44,8 +45,22 @@ pub(super) fn recover_hashed_providers(
     let packages = entries.packages?;
     let package = packages.get(&key.without_peer())?;
 
-    let candidates = peer_candidates_by_name(snapshots, snapshot, package, key)?;
-    match_candidates(&candidates, Some(packages), &hash_hex, &mut CycleProbe::new(snapshots, key))
+    let recover = |links: &mut LinkCandidates| {
+        let candidates = peer_candidates_by_name(snapshots, snapshot, package, key, links)?;
+        match_candidates(
+            &candidates,
+            Some(packages),
+            &hash_hex,
+            &mut CycleProbe::new(snapshots, key),
+        )
+    };
+    // Links get a separate pass so they cannot spend the snapshot search budget.
+    let mut links = LinkCandidates::Exclude { seen: false };
+    recover(&mut links)
+        .or_else(|| match links {
+            LinkCandidates::Exclude { seen: true } => recover(&mut LinkCandidates::Include),
+            _ => None,
+        })
 }
 
 fn suffix_hash_segment(peer_suffix: &str) -> Option<String> {
@@ -62,6 +77,7 @@ fn peer_candidates_by_name(
     snapshot: &SnapshotEntry,
     package: &PackageMetadata,
     self_key: &PkgNameVerPeer,
+    links: &mut LinkCandidates,
 ) -> Option<Vec<Vec<PkgNameVerPeer>>> {
     let peers = peer_names_of_snapshot(snapshot, package);
     let self_identity = self_key.without_peer();
@@ -78,7 +94,7 @@ fn peer_candidates_by_name(
     let descendant_targets = if transitive_peers.is_empty() {
         HashMap::new()
     } else {
-        collect_descendant_targets(snapshots, snapshot, &transitive_peers)?
+        collect_descendant_targets(snapshots, snapshot, &transitive_peers, links)?
     };
     Some(
         peers
@@ -88,6 +104,7 @@ fn peer_candidates_by_name(
                     snapshot,
                     &peer,
                     descendant_targets.get(&peer).map(Vec::as_slice),
+                    links,
                 );
                 if peer == self_key.name {
                     targets.retain(|target| target.without_peer() != self_identity);
@@ -135,9 +152,10 @@ fn targets_for_peer(
     snapshot: &SnapshotEntry,
     peer: &PkgName,
     descendants: Option<&[PkgNameVerPeer]>,
+    links: &mut LinkCandidates,
 ) -> Vec<PkgNameVerPeer> {
     let mut targets = Vec::new();
-    if let Some(target) = resolved_peer_target(snapshot, peer) {
+    if let Some(target) = resolved_peer_target(snapshot, peer, links) {
         push_unique_target(&mut targets, target);
     }
     for target in descendants.into_iter().flatten() {
