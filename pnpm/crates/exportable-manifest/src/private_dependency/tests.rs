@@ -21,8 +21,6 @@ use std::{
 };
 use tempfile::TempDir;
 
-/// A project at `<temp>/app` with `secret` installed under its
-/// `node_modules`, and the same `secret` as a sibling at `<temp>/secret`.
 fn fixture(secret_private: bool) -> TempDir {
     let temp = TempDir::new().expect("tempdir");
     let secret = json!({ "name": "secret", "version": "1.0.0", "private": secret_private });
@@ -33,9 +31,6 @@ fn fixture(secret_private: bool) -> TempDir {
     temp
 }
 
-/// Find the private dependencies, build the published manifest, let
-/// `before_packing` change it the way a `beforePacking` hook would, and
-/// reject what is left.
 fn export_with(
     temp: &TempDir,
     manifest: &Value,

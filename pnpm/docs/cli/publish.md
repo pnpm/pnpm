@@ -25,6 +25,13 @@ When publishing a package inside a [workspace](../workspaces.md), the `LICENSE`,
 `LICENCE`, or `COPYING` file from the root of the workspace is packed with the
 package (unless the package has a license file of its own).
 
+A package that is not private cannot list a private workspace package in
+`dependencies`, because the private package is never published. Publishing
+such a package fails with `ERR_PNPM_PRIVATE_WORKSPACE_DEPENDENCY`. List the
+private package in `devDependencies` or `bundleDependencies` instead, or
+remove the dependency in a
+[`beforePacking`](../pnpmfile.md#hooksbeforepackingpkg-pkg--promisepkg) hook.
+
 You may override some fields before publish, using the
 [publishConfig] field in `package.json`.
 You also can use the [`publishConfig.directory`](../package_json.md#publishconfigdirectory) to customize the published subdirectory (usually using third party build tools).
