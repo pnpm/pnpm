@@ -1,4 +1,3 @@
-#[cfg(not(windows))]
 use command_extra::CommandExtra;
 use pnpr_fixtures::read_packument;
 
@@ -26,6 +25,7 @@ use super::{
     requires_fresh_pnpr_cold_batch_metrics,
     seed_peer_heavy_registry,
     server_config::{
+        PnprRestartListener,
         cold_mock_config_yaml,
         pnpr_auth_config_key,
         pnpr_benchmark_config_yaml,
@@ -43,8 +43,15 @@ use std::{
         Write,
     },
     net::TcpListener,
+    panic::{
+        self,
+        AssertUnwindSafe,
+    },
     path::Path,
+    process::ExitStatus,
+    sync::Mutex,
     thread,
+    time::Duration,
 };
 
 #[test]
@@ -833,4 +840,45 @@ fn cold_mock_cleanup_preserves_server_metadata_and_empties_the_configured_cache(
     assert!(!cache.exists());
     assert_eq!(fs::read(metadata).unwrap(), b"server metadata");
     assert_eq!(fs::read(temp.path().join("pnpm-lock.yaml")).unwrap(), b"saved lockfile");
+}
+
+fn run_prepare_step(command: &str) -> ExitStatus {
+    std::process::Command::new("sh")
+        .with_args(["-c", command])
+        .status()
+        .expect("run the --prepare step")
+}
+
+#[test]
+fn pnpr_restart_prepare_step_returns_after_its_server_restarted() {
+    let restarted = Mutex::new(Vec::new());
+    let restart = |server| {
+        thread::sleep(Duration::from_millis(100));
+        restarted.lock().unwrap().push(server);
+    };
+    let listener = PnprRestartListener::bind();
+
+    listener.serve_during(restart, || {
+        assert!(run_prepare_step(&listener.prepare_command(1)).success());
+        assert_eq!(*restarted.lock().unwrap(), [1]);
+        assert!(run_prepare_step(&listener.prepare_command(0)).success());
+        assert_eq!(*restarted.lock().unwrap(), [1, 0]);
+    });
+}
+
+#[test]
+fn pnpr_restart_prepare_step_fails_when_the_restart_fails() {
+    let mut status = None;
+    let listener = PnprRestartListener::bind();
+
+    let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
+        listener.serve_during(
+            |_| panic!("the pnpr server did not come back"),
+            || status = Some(run_prepare_step(&listener.prepare_command(0))),
+        );
+    }));
+
+    assert!(outcome.is_err());
+    let status = status.expect("the --prepare step ran");
+    assert!(!status.success());
 }
