@@ -71,6 +71,7 @@ pub use shell::{
     ScriptShellError,
     SelectedShell,
     select_shell,
+    use_shell_emulator,
 };
 pub use shell_emulator::{
     EmulatedOutput,

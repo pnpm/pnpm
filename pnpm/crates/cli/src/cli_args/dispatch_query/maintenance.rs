@@ -48,8 +48,9 @@ pub(in super::super) fn doctor<'a>(
     args: DoctorArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
+    let dir: &'a std::path::Path = ctx.locations.dir;
     Ok(Box::pin(async move {
-        let result = args.run(cfg).await?;
+        let result = args.run(cfg, dir).await?;
         pnpm_diagnostics::println!("{}", result.output);
         if result.outcome == DoctorOutcome::Unhealthy {
             // `doctor` exits non-zero when a check fails, mirroring pnpm.

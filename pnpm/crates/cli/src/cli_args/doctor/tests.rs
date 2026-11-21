@@ -12,7 +12,7 @@ use super::{
         check_filesystem_capabilities_in_workspaces,
         probe_link_capabilities,
     },
-    last_line,
+    install_probe::last_message,
     probe_path::{
         ProbeDir,
         can_write_to_dir,
@@ -385,9 +385,18 @@ fn filesystem_check_warns_when_store_probe_cannot_write_file() {
 /// The install smoke test surfaces the last meaningful stderr line, so a
 /// trailing blank line must not swallow the actual error.
 #[test]
-fn last_line_skips_trailing_blanks() {
-    assert_eq!(last_line("first\nERR_PNPM_BROKEN  it broke\n\n"), "ERR_PNPM_BROKEN  it broke");
-    assert_eq!(last_line(""), "");
+fn last_message_skips_trailing_blanks() {
+    assert_eq!(last_message("first\nERR_PNPM_BROKEN  it broke\n\n"), "ERR_PNPM_BROKEN  it broke");
+    assert_eq!(last_message(""), "");
+}
+
+#[test]
+fn last_message_joins_a_wrapped_error_cause() {
+    let stderr = "Error: ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED\n\n  × installing dependencies\n  ╰─▶ /p postinstall: `probe` exited with exit\n      status: 127\n\n";
+
+    assert_eq!(last_message(stderr), "/p postinstall: `probe` exited with exit status: 127");
+    assert_eq!(last_message("plain failure\n"), "plain failure");
+    assert_eq!(last_message(""), "");
 }
 
 /// The `cli` crate carries a placeholder `Cargo.toml` version, so the check
