@@ -195,6 +195,11 @@ function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSet
 }
 
 function assertValidTask (taskPath: string, task: unknown): void {
+  if (task == null) {
+    throw new PnpmError('INVALID_SETTING', `The "${taskPath}" setting has no value.`, {
+      hint: 'Write {} for a task with no settings, or remove the entry to keep the default dependsOn: [\'^<task>\'].',
+    })
+  }
   assertObjectSetting(task, taskPath)
   assertNoMisspelledTaskFields(taskPath, task as Record<string, unknown>)
   const concurrency = (task as { concurrency?: unknown }).concurrency

@@ -282,6 +282,8 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   issue, contribute by reviewing or improving that PR instead of opening a
   competing one — duplicate PRs are closed in favor of the first viable one, and
   the effort spent on them (yours and the reviewers') is wasted.
+- Do not submit packaging for a system package manager or app store, such as
+  deb, RPM, or Snap. See [Distribution](PHILOSOPHY.md#distribution).
 - Make your changes in a new git branch:
 
   ```shell

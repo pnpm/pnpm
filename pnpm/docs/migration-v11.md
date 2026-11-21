@@ -57,6 +57,10 @@ A Node.js installed globally with pnpm runs the version the current project pins
 
 `pnpm setup`, `pnpm self-update`, and commands that change the global installation, such as `pnpm add --global`, fail with `ERR_PNPM_SUDO_NOT_SUPPORTED` when run through `sudo`. Run them as your own user. Read-only global commands still work.
 
+### `pnpm doctor` checks the default store
+
+pnpm 12 reports store directory writability as a separate check, including when it uses the default store. pnpm 11 checks store access as part of its filesystem capability probe. If `pnpm doctor` fails, check the [store directory](./settings/store.md#storedir) permissions.
+
 ### TLS certificates
 
 pnpm trusts the operating system's certificate store for registry connections. If pnpm cannot load that store, it uses a bundled set of Mozilla CA certificates. pnpm 11 used the CA certificates bundled with Node.js. A [`ca`](./npmrc.md#ca) or [`cafile`](./npmrc.md#cafile) setting still replaces these defaults.

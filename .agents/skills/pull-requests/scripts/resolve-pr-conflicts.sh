@@ -182,7 +182,13 @@ else
   CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
   if [ "$CURRENT_BRANCH" != "$HEAD_BRANCH" ]; then
     echo "Not on PR branch ($CURRENT_BRANCH != $HEAD_BRANCH). Checking out via gh..."
-    gh pr checkout "$PR_NUMBER"
+    if [ "$CURRENT_BRANCH" = "pr-$PR_NUMBER" ]; then
+      # A git-wt checkout named after the PR is that PR's worktree, so moving it
+      # to the PR's head branch is not the rebind the worktree guard rejects.
+      PNPM_ALLOW_WORKTREE_REBIND=1 gh pr checkout "$PR_NUMBER"
+    else
+      gh pr checkout "$PR_NUMBER"
+    fi
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
     if [ "$CURRENT_BRANCH" != "$HEAD_BRANCH" ]; then
       echo "ERROR: Failed to checkout PR branch. Current branch: $CURRENT_BRANCH"

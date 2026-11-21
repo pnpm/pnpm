@@ -184,7 +184,7 @@ If migrating from Verdaccio or an Apache htpasswd file containing legacy `{SHA}`
 # Dry run: preview entries to import
 pnpr import-htpasswd --source /path/to/old/htpasswd --dry-run
 
-# Import into pnpr's account file
+# Import into pnpr's metadata database
 pnpr import-htpasswd --source /path/to/old/htpasswd
 ```
 

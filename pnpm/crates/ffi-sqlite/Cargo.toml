@@ -11,7 +11,11 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+libsqlite3-sys = { workspace = true }
 rusqlite = { workspace = true }
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["libsqlite3-sys"]
