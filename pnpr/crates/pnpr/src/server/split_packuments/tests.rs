@@ -70,6 +70,17 @@ fn likely_picks_are_the_tag_targets_and_the_highest_of_each_line() {
 }
 
 #[test]
+fn a_split_document_keeps_versions_whose_record_urls_are_occupied() {
+    let mut source = packument();
+    source["versions"]["1.0.0+r0"] = version("sha512-i");
+    source["dist-tags"]["0.1.0+r0"] = json!("2.1.0");
+    let split = document(&source, true);
+    for base in ["1.0.0", "0.1.0"] {
+        assert!(split["versions"][base]["manifest"].is_object());
+    }
+}
+
+#[test]
 fn a_small_document_keeps_every_manifest() {
     let doc = document(&packument(), false);
     assert_eq!(doc["name"], json!("acme"));
@@ -149,8 +160,8 @@ fn a_publish_after_a_long_gap_can_take_a_document_back_below_the_threshold() {
         split_threshold: u64::try_from(whole_after.len()).expect("size"),
         ..PackageDocumentsConfig::default()
     };
-    let body_before = install_v2_body(&before, &config).expect("before");
-    let body_after = install_v2_body(&after, &config).expect("after");
+    let body_before = install_v2_body(&before, &config, true).expect("before");
+    let body_after = install_v2_body(&after, &config, true).expect("after");
 
     assert!(is_split(&body_before), "twenty publish times keep the document above the threshold");
     assert!(!is_split(&body_after), "the old publish times fell out of the window");

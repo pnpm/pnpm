@@ -83,10 +83,11 @@ pub(super) fn document_anchor(packument: &Value) -> Option<Timestamp> {
 pub(super) fn install_v2_body(
     abbreviated: &Value,
     config: &PackageDocumentsConfig,
+    can_split: bool,
 ) -> serde_json::Result<Vec<u8>> {
     let mut document = install_v2(abbreviated, config);
     let whole = serde_json::to_vec(&document)?;
-    if u64::try_from(whole.len()).is_ok_and(|len| len <= config.split_threshold) {
+    if !can_split || u64::try_from(whole.len()).is_ok_and(|len| len <= config.split_threshold) {
         return Ok(whole);
     }
     leave_out_unlikely_picks(&mut document, &likely_picks(abbreviated));
@@ -241,6 +242,15 @@ fn likely_picks(abbreviated: &Value) -> HashSet<String> {
         .filter_map(Value::as_str)
         .map(str::to_string)
         .collect();
+    // A literal version or tag can occupy the URL of another version's record.
+    for key in object_field(abbreviated, "versions")
+        .keys()
+        .chain(object_field(abbreviated, "dist-tags").keys())
+    {
+        if let (base, Some(_)) = record_address(key) {
+            picks.insert(base.to_owned());
+        }
+    }
     let mut highest: BTreeMap<(u64, u64), (Version, &String)> = BTreeMap::new();
     let releases = object_field(abbreviated, "versions")
         .keys()

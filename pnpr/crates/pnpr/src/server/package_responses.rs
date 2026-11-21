@@ -249,11 +249,14 @@ impl Representation {
         mut doc: Value,
         documents: &PackageDocumentsConfig,
         now: jiff::Timestamp,
+        view: DistView<'_>,
     ) -> Result<(Vec<u8>, &'static str), RegistryError> {
         if self == Representation::InstallV2 {
             let anchor = super::split_packuments::document_anchor(&doc).unwrap_or(now);
             let trimmed = abbreviate_packument(&doc, anchor);
-            let body = super::split_packuments::install_v2_body(&trimmed, documents)?;
+            // A hosted tar route's archive digest differs from its accepted record's.
+            let can_split = !(view.hosted && view.tar_registry);
+            let body = super::split_packuments::install_v2_body(&trimmed, documents, can_split)?;
             return Ok((body, super::split_packuments::INSTALL_V2_CONTENT_TYPE));
         }
         super::split_packuments::without_pnpr_facts_in(&mut doc);

@@ -830,7 +830,7 @@ packageDocuments:
 
 | Field | Meaning |
 | --- | --- |
-| `splitThreshold` | The size of a package's document with every manifest inline above which only the versions a resolution likely picks keep their manifests. pnpr decides on every read, so a document can go back below it, for example when a publish after a long gap drops the publish times that fall out of the window. Defaults to `64KiB`. |
+| `splitThreshold` | The size of a package's document with every manifest inline above which only the versions a resolution likely picks keep their manifests. pnpr decides on every read, so a document can go back below it, for example when a publish after a long gap drops the publish times that fall out of the window. See the [package document](endpoints.md#pnprs-package-document) for versions that always keep their manifests. Defaults to `64KiB`. |
 | `publishTimeWindow` | How far back from a package's last publish its versions keep their publish times. Defaults to `30d`, which is also the shortest window pnpr accepts. |
 
 ## `releaseRecords`

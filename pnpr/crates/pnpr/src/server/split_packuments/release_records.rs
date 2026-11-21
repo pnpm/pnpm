@@ -86,32 +86,8 @@ fn release_record_response(manifest: &Value, revision: u64, tars: TarFacts<'_>) 
 /// The response for the release record a version was accepted with,
 /// `bytes` as the metadata store keeps them. They never change, so they are
 /// served as they are and cached forever.
-///
-/// `tars` is the tar-integrity table of a registry that serves tars: the
-/// record is described by its tar's integrity instead of the `.tgz`'s it was
-/// accepted with, and is cached forever only once that integrity is known.
-/// Those are not the bytes the record was accepted with.
-pub(in super::super) fn accepted_record_response(
-    bytes: Vec<u8>,
-    tars: Option<&BTreeMap<String, DerivedTar>>,
-) -> Response {
-    let Some(table) = tars else { return immutable(json_bytes_response(bytes)) };
-    let mut record: Value = match serde_json::from_slice(&bytes) {
-        Ok(record) => record,
-        Err(err) => return super::super::RegistryError::Json(err).into_response(),
-    };
-    let tar_integrity = record
-        .pointer("/inputs/archive/integrity")
-        .and_then(Value::as_str)
-        .and_then(|tgz| table.get(tgz))
-        .map(|derived| derived.tar_integrity.clone());
-    let Some(fields) = record.as_object_mut() else { return json_response(&record) };
-    let Some(integrity) = tar_integrity else {
-        fields.remove("integrity");
-        return json_response(&record);
-    };
-    fields.insert("integrity".into(), Value::String(integrity));
-    immutable(json_response(&record))
+pub(in super::super) fn accepted_record_response(bytes: Vec<u8>) -> Response {
+    immutable(json_bytes_response(bytes))
 }
 
 /// `response`, marked to be cached forever when it succeeded.

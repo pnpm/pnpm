@@ -82,6 +82,7 @@ fn acme_config(storage: &std::path::Path, rules: Vec<pnpr::PackageRule>) -> Conf
     config.storage.database = pnpr_config::DatabaseBackend::Sqlite(storage.join("metadata.sqlite"));
     let signer = NoteSigner::from_private_key(LOG_SIGNING_KEY).unwrap();
     let statements = statement_signer();
+    config.routing.tar_registries.insert("acme".to_string());
     config.release_records.log_signing_key = Some(Arc::new(signer));
     config.release_records.statement_signing_key = Some(Arc::new(statements));
     config
@@ -169,7 +170,7 @@ async fn a_record_is_proven_by_its_evidence() {
     let (_tmp, app, token) = setup(Vec::new()).await;
     publish(&app, &token, "@acme/widget", "1.0.0").await;
     let record =
-        body_bytes(get(&app, "/npm/@acme%2Fwidget/1.0.0+r0", None).await.into_body()).await;
+        body_bytes(get(&app, "/npm/~acme/@acme%2Fwidget/1.0.0+r0", None).await.into_body()).await;
     let entry = StoredRecord::parse(record.clone())
         .unwrap()
         .log_entry()
