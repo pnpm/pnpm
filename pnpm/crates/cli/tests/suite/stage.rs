@@ -484,8 +484,12 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         &json!({ "name": "@stage-e2e/lifecycle", "version": "1.0.0" }),
     );
 
-    let publish =
-        stage_with_auth(dir.path(), &auth_file, &["publish", "--json", "--no-git-checks"]);
+    write_registry_config(dir.path(), "http://127.0.0.1:1/");
+    let publish = stage_with_auth(
+        dir.path(),
+        &auth_file,
+        &["publish", "--json", "--no-git-checks", "--registry", &registry],
+    );
     assert_success(&publish);
     let keyed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&publish.stdout)).expect("keyed JSON output");
@@ -499,6 +503,11 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
     // Held back: not installable until approved.
     assert_eq!(packument_status(&registry, &token, "@stage-e2e/lifecycle"), 404);
 
+    fs::write(
+        dir.path().join(".npmrc"),
+        format!("registry=http://127.0.0.1:1/\n@stage-e2e:registry={registry}\n"),
+    )
+    .unwrap();
     let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json"]);
     assert_success(&list);
     let listed: Value =
@@ -514,6 +523,11 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
     assert!(stdout.contains("package name: @stage-e2e/lifecycle"), "stdout: {stdout}");
     assert!(stdout.contains("staged by: alice (user)"), "stdout: {stdout}");
 
+    write_project(
+        dir.path(),
+        "http://127.0.0.1:1/",
+        &json!({ "name": "@stage-e2e/lifecycle", "publishConfig": { "registry": registry } }),
+    );
     let download = stage_with_auth(dir.path(), &auth_file, &["download", &stage_id, "--json"]);
     assert_success(&download);
     let downloaded: Value = serde_json::from_str(&String::from_utf8_lossy(&download.stdout))

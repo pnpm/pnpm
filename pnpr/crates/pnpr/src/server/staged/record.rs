@@ -5,6 +5,7 @@ use super::{
     ValidatedPublish,
     Value,
 };
+use crate::server::publishing::AttachmentKind;
 use pnpr_storage::publish::now_iso;
 
 pub(super) fn staged_record(
@@ -14,7 +15,8 @@ pub(super) fn staged_record(
     stage_id: String,
 ) -> StagedRecord {
     let (version, dist) = validated.prepared
-        .first()
+        .iter()
+        .find(|attachment| attachment.kind == AttachmentKind::Tarball)
         .map(|attachment| (Some(attachment.version.clone()), attachment.dist.clone()))
         .unwrap_or((None, Value::Null));
     let (actor, actor_type) = actor_of(identity);
@@ -26,6 +28,7 @@ pub(super) fn staged_record(
         version,
         created_at: now_iso(),
         actor,
+        actor_id: identity.user_id().map(str::to_owned),
         actor_type,
         shasum: dist
             .get("shasum")
@@ -55,5 +58,29 @@ fn actor_of(identity: &Identity) -> (String, String) {
         // Reachable only when the registry's publish rule allows anonymous
         // writes; the record still needs an actor to display.
         Identity::Anonymous | _ => ("anonymous".to_string(), "user".to_string()),
+    }
+}
+
+impl StagedRecord {
+    pub(super) fn record_approval(&self, validated: &mut ValidatedPublish) {
+        for tarball in validated.prepared
+            .iter()
+            .filter(|entry| entry.kind == AttachmentKind::Tarball)
+        {
+            let Some(manifest) = validated.incoming["versions"]
+                .get_mut(&tarball.version)
+                .and_then(Value::as_object_mut)
+            else {
+                continue;
+            };
+            let mut user = serde_json::json!({ "name": self.actor });
+            if let Some(id) = &self.actor_id {
+                user["userId"] = Value::String(id.clone());
+            }
+            if let Some(approver) = manifest.remove("_npmUser") {
+                user["approver"] = approver;
+            }
+            manifest.insert("_npmUser".to_string(), user);
+        }
     }
 }

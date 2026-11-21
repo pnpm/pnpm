@@ -667,7 +667,7 @@ in the database. A record is only visible through the same base it was created w
 | `GET` | `/-/stage` | List held records, oldest first. Accepts `page` (zero-based, defaults to `0`), `perPage` (defaults to `100`, clamped to `1` to `100`), and `package` (exact name filter). Returns `{"items":[...],"page":...,"perPage":...,"total":...}`. |
 | `GET` | `/-/stage/{id}` | One held record. Requires `publish` on the record's package. |
 | `GET` | `/-/stage/{id}/tarball` | The held tarball as `application/octet-stream`, for inspection before approval. Requires `publish`. |
-| `POST` | `/-/stage/{id}/approve` | Publish the held document and drop the record. Empty body; returns `201` with `{"ok":true}`. Requires `publish`. |
+| `POST` | `/-/stage/{id}/approve` | Publish the held document and its version notes, then drop the record. The published version records the stager and the authenticated approver. Empty body; returns `201` with `{"ok":true}`. Requires `publish`. |
 | `DELETE` | `/-/stage/{id}` | Reject: delete the record and its tarball without publishing. Returns `204`. Requires `publish`. |
 
 Each record carries `id`, `packageName`, `version`, `tag`, `createdAt`,

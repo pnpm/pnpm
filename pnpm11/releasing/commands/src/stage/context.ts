@@ -2,7 +2,10 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
+import { getPublishConfigRegistry } from '../publish/publishPackedPkg.js'
+import { publishedName } from '../publishedNames.js'
 import type { StageOptions } from './types.js'
 
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org/'
@@ -19,8 +22,12 @@ export interface StageContext {
   fetchFromRegistry: ReturnType<typeof createFetchFromRegistry>
 }
 
-export function createStageContext (opts: StageOptions, packageName?: string): StageContext {
-  const registry = getStageRegistry(opts, packageName)
+export async function createStageContext (opts: StageOptions, packageFilter?: string): Promise<StageContext> {
+  const manifest = packageFilter ? null : await safeReadProjectManifestOnly(opts.dir)
+  const packageName = manifest ? publishedName(manifest) : packageFilter
+  const override = opts.cliOptions?.registry
+  const publishRegistry = typeof override === 'string' ? override : getPublishConfigRegistry(manifest?.publishConfig, packageName)
+  const registry = getStageRegistry(opts, packageName, publishRegistry)
   const getAuthHeaderByUri = createGetAuthHeaderByURI(
     opts.configByUri ?? {} as Record<string, RegistryConfig>
   )
@@ -32,11 +39,11 @@ export function createStageContext (opts: StageOptions, packageName?: string): S
   }
 }
 
-function getStageRegistry (opts: StageOptions, packageName?: string): string {
+function getStageRegistry (opts: StageOptions, packageName?: string, publishRegistry?: string): string {
   const registries = getRegistries(opts)
-  const registry = packageName
+  const registry = publishRegistry ?? (packageName
     ? pickRegistryForPackage(registries, packageName)
-    : registries.default
+    : registries.default)
   return registry.endsWith('/') ? registry : `${registry}/`
 }
 

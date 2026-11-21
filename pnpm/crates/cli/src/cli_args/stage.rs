@@ -20,7 +20,6 @@ use super::{
 };
 use crate::cli_args::registry_client::{
     build_registry_client,
-    resolve_target_registry_for_package,
     web_auth_fetch_options,
 };
 use clap::Args;
@@ -38,7 +37,6 @@ use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::{
     RetryOpts,
     ThrottledClient,
-    normalize_registry_url,
     read_limited_body,
     redact_url_credentials,
     send_with_retry,
@@ -108,10 +106,6 @@ const STAGE_SUBCOMMANDS: &str = "publish, list, view, approve, reject, download"
 pub struct StageArgs {
     /// Stage subcommand and arguments.
     pub params: Vec<String>,
-
-    /// The base URL of the npm registry.
-    #[clap(long)]
-    pub registry: Option<String>,
 
     #[clap(flatten)]
     pub flags: PublishFlags,
@@ -224,10 +218,10 @@ impl StageArgs {
             Some("publish") => {
                 self.stage_publish::<Reporter>(dir, config, recursive, before_packing_hooks).await
             }
-            Some("list") => self.stage_list(config).await,
-            Some("view") => self.stage_view(config).await,
-            Some("approve") => approve::stage_approve::<Reporter>(&self, config).await,
-            Some("reject") => self.stage_reject::<Reporter>(config).await,
+            Some("list") => self.stage_list(dir, config).await,
+            Some("view") => self.stage_view(dir, config).await,
+            Some("approve") => approve::stage_approve::<Reporter>(&self, dir, config).await,
+            Some("reject") => self.stage_reject::<Reporter>(dir, config).await,
             Some("download") => self.stage_download(dir, config).await,
             None => Err(StageError::SubcommandRequired.into()),
             Some(other) => {
@@ -246,7 +240,7 @@ impl StageArgs {
         recursive: bool,
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<Option<String>> {
-        let StageArgs { params, flags, .. } = self;
+        let StageArgs { params, flags } = self;
         let json = flags.output.json;
         let dry_run = flags.dry_run;
         let publish = PublishArgs { package: params.get(1).cloned(), flags };
@@ -274,9 +268,9 @@ impl StageArgs {
     }
 
     /// `stage list [<package-spec>]`: every staged version, paginated.
-    async fn stage_list(&self, config: &Config) -> miette::Result<Option<String>> {
+    async fn stage_list(&self, dir: &Path, config: &Config) -> miette::Result<Option<String>> {
         let package_filter = parse_package_filter(self.params.get(1))?;
-        let context = self.stage_context(config, package_filter.as_deref())?;
+        let context = self.stage_context(dir, config, package_filter.as_deref())?;
         let items = fetch_stage_items(&context, package_filter.as_deref()).await?;
 
         if self.flags.output.json {
@@ -296,9 +290,9 @@ impl StageArgs {
     }
 
     /// `stage view <stage-id>`: one staged version's metadata.
-    async fn stage_view(&self, config: &Config) -> miette::Result<Option<String>> {
+    async fn stage_view(&self, dir: &Path, config: &Config) -> miette::Result<Option<String>> {
         let stage_id = require_stage_id(&self.params, "view")?;
-        let context = self.stage_context(config, None)?;
+        let context = self.stage_context(dir, config, None)?;
         let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}"))?;
         let item: Value =
             stage_json_request(&context, url.as_str(), &format!("view staged package {stage_id}"))
@@ -312,10 +306,11 @@ impl StageArgs {
     /// `stage reject <stage-id>`: permanently delete the staged version.
     async fn stage_reject<Reporter: self::Reporter>(
         &self,
+        dir: &Path,
         config: &Config,
     ) -> miette::Result<Option<String>> {
         let stage_id = require_stage_id(&self.params, "reject")?;
-        let context = self.stage_context(config, None)?;
+        let context = self.stage_context(dir, config, None)?;
         global_warn::<Reporter>(
             "Rejecting will permanently delete this staged publish record and tarball from the \
              registry."
@@ -336,7 +331,7 @@ impl StageArgs {
     /// print its summary.
     async fn stage_download(&self, dir: &Path, config: &Config) -> miette::Result<Option<String>> {
         let stage_id = require_stage_id(&self.params, "download")?;
-        let context = self.stage_context(config, None)?;
+        let context = self.stage_context(dir, config, None)?;
         let tarball_data = fetch_stage_tarball(&context, stage_id).await?;
 
         let mut summary = summarize_tarball(&tarball_data)?;
@@ -374,26 +369,34 @@ impl StageArgs {
     /// client, and the configured OTP.
     fn stage_context(
         &self,
+        dir: &Path,
         config: &Config,
         package_name: Option<&str>,
     ) -> miette::Result<StageContext> {
-        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
-            config,
-            self.registry.as_deref(),
-        );
-        let registry = match package_name {
-            Some(package) => resolve_target_registry_for_package(
-                &registries,
-                self.registry.as_deref(),
-                package,
-                None,
-            ),
-            None => registries
-                .get("default")
-                .cloned()
-                .unwrap_or_default(),
+        let manifest = if package_name.is_none() {
+            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)?
+        } else {
+            None
         };
-        let registry = normalize_registry_url(&registry).into_owned();
+        let package_name = package_name.or_else(|| {
+            manifest
+                .as_ref()
+                .and_then(|manifest| {
+                    super::changelog::published_name(manifest)
+                        .or_else(|| manifest.get("name").and_then(Value::as_str))
+                })
+        });
+        let name = package_name.unwrap_or_default();
+        let publish_registry = manifest
+            .as_ref()
+            .and_then(|manifest| pnpm_publish::publish_config_registry(manifest, name));
+        let registry = pnpm_publish::find_registry_info(
+            name,
+            &config.registry,
+            &config.resolved_registries(),
+            config.cli.registry.as_deref().or(publish_registry),
+        )?
+        .to_string();
         let auth_header = config.auth_headers.for_url_with_package(&registry, package_name);
         Ok(StageContext {
             registry,

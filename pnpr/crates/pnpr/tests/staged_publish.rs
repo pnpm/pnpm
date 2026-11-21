@@ -126,7 +126,14 @@ async fn staged_publish_is_held_back_until_approved() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let tarball = &npm_tgz("staged-pkg", "1.0.0", b"staged-tarball");
-    let doc = publish_doc("staged-pkg", "1.0.0", tarball);
+    let mut doc = crate::provenance::doc_with_sigstore(
+        "staged-pkg",
+        "1.0.0",
+        tarball,
+        "staged-pkg-1.0.0.sigstore",
+        &crate::provenance::sample_sigstore_bundle("https://slsa.dev/provenance/v1"),
+    );
+    doc["notes"] = json!("Staged notes");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
     assert!(is_uuid(&stage_id), "stage id must be a UUID: {stage_id}");
 
@@ -190,13 +197,14 @@ async fn staged_publish_is_held_back_until_approved() {
     assert_eq!(body_bytes(download.into_body()).await, *tarball);
 
     // Approve: the package becomes installable and the record disappears.
+    let approver = add_user_and_get_token(app.clone(), "reviewer", "secret123").await;
     let approve = app
         .clone()
         .oneshot(request(
             "POST",
             &format!("/npm/-/stage/{stage_id}/approve"),
             Body::empty(),
-            Some(&token),
+            Some(&approver),
         ))
         .await
         .unwrap();
@@ -210,6 +218,30 @@ async fn staged_publish_is_held_back_until_approved() {
     assert_eq!(read.status(), StatusCode::OK);
     let packument = body_json(read.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
+    assert!(packument.get("notes").is_none());
+    let user = &packument["versions"]["1.0.0"]["_npmUser"];
+    assert_eq!(user["name"], "alice");
+    assert_eq!(user["approver"]["name"], "reviewer");
+    assert_ne!(user["userId"], user["approver"]["userId"]);
+    let note = app
+        .clone()
+        .oneshot(request("GET", "/npm/staged-pkg/1.0.0/notes", Body::empty(), Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(note.status(), StatusCode::OK);
+    assert_eq!(body_bytes(note.into_body()).await, b"Staged notes");
+    let install_request = Request::get("/npm/staged-pkg")
+        .header("accept", "application/vnd.pnpr.install-v2+json")
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let install = app
+        .clone()
+        .oneshot(install_request)
+        .await
+        .unwrap();
+    assert_eq!(install.status(), StatusCode::OK);
+    assert_eq!(body_json(install.into_body()).await["versions"]["1.0.0"]["trust"], "stagedPublish");
     let on_disk = crate::storage::hosted_file(&storage, "staged-pkg", "staged-pkg-1.0.0.tgz")
         .expect("tarball promoted on approval");
     assert_eq!(on_disk, *tarball);

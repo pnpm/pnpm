@@ -49,6 +49,22 @@ describe('stage command against the registry mock', () => {
   // instance the with-registry jest preset boots; the ad-hoc mock registry
   // below is kept only for faults a well-behaved registry cannot produce.
 
+  test('view resolves the local package registry', async () => {
+    const registry = await createRegistry(() => ({ body: { id: STAGE_ID } }))
+    try {
+      const dir = temporaryDirectory()
+      const opts = { ...stageOpts('http://127.0.0.1:1/'), dir, json: true }
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: '@fixture/pkg' }))
+      const scoped = { ...opts, registriesByScope: { ...opts.registriesByScope, '@fixture': registry.url } }
+      await stage.handler(scoped, ['view', STAGE_ID])
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pkg', publishConfig: { registry: registry.url } }))
+      await stage.handler(opts, ['view', STAGE_ID])
+      expect(registry.requests.map(request => request.url.pathname)).toEqual(Array(2).fill(`/-/stage/${STAGE_ID}`))
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage publish holds the package back until it is approved', async () => {
     const pkgName = '@pnpmtest/stage-e2e-lifecycle'
     prepare({ name: pkgName, version: '1.0.0' })

@@ -88,7 +88,7 @@ A stage id is a hyphenated UUID, such as `123e4567-e89b-12d3-a456-426614174000`.
 
 ### --registry &lt;url\>
 
-The base URL of the npm registry. Defaults to the configured default registry.
+The base URL of the npm registry. When you manage staged versions from a package directory, pnpm uses the package's publish registry, including its scoped registry configuration. An explicit package filter on `stage list` selects the registry for that name.
 
 ### --tag &lt;tag\>
 

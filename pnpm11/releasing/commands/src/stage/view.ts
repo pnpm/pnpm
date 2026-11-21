@@ -6,7 +6,7 @@ import type { StageItem, StageOptions } from './types.js'
 
 export async function stageView (opts: StageOptions, params: string[]): Promise<string> {
   const stageId = requireStageId(params, 'view')
-  const context = createStageContext(opts)
+  const context = await createStageContext(opts)
   const item = await stageJsonRequest<StageItem>(context, {
     url: new URL(`-/stage/${stageId}`, context.registry).href,
     action: `view staged package ${stageId}`,
