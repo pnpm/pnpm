@@ -258,6 +258,41 @@ pub enum ResolveDependencyTreeError {
     ResolutionCancelled,
 }
 
+impl ResolveDependencyTreeError {
+    /// Wrap a resolver-chain failure, keeping the pnpm error code of the ones
+    /// that carry one. The chain hands back a type-erased
+    /// [`ResolveError`], which drops the `miette::Diagnostic` facet, so the codes
+    /// that are part of pnpm's public contract are recovered by downcast.
+    /// [`PickPackageError`] included, so `ERR_PNPM_NO_OFFLINE_META` and its
+    /// legacy-mirror hint reach the CLI instead of collapsing to a plain
+    /// string; every other failure keeps the generic envelope.
+    #[must_use]
+    pub fn from_resolve_error(err: ResolveError) -> Self {
+        let err = match err.downcast::<NoMatchingVersionError>() {
+            Ok(no_matching_version) => {
+                return Self::NoMatchingVersion(*no_matching_version);
+            }
+            Err(err) => err,
+        };
+        let err = match err.downcast::<RegistryResponseError>() {
+            Ok(response) => return Self::RegistryResponse(*response),
+            Err(err) => err,
+        };
+        let err = match err.downcast::<GitResolveError>() {
+            Ok(git) => return Self::GitResolve(*git),
+            Err(err) => err,
+        };
+        let err = match err.downcast::<UnsupportedProtocolError>() {
+            Ok(unsupported) => return Self::UnsupportedProtocol(*unsupported),
+            Err(err) => err,
+        };
+        match err.downcast::<PickPackageError>() {
+            Ok(pick) => Self::Pick(*pick),
+            Err(err) => Self::Resolve(err),
+        }
+    }
+}
+
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
     fn from(err: PatchKeyConflictError) -> Self {
         ResolveDependencyTreeError::PatchKeyConflict(err)

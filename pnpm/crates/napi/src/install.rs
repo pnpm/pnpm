@@ -24,7 +24,10 @@ pub use options::{
     PeerIssuesOptions,
     ProxyConfigInput,
 };
-pub(crate) use overlay::install_http_client;
+pub(crate) use overlay::{
+    install_http_client,
+    shared_network_overlay,
+};
 pub use peer_issues::get_peer_dependency_issues;
 pub use rebuild::rebuild;
 
@@ -79,6 +82,8 @@ use crate::{
     },
     error::{
         invalid_manifest_error,
+        invalid_option_error,
+        missing_root_project_error,
         to_napi_error,
         unsupported_option_error,
     },
@@ -472,13 +477,12 @@ fn run_install_inner(
 ) -> napi::Result<String> {
     reject_non_object_manifests(&options.projects)?;
     let dir = PathBuf::from(&options.dir);
-    let manifest =
-        PackageManifest::from_value(dir.join("package.json"), root_manifest_value(options, &dir)?);
+    let ignore_package_manifest = ignores_package_manifest(options, &mode);
+    let manifest = root_manifest(options, &dir, ignore_package_manifest)?;
 
     reject_unsupported_install_options(options)?;
-    let config =
-        resolve_config(&dir, &build_overlay(options, ignores_package_manifest(options, &mode))?)
-            .map_err(|error| to_napi_error(&error))?;
+    let config = resolve_config(&dir, &build_overlay(options, ignore_package_manifest)?)
+        .map_err(|error| to_napi_error(&error))?;
 
     let http_client = install_http_client(config)?;
     let lazy_lockfile = if config.lockfile {
@@ -516,20 +520,24 @@ fn run_install_inner(
     Ok(PathBuf::from(config.store_dir.clone()).display().to_string())
 }
 
-/// The root importer is the project at `dir`; any others are siblings. A
-/// lone project takes the plain (non-workspace) install path; multiple
-/// importers are handed to the engine via `workspace_projects_override`.
-fn root_manifest_value(options: &InstallOptions, dir: &Path) -> napi::Result<serde_json::Value> {
-    options.projects
+/// The root importer is the project at `dir`; any others are siblings, all
+/// handed to the engine via `workspace_projects_override`. An
+/// `ignorePackageManifest` install reads no manifest, so it needs no entry
+/// for `dir`.
+fn root_manifest(
+    options: &InstallOptions,
+    dir: &Path,
+    ignore_package_manifest: bool,
+) -> napi::Result<PackageManifest> {
+    let root_project = options.projects
         .iter()
-        .find(|project| Path::new(&project.root_dir) == dir)
-        .map(|project| project.manifest.clone())
-        .ok_or_else(|| {
-            napi::Error::from_reason(format!(
-                "install options had no project entry for the install dir {}",
-                options.dir,
-            ))
-        })
+        .find(|project| Path::new(&project.root_dir) == dir);
+    let value = match root_project {
+        Some(project) => project.manifest.clone(),
+        None if ignore_package_manifest => serde_json::Value::Object(serde_json::Map::new()),
+        None => return Err(missing_root_project_error(&options.dir)),
+    };
+    Ok(PackageManifest::from_value(dir.join("package.json"), value))
 }
 
 fn dependency_groups(options: &InstallOptions) -> Vec<DependencyGroup> {

@@ -1,19 +1,13 @@
 use super::{
     Arc,
     CurrentPkg,
-    GitResolveError,
-    NoMatchingVersionError,
     Path,
-    PickPackageError,
     PreferredVersionsOverlay,
-    RegistryResponseError,
     ResolveDependencyTreeError,
-    ResolveError,
     ResolveOptions,
     Resolver,
     SharedWorkspaceWantedKey,
     TreeCtx,
-    UnsupportedProtocolError,
     WantedDependency,
     WantedKey,
     WorkspaceFinalWantedKey,
@@ -283,7 +277,13 @@ where
     let result = resolver
         .resolve(wanted, opts)
         .await
-        .map_err(|err| attribute_to_override(map_resolve_error(err), wanted, overrides))?;
+        .map_err(|err| {
+            attribute_to_override(
+                ResolveDependencyTreeError::from_resolve_error(err),
+                wanted,
+                overrides,
+            )
+        })?;
     result.ok_or_else(|| ResolveDependencyTreeError::SpecNotSupported {
         specifier: render_specifier(wanted),
     })
@@ -390,38 +390,6 @@ fn stamp_fallback_identity(result: &mut pnpm_resolving_resolver_base::ResolveRes
             obj.insert("version".to_string(), serde_json::Value::String("0.0.0".to_string()));
         }
         *manifest = Arc::new(updated);
-    }
-}
-
-/// Wrap a resolver-chain failure, keeping the pnpm error code of the ones
-/// that carry one. The chain hands back a type-erased
-/// [`ResolveError`], which drops the `miette::Diagnostic` facet, so the codes
-/// that are part of pnpm's public contract are recovered by downcast.
-/// [`PickPackageError`] included, so `ERR_PNPM_NO_OFFLINE_META` and its
-/// legacy-mirror hint reach the CLI instead of collapsing to a plain
-/// string; every other failure keeps the generic envelope.
-pub(super) fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError {
-    let err = match err.downcast::<NoMatchingVersionError>() {
-        Ok(no_matching_version) => {
-            return ResolveDependencyTreeError::NoMatchingVersion(*no_matching_version);
-        }
-        Err(err) => err,
-    };
-    let err = match err.downcast::<RegistryResponseError>() {
-        Ok(response) => return ResolveDependencyTreeError::RegistryResponse(*response),
-        Err(err) => err,
-    };
-    let err = match err.downcast::<GitResolveError>() {
-        Ok(git) => return ResolveDependencyTreeError::GitResolve(*git),
-        Err(err) => err,
-    };
-    let err = match err.downcast::<UnsupportedProtocolError>() {
-        Ok(unsupported) => return ResolveDependencyTreeError::UnsupportedProtocol(*unsupported),
-        Err(err) => err,
-    };
-    match err.downcast::<PickPackageError>() {
-        Ok(pick) => ResolveDependencyTreeError::Pick(*pick),
-        Err(err) => ResolveDependencyTreeError::Resolve(err),
     }
 }
 

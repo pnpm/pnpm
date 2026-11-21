@@ -8,8 +8,11 @@
 use std::collections::HashMap;
 
 use super::{
+    NetworkConfigInput,
+    ProxyConfigInput,
     ResolveDependencyOptions,
     WantedDependencyInput,
+    resolve_overlay,
     run_resolve_blocking,
 };
 
@@ -28,6 +31,8 @@ fn options_for(dir: &std::path::Path) -> ResolveDependencyOptions {
         offline: Some(true),
         prefer_offline: None,
         auth_header_by_uri: None,
+        proxy_config: None,
+        network_config: None,
     }
 }
 
@@ -59,6 +64,7 @@ fn resolves_a_local_directory_via_the_file_scheme() {
     assert_eq!(manifest["name"], "local-pkg");
     assert_eq!(manifest["version"], "1.2.3");
     assert_eq!(result.resolved_via, "local-filesystem");
+    assert_eq!(result.resolution["type"], "directory", "{}", result.resolution);
     dbg!(&result.normalized_bare_specifier);
     assert!(result.normalized_bare_specifier.is_some());
 }
@@ -93,6 +99,11 @@ fn errors_when_no_resolver_in_the_chain_claims_the_spec() {
     };
 
     eprintln!("resolve error: {}", error.reason);
+    assert!(
+        error.reason.contains(r#""code":"ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER""#),
+        "unexpected error: {}",
+        error.reason,
+    );
     assert!(
         error.reason.contains("isn't supported by any available resolver"),
         "unexpected error message: {}",
@@ -141,6 +152,8 @@ fn full_metadata_keeps_registry_custom_version_fields() {
         offline: None,
         prefer_offline: None,
         auth_header_by_uri: None,
+        proxy_config: None,
+        network_config: None,
     };
     let wanted = WantedDependencyInput {
         alias: Some("custom-field-pkg".to_string()),
@@ -152,5 +165,47 @@ fn full_metadata_keeps_registry_custom_version_fields() {
     let manifest = result.manifest.expect("registry resolution carries a manifest");
     dbg!(&manifest);
     assert_eq!(manifest["componentId"]["name"], "button");
+    assert_eq!(
+        result.resolution["tarball"], "https://registry/custom-field-pkg-1.0.0.tgz",
+        "{}",
+        result.resolution,
+    );
     mock.assert();
+}
+
+#[test]
+fn proxy_and_network_config_reach_the_config() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut options = options_for(dir.path());
+    options.proxy_config = Some(ProxyConfigInput {
+        http_proxy: None,
+        https_proxy: Some("http://proxy.example:8080".to_string()),
+        no_proxy: None,
+    });
+    options.network_config = Some(NetworkConfigInput {
+        ca: None,
+        cert: None,
+        key: None,
+        local_address: None,
+        strict_ssl: Some(false),
+        max_sockets: Some(3),
+        network_concurrency: None,
+        fetch_retries: Some(7),
+        fetch_retry_factor: None,
+        fetch_retry_mintimeout: None,
+        fetch_retry_maxtimeout: None,
+        fetch_timeout: None,
+        fetch_warn_timeout_ms: None,
+        fetch_min_speed_ki_bps: None,
+        user_agent: None,
+    });
+
+    let overlay = resolve_overlay(&options).expect("overlay");
+    assert_eq!(
+        overlay.proxy.and_then(|proxy| proxy.https_proxy).as_deref(),
+        Some("http://proxy.example:8080"),
+    );
+    assert_eq!(overlay.tls.and_then(|tls| tls.strict_ssl), Some(false));
+    assert_eq!(overlay.max_sockets, Some(3));
+    assert_eq!(overlay.fetch_retries, Some(7));
 }
