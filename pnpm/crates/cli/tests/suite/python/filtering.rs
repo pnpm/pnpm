@@ -371,3 +371,60 @@ async fn a_filter_does_not_reach_a_project_outside_the_declared_workspace() {
         "the workspace excludes it, so app does not reach it",
     );
 }
+
+#[tokio::test]
+async fn update_and_remove_select_a_standalone_python_member() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _mocks = serve(&mut server, "alpha", &[("1.5", wheel("alpha", "1.5", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    requirements_project(root.path(), "one", &["Alpha>=1"]);
+    requirements_project(root.path(), "two", &["alpha>=1"]);
+    pacquet_in(root.path())
+        .with_args([
+            "--filter",
+            "one",
+            "--fail-if-no-match",
+            "update",
+            "pypi:ALp*",
+            "--lockfile-only",
+        ])
+        .assert()
+        .success();
+    assert!(installed(root.path(), "one"));
+    assert!(!installed(root.path(), "two"));
+    pacquet_in(root.path())
+        .with_args(["update", "-r", "Alp*", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(installed(root.path(), "two"));
+    pacquet_in(root.path())
+        .with_args(["--filter", "one", "remove", "pkg:pypi/ALPHA", "--lockfile-only"])
+        .assert()
+        .success();
+    let manifest = fs::read_to_string(root.path().join("one/pyproject.toml")).unwrap();
+    assert!(!manifest.to_ascii_lowercase().contains("alpha"), "{manifest}");
+    let lock = fs::read_to_string(root.path().join("one/pylock.toml")).unwrap();
+    assert!(!lock.contains("alpha"), "{lock}");
+}
+
+#[test]
+fn failed_python_remove_restores_the_manifest() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://example.invalid", &["Some_Name>=1"]);
+    let path = root.path().join("pyproject.toml");
+    let original = fs::read(&path).unwrap();
+    pacquet_in(root.path())
+        .with_args(["remove", "--lockfile-only", "pypi:some.name", "pypi:missing-example"])
+        .assert()
+        .failure();
+    assert_eq!(fs::read(path).unwrap(), original);
+    assert!(!root.path().join("pylock.toml").exists());
+    assert!(
+        !root
+            .path()
+            .join("package.json")
+            .exists(),
+    );
+}

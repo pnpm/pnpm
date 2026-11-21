@@ -70,11 +70,15 @@ pub(crate) fn declared_ecosystem_dep_names(
     let mut names = Vec::new();
     let workspace_root = config.workspace_dir.as_deref();
     if config.cargo.enabled {
-        names.extend(declared_cargo_dep_names(project_dir, workspace_root, include)?);
+        names.extend(
+            declared_cargo_dep_names(project_dir, workspace_root, include)?
+                .into_iter()
+                .map(|name| format!("crate:{name}")),
+        );
     }
     if config.python.enabled {
         for name in declared_python_dep_names(project_dir, workspace_root, include)? {
-            names.extend([format!("pypi:{name}"), name]);
+            names.push(format!("pypi:{name}"));
         }
     }
     Ok(names)
@@ -86,16 +90,15 @@ pub(super) fn declared_cargo_dep_names(
     include: &[DependencyGroup],
 ) -> Result<Vec<String>> {
     let mut names = Vec::new();
-    for name in declared_cargo_deps(project_dir, workspace_root)?
-        .into_iter()
+    for dep in declared_cargo_deps(project_dir, workspace_root)?
+        .iter()
         .filter(|dep| include.contains(&dep.group))
-        .flat_map(|dep| {
-            dep.aliases
-                .into_iter()
-                .chain([dep.package_name])
-        })
     {
-        names.extend([format!("crate:{name}"), name]);
+        names.extend(
+            dep.identities()
+                .into_iter()
+                .map(str::to_owned),
+        );
     }
     Ok(names)
 }

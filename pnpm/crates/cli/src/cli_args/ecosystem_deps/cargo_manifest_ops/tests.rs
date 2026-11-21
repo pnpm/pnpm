@@ -140,6 +140,8 @@ fn declared_cargo_deps_and_manifest_edits_resolve_renamed_workspace_dependencies
     assert!(ryu.has_alias("my_ryu"));
     assert!(ryu.has_alias("other_ryu"));
     assert!(ryu.matches_name("other_ryu"));
+    assert!(ryu.matches_pattern(&create_matcher(&["ry*".to_owned()])));
+    assert!(!ryu.matches_pattern(&create_matcher(&["!ryu".to_owned()])));
     validate_explicit_cargo_requests(
         std::slice::from_ref(&member),
         Some(root),

@@ -553,3 +553,26 @@ fn a_shared_json_entry_gets_only_the_notes_of_the_package_it_shows() {
     assert_eq!(entry["latest"], "2.0.0", "the entry shows the later package: {report}");
     assert_eq!(entry.get("releaseNotes"), None, "{report}");
 }
+
+#[test]
+fn outdated_validates_normalized_python_patterns_in_standalone_projects() {
+    let project = tempfile::tempdir().unwrap();
+    std::fs::write(
+        project.path().join("pyproject.toml"),
+        "[project]\nname = 'app'\nversion = '1.0'\ndependencies = ['Example_Name']\n",
+    )
+    .unwrap();
+    let mut config = pnpm_config::Config::default();
+    config.python.enabled = true;
+    for selector in ["pkg:pypi/example.name", "pypi:EXAMPLE_NAME", "Example..*"] {
+        super::filters::validate_package_patterns(
+            [],
+            &[project.path().to_owned()],
+            &config,
+            &[selector.to_owned()],
+            &[DependencyGroup::Prod],
+            true,
+        )
+        .unwrap();
+    }
+}

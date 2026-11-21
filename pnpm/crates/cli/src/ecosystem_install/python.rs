@@ -29,7 +29,7 @@ use std::{
 /// Every Python project in the workspace, read once for both the selection
 /// and the install.
 pub(crate) async fn discover(
-    config: &'static Config,
+    config: &Config,
     inventory: &EcosystemWorkspaceInventory,
 ) -> Result<Discovery> {
     let manifests = workspace_manifests(inventory).await?;
@@ -41,7 +41,7 @@ pub(crate) async fn discover(
 /// workspace around it for the members it may take from the repository
 /// and the environment it may share.
 pub(crate) async fn discover_around(
-    config: &'static Config,
+    config: &Config,
     inventory: &EcosystemWorkspaceInventory,
     project: &Path,
 ) -> Result<Discovery> {
@@ -51,7 +51,7 @@ pub(crate) async fn discover_around(
 /// [`discover_around`] for a batch of target directories sharing one
 /// workspace inventory.
 pub(crate) async fn discover_around_projects(
-    config: &'static Config,
+    config: &Config,
     inventory: &EcosystemWorkspaceInventory,
     projects: &[PathBuf],
 ) -> Result<Discovery> {

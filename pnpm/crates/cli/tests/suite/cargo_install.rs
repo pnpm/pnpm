@@ -734,3 +734,25 @@ fn install_does_not_parse_or_modify_excluded_cargo_workspaces() {
 }
 
 mod lockfile_features;
+
+#[test]
+fn remove_aliased_crates_by_name_and_package_url() {
+    for selector in ["crate:example-crate", "pkg:cargo/example-crate"] {
+        let root = cargo_workspace(
+            "https://registry.example.test/index/",
+            r#"local = { package = "example-crate", version = "1" }"#,
+            "",
+        );
+        install_in(&root, &["remove", "--lockfile-only", selector]);
+        let manifest = std::fs::read_to_string(root.path().join("Cargo.toml")).unwrap();
+        assert!(!manifest.contains("local"), "{manifest}");
+        let lock = std::fs::read_to_string(root.path().join("Cargo.lock")).unwrap();
+        assert!(!lock.contains("example-crate"), "{lock}");
+        assert!(
+            !root
+                .path()
+                .join("package.json")
+                .exists(),
+        );
+    }
+}

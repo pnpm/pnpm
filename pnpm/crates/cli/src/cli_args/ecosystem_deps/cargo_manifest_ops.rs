@@ -100,16 +100,8 @@ impl DeclaredCargoDep {
                 .any(|alias| matcher.matches(alias))
     }
 
-    pub(crate) fn is_ignored(&self, matcher: &Matcher) -> bool {
-        matcher.matches_any(&self.identities())
-    }
-
     pub(crate) fn matches_pattern(&self, matcher: &Matcher) -> bool {
-        let aliases: Vec<&str> = self.aliases
-            .iter()
-            .map(String::as_str)
-            .collect();
-        matcher.matches_any(&aliases)
+        matcher.matches_any(&self.identities())
     }
 
     pub(crate) fn matches_query(&self, query: &OutdatedQuery<'_>) -> bool {

@@ -38,6 +38,7 @@ use std::{
     sync::Arc,
 };
 
+#[derive(Default)]
 pub(crate) struct StandaloneEcosystemSelection {
     pub(crate) discovered: usize,
     pub(crate) selected: Vec<PathBuf>,
@@ -95,7 +96,7 @@ pub(crate) async fn select_recursive_and_standalone_projects<'a>(
     workspace_root: &Path,
     prefix: &Path,
     projects: &'a [pnpm_workspace::Project],
-    config: &'static Config,
+    config: &Config,
 ) -> Result<(RecursiveSelection<'a>, Vec<PathBuf>)> {
     let (selection, unmatched) = select_recursive_projects_deferring_no_match(
         projects,
@@ -119,12 +120,21 @@ pub(crate) async fn select_recursive_and_standalone_projects<'a>(
         config,
     )
     .await?;
-    if let Some(unmatched) = unmatched
-        && standalone.selected.is_empty()
-    {
-        return Err(unmatched.counting(standalone.discovered).report());
+    Ok((selection, standalone.resolve(unmatched)?))
+}
+
+impl StandaloneEcosystemSelection {
+    pub(crate) fn resolve(
+        self,
+        unmatched: Option<crate::cli_args::recursive::UnmatchedFilters>,
+    ) -> Result<Vec<PathBuf>> {
+        if let Some(unmatched) = unmatched
+            && self.selected.is_empty()
+        {
+            return Err(unmatched.counting(self.discovered).report());
+        }
+        Ok(self.selected)
     }
-    Ok((selection, standalone.selected))
 }
 
 pub(crate) async fn select_standalone_ecosystem_dirs(
@@ -132,7 +142,7 @@ pub(crate) async fn select_standalone_ecosystem_dirs(
     prefix: &Path,
     npm_project_dirs: &HashSet<PathBuf>,
     selected_npm_dirs: &HashSet<PathBuf>,
-    config: &'static Config,
+    config: &Config,
 ) -> Result<StandaloneEcosystemSelection> {
     if !config.cargo.enabled && !config.python.enabled {
         return Ok(StandaloneEcosystemSelection { discovered: 0, selected: Vec::new() });
@@ -347,7 +357,7 @@ async fn select_standalone_python_dirs(
     inventory: &EcosystemWorkspaceInventory,
     npm_project_dirs: &HashSet<PathBuf>,
     selected_npm_dirs: &HashSet<PathBuf>,
-    config: &'static Config,
+    config: &Config,
     prefix: &Path,
 ) -> Result<(usize, Vec<PathBuf>)> {
     let discovery = python::discover(config, inventory).await?;

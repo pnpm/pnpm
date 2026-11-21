@@ -1,4 +1,4 @@
-use super::node_add_metadata_paths;
+use super::node_mutation_metadata_paths;
 use pnpm_config::Config;
 use std::path::PathBuf;
 
@@ -15,7 +15,7 @@ fn uses_configured_node_metadata_locations() {
         ..Config::default()
     };
 
-    let metadata_paths = node_add_metadata_paths(&config, &node_manifest);
+    let metadata_paths = node_mutation_metadata_paths(&config, &node_manifest);
     eprintln!("metadata paths: {metadata_paths:#?}");
 
     assert_eq!(

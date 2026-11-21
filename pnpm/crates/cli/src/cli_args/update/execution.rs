@@ -51,6 +51,7 @@ fn discovered_workspace_packages(
 }
 
 struct UpdateInputs {
+    standalone_dirs: Vec<std::path::PathBuf>,
     include_direct: Vec<DependencyGroup>,
     explicit_groups: pnpm_package_manager::UpdateExplicitGroups,
     update_actions: bool,
@@ -89,6 +90,7 @@ impl UpdateArgs {
         self,
         state: State,
         selection: Option<InstallFamilySelection>,
+        standalone_dirs: Vec<std::path::PathBuf>,
     ) -> miette::Result<()> {
         self.check_flag_combinations()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
@@ -117,6 +119,7 @@ impl UpdateArgs {
             state,
             selection,
             &UpdateInputs {
+                standalone_dirs,
                 include_direct,
                 explicit_groups,
                 update_actions,
@@ -240,7 +243,7 @@ impl UpdateArgs {
         let has_node_targets = selection
             .map(|selection| !selection.selected_dirs.is_empty())
             .unwrap_or_else(|| state.manifest.path().exists());
-        !(updates_all && eco_outcome.updated_any && !has_node_targets)
+        has_node_targets || (selection.is_none() && !eco_outcome.updated_any)
     }
 
     async fn run_ecosystem_update_step<Reporter: self::Reporter + 'static>(
@@ -268,6 +271,7 @@ impl UpdateArgs {
         run_ecosystem_updates_for_selection::<Reporter>(
             state,
             selection,
+            &inputs.standalone_dirs,
             EcosystemUpdateStepOptions {
                 selectors,
                 include_groups: &inputs.include_direct,

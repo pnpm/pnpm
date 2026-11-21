@@ -58,7 +58,7 @@ fn match_cargo_dep<'a>(
     exclusions: &[WildcardMatcher],
 ) -> Option<SelectedCargoDep<'a>> {
     if !options.step.include_groups.contains(&dep.group)
-        || options.step.ignore_matcher.is_some_and(|matcher| dep.is_ignored(matcher))
+        || options.step.ignore_matcher.is_some_and(|matcher| dep.matches_pattern(matcher))
         || is_excluded_cargo_dep(dep, exclusions)
     {
         return None;

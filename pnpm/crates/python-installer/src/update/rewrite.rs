@@ -70,6 +70,26 @@ pub(super) fn rewrite_pyproject_many(
     pnpm_fs::write_atomic(&path, updated.as_bytes()).into_diagnostic()
 }
 
+pub(crate) fn remove_requirements(
+    path: &Path,
+    names: &BTreeSet<PackageName>,
+    group: Option<PythonDependencyGroup>,
+    removed: &mut BTreeSet<PackageName>,
+) -> Result<()> {
+    let original = fs::read_to_string(path).into_diagnostic()?;
+    if let Some(updated) = rewrite_manifest_text(&original, &BTreeSet::new(), &mut |field, req| {
+        if group.is_none_or(|group| group == field) && names.contains(&req.name) {
+            removed.insert(req.name);
+            Ok(Some(Vec::new()))
+        } else {
+            Ok(None)
+        }
+    })? {
+        pnpm_fs::write_atomic(path, updated.as_bytes()).into_diagnostic()?;
+    }
+    Ok(())
+}
+
 fn rewrite_manifest_text(
     original: &str,
     non_index: &BTreeSet<PackageName>,

@@ -20,9 +20,9 @@ pub(crate) use maintenance::{
 pub(crate) use mutation::{
     AddPipeline,
     DeployPipeline,
-    RemovePipeline,
     UpdatePipeline,
 };
+pub(crate) use remove::RemovePipeline;
 pub(crate) use selection::{
     WorkspaceScope,
     select_workspace_projects,
@@ -449,6 +449,7 @@ mod pipelined_runs;
 mod selection;
 
 mod mutation;
+mod remove;
 
 mod maintenance;
 

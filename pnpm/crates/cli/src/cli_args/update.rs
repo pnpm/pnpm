@@ -111,15 +111,16 @@ impl UpdateArgs {
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        Box::pin(self.run_inner::<Reporter>(state, None)).await
+        Box::pin(self.run_inner::<Reporter>(state, None, Vec::new())).await
     }
 
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         selection: InstallFamilySelection,
+        standalone_dirs: Vec<std::path::PathBuf>,
     ) -> miette::Result<()> {
-        Box::pin(self.run_inner::<Reporter>(state, Some(selection))).await
+        Box::pin(self.run_inner::<Reporter>(state, Some(selection), standalone_dirs)).await
     }
 
     fn interactive_options<'a>(

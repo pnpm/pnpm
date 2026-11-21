@@ -1,3 +1,5 @@
+mod ecosystem;
+
 use crate::{
     State,
     cli_args::{
@@ -79,6 +81,41 @@ impl RemoveArgs {
             self.no_trust_lockfile,
             config.trust_lockfile,
         );
+    }
+
+    pub(crate) fn take_ecosystem_packages(
+        &mut self,
+        config: &pnpm_config::Config,
+    ) -> miette::Result<Vec<crate::package_specifier::EcosystemPackageSpecifier>> {
+        use crate::{
+            cli_args::{
+                add::AddRequest,
+                ecosystem_deps::{
+                    is_ecosystem_prefixed,
+                    validate_ecosystem_selectors,
+                },
+            },
+            package_specifier::PackageSpecifierPlan,
+        };
+        if !self.package_names.iter().any(|name| is_ecosystem_prefixed(name)) {
+            return Ok(Vec::new());
+        }
+        validate_ecosystem_selectors(&self.package_names, config)?;
+        let packages = PackageSpecifierPlan::parse(
+            self.package_names
+                .iter()
+                .map(String::as_str)
+                .map(AddRequest::from),
+        )?;
+        self.package_names = pnpm_matcher::prune_orphan_ignores(
+            packages.node_packages
+                .iter()
+                .map(AddRequest::selector)
+                .map(str::to_owned)
+                .collect(),
+            &self.package_names,
+        );
+        Ok(packages.ecosystem_packages)
     }
 
     fn prepare_remove<'a>(

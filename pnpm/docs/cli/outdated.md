@@ -12,7 +12,7 @@ when [`cargo.enabled`](../cargo.md#cargoenabled) is `true`), and Python packages
 `true`). The check can be limited to a subset of the declared dependencies,
 runtimes, or package managers by providing arguments, including `crate:<name>`
 for Cargo crates and `pypi:<name>` for Python packages. Patterns support `*`
-wildcards, and a leading `!` excludes matching names.
+wildcards, and a leading `!` excludes matching names. Python selectors ignore case and treat runs of dots, underscores, and hyphens as one hyphen. Cargo selectors match both the dependency alias and the crate name.
 
 `pnpm outdated` exits with code 1 when any dependency is outdated.
 Without a lockfile, the `Current` column shows the version installed in
