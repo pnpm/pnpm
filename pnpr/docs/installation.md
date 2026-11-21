@@ -29,13 +29,27 @@ Only the binary matching your platform is downloaded.
 pnpr is also published as the `ghcr.io/pnpm/pnpr` container image:
 
 ```sh
-docker run -p 127.0.0.1:7677:7677 -v pnpr-storage:/pnpr/storage ghcr.io/pnpm/pnpr:<version>
+docker run --rm -v pnpr-storage:/pnpr/storage --entrypoint sh ghcr.io/pnpm/pnpr:<version> -c '
+  test -f /pnpr/storage/pnpr.yaml || (umask 077 &&
+    printf "secret: \"%s\"\nstorage: /pnpr/storage\ncache: /pnpr/cache\n" \
+      "$(od -An -N32 -tx1 /dev/urandom | tr -d " \n")" > /pnpr/storage/pnpr.yaml.tmp &&
+    mv /pnpr/storage/pnpr.yaml.tmp /pnpr/storage/pnpr.yaml)'
+docker run -p 127.0.0.1:7677:7677 \
+  -e PNPR_CONFIG=/pnpr/storage/pnpr.yaml \
+  -v pnpr-storage:/pnpr/storage \
+  -v pnpr-cache:/pnpr/cache \
+  ghcr.io/pnpm/pnpr:<version>
 ```
 
 - The entrypoint is `pnpr`. Arguments after the image name replace the default
   command, `serve --listen 0.0.0.0:7677 --storage /pnpr/storage --cache /pnpr/cache`.
 - `/pnpr/storage` and `/pnpr/cache` are volumes. Only `/pnpr/storage` holds
   data that must survive.
+- pnpr refuses to start on a cache from a previous run unless the config sets
+  a [`secret`](configuration.md#secret). The first command writes a config
+  with a random secret into the storage volume, readable only by the
+  container's user, and keeps an existing one. `PNPR_CONFIG` selects it and
+  keeps the default command.
 - The default command passes `--storage /pnpr/storage`, so the metadata
   database, which holds accounts and tokens, lives in that volume. Pass the same flag when you
   replace the command, for example to create an account:
