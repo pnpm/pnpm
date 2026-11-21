@@ -65,6 +65,58 @@ fn rejects_contradictory_arguments() {
     assert_eq!(names, vec!["foo".to_string()]);
 }
 
+fn exact_selector_names(err: miette::Report) -> Vec<String> {
+    let ApproveBuildsError::ExactSelectorRequired(names) = approve_builds_error(err) else {
+        panic!("expected ExactSelectorRequired");
+    };
+    names
+}
+
+#[test]
+fn rejects_a_bare_name_that_cannot_identify_the_pending_dependency() {
+    for (name, key) in [
+        ("fixture", "fixture@file:../fixture"),
+        ("gitbuild", "gitbuild@git+file:///repo#0123456789abcdef"),
+        ("tarpkg", "tarpkg@https://example.invalid/tarpkg-1.0.0.tgz"),
+        ("linkpkg", "linkpkg@link:../linkpkg"),
+    ] {
+        let err = args(&[name])
+            .decide::<SilentReporter>(&pending(&[key]), false)
+            .err()
+            .unwrap_or_else(|| panic!("a bare name must not approve {key}"));
+        assert_eq!(exact_selector_names(err), vec![key.to_string()]);
+    }
+}
+
+#[test]
+fn approves_registry_versions_by_bare_name() {
+    let decision = args(&["esbuild"])
+        .decide::<SilentReporter>(&pending(&["esbuild"]), false)
+        .expect("a registry package is approvable by name")
+        .expect("decision");
+    assert_eq!(decision.build_packages, vec!["esbuild".to_string()]);
+}
+
+/// A patched registry entry keeps its patch hash in `ignoredBuilds`, but its
+/// version is still registry semver, so a bare name identifies it.
+#[test]
+fn approves_a_patched_registry_entry_by_bare_name() {
+    let decision = args(&["esbuild"])
+        .decide::<SilentReporter>(&pending(&["esbuild@0.25.0(patch_hash=abc)"]), false)
+        .expect("a patched registry package is approvable by name")
+        .expect("decision");
+    assert_eq!(decision.build_packages, vec!["esbuild".to_string()]);
+}
+
+#[test]
+fn denies_a_git_dependency_by_bare_name() {
+    let decision = args(&["!gitbuild"])
+        .decide::<SilentReporter>(&pending(&["gitbuild@git+file:///repo#0123456789abcdef"]), false)
+        .expect("a bare-name denial is not mistaken for an approval")
+        .expect("decision");
+    assert!(decision.build_packages.is_empty());
+}
+
 #[test]
 fn rejects_an_argument_that_names_no_package() {
     for packages in [&["!"][..], &[""][..], &["foo", "!"][..]] {

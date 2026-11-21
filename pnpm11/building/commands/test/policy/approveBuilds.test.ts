@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import type { ApproveBuildsCommandOpts, RebuildCommandOpts } from '@pnpm/building.commands'
@@ -114,12 +115,46 @@ test('approve-builds requires an exact file selector', async () => {
   const originalSettings = fs.existsSync('pnpm-workspace.yaml') ? fs.readFileSync('pnpm-workspace.yaml', 'utf8') : undefined
   const fileSelector = 'fixture@file:../fixture'
   await expect(approveBuilds.handler(config, ['fixture'], {})).rejects.toMatchObject({
-    code: 'ERR_PNPM_APPROVE_BUILDS_FILE_SELECTOR_REQUIRED',
+    code: 'ERR_PNPM_APPROVE_BUILDS_EXACT_SELECTOR_REQUIRED',
     message: expect.stringContaining(fileSelector),
   })
   expect(fs.existsSync('pnpm-workspace.yaml') ? fs.readFileSync('pnpm-workspace.yaml', 'utf8') : undefined).toBe(originalSettings)
   await approveBuilds.handler(config, [fileSelector], {})
   expect(fs.existsSync('node_modules/fixture/built')).toBe(true)
+})
+
+test('approve-builds requires an exact git selector', async () => {
+  const projectDir = tempDir(false)
+  const packageDir = path.join(projectDir, 'gitbuild')
+  fs.mkdirSync(packageDir)
+  writePackageSync(packageDir, {
+    name: 'gitbuild',
+    version: '1.0.0',
+    scripts: { postinstall: 'node build.cjs' },
+  })
+  fs.writeFileSync(path.join(packageDir, 'build.cjs'), "require('node:fs').writeFileSync('built', '')")
+  await execa('git', ['init', '-q', '--template='], { cwd: packageDir })
+  await execa('git', ['add', '-A'], { cwd: packageDir })
+  await execa('git', [
+    '-c', 'user.name=test',
+    '-c', 'user.email=test@example.com',
+    '-c', 'commit.gpgsign=false',
+    'commit', '-qm', 'init',
+  ], { cwd: packageDir })
+  const { stdout: commit } = await execa('git', ['rev-parse', 'HEAD'], { cwd: packageDir })
+  const spec = `git+${pathToFileURL(packageDir).href}#${commit}`
+  prepare({ dependencies: { gitbuild: spec } }, { tempDir: path.join(projectDir, 'project') })
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+  const originalSettings = fs.existsSync('pnpm-workspace.yaml') ? fs.readFileSync('pnpm-workspace.yaml', 'utf8') : undefined
+  const gitSelector = `gitbuild@${spec}`
+  await expect(approveBuilds.handler(config, ['gitbuild'], {})).rejects.toMatchObject({
+    code: 'ERR_PNPM_APPROVE_BUILDS_EXACT_SELECTOR_REQUIRED',
+    message: expect.stringContaining(gitSelector),
+  })
+  expect(fs.existsSync('pnpm-workspace.yaml') ? fs.readFileSync('pnpm-workspace.yaml', 'utf8') : undefined).toBe(originalSettings)
+  await approveBuilds.handler(config, [gitSelector], {})
+  expect(fs.existsSync('node_modules/gitbuild/built')).toBe(true)
 })
 
 async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
