@@ -870,7 +870,7 @@ test('a pristine spec lookup ignores inherited properties such as constructor', 
   }
   const policy = appendPristineDeclaredSpecs(
     buildPolicy({ overrides: { 'plugin>constructor@^1.0.0': 'link:./c' } }),
-    new Map([
+    new Map<string, Record<string, string>>([
       [pristineSpecMapKey('plugin@1.0.0', 'dependencies'), {}],
       [pristineSpecMapKey('plugin@1.0.0', 'peerDependencies'), { constructor: '^1.0.0' }],
     ])
