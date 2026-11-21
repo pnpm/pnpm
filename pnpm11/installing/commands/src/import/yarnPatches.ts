@@ -101,7 +101,7 @@ interface ImportedPatchFile {
   alias: string
   patch: YarnPatchSpecifier
   patchFile?: string
-  status?: 'missing' | 'outside' | 'file'
+  status?: PatchFileStatus
 }
 
 function recordPatchFile (
@@ -113,7 +113,7 @@ function recordPatchFile (
     globalWarn(`"${alias}" has several Yarn patches, and pnpm applies one patch per dependency. "${alias}" was imported without the patches.`)
     return
   }
-  if (patchFile == null) return
+  if (patchFile == null || status == null) return
   const kept = getOwnValue(opts.patchedDependencies, patch.patchKey) ?? recorded[patch.patchKey]
   if (status === 'outside') {
     globalWarn(`The patch file ${patchFile} of "${alias}" is outside the workspace. "${alias}" was imported without the patch.`)
@@ -125,10 +125,11 @@ function recordPatchFile (
     }
     return
   }
+  const checkedFile = status.path
   if (kept == null) {
-    recorded[patch.patchKey] = patchFile
-  } else if (path.resolve(opts.workspaceDir, kept) !== patchFile) {
-    globalWarn(`The Yarn patch ${toWorkspacePath(patchFile, opts.workspaceDir)} of "${alias}" was not applied, because "${patch.patchKey}" already uses the patch ${toWorkspacePath(kept, opts.workspaceDir)}.`)
+    recorded[patch.patchKey] = checkedFile
+  } else if (path.resolve(opts.workspaceDir, kept) !== checkedFile) {
+    globalWarn(`The Yarn patch ${toWorkspacePath(checkedFile, opts.workspaceDir)} of "${alias}" was not applied, because "${patch.patchKey}" already uses the patch ${toWorkspacePath(kept, opts.workspaceDir)}.`)
   }
 }
 
@@ -157,12 +158,14 @@ function resolvePatchFile (patchPath: string, yarnRootDir: string, projectDir: s
   return patchPath.startsWith('~/') ? path.join(yarnRootDir, patchPath.slice(2)) : path.resolve(projectDir, patchPath)
 }
 
-async function patchFileStatus (filePath: string, workspaceDir: string): Promise<'file' | 'missing' | 'outside'> {
+type PatchFileStatus = { path: string } | 'missing' | 'outside'
+
+async function patchFileStatus (filePath: string, workspaceDir: string): Promise<PatchFileStatus> {
   if (!isSubdir(workspaceDir, filePath)) return 'outside'
   try {
     const [root, target] = await Promise.all([fs.promises.realpath(workspaceDir), fs.promises.realpath(filePath)])
     if (!isSubdir(root, target)) return 'outside'
-    return (await fs.promises.stat(target)).isFile() ? 'file' : 'missing'
+    return (await fs.promises.stat(target)).isFile() ? { path: path.join(workspaceDir, path.relative(root, target)) } : 'missing'
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return 'missing'
     throw err

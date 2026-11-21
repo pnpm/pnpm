@@ -1140,3 +1140,28 @@ fn import_deduplicates_compatible_locked_versions_from_package_lock_json() {
 
     drop((root, npmrc_info));
 }
+
+#[test]
+fn failed_dedicated_import_restores_previous_projects() {
+    let CommandTempCwd { workspace, root: _root, pacquet, .. } = CommandTempCwd::init();
+    write_file(
+        &workspace,
+        "pnpm-workspace.yaml",
+        "packages: ['packages/*']\nsharedWorkspaceLockfile: false\n",
+    );
+    write_file(&workspace, "package.json", "{}");
+    write_file(&workspace, "yarn.lock", "# yarn lockfile v1");
+    for name in ["a", "b", "c"] {
+        write_file(&workspace, &format!("packages/{name}/package.json"), "{}");
+    }
+    let first = workspace.join("packages/a");
+    write_file(&first, "pnpm-lock.yaml", "# original\n");
+    write_file(&workspace, "packages/c/yarn.lock", "invalid");
+    pacquet
+        .with_arg("import")
+        .assert()
+        .failure();
+    assert_eq!(fs::read_to_string(first.join("pnpm-lock.yaml")).unwrap(), "# original\n");
+    assert_no_import_backups(&first);
+    assert!(!workspace.join("packages/b/pnpm-lock.yaml").exists());
+}

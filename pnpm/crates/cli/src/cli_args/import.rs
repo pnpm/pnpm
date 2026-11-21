@@ -1,6 +1,9 @@
 mod yarn_patches;
 
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 use crate::State;
 use clap::Args;
@@ -49,16 +52,15 @@ impl ImportArgs {
 
         let shared = to_preferred_versions(&read_foreign_lockfile_versions(&dir)?);
         let mut state = yarn_patches::import_yarn_patches::<Reporter>(state, &dir)?;
-        let Some(workspace) = state.config.workspace_dir.as_deref() else {
-            return replace_lockfile::<Reporter>(&state, shared.into()).await;
+        let mut backups = Vec::new();
+        let result = match state.config.workspace_dir.as_deref() {
+            Some(workspace) => {
+                import_workspace_projects::<Reporter>(&mut state, workspace, shared, &mut backups)
+                    .await
+            }
+            None => replace_lockfile::<Reporter>(&state, shared.into(), &mut backups).await,
         };
-        let (mut projects, _) =
-            super::recursive::discover_workspace_projects(workspace, state.config)?;
-        pnpm_package_manager::apply_runtime_on_fail_to_projects(state.config, &mut projects);
-        check_workspace_cycles::<Reporter>(state.config, &projects, workspace)?;
-        let discovered = DiscoveredWorkspace::new(projects);
-        state.discovered_workspace = Some(discovered.clone());
-        import_workspace::<Reporter>(&state, &discovered, shared).await
+        finish_import(result, backups)
     }
 
     fn warn_ignored_pnpr_server<Reporter: self::Reporter>(&self, config: &pnpm_config::Config) {
@@ -71,6 +73,20 @@ impl ImportArgs {
             ));
         }
     }
+}
+
+async fn import_workspace_projects<Reporter: self::Reporter + 'static>(
+    state: &mut State,
+    workspace: &Path,
+    shared: PreferredVersions,
+    backups: &mut Vec<LockfileBackup>,
+) -> miette::Result<()> {
+    let (mut projects, _) = super::recursive::discover_workspace_projects(workspace, state.config)?;
+    pnpm_package_manager::apply_runtime_on_fail_to_projects(state.config, &mut projects);
+    check_workspace_cycles::<Reporter>(state.config, &projects, workspace)?;
+    let discovered = DiscoveredWorkspace::new(projects);
+    state.discovered_workspace = Some(discovered.clone());
+    import_workspace::<Reporter>(state, &discovered, shared, backups).await
 }
 
 fn check_workspace_cycles<Reporter: self::Reporter>(
@@ -103,7 +119,9 @@ async fn import_workspace<Reporter: self::Reporter + 'static>(
     state: &State,
     workspace: &DiscoveredWorkspace,
     shared: PreferredVersions,
+    backups: &mut Vec<LockfileBackup>,
 ) -> miette::Result<()> {
+    let caches = crate::state::DedicatedCaches::default();
     let mut preferred_versions = PreferredVersionsOverride::from(shared);
     for project in workspace
         .projects()
@@ -123,18 +141,18 @@ async fn import_workspace<Reporter: self::Reporter + 'static>(
             if let Some(nested) = nested {
                 pins.by_importer.insert(".".to_string(), nested);
             }
-            let mut child = super::pipelines::init_dedicated_project_state(
+            let child = super::pipelines::init_dedicated_project_state(
                 state.config,
                 project_dir,
                 super::pipelines::project_manifest_name(project),
                 false,
                 Some(std::sync::Arc::clone(&state.http_client)),
-            )?;
-            child.discovered_workspace = Some(workspace.clone());
-            replace_lockfile::<Reporter>(&child, pins).await?;
+            )?
+            .into_dedicated_project(&caches, None, Some(workspace.clone()));
+            replace_lockfile::<Reporter>(&child, pins, backups).await?;
         }
     }
-    replace_lockfile::<Reporter>(state, preferred_versions).await
+    replace_lockfile::<Reporter>(state, preferred_versions, backups).await
 }
 
 fn nested_yarn_preferences(dir: &Path) -> miette::Result<Option<PreferredVersions>> {
@@ -147,6 +165,7 @@ fn nested_yarn_preferences(dir: &Path) -> miette::Result<Option<PreferredVersion
 async fn replace_lockfile<Reporter: self::Reporter + 'static>(
     state: &State,
     preferred_versions: PreferredVersionsOverride,
+    backups: &mut Vec<LockfileBackup>,
 ) -> miette::Result<()> {
     let lockfile_dir = state.lockfile_dir();
     let symlinked = state.config.symlinked_lockfile();
@@ -160,32 +179,21 @@ async fn replace_lockfile<Reporter: self::Reporter + 'static>(
         None
     };
 
-    // A backup of its own keeps overlapping imports from restoring each
-    // other's copy.
-    let lockfile_backup =
-        lockfile_path.with_extension(format!("yaml.{}.import.bak", pnpm_fs::process_id()));
-    let lockfile_existed = lockfile_path.exists();
-    if lockfile_existed {
-        back_up_lockfile(&lockfile_path, &lockfile_backup, symlinked)?;
+    backups.push(LockfileBackup::create(lockfile_path.clone(), symlinked, backups.len())?);
+
+    import_versions::<Reporter>(state, &lockfile_path, preferred_versions).await?;
+
+    if let Some(env_lockfile) = env_lockfile {
+        env_lockfile
+            .write(
+                lockfile_dir,
+                symlinked,
+                pnpm_lockfile::EnvDocumentFormat::for_pnpm(pnpm_config::PNPM_VERSION),
+            )
+            .into_diagnostic()
+            .wrap_err("preserving the env lockfile after import")?;
     }
-    let install_result =
-        import_versions::<Reporter>(state, &lockfile_path, preferred_versions).await;
-
-    let import_result = install_result.and_then(|()| {
-        if let Some(env_lockfile) = env_lockfile {
-            env_lockfile
-                .write(
-                    lockfile_dir,
-                    symlinked,
-                    pnpm_lockfile::EnvDocumentFormat::for_pnpm(pnpm_config::PNPM_VERSION),
-                )
-                .into_diagnostic()
-                .wrap_err("preserving the env lockfile after import")?;
-        }
-        Ok(())
-    });
-
-    finish_import(import_result, &lockfile_path, &lockfile_backup, lockfile_existed)
+    Ok(())
 }
 
 fn back_up_lockfile(
@@ -249,30 +257,47 @@ async fn import_versions<Reporter: self::Reporter + 'static>(
     .wrap_err("importing dependencies")
 }
 
-fn finish_import(
-    result: miette::Result<()>,
-    lockfile_path: &std::path::Path,
-    lockfile_backup: &std::path::Path,
-    lockfile_existed: bool,
-) -> miette::Result<()> {
-    match result {
-        Ok(()) => {
-            if lockfile_existed {
-                std::fs::remove_file(lockfile_backup)
-                    .into_diagnostic()
-                    .wrap_err("removing the import lockfile backup")?;
-            }
-            Ok(())
-        }
-        Err(error) => {
-            discard_failed_import(lockfile_path, lockfile_existed.then_some(lockfile_backup))
-                .wrap_err_with(|| {
-                    format!(
-                        "restoring {} after the failed import: {error}",
-                        lockfile_path.display(),
-                    )
-                })?;
-            Err(error)
+struct LockfileBackup {
+    path: PathBuf,
+    original: Option<PathBuf>,
+}
+
+impl LockfileBackup {
+    fn create(
+        path: PathBuf,
+        symlinked: SymlinkedLockfile<'_>,
+        index: usize,
+    ) -> miette::Result<Self> {
+        let original = if path.try_exists().into_diagnostic()? {
+            let backup =
+                path.with_extension(format!("yaml.{}.{index}.import.bak", pnpm_fs::process_id()));
+            back_up_lockfile(&path, &backup, symlinked)?;
+            Some(backup)
+        } else {
+            None
+        };
+        Ok(Self { path, original })
+    }
+}
+
+fn finish_import(result: miette::Result<()>, backups: Vec<LockfileBackup>) -> miette::Result<()> {
+    let mut result = result;
+    let restore = result.is_err();
+    for backup in backups.into_iter().rev() {
+        let cleanup = if restore {
+            discard_failed_import(&backup.path, backup.original.as_deref())
+        } else if let Some(path) = backup.original {
+            std::fs::remove_file(path).into_diagnostic()
+        } else {
+            continue;
+        };
+        if let Err(error) = cleanup {
+            let message = format!("finishing import of {}: {error}", backup.path.display());
+            result = match result {
+                Ok(()) => Err(error.wrap_err(message)),
+                Err(previous) => Err(previous.wrap_err(message)),
+            };
         }
     }
+    result
 }

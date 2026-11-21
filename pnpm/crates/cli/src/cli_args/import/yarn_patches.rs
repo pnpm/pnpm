@@ -212,16 +212,16 @@ fn single_patch_file(
     let Ok(target) = patch_file.canonicalize() else {
         return Err(DroppedPatch::Missing { alias: alias.to_string(), patch_file });
     };
-    if !workspace_dir
-        .canonicalize()
-        .is_ok_and(|root| target.starts_with(root))
-    {
+    let Ok(root) = workspace_dir.canonicalize() else {
+        return Err(DroppedPatch::Missing { alias: alias.to_string(), patch_file });
+    };
+    let Ok(relative) = target.strip_prefix(&root) else {
         return Err(DroppedPatch::Outside { alias: alias.to_string(), patch_file });
-    }
+    };
     if !target.is_file() {
         return Err(DroppedPatch::Missing { alias: alias.to_string(), patch_file });
     }
-    Ok(Some(patch_file))
+    Ok(Some(workspace_dir.join(relative)))
 }
 
 /// A converted patch about to be recorded in `patchedDependencies`.

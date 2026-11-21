@@ -122,3 +122,21 @@ fn patch_files_must_be_inside_the_workspace() {
     );
     assert!(matches!(result, Err(super::DroppedPatch::Outside { .. })));
 }
+
+#[cfg(unix)]
+#[test]
+fn records_the_checked_target_of_a_patch_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("actual.patch");
+    std::fs::write(&target, "").unwrap();
+    std::os::unix::fs::symlink("actual.patch", dir.path().join("link.patch")).unwrap();
+    let checked = super::single_patch_file(
+        "example",
+        &["link.patch".into()],
+        dir.path(),
+        dir.path(),
+        dir.path(),
+    )
+    .unwrap();
+    assert_eq!(checked, Some(target));
+}

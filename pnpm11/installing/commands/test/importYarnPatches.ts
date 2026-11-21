@@ -187,3 +187,16 @@ test('import skips patches outside the workspace', async () => {
   expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('is outside the workspace'))
   expect(assertProject(process.cwd()).readLockfile().patchedDependencies).toBeUndefined()
 })
+
+test('import records the target of a patch symlink inside the workspace', async () => {
+  if (process.platform === 'win32') return
+  prepareYarnProject()
+  fs.copyFileSync(IS_POSITIVE_PATCH, 'actual.patch')
+  fs.mkdirSync(path.dirname(PATCH_PATH), { recursive: true })
+  fs.symlinkSync('../../actual.patch', PATCH_PATH)
+
+  await importCommand.handler({ ...DEFAULT_OPTS, dir: process.cwd() }, [])
+
+  expect(readYamlFileSync<{ patchedDependencies: Record<string, string> }>('pnpm-workspace.yaml').patchedDependencies)
+    .toStrictEqual({ 'is-positive@1.0.0': 'actual.patch' })
+})
