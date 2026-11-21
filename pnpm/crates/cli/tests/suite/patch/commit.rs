@@ -1,6 +1,7 @@
 use super::{
     AddMockedRegistry,
     CommandTempCwd,
+    append_workspace_yaml_key,
     fs,
     pacquet,
     remove_dir_if_exists,
@@ -11,6 +12,7 @@ use super::{
 };
 use assert_cmd::assert::OutputAssertExt;
 use command_extra::CommandExtra;
+use tempfile::TempDir;
 
 #[test]
 fn patch_commit_exact_version_writes_patch_and_reinstalls() {
@@ -793,6 +795,93 @@ fn patch_commit_preserves_resolved_peer_dependencies_in_snapshot() {
     drop((root, mock_instance));
 }
 
+/// Installs a package bound to an optional peer under the next lockfile
+/// format, which refuses to save a snapshot whose edges disagree with its key.
+fn setup_optional_peer_in_next_lockfile() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "lockfile", "\n  format: v13");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/abc-optional-peers": "1.0.0",
+                "@pnpm.e2e/peer-a": "1.0.0",
+                "@pnpm.e2e/peer-b": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    pacquet(&workspace, ["patch", "@pnpm.e2e/abc-optional-peers@1.0.0", "--reporter=silent"])
+        .assert()
+        .success();
+    (root, workspace, npmrc_info)
+}
+
+fn commit_optional_peer_patch_and_assert_peer_kept(workspace: &std::path::Path) {
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/@pnpm.e2e/abc-optional-peers@1.0.0");
+    pacquet(
+        workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(workspace).unwrap().unwrap();
+    let peer_b: pnpm_lockfile::PkgName = "@pnpm.e2e/peer-b".parse().unwrap();
+    let (key, snapshot) = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots must exist")
+        .iter()
+        .find(|(key, _)| key.name.to_string() == "@pnpm.e2e/abc-optional-peers")
+        .expect("abc-optional-peers snapshot must exist");
+    assert!(
+        snapshot.optional_dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&peer_b)),
+        "bound optional peer should remain in {key}: {snapshot:#?}",
+    );
+    pacquet(workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
+}
+
+#[test]
+fn patch_commit_keeps_bound_optional_peers_in_next_lockfile() {
+    let (root, workspace, npmrc_info) = setup_optional_peer_in_next_lockfile();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/@pnpm.e2e/abc-optional-peers@1.0.0");
+    write_patch_edit(&edit_dir, "patched optional peers");
+
+    commit_optional_peer_patch_and_assert_peer_kept(&workspace);
+
+    drop((root, mock_instance));
+}
+
+/// Peers are resolved from the registry's manifest, so a patch that drops a
+/// peer from `package.json` leaves its binding in place.
+#[test]
+fn patch_commit_keeps_a_bound_peer_the_patch_removes() {
+    let (root, workspace, npmrc_info) = setup_optional_peer_in_next_lockfile();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let edit_manifest_path = workspace.join(
+        "node_modules/.pnpm_patches/@pnpm.e2e/abc-optional-peers@1.0.0/package.json",
+    );
+    fs::write(
+        &edit_manifest_path,
+        serde_json::json!({
+            "name": "@pnpm.e2e/abc-optional-peers",
+            "version": "1.0.0",
+        })
+        .to_string(),
+    )
+    .expect("write edit package.json");
+
+    commit_optional_peer_patch_and_assert_peer_kept(&workspace);
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn patch_commit_writes_the_entry_beside_its_patch_in_an_included_file() {
     let (root, workspace, npmrc_info) = setup_installed();
@@ -829,6 +918,42 @@ fn patch_commit_writes_the_entry_beside_its_patch_in_an_included_file() {
     let installed =
         fs::read_to_string(workspace.join("node_modules/is-positive/index.js")).unwrap();
     assert!(installed.contains("patched from an included file"), "installed: {installed}");
+
+    drop((root, mock_instance));
+}
+
+/// The lockfile keys a `namedRegistries` package as
+/// `<name>@<registryName>:<version>`, while the user names it by its version.
+#[test]
+fn patch_and_patch_commit_reach_a_named_registry_package() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{registry}' }}"));
+    append_workspace_yaml_key(&workspace, "registry", registry.replace("127.0.0.1", "localhost"));
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "work:1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    write_patch_edit(&edit_dir, "patched named registry");
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    assert!(workspace.join("patches/is-positive@1.0.0.patch").exists());
+    let installed = fs::read_to_string(workspace.join("node_modules/is-positive/index.js"))
+        .expect("read installed index.js");
+    assert!(installed.contains("patched named registry"), "index.js: {installed}");
+    pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
 
     drop((root, mock_instance));
 }

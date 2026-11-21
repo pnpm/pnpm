@@ -203,7 +203,11 @@ fn lockfile_candidates(current_lockfile: &Lockfile, package_name: &str) -> Vec<P
         }
         let version = metadata.version
             .clone()
-            .unwrap_or_else(|| package_key.suffix.version().to_string());
+            .unwrap_or_else(|| {
+                package_key.suffix
+                    .registry_version()
+                    .map_or_else(|| package_key.suffix.version().to_string(), ToString::to_string)
+            });
         let git_tarball_url = git_tarball_url(&metadata.resolution);
         if seen.insert((name.clone(), version.clone(), git_tarball_url.clone())) {
             versions.push(PatchCandidate { name, version, git_tarball_url, package_key });

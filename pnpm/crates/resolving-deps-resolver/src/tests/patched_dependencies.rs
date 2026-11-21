@@ -136,8 +136,7 @@ async fn patches_git_dependency_with_manifest_version() {
     assert!(tree.applied_patches.contains("foo@1.0.0"));
 }
 
-#[tokio::test]
-async fn leaves_local_directory_dependencies_unpatched() {
+async fn resolve_local_directory_with_patches(groups: PatchGroupRecord) -> (String, Vec<String>) {
     let local_ref = "file:../foo";
     let mut result =
         fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" }));
@@ -152,8 +151,6 @@ async fn leaves_local_directory_dependencies_unpatched() {
     table.insert(("foo".to_string(), local_ref.to_string()), result);
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": local_ref }));
-    let mut groups = PatchGroupRecord::new();
-    groups.insert("foo".to_string(), exact_group("1.0.0", "foo@1.0.0", "abc123"));
 
     let tree = resolve_dependency_tree(
         &resolver,
@@ -172,8 +169,41 @@ async fn leaves_local_directory_dependencies_unpatched() {
     .await
     .unwrap();
 
-    assert_eq!(&*tree.direct[0].id, "foo@file:../foo");
-    assert!(tree.applied_patches.is_empty());
+    let mut applied: Vec<String> = tree.applied_patches
+        .iter()
+        .cloned()
+        .collect();
+    applied.sort();
+    (tree.direct[0].id.to_string(), applied)
+}
+
+/// A local directory's key records its locator, not its manifest version,
+/// so a frozen install can only match it against a wildcard patch.
+#[tokio::test]
+async fn local_directory_dependencies_take_only_wildcard_patches() {
+    let mut exact = PatchGroupRecord::new();
+    exact.insert("foo".to_string(), exact_group("1.0.0", "foo@1.0.0", "abc123"));
+    assert_eq!(
+        resolve_local_directory_with_patches(exact).await,
+        ("foo@file:../foo".to_string(), Vec::new()),
+    );
+
+    let mut wildcard = PatchGroupRecord::new();
+    wildcard.insert(
+        "foo".to_string(),
+        PatchGroup {
+            all: Some(ExtendedPatchInfo {
+                hash: "abc123".to_string(),
+                patch_file_path: None,
+                key: "foo".to_string(),
+            }),
+            ..PatchGroup::default()
+        },
+    );
+    assert_eq!(
+        resolve_local_directory_with_patches(wildcard).await,
+        ("foo@file:../foo(patch_hash=abc123)".to_string(), vec!["foo".to_string()]),
+    );
 }
 
 #[tokio::test]
