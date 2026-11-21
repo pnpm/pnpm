@@ -310,20 +310,25 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         global_bin_dir: &global_bin_dir,
     };
     // The reporter prints only the first summary, so the groups close with
-    // one summary that lists the packages of all of them.
+    // one summary that lists the packages of all of them, including the
+    // groups installed before one that fails.
     let filter = EventFilter::GlobalUpdateMaterialization.apply();
+    let mut installed = Ok(());
     for group in groups {
-        target.add_group::<Reporter>(
+        installed = target.add_group::<Reporter>(
             &group,
             range_spec_style,
             supported_architectures.clone(),
             allow_build,
         )
-        .await?;
+        .await;
+        if installed.is_err() {
+            break;
+        }
     }
     drop(filter);
     emit_global_summary::<Reporter>(&global_pkg_dir);
-    Ok(())
+    installed
 }
 
 /// `pnpm update -g`. Reinstalls each matching group (within its existing

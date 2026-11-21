@@ -285,8 +285,6 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
-/// Each space-separated package is its own group, and the summary lists the
-/// packages of every group, not only those of the first one.
 #[cfg(unix)]
 #[test]
 fn global_add_of_several_groups_summarizes_every_group() {
@@ -304,6 +302,27 @@ fn global_add_of_several_groups_summarizes_every_group() {
     assert!(output.status.success(), "add -g failed: {stdout}");
     assert!(stdout.contains("+ is-positive"), "{stdout}");
     assert!(stdout.contains("+ is-negative"), "{stdout}");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn global_add_summarizes_the_groups_installed_before_a_failing_one() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    let output = without_colors(global_command(&workspace, &pnpm_home))
+        .with_args(["add", "-g", "is-positive", "@pnpm.e2e/this-package-does-not-exist"])
+        .output()
+        .expect("run add -g");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!output.status.success(), "add -g should fail: {stdout}");
+    assert!(stdout.contains("+ is-positive"), "{stdout}");
 
     drop(npmrc_info);
     drop(root);
