@@ -132,6 +132,20 @@ describe('version command', () => {
     expect(result).toContain('1.0.0 → 1.0.1-alpha.0')
   })
 
+  it('rejects an invalid prerelease identifier before writing the version', async () => {
+    const file = path.join(tempDir, 'package.json')
+    const original = JSON.stringify({ name: 'test-pkg', version: '1.0.0' })
+    fs.writeFileSync(file, original)
+    await expect(handler({
+      dir: tempDir,
+      workspaceDir: tempDir,
+      gitChecks: false,
+      gitTagVersion: false,
+      preid: 'foo/bar',
+    } as unknown as Parameters<typeof handler>[0], ['prerelease'])).rejects.toMatchObject({ code: 'ERR_PNPM_VERSION_BUMP_FAILED' })
+    expect(fs.readFileSync(file, 'utf8')).toBe(original)
+  })
+
   it('should return JSON output when --json is set', async () => {
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: '1.0.0' }))
 

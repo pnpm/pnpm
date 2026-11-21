@@ -114,6 +114,19 @@ test('applyReleasePlan bumps manifests, writes changelogs, records the ledger, a
   expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
 })
 
+test('applyReleasePlan writes explicit workspace ranges against snapshot versions', async () => {
+  const { workspaceDir, projects } = await makeWorkspace([
+    { name: 'lib', version: '1.0.0' },
+    { name: 'cli', version: '1.0.0', deps: { lib: 'workspace:^1.0.0' } },
+  ])
+  await writeChangeIntent(workspaceDir, { releases: { lib: 'major' }, summary: 'Removed an export.' })
+  const intents = await readChangeIntents(workspaceDir)
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: {}, snapshotSuffix: 'preview' })
+  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents, versioning: REPOSITORY })
+  const manifest = JSON.parse(await fs.readFile(path.join(projects[1].rootDir, 'package.json'), 'utf8'))
+  expect(manifest.dependencies.lib).toBe('workspace:^0.0.0-preview')
+})
+
 test('intent files consumed only by lane prereleases survive until graduation', async () => {
   const { workspaceDir, projects } = await makeWorkspace([
     { name: 'cli', version: '2.0.0' },

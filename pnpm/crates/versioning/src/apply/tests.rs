@@ -192,6 +192,43 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
 }
 
 #[test]
+fn apply_writes_explicit_workspace_ranges_against_snapshot_versions() {
+    let workspace =
+        make_workspace(&[("lib", "1.0.0", &[]), ("cli", "1.0.0", &[("lib", "workspace:^1.0.0")])]);
+    let dir = workspace.dir.path();
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Major)]);
+    write_change_intent(dir, &releases, "Removed an export.").unwrap();
+    let intents = read_change_intents(dir).unwrap();
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        dir,
+        &intents,
+        &read_ledger(dir).unwrap(),
+        None,
+        &AssembleReleasePlanOptions {
+            snapshot_suffix: Some("preview".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    apply_release_plan(
+        &plan,
+        dir,
+        &workspace.projects,
+        &intents,
+        Some(&repository()),
+        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
+    )
+    .unwrap();
+    let manifest: serde_json::Value = serde_json::from_slice(
+        &fs::read(workspace.projects[1].root_dir.join("package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(manifest["dependencies"]["lib"], "workspace:^0.0.0-preview");
+}
+
+#[test]
 fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     let workspace = make_workspace(&[("cli", "2.0.0", &[])]);
     let releases = IndexMap::from([("cli".to_string(), IntentBumpType::Minor)]);
