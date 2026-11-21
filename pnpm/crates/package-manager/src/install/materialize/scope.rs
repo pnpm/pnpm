@@ -15,7 +15,6 @@ use super::super::{
     Reporter,
     ResolutionVerifier,
     map_frozen_lockfile_error,
-    record_lockfile_verified_by_content,
     verify_lockfile_eagerly,
 };
 
@@ -106,7 +105,7 @@ pub(super) fn lockfile_specifier_manifests_by_id(
 // refreshes the per-path stat shortcut from its read-time `LockfileStat`.
 pub(super) fn record_fresh_lockfile_verified(
     result: &crate::InstallWithFreshLockfileResult,
-    cache_dir: &Path,
+    (cache_dir, saved_lockfile_path): (&Path, &Path),
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
     exotic_subdeps: &ExoticSubdepsPolicy,
 ) {
@@ -114,8 +113,9 @@ pub(super) fn record_fresh_lockfile_verified(
         return;
     }
     let Some(lockfile) = result.wanted_lockfile.as_ref() else { return };
-    record_lockfile_verified_by_content(
+    pnpm_lockfile_verification::record_saved_lockfile_verified(
         Some(cache_dir),
+        saved_lockfile_path,
         lockfile,
         resolution_verifiers,
         exotic_subdeps,

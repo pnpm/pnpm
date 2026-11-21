@@ -441,6 +441,8 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
             std::mem::take(&mut self.lockfiles.verification.resolution_verifiers);
         let exotic_subdeps = std::mem::take(&mut self.lockfiles.verification.exotic_subdeps);
         let cache_dir = self.install.context.config.cache_dir.as_path();
+        let saved_lockfile_path =
+            self.workspace.workspace_root.join(self.install.context.config.wanted_lockfile_name());
         let auto_dedupe_baseline = self.lockfiles.verification
             .auto_dedupe_baseline
             .take();
@@ -462,7 +464,7 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
         .map_err(map_fresh_lockfile_error)?;
         record_fresh_lockfile_verified(
             &fresh_result,
-            cache_dir,
+            (cache_dir, &saved_lockfile_path),
             &resolution_verifiers,
             &exotic_subdeps,
         );

@@ -150,7 +150,6 @@ use pnpm_lockfile::{
 use pnpm_lockfile_verification::{
     ExoticSubdepsPolicy,
     VerifyLockfileResolutionsOptions,
-    record_lockfile_verified_by_content,
     verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{

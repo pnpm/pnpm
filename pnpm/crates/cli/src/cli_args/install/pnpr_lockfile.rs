@@ -48,6 +48,7 @@ use pnpm_lockfile_verification::{
     lockfile_verification_is_cached_with_stat,
     record_lockfile_verified_by_content,
     record_lockfile_verified_with_stat,
+    record_saved_lockfile_verified,
     stat_from_metadata,
     verify_lockfile_resolutions,
 };
@@ -261,8 +262,9 @@ fn save_pnpr_lockfile(
         return Ok(());
     }
     if let Some(verifiers) = merged_repair_verifiers {
-        record_lockfile_verified_by_content(
+        record_saved_lockfile_verified(
             Some(&state.config.cache_dir),
+            lockfile_path,
             lockfile,
             verifiers,
             exotic_subdeps,
@@ -278,8 +280,9 @@ fn save_pnpr_lockfile(
         None,
         None,
     ) {
-        record_lockfile_verified_by_content(
+        record_saved_lockfile_verified(
             Some(&state.config.cache_dir),
+            lockfile_path,
             lockfile,
             &verifiers,
             exotic_subdeps,
