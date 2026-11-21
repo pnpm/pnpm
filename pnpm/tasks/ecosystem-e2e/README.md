@@ -90,8 +90,9 @@ node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package target/pnpm-wa
 ```
 
 `--wasm-package-frontend` builds a Vite app with the package in a fresh
-WebContainer. Late in the long `--wasm-package` session, Vite's WebAssembly
-can fail to allocate memory.
+WebContainer. Late in the long `--wasm-package` session, the Vite build
+intermittently failed to allocate WebAssembly memory. What exhausts that
+memory is not known, so a later step in the long session can hit it too.
 
 The workflows cover update, lockfile-only and frozen/offline installs,
 configuration, command failures, `dlx`, `create`, workspace scripts and bins,
