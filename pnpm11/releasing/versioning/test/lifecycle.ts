@@ -77,36 +77,39 @@ const REPOSITORY = { changelog: { storage: 'repository' } } as const
 test('applyReleasePlan bumps manifests, writes changelogs, records the ledger, and deletes consumed intents', async () => {
   const { workspaceDir, projects } = await makeWorkspace([
     { name: 'lib', version: '1.0.0' },
-    { name: 'cli', version: '2.0.0', deps: { lib: 'workspace:*' } },
+    { name: 'cli', version: '2.0.0', deps: { lib: 'workspace:^1.0.0', pinned: 'workspace:lib@1.0.0', compatible: 'workspace:lib@>=1.0.0', automatic: 'workspace:lib@*', limited: 'workspace:lib@>=1 <2' } },
   ])
   await writeChangeIntent(workspaceDir, {
-    releases: { lib: 'minor' },
-    summary: 'Added a feature.',
+    releases: { lib: 'major' },
+    summary: 'Removed a feature.',
   })
   const intents = await readChangeIntents(workspaceDir)
   const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: await readLedger(workspaceDir) })
 
   const applied = await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents, versioning: REPOSITORY })
-  expect(applied.map((release) => `${release.name}@${release.newVersion}`).sort()).toStrictEqual(['cli@2.0.1', 'lib@1.1.0'])
+  expect(applied.map((release) => `${release.name}@${release.newVersion}`).sort()).toStrictEqual(['cli@2.0.1', 'lib@2.0.0'])
 
   const libDir = projects.find((project) => project.manifest.name === 'lib')!.rootDir
   const cliDir = projects.find((project) => project.manifest.name === 'cli')!.rootDir
-  expect(JSON.parse(await fs.readFile(path.join(libDir, 'package.json'), 'utf8')).version).toBe('1.1.0')
-  expect(JSON.parse(await fs.readFile(path.join(cliDir, 'package.json'), 'utf8')).version).toBe('2.0.1')
+  expect(JSON.parse(await fs.readFile(path.join(libDir, 'package.json'), 'utf8')).version).toBe('2.0.0')
+  expect(JSON.parse(await fs.readFile(path.join(cliDir, 'package.json'), 'utf8'))).toMatchObject({
+    version: '2.0.1',
+    dependencies: { lib: 'workspace:^2.0.0', pinned: 'workspace:lib@2.0.0', compatible: 'workspace:lib@>=1.0.0', automatic: 'workspace:lib@*', limited: 'workspace:lib@>=1 <2 || 2.0.0' },
+  })
 
   const libChangelog = await fs.readFile(path.join(libDir, 'CHANGELOG.md'), 'utf8')
   expect(libChangelog).toContain('# lib')
-  expect(libChangelog).toContain('## 1.1.0')
-  expect(libChangelog).toContain('### Minor Changes')
-  expect(libChangelog).toContain('- Added a feature.')
+  expect(libChangelog).toContain('## 2.0.0')
+  expect(libChangelog).toContain('### Major Changes')
+  expect(libChangelog).toContain('- Removed a feature.')
 
   const cliChangelog = await fs.readFile(path.join(cliDir, 'CHANGELOG.md'), 'utf8')
   expect(cliChangelog).toContain('## 2.0.1')
   expect(cliChangelog).toContain('- Updated dependencies:')
-  expect(cliChangelog).toContain('  - lib@1.1.0')
+  expect(cliChangelog).toContain('  - lib@2.0.0')
 
   const ledger = await readLedger(workspaceDir)
-  expect(Object.keys(ledger)).toStrictEqual(['lib@1.1.0'])
+  expect(Object.keys(ledger)).toStrictEqual(['lib@2.0.0'])
 
   expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
 })

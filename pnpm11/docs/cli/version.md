@@ -39,6 +39,8 @@ pnpm version -r
 
 This assembles a release plan from the `.changeset/*.md` intent files and applies it: every package named by an intent is bumped, and so is every package that depends on it through a `workspace:` range. It then writes changelogs and records the consumed intents in `.changeset/ledger.yaml`.
 
+When a dependency bump falls outside an explicit workspace range, pnpm updates the range in the dependent package. For example, a major bump from 1.0.0 to 2.0.0 updates `workspace:^1.0.0` to `workspace:^2.0.0`. Shorthand ranges such as `workspace:^` keep their spelling.
+
 Private packages (`"private": true`) are bumped without checking the registry for their [first release](../versioning.md#first-releases), and their changelog is always written to the committed `CHANGELOG.md`, even when [`versioning.changelog.storage`](../settings/versioning.md#versioningchangelogstorage) is `registry`.
 
 Preview the plan without touching anything:
@@ -51,7 +53,7 @@ Narrow it to part of the workspace with `--filter`. The selection is expanded un
 
 The working tree must be clean unless `--dry-run` or `--no-git-checks` is passed. See [Release management](../versioning.md) for the full workflow.
 
-A bump runs the `preversion`, `version`, and `postversion` scripts of each bumped package. `--dry-run` and [`ignoreScripts`](../settings/build.md#ignorescripts) skip them.
+A bump runs the `preversion`, `version`, and `postversion` scripts of each bumped package. The version bump preserves other manifest fields edited by `preversion`. `--dry-run` and [`ignoreScripts`](../settings/build.md#ignorescripts) skip them.
 
 ## Options
 

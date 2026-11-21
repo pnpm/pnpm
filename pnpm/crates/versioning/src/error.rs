@@ -52,7 +52,7 @@ pub enum VersioningError {
     UnreleasablePackage { file_path: PathBuf, pkg_name: String, bump_type: String },
 
     #[display(
-        "Package {pkg_name} declares the internal dependency {alias} in {field} as \"{spec}\". Internal dependencies must use the workspace: protocol so that dependency ranges never need rewriting at release time."
+        "Package {pkg_name} declares the internal dependency {alias} in {field} as \"{spec}\". Internal dependencies must use the workspace: protocol."
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_INTERNAL_RANGE))]
     InternalRange { pkg_name: String, alias: String, field: String, spec: String },

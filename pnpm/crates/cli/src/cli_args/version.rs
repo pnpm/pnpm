@@ -302,8 +302,12 @@ impl VersionArgs {
 
         let new_version = self.next_package_version(&current_version, bump, &current)?;
 
-        set_manifest_version(&mut manifest, new_version.clone());
         if !self.dry_run {
+            if !config.ignore_scripts && manifest.value()["scripts"]["preversion"].is_string() {
+                manifest = PackageManifest::from_path(manifest_path.clone())
+                    .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
+            }
+            set_manifest_version(&mut manifest, new_version.clone());
             manifest
                 .save()
                 .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
@@ -361,7 +365,11 @@ impl VersionArgs {
                 self.preid
                     .as_deref()
                     .filter(|preid| !preid.is_empty()),
-            ),
+            )
+            .ok_or_else(|| VersionError::BumpFailed {
+                current: current.to_string(),
+                bump: self.params[0].clone(),
+            })?,
         }
         .to_string();
 

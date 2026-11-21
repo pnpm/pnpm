@@ -1,5 +1,5 @@
 import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
-import { inc, prerelease as parsePrerelease } from 'semver'
+import { inc, prerelease as parsePrerelease, satisfies, valid, validRange } from 'semver'
 
 import type { ReleaseBumpType } from './intents.js'
 
@@ -118,4 +118,15 @@ export function materializeWorkspaceRange (spec: string, depCurrentVersion: stri
     default:
       return parsed.version
   }
+}
+
+export function updatedWorkspaceSpec (alias: string, spec: string, updates: ReadonlyMap<string, string>): string {
+  const parsed = WorkspaceSpec.parse(spec)
+  if (!parsed) return spec
+  const next = updates.get(parsed.alias ?? alias)
+  const range = parsed.version
+  if (next == null || ['', '*', '^', '~'].includes(range) || validRange(range) == null || satisfies(next, range)) return spec
+  const operator = range.startsWith('^') || range.startsWith('~') ? range[0] : ''
+  parsed.version = valid(range.slice(operator.length)) ? operator + next : `${range} || ${next}`
+  return parsed.toString()
 }

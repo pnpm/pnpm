@@ -1397,6 +1397,18 @@ fn prerelease_bump_uses_the_preid() {
 }
 
 #[test]
+fn invalid_preid_leaves_the_version_unchanged() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    for id in ["foo/bar", "01", "rc..1", "rc+build"] {
+        let output = pacquet_version(&workspace, &["prerelease", "--preid", id]);
+        assert!(!output.status.success());
+        assert!(stderr_of(&output).contains("ERR_PNPM_VERSION_BUMP_FAILED"));
+        assert_eq!(manifest_version(&workspace), "1.0.0");
+    }
+}
+
+#[test]
 fn json_flag_reports_the_changes_as_json() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
@@ -1488,7 +1500,7 @@ fn lifecycle_scripts_run_in_order_around_the_bump() {
             "name": "test-pkg",
             "version": "1.0.0",
             "scripts": {
-                "preversion": log_script,
+                "preversion": format!(r#"{log_script} && node -e "const p = require('./package.json'); p.description = 'from hook'; require('fs').writeFileSync('package.json', JSON.stringify(p))""#),
                 "version": log_script,
                 "postversion": log_script,
             },
@@ -1500,6 +1512,9 @@ fn lifecycle_scripts_run_in_order_around_the_bump() {
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     let log = fs::read_to_string(workspace.join("lifecycle.log")).expect("lifecycle log");
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(workspace.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest["description"], "from hook");
     assert_eq!(log, "preversion:1.0.0\nversion:1.0.1\npostversion:1.0.1\n");
     drop(root);
 }

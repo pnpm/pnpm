@@ -68,7 +68,10 @@ pub(crate) fn parse_exact_version(raw: &str) -> Option<(&str, Version)> {
 /// major/minor/patch merely finalizes it, the `pre*` types start a `.0`
 /// prerelease (prefixed with `preid` when given), and `prerelease` increments
 /// the right-most numeric identifier.
-pub(super) fn inc(version: &Version, release: ReleaseType, preid: Option<&str>) -> Version {
+pub(super) fn inc(version: &Version, release: ReleaseType, preid: Option<&str>) -> Option<Version> {
+    if !valid_preid(release, preid) {
+        return None;
+    }
     let mut next = version.clone();
     next.build = Vec::new();
     match release {
@@ -103,7 +106,14 @@ pub(super) fn inc(version: &Version, release: ReleaseType, preid: Option<&str>) 
         }
         ReleaseType::Prerelease => bump_prerelease(&mut next, preid),
     }
-    next
+    Some(next)
+}
+
+fn valid_preid(release: ReleaseType, preid: Option<&str>) -> bool {
+    match (release, preid) {
+        (ReleaseType::Major | ReleaseType::Minor | ReleaseType::Patch, _) | (_, None) => true,
+        (_, Some(id)) => semver::Prerelease::new(id).is_ok(),
+    }
 }
 
 /// Whether `version` is already a pre-release of the major it would be

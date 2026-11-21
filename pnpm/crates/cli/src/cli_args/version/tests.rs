@@ -37,7 +37,7 @@ fn inc_matches_node_semver() {
         ("1.0.0+build.5", ReleaseType::Patch, None, "1.0.1"),
     ];
     for (current, release, preid, expected) in cases {
-        let bumped = inc(&version(current), *release, *preid).to_string();
+        let bumped = inc(&version(current), *release, *preid).unwrap().to_string();
         assert_eq!(&bumped, expected, "inc({current}, {release:?}, {preid:?})");
     }
 }

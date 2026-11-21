@@ -1,13 +1,15 @@
 import fs from 'node:fs/promises'
 
-import type { VersioningChangelogStorage, VersioningSettings } from '@pnpm/types'
+import type { ProjectManifest, VersioningChangelogStorage, VersioningSettings } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 
 import { indexProjectRefs, type PlannedRelease, privateProjectDirs, type ProjectRefIndex, type ReleasePlan, type WorkspaceProject } from './assembleReleasePlan.js'
 import { composeChangelogSection, prependChangelogSection } from './changelog.js'
 import type { ChangeIntent } from './intents.js'
 import { appendToLedger, buildConsumptionIndex, type Ledger, normalizeProjectDir, type PackageConsumption } from './ledger.js'
+import { PROPAGATED_DEP_FIELDS } from './participants.js'
 import { listPendingChangelogs, readPendingChangelog, removePendingChangelog, writePendingChangelog } from './pendingChangelog.js'
+import { updatedWorkspaceSpec } from './versionMath.js'
 
 /**
  * Registry storage is the default: no CHANGELOG.md is committed; a release's
@@ -62,11 +64,24 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
 async function writeNewVersion (release: PlannedRelease): Promise<AppliedRelease> {
   const { manifest, writeProjectManifest } = await readProjectManifest(release.rootDir)
   manifest.version = release.newVersion
+  updateDependencyRanges(manifest, release)
   await writeProjectManifest(manifest)
   return {
     name: release.name,
     currentVersion: release.currentVersion,
     newVersion: release.newVersion,
+  }
+}
+
+function updateDependencyRanges (manifest: ProjectManifest, release: PlannedRelease): void {
+  if (release.dependencyUpdates.length === 0) return
+  const updates = new Map(release.dependencyUpdates.map(({ name, newVersion }) => [name, newVersion]))
+  for (const field of PROPAGATED_DEP_FIELDS) {
+    const entries = manifest[field]
+    if (!entries) continue
+    for (const [alias, spec] of Object.entries(entries)) {
+      entries[alias] = updatedWorkspaceSpec(alias, spec, updates)
+    }
   }
 }
 
