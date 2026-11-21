@@ -267,13 +267,14 @@ snapshots:
         std::iter::empty(),
         std::iter::empty(),
     ));
-    verify_lockfile_resolutions::<SilentReporter>(
+    let err = verify_lockfile_resolutions::<SilentReporter>(
         &deploy_lockfile,
         &[],
         &VerifyLockfileResolutionsOptions { exotic_subdeps: without_extra, ..Default::default() },
     )
     .await
     .expect_err("non-workspace file: directory must not exempt exotic subdeps");
+    assert!(matches!(err, VerifyError::ExoticSubdep { count: 1, .. }), "got: {err:?}");
 
     let with_extra = ExoticSubdepsPolicy::block(ExoticSubdepsScope::new(
         Some(["."]),

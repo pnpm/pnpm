@@ -242,10 +242,7 @@ fn legacy_deploy_rejects_unmatched_root_importer_when_lockfile_dir_differs() {
             base64::Engine::encode(&base64::engine::general_purpose::STANDARD, digest),
         )
     };
-    let server = TestHttpServer::start(
-        exotic_tarball,
-        vec![("reg-parent", "1.0.0", json!({ "peerDependencies": { "exotic": "*" } }))],
-    );
+    let server = TestHttpServer::start(exotic_tarball, vec![("reg-parent", "1.0.0", json!({}))]);
     let exotic_url = format!("{}/exotic.tgz", server.base_url);
 
     let shared_lock_dir = root.path().join("external-lock-dir");

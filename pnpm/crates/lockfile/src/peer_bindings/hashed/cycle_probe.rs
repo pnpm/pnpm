@@ -31,6 +31,9 @@ impl<'a> CycleProbe<'a> {
     /// `false` only when every dependency path from `provider` was followed
     /// and none led back to the provider's package or to the consumer's.
     pub(super) fn may_be_cut(&mut self, provider: &PkgNameVerPeer) -> bool {
+        if self.remaining_visits == 0 {
+            return true;
+        }
         let provider_package = provider.without_peer();
         let Some(mut pending) = self.children(provider) else {
             return true;
