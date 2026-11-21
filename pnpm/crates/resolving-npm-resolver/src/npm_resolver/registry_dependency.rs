@@ -1,13 +1,23 @@
-use std::sync::Arc;
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
-use pnpm_lockfile::registry_server_type;
+use jiff::Timestamp;
+use pnpm_lockfile::{
+    RegistryOptions,
+    RegistryServerType,
+    registry_server_type,
+};
 use pnpm_resolving_resolver_base::{
     ResolveError,
     ResolveOptions,
     ResolveResult,
     WantedDependency,
     WorkspacePackages,
+    lag_minutes,
 };
+use pnpm_version_policy::PolicyMatch;
 
 use super::{
     NPM_REGISTRY_RESOLVED_VIA,
@@ -24,6 +34,9 @@ use super::{
     workspace_shadow_pick,
 };
 use crate::{
+    MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES,
+    PickPackageError,
+    TrustCheckOptions,
     named_registry::pick_registry_for_package,
     pick_package::PackageMetaCache,
     pick_package_from_meta::RegistryPackageSpec,
@@ -81,22 +94,20 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(result));
         }
 
-        let trust_check = trust_check_for_pick(opts, self.cache_policy.ignore_missing_time_field);
-        let picked =
-            match self.pick_from_registry(registry.url, spec, opts, optional, trust_check).await {
-                Ok(RegistryPick::Picked(picked)) => picked,
-                outcome => {
-                    return self.unpicked_fallback(
-                        outcome,
-                        wanted_dependency,
-                        registry,
-                        workspace_packages_active,
-                        spec,
-                        opts,
-                    )
-                    .await;
-                }
-            };
+        let picked = match self.checked_pick(registry.url, spec, opts, optional).await {
+            Ok(RegistryPick::Picked(picked)) => picked,
+            outcome => {
+                return self.unpicked_fallback(
+                    outcome,
+                    wanted_dependency,
+                    registry,
+                    workspace_packages_active,
+                    spec,
+                    opts,
+                )
+                .await;
+            }
+        };
 
         self.finish_registry_pick(
             wanted_dependency,
@@ -106,6 +117,24 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             &picked,
             workspace_packages_active,
         )
+    }
+
+    /// [`Self::pick_from_registry`] under the trust check for the pick, once
+    /// [`check_pnpr_trust_window`] has passed its window. A refused window is
+    /// an unpicked outcome, so a matching workspace package still satisfies
+    /// the dependency.
+    async fn checked_pick(
+        &self,
+        registry: &str,
+        spec: &RegistryPackageSpec,
+        opts: &ResolveOptions,
+        optional: bool,
+    ) -> Result<RegistryPick, ResolveError> {
+        let trust_check = trust_check_for_pick(opts, self.cache_policy.ignore_missing_time_field);
+        let registry_options = &self.format.registry_options_by_url;
+        let package = PnprPackage { registry, name: &spec.name };
+        check_pnpr_trust_window(registry_options, package, trust_check.as_ref(), Timestamp::now())?;
+        self.pick_from_registry(registry, spec, opts, optional, trust_check).await
     }
 
     fn prepare_registry_spec(
@@ -170,4 +199,47 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         )
         .map(Some)
     }
+}
+
+/// A package and the registry it is picked from.
+#[derive(Clone, Copy)]
+pub(super) struct PnprPackage<'a> {
+    pub registry: &'a str,
+    pub name: &'a str,
+}
+
+/// Refuse a `trustPolicyIgnoreAfter` window that counts back from
+/// `referenceTime` when pnpr's own package document cannot date it,
+/// before reading one from the registry. The document dates versions only
+/// within 30 days of the package's last publish, and the fixed time's lag
+/// behind `clock` moves the window that far further back. A window that
+/// counts back from the current time is not refused, and neither is a
+/// package `trustPolicyExclude` exempts at every version.
+pub(super) fn check_pnpr_trust_window(
+    registry_options: &BTreeMap<String, RegistryOptions>,
+    package: PnprPackage<'_>,
+    trust_check: Option<&TrustCheckOptions<'_>>,
+    clock: Timestamp,
+) -> Result<(), PickPackageError> {
+    let Some(trust_check) = trust_check else {
+        return Ok(());
+    };
+    let (Some(ignore_after), Some(now)) =
+        (trust_check.trust_policy_ignore_after_minutes, trust_check.now)
+    else {
+        return Ok(());
+    };
+    let exempt = trust_check.trust_policy_exclude.is_some_and(|exclude| {
+        matches!(exclude.matches(package.name), PolicyMatch::AnyVersion)
+    });
+    let is_pnpr =
+        registry_server_type(registry_options, package.registry) == Some(RegistryServerType::Pnpr);
+    let minutes = ignore_after.saturating_add(lag_minutes(now, clock));
+    if is_pnpr && !exempt && minutes >= MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES {
+        return Err(PickPackageError::UnsupportedTrustPolicyIgnoreAfter {
+            minutes,
+            registry: pnpm_network::redact_url_for_display(package.registry),
+        });
+    }
+    Ok(())
 }

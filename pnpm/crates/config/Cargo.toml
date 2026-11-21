@@ -11,6 +11,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+jiff = { workspace = true }
+pnpm-time = { workspace = true }
 pnpm-matcher = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
 pnpm-config-dir = { workspace = true }

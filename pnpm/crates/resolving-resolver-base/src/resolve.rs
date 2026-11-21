@@ -337,6 +337,26 @@ impl ResolutionRefreshOptions {
     }
 }
 
+/// How many whole minutes `time` lags `clock`, rounded up so a window
+/// widened by the lag is never shorter than it. Zero when `time` is not
+/// behind `clock`.
+#[must_use]
+pub fn lag_minutes(time: Timestamp, clock: Timestamp) -> u64 {
+    u64::try_from((clock - time).as_millis())
+        .map(|millis| millis.div_ceil(60_000))
+        .unwrap_or(0)
+}
+
+/// The `trustPolicyIgnoreAfter` window of [`ResolutionPolicyOptions`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrustIgnoreAfter {
+    /// Max age, in minutes, before which the trust gate still applies.
+    pub minutes: u64,
+    /// The time the window counts back from, the `referenceTime`
+    /// setting. `None` uses the current time.
+    pub now: Option<Timestamp>,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ResolutionPolicyOptions {
     /// `minimumReleaseAge` cutoff. Versions published after this point
@@ -359,10 +379,9 @@ pub struct ResolutionPolicyOptions {
     /// Per-package exclude policy for the trust gate. `None` applies
     /// the gate uniformly.
     pub trust_policy_exclude: Option<PackageVersionPolicy>,
-    /// Max age, in minutes, before which the trust gate still applies.
-    /// A picked version older than this skips the check. `None` always
-    /// checks. The `trustPolicyIgnoreAfter` setting.
-    pub trust_policy_ignore_after: Option<u64>,
+    /// The `trustPolicyIgnoreAfter` window: a picked version older than it
+    /// skips the trust gate. `None` always checks.
+    pub trust_policy_ignore_after: Option<TrustIgnoreAfter>,
     /// Optional guard that rejects concrete npm package versions after
     /// the normal picker selects them. The npm resolvers then exclude
     /// the rejected version and pick again, so a vulnerable or otherwise

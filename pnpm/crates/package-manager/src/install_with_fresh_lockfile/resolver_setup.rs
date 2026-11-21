@@ -290,7 +290,7 @@ impl ResolverChainInputs<'_> {
                 needs_full_metadata_for: Some(Arc::clone(&self.registry.needs_full_metadata)),
                 filter_metadata: self.config.requires_filtered_full_metadata(),
                 registry_options_by_url: Arc::new(self.config.registry_options_by_url.clone()),
-                minimum_release_age: self.config.resolved_minimum_release_age(),
+                minimum_release_age: self.config.release_age_window_from_now(),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 network: self.config.network_policy(),
@@ -403,7 +403,7 @@ impl ResolverChainInputs<'_> {
                 needs_full_metadata_for: Some(Arc::clone(&self.registry.needs_full_metadata)),
                 filter_metadata: self.config.requires_filtered_full_metadata(),
                 registry_options_by_url: Arc::new(self.config.registry_options_by_url.clone()),
-                minimum_release_age: self.config.resolved_minimum_release_age(),
+                minimum_release_age: self.config.release_age_window_from_now(),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 network: self.config.network_policy(),

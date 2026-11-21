@@ -71,15 +71,15 @@ pub struct PickPolicy {
 }
 
 impl PickPolicy {
-    /// Derive the policy from config, sampling the wall clock for the
-    /// `minimumReleaseAge` cutoff. Errors only when
+    /// Derive the policy from config, with the `minimumReleaseAge` cutoff
+    /// counted back from [`Config::resolved_reference_time`]. Errors only when
     /// `minimumReleaseAgeExclude` contains an invalid rule.
     ///
-    /// The cutoff is anchored to "now" at the moment of the call. Share the
+    /// The cutoff is computed once per call. Share the
     /// returned policy across an operation so every lookup uses the same
     /// cutoff instant.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
-        Self::from_config_at(config, jiff::Timestamp::now())
+        Self::from_config_at(config, config.resolved_reference_time())
     }
 
     /// [`Self::from_config`] with extra `minimumReleaseAgeExclude` specs
@@ -269,7 +269,7 @@ fn create_configured_npm_resolver(
             needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
             filter_metadata: policy.filter_metadata,
             registry_options_by_url: Arc::new(config.registry_options_by_url.clone()),
-            minimum_release_age: config.resolved_minimum_release_age(),
+            minimum_release_age: config.release_age_window_from_now(),
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             network: config.network_policy(),
@@ -304,7 +304,7 @@ pub(crate) fn pick_package_context<'a>(
     PickPackageContext {
         pnpr_format: Some(pnpm_resolving_npm_resolver::PnprFormatPolicy {
             registry_options: &config.registry_options_by_url,
-            minimum_release_age: config.resolved_minimum_release_age(),
+            minimum_release_age: config.release_age_window_from_now(),
         }),
         full_metadata: policy.full_metadata,
         needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
@@ -329,3 +329,6 @@ pub(crate) fn pick_package_context<'a>(
 
 #[cfg(all(test, not(feature = "runtime-provisioning")))]
 mod tests;
+
+#[cfg(test)]
+mod reference_time_tests;

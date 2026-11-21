@@ -69,7 +69,7 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
     owned: &AddOwned,
     manifest: &mut PackageManifest,
 ) -> Result<SingleAddPreparation, AddError> {
-    let resolution = AddResolution::new();
+    let resolution = AddResolution::new(add.config);
     let catalog_ctx = read_catalog_ctx(manifest, add.config)?;
     let mut workspace_projects =
         walk_workspace_for_add(add, owned, &catalog_ctx.catalogs, manifest);
@@ -227,7 +227,7 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
     // project: the picker is created on first use (a selection that resolves
     // no `latest` tag never builds one), and the shared caches keep the same
     // package from being fetched once per project.
-    let resolution = AddResolution::new();
+    let resolution = AddResolution::new(add.config);
     // Indexed once, before the loop mutates any manifest: a
     // `workspace:` request saved into project A resolves against the
     // versions the projects declared on entry, not against a sibling

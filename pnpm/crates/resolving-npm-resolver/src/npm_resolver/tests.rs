@@ -2,6 +2,7 @@ mod artifact_binding;
 
 mod metadata_cache;
 
+mod pnpr_trust_window;
 mod trust_policy;
 
 mod workspace_resolution;

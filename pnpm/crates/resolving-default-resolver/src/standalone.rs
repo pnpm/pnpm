@@ -179,7 +179,7 @@ fn metadata_format(
         needs_full_metadata_for: None,
         filter_metadata: opts.filter_metadata,
         registry_options_by_url: Arc::new(config.registry_options_by_url.clone()),
-        minimum_release_age: config.resolved_minimum_release_age(),
+        minimum_release_age: config.release_age_window_from_now(),
     }
 }
 

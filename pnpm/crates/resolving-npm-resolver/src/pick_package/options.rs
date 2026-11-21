@@ -48,7 +48,9 @@ pub struct PnprFormatPolicy<'a> {
     /// `serverType: pnpr` is asked for pnpr's own package document, which is
     /// cached apart from npm's documents.
     pub registry_options: &'a std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>,
-    /// The effective `minimumReleaseAge`, in minutes. The document supports
+    /// The effective `minimumReleaseAge`, in minutes, measured back from the
+    /// current time (so it includes how far `referenceTime` lags it).
+    /// The document supports
     /// at most [`MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES`].
     pub minimum_release_age: Option<u64>,
 }

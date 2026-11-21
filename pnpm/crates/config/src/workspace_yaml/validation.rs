@@ -1,3 +1,8 @@
+use jiff::{
+    SignedDuration,
+    Timestamp,
+};
+
 use super::{
     IgnoredAny,
     IndexMap,
@@ -68,6 +73,20 @@ impl WorkspaceSettings {
     pub(super) fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)
+    }
+
+    /// `referenceTime` must be an RFC 3339 timestamp no later than the
+    /// current time: a later one would waive the release-age cutoff. Checked
+    /// for a project `pnpm-workspace.yaml` only, since the global
+    /// `config.yaml` drops the setting.
+    pub(super) fn validate_reference_time(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(value) = self.reference_time.as_deref() else { return Ok(()) };
+        parse_reference_time(value)
+            .map(|_| ())
+            .map_err(|reason| LoadWorkspaceYamlError::InvalidReferenceTime {
+                value: value.to_string(),
+                reason,
+            })
     }
 
     /// The `tasks` section feeds the task-graph builder of `pnpm -r run`,
@@ -421,4 +440,19 @@ fn parse_present_top_level_keys(text: &str) -> Option<Vec<String>> {
         }
     }
     Some(keys)
+}
+
+/// How far ahead of this machine's clock a `referenceTime` may be, so
+/// a value another machine wrote from its own clock still loads here.
+const CLOCK_SKEW_ALLOWANCE: SignedDuration = jiff::SignedDuration::from_mins(10);
+
+/// Parse a `referenceTime` value: an RFC 3339 timestamp no later than
+/// the current time, give or take [`CLOCK_SKEW_ALLOWANCE`]. The error is the
+/// reason, worded to follow the value.
+pub(super) fn parse_reference_time(value: &str) -> Result<Timestamp, &'static str> {
+    let time = pnpm_time::parse_rfc3339(value).map_err(|_| "is not an RFC 3339 timestamp")?;
+    if time > Timestamp::now() + CLOCK_SKEW_ALLOWANCE {
+        return Err("is later than the current time");
+    }
+    Ok(time)
 }

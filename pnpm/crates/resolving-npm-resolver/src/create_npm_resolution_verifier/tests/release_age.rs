@@ -349,6 +349,33 @@ fn can_trust_past_check_rejects_tighter_min_age() {
     assert!(!verifier.can_trust_past_check(&cached));
 }
 
+#[test]
+fn can_trust_past_check_tracks_the_check_time() {
+    let at = |now: Option<&str>| {
+        let mut opts = default_opts("https://registry.example/");
+        opts.release_age.minimum_minutes = Some(60 * 24);
+        opts.now = now.map(now_at);
+        create_npm_resolution_verifier(opts)
+    };
+    let early = at(Some("2025-12-01T00:00:00Z"));
+    let late = at(Some("2025-12-02T00:00:00Z"));
+    let future = at(Some("2999-01-01T00:00:00Z"));
+    let wall_clock = at(None);
+    for (label, verifier) in
+        [("early", &early), ("late", &late), ("future", &future), ("wall clock", &wall_clock)]
+    {
+        eprintln!("{label} policy: {:?}", verifier.policy());
+    }
+
+    assert!(late.can_trust_past_check(early.policy()), "an earlier fixed time is reusable");
+    assert!(late.can_trust_past_check(late.policy()), "the same fixed time is reusable");
+    assert!(!early.can_trust_past_check(late.policy()), "a later fixed time is not reusable");
+    assert!(!early.can_trust_past_check(wall_clock.policy()), "a wall-clock run is not reusable");
+    assert!(wall_clock.can_trust_past_check(early.policy()), "a past fixed time is reusable");
+    assert!(!wall_clock.can_trust_past_check(future.policy()), "a future time is not reusable");
+    assert!(wall_clock.can_trust_past_check(wall_clock.policy()), "a wall-clock run is reusable");
+}
+
 /// Abbreviated-modified shortcut: when the package-level `modified`
 /// timestamp is older than the cutoff and the pinned version is
 /// still listed, the shortcut passes the gate without falling
