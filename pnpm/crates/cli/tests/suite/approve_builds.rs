@@ -1113,4 +1113,23 @@ fn ignore_workspace_skips_the_allow_builds_scaffold() {
     drop(harness);
 }
 
+#[test]
+fn permissions_approval_rebuilds_the_selected_dependency() {
+    let (harness, workspace) = install_with_ignored_build();
+    let marker = workspace.join(INSTALL_MARKER);
+    assert!(!marker.exists());
+    pacquet(&workspace)
+        .with_args(["permissions", "approve", "@pnpm.e2e/install-script-example"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "permissions approval must run the install script");
+    let modules = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("read .modules.yaml")
+    .expect(".modules.yaml exists");
+    assert!(modules.pending_builds.is_empty(), "{:?}", modules.pending_builds);
+    drop(harness);
+}
+
 mod non_interactive;

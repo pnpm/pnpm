@@ -49,7 +49,6 @@ const DOCUMENTED_UNKNOWN_FLAGS: &[&str] = &[];
 /// Commands with no page under `pnpm/docs/cli`.
 const COMMANDS_WITHOUT_A_PAGE: &[&str] = &[
     "restart", "stop", // Not implemented: each says to use npm.
-    "edit",
 ];
 
 /// Global flags with no heading anywhere under `pnpm/docs`.

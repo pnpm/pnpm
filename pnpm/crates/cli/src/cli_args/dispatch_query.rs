@@ -12,7 +12,6 @@ pub(super) use maintenance::{
     doctor,
     find_hash,
     ignored_builds,
-    not_implemented,
     prefix,
     repo,
     root,
@@ -84,7 +83,6 @@ use super::{
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
-    not_implemented::NotImplementedError,
     outdated::{
         OutdatedArgs,
         OutdatedOutcome,

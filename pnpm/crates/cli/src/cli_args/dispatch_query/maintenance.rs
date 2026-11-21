@@ -24,7 +24,6 @@ use super::{
     DoctorOutcome,
     FindHashArgs,
     IgnoredBuildsArgs,
-    NotImplementedError,
     PrefixArgs,
     RepoArgs,
     RootArgs,
@@ -159,12 +158,6 @@ pub(in super::super) fn config_set<'a>(
     args: ConfigSetAliasArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Set(args.args) })
-}
-
-pub(in super::super) fn not_implemented<'a>(
-    command: &'static str,
-) -> miette::Result<CommandFuture<'a>> {
-    Err(NotImplementedError { command }.into())
 }
 
 pub(in super::super) fn repo<'a>(

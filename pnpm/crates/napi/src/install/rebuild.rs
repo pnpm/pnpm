@@ -58,6 +58,7 @@ pub(super) fn rebuild_options(
     // `None` (or an empty list) rebuilds every build-needing package; a
     // non-empty list restricts the rebuild to the matching names / build keys.
     RebuildOptions {
+        selected_snapshots: None,
         selected_names: selected_names
             .filter(|names| !names.is_empty())
             .map(std::iter::IntoIterator::into_iter)

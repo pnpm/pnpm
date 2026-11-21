@@ -193,7 +193,19 @@ impl WorkspaceSettings {
             let Some(settings) = setting else { continue };
             Self::reject_machine_only_fields(settings, prefix, path)?;
         }
-        self.reject_machine_only_remote_cache_fields(path)
+        self.reject_machine_only_remote_cache_fields(path)?;
+        self.reject_committed_editor(path)
+    }
+
+    /// `editor` names the executable `pnpm edit` runs, so, like `tokenHelper`,
+    /// only the machine's own configuration may choose it.
+    fn reject_committed_editor(&self, path: &Path) -> Result<(), LoadWorkspaceYamlError> {
+        match self.editor {
+            Some(Some(_)) => {
+                Err(LoadWorkspaceYamlError::WorkspaceEditor { path: path.to_path_buf() })
+            }
+            _ => Ok(()),
+        }
     }
 
     /// The token and everything that describes signing belong to the

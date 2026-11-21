@@ -72,6 +72,40 @@ pub(super) struct RequiresBuildInputs<'a> {
 /// answers `false` for every snapshot outside it without looking at the
 /// package: inspecting a package reads its directory, which on a lazily
 /// populated `node_modules` fetches the package.
+/// Whether the installed snapshot `key` needs a build. A rebuild of edited
+/// files reads every copy; otherwise the prefetched answer wins over reading
+/// the canonical copy.
+fn installed_requires_build(
+    pkg_roots: PkgRoots<'_>,
+    prefetched: Option<&crate::RequiresBuildBySnapshot>,
+    rebuild: Option<&RebuildOptions>,
+    key: &PackageKey,
+) -> bool {
+    if rebuild.is_some_and(RebuildOptions::rebuilds_edited_files) {
+        return edited_copy_requires_build(pkg_roots, key);
+    }
+    match (
+        pkg_roots.canonical(key).as_deref(),
+        prefetched
+            .and_then(|map| map.get(key))
+            .copied(),
+    ) {
+        (None, _) => false,
+        (_, Some(requires)) => requires,
+        (Some(pkg_root), None) => pkg_requires_build(pkg_root),
+    }
+}
+
+/// Whether any installed copy of `key` needs a build, read from the files on
+/// disk: the user may have edited any one copy, and the store index records
+/// the published package.
+fn edited_copy_requires_build(pkg_roots: PkgRoots<'_>, key: &PackageKey) -> bool {
+    pkg_roots
+        .all(key)
+        .iter()
+        .any(|pkg_root| pkg_requires_build(pkg_root))
+}
+
 pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<PackageKey, bool> {
     let RequiresBuildInputs {
         snapshots,
@@ -90,16 +124,7 @@ pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<
         .filter(|key| !skipped.contains(key))
         .map(|key| {
             let requires = is_selected(rebuild, key)
-                && match (
-                    pkg_roots.canonical(key).as_deref(),
-                    prefetched
-                        .and_then(|map| map.get(key))
-                        .copied(),
-                ) {
-                    (None, _) => false,
-                    (_, Some(requires)) => requires,
-                    (Some(pkg_root), None) => pkg_requires_build(pkg_root),
-                };
+                && installed_requires_build(pkg_roots, prefetched, rebuild, key);
             (key.clone(), requires)
         })
         .collect();

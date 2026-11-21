@@ -126,7 +126,7 @@ fn check_path_component(path: &Path, is_leaf: bool) -> Result<bool, ()> {
     if metadata.is_symlink() {
         return Err(());
     }
-    if is_leaf && is_hardlinked_metadata(path, &metadata) {
+    if is_leaf && pnpm_fs::is_hardlinked(path, &metadata) {
         return Err(());
     }
     Ok(true)
@@ -143,30 +143,6 @@ fn relative_components(relative: &str) -> Option<Vec<&std::ffi::OsStr>> {
     Some(components)
 }
 
-#[cfg(unix)]
-fn is_hardlinked_metadata(_path: &Path, metadata: &fs::Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt as _;
-    metadata.is_file() && metadata.nlink() > 1
-}
-
-#[cfg(windows)]
-fn is_hardlinked_metadata(path: &Path, metadata: &fs::Metadata) -> bool {
-    if !metadata.is_file() {
-        return false;
-    }
-    // A file whose link count cannot be read is treated as hardlinked, so
-    // an unreadable entry is left alone rather than rewritten.
-    match pnpm_ffi_fs::file_information(path) {
-        Ok(info) => info.hard_links > 1,
-        Err(_) => true,
-    }
-}
-
-#[cfg(not(any(unix, windows, target_os = "wasi")))]
-fn is_hardlinked_metadata(_path: &Path, _metadata: &fs::Metadata) -> bool {
-    true
-}
-
 /// `dir` joined with a recorded in-package path, or `None` if that path is
 /// anything other than a sequence of plain names.
 fn join_inside(dir: PathBuf, relative: &str) -> Option<PathBuf> {
@@ -178,12 +154,4 @@ fn join_inside(dir: PathBuf, relative: &str) -> Option<PathBuf> {
         }
     }
     Some(joined)
-}
-
-#[cfg(target_os = "wasi")]
-fn is_hardlinked_metadata(path: &Path, metadata: &fs::Metadata) -> bool {
-    metadata.is_file()
-        && pnpm_fs::open_file_without_following(path)
-            .and_then(|file| pnpm_fs::file_link_count(&file))
-            .map_or(true, |count| count > 1)
 }

@@ -44,6 +44,7 @@ pub use internal_symlink::{
     selected_paths_and_ancestors,
     symlink_file_or_copy,
 };
+pub use is_hardlinked::is_hardlinked;
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{
@@ -144,6 +145,7 @@ mod exchange_dirents;
 #[cfg(not(target_os = "wasi"))]
 mod file_lock;
 mod internal_symlink;
+mod is_hardlinked;
 mod is_not_found;
 mod is_subdir;
 mod lexical_normalize;
