@@ -92,6 +92,7 @@ fn patch_key(name: &str, range: &str) -> String {
 /// A Yarn patch that import did not apply.
 #[derive(Debug)]
 pub(super) enum DroppedPatch {
+    Outside { alias: String, patch_file: PathBuf },
     Missing { alias: String, patch_file: PathBuf },
     Several { alias: String },
     Conflicting { alias: String, patch_file: String, patch_key: String, kept: String },
@@ -100,6 +101,10 @@ pub(super) enum DroppedPatch {
 impl DroppedPatch {
     fn warning(&self) -> String {
         match self {
+            DroppedPatch::Outside { alias, patch_file } => format!(
+                r#"The patch file {} of "{alias}" is outside the workspace. "{alias}" was imported without the patch."#,
+                patch_file.display(),
+            ),
             DroppedPatch::Missing { alias, patch_file } => format!(
                 r#"The patch file {} of "{alias}" does not exist. "{alias}" was imported without the patch."#,
                 patch_file.display(),
@@ -147,7 +152,13 @@ pub(super) fn convert_yarn_patches(
             .wrap_err_with(|| format!("saving {}", manifest.path().display()))?;
         converted.manifests_changed = true;
         for (alias, patch) in patches {
-            let patch_file = single_patch_file(&alias, &patch.patch_paths, yarn_root, &project_dir);
+            let patch_file = single_patch_file(
+                &alias,
+                &patch.patch_paths,
+                yarn_root,
+                &project_dir,
+                workspace_dir,
+            );
             let patch_file = match patch_file {
                 Ok(patch_file) => patch_file,
                 Err(DroppedPatch::Missing { .. })
@@ -175,14 +186,27 @@ fn single_patch_file(
     patch_paths: &[String],
     yarn_root: &Path,
     project_dir: &Path,
+    workspace_dir: &Path,
 ) -> Result<Option<PathBuf>, DroppedPatch> {
     let patch_path = match patch_paths {
         [] => return Ok(None),
         [patch_path] => patch_path,
         _ => return Err(DroppedPatch::Several { alias: alias.to_string() }),
     };
-    let patch_file = patch_file_path(patch_path, yarn_root, project_dir);
-    if !patch_file.is_file() {
+    let patch_file = lexical_normalize(&patch_file_path(patch_path, yarn_root, project_dir));
+    if !patch_file.starts_with(workspace_dir) {
+        return Err(DroppedPatch::Outside { alias: alias.to_string(), patch_file });
+    }
+    let Ok(target) = patch_file.canonicalize() else {
+        return Err(DroppedPatch::Missing { alias: alias.to_string(), patch_file });
+    };
+    if !workspace_dir
+        .canonicalize()
+        .is_ok_and(|root| target.starts_with(root))
+    {
+        return Err(DroppedPatch::Outside { alias: alias.to_string(), patch_file });
+    }
+    if !target.is_file() {
         return Err(DroppedPatch::Missing { alias: alias.to_string(), patch_file });
     }
     Ok(Some(patch_file))

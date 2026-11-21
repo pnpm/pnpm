@@ -175,3 +175,15 @@ test('importYarnPatches records a patch of a package named like an Object.protot
 
   expect(patchedDependencies).toStrictEqual({ 'constructor@1.0.0': path.resolve('p.patch') })
 })
+
+test('import skips patches outside the workspace', async () => {
+  prepareYarnProject()
+  const manifest = readManifest()
+  manifest.dependencies['is-positive'] = 'patch:is-positive@npm%3A1.0.0#../other.patch'
+  fs.writeFileSync('package.json', JSON.stringify(manifest))
+
+  await importCommand.handler({ ...DEFAULT_OPTS, dir: process.cwd() }, [])
+
+  expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('is outside the workspace'))
+  expect(assertProject(process.cwd()).readLockfile().patchedDependencies).toBeUndefined()
+})

@@ -6,6 +6,7 @@ import { isError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type { ProjectManifest } from '@pnpm/types'
 import { semverUtils, structUtils } from '@yarnpkg/core'
+import { isSubdir } from 'is-subdir'
 import normalizePath from 'normalize-path'
 
 import { splitDescriptor } from './yarnUtil.js'
@@ -87,10 +88,10 @@ export async function importYarnPatches (opts: ImportYarnPatchesOptions): Promis
     patch,
     patchFile: patch.patchPaths.length === 1 ? resolvePatchFile(patch.patchPaths[0], opts.yarnRootDir, project.rootDir) : undefined,
   })))
-  const patchFileExists = await Promise.all(patchFiles.map(({ patchFile }) => patchFile != null && isFile(patchFile)))
+  const statuses = await Promise.all(patchFiles.map(({ patchFile }) => patchFile == null ? undefined : patchFileStatus(patchFile, opts.workspaceDir)))
   const recorded: Record<string, string> = Object.create(null)
   for (const [index, patchFile] of patchFiles.entries()) {
-    recordPatchFile(opts, recorded, { ...patchFile, patchFileExists: patchFileExists[index] })
+    recordPatchFile(opts, recorded, { ...patchFile, status: statuses[index] })
   }
   if (Object.keys(recorded).length === 0) return undefined
   return writeRecordedPatches(opts, recorded)
@@ -100,13 +101,13 @@ interface ImportedPatchFile {
   alias: string
   patch: YarnPatchSpecifier
   patchFile?: string
-  patchFileExists: boolean
+  status?: 'missing' | 'outside' | 'file'
 }
 
 function recordPatchFile (
   opts: ImportYarnPatchesOptions,
   recorded: Record<string, string>,
-  { alias, patch, patchFile, patchFileExists }: ImportedPatchFile
+  { alias, patch, patchFile, status }: ImportedPatchFile
 ): void {
   if (patch.patchPaths.length > 1) {
     globalWarn(`"${alias}" has several Yarn patches, and pnpm applies one patch per dependency. "${alias}" was imported without the patches.`)
@@ -114,7 +115,11 @@ function recordPatchFile (
   }
   if (patchFile == null) return
   const kept = getOwnValue(opts.patchedDependencies, patch.patchKey) ?? recorded[patch.patchKey]
-  if (!patchFileExists) {
+  if (status === 'outside') {
+    globalWarn(`The patch file ${patchFile} of "${alias}" is outside the workspace. "${alias}" was imported without the patch.`)
+    return
+  }
+  if (status === 'missing') {
     if (kept == null) {
       globalWarn(`The patch file ${patchFile} of "${alias}" does not exist. "${alias}" was imported without the patch.`)
     }
@@ -152,11 +157,14 @@ function resolvePatchFile (patchPath: string, yarnRootDir: string, projectDir: s
   return patchPath.startsWith('~/') ? path.join(yarnRootDir, patchPath.slice(2)) : path.resolve(projectDir, patchPath)
 }
 
-async function isFile (filePath: string): Promise<boolean> {
+async function patchFileStatus (filePath: string, workspaceDir: string): Promise<'file' | 'missing' | 'outside'> {
+  if (!isSubdir(workspaceDir, filePath)) return 'outside'
   try {
-    return (await fs.promises.stat(filePath)).isFile()
+    const [root, target] = await Promise.all([fs.promises.realpath(workspaceDir), fs.promises.realpath(filePath)])
+    if (!isSubdir(root, target)) return 'outside'
+    return (await fs.promises.stat(target)).isFile() ? 'file' : 'missing'
   } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return 'missing'
     throw err
   }
 }

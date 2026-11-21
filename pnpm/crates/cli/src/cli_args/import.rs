@@ -1,9 +1,6 @@
 mod yarn_patches;
 
-use std::{
-    collections::BTreeMap,
-    path::Path,
-};
+use std::path::Path;
 
 use crate::State;
 use clap::Args;
@@ -24,13 +21,14 @@ use pnpm_lockfile_import::{
 };
 use pnpm_network::redact_url_for_display;
 use pnpm_package_manager::{
-    Install,
+    DiscoveredWorkspace,
     PreferredVersionsOverride,
     ProjectMutation,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
+use pnpm_workspace::Project;
 
 #[derive(Debug, Args)]
 pub struct ImportArgs {
@@ -45,54 +43,20 @@ pub struct ImportArgs {
 
 impl ImportArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let manifest_path = state.manifest.path().to_path_buf();
-        let dir = manifest_path.parent().expect("manifest path always has a parent dir");
+        let dir = state.project_dir().to_path_buf();
 
         self.warn_ignored_pnpr_server::<Reporter>(state.config);
 
-        let mut preferred_versions = PreferredVersionsOverride::from(to_preferred_versions(
-            &read_foreign_lockfile_versions(dir)?,
-        ));
-        preferred_versions.by_importer = nested_yarn_lock_preferred_versions(&state, dir)?;
-        let state = yarn_patches::import_yarn_patches::<Reporter>(state, dir)?;
-
-        let lockfile_dir = state.lockfile_dir();
-        let symlinked = state.config.symlinked_lockfile();
-        let lockfile_path = replaced_lockfile_path(&state, symlinked)?;
-        let env_lockfile = if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
-            EnvLockfile::read(lockfile_dir)
-                .into_diagnostic()
-                .wrap_err("reading the env lockfile before import")?
-        } else {
-            None
+        let shared = to_preferred_versions(&read_foreign_lockfile_versions(&dir)?);
+        let mut state = yarn_patches::import_yarn_patches::<Reporter>(state, &dir)?;
+        let Some(workspace) = state.config.workspace_dir.as_deref() else {
+            return replace_lockfile::<Reporter>(&state, shared.into()).await;
         };
-
-        // A backup of its own keeps overlapping imports from restoring each
-        // other's copy.
-        let lockfile_backup =
-            lockfile_path.with_extension(format!("yaml.{}.import.bak", pnpm_fs::process_id()));
-        let lockfile_existed = lockfile_path.exists();
-        if lockfile_existed {
-            back_up_lockfile(&lockfile_path, &lockfile_backup, symlinked)?;
-        }
-        let install_result =
-            import_versions::<Reporter>(&state, &lockfile_path, preferred_versions).await;
-
-        let import_result = install_result.and_then(|()| {
-            if let Some(env_lockfile) = env_lockfile {
-                env_lockfile
-                    .write(
-                        lockfile_dir,
-                        symlinked,
-                        pnpm_lockfile::EnvDocumentFormat::for_pnpm(pnpm_config::PNPM_VERSION),
-                    )
-                    .into_diagnostic()
-                    .wrap_err("preserving the env lockfile after import")?;
-            }
-            Ok(())
-        });
-
-        finish_import(import_result, &lockfile_path, &lockfile_backup, lockfile_existed)
+        let (projects, _) = super::recursive::discover_workspace_projects(workspace, state.config)?;
+        check_workspace_cycles::<Reporter>(state.config, &projects, workspace)?;
+        let discovered = DiscoveredWorkspace::new(projects);
+        state.discovered_workspace = Some(discovered.clone());
+        import_workspace::<Reporter>(&state, &discovered, shared).await
     }
 
     fn warn_ignored_pnpr_server<Reporter: self::Reporter>(&self, config: &pnpm_config::Config) {
@@ -107,22 +71,119 @@ impl ImportArgs {
     }
 }
 
-/// The file the import replaces. Moving a symlinked lockfile aside and writing
-/// a new one replaces the link with a regular file, so writing through the
-/// link replaces its target instead.
-fn replaced_lockfile_path(
-    state: &State,
-    symlinked: SymlinkedLockfile<'_>,
-) -> miette::Result<std::path::PathBuf> {
-    match symlinked {
-        SymlinkedLockfile::WriteThrough { .. } => {
-            lockfile_write_target(&state.lockfile_path(), symlinked)
-                .into_diagnostic()
-                .wrap_err("resolving the symlinked pnpm-lock.yaml")
-                .map(std::borrow::Cow::into_owned)
-        }
-        SymlinkedLockfile::Refuse => Ok(state.lockfile_path()),
+fn check_workspace_cycles<Reporter: self::Reporter>(
+    config: &pnpm_config::Config,
+    projects: &[Project],
+    workspace: &Path,
+) -> miette::Result<()> {
+    if config.ignore_workspace_cycles {
+        return Ok(());
     }
+    let catalogs = super::catalogs::configured_catalogs(config)?;
+    let cycles = pnpm_package_manager::install_scope_cycles(
+        config,
+        projects,
+        None,
+        pnpm_workspace_projects_graph::WorkspaceCatalogs {
+            catalogs: &catalogs,
+            workspace_dir: workspace,
+        },
+    )?;
+    pnpm_package_manager::report_workspace_cycles::<Reporter>(
+        config,
+        workspace,
+        cycles.as_deref(),
+    )?;
+    Ok(())
+}
+
+async fn import_workspace<Reporter: self::Reporter + 'static>(
+    state: &State,
+    workspace: &DiscoveredWorkspace,
+    shared: PreferredVersions,
+) -> miette::Result<()> {
+    let mut preferred_versions = PreferredVersionsOverride::from(shared);
+    for project in workspace
+        .projects()
+        .iter()
+        .filter(|project| project.root_dir != state.project_dir())
+    {
+        let project_dir = &project.root_dir;
+        let nested = nested_yarn_preferences(project_dir)?;
+        if state.config.shares_one_lockfile() {
+            if let Some(nested) = nested {
+                let id =
+                    pnpm_workspace::importer_id_from_root_dir(state.lockfile_dir(), project_dir);
+                preferred_versions.by_importer.insert(id, nested);
+            }
+        } else {
+            let mut pins = PreferredVersionsOverride::from(preferred_versions.shared.clone());
+            if let Some(nested) = nested {
+                pins.by_importer.insert(".".to_string(), nested);
+            }
+            let mut child = super::pipelines::init_dedicated_project_state(
+                state.config,
+                project_dir,
+                super::pipelines::project_manifest_name(project),
+                false,
+                Some(state.http_client.clone()),
+            )?;
+            child.discovered_workspace = Some(workspace.clone());
+            replace_lockfile::<Reporter>(&child, pins).await?;
+        }
+    }
+    replace_lockfile::<Reporter>(state, preferred_versions).await
+}
+
+fn nested_yarn_preferences(dir: &Path) -> miette::Result<Option<PreferredVersions>> {
+    if !dir.join(YARN_LOCKFILE_NAME).is_file() {
+        return Ok(None);
+    }
+    Ok(Some(to_preferred_versions(&read_foreign_lockfile_versions(dir)?)))
+}
+
+async fn replace_lockfile<Reporter: self::Reporter + 'static>(
+    state: &State,
+    preferred_versions: PreferredVersionsOverride,
+) -> miette::Result<()> {
+    let lockfile_dir = state.lockfile_dir();
+    let symlinked = state.config.symlinked_lockfile();
+    let lockfile_path =
+        lockfile_write_target(&state.lockfile_path(), symlinked).into_diagnostic()?.into_owned();
+    let env_lockfile = if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
+        EnvLockfile::read(lockfile_dir)
+            .into_diagnostic()
+            .wrap_err("reading the env lockfile before import")?
+    } else {
+        None
+    };
+
+    // A backup of its own keeps overlapping imports from restoring each
+    // other's copy.
+    let lockfile_backup =
+        lockfile_path.with_extension(format!("yaml.{}.import.bak", pnpm_fs::process_id()));
+    let lockfile_existed = lockfile_path.exists();
+    if lockfile_existed {
+        back_up_lockfile(&lockfile_path, &lockfile_backup, symlinked)?;
+    }
+    let install_result =
+        import_versions::<Reporter>(state, &lockfile_path, preferred_versions).await;
+
+    let import_result = install_result.and_then(|()| {
+        if let Some(env_lockfile) = env_lockfile {
+            env_lockfile
+                .write(
+                    lockfile_dir,
+                    symlinked,
+                    pnpm_lockfile::EnvDocumentFormat::for_pnpm(pnpm_config::PNPM_VERSION),
+                )
+                .into_diagnostic()
+                .wrap_err("preserving the env lockfile after import")?;
+        }
+        Ok(())
+    });
+
+    finish_import(import_result, &lockfile_path, &lockfile_backup, lockfile_existed)
 }
 
 fn back_up_lockfile(
@@ -160,34 +221,6 @@ fn discard_failed_import(
         .wrap_err("restoring the original lockfile")
 }
 
-/// Pins from a `yarn.lock` in a workspace project other than the directory
-/// passed to `pnpm import`. The root lockfile stays the shared seed.
-fn nested_yarn_lock_preferred_versions(
-    state: &State,
-    imported_dir: &Path,
-) -> miette::Result<BTreeMap<String, PreferredVersions>> {
-    let Some(workspace_dir) = state.config.workspace_dir.as_deref() else {
-        return Ok(BTreeMap::new());
-    };
-    let (projects, _) = super::recursive::discover_workspace_projects(workspace_dir, state.config)?;
-    let lockfile_dir = state.lockfile_dir();
-    let imported_id = pnpm_workspace::importer_id_from_root_dir(lockfile_dir, imported_dir);
-    let mut by_importer = BTreeMap::new();
-    for project in projects {
-        let importer_id =
-            pnpm_workspace::importer_id_from_root_dir(lockfile_dir, &project.root_dir);
-        if importer_id == imported_id {
-            continue;
-        }
-        if !project.root_dir.join(YARN_LOCKFILE_NAME).is_file() {
-            continue;
-        }
-        let versions = read_foreign_lockfile_versions(&project.root_dir)?;
-        by_importer.insert(importer_id, to_preferred_versions(&versions));
-    }
-    Ok(by_importer)
-}
-
 async fn import_versions<Reporter: self::Reporter + 'static>(
     state: &State,
     lockfile_path: &std::path::Path,
@@ -196,15 +229,9 @@ async fn import_versions<Reporter: self::Reporter + 'static>(
     let import_lockfile = pnpm_lockfile::LazyLockfile::preloaded(None);
 
     {
-        let mut base_install = Install::new(
-            std::sync::Arc::clone(&state.tarball_mem_cache),
-            &state.resolved_packages,
-            (&state.http_client, std::sync::Arc::clone(&state.http_client)),
-            state.config,
-            &state.manifest,
-            pnpm_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile),
-            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional].into_iter(),
-        );
+        let mut base_install =
+            state.install([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]);
+        base_install.context.lockfile = pnpm_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile);
         base_install.lockfile_policy.prefer_frozen = Some(false);
         base_install.lockfile_policy.trust = false;
         base_install.execution.mutation = ProjectMutation::NoInstall;

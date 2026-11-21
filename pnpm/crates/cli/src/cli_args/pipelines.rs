@@ -4,7 +4,10 @@ pub(crate) use configuration::{
     record_no_runtime_flag,
     warn_about_config_root,
 };
-pub(in crate::cli_args) use dedicated_runs::run_dedicated_lockfile_workspace_install;
+pub(in crate::cli_args) use dedicated_runs::{
+    init_dedicated_project_state,
+    run_dedicated_lockfile_workspace_install,
+};
 pub(crate) use fetch::run_fetch;
 pub(crate) use install::{
     InstallPipeline,

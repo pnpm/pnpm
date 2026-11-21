@@ -8,7 +8,7 @@ import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { isError, PnpmError } from '@pnpm/error'
 import { install, type InstallOptions } from '@pnpm/installing.deps-installer'
-import { getLockfileImporterId, getWantedLockfileName, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import { ensureLockfileIsNotSymlink, getLockfileImporterId, getWantedLockfileName, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { type PreferredVersions, REQUESTED_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import {
@@ -96,6 +96,7 @@ async function replaceWantedLockfile (
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   })
   const lockfilePath = path.join(lockfileDir, lockfileName)
+  await ensureLockfileIsNotSymlink(lockfilePath)
   // The env document leads pnpm-lock.yaml, so a branch import has none to carry over.
   const envLockfile = lockfileName === WANTED_LOCKFILE ? await readEnvLockfile(lockfileDir) : undefined
   // A backup of its own keeps overlapping imports from restoring each other's copy.
@@ -186,7 +187,7 @@ async function installImportedWorkspaceLockfile (
   checkWorkspaceCycles(opts, sequenceGraph(selectedProjectsGraph).cycles)
   await recursive(allProjects,
     params,
-    // @ts-expect-error -- the import options do not declare bail and linkWorkspacePackages, which RecursiveOptions requires
+    // @ts-expect-error The import options do not declare bail and linkWorkspacePackages, which RecursiveOptions requires
     {
       ...opts,
       lockfileOnly: true,

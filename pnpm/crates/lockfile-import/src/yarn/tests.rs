@@ -292,3 +292,19 @@ fn yarn_berry_npm_aliases_and_dist_tags() {
         ],
     );
 }
+
+#[test]
+fn yarn_classic_entries_without_package_names_contribute_no_pins() {
+    let versions = collect(
+        r#""https://example.invalid/pkg.tgz":
+  version "1.0.0"
+"file:./local":
+  version "2.0.0"
+"github:owner/repo":
+  version "3.0.0"
+sample@^1:
+  version "1.2.3"
+"#,
+    );
+    assert_eq!(versions, vec![("sample".to_string(), vec!["1.2.3".to_string()])]);
+}
