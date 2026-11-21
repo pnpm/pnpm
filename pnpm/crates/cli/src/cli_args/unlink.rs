@@ -3,12 +3,12 @@ use clap::Args;
 use indexmap::IndexMap;
 use miette::Context;
 use pnpm_config::Config;
-use pnpm_fs::lexical_normalize;
 use pnpm_local_spec::is_tarball_filename;
 use pnpm_package_manifest::{
     PackageManifest,
     PackageManifestError,
 };
+use pnpm_resolving_local_resolver::local_spec_path;
 use pnpm_workspace::project_manifest_path;
 use pnpm_workspace_manifest_writer::remove_overrides;
 use serde_json::Value;
@@ -70,9 +70,15 @@ impl UnlinkArgs {
                 .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?;
             let root_dir = config.workspace_dir.as_deref().unwrap_or(manifest_dir);
 
-            let linked_dirs: Vec<(&str, PathBuf)> = removed
+            let linked_dirs: Vec<LinkedDir> = removed
                 .iter()
-                .map(|(name, specifier)| (name.as_str(), link_target_dir(root_dir, specifier)))
+                .filter_map(|(name, specifier)| {
+                    Some(LinkedDir {
+                        name,
+                        protocol: link_protocol(specifier)?,
+                        dir: local_spec_path(specifier, root_dir),
+                    })
+                })
                 .collect();
             let unlinked_manifests: Vec<PackageManifest> =
                 selected_manifest_paths(config, prefix, manifest_path, recursive_sort)?
@@ -103,7 +109,7 @@ impl UnlinkArgs {
         let removed: IndexMap<String, String> = overrides
             .iter()
             .filter(|(selector, specifier)| {
-                is_link_specifier(specifier)
+                link_protocol(specifier).is_some()
                     && (self.package_names.is_empty()
                         || self.package_names
                             .iter()
@@ -137,33 +143,37 @@ fn selected_manifest_paths(
         .collect())
 }
 
-/// Whether `specifier` is one `pnpm link` writes: `link:<dir>`, or
-/// `file:<dir>` with `--hard`. A `file:` tarball is never a link. The
-/// directory does not have to exist, so a link to a moved or deleted package
-/// can still be removed.
-fn is_link_specifier(specifier: &str) -> bool {
-    specifier.starts_with("link:")
-        || specifier
-            .strip_prefix("file:")
-            .is_some_and(|path| !is_tarball_filename(path))
+/// A package whose link override this run removes.
+struct LinkedDir<'a> {
+    name: &'a str,
+    /// The protocol of the override, `link:` or `file:`.
+    protocol: &'static str,
+    dir: PathBuf,
 }
 
-fn link_target_dir(base_dir: &Path, specifier: &str) -> PathBuf {
-    let path = specifier
-        .strip_prefix("link:")
-        .or_else(|| specifier.strip_prefix("file:"))
-        .unwrap_or(specifier);
-    lexical_normalize(&base_dir.join(path))
+/// The protocol of a specifier `pnpm link` writes: `link:<dir>`, or
+/// `file:<dir>` with `--hard`, or `None` for any other specifier. A `file:`
+/// tarball is never a link. The directory does not have to exist, so a link
+/// to a moved or deleted package can still be removed.
+fn link_protocol(specifier: &str) -> Option<&'static str> {
+    if specifier.starts_with("link:") {
+        return Some("link:");
+    }
+    specifier
+        .strip_prefix("file:")
+        .filter(|path| !is_tarball_filename(path))
+        .map(|_| "file:")
 }
 
 /// The manifest at `manifest_path` with the dependencies `pnpm link` added
 /// for the removed overrides dropped, unsaved, or `None` when it has none.
-/// `pnpm link` only writes `dependencies`, and only a link dependency that
-/// points at the same directory as its override is dropped, so a link
-/// dependency declared to another directory is kept.
+/// `pnpm link` only writes `dependencies`, with the protocol of the override.
+/// Only a dependency with that protocol that points at the same directory as
+/// its override is dropped. A dependency declared to another directory, or a
+/// `file:` dependency that a `link:` override replaced, is kept.
 fn remove_linked_dependencies(
     manifest_path: &Path,
-    linked_dirs: &[(&str, PathBuf)],
+    linked_dirs: &[LinkedDir],
 ) -> miette::Result<Option<PackageManifest>> {
     let mut manifest = match PackageManifest::from_path(manifest_path.to_path_buf()) {
         Ok(manifest) => manifest,
@@ -182,16 +192,16 @@ fn remove_linked_dependencies(
     };
 
     let mut changed = false;
-    for (name, linked_dir) in linked_dirs {
+    for linked in linked_dirs {
         let points_at_linked_dir = deps
-            .get(*name)
+            .get(linked.name)
             .and_then(Value::as_str)
             .is_some_and(|specifier| {
-                is_link_specifier(specifier)
-                    && link_target_dir(manifest_dir, specifier) == *linked_dir
+                link_protocol(specifier) == Some(linked.protocol)
+                    && local_spec_path(specifier, manifest_dir) == linked.dir
             });
         if points_at_linked_dir {
-            deps.remove(*name);
+            deps.remove(linked.name);
             changed = true;
         }
     }

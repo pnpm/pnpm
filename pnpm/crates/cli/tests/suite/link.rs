@@ -845,3 +845,55 @@ fn link_hard_does_not_warn_about_peer_dependencies() {
 
     drop((root, mock_instance));
 }
+
+/// A `file:` specifier ending in `.tgz`, `.tar.gz`, or `.tar` names a
+/// tarball, so `--hard` refuses a directory with such a name before it
+/// writes anything.
+#[test]
+fn link_hard_rejects_directory_with_tarball_name() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), &manifest).expect("write package.json");
+    let workspace_yaml_before =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap_or_default();
+
+    let target_dir = root.path().join("archive-like.tgz");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "archive-like", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_args(["link", "--hard", "../archive-like.tgz"])
+        .output()
+        .expect("spawn pacquet link");
+    assert!(!output.status.success(), "link --hard must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_LINK_HARD_TARBALL_NAME"),
+        "stderr should name the error: {stderr}",
+    );
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+        manifest,
+        "package.json must be unchanged",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap_or_default(),
+        workspace_yaml_before,
+        "pnpm-workspace.yaml must be unchanged",
+    );
+
+    drop((root, mock_instance));
+}

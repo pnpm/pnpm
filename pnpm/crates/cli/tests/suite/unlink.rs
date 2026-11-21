@@ -729,3 +729,72 @@ fn unlink_keeps_file_tarball_overrides() {
 
     drop((root, mock_instance));
 }
+
+/// `pnpm link` without `--hard` keeps a dependency that is already declared
+/// and only adds a `link:` override. Unlinking must keep that `file:`
+/// dependency, although it points at the same directory.
+#[test]
+fn unlink_keeps_file_dependency_replaced_by_a_link_override() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+    let manifest = serde_json::json!({
+        "name": "test-project",
+        "version": "1.0.0",
+        "dependencies": { "linked-foo": "file:linked-foo" },
+    });
+    write_manifest(&workspace, &manifest);
+
+    run_pnpm(&workspace, &["link", "./linked-foo"]);
+    assert!(
+        read_workspace_yaml(&workspace).contains("linked-foo: link:linked-foo"),
+        "link must add a link: override",
+    );
+
+    run_pnpm(&workspace, &["unlink", "linked-foo"]);
+
+    assert_eq!(read_manifest(&workspace), manifest);
+    assert!(!read_workspace_yaml(&workspace).contains("link:"), "override must be removed");
+
+    drop((root, mock_instance));
+}
+
+/// The override and the dependency name the same directory in different
+/// forms, one through `~/`. `unlink` resolves both the way the installer does
+/// and drops the dependency.
+#[cfg(unix)]
+#[test]
+fn unlink_matches_equivalent_file_specifiers() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_local_package(&workspace, "linked-foo", "linked-foo");
+    let absolute = workspace.join("linked-foo");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "name": "test-project",
+            "version": "1.0.0",
+            "dependencies": { "linked-foo": format!("file:{}", absolute.display()) },
+        }),
+    );
+    add_overrides(&workspace, "overrides:\n  linked-foo: file:~/linked-foo\n");
+
+    std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace)
+        .with_env("HOME", &workspace)
+        .with_args(["unlink", "linked-foo"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        read_manifest(&workspace),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
+    );
+
+    drop((root, mock_instance));
+}

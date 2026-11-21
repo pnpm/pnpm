@@ -10,6 +10,7 @@ use miette::{
     Diagnostic,
 };
 use pnpm_config::Config;
+use pnpm_local_spec::is_tarball_filename;
 use pnpm_package_manager::{
     Install,
     ProjectMutation,
@@ -63,6 +64,18 @@ pub enum LinkError {
         help(r#"A package is linked under the "name" field of its package.json. That name must be a valid npm package name."#)
     )]
     InvalidName { dir: String, name: String },
+
+    #[display(r#"Cannot hard link "{dir}" because its name ends like a tarball file name"#)]
+    #[diagnostic(
+        code(ERR_PNPM_LINK_HARD_TARBALL_NAME),
+        help(
+            "A `file:` specifier that ends in .tgz, .tar.gz, or .tar refers to a tarball. Link this directory without --hard, or rename it."
+        )
+    )]
+    HardTarballName {
+        #[error(not(source))]
+        dir: String,
+    },
 }
 
 const DEPENDENCY_FIELDS: [&str; 3] = ["optionalDependencies", "dependencies", "devDependencies"];
@@ -161,6 +174,9 @@ impl LinkArgs {
         let mut new_overrides = IndexMap::<String, String>::new();
         for path_str in &self.package_paths {
             let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
+            if self.hard && is_tarball_filename(&target_dir.to_string_lossy()) {
+                return Err(LinkError::HardTarballName { dir: path_str.clone() }.into());
+            }
 
             if !already_declared(manifest, &package_name) {
                 manifest
