@@ -443,7 +443,6 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     )
     .await?;
     check_pnpr_applied_settings(state.config, resolved.outcome.lockfile.settings.as_ref())?;
-    persist_allowed_picks::<Reporter>(state, lockfile_dir, &link, &resolved.outcome.allowed_picks)?;
     let lockfile = merge_and_save_pnpr_lockfile::<Reporter>(
         state,
         selection,
@@ -453,6 +452,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
         resolved.outcome.lockfile,
     )
     .await?;
+    persist_allowed_picks::<Reporter>(state, lockfile_dir, &link, &resolved.outcome.allowed_picks)?;
     if !link.lockfile.only {
         link_pnpr_lockfile::<Reporter>(
             state,

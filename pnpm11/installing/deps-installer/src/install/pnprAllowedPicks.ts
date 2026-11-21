@@ -11,6 +11,7 @@ export function violationsFromAllowedPicks (
   lockfile: LockfileObject,
   opts: Pick<SingleProjectInstallOptions, 'minimumReleaseAge' | 'minimumReleaseAgeStrict' | 'registriesByPrefix' | 'registriesByScope'>
 ): ResolutionPolicyViolation[] {
+  if (allowedPicks.length === 0) return []
   assertAllowedPicksPolicy(allowedPicks, opts)
   const resolutions = resolutionsFromLockfile(lockfile, opts)
   return allowedPicks.flatMap((spec) => violationsFromAllowedPick(spec, resolutions))
@@ -20,7 +21,7 @@ function assertAllowedPicksPolicy (
   allowedPicks: string[],
   opts: Pick<SingleProjectInstallOptions, 'minimumReleaseAge' | 'minimumReleaseAgeStrict'>
 ): void {
-  if (allowedPicks.length > 0 && (!opts.minimumReleaseAge || opts.minimumReleaseAgeStrict)) {
+  if (!opts.minimumReleaseAge || opts.minimumReleaseAgeStrict) {
     throw new PnpmError(
       'PNPR_SERVER_INVALID_ALLOWED_PICKS',
       'The pnpr server returned allowed picks without an active loose minimumReleaseAge policy.'
