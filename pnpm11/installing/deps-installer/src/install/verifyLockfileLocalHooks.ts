@@ -181,7 +181,10 @@ async function runReadPackageProbe (
       pkg = (await hook(pkg, lockfileDir)) ?? pkg
     }
     return pkg
-  } catch {
+  } catch (err: unknown) {
+    // The hook may not handle a placeholder manifest. Only an error on the
+    // real manifest is one the install would also hit.
+    if (pristine != null) throw err
     return undefined
   }
 }

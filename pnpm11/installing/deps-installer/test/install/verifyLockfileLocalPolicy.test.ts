@@ -722,3 +722,41 @@ test('a file key backed by a remote tarball or git resolution is a shape mismatc
   }
   expect(() => verifyLockfileResolutionShapes(lockfile({ type: 'directory', directory: 'disguised' }))).not.toThrow()
 })
+
+test('a readPackage hook that throws on a real parent manifest surfaces its own error', async () => {
+  const fetchPackage = jest.fn(async () => ({
+    fetching: async () => ({
+      files: { filesMap: new Map(), resolvedFrom: 'remote' as const },
+      bundledManifest: { name: 'tarball-parent', version: '1.0.0', dependencies: { helper: '^1.0.0' } },
+    }),
+    filesIndexFile: '/nonexistent',
+  }))
+  const store = { fetchPackage } as unknown as StoreController
+  const throwingHook: ReadPackageHook = () => {
+    throw new Error('hook exploded')
+  }
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    pnpmfileChecksum: 'sha256-hook',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { 'tarball-parent': 'https://example.com/parent.tgz' },
+        specifiers: { 'tarball-parent': 'https://example.com/parent.tgz' },
+      },
+    },
+    packages: {
+      ['tarball-parent@https://example.com/parent.tgz' as DepPath]: {
+        version: '1.0.0',
+        resolution: { tarball: 'https://example.com/parent.tgz' },
+        dependencies: { helper: 'file:local-helper' },
+      },
+      ['helper@file:local-helper' as DepPath]: {
+        resolution: { type: 'directory', directory: 'local-helper' },
+      },
+    },
+  }
+  await expect(resolveLocalPolicyForInstall(lockfile, {
+    hooks: { readPackage: [throwingHook] },
+    storeController: store,
+  })).rejects.toThrow('hook exploded')
+})

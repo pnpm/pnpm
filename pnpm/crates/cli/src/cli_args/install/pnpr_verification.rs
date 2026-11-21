@@ -52,7 +52,10 @@ pub(super) async fn verify_settled_pnpr_lockfile<Reporter: self::Reporter + 'sta
             hook: None,
         },
     )
-    .await;
+    .await
+    .map_err(|error| {
+        miette::Report::new(pnpm_package_manager::InstallError::ReadPackageHook(error))
+    })?;
     let verified =
         VerifiedOfflineLockfile::verify_with_policy(lockfile, Some(local_policy.clone()))
             .map_err(miette::Report::new)?;

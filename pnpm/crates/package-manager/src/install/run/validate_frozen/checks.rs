@@ -118,7 +118,8 @@ impl RunExecution<'_> {
                         hook: self.owned.projects.pnpmfile_hook_override.as_deref(),
                     },
                 )
-                .await;
+                .await
+                .map_err(InstallError::ReadPackageHook)?;
                 verify_lockfile_offline_and_policies(
                     lockfile,
                     &[],

@@ -48,7 +48,7 @@ pub(super) async fn apply_or_run_pre_resolution_hook<Reporter: self::Reporter>(
         install.context.http_client,
         loaded.pnpmfile_hook.as_deref(),
     )
-    .await;
+    .await?;
     Ok(())
 }
 
@@ -66,7 +66,7 @@ pub(super) async fn run_pre_resolution_hook_and_enrich<Reporter: self::Reporter>
         install.context.http_client,
         loaded.pnpmfile_hook.as_deref(),
     )
-    .await;
+    .await?;
     Ok(hooked_current)
 }
 

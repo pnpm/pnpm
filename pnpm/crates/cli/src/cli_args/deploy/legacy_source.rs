@@ -121,7 +121,7 @@ impl LegacyDeploySource {
         );
         let source_lockfile = self.source_lockfile.as_ref().unwrap_or(&self.lockfile);
         let local_policy =
-            self.source_local_policy(source_lockfile, state, (source_config, source_hook)).await;
+            self.source_local_policy(source_lockfile, state, (source_config, source_hook)).await?;
         verify_lockfile_resolutions::<ReporterT>(
             source_lockfile,
             &verifiers,
@@ -148,7 +148,7 @@ impl LegacyDeploySource {
         source_lockfile: &Lockfile,
         state: &State,
         (source_config, source_hook): (&Config, Option<&dyn pnpm_hooks::PnpmfileHooks>),
-    ) -> pnpm_lockfile_verification::LocalResolutionPolicy {
+    ) -> miette::Result<pnpm_lockfile_verification::LocalResolutionPolicy> {
         let containment_root = source_config.workspace_dir.as_deref().unwrap_or(&source_config.dir);
         let base = pnpm_deps_restorer::local_resolution_policy_for_workspace(
             source_config,
@@ -166,6 +166,9 @@ impl LegacyDeploySource {
             },
         )
         .await
+        .map_err(|error| {
+            miette::Report::new(pnpm_package_manager::InstallError::ReadPackageHook(error))
+        })
     }
 }
 

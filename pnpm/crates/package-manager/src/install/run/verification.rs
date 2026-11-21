@@ -129,7 +129,7 @@ impl Verification {
         config: &Config,
         http_client: &pnpm_network::ThrottledClient,
         hook: Option<&dyn pnpm_hooks::PnpmfileHooks>,
-    ) {
+    ) -> Result<(), InstallError> {
         if let Some(wanted) = wanted {
             let current = std::mem::take(&mut self.local_policy);
             self.local_policy = pnpm_deps_restorer::enrich_local_policy_for_install(
@@ -141,8 +141,10 @@ impl Verification {
                     hook,
                 },
             )
-            .await;
+            .await
+            .map_err(InstallError::ReadPackageHook)?;
         }
+        Ok(())
     }
 
     pub(super) fn take_valid_override<'install, Reporter: super::super::Reporter + 'static>(

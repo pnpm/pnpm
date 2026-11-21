@@ -82,9 +82,10 @@ impl<'a> FrozenInputs<'a> {
 
     pub(super) async fn effective_local_policy(
         &self,
-    ) -> pnpm_lockfile_verification::LocalResolutionPolicy {
+    ) -> Result<pnpm_lockfile_verification::LocalResolutionPolicy, super::InstallFrozenLockfileError>
+    {
         if let Some(policy) = self.lockfiles.policies.local_policy.cloned() {
-            return policy;
+            return Ok(policy);
         }
         let mut base = crate::attach_live_project_manifests(
             crate::local_resolution_policy_for_config(
@@ -107,6 +108,7 @@ impl<'a> FrozenInputs<'a> {
             },
         )
         .await
+        .map_err(super::InstallFrozenLockfileError::ReadPackageHook)
     }
 
     // Declared projects may live outside the lockfile directory, unlike untrusted importer keys.

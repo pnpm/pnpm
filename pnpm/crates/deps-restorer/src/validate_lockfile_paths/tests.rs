@@ -211,3 +211,74 @@ fn catalogs_override_supplies_local_override_target_absent_from_config_catalogs(
     pnpm_lockfile_verification::verify_lockfile_local_resolutions(&lockfile, Some(with_override))
         .expect("catalogs_override entry must authorize remote>helper -> file:../shared");
 }
+
+struct ThrowingReadPackage;
+
+#[async_trait::async_trait]
+impl pnpm_hooks::PnpmfileHooks for ThrowingReadPackage {
+    async fn read_package(
+        &self,
+        _: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
+        Err(pnpm_hooks::HookError::Execution {
+            pnpmfile: ".pnpmfile.cjs".to_string(),
+            message: "hook exploded".to_string(),
+        })
+    }
+
+    async fn after_all_resolved(
+        &self,
+        _: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+        Ok(serde_json::Value::Null)
+    }
+
+    async fn pre_resolution(
+        &self,
+        ctx: pnpm_hooks::PreResolutionHookContext,
+        _: pnpm_hooks::PreResolutionHookLogger,
+    ) -> Result<pnpm_hooks::PreResolutionHookContext, pnpm_hooks::HookError> {
+        Ok(ctx)
+    }
+
+    async fn filter_log(&self, _: serde_json::Value, _: pnpm_hooks::HookContext) -> bool {
+        true
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        None
+    }
+
+    fn source_path(&self) -> Option<&std::path::Path> {
+        None
+    }
+}
+
+#[tokio::test]
+async fn read_package_error_on_a_real_manifest_reaches_the_caller() {
+    let parent = pnpm_lockfile_verification::LocalResolutionProbeParent {
+        pkg_key: "remote@1.0.0".parse().expect("parse key"),
+        resolution: None,
+        name: "remote".to_string(),
+        version: Some("1.0.0".to_string()),
+        dep_aliases: vec!["helper".to_string()],
+        optional_aliases: Vec::new(),
+        peer_aliases: Vec::new(),
+    };
+    let mut rewrites = Vec::new();
+    let pristine = serde_json::json!({ "name": "remote", "dependencies": { "helper": "^1.0.0" } });
+    super::collect_probed_parent_rewrites(
+        &ThrowingReadPackage,
+        &parent,
+        Some(&pristine),
+        &mut rewrites,
+    )
+    .await
+    .expect_err("the hook's error on the real manifest must surface");
+    super::collect_probed_parent_rewrites(&ThrowingReadPackage, &parent, None, &mut rewrites)
+        .await
+        .expect("an error on a placeholder manifest only withholds rewrites");
+    assert!(rewrites.is_empty());
+}

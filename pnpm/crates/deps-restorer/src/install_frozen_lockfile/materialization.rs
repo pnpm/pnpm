@@ -161,7 +161,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             // Timed from here: a pnpmfile's fetcher setup is hook work, not
             // materialization, and the integrated benchmark reads this phase.
             let phase_start = std::time::Instant::now();
-            let local_policy = install.effective_local_policy().await;
+            let local_policy = install.effective_local_policy().await?;
             let output = fetch_verified::<Reporter>(
                 install.virtual_store(
                     ctx,
@@ -259,7 +259,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 known_requires_build,
             )
             .await;
-            let local_policy = install.effective_local_policy().await;
+            let local_policy = install.effective_local_policy().await?;
             let layout = install.verified_layout(
                 allow_build_policy,
                 host.engine_name.as_deref(),

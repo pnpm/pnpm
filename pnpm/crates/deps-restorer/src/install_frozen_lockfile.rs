@@ -181,6 +181,11 @@ pub enum InstallFrozenLockfileError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomFetcherHook(#[error(not(source))] pnpm_hooks::HookError),
 
+    /// The pnpmfile's `readPackage` hook threw on a package's manifest while
+    /// the lockfile's local dependencies were being verified.
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
+    ReadPackageHook(#[error(not(source))] pnpm_hooks::HookError),
+
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
 

@@ -19,6 +19,7 @@ use futures_util::{
 use pnpm_config::Config;
 use pnpm_hooks::{
     HookContext,
+    HookError,
     PnpmfileHooks,
 };
 use pnpm_lockfile::{
@@ -180,11 +181,15 @@ pub fn attach_selected_project_manifests<'m>(
 }
 
 /// Enrich `policy` with local edges rewritten by an active `pnpmfile` hook.
+///
+/// # Errors
+///
+/// See [`enrich_local_policy_for_install`].
 pub async fn enrich_local_policy_with_pnpmfile_hook(
     policy: LocalResolutionPolicy,
     lockfile: &Lockfile,
     hook: Option<&dyn PnpmfileHooks>,
-) -> LocalResolutionPolicy {
+) -> Result<LocalResolutionPolicy, HookError> {
     enrich_local_policy_for_install(
         policy,
         lockfile,
@@ -196,32 +201,48 @@ pub async fn enrich_local_policy_with_pnpmfile_hook(
 /// Enrich `policy` with pristine candidate manifest specs (for child-ranged
 /// overrides) and `.pnpmfile.cjs` hook rewrites when `lockfile` contains local
 /// non-importer edges that would otherwise fail.
+///
+/// # Errors
+///
+/// The `readPackage` hook's error when it fails on a parent's real manifest.
+/// An error on a placeholder manifest only withholds that parent's rewrites.
 pub async fn enrich_local_policy_for_install(
     mut policy: LocalResolutionPolicy,
     lockfile: &Lockfile,
     drivers: LocalPolicyEnrichDrivers<'_>,
-) -> LocalResolutionPolicy {
+) -> Result<LocalResolutionPolicy, HookError> {
     if !matches!(
         verify_lockfile_local_resolutions(lockfile, Some(policy.clone())),
         Err(VerifyError::LocalSubdepNotAllowed { .. }),
     ) {
-        return policy;
+        return Ok(policy);
     }
     if let Some(hook) = drivers.hook
         && hook.has_after_all_resolved().await.unwrap_or(false)
     {
         policy = policy.with_after_all_resolved_hook(true);
     }
-    let needs_ranged = policy.has_child_ranged_edges();
-    let run_read_package = should_probe_read_package(lockfile, drivers.hook).await;
-    if !needs_ranged && !run_read_package {
-        return policy;
+    let modes = ProbeModes {
+        pristine_specs: policy.has_child_ranged_edges(),
+        read_package: should_probe_read_package(lockfile, drivers.hook).await,
+    };
+    if !modes.pristine_specs && !modes.read_package {
+        return Ok(policy);
     }
     let candidates = local_resolution_candidate_parents_for_policy(lockfile, &policy);
     if candidates.is_empty() {
-        return policy;
+        return Ok(policy);
     }
-    probe_candidates_for_policy(policy, candidates, drivers, (needs_ranged, run_read_package)).await
+    probe_candidates_for_policy(policy, candidates, drivers, modes).await
+}
+
+/// What [`probe_candidates_for_policy`] collects from each candidate parent.
+#[derive(Clone, Copy)]
+struct ProbeModes {
+    /// Record the parent's declared child specs, for child-ranged overrides.
+    pristine_specs: bool,
+    /// Replay the `readPackage` hook to observe its rewrites.
+    read_package: bool,
 }
 
 /// Candidate parent manifests read or fetched at once while enriching the
@@ -233,8 +254,8 @@ async fn probe_candidates_for_policy(
     policy: LocalResolutionPolicy,
     candidates: Vec<LocalResolutionProbeParent>,
     drivers: LocalPolicyEnrichDrivers<'_>,
-    (needs_ranged, run_read_package): (bool, bool),
-) -> LocalResolutionPolicy {
+    modes: ProbeModes,
+) -> Result<LocalResolutionPolicy, HookError> {
     let store_index = match drivers.config {
         Some(cfg) => StoreIndex::open_shared(&cfg.store_dir, cfg.frozen_store).await,
         None => None,
@@ -257,14 +278,20 @@ async fn probe_candidates_for_policy(
     let mut pristine_specs = PristineDeclaredSpecs::new();
     let mut rewrites = Vec::new();
     for (parent, pristine) in &probed {
-        if needs_ranged && let Some(manifest) = pristine {
+        if modes.pristine_specs
+            && let Some(manifest) = pristine
+        {
             record_pristine_specs(parent, manifest, &mut pristine_specs);
         }
-        if run_read_package && let Some(hook) = drivers.hook {
-            collect_probed_parent_rewrites(hook, parent, pristine.as_ref(), &mut rewrites).await;
+        if modes.read_package
+            && let Some(hook) = drivers.hook
+        {
+            collect_probed_parent_rewrites(hook, parent, pristine.as_ref(), &mut rewrites).await?;
         }
     }
-    policy.with_pristine_declared_specs(pristine_specs).with_probed_source_hook_rewrites(rewrites)
+    Ok(policy
+        .with_pristine_declared_specs(pristine_specs)
+        .with_probed_source_hook_rewrites(rewrites))
 }
 
 async fn should_probe_read_package(lockfile: &Lockfile, hook: Option<&dyn PnpmfileHooks>) -> bool {
@@ -281,14 +308,17 @@ async fn collect_probed_parent_rewrites(
     parent: &LocalResolutionProbeParent,
     pristine: Option<&Value>,
     out: &mut Vec<(PackageKey, String, Option<String>, String, String)>,
-) {
+) -> Result<(), HookError> {
     let probe =
         pristine.cloned().unwrap_or_else(|| build_probe_manifest(parent, PROBE_SENTINEL_SPEC));
-    let Ok(hooked) =
-        hook.read_package(probe, HookContext { log: Arc::new(|_| {}), dir: None }).await
-    else {
-        return;
-    };
+    let hooked =
+        match hook.read_package(probe, HookContext { log: Arc::new(|_| {}), dir: None }).await {
+            Ok(hooked) => hooked,
+            // The hook may not handle a placeholder manifest. Only an error
+            // on the real manifest is one the install would also hit.
+            Err(_) if pristine.is_none() => return Ok(()),
+            Err(error) => return Err(error),
+        };
     let alt_hooked = if pristine.is_none() {
         hook.read_package(
             build_probe_manifest(parent, PROBE_ALT_SENTINEL_SPEC),
@@ -300,6 +330,7 @@ async fn collect_probed_parent_rewrites(
         None
     };
     record_verified_hook_rewrites(parent, pristine, &hooked, alt_hooked.as_deref(), out);
+    Ok(())
 }
 
 fn record_verified_hook_rewrites(
