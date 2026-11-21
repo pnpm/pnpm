@@ -98,7 +98,6 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
     check_installed_runtime(name, display_name, wanted_range, on_fail, emit)
 }
 
-/// Why a declared runtime fails the check. Each reason has its own error code.
 #[derive(Clone, Copy)]
 enum RuntimeCheckFailure {
     MissingVersionRange,
