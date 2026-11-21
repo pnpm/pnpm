@@ -8,7 +8,7 @@ const ERROR_BLOCK: &str = r#"[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies
 ✕ missing peer missing-peer
   Wanted:
     "*":
-      peer-user@file:dep
+      peer-user@1.0.0
 hint: To auto-install peer dependencies, add the following to "pnpm-workspace.yaml" in your project root:
 
   autoInstallPeers: true
