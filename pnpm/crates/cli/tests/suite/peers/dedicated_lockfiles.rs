@@ -270,9 +270,9 @@ fn install_fails_on_a_missing_peer_of_a_linked_sibling_under_dedicated_lockfiles
         .output()
         .expect("run pnpm install");
     assert!(!output.status.success(), "the missing peer must fail the install: {output:?}");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"), "{stdout}");
-    assert!(stdout.contains("missing-peer"), "{stdout}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PEER_DEP_ISSUES"), "{stderr}");
+    assert!(stderr.contains("missing-peer"), "{stderr}");
 
     drop(root);
 }

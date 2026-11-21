@@ -245,11 +245,11 @@ fn injected_sibling_satisfies_the_peer_range_by_its_manifest_version() {
             .with_arg("install")
             .output()
             .expect("run pnpm install");
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
         assert_eq!(output.status.success(), satisfied, "{provider_version}: {output:?}");
         if !satisfied {
-            assert!(stdout.contains("Installed: 2.0.0"), "{stdout}");
-            assert!(stdout.contains("lib@1.0.0"), "{stdout}");
+            assert!(stderr.contains("Installed: 2.0.0"), "{stderr}");
+            assert!(stderr.contains("lib@1.0.0"), "{stderr}");
         }
 
         drop(root);
