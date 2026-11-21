@@ -58,8 +58,9 @@ use pnpm_modules_yaml::{
 impl GlobalInstallTarget<'_> {
     /// Install each `add -g` group in turn, stopping at the first that fails.
     /// The reporter prints only the first summary, so the groups close with
-    /// one summary that lists the packages of all of them, including the
-    /// groups installed before one that fails.
+    /// one summary that lists the packages of all of them. A failed command
+    /// prints none: a group that fails activation has already reported its
+    /// packages as added.
     pub(super) async fn add_groups<Reporter: self::Reporter + 'static>(
         &self,
         groups: &[Vec<String>],
@@ -68,22 +69,18 @@ impl GlobalInstallTarget<'_> {
         allow_build: &[String],
     ) -> miette::Result<()> {
         let filter = EventFilter::GlobalUpdateMaterialization.apply();
-        let mut installed = Ok(());
         for group in groups {
-            installed = self.add_group::<Reporter>(
+            self.add_group::<Reporter>(
                 group,
                 range_spec_style,
                 supported_architectures.clone(),
                 allow_build,
             )
-            .await;
-            if installed.is_err() {
-                break;
-            }
+            .await?;
         }
         drop(filter);
         emit_global_summary::<Reporter>(self.global_pkg_dir);
-        installed
+        Ok(())
     }
 
     /// Install one `add -g` group and activate it over the groups it

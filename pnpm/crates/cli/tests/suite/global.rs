@@ -309,7 +309,7 @@ fn global_add_of_several_groups_summarizes_every_group() {
 
 #[cfg(unix)]
 #[test]
-fn global_add_summarizes_the_groups_installed_before_a_failing_one() {
+fn global_add_prints_no_summary_when_a_group_fails() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let pnpm_home = root.path().join("pnpm-home");
@@ -322,7 +322,7 @@ fn global_add_summarizes_the_groups_installed_before_a_failing_one() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!output.status.success(), "add -g should fail: {stdout}");
-    assert!(stdout.contains("+ is-positive"), "{stdout}");
+    assert!(!stdout.contains("+ is-positive"), "{stdout}");
 
     drop(npmrc_info);
     drop(root);
