@@ -235,7 +235,8 @@ pub(crate) enum EventFilter {
     /// The lockfile-only comparison pass: hide the install-tree events and the
     /// terminal "Already up to date".
     GlobalUpdateResolution = 1,
-    /// A materializing pass: `update -g` prints one summary of its own.
+    /// A materializing pass: `add -g` and `update -g` print one summary of
+    /// their own.
     GlobalUpdateMaterialization = 2,
     /// Work that runs quietly regardless of `--reporter`, such as provisioning
     /// the pnpm version a project pins.

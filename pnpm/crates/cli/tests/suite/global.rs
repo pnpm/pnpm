@@ -285,6 +285,30 @@ fn global_add_list_remove_round_trip() {
     drop(root);
 }
 
+/// Each space-separated package is its own group, and the summary lists the
+/// packages of every group, not only those of the first one.
+#[cfg(unix)]
+#[test]
+fn global_add_of_several_groups_summarizes_every_group() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    let output = without_colors(global_command(&workspace, &pnpm_home))
+        .with_args(["add", "-g", "is-positive", "is-negative"])
+        .output()
+        .expect("run add -g");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "add -g failed: {stdout}");
+    assert!(stdout.contains("+ is-positive"), "{stdout}");
+    assert!(stdout.contains("+ is-negative"), "{stdout}");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 /// A mutating global command must create a missing global bin directory
 /// instead of failing `ERR_PNPM_PNPM_DIR_NOT_WRITABLE`, pnpm's config
 /// reader runs `mkdir -p` on the bin dir for every `--global` command. A

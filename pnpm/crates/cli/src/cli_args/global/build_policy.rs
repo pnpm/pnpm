@@ -27,8 +27,9 @@ pub(super) fn global_approval_store<'a>(
 }
 
 /// Complete `cfg`'s build policy for a global group. The loader already
-/// applied `globalPackagesConfig`, the environment, and the command line, in
-/// that order, and dropped the policy of the layers below them. Beneath those
+/// applied the top level of `config.yaml`, `globalPackagesConfig`, the
+/// environment, and the command line, in that order, and dropped the policy
+/// of the workspace layer. Beneath those
 /// come the decisions this command recorded since `cfg` was loaded, which an
 /// earlier group may have moved there, then the legacy decisions of the
 /// global packages directory's `pnpm-workspace.yaml`.

@@ -19,19 +19,30 @@ pub const GLOBAL_PACKAGES_UNSUPPORTED_KEYS: &[&str] =
 /// The settings that decide which lifecycle scripts run.
 const BUILD_POLICY_KEYS: &[&str] = &["allowBuilds", "dangerouslyAllowAllBuilds", "permissions"];
 
+/// The build policy the layers below the workspace layer set, restored over
+/// the workspace layer's own by [`Config::apply_global_packages_layer`].
+pub(super) struct BuildPolicy {
+    allow_builds: std::collections::HashMap<String, bool>,
+    dangerously_allow_all_builds: bool,
+    explicit_settings: Vec<(String, serde_json::Value)>,
+}
+
 impl Config {
     /// Apply [`Config::global_packages_config`] when the command acts on the global
     /// packages, in the slot of the workspace layer. Relative paths resolve
     /// against [`Config::dir`], as the rest of the global `config.yaml` does.
+    /// `below_workspace` is [`Config::global_packages_build_policy`], taken
+    /// before the workspace layer applied.
     pub(super) fn apply_global_packages_layer(
         &mut self,
+        below_workspace: Option<BuildPolicy>,
         explicit: &mut ExplicitPaths,
         declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
     ) {
-        if self.cli.command_target != CommandTarget::GlobalPackages {
+        let Some(below_workspace) = below_workspace else {
             return;
-        }
-        self.drop_build_policy();
+        };
+        self.restore_build_policy(below_workspace);
         let Some(settings) = self.global_packages_config.as_deref().cloned() else {
             return;
         };
@@ -45,15 +56,32 @@ impl Config {
         self.workspace_dir = saved_workspace_dir;
     }
 
-    /// Drop the build policy the layers below set. The workspace layer may be
-    /// a repository's, through `PNPM_CONFIG_WORKSPACE_DIR`, and it must not
-    /// decide which lifecycle scripts a global install runs.
-    fn drop_build_policy(&mut self) {
-        self.allow_builds.clear();
-        self.dangerously_allow_all_builds = false;
+    /// The build policy so far, for a command that acts on the global packages.
+    pub(super) fn global_packages_build_policy(&self) -> Option<BuildPolicy> {
+        (self.cli.command_target == CommandTarget::GlobalPackages).then(|| BuildPolicy {
+            allow_builds: self.allow_builds.clone(),
+            dangerously_allow_all_builds: self.dangerously_allow_all_builds,
+            explicit_settings: BUILD_POLICY_KEYS
+                .iter()
+                .filter_map(|key| {
+                    self.explicit_settings
+                        .get(*key)
+                        .map(|value| ((*key).to_string(), value.clone()))
+                })
+                .collect(),
+        })
+    }
+
+    /// Replace the workspace layer's build policy with `policy`, the one of
+    /// the layers below it. The global install fills in the decisions of the
+    /// global packages directory's `pnpm-workspace.yaml` beneath every layer.
+    fn restore_build_policy(&mut self, policy: BuildPolicy) {
+        self.allow_builds = policy.allow_builds;
+        self.dangerously_allow_all_builds = policy.dangerously_allow_all_builds;
         for key in BUILD_POLICY_KEYS {
             self.explicit_settings.remove(*key);
         }
+        self.explicit_settings.extend(policy.explicit_settings);
     }
 
     fn warn_about_unsupported_global_packages_keys(&mut self, settings: &WorkspaceSettings) {
