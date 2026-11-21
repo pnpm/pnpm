@@ -286,8 +286,8 @@ fn manifest_link_target(
         )?,
         None => Cow::Borrowed(spec),
     };
-    if let Some(target) = resolved.strip_prefix("link:") {
-        return Some(resolve_link_target(project_dir, target));
+    if resolved.starts_with("link:") {
+        return Some(pnpm_resolving_local_resolver::local_spec_path(&resolved, project_dir));
     }
     workspace_link_target(workspace_links?.packages?, alias, &resolved)
 }
@@ -379,15 +379,6 @@ pub(crate) fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> boo
             deps.keys()
                 .any(|name| name.to_string() == alias)
         })
-}
-
-/// Resolve a `link:` payload against the project directory. An
-/// absolute payload is used as-is; a relative one (including the
-/// self-reference `link:.`) is anchored at the project dir, the same
-/// semantics pnpm applies to `link:` specifiers in a manifest.
-fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
-    let path = Path::new(target);
-    if path.is_absolute() { path.to_path_buf() } else { project_dir.join(path) }
 }
 
 /// Error type of the pass that links dependencies `excludeLinksFromLockfile` keeps out of the lockfile.
