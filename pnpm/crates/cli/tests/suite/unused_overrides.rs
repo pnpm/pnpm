@@ -1,5 +1,6 @@
 //! The warning about `overrides` entries that matched no dependency.
 
+use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{
@@ -9,7 +10,6 @@ use pnpm_testing_utils::bin::{
 use std::{
     fs,
     path::Path,
-    process::Command,
 };
 
 const PROD_DEP: &str = "@pnpm.e2e/foo";
@@ -45,7 +45,7 @@ fn append_workspace_yaml(workspace: &Path, settings: &str) {
 
 fn overrides_block() -> String {
     format!(
-        "overrides:\n  \"{PROD_DEP}\": 100.0.0\n  \"{DEV_DEP}\": 100.0.0\n  \"{MISSING}\": 1.0.0\n"
+        "overrides:\n  \"{PROD_DEP}\": 100.0.0\n  \"{DEV_DEP}\": 100.0.0\n  \"{MISSING}\": 1.0.0\n",
     )
 }
 
@@ -109,9 +109,7 @@ fn legacy_deploy_reports_no_unused_override() {
         .with_arg("install")
         .assert()
         .success();
-    let output = Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
+    let output = pacquet_in(&workspace)
         .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "deploy"])
         .assert()
         .success();
