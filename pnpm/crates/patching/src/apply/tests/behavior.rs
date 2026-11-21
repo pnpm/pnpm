@@ -893,7 +893,7 @@ fn create_over_a_file_whose_bytes_differ_from_the_created_content_errors() {
         "--- /dev/null"
         "+++ b/file.txt"
         "@@ -0,0 +1 @@"
-        "+\u{FFFD}"
+        "+�"
     };
     let patch = write_patch(patch_dir.path(), patch);
 
