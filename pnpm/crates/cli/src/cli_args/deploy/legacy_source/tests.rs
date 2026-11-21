@@ -94,6 +94,7 @@ fn rebase_ignores_escaping_publish_directory_absent_from_project_manifest() {
         lockfile,
         source_lockfile: None,
         path: Some(workspace.join("pnpm-lock.yaml")),
+        source_lockfile_dir: workspace.clone(),
     };
     source.rebase(&selected, &deploy_dir, &workspace).expect("rebase");
 
@@ -142,6 +143,7 @@ fn rebase_keeps_manifest_declared_publish_directory_outside_the_project() {
         lockfile,
         source_lockfile: None,
         path: Some(workspace.join("pnpm-lock.yaml")),
+        source_lockfile_dir: workspace.clone(),
     };
     source.rebase(&selected, &deploy_dir, &workspace).expect("rebase");
 
@@ -191,6 +193,7 @@ fn rebase_ignores_publish_directory_absent_from_project_manifest_and_keeps_decla
         lockfile,
         source_lockfile: None,
         path: Some(workspace.join("pnpm-lock.yaml")),
+        source_lockfile_dir: workspace.clone(),
     };
     source.rebase(&selected, &deploy_dir, &workspace).expect("rebase");
 

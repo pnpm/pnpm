@@ -515,8 +515,11 @@ fn importer_range_link_may_target_a_lockfile_importer_absent_from_the_run() {
     let without_importer = parse(
         "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      lib:\n        specifier: ^1.0.0\n        version: link:../shared\n",
     );
-    let err = crate::verify_lockfile_local_resolutions(&without_importer, Some(live_root()))
-        .expect_err("a range linked to a directory no importer records must fail");
+    let err = crate::verify_lockfile_local_resolutions(
+        &without_importer,
+        Some(live_root().with_workspace_scope(false, Some(1))),
+    )
+    .expect_err("a range linked to a directory no importer records must fail");
     assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }));
 }
 

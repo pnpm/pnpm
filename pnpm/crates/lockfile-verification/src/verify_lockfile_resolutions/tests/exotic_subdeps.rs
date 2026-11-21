@@ -257,15 +257,7 @@ snapshots:
     .await
     .expect_err("file: key with remote tarball URL must be rejected");
 
-    assert!(
-        matches!(
-            err,
-            VerifyError::ExoticSubdep { count: 1, .. }
-                | VerifyError::LocalSubdepNotAllowed { count: 1, .. }
-                | VerifyError::ResolutionShapeMismatch { count: 1, .. }
-        ),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { count: 1, .. }), "got: {err:?}");
 }
 
 #[tokio::test]

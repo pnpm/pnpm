@@ -207,7 +207,7 @@ impl DeployArgs {
             &mut state,
             legacy_source,
             &source_scope,
-            (base_config, pnpmfile_hook.is_some()),
+            (base_config, pnpmfile_hook.as_deref()),
         )
         .await?;
         self.install_deployed_state::<ReporterT>(
@@ -233,7 +233,7 @@ impl DeployArgs {
         state: &mut State,
         source: Option<LegacyDeploySource>,
         (source_importer_ids, source_workspace_dirs): &(Vec<String>, Vec<String>),
-        source_policy: (&Config, bool),
+        source_policy: (&Config, Option<&dyn pnpm_hooks::PnpmfileHooks>),
     ) -> miette::Result<Option<PreferredVersions>> {
         let Some(source) = source else {
             return Ok(None);

@@ -553,9 +553,11 @@ async fn enforces_key_semver_ranged_child_overrides_mixed_variations_and_live_wo
     let mixed_var = parse(
         "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      mixed:\n        specifier: file:./local\n        version: file:./local\npackages:\n  mixed@file:./local:\n    resolution:\n      type: variations\n      variants:\n        - targets: [{os: linux, cpu: x64}]\n          resolution: {type: directory, directory: ./local}\n        - targets: [{os: darwin, cpu: arm64}]\n          resolution: {tarball: https://evil.example/mixed.tgz}\nsnapshots:\n  mixed@file:./local:\n    dependencies:\n      leak: link:../secret\n",
     );
+    let mixed_err = verify_lockfile_local_resolutions(&mixed_var, None)
+        .expect_err("a remote tarball variant behind a file: key must be rejected");
     assert!(
-        verify_lockfile_local_resolutions(&mixed_var, None).is_err(),
-        "mixed directory + remote tarball variations must not skip child link checks",
+        matches!(mixed_err, VerifyError::ResolutionShapeMismatch { count: 1, .. }),
+        "{mixed_err:?}",
     );
 
     let forged_importer = parse(

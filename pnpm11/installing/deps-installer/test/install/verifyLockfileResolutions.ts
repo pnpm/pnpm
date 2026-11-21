@@ -1028,7 +1028,7 @@ test('rejects a tampered file: depPath backed by a remote tarball', async () => 
   } as unknown as LockfileObject
 
   await expect(verifyLockfileResolutions(lockfile, [], { blockExoticSubdeps: true })).rejects.toMatchObject({
-    code: expect.stringMatching(/^ERR_PNPM_(EXOTIC_SUBDEP|LOCAL_SUBDEP_NOT_ALLOWED|RESOLUTION_SHAPE_MISMATCH)$/),
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
   })
 })
 

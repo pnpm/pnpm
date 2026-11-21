@@ -262,7 +262,9 @@ test('resolveLocalPolicyForInstall rejects shape mismatches before store probing
     throw new Error('requestPackage must not be called')
   })
   const spyStore = { fetchPackage, requestPackage } as unknown as StoreController
+  const helperSpecsSeenByHook: Array<string | undefined> = []
   const sentinelHook: ReadPackageHook = <Pkg extends BaseManifest>(pkg: Pkg): Pkg => {
+    helperSpecsSeenByHook.push(pkg.dependencies?.helper)
     if (pkg.dependencies?.helper === '0.0.0') {
       pkg.dependencies = { ...pkg.dependencies, helper: 'file:./local-helper' }
     }
@@ -325,6 +327,7 @@ test('resolveLocalPolicyForInstall rejects shape mismatches before store probing
     storeController: spyStore,
   })
   expect(requestPackage).not.toHaveBeenCalled()
+  expect(helperSpecsSeenByHook).toEqual(expect.arrayContaining(['0.0.0', '0.0.0-pnpm-probe']))
   await expect(verifyLockfileResolutions(tarballParentLockfile, [], { localPolicy: tarballPolicy })).rejects.toMatchObject({
     code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
   })
