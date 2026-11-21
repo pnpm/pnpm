@@ -237,7 +237,9 @@ fn read_candidates(
                 ) {
                     PrefetchedBin::NoBins => return None,
                     PrefetchedBin::Source(source) => Ok(source),
-                    PrefetchedBin::ReadFromDisk => read_alias(modules_dir, name, Some(target))?,
+                    PrefetchedBin::ReadFromDisk => {
+                        lookup.read_from_disk(modules_dir, name, target)?
+                    }
                 };
                 let build_pending = lookup.is_build_pending(snapshot_key.as_ref());
                 Some(source.map(|source| source.with_build_pending(build_pending)))
