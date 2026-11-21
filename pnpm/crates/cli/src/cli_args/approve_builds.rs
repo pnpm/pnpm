@@ -99,9 +99,12 @@ enum ApproveBuildsError {
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_CONTRADICTING_ARGS))]
     ContradictingArgs(#[error(not(source))] Vec<String>),
 
-    #[display("Use an exact selector to approve a file dependency: {}", _0.join(", "))]
-    #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_FILE_SELECTOR_REQUIRED))]
-    FileSelectorRequired(#[error(not(source))] Vec<String>),
+    #[display(
+        "Use an exact selector to approve a dependency a bare name cannot identify: {}",
+        _0.join(", ")
+    )]
+    #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_EXACT_SELECTOR_REQUIRED))]
+    ExactSelectorRequired(#[error(not(source))] Vec<String>),
 
     #[display(
         r#""pnpm approve-builds" without package arguments or --all requires an interactive terminal"#
@@ -210,7 +213,7 @@ impl ApproveBuildsArgs {
         self.validate()?;
         let partition = partition_params(&self.packages, pending);
         partition.reject_contradictions()?;
-        partition.require_exact_file_selectors(pending)?;
+        partition.require_exact_selectors(pending)?;
         if !partition.unknown.is_empty() {
             emit_global_warning::<Reporter>(&format!(
                 "The following packages are not awaiting approval: {}",
@@ -318,16 +321,23 @@ pub(crate) struct Partition {
 }
 
 impl Partition {
-    fn require_exact_file_selectors(&self, pending: &[String]) -> miette::Result<()> {
+    /// Reject a bare-name approval when the pending dependency is one a bare
+    /// name cannot identify: a `file:`/`link:` path, a git URL, or a tarball
+    /// URL. Only a default-registry semver is approvable by name; a named
+    /// registry key (`name@alias:version`) lacks the registry-origin shape
+    /// that `AllowBuildPolicy` trusts, so it needs the exact selector too.
+    /// [`parse_dep_path_name_version`] strips peer and patch suffixes, so a
+    /// patched default-registry entry stays approvable by name.
+    fn require_exact_selectors(&self, pending: &[String]) -> miette::Result<()> {
         if self.unknown.is_empty() {
             return Ok(());
         }
-        let file_selectors = pending
+        let selectors = pending
             .iter()
             .filter(|key| {
                 parse_dep_path_name_version(key)
                     .is_some_and(|(name, version)| {
-                        version.starts_with("file:")
+                        node_semver::Version::parse(version).is_err()
                             && self.unknown
                                 .iter()
                                 .any(|unknown| unknown == name)
@@ -340,10 +350,10 @@ impl Partition {
             })
             .cloned()
             .collect::<Vec<_>>();
-        if file_selectors.is_empty() {
+        if selectors.is_empty() {
             return Ok(());
         }
-        Err(ApproveBuildsError::FileSelectorRequired(sort_unique(file_selectors)).into())
+        Err(ApproveBuildsError::ExactSelectorRequired(sort_unique(selectors)).into())
     }
 
     /// Fail when a package is both approved and denied.
