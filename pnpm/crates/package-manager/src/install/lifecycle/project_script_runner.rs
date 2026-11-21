@@ -117,6 +117,14 @@ impl ProjectScriptRunner<'_> {
         if !self.run_without_bin_linking::<Reporter>(project_dir, stages)? {
             return Ok(());
         }
+        self.sync_injected_deps(project_dir, manifest)
+    }
+
+    fn sync_injected_deps(
+        &self,
+        project_dir: &Path,
+        manifest: &PackageManifest,
+    ) -> Result<(), InstallError> {
         // Injected copies are hardlinks of the files that existed when they
         // were materialized, so the output of a build script reaches them
         // only when they are re-synced.
