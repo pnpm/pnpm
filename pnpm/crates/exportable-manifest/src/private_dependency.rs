@@ -94,7 +94,7 @@ impl PrivateWorkspaceDependencies {
     /// `beforePacking` hooks change it.
     pub fn record_exported(&mut self, exported: &Value) {
         if let Some(dependencies) = exported.get("dependencies").and_then(Value::as_object) {
-            self.exported = dependencies.clone();
+            self.exported.clone_from(dependencies);
         }
     }
 
