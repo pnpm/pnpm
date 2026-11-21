@@ -83,6 +83,7 @@ minimumReleaseAge: 120
 minimumReleaseAgeExclude:
   - trusted-pkg
 minimumReleaseAgeStrict: true
+referenceTime: '2026-01-01T00:00:00Z'
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - legacy-pkg
@@ -156,6 +157,10 @@ key=-----BEGIN PRIVATE KEY-----\\nevil-key\\n-----END PRIVATE KEY-----\n\
     assert_eq!(config.minimum_release_age, Some(120));
     assert_eq!(config.minimum_release_age_exclude, Some(vec!["trusted-pkg".to_string()]));
     assert_eq!(config.minimum_release_age_strict, Some(true));
+    assert_eq!(
+        config.reference_time,
+        Some(pnpm_time::parse_rfc3339("2026-01-01T00:00:00Z").unwrap()),
+    );
     assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
     assert_eq!(config.trust_policy_exclude, Some(vec!["legacy-pkg".to_string()]));
     assert_eq!(config.trust_policy_ignore_after, Some(60));

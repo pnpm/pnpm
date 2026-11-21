@@ -95,12 +95,14 @@ pub use resolve::{
     ResolverProjectOptions,
     ResolverSpecifierOptions,
     SharedDependencyManifest,
+    TrustIgnoreAfter,
     UpdateBehavior,
     VersionSelectionOptions,
     WantedDependency,
     WorkspacePackage,
     WorkspacePackages,
     WorkspacePackagesByVersion,
+    lag_minutes,
     resolve_package_version,
 };
 pub use unsupported_protocol::UnsupportedProtocolError;

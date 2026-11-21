@@ -165,8 +165,12 @@ fn persist_age_excludes(
     let Some(minimum_release_age) = state.config.resolved_minimum_release_age() else {
         return Ok(Vec::new());
     };
-    let added =
-        resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
+    let added = resolve_minimum_release_age_excludes(
+        advisories,
+        publish_infos,
+        minimum_release_age,
+        state.config.resolved_reference_time(),
+    )?;
     if !added.is_empty() {
         write_age_excludes(settings_dir, &added)?;
     }

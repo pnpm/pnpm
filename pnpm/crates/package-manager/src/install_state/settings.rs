@@ -30,6 +30,7 @@ use equivalence::{
     enable_global_virtual_store_match,
     package_extensions_match,
     patched_dependencies_match,
+    reference_time_moved_back,
 };
 use install_policy::install_policy_settings;
 use recorded_values::map_trust_policy;
@@ -200,6 +201,12 @@ impl SettingsComparison<'_> {
         let registry_keys_drift = registry_key_settings_differ(recorded, live);
         return_drift_if!(self, "registryPrefixes", registry_keys_drift);
         return_drift_if!(self, "registryRoutes", recorded.registry_routes != live.registry_routes);
+        let reference_time_drift = reference_time_moved_back(
+            recorded.reference_time.as_deref(),
+            live.reference_time.as_deref(),
+            jiff::Timestamp::now(),
+        );
+        return_drift_if!(self, "referenceTime", reference_time_drift);
         None
     }
     fn linking_drift(&self) -> Option<&'static str> {
@@ -431,6 +438,9 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         minimum_release_age_strict: config.minimum_release_age_strict.or_else(|| {
             config.resolved_minimum_release_age_strict().then_some(true)
         }),
+        reference_time: config.reference_time
+            .filter(|_| config.reference_time_applies())
+            .map(|time| time.to_string()),
         project_scoped_optional_peers: config.project_scoped_optional_peers.then_some(true),
         registry_prefixes: recorded_registry_prefixes(config),
         default_registry: recorded_default_registry(config),
@@ -483,3 +493,6 @@ fn recorded_overrides(config: &Config) -> Option<std::collections::BTreeMap<Stri
                 .collect()
         })
 }
+
+#[cfg(test)]
+mod tests;

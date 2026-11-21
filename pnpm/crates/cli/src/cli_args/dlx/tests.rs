@@ -368,6 +368,39 @@ fn create_cache_key_changes_with_release_age_and_trust_policies() {
 }
 
 #[test]
+fn create_cache_key_changes_with_reference_time() {
+    let pkgs = ["cowsay".to_string()];
+    let registries = regs("https://registry.npmjs.org/");
+    let key_for = |config: &Config| {
+        create_cache_key(&CacheKeyInputs {
+            policy: CachePolicyInputs::from_config(config),
+            ..CacheKeyInputs::new(&pkgs, &registries)
+        })
+    };
+    let pinned = |time: &str| Some(time.parse().expect("valid RFC 3339 time"));
+    let aged = Config { minimum_release_age: Some(1440), ..Config::default() };
+    let aged_at = |time| Config { reference_time: pinned(time), ..aged.clone() };
+
+    assert_ne!(
+        key_for(&aged),
+        key_for(&aged_at("2026-01-01T00:00:00Z")),
+        "a pin the age cutoff counts back from must change the key",
+    );
+    assert_ne!(
+        key_for(&aged_at("2026-01-01T00:00:00Z")),
+        key_for(&aged_at("2026-02-01T00:00:00Z")),
+        "two pins must give two keys",
+    );
+    let unaged = Config { minimum_release_age: None, ..Config::default() };
+    let unused_pin = Config { reference_time: pinned("2026-01-01T00:00:00Z"), ..unaged.clone() };
+    assert_eq!(
+        key_for(&unaged),
+        key_for(&unused_pin),
+        "a pin no age or trust window counts back from must leave the key unchanged",
+    );
+}
+
+#[test]
 fn apply_dlx_build_policy_honors_negated_and_missing_selectors() {
     for invalid in [[String::new()], ["!".to_string()]] {
         assert!(

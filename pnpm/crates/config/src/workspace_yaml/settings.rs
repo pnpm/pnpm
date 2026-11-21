@@ -622,6 +622,10 @@ pub struct WorkspaceSettings {
     /// `minimumReleaseAgeStrict` from `pnpm-workspace.yaml`.
     pub minimum_release_age_strict: Option<bool>,
 
+    /// `referenceTime` from `pnpm-workspace.yaml`. See
+    /// [`Config::reference_time`](crate::settings::Config::reference_time).
+    pub reference_time: Option<String>,
+
     /// `trustLockfile` from `pnpm-workspace.yaml`. When `true`, the
     /// install skips the supply-chain verification pass entirely
     /// (see [`Config::trust_lockfile`]).
@@ -870,6 +874,7 @@ impl WorkspaceSettings {
     ) -> Result<Self, LoadWorkspaceYamlError> {
         let settings = parse_settings_file::<Sys, Self>(text, path)?;
         settings.validate_all_sections()?;
+        settings.validate_reference_time()?;
         settings.reject_repo_controlled_trust_material(path)?;
         Ok(settings)
     }

@@ -162,6 +162,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [minimumReleaseAgeExclude](./settings/dependency-resolution.md#minimumreleaseageexclude)
 * [minimumReleaseAgeExcludePrune](./settings/dependency-resolution.md#minimumreleaseageexcludeprune)
 * [minimumReleaseAgeIgnoreMissingTime](./settings/dependency-resolution.md#minimumreleaseageignoremissingtime)
+* [referenceTime](./settings/dependency-resolution.md#referencetime)
 * [minimumReleaseAgeStrict](./settings/dependency-resolution.md#minimumreleaseagestrict)
 * [trustPolicy](./settings/dependency-resolution.md#trustpolicy)
 * [trustPolicyExclude](./settings/dependency-resolution.md#trustpolicyexclude)

@@ -304,8 +304,12 @@ async fn pnpr_registry_frozen_lockfile_fetches_abbreviated_metadata_for_age_and_
     let mut server = mockito::Server::new_async().await;
     let mut packument = stable_trust_packument("acme");
     // `modified` is newer than the cutoff so the age check must read per-version `time`
-    // from the abbreviated response rather than passing on `modified` alone.
-    packument["modified"] = serde_json::json!("2025-11-30T23:00:00.000Z");
+    // from the abbreviated response rather than passing on `modified` alone. The check
+    // runs at the current time: a fixed time that lags it widens the window the pnpr
+    // document has to cover.
+    packument["modified"] = serde_json::json!(
+        (jiff::Timestamp::now() - jiff::SignedDuration::from_hours(1)).to_string()
+    );
     let abbrev_mock = server
         .mock("GET", "/acme")
         .match_header("accept", crate::fetch_full_metadata::ACCEPT_PNPR_DOC)
@@ -326,7 +330,6 @@ async fn pnpr_registry_frozen_lockfile_fetches_abbreviated_metadata_for_age_and_
     let mut opts = default_opts(&registry);
     opts.release_age.minimum_minutes = Some(60 * 24);
     opts.trust.policy = Some(TrustPolicy::NoDowngrade);
-    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     opts.registry_options_by_url = Some(std::collections::BTreeMap::from([(
         registry,
         pnpm_lockfile::RegistryOptions {
@@ -370,4 +373,50 @@ async fn pnpr_registry_offline_falls_back_to_full_mirror_when_abbreviated_mirror
     let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
 
     assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn shared_trust_lookups_separate_reference_time_windows() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let full = stable_trust_packument("acme");
+    let mut clamped = full.clone();
+    clamped["time"]["1.1.0"] = serde_json::json!("2025-03-01T00:00:00.000Z");
+    let cache: Arc<dyn PackageMetaCache> = Arc::new(InMemoryPackageMetaCache::default());
+    cache.set(format!("{registry}\x00acme"), Arc::new(serde_json::from_value(clamped).unwrap()));
+    let full_fetch = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(full.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let lookups = crate::VerifierLookups::default();
+    let verifier_at = |now| {
+        let mut opts = default_opts(&registry);
+        opts.now = Some(now);
+        opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+        opts.trust.ignore_after = Some(1440);
+        opts.metadata.meta_cache = Some(Arc::clone(&cache));
+        opts.artifacts.lookups = Some(lookups.clone());
+        opts.registry_options_by_url = Some(std::collections::BTreeMap::from([(
+            registry.clone(),
+            pnpm_lockfile::RegistryOptions {
+                server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+                ..Default::default()
+            },
+        )]));
+        create_npm_resolution_verifier(opts)
+    };
+    let now = jiff::Timestamp::now();
+    let recent = verifier_at(now);
+    let earlier = verifier_at(now - jiff::SignedDuration::from_hours(31 * 24));
+    let name: PkgName = "acme".parse().unwrap();
+    let recent_meta = recent.fetch_full_meta_for_trust(&registry, &name).await.unwrap();
+    assert_eq!(recent_meta.time.as_ref().unwrap()["1.1.0"], "2025-03-01T00:00:00.000Z");
+    let earlier_meta = earlier.fetch_full_meta_for_trust(&registry, &name).await.unwrap();
+    assert_eq!(earlier_meta.time.as_ref().unwrap()["1.1.0"], "2025-02-01T00:00:00.000Z");
+    let repeated = earlier.fetch_full_meta_for_trust(&registry, &name).await.unwrap();
+    assert_eq!(repeated.time, earlier_meta.time);
+    full_fetch.assert_async().await;
 }

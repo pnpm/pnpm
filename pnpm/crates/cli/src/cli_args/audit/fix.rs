@@ -162,6 +162,7 @@ pub(super) async fn fix_override(
             &pruned_advisories,
             context.publish_infos,
             minimum_release_age,
+            config.resolved_reference_time(),
         )?;
         append_override_age_excludes(&mut output, context.settings_dir, &added)?;
     }
@@ -325,13 +326,14 @@ fn resolve_minimum_release_age_excludes(
     advisories: &BTreeMap<String, AuditAdvisory>,
     publish_infos: &HashMap<String, PublishInfoLookup>,
     minimum_release_age: u64,
+    now: Timestamp,
 ) -> miette::Result<Vec<String>> {
     // On overflow leave the cutoff uncomputable, as `PickPolicy::from_config`
     // does; with no effective gate no bypass entries are needed.
     let Some(cutoff) = i64::try_from(minimum_release_age)
         .ok()
         .and_then(pnpm_time::duration_minutes)
-        .and_then(|age| Timestamp::now().checked_sub(age).ok())
+        .and_then(|age| now.checked_sub(age).ok())
     else {
         return Ok(Vec::new());
     };

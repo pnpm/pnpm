@@ -432,6 +432,7 @@ impl WorkspaceSettings {
             "MINIMUM_RELEASE_AGE_IGNORE_MISSING_TIME"
         );
         json_field!(settings, reader, minimum_release_age_strict, "MINIMUM_RELEASE_AGE_STRICT");
+        string_field!(settings, reader, reference_time, "REFERENCE_TIME");
         json_field!(settings, reader, trust_lockfile, "TRUST_LOCKFILE");
         enum_field!(settings, reader, trust_policy, "TRUST_POLICY", TrustPolicy);
         enum_field!(settings, reader, pm_on_fail, "PM_ON_FAIL", PmOnFail);

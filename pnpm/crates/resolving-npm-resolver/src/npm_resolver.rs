@@ -253,7 +253,8 @@ pub struct RegistryMetadataFormat {
     /// `Config::registry_options_by_url`. A version without `dist.tarball`
     /// gets its URL rebuilt in the layout its registry declares.
     pub registry_options_by_url: Arc<BTreeMap<String, RegistryOptions>>,
-    /// The effective `minimumReleaseAge`, in minutes, checked against what
+    /// The effective `minimumReleaseAge`, in minutes, measured back from the
+    /// current time (so it includes how far `referenceTime` lags it), checked against what
     /// pnpr's own package document supports (see
     /// [`crate::PnprFormatPolicy`]).
     pub minimum_release_age: Option<u64>,
