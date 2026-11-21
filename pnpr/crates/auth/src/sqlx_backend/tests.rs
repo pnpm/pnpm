@@ -15,7 +15,6 @@ use super::{
     StoredUser,
 };
 use crate::validation::MAX_USERNAME_CHARS;
-use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{
     RegistryError,
@@ -49,7 +48,6 @@ struct CappedBackend {
     reconcile_calls: Arc<AtomicU64>,
 }
 
-#[async_trait]
 impl AuthSqlBackend for CanonicalBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))
@@ -129,7 +127,6 @@ impl AuthSqlBackend for CanonicalBackend {
     }
 }
 
-#[async_trait]
 impl AuthSqlBackend for SlowLookupBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))
@@ -204,7 +201,6 @@ impl AuthSqlBackend for SlowLookupBackend {
     }
 }
 
-#[async_trait]
 impl AuthSqlBackend for SlowWriteBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))
@@ -280,7 +276,6 @@ impl AuthSqlBackend for SlowWriteBackend {
     }
 }
 
-#[async_trait]
 impl AuthSqlBackend for CountingLookupBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))
@@ -354,7 +349,6 @@ impl AuthSqlBackend for CountingLookupBackend {
     }
 }
 
-#[async_trait]
 impl AuthSqlBackend for CappedBackend {
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
         Ok(self.stored_user(id).await?.map(|account| account.username))

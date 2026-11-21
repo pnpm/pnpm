@@ -1,7 +1,6 @@
 use super::{
     super::{
         NewToken,
-        TokenBackend,
         TokenRecord,
         sha256_hex,
         token_store::mint_token,
@@ -12,18 +11,16 @@ use super::{
     unix_millis,
     with_auth_timeout,
 };
-use async_trait::async_trait;
 
-#[async_trait]
-impl<Db> TokenBackend for SqlAuth<Db>
-where
-    Db: AuthSqlBackend,
-{
-    async fn issue_token(
+impl<Db> SqlAuth<Db> {
+    pub(super) async fn issue_token(
         &self,
         user_id: &str,
         new_token: NewToken,
-    ) -> Result<(String, TokenRecord)> {
+    ) -> Result<(String, TokenRecord)>
+    where
+        Db: AuthSqlBackend,
+    {
         let raw = mint_token();
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_millis();
@@ -42,16 +39,25 @@ where
         Ok((raw, record))
     }
 
-    async fn issue(&self, user_id: &str) -> Result<String> {
+    pub(super) async fn issue(&self, user_id: &str) -> Result<String>
+    where
+        Db: AuthSqlBackend,
+    {
         let (raw, _) = self.issue_token(user_id, NewToken::default()).await?;
         Ok(raw)
     }
 
-    async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
+    pub(super) async fn touch_key(&self, key: &str, now: u64) -> Result<()>
+    where
+        Db: AuthSqlBackend,
+    {
         with_auth_timeout(self.timeout, self.db.touch_token(key, now)).await
     }
 
-    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
+    pub(super) async fn lookup(&self, raw: &str) -> Result<Option<String>>
+    where
+        Db: AuthSqlBackend,
+    {
         let token_hash = sha256_hex(raw.as_bytes());
         let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
         let now = unix_millis();
@@ -61,7 +67,10 @@ where
         }
     }
 
-    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+    pub(super) async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>>
+    where
+        Db: AuthSqlBackend,
+    {
         let token_hash = sha256_hex(raw.as_bytes());
         let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
         let now = unix_millis();
@@ -71,15 +80,24 @@ where
         }
     }
 
-    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+    pub(super) async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>>
+    where
+        Db: AuthSqlBackend,
+    {
         with_auth_timeout(self.timeout, self.db.find_token(key)).await
     }
 
-    async fn list_for_user(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>> {
+    pub(super) async fn list_for_user(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>>
+    where
+        Db: AuthSqlBackend,
+    {
         with_auth_timeout(self.timeout, self.db.list_tokens(user_id)).await
     }
 
-    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+    pub(super) async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>>
+    where
+        Db: AuthSqlBackend,
+    {
         let Some(record) = with_auth_timeout(self.timeout, self.db.find_token(key)).await? else {
             return Ok(None);
         };
@@ -87,17 +105,19 @@ where
         Ok(Some(record))
     }
 
-    async fn revoke_all_for_user(&self, user_id: &str) -> Result<usize> {
+    pub(super) async fn revoke_all_for_user(&self, user_id: &str) -> Result<usize>
+    where
+        Db: AuthSqlBackend,
+    {
         let removed = self.db.delete_user_tokens(user_id).await?;
         Ok(usize::try_from(removed).unwrap_or(usize::MAX))
     }
 
-    async fn delete_expired(&self, now: u64) -> Result<usize> {
+    pub(super) async fn delete_expired(&self, now: u64) -> Result<usize>
+    where
+        Db: AuthSqlBackend,
+    {
         let removed = with_auth_timeout(self.timeout, self.db.delete_expired_tokens(now)).await?;
         Ok(usize::try_from(removed).unwrap_or(usize::MAX))
-    }
-
-    async fn check_readiness(&self) -> Result<()> {
-        self.check_db_readiness().await
     }
 }
