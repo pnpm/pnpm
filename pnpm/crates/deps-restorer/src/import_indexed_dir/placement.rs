@@ -452,7 +452,9 @@ fn file_mode_matches_store_entry(
         pnpm_fs::FileMode::from_permissions(&store_meta.permissions())
     };
     let target_mode = pnpm_fs::FileMode::from_permissions(&target_meta.permissions());
-    target_mode == expected_mode
+    // Setuid, setgid and sticky are not part of what an import places.
+    let access_bits = |mode: pnpm_fs::FileMode| mode.mode() & 0o777;
+    access_bits(target_mode) == access_bits(expected_mode)
         || same_identity
             && is_store_entry
             && pnpm_fs::file_mode::store_inode_mode_is_linkable(target_mode, expected_mode)
