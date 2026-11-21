@@ -624,6 +624,95 @@ fn edit_rebuilds_only_the_selected_snapshot() {
 }
 
 #[test]
+fn edit_keeps_the_edit_when_an_optional_rebuild_fails() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let package = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({"optionalDependencies": {package: "1.0.0"}}).to_string(),
+    )
+    .unwrap();
+    append_workspace_yaml_key(&workspace, "allowBuilds", format!("\n  '{package}': true"));
+    append_workspace_yaml_key(&workspace, "sideEffectsCache", false);
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let script = workspace
+        .join("node_modules")
+        .join(package)
+        .join("create.js");
+    let editor = r#"node -e "require('fs').writeFileSync(require('path').join(process.argv[1], 'create.js'), 'process.exit(1)')""#;
+    let output = pacquet(&workspace)
+        .with_args(["edit", package, "--editor", editor])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "a failed rebuild must fail the edit");
+    assert_eq!(fs::read_to_string(&script).unwrap(), "process.exit(1)");
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_refuses_a_package_the_lockfile_no_longer_has() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let package = "@pnpm.e2e/foo";
+    let manifest =
+        |version: &str| serde_json::json!({"dependencies": {package: version}}).to_string();
+    fs::write(workspace.join("package.json"), manifest("100.0.0")).unwrap();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::write(workspace.join("package.json"), manifest("100.1.0")).unwrap();
+    pacquet(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let output = pacquet(&workspace)
+        .with_args(["edit", package, "--editor", r#"node -e "process.exit(0)""#])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_EDIT_OUTDATED_INSTALL"), "{stderr}");
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_runs_a_build_script_added_in_the_editor() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let package = "@pnpm.e2e/foo";
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({"dependencies": {package: "100.0.0"}}).to_string(),
+    )
+    .unwrap();
+    append_workspace_yaml_key(&workspace, "allowBuilds", format!("\n  '{package}': true"));
+    append_workspace_yaml_key(&workspace, "sideEffectsCache", false);
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let editor = r#"node -e "const fs = require('fs'); const file = require('path').join(process.argv[1], 'package.json'); const manifest = JSON.parse(fs.readFileSync(file)); manifest.scripts = { postinstall: 'node -e \"require(\'fs\').writeFileSync(\'marker\', \'built\')\"' }; fs.writeFileSync(file, JSON.stringify(manifest))""#;
+    pacquet(&workspace)
+        .with_args(["edit", package, "--editor", editor])
+        .assert()
+        .success();
+    let marker = workspace
+        .join("node_modules")
+        .join(package)
+        .join("marker");
+    assert_eq!(fs::read_to_string(marker).unwrap(), "built");
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
 fn edit_rejects_shared_virtual_store_without_modifying_the_package() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

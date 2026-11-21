@@ -296,6 +296,16 @@ impl RebuildOptions {
         self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
     }
 
+    /// Whether this rebuild runs on installed files the user may have
+    /// changed, which an exact snapshot selection does. Their build
+    /// requirements are then read from the files rather than the store
+    /// index, and a failed optional build is reported rather than removing
+    /// the package and the changes with it.
+    #[must_use]
+    pub fn rebuilds_edited_files(&self) -> bool {
+        self.selected_snapshots.is_some()
+    }
+
     /// Whether the snapshot installed under `key` is in the rebuild selection.
     #[must_use]
     pub fn selects_snapshot(&self, key: &PackageKey) -> bool {

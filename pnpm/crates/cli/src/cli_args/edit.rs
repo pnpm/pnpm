@@ -51,8 +51,7 @@ impl EditArgs {
         let project_root =
             state.config.workspace_dir.as_deref().unwrap_or_else(|| state.project_dir());
         let mut command = resolve_editor_command(&editor, project_root, &real_pkg_path)?;
-        let package_key = installed_package_key(&state, &parts)?;
-        verify_package_dir_holds(&real_pkg_path, &package_key)?;
+        let package_key = rebuildable_package_key(&state, &parts, &real_pkg_path)?;
         de_hardlink_dir(&real_pkg_path)
             .into_diagnostic()
             .wrap_err_with(|| {
@@ -150,6 +149,29 @@ fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<Pack
         return Err(miette!("The selected package is not an installed dependency"));
     };
     Ok(key)
+}
+
+/// The installed snapshot at `dir`, checked to be the package there and to
+/// be in the wanted lockfile, which is what the rebuild selects from.
+fn rebuildable_package_key(
+    state: &State,
+    parts: &[String],
+    dir: &Path,
+) -> miette::Result<PackageKey> {
+    let key = installed_package_key(state, parts)?;
+    verify_package_dir_holds(dir, &key)?;
+    let wanted = state.lockfile.get().wrap_err("load the lockfile")?;
+    let in_wanted = wanted
+        .and_then(|lockfile| lockfile.snapshots.as_ref())
+        .is_some_and(|snapshots| snapshots.contains_key(&key));
+    if in_wanted {
+        return Ok(key);
+    }
+    Err(miette!(
+        code = "ERR_PNPM_EDIT_OUTDATED_INSTALL",
+        help = "Run pnpm install, then edit the package again",
+        "{key} is installed but not in the lockfile, so it cannot be rebuilt",
+    ))
 }
 
 /// Refuse a directory whose manifest is not the package `key` names, so the

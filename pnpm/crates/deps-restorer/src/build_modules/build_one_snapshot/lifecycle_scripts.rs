@@ -8,6 +8,7 @@ use super::{
         PackageKey,
         Path,
         PathBuf,
+        RebuildOptions,
         Reporter,
         RunPostinstallHooks,
         SkippedOptionalDependencyLog,
@@ -82,7 +83,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     match result {
         Ok(ran) => Ok(Some(ran)),
         Err(err) => {
-            if !run.optional {
+            if !run.optional || context.rebuild.is_some_and(RebuildOptions::rebuilds_edited_files) {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
             linked_copies::discard_failed_optional(context, snapshot_key)?;

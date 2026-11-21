@@ -81,6 +81,8 @@ pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<
         patches,
         rebuild,
     } = inputs;
+    let prefetched =
+        prefetched.filter(|_| !rebuild.is_some_and(RebuildOptions::rebuilds_edited_files));
     let published: HashMap<PackageKey, bool> = snapshots
         .keys()
         // Skip snapshots that never landed on disk. `pkg_requires_build`
