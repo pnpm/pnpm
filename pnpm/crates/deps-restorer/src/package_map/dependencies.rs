@@ -164,7 +164,7 @@ pub(super) fn add_loose_dependencies(
 ) {
     let (Some(package_dirs), Some(loose_index)) = (package_dirs, loose_index) else { return };
     for (id, package_dir) in package_dirs {
-        let physical = physical_dependencies(package_dir, loose_index);
+        let physical = physical_dependencies(package_dir.clone(), loose_index);
         if let Some(pkg) = packages.get_mut(id) {
             for (alias, dep_id) in physical {
                 pkg.dependencies.insert(alias, dep_id);
@@ -173,11 +173,11 @@ pub(super) fn add_loose_dependencies(
     }
 }
 pub(super) fn physical_dependencies(
-    package_dir: &Path,
+    package_dir: PathBuf,
     loose_index: &PhysicalPackageIndex,
 ) -> BTreeMap<String, String> {
     let mut dependencies = BTreeMap::new();
-    let mut current = package_dir.to_path_buf();
+    let mut current = package_dir;
     loop {
         let modules_dir = normalize_path(&current.join("node_modules"));
         for (name, id) in loose_index.by_modules_dir
@@ -224,7 +224,7 @@ pub(super) fn resolve_link_target(
 ) -> LinkTarget {
     let dir = match (base, pnpm_lockfile::package_root_link_target(target)) {
         (LinkBase::Package(package_dir), Some(inside)) => {
-            pnpm_lockfile::join_package_root_link(package_dir, inside)
+            pnpm_lockfile::join_package_root_link(package_dir.to_path_buf(), inside)
         }
         _ if Path::new(target).is_absolute() => PathBuf::from(target),
         (LinkBase::Importer(Some(importer_id)), _) => lockfile_dir.join(importer_id).join(target),

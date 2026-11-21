@@ -383,7 +383,7 @@ async fn fetch_node_shasums_bytes(
         let response = http_client
             .get_bytes_with_secure_auth_headers(url, auth_headers)
             .await
-            .map_err(|error| node_shasums_network_error(what, url, error))?;
+            .map_err(|error| node_shasums_network_error(what, url.to_owned(), error))?;
         (response.status, response.body)
     } else {
         let response = http_client
@@ -392,10 +392,12 @@ async fn fetch_node_shasums_bytes(
             .get(url)
             .send()
             .await
-            .map_err(|error| node_shasums_network_error(what, url, error))?;
+            .map_err(|error| node_shasums_network_error(what, url.to_owned(), error))?;
         let status = response.status();
-        let body =
-            response.bytes().await.map_err(|error| node_shasums_network_error(what, url, error))?;
+        let body = response
+            .bytes()
+            .await
+            .map_err(|error| node_shasums_network_error(what, url.to_owned(), error))?;
         (status, body.to_vec())
     };
     if !status.is_success() {
@@ -410,10 +412,10 @@ async fn fetch_node_shasums_bytes(
 
 fn node_shasums_network_error(
     what: &'static str,
-    url: &str,
+    url: String,
     error: reqwest::Error,
 ) -> FetchVerifiedNodeShasumsError {
-    FetchVerifiedNodeShasumsError::Network { what, url: url.to_string(), error: Arc::new(error) }
+    FetchVerifiedNodeShasumsError::Network { what, url, error: Arc::new(error) }
 }
 
 /// Parse a `SHASUMS256.txt` body into rows.

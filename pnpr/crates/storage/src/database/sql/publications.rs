@@ -57,7 +57,7 @@ pub(super) fn recorded_outcome(
     if row.get::<String>(0)? != request.request_digest {
         return Ok(None);
     }
-    outcome(namespace, row)
+    outcome(namespace.to_owned(), row)
 }
 
 /// The read of the request's idempotency claim, which [`claim`] checks
@@ -117,16 +117,16 @@ pub(super) fn claim(
             reason: "the idempotency key was already used for a different request".to_string(),
         });
     }
-    outcome(batch.namespace(), stored)
+    outcome(batch.namespace().to_owned(), stored)
 }
 
-fn outcome(namespace: &str, mut row: Row) -> Result<Option<RecordedOutcome>> {
+fn outcome(namespace: String, mut row: Row) -> Result<Option<RecordedOutcome>> {
     if row.get::<i64>(3)? == 0 {
         return Ok(None);
     }
     let generation = to_generation(row.get(1)?);
     let publication = row.get::<Option<i64>>(2)?.map(to_generation);
-    Ok(Some(RecordedOutcome { namespace: namespace.to_string(), generation, publication }))
+    Ok(Some(RecordedOutcome { namespace, generation, publication }))
 }
 
 /// Record the publication the batch commits, when it introduced any

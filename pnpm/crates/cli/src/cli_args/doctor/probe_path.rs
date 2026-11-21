@@ -29,12 +29,12 @@ mod probe_dir;
 pub(super) fn check_writable_dir(title: &str, dir: &Path) -> CheckResult {
     if !can_write_to_dir(dir) {
         return CheckResult::fail(
-            title,
+            title.to_owned(),
             format!("no write access to {}", dir.display()),
             "Fix the directory permissions or point the setting at a writable path.",
         );
     }
-    CheckResult::pass(title, dir.display().to_string())
+    CheckResult::pass(title.to_owned(), dir.display().to_string())
 }
 
 pub(super) fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {

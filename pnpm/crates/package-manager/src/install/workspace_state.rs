@@ -189,6 +189,13 @@ pub(crate) fn workspace_packages_for_freshness(
     .then(|| build_workspace_packages_map_from_manifests(projects, dependency_manifests))
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the root dir is copied only for a manifest with a name and a string version, and callers borrow it from the project list"
+    )
+)]
 fn insert_workspace_package(
     map: &mut pnpm_resolving_resolver_base::WorkspacePackages,
     root_dir: &Path,

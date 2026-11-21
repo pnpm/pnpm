@@ -485,7 +485,7 @@ where
     let direct_versions = level_versions(ctx, &seeds);
     // Recorded only now the level barrier has passed, so the subtree walk
     // sees the resolved direct-dep versions.
-    record_direct_dep_versions(ctx, &ctx.importer.id, &direct_versions);
+    record_direct_dep_versions(ctx, ctx.importer.id.clone(), &direct_versions);
     let children_overlay = PreferredVersionsOverlay::layer_direct(
         ctx.options.base.version.preferred_versions_overlay.clone(),
         direct_versions,

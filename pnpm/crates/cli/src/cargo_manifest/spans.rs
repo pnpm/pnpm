@@ -233,9 +233,9 @@ pub(super) fn replace_range(contents: &str, range: Range<usize>, replacement: &s
     format!("{}{replacement}{}", &contents[..range.start], &contents[range.end..])
 }
 
-pub(super) fn apply_edits(contents: &str, mut edits: Vec<(Range<usize>, String)>) -> String {
+pub(super) fn apply_edits(contents: String, mut edits: Vec<(Range<usize>, String)>) -> String {
     edits.sort_by_key(|edit| std::cmp::Reverse(edit.0.start));
-    let mut updated = contents.to_string();
+    let mut updated = contents;
     for (range, replacement) in edits {
         updated.replace_range(range, &replacement);
     }

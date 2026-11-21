@@ -110,7 +110,7 @@ impl TurborepoArtifactStore {
         &self,
         opts: &ResolveArtifactsOptions,
     ) -> Result<ResolveArtifactsResponse, PnprClientError> {
-        let scopes = consumer_scopes(&opts.supported_tags);
+        let scopes = consumer_scopes(opts.supported_tags.clone());
         // Owned, so the stream's futures borrow nothing but `self`, which
         // keeps them `Send` for every caller.
         let lookups: Vec<(ArtifactCandidate, String)> = opts.candidates
@@ -361,8 +361,8 @@ fn blob_hash(owner: &OwnerScope, integrity: &str) -> String {
 
 /// The scopes a consumer with these supported tags falls in, which always
 /// include the one universal artifacts are stored in.
-fn consumer_scopes(supported_tags: &[String]) -> Vec<String> {
-    let tagged = CompatibilityConstraints::Tagged { tags: supported_tags.to_vec() };
+fn consumer_scopes(supported_tags: Vec<String>) -> Vec<String> {
+    let tagged = CompatibilityConstraints::Tagged { tags: supported_tags };
     let mut scopes = match compatibility_scopes(&tagged) {
         CompatibilityScopes::These(scopes) => scopes.into_iter().collect(),
         CompatibilityScopes::Every => Vec::new(),

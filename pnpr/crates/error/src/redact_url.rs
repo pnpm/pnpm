@@ -94,7 +94,7 @@ pub(super) fn split_trailing_punctuation(candidate: &str) -> (&str, &str) {
 
 pub(super) fn redact_url_candidate(candidate: &str) -> Option<String> {
     let Ok(url) = url::Url::parse(candidate) else {
-        return redact_unparsable_url_candidate(candidate);
+        return redact_unparsable_url_candidate(candidate.to_owned());
     };
     let Some(userinfo_end) = find_password_parsed_as_port(candidate) else {
         return redact_parsed_url(url);
@@ -186,8 +186,8 @@ pub(super) fn redact_url_fragment(url: &mut url::Url) -> bool {
     true
 }
 
-pub(super) fn redact_unparsable_url_candidate(candidate: &str) -> Option<String> {
-    let mut redacted = candidate.to_string();
+pub(super) fn redact_unparsable_url_candidate(candidate: String) -> Option<String> {
+    let mut redacted = candidate;
     let mut changed = false;
     if let Some(safe_url) = redact_unparsable_url_userinfo(&redacted) {
         redacted = safe_url;

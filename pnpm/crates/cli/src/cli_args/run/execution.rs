@@ -164,7 +164,7 @@ fn run_one_script(
     }
     match run_stages(ctx, name, &main, args) {
         Ok(exit) if exit.status.success() => TaskCompletion::Passed,
-        Ok(exit) => outcome.fail(name, exit.status),
+        Ok(exit) => outcome.fail(name.to_owned(), exit.status),
         Err(error) => outcome.abort(error),
     }
 }
@@ -304,11 +304,11 @@ impl ScriptOutcome<'_> {
         .into())
     }
 
-    pub(super) fn fail(&self, name: &str, exit: ScriptExit) -> TaskCompletion {
+    pub(super) fn fail(&self, name: String, exit: ScriptExit) -> TaskCompletion {
         self.failures
             .lock()
             .expect("run failure lock is not poisoned")
-            .push((name.to_owned(), exit));
+            .push((name, exit));
         self.cancel_siblings();
         TaskCompletion::Failed
     }

@@ -255,7 +255,7 @@ async fn an_unpublish_whose_archive_removal_fails_leaves_the_archive_to_gc_and_t
     // `reclaiming` for `pnpr gc`.
     let npm = pnpr_storage::Ecosystem::Npm;
     let [key] = crate::storage::stored_archives(tmp.path(), "", npm).try_into().unwrap();
-    let archive = pnpr_storage::layout::local_archive_path(tmp.path(), "", npm, &key);
+    let archive = pnpr_storage::layout::local_archive_path(tmp.path().to_path_buf(), "", npm, &key);
     let archives = archive.parent().unwrap();
     std::fs::set_permissions(archives, std::fs::Permissions::from_mode(0o555)).unwrap();
     let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg/-rev/1", &alice, None)).await;

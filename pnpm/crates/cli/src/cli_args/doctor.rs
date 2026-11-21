@@ -91,9 +91,9 @@ struct CheckResult {
 }
 
 impl CheckResult {
-    fn pass(title: &str, detail: impl Into<String>) -> Self {
+    fn pass(title: String, detail: impl Into<String>) -> Self {
         CheckResult {
-            title: title.to_owned(),
+            title,
             status: CheckStatus::Pass,
             detail: Some(detail.into()),
             fix: None,
@@ -101,9 +101,9 @@ impl CheckResult {
         }
     }
 
-    fn warn(title: &str, detail: impl Into<String>, fix: impl Into<String>) -> Self {
+    fn warn(title: String, detail: impl Into<String>, fix: impl Into<String>) -> Self {
         CheckResult {
-            title: title.to_owned(),
+            title,
             status: CheckStatus::Warn,
             detail: Some(detail.into()),
             fix: Some(fix.into()),
@@ -111,9 +111,9 @@ impl CheckResult {
         }
     }
 
-    fn fail(title: &str, detail: impl Into<String>, fix: impl Into<String>) -> Self {
+    fn fail(title: String, detail: impl Into<String>, fix: impl Into<String>) -> Self {
         CheckResult {
-            title: title.to_owned(),
+            title,
             status: CheckStatus::Fail,
             detail: Some(detail.into()),
             fix: Some(fix.into()),
@@ -186,16 +186,16 @@ impl DoctorArgs {
     async fn check_connectivity(&self, config: &Config) -> CheckResult {
         let title = "Registry connectivity";
         if self.offline {
-            return CheckResult::pass(title, "skipped (--offline)");
+            return CheckResult::pass(title.to_owned(), "skipped (--offline)");
         }
         let started = Instant::now();
         match (PingArgs { registry: None }).run(&connectivity_config(config)).await {
             Ok(_) => CheckResult::pass(
-                title,
+                title.to_owned(),
                 format!("{} ({}ms)", config.registry, started.elapsed().as_millis()),
             ),
             Err(error) => CheckResult::fail(
-                title,
+                title.to_owned(),
                 format!("could not reach {}: {error}", config.registry),
                 "Check your network, proxy, and registry configuration.",
             ),
@@ -212,7 +212,7 @@ fn check_versions() -> CheckResult {
         Some(node_version) => format!("pnpm {PNPM_VERSION}, Node.js {node_version}"),
         None => format!("pnpm {PNPM_VERSION}"),
     };
-    CheckResult::pass("Versions", detail)
+    CheckResult::pass("Versions".to_owned(), detail)
 }
 
 /// Report the Node.js that lifecycle scripts will run under. pacquet is a
@@ -246,12 +246,12 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
         .flatten()
         .collect();
     let Some(first) = candidates.first() else {
-        return CheckResult::pass(title, "not configured");
+        return CheckResult::pass(title.to_owned(), "not configured");
     };
 
     let Some(path_var) = std::env::var_os("PATH") else {
         return CheckResult::warn(
-            title,
+            title.to_owned(),
             "the PATH environment variable is not set",
             r#"Run "pnpm setup" to add it to your shell configuration."#,
         );
@@ -260,19 +260,19 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
 
     let Some(bin_dir) = candidates.iter().find(|dir| dir_is_in_path(dir, &path_dirs)) else {
         return CheckResult::warn(
-            title,
+            title.to_owned(),
             format!("{} is not in PATH", first.display()),
             r#"Run "pnpm setup" to add it to your shell configuration."#,
         );
     };
     if !can_write_to_dir(bin_dir) {
         return CheckResult::fail(
-            title,
+            title.to_owned(),
             format!("no write access to {}", bin_dir.display()),
             r#"Run "pnpm setup", or fix the directory permissions."#,
         );
     }
-    CheckResult::pass(title, bin_dir.display().to_string())
+    CheckResult::pass(title.to_owned(), bin_dir.display().to_string())
 }
 
 fn render_report(report: &DoctorReport) -> String {

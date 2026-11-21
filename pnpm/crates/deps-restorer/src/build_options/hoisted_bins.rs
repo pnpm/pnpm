@@ -89,7 +89,7 @@ impl HoistedBinPlans {
             locations_by_key
                 .entry(key.clone())
                 .or_default()
-                .push(pnpm_fs::join_slash_separated_path(&directory, alias));
+                .push(pnpm_fs::join_slash_separated_path(directory.clone(), alias));
         }
         *self.private_hoist.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
             Some(PrivateHoistedBins { directory, locations_by_key });
@@ -220,12 +220,11 @@ impl HoistedBinPlans {
     }
 
     pub(crate) fn directory(&self, path: &Path) -> Arc<Mutex<HoistedBinDirectory>> {
-        Arc::clone(
-            self.directories
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .entry(path.to_owned())
-                .or_default(),
-        )
+        let mut directories =
+            self.directories.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(directory) = directories.get(path) {
+            return Arc::clone(directory);
+        }
+        Arc::clone(directories.entry(path.to_owned()).or_default())
     }
 }

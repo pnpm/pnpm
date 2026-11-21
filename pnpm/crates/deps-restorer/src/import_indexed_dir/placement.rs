@@ -26,7 +26,10 @@ use std::{
     },
     fs,
     io,
-    path::Path,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::atomic::AtomicU8,
 };
 use symlinks::{
@@ -182,7 +185,7 @@ pub(super) fn create_indexed_dirs(
     ordered.sort_by_key(|s| s.len());
     for rel in ordered {
         if placement == Placement::Repair {
-            clear_dirent_blocking_dir::<Host>(dir_path, rel)?;
+            clear_dirent_blocking_dir::<Host>(dir_path.to_path_buf(), rel)?;
         }
         let abs = dir_path.join(rel);
         pnpm_fs::create_dir_all_with_retry(&abs)
@@ -338,10 +341,10 @@ pub(super) fn clear_dir_blocking_file<Sys: FsRemoveDirAll>(
 /// never stat-ed: the parent is cleared first, and everything below a
 /// missing component is missing too.
 pub(super) fn clear_dirent_blocking_dir<Sys: FsRemoveNonDirDirent>(
-    root: &Path,
+    root: PathBuf,
     rel: &str,
 ) -> Result<(), ImportIndexedDirError> {
-    let mut abs = root.to_path_buf();
+    let mut abs = root;
     for component in Path::new(rel).components() {
         abs.push(component);
         match pnpm_fs::symlink_metadata_with_retry(&abs) {

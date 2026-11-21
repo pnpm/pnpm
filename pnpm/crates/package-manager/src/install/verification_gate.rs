@@ -33,6 +33,13 @@ pub(crate) type IsReplaced = Arc<dyn Fn(ReplacedCandidate<'_>) -> bool + Send + 
 impl LockfileVerificationGate {
     /// Start the fan-out in the background, or `None` when no verifier
     /// is active (`trustLockfile`).
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "the cache dir is copied only when a verifier is active, and the caller borrows it from the config"
+        )
+    )]
     pub(super) fn spawn<Reporter: pnpm_reporter::Reporter + Send + 'static>(
         lockfile: Arc<Lockfile>,
         verifiers: &[Arc<dyn ResolutionVerifier>],

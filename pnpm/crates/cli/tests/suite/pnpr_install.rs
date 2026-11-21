@@ -146,7 +146,7 @@ fn start_pnpr_registry_with(
                 )]),
                 Some(name.to_string()),
             )
-            .with_ecosystem(name, ecosystem);
+            .with_ecosystem(name.to_owned(), ecosystem);
             configure(config);
         });
     format!("http://{addr}/{ecosystem}/")

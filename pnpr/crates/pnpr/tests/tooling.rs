@@ -59,7 +59,7 @@ fn seed_archive(storage: &Path, ecosystem: Ecosystem, name: &str, file: &str, by
 /// Returns where they are.
 fn seed_uncommitted(storage: &Path, bytes: &[u8]) -> std::path::PathBuf {
     let key = BlobId::of_bytes(Ecosystem::Npm, bytes).key(1);
-    let path = local_archive_path(storage, "", Ecosystem::Npm, &key);
+    let path = local_archive_path(storage.to_path_buf(), "", Ecosystem::Npm, &key);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, bytes).unwrap();
     path
@@ -255,7 +255,7 @@ async fn test_verify_reports_orphans_and_gc_removes_uncommitted_archives() {
     // A file pnpr never stores, and the bytes of a publish refused at its
     // commit.
     let hosted = &config.storage.hosted_dir;
-    let unknown_path = local_archive_path(hosted, "", Ecosystem::Npm, "orphaned-blob.tgz");
+    let unknown_path = local_archive_path(hosted.clone(), "", Ecosystem::Npm, "orphaned-blob.tgz");
     std::fs::create_dir_all(unknown_path.parent().unwrap()).unwrap();
     std::fs::write(&unknown_path, b"unreferenced").unwrap();
     let orphan_path = seed_uncommitted(hosted, b"refused at its commit");

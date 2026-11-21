@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 pub mod file_mode;
 #[cfg(all(windows, feature = "test"))]
 pub mod test_support;

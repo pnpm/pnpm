@@ -274,7 +274,7 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<PypiRows>> {
         return Ok(None);
     }
     let Value::Object(mut doc) = serde_json::from_slice(bytes)? else {
-        return Err(bad_request("a project document must be an object"));
+        return Err(bad_request("a project document must be an object".to_owned()));
     };
     let state_version = check_format_version(key, &doc, PYPI_STATE_VERSION)?;
     let name =
@@ -289,14 +289,14 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<PypiRows>> {
 fn parse_files(raw: Option<Value>) -> Result<Vec<IncomingPypiFile>> {
     let Some(raw) = raw else { return Ok(Vec::new()) };
     let Value::Array(items) = raw else {
-        return Err(bad_request("project `files` must be an array"));
+        return Err(bad_request("project `files` must be an array".to_owned()));
     };
     let mut seen = BTreeSet::new();
     let mut files = Vec::with_capacity(items.len());
     for item in items {
         let parsed = parse_file_entry(item)?;
         if !seen.insert(parsed.filename.clone()) {
-            return Err(bad_request(&format!("duplicate project file {:?}", parsed.filename)));
+            return Err(bad_request(format!("duplicate project file {:?}", parsed.filename)));
         }
         files.push(parsed);
     }
@@ -305,19 +305,23 @@ fn parse_files(raw: Option<Value>) -> Result<Vec<IncomingPypiFile>> {
 
 fn parse_file_entry(item: Value) -> Result<IncomingPypiFile> {
     let Value::Object(mut entry) = item else {
-        return Err(bad_request("each project file must be an object"));
+        return Err(bad_request("each project file must be an object".to_owned()));
     };
     let filename = entry
         .get("filename")
         .and_then(Value::as_str)
         .filter(|name| !name.is_empty())
-        .ok_or_else(|| bad_request("project file must carry a `filename` string"))?
+        .ok_or_else(|| bad_request("project file must carry a `filename` string".to_owned()))?
         .to_string();
     let (yanked, yank_reason) = match entry.shift_remove(YANKED) {
         None | Some(Value::Bool(false)) => (false, None),
         Some(Value::Bool(true)) => (true, None),
         Some(Value::String(reason)) => (true, Some(reason)),
-        Some(_) => return Err(bad_request("project file `yanked` must be a boolean or string")),
+        Some(_) => {
+            return Err(
+                bad_request("project file `yanked` must be a boolean or string".to_owned()),
+            );
+        }
     };
     canonicalize_pypi_entry(&mut entry);
     Ok(IncomingPypiFile { filename, yanked, yank_reason, entry })
@@ -345,13 +349,13 @@ fn canonicalize_pypi_entry(entry: &mut Map<String, Value>) {
 fn parse_deleted_files(raw: Option<Value>) -> Result<BTreeSet<String>> {
     let Some(raw) = raw else { return Ok(BTreeSet::new()) };
     let Value::Array(items) = raw else {
-        return Err(bad_request("`deleted_files` must be an array"));
+        return Err(bad_request("`deleted_files` must be an array".to_owned()));
     };
     items
         .into_iter()
         .map(|item| match item {
             Value::String(name) if !name.is_empty() => Ok(name),
-            _ => Err(bad_request("`deleted_files` entries must be non-empty strings")),
+            _ => Err(bad_request("`deleted_files` entries must be non-empty strings".to_owned())),
         })
         .collect()
 }

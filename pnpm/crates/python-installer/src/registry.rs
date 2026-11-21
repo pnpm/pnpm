@@ -235,7 +235,7 @@ impl<'a> Registry<'a> {
             }
         }
         self.download_wheels::<Reporter>(wanted).await?;
-        self.record_sources(&[])?;
+        self.record_sources(Vec::new())?;
         self.fetch_vcs::<Reporter>(requirements).await?;
         self.build_sdists::<Reporter>().await?;
         Ok(())

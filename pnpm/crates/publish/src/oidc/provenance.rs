@@ -75,7 +75,7 @@ where
         return Err(ProvenanceError::failed_to_fetch_visibility(
             &response.body,
             response.status,
-            package_name,
+            package_name.to_owned(),
             registry,
         )
         .into());
@@ -163,7 +163,7 @@ impl ProvenanceError {
     fn failed_to_fetch_visibility(
         body: &str,
         status: u16,
-        package_name: &str,
+        package_name: String,
         registry: &str,
     ) -> Self {
         let parsed = serde_json::from_str::<Value>(body).ok();
@@ -190,7 +190,7 @@ impl ProvenanceError {
         ProvenanceError::FailedToFetchVisibility {
             message,
             status,
-            package_name: package_name.to_owned(),
+            package_name,
             registry: redact_url_credentials(registry),
         }
     }

@@ -86,7 +86,7 @@ fn check_importer_link_freshness(
                     link_target,
                 ));
     if !satisfied {
-        return Err(local_dependency_outdated(dep_name, link_target));
+        return Err(local_dependency_outdated(dep_name.to_owned(), link_target.to_owned()));
     }
     Ok(())
 }
@@ -121,7 +121,7 @@ fn check_single_dep_spec_directory_freshness(
         .as_ref()
         .and_then(|p| p.get(&pkg_key.without_peer()))
     else {
-        return Err(local_dependency_outdated(&dep_str, &dep_spec.specifier));
+        return Err(local_dependency_outdated(dep_str, dep_spec.specifier.clone()));
     };
     let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution else {
         return Ok(());
@@ -152,7 +152,7 @@ fn check_directory_resolution(
     if is_deploy_file_url_key(dep_spec, pkg_key, rel_path) {
         return snapshot
             .map(|_| ())
-            .ok_or_else(|| local_dependency_outdated(dep_str, rel_path));
+            .ok_or_else(|| local_dependency_outdated(dep_str.to_owned(), rel_path.to_owned()));
     }
     let local_dep_dir = directory_package_dir(check.lockfile_dir, rel_path);
     let dep = LocalDepContext {

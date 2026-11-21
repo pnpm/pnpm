@@ -143,7 +143,7 @@ impl super::ImporterHoistState {
     }
 
     pub(super) fn assemble(
-        importer_id: &str,
+        importer_id: String,
         ctx: TreeCtx,
         direct: Vec<DirectDep>,
         seeds: DirectSeeds,
@@ -151,7 +151,7 @@ impl super::ImporterHoistState {
         settings: HoistSettings,
     ) -> Self {
         ImporterHoistState {
-            importer_id: importer_id.to_string(),
+            importer_id,
             ctx,
             project_dir: settings.project_dir,
             policy: ImporterHoistPolicy {

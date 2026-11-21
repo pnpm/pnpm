@@ -34,7 +34,7 @@ impl Locator {
             ImporterModulesDirs::from_config(input.config, input.workspace_root)
         } else {
             let name = input.config.modules_dir_name();
-            ImporterModulesDirs::new(input.workspace_root, Path::new(name), name)
+            ImporterModulesDirs::new(input.workspace_root, Path::new(name), name.to_os_string())
         };
         Self { modules_dirs, canonical_locations: HashMap::new() }
     }

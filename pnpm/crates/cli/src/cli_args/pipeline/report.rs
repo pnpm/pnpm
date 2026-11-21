@@ -61,8 +61,8 @@ pub struct RunReport {
 
 impl RunReport {
     pub fn new(
-        pipeline: &str,
-        base: &str,
+        pipeline: String,
+        base: String,
         selection: &Selection,
         revision: Option<String>,
     ) -> miette::Result<RunReport> {
@@ -76,8 +76,8 @@ impl RunReport {
         };
         Ok(RunReport {
             run_id: format!("{}-{nonce:032x}", now_millis()),
-            pipeline: pipeline.to_string(),
-            base: base.to_string(),
+            pipeline,
+            base,
             revision,
             selection: json!({
                 "mode": mode,

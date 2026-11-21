@@ -51,33 +51,33 @@ pub(in crate::server) struct PackumentRefetches {
 impl PackumentRefetches {
     /// Record an attempt for the package. `false` when one was recorded
     /// within [`REFETCH_INTERVAL`].
-    fn claim(&self, namespace: &str, name: &CanonicalPackageName) -> bool {
+    fn claim(&self, namespace: String, name: &CanonicalPackageName) -> bool {
         claim_attempt(&self.attempts, namespace, name)
     }
 
     /// Record a forced-refresh attempt after an expired signed tarball URL.
     /// Tracked separately from [`Self::record_failure`] so an earlier ordinary
     /// read failure does not delay rotating an expired signature.
-    fn claim_forced(&self, namespace: &str, name: &CanonicalPackageName) -> bool {
+    fn claim_forced(&self, namespace: String, name: &CanonicalPackageName) -> bool {
         claim_attempt(&self.forced_attempts, namespace, name)
     }
 
     /// Record a failed upstream fetch of the package's packument, so a
     /// missing-version refetch does not ask the upstream again within
     /// [`REFETCH_INTERVAL`].
-    pub(in crate::server) fn record_failure(&self, namespace: &str, name: &CanonicalPackageName) {
+    pub(in crate::server) fn record_failure(&self, namespace: String, name: &CanonicalPackageName) {
         let mut attempts = self.attempts.lock().expect("packument refetch lock poisoned");
-        insert_attempt(&mut attempts, (namespace.to_string(), name.clone()));
+        insert_attempt(&mut attempts, (namespace, name.clone()));
     }
 }
 
 fn claim_attempt(
     map: &Mutex<HashMap<(String, CanonicalPackageName), Instant>>,
-    namespace: &str,
+    namespace: String,
     name: &CanonicalPackageName,
 ) -> bool {
     let mut attempts = map.lock().expect("packument refetch lock poisoned");
-    let key = (namespace.to_string(), name.clone());
+    let key = (namespace, name.clone());
     if attempts
         .get(&key)
         .is_some_and(|attempted| attempted.elapsed() < REFETCH_INTERVAL)
@@ -150,7 +150,7 @@ pub(in crate::server) async fn reload_upstream_packument_lacking_version(
     // during a refetch waits for it rather than finding the claim taken.
     let document = coalesce_upstream_packument(state, namespace, name, || async {
         let admissions = &state.inner.packuments.admissions;
-        if !state.inner.proxy.packument_refetches.claim(namespace, name) {
+        if !state.inner.proxy.packument_refetches.claim(namespace.to_owned(), name) {
             let admission = admissions.acquire(DocumentSource::Stored).await;
             let cached = read_unpurged_upstream_document_any(state, namespace, name).await?;
             return Ok(cached.map(|bytes| AdmittedPackument::new(bytes, admission)));
@@ -185,7 +185,7 @@ pub(in crate::server) async fn reload_upstream_packument_for_expired_tarball(
     let document = coalesce_upstream_packument_keyed(state, key, || async {
         let admissions = &state.inner.packuments.admissions;
         let upstream_admission = admissions.acquire(DocumentSource::Upstream(namespace)).await;
-        if !state.inner.proxy.packument_refetches.claim_forced(namespace, name) {
+        if !state.inner.proxy.packument_refetches.claim_forced(namespace.to_owned(), name) {
             drop(upstream_admission);
             if !upstream.caches() {
                 return Ok(None);

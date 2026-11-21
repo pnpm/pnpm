@@ -178,8 +178,8 @@ pub(super) async fn drive_fetcher<Reporter: self::Reporter>(
     Ok((result, verified))
 }
 
-fn callback_error(message: impl Into<String>, code: &str) -> FetchErrorDetails {
-    FetchErrorDetails { message: message.into(), code: Some(code.to_owned()), status: None }
+fn callback_error(message: impl Into<String>, code: impl Into<String>) -> FetchErrorDetails {
+    FetchErrorDetails { message: message.into(), code: Some(code.into()), status: None }
 }
 
 async fn run_callback<Reporter: self::Reporter>(
@@ -280,7 +280,7 @@ fn walk_callback_directory(
         ));
     };
     let directory = lexical_normalize(&callback_lockfile_dir(native, callback).join(relative));
-    let output = walk_directory(&directory, native.files)
+    let output = walk_directory(directory.clone(), native.files)
         .map_err(|error| FetchErrorDetails {
             message: error.to_string(),
             code: error.code().map(|code| code.to_string()),

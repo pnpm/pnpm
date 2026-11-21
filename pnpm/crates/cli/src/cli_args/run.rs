@@ -188,11 +188,11 @@ impl RunError {
 impl RunArgs {
     /// Build the positional from a script name and its arguments, for the
     /// paths that synthesize a `run` rather than parsing one.
-    pub(super) fn script<Args>(name: &str, args: Args) -> Vec<String>
+    pub(super) fn script<Args>(name: String, args: Args) -> Vec<String>
     where
         Args: IntoIterator<Item = String>,
     {
-        std::iter::once(name.to_string()).chain(args).collect()
+        std::iter::once(name).chain(args).collect()
     }
 
     /// The script to run, or `None` when `run` was given no positional and
@@ -372,7 +372,7 @@ fn exec_fallback(
     dirs: ExecDirs<'_>,
     config: &Config,
 ) -> miette::Result<()> {
-    let result = exec_script_name(script_name, args, dirs, config);
+    let result = exec_script_name(script_name.to_owned(), args, dirs, config);
     let Some(hint) = filter_placement_hint(script_name, args) else {
         return result;
     };
@@ -386,7 +386,7 @@ fn exec_fallback(
 }
 
 fn exec_script_name(
-    script_name: &str,
+    script_name: String,
     args: &[String],
     dirs: ExecDirs<'_>,
     config: &Config,

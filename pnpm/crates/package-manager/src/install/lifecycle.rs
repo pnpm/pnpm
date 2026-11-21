@@ -46,7 +46,7 @@ use std::sync::Mutex;
 pub(crate) fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-    ignored_directories: &[std::path::PathBuf],
+    ignored_directories: Vec<std::path::PathBuf>,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
     pnpm_workspace::find_workspace_projects(
@@ -60,11 +60,11 @@ pub(crate) fn load_workspace_projects(
 /// `workspace_manifest` declares.
 pub(super) fn workspace_projects_opts(
     workspace_manifest: &pnpm_workspace::WorkspaceManifest,
-    ignored_directories: &[std::path::PathBuf],
+    ignored_directories: Vec<std::path::PathBuf>,
 ) -> pnpm_workspace::FindWorkspaceProjectsOpts {
     pnpm_workspace::FindWorkspaceProjectsOpts {
         patterns: Some(pnpm_workspace::workspace_package_patterns(workspace_manifest)),
-        ignored_directories: ignored_directories.to_vec(),
+        ignored_directories,
     }
 }
 

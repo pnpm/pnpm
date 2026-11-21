@@ -113,7 +113,7 @@ pub(super) async fn settle_publish<Reporter: self::Reporter>(
         _ => false,
     };
     if confirmed {
-        global_info::<Reporter>(&format!(
+        global_info::<Reporter>(format!(
             "✅ {name}@{version} is already published as this release",
         ));
         return Ok(());
@@ -263,7 +263,7 @@ impl Reader<'_> {
     async fn get(&self, path: &str) -> Result<Option<Value>, PublishedReleaseError> {
         let url = self.registry
             .join(path)
-            .map_err(|error| self.unread(&error.to_string()))?;
+            .map_err(|error| self.unread(error.to_string()))?;
         let guard = self.client.acquire_for_url(&url).await;
         let mut request = guard.get(&url).header("accept", "application/json");
         if let Some(authorization) = self.authorization {
@@ -272,20 +272,20 @@ impl Reader<'_> {
         let response = request
             .send()
             .await
-            .map_err(|error| self.unread(&error.to_string()))?;
+            .map_err(|error| self.unread(error.to_string()))?;
         match response.status().as_u16() {
             200 => {}
             404 => return Ok(None),
-            status => return Err(self.unread(&format!("GET {path} answered {status}"))),
+            status => return Err(self.unread(format!("GET {path} answered {status}"))),
         }
         let body = read_limited_body(response, BODY_LIMIT).await
-            .map_err(|error| self.unread(&error.to_string()))?;
+            .map_err(|error| self.unread(error.to_string()))?;
         if body.truncated {
-            return Err(self.unread(&format!("GET {path} answered more than {BODY_LIMIT} bytes")));
+            return Err(self.unread(format!("GET {path} answered more than {BODY_LIMIT} bytes")));
         }
         serde_json::from_slice(&body.bytes)
             .map(Some)
-            .map_err(|error| self.unread(&format!("GET {path} answered invalid JSON: {error}")))
+            .map_err(|error| self.unread(format!("GET {path} answered invalid JSON: {error}")))
     }
 
     fn differs(&self, difference: String) -> PublishedReleaseError {
@@ -295,11 +295,11 @@ impl Reader<'_> {
         }
     }
 
-    fn unread(&self, reason: &str) -> PublishedReleaseError {
+    fn unread(&self, reason: String) -> PublishedReleaseError {
         PublishedReleaseError::Unread {
             package: format!("{}@{}", self.release.name, self.release.version),
             registry: self.registry.for_display(),
-            reason: reason.to_string(),
+            reason,
         }
     }
 }

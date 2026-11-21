@@ -75,7 +75,7 @@ pub(super) async fn add_global_rust<Reporter: self::Reporter>(
     record_global_toolchain(global_bin_dir, &request.channel)
         .into_diagnostic()
         .wrap_err("record the global Rust toolchain")?;
-    report::<Reporter>(&format!("Installed {}", describe(&request)));
+    report::<Reporter>(format!("Installed {}", describe(&request)));
     Ok(())
 }
 
@@ -93,7 +93,7 @@ pub(super) fn remove_global_rust<Reporter: self::Reporter>(
         .any(|(_, bins)| !bins.is_empty());
     let removed = had_toolchain || removed_shims;
     if removed {
-        report::<Reporter>("Removed the global Rust toolchain");
+        report::<Reporter>("Removed the global Rust toolchain".to_owned());
     }
     Ok(removed)
 }
@@ -118,7 +118,7 @@ pub(super) async fn update_global_rust<Reporter: self::Reporter>(
         }
         _ => format!("Installed {}", describe(&request)),
     };
-    report::<Reporter>(&message);
+    report::<Reporter>(message);
     Ok(true)
 }
 
@@ -242,11 +242,8 @@ fn describe(request: &ToolchainRequest) -> String {
     }
 }
 
-fn report<Reporter: self::Reporter>(message: &str) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Info,
-        message: message.to_string(),
-    }));
+fn report<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
 }
 
 #[cfg(test)]

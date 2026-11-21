@@ -472,6 +472,13 @@ pub(super) fn register_seeded_package(
 
 /// A `workspace:` edge the resolver did not name carries its identity in the
 /// linked project's own manifest.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`id` is copied only for a `workspace:` edge without a resolved name, after the early returns, and the caller reuses it, so an owned parameter would allocate for every edge."
+    )
+)]
 pub(super) fn record_workspace_manifest_identity(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
@@ -497,7 +504,7 @@ pub(super) fn record_workspace_manifest_identity(
     ) else {
         return;
     };
-    ctx.workspace.versions.record_workspace_manifest_identity(id, name, version);
+    ctx.workspace.versions.record_workspace_manifest_identity(id.to_owned(), name, version);
 }
 
 pub(super) fn reject_exotic_subdep(

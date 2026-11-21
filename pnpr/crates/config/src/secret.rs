@@ -134,7 +134,7 @@ where
     let checked = check_secrets::<Value>(marked);
     let unset = UNSET_PLACEHOLDERS.with_borrow_mut(std::mem::take);
     if let Err((reason, marked)) = checked {
-        let reason = name_unset_placeholders(&reason, &marked, &unset);
+        let reason = name_unset_placeholders(reason, &marked, &unset);
         return Err(RegistryError::InvalidConfig { reason });
     }
     parse_yaml(&substituted)
@@ -204,10 +204,10 @@ fn error_location(reason: &str) -> Option<(usize, usize)> {
 
 /// `reason`, a located error in `marked`, with the unset placeholders that
 /// stand on its line named, or every unset placeholder when none does.
-fn name_unset_placeholders(reason: &str, marked: &str, unset: &[UnsetPlaceholder]) -> String {
+fn name_unset_placeholders(reason: String, marked: &str, unset: &[UnsetPlaceholder]) -> String {
     let reason = unset
         .iter()
-        .fold(reason.to_string(), |reason, entry| reason.replace(&entry.token, &entry.placeholder));
+        .fold(reason, |reason, entry| reason.replace(&entry.token, &entry.placeholder));
     if unset
         .iter()
         .any(|entry| reason.contains(&entry.placeholder))

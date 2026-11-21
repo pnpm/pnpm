@@ -70,12 +70,12 @@ impl PackumentWriteOrder {
     /// `(namespace, name)`. Call under [`super::lock_upstream_package`].
     pub(in crate::server) fn check(
         &self,
-        namespace: &str,
+        namespace: String,
         name: &CanonicalPackageName,
         fetch_seq: u64,
     ) -> WriteVerdict {
         let state = self.state.lock().expect("packument write-order lock poisoned");
-        let key = (namespace.to_string(), name.clone());
+        let key = (namespace, name.clone());
         if let Some(&purged_seq) = state.unresolved_purges.get(&key)
             && fetch_seq <= purged_seq
         {
@@ -94,11 +94,11 @@ impl PackumentWriteOrder {
     /// authoritative `404` purge.
     pub(in crate::server) fn is_purged(
         &self,
-        namespace: &str,
+        namespace: String,
         name: &CanonicalPackageName,
     ) -> bool {
         let state = self.state.lock().expect("packument write-order lock poisoned");
-        let key = (namespace.to_string(), name.clone());
+        let key = (namespace, name.clone());
         state.unresolved_purges.contains_key(&key)
             || matches!(
                 state.accepted.get(&key),
@@ -110,12 +110,12 @@ impl PackumentWriteOrder {
     /// [`super::lock_upstream_package`].
     pub(in crate::server) fn commit_stored(
         &self,
-        namespace: &str,
+        namespace: String,
         name: &CanonicalPackageName,
         fetch_seq: u64,
     ) {
         let mut state = self.state.lock().expect("packument write-order lock poisoned");
-        let key = (namespace.to_string(), name.clone());
+        let key = (namespace, name.clone());
         if fetch_seq > latest_seq(&state, &key) {
             state.unresolved_purges.remove(&key);
             state.accepted.insert(
@@ -132,13 +132,13 @@ impl PackumentWriteOrder {
     /// outside the bounded LRU until removal or a newer store succeeds.
     pub(in crate::server) fn commit_purged(
         &self,
-        namespace: &str,
+        namespace: String,
         name: &CanonicalPackageName,
         fetch_seq: u64,
         removal: PurgeRemoval,
     ) {
         let mut state = self.state.lock().expect("packument write-order lock poisoned");
-        let key = (namespace.to_string(), name.clone());
+        let key = (namespace, name.clone());
         if fetch_seq > latest_seq(&state, &key) {
             match removal {
                 PurgeRemoval::Complete => {
@@ -171,9 +171,9 @@ impl PackumentWriteOrder {
 
     /// Mark a previously failed purge's pending directory removal as resolved
     /// under [`super::lock_upstream_package`].
-    pub(in crate::server) fn resolve_purge(&self, namespace: &str, name: &CanonicalPackageName) {
+    pub(in crate::server) fn resolve_purge(&self, namespace: String, name: &CanonicalPackageName) {
         let mut state = self.state.lock().expect("packument write-order lock poisoned");
-        state.unresolved_purges.remove(&(namespace.to_string(), name.clone()));
+        state.unresolved_purges.remove(&(namespace, name.clone()));
     }
 }
 

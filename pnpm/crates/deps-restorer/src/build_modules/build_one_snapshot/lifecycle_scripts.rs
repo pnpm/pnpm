@@ -146,7 +146,7 @@ pub(super) fn snapshot_extra_bin_paths(
     pkg_dir: &Path,
 ) -> Vec<PathBuf> {
     let mut extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
-        bin_dirs_in_all_parent_dirs(pkg_dir, context.directories.lockfile_dir)
+        bin_dirs_in_all_parent_dirs(pkg_dir.to_path_buf(), context.directories.lockfile_dir)
     } else {
         Vec::new()
     };

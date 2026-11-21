@@ -216,8 +216,8 @@ macro_rules! record_list_overrides {
 }
 
 impl ConfigOverrides {
-    fn record_raw_config(&mut self, key: &str, value: &str) {
-        self.npmrc_tokens.push((key.to_owned(), value.to_owned()));
+    fn record_raw_config(&mut self, key: String, value: String) {
+        self.npmrc_tokens.push((key, value));
     }
 
     pub(crate) fn shared_workspace_lockfile(&self) -> Option<bool> {
@@ -308,17 +308,17 @@ impl ConfigOverrides {
                 if matches!(to_kebab_case(key).as_str(), "state-dir" | "store-dir") =>
             {
                 let kebab = to_kebab_case(key);
-                self.record_raw_config(key, value);
+                self.record_raw_config(key.to_owned(), value.to_owned());
                 remaining.push(OsString::from(format!("--{kebab}={value}")));
             }
             ConfigToken::WellFormed { key, value } => {
-                self.record_raw_config(key, value);
+                self.record_raw_config(key.to_owned(), value.to_owned());
                 self.set(key, value);
             }
             ConfigToken::BooleanFollows(key) => {
                 let value = following(key);
                 let value = value.as_deref().unwrap_or("true");
-                self.record_raw_config(key, value);
+                self.record_raw_config(key.to_owned(), value.to_owned());
                 self.set(key, value);
             }
             // A flag whose value is missing (because it ends argv, or
@@ -327,8 +327,8 @@ impl ConfigOverrides {
             // [`classify`].
             ConfigToken::ValueFollows(key) => match following(key) {
                 Some(value) => {
-                    self.record_raw_config(key, &value);
                     self.set(key, &value);
+                    self.record_raw_config(key.to_owned(), value);
                 }
                 None => remaining.push(arg),
             },

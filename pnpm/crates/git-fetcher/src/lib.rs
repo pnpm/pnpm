@@ -14,6 +14,8 @@
 //!
 //! The preparation lives in this crate rather than a sibling because
 //! both fetchers above are its only consumers.
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 #[cfg(target_family = "wasm")]
 extern crate pnpm_which as which;

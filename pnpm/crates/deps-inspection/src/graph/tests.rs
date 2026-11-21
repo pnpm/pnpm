@@ -62,7 +62,7 @@ snapshots:
 
 fn package_nodes(lockfile: &Lockfile, bound_peer_edges: BoundPeerEdges) -> BTreeSet<String> {
     let graph = build_dependency_graph(
-        &[TreeNodeId::Importer(".".to_string())],
+        vec![TreeNodeId::Importer(".".to_string())],
         &BuildGraphOptions {
             lockfile,
             include: IncludedDependencies {
@@ -199,7 +199,7 @@ snapshots:
     .unwrap();
     let lockfile = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap();
     let graph = build_dependency_graph(
-        &[TreeNodeId::Importer(".".to_string())],
+        vec![TreeNodeId::Importer(".".to_string())],
         &BuildGraphOptions {
             lockfile: &lockfile,
             include: IncludedDependencies {

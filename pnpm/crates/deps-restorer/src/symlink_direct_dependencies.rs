@@ -494,6 +494,13 @@ pub fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> PathBuf {
     }
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`prefix` is copied only for an entry whose link was not reused, after the early return, and the caller shares it across a parallel loop, so an owned parameter would allocate for every entry."
+    )
+)]
 fn link_resolved_entry<Reporter: self::Reporter>(
     entry: &ResolvedEntry<'_>,
     importer_id: &str,
@@ -517,7 +524,7 @@ fn link_resolved_entry<Reporter: self::Reporter>(
         }
     }
 
-    emit_root_added::<Reporter>(entry, graph, prefix);
+    emit_root_added::<Reporter>(entry, graph, prefix.to_owned());
     Ok(())
 }
 

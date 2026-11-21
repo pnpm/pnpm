@@ -552,8 +552,8 @@ fn registries_are_npm_unless_declared_otherwise() {
         ],
         None,
     )
-    .with_ecosystem("crates", Ecosystem::Cargo)
-    .with_ecosystem("crates-io", Ecosystem::Cargo);
+    .with_ecosystem("crates".to_owned(), Ecosystem::Cargo)
+    .with_ecosystem("crates-io".to_owned(), Ecosystem::Cargo);
     set.validate().expect("graph is valid");
     assert_eq!(set.ecosystem("local"), Some(Ecosystem::Npm));
     assert_eq!(set.ecosystem("crates"), Some(Ecosystem::Cargo));
@@ -580,9 +580,9 @@ fn a_router_serves_every_ecosystem_its_sources_speak() {
         ],
         Some("main"),
     )
-    .with_ecosystem("crates", Ecosystem::Cargo)
-    .with_ecosystem("crates-io", Ecosystem::Cargo)
-    .with_ecosystem("python", Ecosystem::Pypi);
+    .with_ecosystem("crates".to_owned(), Ecosystem::Cargo)
+    .with_ecosystem("crates-io".to_owned(), Ecosystem::Cargo)
+    .with_ecosystem("python".to_owned(), Ecosystem::Pypi);
     set.validate().expect("a mixed router is valid");
     assert_eq!(
         set.resolve("main", Ecosystem::Npm, "demo"),
@@ -615,7 +615,7 @@ fn shadowing_is_decided_within_one_ecosystem() {
         ],
         None,
     )
-    .with_ecosystem("crates-io", Ecosystem::Cargo);
+    .with_ecosystem("crates-io".to_owned(), Ecosystem::Cargo);
     set.validate().expect("catch-all sources of different ecosystems do not shadow each other");
 
     let set = registries(
@@ -626,8 +626,8 @@ fn shadowing_is_decided_within_one_ecosystem() {
         ],
         None,
     )
-    .with_ecosystem("crates-io", Ecosystem::Cargo)
-    .with_ecosystem("crates", Ecosystem::Cargo);
+    .with_ecosystem("crates-io".to_owned(), Ecosystem::Cargo)
+    .with_ecosystem("crates".to_owned(), Ecosystem::Cargo);
     assert_eq!(
         set.validate(),
         Err(RegistryConfigError::UnreachableSource {
@@ -641,7 +641,7 @@ fn shadowing_is_decided_within_one_ecosystem() {
 #[test]
 fn an_ecosystem_needs_a_concrete_registry() {
     let set = registries(vec![("local", hosted(&[])), ("main", router(&["local"]))], None)
-        .with_ecosystem("main", Ecosystem::Pypi);
+        .with_ecosystem("main".to_owned(), Ecosystem::Pypi);
     assert_eq!(
         set.validate(),
         Err(RegistryConfigError::EcosystemOnNonConcreteRegistry {
@@ -649,8 +649,8 @@ fn an_ecosystem_needs_a_concrete_registry() {
             ecosystem: Ecosystem::Pypi,
         }),
     );
-    let set =
-        registries(vec![("local", hosted(&[]))], None).with_ecosystem("ghost", Ecosystem::Pypi);
+    let set = registries(vec![("local", hosted(&[]))], None)
+        .with_ecosystem("ghost".to_owned(), Ecosystem::Pypi);
     assert!(matches!(
         set.validate(),
         Err(RegistryConfigError::EcosystemOnNonConcreteRegistry { .. }),

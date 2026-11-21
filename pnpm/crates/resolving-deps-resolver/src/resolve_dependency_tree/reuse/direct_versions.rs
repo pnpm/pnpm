@@ -110,13 +110,13 @@ pub(super) fn importer_dep_specifier<'a>(
 /// [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`]: crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions
 pub(in super::super) fn record_direct_dep_versions(
     ctx: &TreeCtx,
-    importer_id: &str,
+    importer_id: String,
     level: &BTreeMap<String, Vec<String>>,
 ) {
     let changed_versions =
         Arc::clone(&lock_recoverable(&ctx.workspace.versions.changed_direct_dep_versions));
     let mut versions = lock_recoverable(&ctx.workspace.versions.direct_dep_versions);
-    let by_name = Arc::make_mut(versions.entry(importer_id.to_string()).or_default());
+    let by_name = Arc::make_mut(versions.entry(importer_id).or_default());
     extend_parsed_versions(by_name, level, &ctx.workspace.cache.registry_context);
     for (name, candidates) in changed_versions.iter() {
         by_name.entry(name.clone()).or_insert_with(|| candidates.clone());

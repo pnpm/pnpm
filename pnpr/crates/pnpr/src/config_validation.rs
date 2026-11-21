@@ -73,7 +73,7 @@ fn validate_startup_config_inner(
     pnpr_route::validate_public_routes(&config.routing.route_policy)
         .map_err(|reason| RegistryError::InvalidConfig { reason })?;
     if config.http.shutdown_timeout.is_zero() {
-        return Err(invalid("shutdownTimeout must be greater than zero"));
+        return Err(invalid("shutdownTimeout must be greater than zero".to_owned()));
     }
     validate_database_backend(&config.storage.database)?;
     validate_identity_backend(&config.identity.backend)?;
@@ -86,7 +86,7 @@ pub(crate) fn validate_cache_paths(config: &Config) -> Result<()> {
     let norm_cache = normalize_config_path(&config.storage.cache_dir)?;
     let norm_hosted = normalize_config_path(&config.storage.hosted_dir)?;
     if norm_hosted.starts_with(&norm_cache) {
-        return Err(invalid(CACHE_OVERLAPS_HOSTED_STORAGE));
+        return Err(invalid(CACHE_OVERLAPS_HOSTED_STORAGE.to_owned()));
     }
     validate_database_cache_overlap(&config.storage.database, &norm_cache)?;
     if let BackendConfig::Libsql(settings) = &config.identity.backend {
@@ -133,7 +133,7 @@ fn reject_path_inside_cache(
         && !path.as_os_str().is_empty()
         && normalize_config_path(path)?.starts_with(norm_cache)
     {
-        return Err(invalid(reason));
+        return Err(invalid(reason.to_owned()));
     }
     Ok(())
 }
@@ -141,7 +141,7 @@ fn reject_path_inside_cache(
 fn validate_osv_cache_overlap(osv_path: &Path, norm_cache: &Path) -> Result<()> {
     let norm_osv = normalize_config_path(osv_path)?;
     if norm_osv.starts_with(norm_cache) || norm_cache.starts_with(&norm_osv) {
-        return Err(invalid(CACHE_CONTAINS_OSV_DB));
+        return Err(invalid(CACHE_CONTAINS_OSV_DB.to_owned()));
     }
     Ok(())
 }
@@ -168,7 +168,7 @@ fn is_cache_secret_temp(name: &OsStr) -> bool {
 pub(crate) fn validate_cache_paths_and_backend(config: &Config) -> Result<()> {
     validate_cache_paths(config)?;
     if !config.has_configured_secret && uses_shared_backend(config) {
-        return Err(invalid(SHARED_BACKEND_SECRET_REQUIRED));
+        return Err(invalid(SHARED_BACKEND_SECRET_REQUIRED.to_owned()));
     }
     Ok(())
 }
@@ -219,7 +219,7 @@ fn validate_ephemeral_cache_dir(
     };
     let marker = OsStr::new(CACHE_SECRET_MARKER);
     if dir.has_symlink_child(marker)? {
-        return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
+        return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED.to_owned()));
     }
     match read_ephemeral_marker(&dir, marker)? {
         Some(bytes) => validate_ephemeral_marker(&dir, &bytes, cache_secret, pending_policy),
@@ -231,7 +231,7 @@ fn read_ephemeral_marker(dir: &pnpm_fs::OpenDir, marker: &OsStr) -> Result<Optio
     match dir.read_child_file_bounded(marker, MAX_CACHE_SECRET_MARKER_BYTES) {
         Ok(bytes) => Ok(bytes),
         Err(err) if err.kind() == ErrorKind::InvalidData => {
-            Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED))
+            Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED.to_owned()))
         }
         Err(err) => Err(err.into()),
     }
@@ -244,18 +244,20 @@ fn validate_ephemeral_marker(
     pending_policy: PendingClaimPolicy,
 ) -> Result<()> {
     let Ok(raw) = std::str::from_utf8(bytes) else {
-        return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
+        return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED.to_owned()));
     };
     let trimmed = raw.trim();
     if trimmed == cache_secret_fingerprint(cache_secret) {
         return Ok(());
     }
     match pending_policy {
-        PendingClaimPolicy::Reject => Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)),
+        PendingClaimPolicy::Reject => Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED.to_owned())),
         PendingClaimPolicy::DeferToClaim if trimmed == PENDING_CACHE_CLAIM => {
             ensure_only_ignorable_entries(dir, CacheDirCheck::ClaimedWithMarker)
         }
-        PendingClaimPolicy::DeferToClaim => Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED)),
+        PendingClaimPolicy::DeferToClaim => {
+            Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED.to_owned()))
+        }
     }
 }
 
@@ -265,7 +267,7 @@ pub(crate) fn ensure_only_ignorable_entries(
 ) -> Result<()> {
     for name in dir.entry_names()? {
         if !is_ignorable_cache_entry(&name, check) {
-            return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED));
+            return Err(invalid(PERSISTENT_CACHE_SECRET_REQUIRED.to_owned()));
         }
     }
     Ok(())
@@ -274,7 +276,7 @@ pub(crate) fn ensure_only_ignorable_entries(
 fn validate_database_backend(metadata: &DatabaseBackend) -> Result<()> {
     match metadata {
         DatabaseBackend::Sqlite(path) if path.as_os_str().is_empty() => {
-            Err(invalid("storage.database.url `sqlite:` needs a path after the colon"))
+            Err(invalid("storage.database.url `sqlite:` needs a path after the colon".to_owned()))
         }
         DatabaseBackend::Sqlite(_) => Ok(()),
         DatabaseBackend::Postgres(settings) => validate_postgres(settings),
@@ -328,12 +330,12 @@ fn validate_mysql(settings: &SqlBackendSettings) -> Result<()> {
 
 fn validate_libsql(settings: &LibsqlSettings) -> Result<()> {
     if settings.max_connections == Some(0) {
-        return Err(invalid("storage.database.maxConnections must be greater than 0"));
+        return Err(invalid("storage.database.maxConnections must be greater than 0".to_owned()));
     }
     if settings.replica_path.is_some() && settings.sync_interval_secs == Some(0) {
         return Err(invalid(
             "storage.database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
-             replica read may be",
+             replica read may be".to_owned(),
         ));
     }
     let parsed = parse_hierarchical_url(&settings.url)?;
@@ -353,13 +355,13 @@ fn validate_libsql(settings: &LibsqlSettings) -> Result<()> {
 
 fn validate_sql_pool(settings: &SqlBackendSettings) -> Result<()> {
     if settings.max_connections == Some(0) {
-        return Err(invalid("storage.database.maxConnections must be greater than 0"));
+        return Err(invalid("storage.database.maxConnections must be greater than 0".to_owned()));
     }
     if settings.timeout.is_zero() {
-        return Err(invalid("storage.database.timeout must be greater than 0"));
+        return Err(invalid("storage.database.timeout must be greater than 0".to_owned()));
     }
     if settings.startup_timeout.is_zero() {
-        return Err(invalid("storage.database.startupTimeout must be greater than 0"));
+        return Err(invalid("storage.database.startupTimeout must be greater than 0".to_owned()));
     }
     Ok(())
 }
@@ -376,15 +378,15 @@ fn parse_hierarchical_url(raw: &str) -> Result<Url> {
 }
 
 fn invalid_url() -> RegistryError {
-    invalid("storage.database.url is not a valid URL")
+    invalid("storage.database.url is not a valid URL".to_owned())
 }
 
 fn missing_driver() -> RegistryError {
-    invalid("this build does not include the configured database driver")
+    invalid("this build does not include the configured database driver".to_owned())
 }
 
-fn invalid(reason: &str) -> RegistryError {
-    RegistryError::InvalidConfig { reason: reason.to_string() }
+fn invalid(reason: String) -> RegistryError {
+    RegistryError::InvalidConfig { reason }
 }
 
 #[cfg(test)]

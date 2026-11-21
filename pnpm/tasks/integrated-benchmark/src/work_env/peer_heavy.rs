@@ -31,14 +31,14 @@ use serde_json::{
     Value,
     json,
 };
-use std::path::Path;
+use std::path::PathBuf;
 
 const PUBLISHED_AT: &str = "2020-01-01T00:00:00.000Z";
 
 /// Commit the peer-heavy packages to the registry's database at
 /// `database`. Their archives are never fetched, so none is written; their
 /// integrity is the one a publish over HTTP stores.
-pub(crate) fn seed_peer_heavy_registry(database: &Path) {
+pub(crate) fn seed_peer_heavy_registry(database: PathBuf) {
     let packuments = peer_heavy_packages()
         .into_iter()
         .map(|(name, manifest)| {
@@ -51,9 +51,8 @@ pub(crate) fn seed_peer_heavy_registry(database: &Path) {
 
 /// Publish the peer-heavy packages to the npm registry at `registry` as the
 /// caller `token` signs in, each with its archive.
-pub(super) fn publish_peer_heavy(registry: &str, token: &str) {
+pub(super) fn publish_peer_heavy(registry: &str, token: String) {
     let registry = registry.trim_end_matches('/').to_string();
-    let token = token.to_string();
     let published = std::thread::spawn(move || {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -202,7 +201,7 @@ fn publish_peer_heavy_to(mock_port: u16) {
         format!("{origin}/")
     };
     eprintln!("Publishing the peer-heavy packages to the revision mock at {registry}...");
-    publish_peer_heavy(&registry, &mint_pnpr_token(mock_port));
+    publish_peer_heavy(&registry, mint_pnpr_token(mock_port));
 }
 
 impl WorkEnv {

@@ -252,7 +252,7 @@ fn walker_places_root_packages_in_the_configured_modules_dir() {
         modules_dirs: crate::ImporterModulesDirs::new(
             &lockfile_dir,
             std::path::Path::new("deps/vendor"),
-            std::ffi::OsStr::new("deps/vendor"),
+            std::ffi::OsString::from("deps/vendor"),
         ),
         ..LockfileToHoistedDepGraphOptions::default()
     };

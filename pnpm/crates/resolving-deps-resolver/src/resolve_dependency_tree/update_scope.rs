@@ -282,6 +282,13 @@ pub(super) fn is_update_target(
 mod tests;
 
 impl super::TreeCtx {
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "`alias` and `specifier` are copied only after the update-all early return, and the caller borrows them while filtering a map, so owned parameters would allocate on every call."
+        )
+    )]
     pub(crate) fn direct_dependency_is_updated(&self, alias: &str, specifier: &str) -> bool {
         if matches!(self.update_reuse_scope(), UpdateReuseScope::All) {
             return false;

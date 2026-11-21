@@ -363,7 +363,7 @@ impl WorkEnv {
         create_pnpm_workspace(
             dir,
             self.options.selection.fixture_dir.as_deref(),
-            registry,
+            registry.to_owned(),
             scenario,
         );
         create_npmrc(dir, registry, scenario);

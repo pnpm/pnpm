@@ -117,13 +117,13 @@ impl ImporterHoistState {
     fn hoisted_required_peer_version(
         &self,
         name: &str,
-        range: &str,
+        range: String,
         picker: &RequiredPeerPicker<'_>,
     ) -> RequiredPeerPick {
         let names = || std::iter::once(name);
         let resolved_versions = self.ctx.run_resolved_versions(names());
         let preferred = self.required_peer_preferred_versions(names(), &resolved_versions);
-        let missing = [(name.to_string(), MissingPeerInfo { range: range.to_string() })];
+        let missing = [(name.to_string(), MissingPeerInfo { range })];
         let Some(specifier) =
             hoist_peers(&self.hoist_peers_options(&preferred, &resolved_versions), &missing)
                 .remove(name)
@@ -190,7 +190,7 @@ impl ImporterHoistState {
                 .borrow_mut()
                 .entry((name.to_string(), range))
                 .or_insert_with_key(|(name, range)| {
-                    self.hoisted_required_peer_version(name, range, picker)
+                    self.hoisted_required_peer_version(name, range.clone(), picker)
                 })
                 .clone();
             match pick {

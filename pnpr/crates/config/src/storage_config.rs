@@ -192,11 +192,12 @@ pub(crate) fn resolve_database_backend(
         && !file.url.as_deref().is_some_and(is_network_sql_url)
     {
         return Err(invalid(
-            "storage.database.timeout and startupTimeout require a PostgreSQL or MySQL URL",
+            "storage.database.timeout and startupTimeout require a PostgreSQL or MySQL URL"
+                .to_owned(),
         ));
     }
     match &file.url {
-        None if has_remote_settings(file) => Err(invalid(REMOTE_ONLY_SETTINGS)),
+        None if has_remote_settings(file) => Err(invalid(REMOTE_ONLY_SETTINGS.to_owned())),
         None => default_metadata(storage, on_fs),
         Some(url) if is_network_sql_url(url) => network_database(file, url),
         Some(url) if is_libsql_url(url) => libsql_database(file, url, base_dir),
@@ -214,7 +215,7 @@ fn default_metadata(storage: &Path, on_fs: bool) -> Result<DatabaseBackend, Regi
     } else {
         Err(invalid(
             "a `storage.s3` hosted store needs storage.database.url to name a shared database, such as \
-             `libsql://<host>`: pnpr keeps package metadata in a database, not in the bucket",
+             `libsql://<host>`: pnpr keeps package metadata in a database, not in the bucket".to_owned(),
         ))
     }
 }
@@ -229,8 +230,8 @@ fn has_remote_settings(file: &DatabaseFile) -> bool {
         || file.max_connections.is_some()
 }
 
-fn invalid(reason: &str) -> RegistryError {
-    RegistryError::InvalidConfig { reason: reason.to_string() }
+fn invalid(reason: String) -> RegistryError {
+    RegistryError::InvalidConfig { reason }
 }
 
 /// `SQLite` metadata at the path of a `sqlite:` URL.
@@ -246,15 +247,17 @@ fn sqlite_database(
         });
     };
     if has_remote_settings(file) {
-        return Err(invalid(REMOTE_ONLY_SETTINGS));
+        return Err(invalid(REMOTE_ONLY_SETTINGS.to_owned()));
     }
     if path.is_empty() {
-        return Err(invalid("storage.database.url `sqlite:` needs a path after the colon"));
+        return Err(invalid(
+            "storage.database.url `sqlite:` needs a path after the colon".to_owned(),
+        ));
     }
     if !on_fs {
         return Err(invalid(
             "storage.database.url `sqlite:` is single-instance and needs the filesystem hosted store; \
-             remove the `storage.s3` block or the metadata URL",
+             remove the `storage.s3` block or the metadata URL".to_owned(),
         ));
     }
     Ok(DatabaseBackend::Sqlite(resolve_relative(path, base_dir)))
@@ -292,7 +295,7 @@ fn libsql_database(
     if settings.replica_path.is_some() && settings.sync_interval_secs == Some(0) {
         return Err(invalid(
             "storage.database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
-             replica read may be",
+             replica read may be".to_owned(),
         ));
     }
     Ok(DatabaseBackend::Libsql(settings))
@@ -369,11 +372,12 @@ fn network_database(file: &DatabaseFile, url: &str) -> Result<DatabaseBackend, R
         || file.sync_interval.is_some()
     {
         return Err(invalid(
-            "storage.database.authToken, replicaPath, and syncInterval require a libSQL URL",
+            "storage.database.authToken, replicaPath, and syncInterval require a libSQL URL"
+                .to_owned(),
         ));
     }
     if file.max_connections == Some(0) {
-        return Err(invalid("storage.database.maxConnections must be greater than 0"));
+        return Err(invalid("storage.database.maxConnections must be greater than 0".to_owned()));
     }
     let mysql = url
         .split_once(':')

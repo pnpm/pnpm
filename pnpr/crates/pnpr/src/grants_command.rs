@@ -69,7 +69,7 @@ impl GrantFile {
 
     /// The grant named `name`, its lists sorted the way the database returns
     /// them, so a file compares equal to what it stored.
-    fn into_content(self, name: &str) -> GrantContent {
+    fn into_content(self, name: String) -> GrantContent {
         let sorted = |mut list: Vec<String>| {
             list.sort();
             list.dedup();
@@ -86,7 +86,7 @@ impl GrantFile {
         subjects.sort();
         subjects.dedup();
         GrantContent {
-            name: name.to_string(),
+            name,
             registries: sorted(self.registries),
             include: sorted(self.include),
             exclude: sorted(self.exclude),
@@ -202,7 +202,7 @@ fn declared_grants(declared: GrantsFile, stored: &[StoredGrant]) -> Vec<StoredGr
                 .iter()
                 .find(|existing| existing.content.name == name)
                 .map_or_else(pnpr_auth::new_principal_id, |existing| existing.id.clone());
-            StoredGrant { id, content: grant.into_content(&name) }
+            StoredGrant { id, content: grant.into_content(name) }
         })
         .collect()
 }

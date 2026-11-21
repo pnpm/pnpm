@@ -11,10 +11,7 @@ use pnpm_diagnostics::miette::{
 use serde_saphyr::MessageFormatter;
 use std::{
     io,
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::PathBuf,
 };
 
 /// Error when reading lockfile the filesystem.
@@ -39,13 +36,13 @@ pub enum LoadLockfileError {
 }
 
 impl LoadLockfileError {
-    pub(crate) fn parse_yaml(path: &Path, source: &serde_saphyr::Error) -> Self {
-        Self::ParseYaml { path: path.to_path_buf(), reason: format_yaml_error(source) }
+    pub(crate) fn parse_yaml(path: PathBuf, source: &serde_saphyr::Error) -> Self {
+        Self::ParseYaml { path, reason: format_yaml_error(source) }
     }
 
     /// A next-format document that parsed but describes no lockfile.
-    pub(crate) fn next_format(path: &Path, source: &crate::NextFormatError) -> Self {
-        Self::ParseYaml { path: path.to_path_buf(), reason: source.to_string() }
+    pub(crate) fn next_format(path: PathBuf, source: &crate::NextFormatError) -> Self {
+        Self::ParseYaml { path, reason: source.to_string() }
     }
 }
 

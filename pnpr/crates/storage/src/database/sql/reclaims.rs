@@ -211,8 +211,10 @@ fn mark(
     let ids: Vec<&str> = ids.iter().map(BlobId::as_str).collect();
     let ids = Some(json_array(&ids));
     let ecosystem_name = ecosystem.as_str();
-    let read =
-        Query::new(UNMAPPED.get(connection.dialect()), params![namespace, ecosystem_name, ids]);
+    let read = Query::new(
+        UNMAPPED.get(connection.dialect()),
+        params![namespace, ecosystem_name, ids].to_vec(),
+    );
     let rows = rows_from(
         transaction
             .query_all(&[read])?
@@ -293,7 +295,8 @@ fn read_rows<'id>(
     let ids: Vec<&str> = ids.map(BlobId::as_str).collect();
     let ids = json_array(&ids);
     let ecosystem = ecosystem.as_str();
-    let read = Query::new(ROWS.get(connection.dialect()), params![namespace, ecosystem, ids]);
+    let read =
+        Query::new(ROWS.get(connection.dialect()), params![namespace, ecosystem, ids].to_vec());
     rows_from(
         connection
             .query_all(&[read])?

@@ -251,7 +251,7 @@ impl<'a> OnDiskInputs<'a> {
         .map_err(InstallWithFreshLockfileError::LinkPhase)?;
         super::report_importing_done::<Reporter>(
             self.store.resolution_observer,
-            self.ctx.requester,
+            self.ctx.requester.to_owned(),
         );
         Ok(linked)
     }

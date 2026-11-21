@@ -54,7 +54,7 @@ pub(in crate::server) fn authorize(
     action: Action,
 ) -> Result<(), RegistryError> {
     let rules = source_rules(state, source).snapshot();
-    if permission_list(&rules, package, action).allows(identity) {
+    if permission_list(&rules, package.to_owned(), action).allows(identity) {
         return Ok(());
     }
     Err(denial(identity, package, action))
@@ -95,7 +95,7 @@ pub(in crate::server) fn allows_with_ownership(
     action: Action,
 ) -> bool {
     let is_owner = owns(state, identity, ownership, action);
-    permission_list(rules, package, action).allows_with_context(identity, is_owner)
+    permission_list(rules, package.to_owned(), action).allows_with_context(identity, is_owner)
 }
 
 /// [`authorize_with_ownership`] against the maintainers an npm `packument`
@@ -146,11 +146,7 @@ fn packument_owners(packument: &serde_json::Value) -> Vec<String> {
         .collect()
 }
 
-fn permission_list<'rules>(
-    rules: &'rules RuleTable,
-    package: &str,
-    action: Action,
-) -> Permission<'rules> {
+fn permission_list(rules: &RuleTable, package: String, action: Action) -> Permission<'_> {
     rules.permission(package, action)
 }
 
@@ -181,6 +177,13 @@ async fn read_ownership(
 
 /// Whether deciding `action` for `identity` on `package` under `rules` requires
 /// reading `package`'s recorded owners.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the package name is copied only past the anonymous and admin early return"
+    )
+)]
 pub(in crate::server) fn needs_package_owners(
     state: &AppState,
     identity: &Identity,
@@ -191,7 +194,7 @@ pub(in crate::server) fn needs_package_owners(
     if !identity.is_authenticated() || is_admin(state, identity) {
         return false;
     }
-    let list = permission_list(rules, package, action);
+    let list = permission_list(rules, package.to_owned(), action);
     !list.allows(identity) && list.references_owners()
 }
 
@@ -213,7 +216,7 @@ pub(in crate::server) fn authorize_without_owners(
     action: Action,
 ) -> Result<AuthorizationDecision, RegistryError> {
     let rules = source_rules(state, source).snapshot();
-    let list = permission_list(&rules, package, action);
+    let list = permission_list(&rules, package.to_owned(), action);
     if list.allows(identity) {
         return Ok(AuthorizationDecision::AllowedWithoutOwners);
     }

@@ -169,7 +169,7 @@ impl EnvLockfile {
                 env_doc,
                 yaml_parse_options(env_doc.len()),
             )
-            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
+            .map_err(|source| LoadLockfileError::parse_yaml(path.to_path_buf(), &source))?
         };
         env.root_importer_mut();
         Ok(Some(env))

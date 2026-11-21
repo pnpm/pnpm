@@ -75,7 +75,7 @@ pub(crate) fn dedupe_peer_dependents(
     }
     let dep_paths_map = deduplicate_all(
         graph,
-        &duplicates,
+        duplicates,
         dedupe.optional_peer_scope(),
         &mut unbound_optional_peers,
     );
@@ -147,12 +147,12 @@ fn collect_duplicates(graph: &DependenciesGraph) -> Vec<Vec<DepPath>> {
 /// that resolves the listed peer.
 fn deduplicate_all(
     graph: &mut DependenciesGraph,
-    duplicates: &[Vec<DepPath>],
+    duplicates: Vec<Vec<DepPath>>,
     optional_peers: OptionalPeerScope,
     unbound_optional_peers: &mut UnboundOptionalPeers,
 ) -> HashMap<DepPath, DepPath> {
     let mut incoming = incoming_edges(graph);
-    let mut remaining = duplicates.to_vec();
+    let mut remaining = duplicates;
     let mut merged: HashMap<DepPath, DepPath> = HashMap::default();
     loop {
         let guard =

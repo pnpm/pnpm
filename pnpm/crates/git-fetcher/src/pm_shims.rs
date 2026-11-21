@@ -122,6 +122,13 @@ fn running_pnpm_shim_file(pnpm_execpath: &Path) -> (String, String) {
 }
 
 #[cfg(any(unix, target_os = "wasi"))]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "shares its signature with the Windows twin, which formats `name` into `<name>.cmd`"
+    )
+)]
 fn shim_files(
     name: &str,
     run_as: &[&str],

@@ -282,10 +282,10 @@ impl PypiPublication {
             &HostedTarget { namespace, registry, publisher },
             key,
             &files,
-            &refuse_existing_file(&self.entry.filename),
+            &refuse_existing_file(self.entry.filename.clone()),
             ProjectDocument {
                 files: vec![self.entry.clone()],
-                ..ProjectDocument::new(key.as_str())
+                ..ProjectDocument::new(key.as_str().to_owned())
             },
         )
         .await
@@ -294,9 +294,8 @@ impl PypiPublication {
 
 /// Published and deleted filenames are immutable.
 pub(super) fn refuse_existing_file(
-    filename: &str,
+    filename: String,
 ) -> impl Fn(&ProjectDocument) -> Result<(), RegistryError> {
-    let filename = filename.to_string();
     move |document: &ProjectDocument| {
         if document.file(&filename).is_some() || document.deleted_files.contains(&filename) {
             Err(RegistryError::BadRequest { reason: format!("File already exists: {filename:?}") })

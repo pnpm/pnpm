@@ -255,7 +255,7 @@ impl SeededImporter {
         DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     {
         let seeds = DirectSeeds::of(manifest, dependency_groups, &opts)?;
-        let (ctx, settings) = opts.into_tree_ctx(importer_id, importer_order, workspace);
+        let (ctx, settings) = opts.into_tree_ctx(importer_id.to_owned(), importer_order, workspace);
         let retained = ctx
             .workspace()
             .wanted_lockfile()
@@ -315,7 +315,7 @@ impl SeededImporter {
         self.ctx.resolve_new_direct_deps_as_subdeps();
         let locked = LockedPeers::for_importer(&self.ctx, &self.importer_id, &self.retained);
         Ok(ImporterHoistState::assemble(
-            &self.importer_id,
+            self.importer_id,
             self.ctx,
             direct,
             self.seeds,

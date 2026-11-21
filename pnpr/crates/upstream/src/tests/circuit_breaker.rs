@@ -172,7 +172,7 @@ async fn body_timeouts_do_not_open_the_circuit() {
     let mut config = super::UpstreamConfig::with_defaults(url, super::HeaderMap::new());
     config.requests.max_fails = 1;
     config.requests.timeout = Duration::from_millis(100);
-    let upstream = super::Upstream::new("test", &config);
+    let upstream = super::Upstream::new("test".to_owned(), &config);
     let name =
         CanonicalPackageName::parse("example-package", pnpr_package_name::Ecosystem::Npm).unwrap();
     for _ in 0..2 {

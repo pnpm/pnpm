@@ -529,8 +529,12 @@ impl SqlDatabase {
     }
 
     /// The metadata of `(namespace, ecosystem)`.
-    pub(crate) fn view(self: &Arc<Self>, namespace: &str, ecosystem: Ecosystem) -> PackageMetadata {
-        PackageMetadata { database: Arc::clone(self), namespace: namespace.to_string(), ecosystem }
+    pub(crate) fn view(
+        self: &Arc<Self>,
+        namespace: String,
+        ecosystem: Ecosystem,
+    ) -> PackageMetadata {
+        PackageMetadata { database: Arc::clone(self), namespace, ecosystem }
     }
 }
 

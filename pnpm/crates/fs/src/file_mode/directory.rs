@@ -12,7 +12,7 @@ use std::{
 /// existed. Directories that were already present are not modified.
 pub fn create_dir_all_inheriting_mode(dir: &Path) -> io::Result<()> {
     #[cfg(any(unix, target_os = "wasi"))]
-    let template = if dir.is_dir() { None } else { nearest_existing_ancestor(dir) };
+    let template = if dir.is_dir() { None } else { nearest_existing_ancestor(dir.to_path_buf()) };
     #[cfg(any(unix, target_os = "wasi"))]
     if let Some(template) = template.as_deref() {
         validate_permission_boundary(dir, template)?;
@@ -31,8 +31,8 @@ pub fn create_dir_all_inheriting_mode(dir: &Path) -> io::Result<()> {
 /// working directory exists. Returns `None` when nothing on the path is a
 /// directory.
 #[must_use]
-pub fn nearest_existing_ancestor(dir: &Path) -> Option<PathBuf> {
-    let mut current = dir.to_path_buf();
+pub fn nearest_existing_ancestor(dir: PathBuf) -> Option<PathBuf> {
+    let mut current = dir;
     loop {
         if current.as_os_str().is_empty() {
             let dot = PathBuf::from(".");

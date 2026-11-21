@@ -181,7 +181,7 @@ pub(super) fn cold_mock_config_yaml(
     registries: RegistriesHome,
 ) -> String {
     let graph = match registries {
-        RegistriesHome::ConfigFile => Some(cold_mock_graph(origin)),
+        RegistriesHome::ConfigFile => Some(cold_mock_graph(origin.to_owned())),
         RegistriesHome::Database => None,
     };
     let config = ColdMockConfig {
@@ -201,11 +201,11 @@ pub(super) fn cold_mock_config_yaml(
 }
 /// The cold mock's registries, for a revision that reads them from the
 /// database.
-pub(super) fn cold_mock_registries_yaml(origin: &str) -> String {
+pub(super) fn cold_mock_registries_yaml(origin: String) -> String {
     serde_saphyr::to_string(&cold_mock_graph(origin)).expect("serialize cold mock registries")
 }
-fn cold_mock_graph(origin: &str) -> ColdMockGraph {
-    let npmjs = ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
+fn cold_mock_graph(origin: String) -> ColdMockGraph {
+    let npmjs = ColdMockUpstreamEntry { kind: "upstream", url: origin, public: true };
     ColdMockGraph { registries: ColdMockUpstreamTable { npmjs }, default_registry: "npmjs" }
 }
 /// Use an isolated cache, cleared between iterations, with the warm mock as
@@ -238,7 +238,7 @@ pub(super) fn cold_revision_mock_command(
         .with_arg("31536000");
     if mock.registries.in_database() {
         let document = mock.bench_dir.join("cold-mock-registries.yaml");
-        fs::write(&document, cold_mock_registries_yaml(origin_url))
+        fs::write(&document, cold_mock_registries_yaml(origin_url.to_owned()))
             .expect("write cold mock registries");
         pnpm_registry_mock::import_registries(&command, &document);
     }

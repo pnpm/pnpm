@@ -53,7 +53,7 @@ struct LocalDepContext<'a> {
 
 impl<'a> LocalDepContext<'a> {
     fn outdated(&self) -> FreshnessCheckError {
-        local_dependency_outdated(self.name, self.rel_path)
+        local_dependency_outdated(self.name.to_owned(), self.rel_path.to_owned())
     }
 
     fn child(&self, name: &'a str, rel_path: &'a str, dir: &'a Path) -> Self {
@@ -61,11 +61,8 @@ impl<'a> LocalDepContext<'a> {
     }
 }
 
-fn local_dependency_outdated(name: &str, path: &str) -> FreshnessCheckError {
-    FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated {
-        name: name.to_string(),
-        path: path.to_string(),
-    })
+fn local_dependency_outdated(name: String, path: String) -> FreshnessCheckError {
+    FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated { name, path })
 }
 
 /// Whether the local resolver claims `spec` as a filesystem path, a `file:`

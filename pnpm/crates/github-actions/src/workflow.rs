@@ -103,6 +103,13 @@ async fn scan_workflow_file(
 
 /// The action a `uses:` value pins, or `None` when it names a docker image
 /// or is not spelled `owner/repository@ref`.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "copied only when the `uses:` value names an action; one path serves the whole file"
+    )
+)]
 pub(super) fn action_reference(
     uses_value: UsesValue<'_>,
     real_file: &Path,

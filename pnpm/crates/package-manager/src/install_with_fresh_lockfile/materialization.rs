@@ -313,8 +313,8 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         allow_build_policy: &AllowBuildPolicy,
         known: &ResolvedPackageFacts,
     ) -> Result<OnDiskOutput, InstallWithFreshLockfileError> {
-        let swap_lock =
-            pnpm_deps_restorer::ModulesSwapLock::new(&self.install.drivers.config.modules_dir);
+        let modules_dir = self.install.drivers.config.modules_dir.clone();
+        let swap_lock = pnpm_deps_restorer::ModulesSwapLock::new(modules_dir);
         run_on_disk_phases::<Reporter>(
             OnDiskInputs {
                 // Ahead of `ctx`, which borrows the stores `take_writer` mutates.

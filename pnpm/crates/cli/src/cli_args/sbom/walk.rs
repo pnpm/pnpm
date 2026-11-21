@@ -160,7 +160,7 @@ fn collect_importer_components(
         if let Some(snapshot_key) = spec.version.resolved_key(name) {
             walk_snapshot(
                 &snapshot_key,
-                &parent_purl,
+                parent_purl.clone(),
                 inputs.ctx,
                 walk.components_map,
                 walk.relationships,
@@ -191,6 +191,13 @@ fn importer_peer_names(
 /// Record a `link:` dependency that resolves to another workspace
 /// importer as a component of its own, and queue that importer so its
 /// dependencies hang off it. `false` when the dependency is not one.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "Only a dependency linked to a workspace importer copies the parent purl, and the caller shares one borrowed purl across every dependency."
+    )
+)]
 fn collect_linked_workspace_component(
     inputs: &ImporterComponents<'_>,
     importer_id: &str,
@@ -274,14 +281,13 @@ fn workspace_component(
 
 fn walk_snapshot(
     initial_key: &PkgNameVerPeer,
-    initial_parent_purl: &str,
+    initial_parent_purl: String,
     ctx: &WalkContext<'_>,
     components_map: &mut IndexMap<String, SbomComponent>,
     relationships: &mut Vec<SbomRelationship>,
     visited: &mut HashSet<PackageKey>,
 ) -> miette::Result<()> {
-    let mut queue: Vec<(PkgNameVerPeer, String)> =
-        vec![(initial_key.clone(), initial_parent_purl.to_string())];
+    let mut queue: Vec<(PkgNameVerPeer, String)> = vec![(initial_key.clone(), initial_parent_purl)];
 
     while let Some((key, parent_purl)) = queue.pop() {
         let pkg_meta = ctx.packages.and_then(|pkgs| pkgs.get(&key.without_peer()));

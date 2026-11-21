@@ -122,11 +122,11 @@ pub enum BoundPeerEdges {
 /// and its outgoing edges. Mirrors the TypeScript `buildDependencyGraph`.
 #[must_use]
 pub fn build_dependency_graph(
-    root_ids: &[TreeNodeId],
+    root_ids: Vec<TreeNodeId>,
     opts: &BuildGraphOptions<'_>,
 ) -> DependencyGraph {
     let mut graph = DependencyGraph::default();
-    let mut queue: Vec<TreeNodeId> = root_ids.to_vec();
+    let mut queue = root_ids;
     let mut queue_idx = 0;
     let mut visited: HashSet<TreeNodeId> = HashSet::new();
     let skipped_peer_edges = if opts.include.excludes_a_group() {

@@ -74,7 +74,7 @@ fn files_match(dir: &Path, files: &HashMap<String, CafsFileInfo>, algo: &str) ->
     files
         .iter()
         .all(|(path, file)| {
-            join_inside(dir, path)
+            join_inside(dir.to_path_buf(), path)
                 .is_some_and(|path| file_content_matches_digest(&path, &file.digest, algo))
         })
 }
@@ -97,14 +97,14 @@ fn is_isolated_dir(dir: &Path, files: &HashMap<String, CafsFileInfo>) -> bool {
     if dir_metadata.is_symlink() {
         return false;
     }
-    files.keys().all(|rel_path| is_isolated_rel_path(dir, rel_path))
+    files.keys().all(|rel_path| is_isolated_rel_path(dir.to_path_buf(), rel_path))
 }
 
-fn is_isolated_rel_path(dir: &Path, rel_path: &str) -> bool {
+fn is_isolated_rel_path(dir: PathBuf, rel_path: &str) -> bool {
     let Some(components) = relative_components(rel_path) else {
         return false;
     };
-    let mut current = dir.to_path_buf();
+    let mut current = dir;
     for (step_index, component) in components.iter().enumerate() {
         current.push(component);
         let is_leaf = step_index == components.len() - 1;
@@ -169,8 +169,8 @@ fn is_hardlinked_metadata(_path: &Path, _metadata: &fs::Metadata) -> bool {
 
 /// `dir` joined with a recorded in-package path, or `None` if that path is
 /// anything other than a sequence of plain names.
-fn join_inside(dir: &Path, relative: &str) -> Option<PathBuf> {
-    let mut joined = dir.to_path_buf();
+fn join_inside(dir: PathBuf, relative: &str) -> Option<PathBuf> {
+    let mut joined = dir;
     for component in Path::new(relative).components() {
         match component {
             std::path::Component::Normal(segment) => joined.push(segment),

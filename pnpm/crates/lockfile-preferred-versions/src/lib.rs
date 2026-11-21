@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Seeds the [`PreferredVersions`] map the deps-resolver consults to
 //! break version-pick ties: every spec from a project manifest gets a
 //! [`DIRECT_DEP_SELECTOR_WEIGHT`] entry (a `catalog:` spec contributes the
@@ -60,6 +63,13 @@ impl<'a> DirectSpecs<'a> {
     }
 
     /// `None` for a `catalog:` spec without a usable entry.
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "`name` is copied only for a `catalog:` spec, after the early return for every other spec, so an owned parameter would allocate for each manifest entry."
+        )
+    )]
     fn effective_spec<'spec>(&self, name: &str, spec: &'spec str) -> Option<Cow<'spec, str>> {
         if parse_catalog_protocol(spec).is_none() {
             return Some(Cow::Borrowed(spec));

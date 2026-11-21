@@ -24,7 +24,7 @@ fn links_dir(store_dir: &Path) -> PathBuf {
 /// The hash directories of every version of `name` in the global virtual
 /// store, sorted.
 fn slots(store_dir: &Path, name: &str) -> Vec<PathBuf> {
-    let name_dir = pnpm_fs::join_slash_separated_path(&links_dir(store_dir), name);
+    let name_dir = pnpm_fs::join_slash_separated_path(links_dir(store_dir), name);
     let Ok(versions) = fs::read_dir(&name_dir) else { return Vec::new() };
     let mut slots: Vec<PathBuf> = versions
         .flatten()
@@ -72,7 +72,7 @@ fn install_dir_of(pnpm_home: &Path, package: &str) -> PathBuf {
         .map(fs::canonicalize)
         .map(|canonical| canonical.expect("resolve the hash link"))
         .find(|install_dir| {
-            pnpm_fs::join_slash_separated_path(&install_dir.join("node_modules"), package).exists()
+            pnpm_fs::join_slash_separated_path(install_dir.join("node_modules"), package).exists()
         })
         .unwrap_or_else(|| panic!("no global group installs {package}"))
 }
@@ -90,11 +90,9 @@ fn global_add_links_packages_from_the_global_virtual_store() {
     assert_eq!(pkg_slots.len(), 1, "one slot for {PKG}: {pkg_slots:?}");
     assert_eq!(slots(&npmrc_info.store_dir, DEP).len(), 1, "one slot for {DEP}");
     let install_dir = install_dir_of(&pnpm_home, PKG);
-    let linked = fs::canonicalize(pnpm_fs::join_slash_separated_path(
-        &install_dir.join("node_modules"),
-        PKG,
-    ))
-    .expect("resolve the group's direct dependency");
+    let linked =
+        fs::canonicalize(pnpm_fs::join_slash_separated_path(install_dir.join("node_modules"), PKG))
+            .expect("resolve the group's direct dependency");
     assert!(
         linked.starts_with(fs::canonicalize(&pkg_slots[0]).expect("resolve the slot")),
         "the group's {PKG} must resolve into the global virtual store, got {linked:?}",
@@ -163,7 +161,7 @@ fn global_add_keeps_a_group_local_virtual_store_when_the_project_type_is_set() {
 
         let install_dir = install_dir_of(&pnpm_home, PKG);
         let linked = fs::canonicalize(pnpm_fs::join_slash_separated_path(
-            &install_dir.join("node_modules"),
+            install_dir.join("node_modules"),
             PKG,
         ))
         .expect("resolve the group's direct dependency");

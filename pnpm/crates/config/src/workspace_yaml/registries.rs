@@ -368,6 +368,13 @@ fn extend_npm_routes(
 
 /// A declaration that says nothing about the server records no options: an
 /// absent entry is what "assume nothing about this registry" is spelled as.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the URL is copied only when the declaration records server options"
+    )
+)]
 fn extend_registry_options(
     lookups: &mut RegistryLookups,
     normalized: &str,

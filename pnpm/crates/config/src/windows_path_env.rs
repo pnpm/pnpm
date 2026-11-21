@@ -101,7 +101,7 @@ pub(crate) fn expand_dir_env(
     if os != "windows" {
         return Ok(value.to_owned());
     }
-    expand_windows_percent_vars(value, &lookup)
+    expand_windows_percent_vars(value.to_owned(), &lookup)
         .map_err(|reference| UnexpandedWindowsEnvVar { variable: variable.to_owned(), reference })
 }
 
@@ -119,10 +119,10 @@ const MAX_EXPANSIONS: usize = 32;
 const MAX_EXPANDED_LEN: usize = 32_767;
 
 fn expand_windows_percent_vars(
-    value: &str,
+    value: String,
     lookup: &impl Fn(&str) -> Option<String>,
 ) -> Result<String, String> {
-    let mut current = value.to_owned();
+    let mut current = value;
     let mut seen = Vec::new();
     loop {
         if first_percent_var(&current).is_none() {

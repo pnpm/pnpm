@@ -54,7 +54,7 @@ impl Storage {
             tar_integrity_cache: Arc::clone(&self.tar_integrity_cache),
             purged_upstream: Arc::clone(&self.purged_upstream),
             database: Arc::clone(&self.database),
-            metadata: self.database.view(namespace, ecosystem),
+            metadata: self.database.view(namespace.to_owned(), ecosystem),
         }
     }
 

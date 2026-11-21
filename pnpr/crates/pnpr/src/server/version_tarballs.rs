@@ -229,9 +229,9 @@ impl VersionRequest<'_> {
                     Err(err) => return Some(err.into_response()),
                 };
                 let tgz = self.state.inner.proxy.version_tgzs.get(
-                    &cached.namespace,
+                    cached.namespace.clone(),
                     name,
-                    self.version,
+                    self.version.to_owned(),
                     Some(stamp),
                     cached.ttl,
                 )?;

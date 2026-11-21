@@ -48,14 +48,14 @@ fn claim(
 
 #[test]
 fn the_first_publish_records_its_publisher_as_the_owner() {
-    let mut document = CrateDocument::new("demo");
+    let mut document = CrateDocument::new("demo".to_owned());
     claim("bob", &mut document, OwnerRecord::Unclaimed).unwrap();
     assert_eq!(document.owners, ["bob"]);
 }
 
 #[test]
 fn a_stored_document_admits_only_its_owners_and_admins() {
-    let mut document = CrateDocument::new("demo");
+    let mut document = CrateDocument::new("demo".to_owned());
     document.owners = vec!["alice".to_string()];
     let refused = claim("bob", &mut document, OwnerRecord::Recorded).unwrap_err();
     assert!(matches!(refused, RegistryError::Forbidden { .. }), "{refused:?}");
@@ -66,7 +66,7 @@ fn a_stored_document_admits_only_its_owners_and_admins() {
 
 #[test]
 fn a_stored_document_without_owners_admits_only_admins() {
-    let mut document = CrateDocument::new("demo");
+    let mut document = CrateDocument::new("demo".to_owned());
     let refused = claim("bob", &mut document, OwnerRecord::Recorded).unwrap_err();
     assert!(matches!(refused, RegistryError::Forbidden { .. }), "{refused:?}");
     claim("root", &mut document, OwnerRecord::Recorded).unwrap();
@@ -80,7 +80,7 @@ async fn a_removed_package_keeps_its_owner_record() {
         let state = state(dir.path());
         let storage = state.inner.storage.for_hosted("", Ecosystem::Cargo);
         let key = CanonicalPackageName::parse("demo", Ecosystem::Cargo).unwrap();
-        let mut stored = CrateDocument::new("demo");
+        let mut stored = CrateDocument::new("demo".to_owned());
         stored.owners.clone_from(&owners);
         storage
             .write_hosted_document_if_current(&key, &stored.to_bytes(), None, None)
@@ -94,7 +94,7 @@ async fn a_removed_package_keeps_its_owner_record() {
         let removal = Some(&current.version);
         storage.write_hosted_document_if_current(&key, b"", removal, None).await.unwrap();
 
-        let mut document = CrateDocument::new("demo");
+        let mut document = CrateDocument::new("demo".to_owned());
         assert_eq!(
             restore_owners(&storage, &key, &mut document).await.unwrap(),
             Some(pnpr_storage::HostedDocumentVersion::Tombstone(owners.clone())),

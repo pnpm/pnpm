@@ -159,6 +159,13 @@ fn direct_dependencies<'a>(
         .collect()
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`prefix` is copied only for a dependency group that is reported, and callers borrow it across a loop, so an owned parameter would allocate for skipped groups too."
+    )
+)]
 fn emit_added<Reporter: self::Reporter>(
     name: &PkgName,
     group: DependencyGroup,
@@ -189,6 +196,13 @@ fn emit_added<Reporter: self::Reporter>(
     }));
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`prefix` is copied only for a dependency group that is reported, and callers borrow it across a loop, so an owned parameter would allocate for skipped groups too."
+    )
+)]
 fn emit_removed<Reporter: self::Reporter>(
     name: &PkgName,
     group: DependencyGroup,

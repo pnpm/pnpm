@@ -18,7 +18,7 @@ async fn batched_reads_preserve_parameters_empty_results_and_order(db: Db) {
         adapter.read(ReadSource::Primary, &mut |connection| {
             connection.begin_read()?;
             let queries: Vec<_> = (0..256)
-                .map(|index| Query::new(sql, &[Param::Integer(index), Param::Text("it's ?1")]))
+                .map(|index| Query::new(sql, vec![Param::Integer(index), Param::Text("it's ?1")]))
                 .collect();
             let before = mysql_statement_count(connection, sql.contains("SIGNED"))?;
             let results = connection.query_all(&queries)?;

@@ -243,7 +243,7 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<CargoRows>> {
         return Ok(None);
     }
     let Value::Object(mut doc) = serde_json::from_slice(bytes)? else {
-        return Err(bad_request("a crate document must be an object"));
+        return Err(bad_request("a crate document must be an object".to_owned()));
     };
     let state_version = check_format_version(key, &doc, CARGO_STATE_VERSION)?;
     let name =
@@ -258,14 +258,14 @@ fn decompose(key: &PackageKey, bytes: &[u8]) -> Result<Option<CargoRows>> {
 fn parse_versions(raw: Option<Value>) -> Result<Vec<IncomingCargoVersion>> {
     let Some(raw) = raw else { return Ok(Vec::new()) };
     let Value::Array(items) = raw else {
-        return Err(bad_request("crate `versions` must be an array"));
+        return Err(bad_request("crate `versions` must be an array".to_owned()));
     };
     let mut seen = BTreeSet::new();
     let mut versions = Vec::with_capacity(items.len());
     for item in items {
         let parsed = parse_version_entry(item)?;
         if !seen.insert(parsed.version.clone()) {
-            return Err(bad_request(&format!("duplicate crate version {:?}", parsed.version)));
+            return Err(bad_request(format!("duplicate crate version {:?}", parsed.version)));
         }
         versions.push(parsed);
     }
@@ -274,18 +274,18 @@ fn parse_versions(raw: Option<Value>) -> Result<Vec<IncomingCargoVersion>> {
 
 fn parse_version_entry(item: Value) -> Result<IncomingCargoVersion> {
     let Value::Object(mut entry) = item else {
-        return Err(bad_request("each crate version must be an object"));
+        return Err(bad_request("each crate version must be an object".to_owned()));
     };
     let version = entry
         .get("vers")
         .and_then(Value::as_str)
         .filter(|vers| !vers.is_empty())
-        .ok_or_else(|| bad_request("crate version must carry a `vers` string"))?
+        .ok_or_else(|| bad_request("crate version must carry a `vers` string".to_owned()))?
         .to_string();
     let yanked = match entry.shift_remove(YANKED) {
         None => false,
         Some(Value::Bool(flag)) => flag,
-        Some(_) => return Err(bad_request("crate version `yanked` must be a boolean")),
+        Some(_) => return Err(bad_request("crate version `yanked` must be a boolean".to_owned())),
     };
     canonicalize_cargo_entry(&mut entry);
     Ok(IncomingCargoVersion { version, yanked, entry })
@@ -384,10 +384,10 @@ pub(super) fn check_format_version(
         return Ok(supported);
     };
     let Some(version) = raw.as_u64() else {
-        return Err(bad_request("`formatVersion` must be a positive integer"));
+        return Err(bad_request("`formatVersion` must be a positive integer".to_owned()));
     };
     if version < 1 {
-        return Err(bad_request("`formatVersion` must be at least 1"));
+        return Err(bad_request("`formatVersion` must be at least 1".to_owned()));
     }
     if version > u64::from(supported) {
         return Err(RegistryError::DocumentFormatTooNew {
@@ -406,14 +406,15 @@ pub(super) fn take_optional_string(
     match doc.remove(field) {
         None => Ok(None),
         Some(Value::String(value)) => Ok(Some(value)),
-        Some(_) => Err(bad_request(&format!("`{field}` must be a string"))),
+        Some(_) => Err(bad_request(format!("`{field}` must be a string"))),
     }
 }
 
 /// The `owners` account IDs a crate, project, or image document records.
 pub(super) fn take_owners(doc: &mut Map<String, Value>) -> Result<Vec<String>> {
     let Some(raw) = doc.remove("owners") else { return Ok(Vec::new()) };
-    serde_json::from_value(raw).map_err(|_| bad_request("`owners` must be an array of strings"))
+    serde_json::from_value(raw)
+        .map_err(|_| bad_request("`owners` must be an array of strings".to_owned()))
 }
 
 pub(super) fn insert_owners(rendered: &mut Map<String, Value>, owners: Vec<String>) {
@@ -426,10 +427,10 @@ fn take_nullable_string(doc: &mut Map<String, Value>, field: &str) -> Result<Opt
     match doc.remove(field) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(value)) => Ok(Some(value)),
-        Some(_) => Err(bad_request(&format!("`{field}` must be a string or null"))),
+        Some(_) => Err(bad_request(format!("`{field}` must be a string or null"))),
     }
 }
 
-pub(super) fn bad_request(reason: &str) -> RegistryError {
-    RegistryError::BadRequest { reason: reason.to_string() }
+pub(super) fn bad_request(reason: String) -> RegistryError {
+    RegistryError::BadRequest { reason }
 }

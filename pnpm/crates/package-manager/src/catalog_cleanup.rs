@@ -87,8 +87,7 @@ pub(crate) fn write_workspace_catalogs(
         None => derive_workspace_dir(config, current_manifest)?,
     };
     let projects = if config.catalog_prune {
-        let ignored_directories = config.managed_directories();
-        load_cleanup_projects(&workspace_dir, &ignored_directories)?
+        load_cleanup_projects(&workspace_dir, config.managed_directories())?
     } else {
         Vec::new()
     };
@@ -251,7 +250,7 @@ pub fn prune_against_project_lockfiles(
         return Ok(());
     }
     let mut project_dirs: Vec<PathBuf> =
-        load_cleanup_projects(workspace_dir, &config.managed_directories())?
+        load_cleanup_projects(workspace_dir, config.managed_directories())?
             .into_iter()
             .map(|project| project.root_dir)
             .collect();
@@ -340,7 +339,7 @@ fn record_resolved_package_versions<'a>(
 /// cleanup pass; there is no workspace manifest to clean either.
 fn load_cleanup_projects(
     workspace_dir: &Path,
-    ignored_directories: &[PathBuf],
+    ignored_directories: Vec<PathBuf>,
 ) -> Result<Vec<Project>, WriteWorkspaceCatalogsError> {
     let Some(workspace_manifest) = read_workspace_manifest(workspace_dir)
         .map_err(WriteWorkspaceCatalogsError::ReadWorkspaceManifest)?
@@ -349,7 +348,7 @@ fn load_cleanup_projects(
     };
     let opts = FindWorkspaceProjectsOpts {
         patterns: Some(workspace_package_patterns(&workspace_manifest)),
-        ignored_directories: ignored_directories.to_vec(),
+        ignored_directories,
     };
     find_workspace_projects(workspace_dir, &opts)
         .map_err(WriteWorkspaceCatalogsError::FindWorkspaceProjects)

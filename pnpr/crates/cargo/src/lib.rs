@@ -231,10 +231,10 @@ pub struct CrateDocument {
 
 impl CrateDocument {
     #[must_use]
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: String) -> Self {
         Self {
             format_version: CRATE_DOCUMENT_FORMAT_VERSION,
-            name: name.to_string(),
+            name,
             versions: Vec::new(),
             description: None,
             owners: Vec::new(),

@@ -253,7 +253,9 @@ pub fn collect_hoisted_dirs(
     for (dep_path, locations) in locations_by_dep {
         let dirs: Vec<_> = locations
             .iter()
-            .filter_map(|location| pnpm_modules_yaml::hoisted_dir(lockfile_dir, location))
+            .filter_map(|location| {
+                pnpm_modules_yaml::hoisted_dir(lockfile_dir.to_path_buf(), location)
+            })
             .collect();
         if dirs.is_empty() {
             continue;

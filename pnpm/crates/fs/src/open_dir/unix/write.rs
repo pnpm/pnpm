@@ -84,7 +84,7 @@ fn write_and_sync(mut file: File, bytes: &[u8]) -> io::Result<()> {
 fn create_temp_at(parent: &File, base_name: &OsStr) -> io::Result<(File, OsString)> {
     let mut taken = None;
     for _ in 0..MAX_TEMP_ATTEMPTS {
-        let tmp_name = unique_child_tmp_name(base_name);
+        let tmp_name = unique_child_tmp_name(base_name.to_os_string());
         match pnpm_ffi_fs::create_file_at(parent, &tmp_name, TEMP_MODE) {
             Ok(file) => return Ok((file, tmp_name)),
             Err(error) if error.kind() == ErrorKind::AlreadyExists => taken = Some(error),

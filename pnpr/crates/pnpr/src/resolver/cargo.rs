@@ -294,7 +294,7 @@ impl IndexFetcher {
         // Cargo registry surface does, so an upstream's per-crate rules
         // decide the credential and the cache namespace here too. Both
         // surfaces match rules against the lowercased crate name.
-        let auth = self.auth_for(canonical_name.as_str());
+        let auth = self.auth_for(canonical_name.as_str().to_owned());
         let cache_path = self.cache_path(&auth, &url, &relative_path);
         if let Some(cached) = self.cached(&cache_path).await {
             return self.hold(name, cached);
@@ -385,12 +385,9 @@ impl IndexFetcher {
     /// The request auth for a fetch about `canonical_name`: this server's
     /// route policy for the caller, with the crate bound in so the
     /// package-blind fetch helpers still classify by it.
-    fn auth_for(&self, canonical_name: &str) -> AuthHeaders {
+    fn auth_for(&self, canonical_name: String) -> AuthHeaders {
         AuthHeaders::default()
-            .with_route_hook(Arc::new(PackageRoute::new(
-                Arc::clone(&self.hook),
-                canonical_name.to_string(),
-            )))
+            .with_route_hook(Arc::new(PackageRoute::new(Arc::clone(&self.hook), canonical_name)))
     }
 
     /// Where `url`'s index file is cached. The route scope keys the

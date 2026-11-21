@@ -52,7 +52,7 @@ pub(in crate::server) async fn refresh_cached_packument(
     crate::server::upstream_packuments::invalidate_upstream_package(state, namespace, name);
     evict_stale_upstream_blobs(state, namespace, name, eviction).await?;
     state.inner.storage.write_upstream_document(namespace, name, &packument.bytes).await?;
-    state.inner.proxy.packument_writes.commit_stored(namespace, name, fetch_seq);
+    state.inner.proxy.packument_writes.commit_stored(namespace.to_owned(), name, fetch_seq);
     Ok(RefreshOutcome::Stored(packument))
 }
 
@@ -62,7 +62,7 @@ async fn check_superseded_refresh(
     name: &CanonicalPackageName,
     fetch_seq: u64,
 ) -> Result<Option<RefreshOutcome>, RegistryError> {
-    match state.inner.proxy.packument_writes.check(namespace, name, fetch_seq) {
+    match state.inner.proxy.packument_writes.check(namespace.to_owned(), name, fetch_seq) {
         crate::server::upstream_packuments::WriteVerdict::SupersededByPurge => {
             Ok(Some(RefreshOutcome::SupersededByPurge))
         }
@@ -84,7 +84,7 @@ async fn read_previous_for_reconcile(
     namespace: &str,
     name: &CanonicalPackageName,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
-    if state.inner.proxy.packument_writes.is_purged(namespace, name)
+    if state.inner.proxy.packument_writes.is_purged(namespace.to_owned(), name)
         || state.inner.storage.is_upstream_package_purged(namespace, name).await?
     {
         return Ok(None);

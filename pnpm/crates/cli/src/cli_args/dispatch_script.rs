@@ -112,7 +112,7 @@ pub(super) fn test<'a>(
     ctx: &RunCtx<'a>,
     args: ScriptShortcutArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, args.into_run_args("test"))
+    run(ctx, args.into_run_args("test".to_owned()))
 }
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
@@ -251,14 +251,14 @@ pub(super) fn start<'a>(
     ctx: &RunCtx<'a>,
     args: ScriptShortcutArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, args.into_run_args("start"))
+    run(ctx, args.into_run_args("start".to_owned()))
 }
 
 pub(super) fn stop<'a>(
     ctx: &RunCtx<'a>,
     args: ScriptShortcutArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    run(ctx, args.into_run_args("stop"))
+    run(ctx, args.into_run_args("stop".to_owned()))
 }
 
 pub(super) fn restart<'a>(

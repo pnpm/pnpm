@@ -118,7 +118,7 @@ impl<Db> SqlAuth<Db> {
         Db: AuthSqlBackend,
     {
         if stored.status == AccountStatus::Deactivated {
-            return Err(deprovisioned_login_error(&stored.username));
+            return Err(deprovisioned_login_error(stored.username));
         }
         if stored.status.is_deleted() {
             dummy_verify(password, DEFAULT_BCRYPT_COST).await;

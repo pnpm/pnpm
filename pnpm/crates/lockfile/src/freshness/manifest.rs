@@ -249,6 +249,13 @@ fn check_field_specs(
 
 /// A specifier the importer's recorded resolution no longer satisfies means
 /// the range moved under the lockfile.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`name` is copied only on the stale path, after the early returns for satisfied ranges, and callers borrow it from the manifest, so an owned parameter would allocate for every dependency."
+    )
+)]
 fn check_resolution_satisfies(
     name: &str,
     manifest_spec: &str,

@@ -45,10 +45,10 @@ pub fn package_root_link_target(link_target: &str) -> Option<&str> {
 /// declaring package's directory one segment at a time, so the result uses
 /// the platform's separator.
 #[must_use]
-pub fn join_package_root_link(package_dir: &std::path::Path, target: &str) -> std::path::PathBuf {
+pub fn join_package_root_link(package_dir: std::path::PathBuf, target: &str) -> std::path::PathBuf {
     target
         .split('/')
-        .fold(package_dir.to_path_buf(), |dir, segment| dir.join(segment))
+        .fold(package_dir, |dir, segment| dir.join(segment))
 }
 
 /// Value of a single entry in [`SnapshotEntry::dependencies`](crate::SnapshotEntry::dependencies)

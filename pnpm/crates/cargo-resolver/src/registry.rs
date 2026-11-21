@@ -97,13 +97,13 @@ pub(crate) struct Registry {
 }
 
 impl Registry {
-    pub(crate) fn new(index_files: &BTreeMap<String, String>, source: &str) -> Result<Self> {
+    pub(crate) fn new(index_files: &BTreeMap<String, String>, source: String) -> Result<Self> {
         Self::new_until(index_files, source, &|| false)
     }
 
     pub(crate) fn new_until(
         index_files: &BTreeMap<String, String>,
-        source: &str,
+        source: String,
         should_cancel: &(dyn Fn() -> bool + Send + Sync),
     ) -> Result<Self> {
         let mut registry = Self::empty(source);
@@ -111,8 +111,8 @@ impl Registry {
         Ok(registry)
     }
 
-    pub(crate) fn empty(source: &str) -> Self {
-        Self { packages: BTreeMap::new(), source: source.to_string() }
+    pub(crate) fn empty(source: String) -> Self {
+        Self { packages: BTreeMap::new(), source }
     }
 
     pub(crate) fn add_entries_until(
@@ -178,7 +178,7 @@ impl Registry {
 pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
     let registry = Registry::new(
         &BTreeMap::from([(name.to_string(), index_file.to_string())]),
-        CRATES_IO_SOURCE,
+        CRATES_IO_SOURCE.to_owned(),
     )?;
     registry
         .package(name)?
@@ -201,7 +201,7 @@ pub fn missing_features(
 ) -> Result<Vec<String>> {
     let registry = Registry::new(
         &BTreeMap::from([(name.to_string(), index_file.to_string())]),
-        CRATES_IO_SOURCE,
+        CRATES_IO_SOURCE.to_owned(),
     )?;
     let package = registry
         .package(name)?
@@ -224,7 +224,7 @@ pub fn latest_matching_version(
 ) -> Result<Option<Version>> {
     let registry = Registry::new(
         &BTreeMap::from([(name.to_string(), index_file.to_string())]),
-        CRATES_IO_SOURCE,
+        CRATES_IO_SOURCE.to_owned(),
     )?;
     let versions = registry.package(name)?;
     let selected = match requirement {

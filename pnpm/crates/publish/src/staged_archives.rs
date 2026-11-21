@@ -119,25 +119,23 @@ async fn is_staged(
     let response = head
         .send()
         .await
-        .map_err(|error| staging_failure(registry, integrity, &error.to_string()))?;
+        .map_err(|error| staging_failure(registry, integrity.to_owned(), error.to_string()))?;
     match response.status().as_u16() {
         200 => Ok(true),
         404 => Ok(false),
-        status => Err(staging_failure(registry, integrity, &format!("HEAD answered {status}"))),
+        status => {
+            Err(staging_failure(registry, integrity.to_owned(), format!("HEAD answered {status}")))
+        }
     }
 }
 
 /// A failure to stage the archive `integrity` on `registry`.
 fn staging_failure(
     registry: &NormalizedRegistryUrl,
-    integrity: &str,
-    reason: &str,
+    integrity: String,
+    reason: String,
 ) -> StagingError {
-    StagingError::Failed {
-        registry: registry.for_display(),
-        integrity: integrity.to_string(),
-        reason: reason.to_string(),
-    }
+    StagingError::Failed { registry: registry.for_display(), integrity, reason }
 }
 
 /// Upload `archive` to `registry`'s staging endpoint.
@@ -160,11 +158,11 @@ async fn upload_archive(
     let response = put
         .send()
         .await
-        .map_err(|error| staging_failure(registry, &archive.integrity, &error.to_string()))?;
+        .map_err(|error| staging_failure(registry, archive.integrity.clone(), error.to_string()))?;
     if response.status().is_success() {
         return Ok(());
     }
-    Err(staging_failure(registry, &archive.integrity, &refusal(response).await))
+    Err(staging_failure(registry, archive.integrity.clone(), refusal(response).await))
 }
 
 fn staging_url(registry: &NormalizedRegistryUrl, integrity: &str) -> Result<String, StagingError> {

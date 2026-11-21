@@ -107,7 +107,7 @@ fn waits_out_a_junction_another_hoist_is_creating() {
     let in_creation = link.clone();
     let mut seen = 0;
     let result = pnpm_fs::test_support::with_retry_observer(
-        &link,
+        link.clone(),
         move |attempt| {
             seen += 1;
             sender

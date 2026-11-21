@@ -194,8 +194,8 @@ pub struct Query<'query> {
 
 impl<'query> Query<'query> {
     #[must_use]
-    pub fn new(sql: &'query str, params: &[Param<'query>]) -> Self {
-        Self { sql, params: params.to_vec() }
+    pub fn new(sql: &'query str, params: Vec<Param<'query>>) -> Self {
+        Self { sql, params }
     }
 }
 

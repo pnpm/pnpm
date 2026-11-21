@@ -229,11 +229,11 @@ pub(crate) struct ShadowingPnpm {
 impl ShadowingPnpm {
     /// The warning to print once a pnpm is linked into `global_bin` and this
     /// one still answers to `pnpm`.
-    pub(crate) fn emit_warning<Logger: Reporter>(&self, global_bin: &Path, prefix: &str) {
+    pub(crate) fn emit_warning<Logger: Reporter>(&self, global_bin: &Path, prefix: String) {
         Logger::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
             message: self.warning(global_bin),
-            prefix: prefix.to_string(),
+            prefix,
         }));
     }
 
@@ -274,7 +274,7 @@ pub(crate) fn warn_if_shadowed_after_setup<Logger: Reporter>(
     if let Some(path) = path_entry.path_for_new_shells()
         && let Some(shadowing) = find_shadowing_pnpm_in(global_bin, Some(&path))
     {
-        shadowing.emit_warning::<Logger>(global_bin, prefix);
+        shadowing.emit_warning::<Logger>(global_bin, prefix.to_owned());
     }
 }
 

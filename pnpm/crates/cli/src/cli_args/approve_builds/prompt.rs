@@ -51,9 +51,9 @@ pub(super) fn build_choices(keys: &[String]) -> Vec<(String, String)> {
 /// Show the checkbox prompt and return the chosen package names, or `None`
 /// when the prompt is interrupted.
 pub(super) fn prompt_for_builds(
-    automatically_ignored_builds: &[String],
+    automatically_ignored_builds: Vec<String>,
 ) -> miette::Result<Option<Vec<String>>> {
-    let choices = build_choices(&super::sort_unique(automatically_ignored_builds.to_vec()));
+    let choices = build_choices(&super::sort_unique(automatically_ignored_builds));
     super::prompt_for_choices("Choose which packages to build", &choices)
 }
 

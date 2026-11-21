@@ -96,7 +96,7 @@ async fn collection_logs_successful_removals_when_another_archive_cannot_be_dele
         assert!(removed[0].contains("size=6"), "{output}");
         assert_eq!(removed[0].contains("repository=example/app"), !pre_unmapped, "{output}");
         let good_path = pnpr_storage::layout::local_archive_path(
-            &temp.path().join("store"),
+            temp.path().join("store"),
             "",
             Ecosystem::Oci,
             &archive.key(),

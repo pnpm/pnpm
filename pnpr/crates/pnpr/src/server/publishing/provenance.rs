@@ -133,7 +133,7 @@ pub(super) fn check_statements(
                 })?;
             let named = subjects
                 .iter()
-                .any(|(subject, sha512)| names(subject, &purl) && *sha512 == digest);
+                .any(|(subject, sha512)| names(subject.to_owned(), &purl) && *sha512 == digest);
             if !named {
                 return Err(refuse(format!("does not name {purl} with sha512 {digest}")));
             }
@@ -145,8 +145,8 @@ pub(super) fn check_statements(
 /// Whether a statement's `subject` names the archive whose PURL is `purl`.
 /// npm and pnpm percent-encode only a leading `@` of a package name, so the
 /// two are compared by their canonical spelling.
-fn names(subject: &str, purl: &Purl) -> bool {
-    Purl::from_string_unchecked(subject.to_owned()).canonical().as_ref() == Some(purl)
+fn names(subject: String, purl: &Purl) -> bool {
+    Purl::from_string_unchecked(subject).canonical().as_ref() == Some(purl)
 }
 
 /// The lowercase hex SHA-512 an SRI `integrity` carries, or `None` unless it

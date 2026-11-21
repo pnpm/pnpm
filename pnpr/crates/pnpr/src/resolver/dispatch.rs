@@ -300,7 +300,7 @@ fn frozen_lockfile_response(
             return Some(request_timeout_response());
         };
         if !violations.is_empty() {
-            return Some(ndjson_single_frame(&violations_frame(&violations)));
+            return Some(ndjson_single_frame(violations_frame(&violations)));
         }
     }
     Some(serialize_frozen_frames(
@@ -344,7 +344,7 @@ fn serialize_frozen_frames(
     };
     let done = match done_res {
         Ok(done) => done,
-        Err(error_frame) => return ndjson_single_frame(&error_frame),
+        Err(error_frame) => return ndjson_single_frame(error_frame),
     };
     let mut frames = match verified_dist_stats {
         Some(sizes) => {
@@ -392,5 +392,5 @@ fn cached_resolution_response(
     ) else {
         return Some(request_timeout_response());
     };
-    Some(ndjson_single_frame(&done_res.unwrap_or_else(|err| err)))
+    Some(ndjson_single_frame(done_res.unwrap_or_else(|err| err)))
 }

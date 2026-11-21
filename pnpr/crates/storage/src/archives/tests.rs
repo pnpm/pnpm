@@ -35,7 +35,7 @@ fn pkg(name: &str) -> CanonicalPackageName {
 
 /// Where the default npm namespace of the store in `tmp` keeps `blob`.
 fn path_of(tmp: &TempDir, blob: &BlobRef) -> std::path::PathBuf {
-    local_archive_path(&tmp.path().join("storage"), "", Ecosystem::Npm, &blob.key())
+    local_archive_path(tmp.path().join("storage"), "", Ecosystem::Npm, &blob.key())
 }
 
 /// A deleter that stalls between marking an incarnation and removing it

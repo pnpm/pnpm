@@ -170,7 +170,7 @@ async fn cancelled_purge_completes_and_blocks_older_fetch_writes() {
     // Acquiring the package lock waits for the spawned purge task to finish committing.
     let _ =
         crate::server::upstream_packuments::lock_upstream_package(&state, "cancel-ns", &name).await;
-    assert!(state.inner.proxy.packument_writes.is_purged("cancel-ns", &name));
+    assert!(state.inner.proxy.packument_writes.is_purged("cancel-ns".to_owned(), &name));
     let older = super::refresh_cached_packument(
         &state,
         "cancel-ns",
@@ -192,7 +192,7 @@ async fn ordinary_read_failure_does_not_delay_forced_refresh_for_expired_tarball
     let upstream = &routing.upstream_clients["mirror"];
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
 
-    state.inner.proxy.packument_refetches.record_failure("ns", &name);
+    state.inner.proxy.packument_refetches.record_failure("ns".to_owned(), &name);
     let refreshed_mock = server
         .mock("GET", "/example")
         .with_status(200)

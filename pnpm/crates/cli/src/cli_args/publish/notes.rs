@@ -101,7 +101,7 @@ impl PublishArgs {
         if !self.flags.batch {
             if self.flags.manifest.notes.release_notes.is_some() {
                 emit_warning::<Reporter>(
-                    "--release-notes is not sent when packages are published one by one. Use --batch to publish them as one release with these notes.",
+                    "--release-notes is not sent when packages are published one by one. Use --batch to publish them as one release with these notes.".to_owned(),
                 );
             }
             return Ok(());
@@ -221,7 +221,7 @@ impl PublishArgs {
             // so the composed publication goes nowhere rather than to every
             // such registry of the batch.
             emit_warning::<Reporter>(
-                r#"The packages of the release that "pnpm version -r" composed release notes for no longer publish to a registry declared with serverType: pnpr. Its publication notes are not sent."#,
+                r#"The packages of the release that "pnpm version -r" composed release notes for no longer publish to a registry declared with serverType: pnpr. Its publication notes are not sent."#.to_owned(),
             );
             let name = self.publication_name(None)?;
             return Ok(PublicationNotes { name, ..PublicationNotes::default() });
@@ -403,11 +403,8 @@ fn validate_publication_name(name: &str) -> miette::Result<()> {
     ))
 }
 
-fn emit_warning<Reporter: self::Reporter>(message: &str) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Warn,
-        message: message.to_owned(),
-    }));
+fn emit_warning<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 
 mod parked;

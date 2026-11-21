@@ -75,19 +75,19 @@ pub(in crate::server) fn schedule(
     upstream: &Upstream,
     name: &CanonicalPackageName,
 ) {
-    if let Err(err) = start(state, namespace, upstream, name, Trigger::Refresh) {
+    if let Err(err) = start(state, namespace.to_owned(), upstream, name, Trigger::Refresh) {
         tracing::warn!(%err, package = %name.as_str(), "integrity backfill queue is full");
     }
 }
 
 fn start(
     state: &AppState,
-    namespace: &str,
+    namespace: String,
     upstream: &Upstream,
     name: &CanonicalPackageName,
     trigger: Trigger,
 ) -> Result<(), super::RegistryError> {
-    let key = (namespace.to_string(), name.as_str().to_string());
+    let key = (namespace, name.as_str().to_string());
     {
         let mut jobs = state.inner.proxy.integrity_backfill.jobs.lock().unwrap();
         if let Some(job) = jobs.get_mut(&key) {
@@ -144,7 +144,7 @@ pub(in crate::server) async fn wait_for_pin(
     if !eligible_for_pin(state, namespace, name, filename).await? {
         return Ok(());
     }
-    start(state, namespace, upstream, name, Trigger::Resume(stamp))?;
+    start(state, namespace.to_owned(), upstream, name, Trigger::Resume(stamp))?;
     if tokio::time::timeout(upstream.timeout(), wait(state, namespace, name))
         .await
         .is_err()
