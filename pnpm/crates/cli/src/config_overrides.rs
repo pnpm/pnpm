@@ -304,9 +304,12 @@ impl ConfigOverrides {
             Some(value)
         };
         match classify(&arg, claimed_by_command) {
-            ConfigToken::WellFormed { key, value } if matches!(key, "state-dir" | "store-dir") => {
+            ConfigToken::WellFormed { key, value }
+                if matches!(to_kebab_case(key).as_str(), "state-dir" | "store-dir") =>
+            {
+                let kebab = to_kebab_case(key);
                 self.record_raw_config(key, value);
-                remaining.push(OsString::from(format!("--{key}={value}")));
+                remaining.push(OsString::from(format!("--{kebab}={value}")));
             }
             ConfigToken::WellFormed { key, value } => {
                 self.record_raw_config(key, value);

@@ -8,6 +8,7 @@ use super::{
     RuntimeOnFail,
     SaveWorkspaceProtocol,
     TrustPolicy,
+    to_kebab_case,
 };
 
 /// Whether the token at `index` belongs to the forwarded child command line.
@@ -249,7 +250,7 @@ fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
 /// key outside [`BARE_SETTING_FLAGS`], which keeps the `--config.<key>`
 /// tolerance for the settings pacquet has not ported.
 fn setting_takes(key: &str, value: &str) -> bool {
-    match named_bare_setting_flag(key) {
+    match named_bare_setting_flag(&to_kebab_case(key)) {
         Some((_, SettingArity::Boolean)) => parse_bool(value).is_some(),
         Some((_, SettingArity::BooleanOr { takes, .. })) => {
             parse_bool(value).is_some() || takes(value)

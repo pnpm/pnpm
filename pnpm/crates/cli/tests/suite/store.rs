@@ -116,6 +116,7 @@ fn store_path_resolves_global_and_dotted_overrides_from_workspace_root() {
     for (store_arg, expected_name) in [
         ("--store-dir=global-store", "global-store"),
         ("--config.store-dir=dotted-store", "dotted-store"),
+        ("--config.storeDir=camel-dotted-store", "camel-dotted-store"),
     ] {
         let output = Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
@@ -184,7 +185,7 @@ fn empty_store_dir_override_restores_the_platform_default() {
 
     fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: yaml-store\n")
         .expect("write configured store directory");
-    for store_arg in ["--store-dir=", "--config.store-dir="] {
+    for store_arg in ["--store-dir=", "--config.store-dir=", "--config.storeDir="] {
         let output = Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
             .with_current_dir(&workspace)
