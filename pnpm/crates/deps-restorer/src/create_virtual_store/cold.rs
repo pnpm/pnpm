@@ -188,15 +188,11 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
         return Ok(());
     }
 
-    let verification = check.take().map(FutureExt::shared);
-    *check = verification
-        .as_ref()
-        .map(|pending| pending.clone().boxed());
-    let batch = &batch;
+    let verification = share_check(check);
     let mut downloads: FuturesUnordered<_> = batch.cold
         .iter()
         .map(|&(snapshot_key, snapshot)| {
-            download_one::<Reporter>(batch, snapshot_key, snapshot, verification.as_ref())
+            download_one::<Reporter>(&batch, snapshot_key, snapshot, verification.as_ref())
         })
         .collect();
     let shared_packages = batch.shared_packages;
@@ -233,6 +229,12 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
     run_checked(check, drain).await?;
     linker.link_pass::<Reporter>(&ready)
 }
+fn share_check<'a>(check: &mut Option<ConcurrentCheck<'a>>) -> Option<Shared<ConcurrentCheck<'a>>> {
+    let shared = check.take()?.shared();
+    *check = Some(shared.clone().boxed());
+    Some(shared)
+}
+
 /// Drive the downloads and `check` on the calling thread while a scoped
 /// thread links each batch of completed downloads.
 ///
