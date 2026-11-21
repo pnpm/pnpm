@@ -673,6 +673,11 @@ export interface DependentsOptions {
    * optional-peer edges to skip. Default `false`.
    */
   resolvePeersFromWorkspaceRoot?: boolean
+  /**
+   * Whether to leave out the packages reached only as a resolved peer
+   * dependency, as `pnpm why --exclude-peers` does. Default `false`.
+   */
+  excludePeerDependencies?: boolean
 }
 
 /** One entry of a {@link DependentsTree}'s reverse tree. */

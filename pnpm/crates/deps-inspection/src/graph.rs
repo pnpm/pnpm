@@ -7,6 +7,7 @@ use std::collections::{
 };
 
 use pnpm_lockfile::{
+    BoundProviders,
     Lockfile,
     PeerEdgeOptions,
     PeerSatisfactionEdges,
@@ -103,9 +104,18 @@ pub struct BuildGraphOptions<'a> {
     /// How the graph classifies the peer-satisfaction edges it leaves out
     /// while `include` excludes a group.
     pub peer_edges: PeerEdgeOptions,
-    /// Leave out the edges through which a package receives its resolved
-    /// peers, so packages reachable only as a peer are not in the graph.
-    pub skip_peer_edges: bool,
+    pub bound_peer_edges: BoundPeerEdges,
+}
+
+/// What the graph does with the edges through which a package receives the
+/// peers its key binds. A dependency that is declared as a peer but not bound
+/// by the key is the package's own and is always followed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundPeerEdges {
+    Follow,
+    /// Leave them out, so packages reachable only as a peer are not in the
+    /// graph.
+    Skip,
 }
 
 /// Breadth-first walk from `root_ids`, recording every reachable node
@@ -133,26 +143,51 @@ pub fn build_dependency_graph(
             continue;
         }
 
-        let mut edges = node_edges(&node_id, opts, &skipped_peer_edges, &publish_dirs);
-        let peers = match &node_id {
-            TreeNodeId::Package(dep_path) => peer_names(opts.lockfile, dep_path),
-            TreeNodeId::Importer(_) => HashSet::new(),
-        };
-        if opts.skip_peer_edges {
-            edges.retain(|edge| !peers.contains(&edge.alias));
-        }
-
+        let node = graph_node(&node_id, opts, &skipped_peer_edges, &publish_dirs);
         queue.extend(
-            edges
+            node.edges
                 .iter()
                 .filter_map(|edge| edge.target.as_ref())
                 .filter(|target| !visited.contains(*target))
                 .cloned(),
         );
-        graph.nodes.insert(node_id, GraphNode { edges, peers });
+        graph.nodes.insert(node_id, node);
     }
 
     graph
+}
+
+fn graph_node(
+    node_id: &TreeNodeId,
+    opts: &BuildGraphOptions<'_>,
+    skipped_peer_edges: &PeerSatisfactionEdges,
+    publish_dirs: &HashMap<String, String>,
+) -> GraphNode {
+    let mut edges = node_edges(node_id, opts, skipped_peer_edges, publish_dirs);
+    let peers = match node_id {
+        TreeNodeId::Package(dep_path) => peer_names(opts.lockfile, dep_path),
+        TreeNodeId::Importer(_) => HashSet::new(),
+    };
+    if let (BoundPeerEdges::Skip, TreeNodeId::Package(dep_path)) = (opts.bound_peer_edges, node_id)
+        && !peers.is_empty()
+    {
+        let providers = BoundProviders::of_snapshot(opts.lockfile.into(), dep_path);
+        edges.retain(|edge| !is_bound_peer_edge(edge, &peers, &providers));
+    }
+    GraphNode { edges, peers }
+}
+
+/// An edge without a virtual-store target counts as bound when its alias is a
+/// declared peer, since there is no key to check the bindings against.
+fn is_bound_peer_edge(
+    edge: &GraphEdge,
+    peers: &HashSet<String>,
+    providers: &BoundProviders,
+) -> bool {
+    peers.contains(&edge.alias)
+        && edge.dep_path
+            .as_ref()
+            .is_none_or(|target| providers.binds(target))
 }
 
 /// The outgoing edges of one node. A node the lockfile does not describe has

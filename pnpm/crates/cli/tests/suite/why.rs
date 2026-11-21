@@ -223,6 +223,35 @@ fn recursive_why_preserves_distinct_unnamed_projects_with_dedicated_lockfiles() 
 }
 
 #[test]
+fn why_exclude_peers_leaves_out_a_package_a_production_dependency_receives_only_as_a_peer() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "test-why", "version": "1.0.0", "dependencies": {{ "@pnpm.e2e/has-pkg-with-1-dep-peer": "1.0.0" }}, "devDependencies": {{ "{PKG}": "100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let why_prod = |extra: &[&str]| {
+        let output = pacquet(&workspace, [&["why", "--prod", DEP][..], extra].concat())
+            .output()
+            .expect("run pacquet why");
+        assert!(output.status.success(), "why {extra:?} should succeed: {output:?}");
+        strip_ansi_codes(&String::from_utf8_lossy(&output.stdout)).into_owned()
+    };
+
+    let with_peers = why_prod(&[]);
+    assert!(
+        with_peers.contains("@pnpm.e2e/has-pkg-with-1-dep-peer@1.0.0"),
+        "the peer path should be shown by default: {with_peers}",
+    );
+    let without_peers = why_prod(&["--exclude-peers"]);
+    assert!(without_peers.is_empty(), "nothing should be shown: {without_peers}");
+}
+
+#[test]
 fn why_shows_reverse_tree_for_direct_dep() {
     let (_root, workspace, _anchor) = setup();
 

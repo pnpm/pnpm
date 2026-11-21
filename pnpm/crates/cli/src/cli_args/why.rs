@@ -25,6 +25,7 @@ use crate::{
                 render_dependents_tree,
             },
             graph::{
+                BoundPeerEdges,
                 BuildGraphOptions,
                 DependencyGraph,
                 build_dependency_graph,
@@ -229,7 +230,7 @@ impl WhyArgs {
                 include,
                 only_projects: false,
                 peer_edges: config.peer_edge_options(),
-                skip_peer_edges: self.exclude_peers,
+                bound_peer_edges: self.bound_peer_edges(),
             },
         );
         let searcher = self.searcher(&env, &graph, finders).await?;
@@ -241,6 +242,10 @@ impl WhyArgs {
             manifest_fields: &[],
             dependency_specifiers: self.dependency_specifiers(),
         })))
+    }
+
+    fn bound_peer_edges(&self) -> BoundPeerEdges {
+        if self.exclude_peers { BoundPeerEdges::Skip } else { BoundPeerEdges::Follow }
     }
 
     fn included_dependencies(&self, config: &Config) -> IncludedDependencies {

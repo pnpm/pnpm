@@ -1,3 +1,4 @@
+import { getBoundPeerProviders, parsePeerBindings, removePeersSuffix } from '@pnpm/deps.path'
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { isPeerSatisfactionEdge, type PeerSatisfactionEdges } from '@pnpm/lockfile.peer-edges'
 
@@ -35,7 +36,7 @@ interface DependencyGraphOptions {
   onlyProjects?: boolean
   /** Edges left out of the graph, from `getPeerSatisfactionEdgesToSkip`. */
   peerSatisfactionEdges?: PeerSatisfactionEdges
-  /** Leaves out the edges through which a package receives its resolved peers. */
+  /** Leaves out the edges through which a package receives the peers its key binds. */
   skipPeerEdges?: boolean
 }
 
@@ -87,9 +88,29 @@ function createGraphNode (nodeId: TreeNodeId, opts: DependencyGraphOptions): Dep
   const edges = createEdges(nodeId, deps, opts)
   return {
     nodeId,
-    edges: opts.skipPeerEdges ? edges.filter(({ alias }) => !peers.has(alias)) : edges,
+    edges: opts.skipPeerEdges ? withoutBoundPeerEdges(nodeId, edges, peers) : edges,
     peers,
   }
+}
+
+/**
+ * A dependency declared as a peer is a peer edge only when the package's key
+ * binds it. A key without a peer suffix binds nothing, so a same-named
+ * dependency is the package's own. A hashed suffix names no providers, so
+ * every declared peer counts as bound.
+ */
+function withoutBoundPeerEdges (nodeId: TreeNodeId, edges: DependencyEdge[], peers: Set<string>): DependencyEdge[] {
+  if (nodeId.type !== 'package' || peers.size === 0) return edges
+  const bindings = parsePeerBindings(nodeId.depPath)
+  if (bindings == null) return edges
+  const providers = getBoundPeerProviders(bindings)
+  return edges.filter((edge) => !isBoundPeerEdge(edge, peers, providers))
+}
+
+function isBoundPeerEdge (edge: DependencyEdge, peers: Set<string>, providers: Set<string> | undefined): boolean {
+  if (!peers.has(edge.alias)) return false
+  if (providers == null || edge.target?.nodeId.type !== 'package') return true
+  return providers.has(removePeersSuffix(edge.target.nodeId.depPath))
 }
 
 function selectImporterDependencies (snapshot: ProjectSnapshot, include: DependencyGraphOptions['include']): DependencyRefs {

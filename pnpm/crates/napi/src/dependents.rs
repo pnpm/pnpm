@@ -51,6 +51,7 @@ use pnpm_deps_inspection::{
         render_dependents_tree,
     },
     graph::{
+        BoundPeerEdges,
         BuildGraphOptions,
         build_dependency_graph,
     },
@@ -115,6 +116,9 @@ pub struct DependentsOptions {
     /// every importer when a walk that leaves out a group decides which
     /// optional-peer edges to skip. Defaults to `false`.
     pub resolve_peers_from_workspace_root: Option<bool>,
+    /// Whether to leave out the packages reached only as a resolved peer
+    /// dependency, as `pnpm why --exclude-peers` does. Defaults to `false`.
+    pub exclude_peer_dependencies: Option<bool>,
 }
 
 /// Inputs for [`render_dependents`].
@@ -283,7 +287,7 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
             include: included_dependencies(options),
             only_projects: false,
             peer_edges: peer_edge_options(options),
-            skip_peer_edges: false,
+            bound_peer_edges: bound_peer_edges(options),
         },
     );
     let searcher =
@@ -371,6 +375,14 @@ fn included_dependencies(options: &DependentsOptions) -> IncludedDependencies {
         dependencies: options.include_dependencies.unwrap_or(true),
         dev_dependencies: options.include_dev_dependencies.unwrap_or(true),
         optional_dependencies: options.include_optional_dependencies.unwrap_or(true),
+    }
+}
+
+fn bound_peer_edges(options: &DependentsOptions) -> BoundPeerEdges {
+    if options.exclude_peer_dependencies.unwrap_or(false) {
+        BoundPeerEdges::Skip
+    } else {
+        BoundPeerEdges::Follow
     }
 }
 

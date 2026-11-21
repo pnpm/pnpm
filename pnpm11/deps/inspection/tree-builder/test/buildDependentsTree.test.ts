@@ -145,6 +145,18 @@ describe('buildDependentsTree', () => {
       }
     })
 
+    test('keeps a dependency that is also declared as a peer when the key does not bind it', async () => {
+      const project = createMockProject({
+        wrapper: { version: '1.0.0', manifest: {}, deps: ['mid'], peerDeps: ['mid'] },
+        mid: { version: '1.0.0', manifest: {}, topLevel: false },
+      })
+      try {
+        expect((await whyTree('mid', project, true))[0].dependents.map(({ name }) => name)).toStrictEqual(['wrapper'])
+      } finally {
+        project.cleanup()
+      }
+    })
+
     test('keeps the non-peer paths to a package that is also a resolved peer', async () => {
       const project = createMockProject({
         parent: { version: '1.0.0(peer@1.0.0)', manifest: {}, deps: ['peer'], peerDeps: ['peer'] },
