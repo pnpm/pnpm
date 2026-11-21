@@ -146,17 +146,19 @@ fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<Pack
                     .find(|edge| &edge.alias == part)
             })
             .and_then(|edge| edge.target.clone())
-            .ok_or_else(|| {
-                miette!(
-                    help = "Name a package that is not a direct dependency through the package that depends on it, such as <parent>/{part}",
-                    "Package '{part}' is missing from the installed lockfile"
-                )
-            })?;
+            .ok_or_else(|| missing_from_lockfile(part))?;
     }
     let TreeNodeId::Package(key) = node else {
         return Err(miette!("The selected package is not an installed dependency"));
     };
     Ok(key)
+}
+
+fn missing_from_lockfile(part: &str) -> miette::Report {
+    miette!(
+        help = "Name a package that is not a direct dependency through the package that depends on it, such as <parent>/{part}",
+        "Package '{part}' is missing from the installed lockfile"
+    )
 }
 
 async fn rebuild_package<ReporterType: Reporter + 'static>(
