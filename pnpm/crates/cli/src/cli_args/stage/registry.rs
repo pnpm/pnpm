@@ -91,7 +91,18 @@ pub(super) struct StageContext {
     pub(super) http_client: ThrottledClient,
     pub(super) retry_opts: RetryOpts,
     pub(super) otp: Option<String>,
+    pub(super) otp_registry_confirmed: bool,
     pub(super) web_auth_fetch_options: WebAuthFetchOptions,
+}
+
+impl StageContext {
+    fn require_otp_registry(&self) -> Result<(), StageHttpError> {
+        if self.otp_registry_confirmed {
+            Ok(())
+        } else {
+            Err(StageHttpError::Request(Box::new(StageError::OtpRegistryRequired)))
+        }
+    }
 }
 
 /// An HTTP-level failure of a stage mutation, handed to the
@@ -181,6 +192,9 @@ async fn stage_mutation(
     action: &str,
     otp: Option<&str>,
 ) -> Result<(), StageHttpError> {
+    if otp.is_some() {
+        context.require_otp_registry()?;
+    }
     let (_guard, response) = stage_send(context, method, url, otp).await
         .map_err(|source| {
             StageHttpError::Request(Box::new(request_failed_error(action.to_owned(), source)))
@@ -206,6 +220,7 @@ async fn stage_mutation(
     if status.as_u16() == 401
         && let Some(challenge) = parse_stage_otp_challenge(www_authenticate.as_deref(), &body.bytes)
     {
+        context.require_otp_registry()?;
         return Err(StageHttpError::Otp { challenge });
     }
     Err(StageHttpError::Registry(StageRegistryError::new(

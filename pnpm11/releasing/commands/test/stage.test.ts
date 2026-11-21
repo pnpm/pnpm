@@ -49,8 +49,8 @@ describe('stage command against the registry mock', () => {
   // instance the with-registry jest preset boots; the ad-hoc mock registry
   // below is kept only for faults a well-behaved registry cannot produce.
 
-  test('view resolves the local package registry', async () => {
-    const registry = await createRegistry(() => ({ body: { id: STAGE_ID } }))
+  test('stage management resolves the local package registry', async () => {
+    const registry = await createRegistry(request => ({ body: request.url.pathname === '/-/stage' ? { items: [], total: 0 } : { id: STAGE_ID } }))
     try {
       const dir = temporaryDirectory()
       const opts = { ...stageOpts('http://127.0.0.1:1/'), dir, json: true }
@@ -59,7 +59,13 @@ describe('stage command against the registry mock', () => {
       await stage.handler(scoped, ['view', STAGE_ID])
       fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pkg', publishConfig: { registry: registry.url } }))
       await stage.handler(opts, ['view', STAGE_ID])
-      expect(registry.requests.map(request => request.url.pathname)).toEqual(Array(2).fill(`/-/stage/${STAGE_ID}`))
+      await expect(stage.handler({ ...opts, otp: '123456' }, ['approve', STAGE_ID]))
+        .rejects.toMatchObject({ code: 'ERR_PNPM_STAGE_OTP_REGISTRY_REQUIRED' })
+      await stage.handler(opts, ['list', 'pkg'])
+      expect(registry.requests.map(request => request.url.pathname)).toEqual([`/-/stage/${STAGE_ID}`, `/-/stage/${STAGE_ID}`, '/-/stage'])
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pkg', publishConfig: { registry: 'ftp://example.test/' } }))
+      await expect(stage.handler(opts, ['view', STAGE_ID]))
+        .rejects.toMatchObject({ code: 'ERR_PNPM_PUBLISH_UNSUPPORTED_REGISTRY_PROTOCOL' })
     } finally {
       await registry.close()
     }

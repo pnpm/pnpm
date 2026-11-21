@@ -161,6 +161,12 @@ pub enum StageError {
     TarballManifestNotFound,
 
     #[display(
+        "Specify --registry to use a one-time password with the registry selected by the current package."
+    )]
+    #[diagnostic(code(ERR_PNPM_STAGE_OTP_REGISTRY_REQUIRED))]
+    OtpRegistryRequired,
+
+    #[display(
         "Cannot approve stages {first_stage_id} and {second_stage_id} together because both publish {package_name}@{version}"
     )]
     #[diagnostic(code(ERR_PNPM_STAGE_DUPLICATE_PACKAGE))]
@@ -373,22 +379,18 @@ impl StageArgs {
         config: &Config,
         package_name: Option<&str>,
     ) -> miette::Result<StageContext> {
-        let manifest = if package_name.is_none() {
-            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)?
-        } else {
-            None
-        };
-        let package_name = package_name.or_else(|| {
-            manifest
-                .as_ref()
-                .and_then(|manifest| {
-                    super::changelog::published_name(manifest)
-                        .or_else(|| manifest.get("name").and_then(Value::as_str))
-                })
-        });
+        let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)?;
+        let local_name = manifest
+            .as_ref()
+            .and_then(|manifest| {
+                super::changelog::published_name(manifest)
+                    .or_else(|| manifest.get("name").and_then(Value::as_str))
+            });
+        let package_name = package_name.or(local_name);
         let name = package_name.unwrap_or_default();
         let publish_registry = manifest
             .as_ref()
+            .filter(|_| package_name == local_name)
             .and_then(|manifest| pnpm_publish::publish_config_registry(manifest, name));
         let registry = pnpm_publish::find_registry_info(
             name,
@@ -398,7 +400,10 @@ impl StageArgs {
         )?
         .to_string();
         let auth_header = config.auth_headers.for_url_with_package(&registry, package_name);
+        let otp_registry_confirmed = config.cli.registry.is_some()
+            || registry == pnpm_network::normalize_registry_url(&config.registry);
         Ok(StageContext {
+            otp_registry_confirmed,
             registry,
             auth_header,
             http_client: build_registry_client(config)?,

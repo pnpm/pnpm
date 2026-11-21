@@ -4,7 +4,8 @@ import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
-import { getPublishConfigRegistry } from '../publish/publishPackedPkg.js'
+import { getPublishConfigRegistry, requireSupportedRegistryUrl } from '../publish/publishPackedPkg.js'
+import { parseSupportedRegistryUrl } from '../publish/registryConfigKeys.js'
 import { publishedName } from '../publishedNames.js'
 import type { StageOptions } from './types.js'
 
@@ -18,33 +19,30 @@ const DEFAULT_REGISTRY = 'https://registry.npmjs.org/'
 export interface StageContext {
   opts: StageOptions
   registry: string
+  otpRegistryConfirmed: boolean
   authHeaderValue: string | undefined
   fetchFromRegistry: ReturnType<typeof createFetchFromRegistry>
 }
 
 export async function createStageContext (opts: StageOptions, packageFilter?: string): Promise<StageContext> {
-  const manifest = packageFilter ? null : await safeReadProjectManifestOnly(opts.dir)
-  const packageName = manifest ? publishedName(manifest) : packageFilter
+  const manifest = await safeReadProjectManifestOnly(opts.dir)
+  const localName = manifest ? publishedName(manifest) : undefined
+  const packageName = packageFilter ?? localName
+  const registries = getRegistries(opts)
   const override = opts.cliOptions?.registry
-  const publishRegistry = typeof override === 'string' ? override : getPublishConfigRegistry(manifest?.publishConfig, packageName)
-  const registry = getStageRegistry(opts, packageName, publishRegistry)
+  const publishRegistry = packageName === localName ? getPublishConfigRegistry(manifest?.publishConfig, packageName) : undefined
+  const target = typeof override === 'string' ? override : publishRegistry ?? pickRegistryForPackage(registries, packageName ?? '')
+  const registry = requireSupportedRegistryUrl(target).normalizedUrl
   const getAuthHeaderByUri = createGetAuthHeaderByURI(
     opts.configByUri ?? {} as Record<string, RegistryConfig>
   )
   return {
     opts,
     registry,
+    otpRegistryConfirmed: typeof override === 'string' || registry === parseSupportedRegistryUrl(registries.default)?.normalizedUrl,
     authHeaderValue: packageName ? getAuthHeaderByUri(registry, { pkgName: packageName }) : getAuthHeaderByUri(registry),
     fetchFromRegistry: createFetchFromRegistry(opts),
   }
-}
-
-function getStageRegistry (opts: StageOptions, packageName?: string, publishRegistry?: string): string {
-  const registries = getRegistries(opts)
-  const registry = publishRegistry ?? (packageName
-    ? pickRegistryForPackage(registries, packageName)
-    : registries.default)
-  return registry.endsWith('/') ? registry : `${registry}/`
 }
 
 function getRegistries (opts: StageOptions): RegistriesByScope {

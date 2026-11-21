@@ -544,6 +544,10 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         "the tarball must be written",
     );
 
+    assert_success(&stage_with_auth(dir.path(), &auth_file, &["list", "@stage-e2e/lifecycle"]));
+    let unconfirmed =
+        stage_with_auth(dir.path(), &auth_file, &["approve", &stage_id, "--otp", "123456"]);
+    assert_failure_with_code(&unconfirmed, "ERR_PNPM_STAGE_OTP_REGISTRY_REQUIRED");
     let approve = stage_with_auth(dir.path(), &auth_file, &["approve", &stage_id]);
     assert_success(&approve);
     assert_eq!(

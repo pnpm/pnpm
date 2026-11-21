@@ -84,7 +84,7 @@ pnpm stage download <stage-id>
 
 ### --registry &lt;url\>
 
-The base URL of the npm registry. When you manage staged versions from a package directory, pnpm uses the package's publish registry, including its scoped registry configuration. An explicit package filter on `stage list` selects the registry for that name.
+The base URL of the npm registry. When you manage staged versions from a package directory, pnpm uses the package's publish registry, including its scoped registry configuration. When `stage list` names a different package, pnpm selects the registry for that name. To use a one-time password with a registry the package selects other than the default, specify `--registry`.
 
 ### --tag &lt;tag\>
 

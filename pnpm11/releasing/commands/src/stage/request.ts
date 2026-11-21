@@ -1,3 +1,4 @@
+import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { createOtpSession, SyntheticOtpError, type WebAuthFetchOptions } from '@pnpm/network.web-auth'
 
@@ -68,6 +69,7 @@ export async function stageRequestWithOtp (
 
 export async function stageRequest (context: StageContext, params: StageRequestParams): Promise<Response> {
   const init = params.init ?? { method: 'GET' }
+  if (params.otp != null) requireOtpRegistry(context)
   const response = await context.fetchFromRegistry(params.url, {
     authHeaderValue: context.authHeaderValue,
     body: init.body,
@@ -82,12 +84,18 @@ export async function stageRequest (context: StageContext, params: StageRequestP
     timeout: context.opts.fetchTimeout,
   })
   if (!response.ok) {
-    await throwOnErrorResponse(response, params.action)
+    await throwOnErrorResponse(context, response, params.action)
   }
   return response
 }
 
-async function throwOnErrorResponse (response: Response, action: string): Promise<never> {
+function requireOtpRegistry (context: StageContext): void {
+  if (!context.otpRegistryConfirmed) {
+    throw new PnpmError('STAGE_OTP_REGISTRY_REQUIRED', 'Specify --registry to use a one-time password with the registry selected by the current package.')
+  }
+}
+
+async function throwOnErrorResponse (context: StageContext, response: Response, action: string): Promise<never> {
   let text = ''
   try {
     text = await response.text()
@@ -98,6 +106,7 @@ async function throwOnErrorResponse (response: Response, action: string): Promis
   } catch {}
 
   if (response.status === 401 && isOtpChallenge(response, parsed)) {
+    requireOtpRegistry(context)
     throw SyntheticOtpError.fromUnknownBody(globalWarn, parsed)
   }
   throw new StageRegistryError({

@@ -73,11 +73,10 @@ impl StagedRecord {
             else {
                 continue;
             };
-            let mut user = serde_json::json!({ "name": self.actor });
-            if let Some(id) = &self.actor_id {
-                user["userId"] = Value::String(id.clone());
-            }
-            if let Some(approver) = manifest.remove("_npmUser") {
+            let approver = manifest.remove("_npmUser");
+            let Some(id) = &self.actor_id else { continue };
+            let mut user = serde_json::json!({ "name": self.actor, "userId": id });
+            if let Some(approver) = approver {
                 user["approver"] = approver;
             }
             manifest.insert("_npmUser".to_string(), user);

@@ -448,6 +448,43 @@ async fn staging_requires_the_publish_right() {
 }
 
 #[tokio::test]
+async fn an_anonymous_stager_is_not_attributed_to_an_account() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = static_config(tmp.path().to_path_buf());
+    let hosted = config.routing.hosted.get_mut("local").unwrap();
+    hosted.rules = std::mem::take(&mut hosted.rules)
+        .with_default_publish(pnpr_policy::AccessList::from_tokens(["$all"]));
+    let app = router(config);
+    let doc = publish_doc("anonymous-stage", "1.0.0", b"bytes");
+    let staged = app
+        .clone()
+        .oneshot(json_request("POST", "/npm/-/stage/package/anonymous-stage", &doc, None))
+        .await
+        .unwrap();
+    assert_eq!(staged.status(), StatusCode::CREATED);
+    let staged = body_json(staged.into_body()).await;
+    let id = staged["stageId"].as_str().unwrap();
+    let token = add_user_and_get_token(app.clone(), "reviewer", "secret123").await;
+    let approved = app
+        .clone()
+        .oneshot(request(
+            "POST",
+            &format!("/npm/-/stage/{id}/approve"),
+            Body::empty(),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(approved.status(), StatusCode::CREATED);
+    let published = app
+        .oneshot(request("GET", "/npm/anonymous-stage", Body::empty(), None))
+        .await
+        .unwrap();
+    assert_eq!(published.status(), StatusCode::OK);
+    assert!(body_json(published.into_body()).await["versions"]["1.0.0"].get("_npmUser").is_none());
+}
+
+#[tokio::test]
 async fn approving_requires_the_publish_right() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
