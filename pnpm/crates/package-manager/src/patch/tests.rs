@@ -123,6 +123,16 @@ fn patch_candidate_exact_version_selects_matching_installed_version() {
 }
 
 #[test]
+fn patch_candidate_named_registry_key_matches_its_bare_version() {
+    let lockfile = lockfile_with_packages(&["is-positive@work:1.0.0"]);
+
+    let target = patch_target("is-positive@1.0.0", &lockfile);
+
+    assert_eq!(target.version, "1.0.0");
+    assert_eq!(target.package_key.to_string(), "is-positive@work:1.0.0");
+}
+
+#[test]
 fn patch_candidate_bare_name_single_version_applies_to_all() {
     let lockfile = lockfile_with_packages(&["is-positive@1.0.0"]);
 
