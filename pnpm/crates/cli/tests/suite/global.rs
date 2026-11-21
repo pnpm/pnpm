@@ -669,6 +669,64 @@ fn approve_builds_global_approves_every_install_group() {
     drop(root);
 }
 
+/// A denial recorded after the install, here in the global packages
+/// directory's `pnpm-workspace.yaml`, survives `--all` although the stale
+/// `ignoredBuilds` still lists the package.
+#[cfg(unix)]
+#[test]
+fn approve_builds_global_all_keeps_a_legacy_denial() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    for package in [
+        "@pnpm.e2e/install-script-example@1.0.0",
+        "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+    ] {
+        global_command(&workspace, &pnpm_home)
+            .with_args(["add", "-g", package])
+            .assert()
+            .success();
+    }
+    fs::write(
+        global_pkg_dir.join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': false\n",
+    )
+    .expect("write the legacy denial");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["approve-builds", "-g", "--all"])
+        .assert()
+        .success();
+
+    let built = |name: &str, file: &str| {
+        pnpm_global::find_global_package(&global_pkg_dir, name)
+            .expect("scan global packages")
+            .expect("find the install group")
+            .install_dir
+            .join("node_modules")
+            .join(name)
+            .join(file)
+            .exists()
+    };
+    assert!(built("@pnpm.e2e/install-script-example", "generated-by-install.js"));
+    assert!(
+        !built("@pnpm.e2e/pre-and-postinstall-scripts-example", "generated-by-postinstall.js"),
+        "the denied build must not run",
+    );
+    assert_eq!(
+        fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read the global config"),
+        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n    '@pnpm.e2e/pre-and-postinstall-scripts-example':\n      build: false\n",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn global_add_runs_the_builds_global_packages_allows() {
