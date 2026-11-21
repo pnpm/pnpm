@@ -171,16 +171,20 @@ async fn report_pipeline_run(
         summary: upload.summary,
         events: upload.events,
     };
+    let display_server = pnpm_network::redact_url_for_display(server);
     match client.publish_pipeline_run(&request, authorization.as_deref()).await {
         Ok(()) => emit(&pnpm_reporter::LogEvent::Pnpm(pnpm_reporter::PnpmLog {
             level: pnpm_reporter::LogLevel::Info,
             message: format!(
-                "Run recorded on {server} as {}/{}/{}",
+                "Run recorded on {display_server} as {}/{}/{}",
                 request.org, request.workspace, request.run_id,
             ),
             prefix: String::new(),
         })),
-        Err(error) => warn(format!("failed to publish the pipeline run to {server}: {error}")),
+        Err(error) => {
+            let reason = pnpm_network::redact_and_sanitize(&error.to_string());
+            warn(format!("failed to publish the pipeline run to {display_server}: {reason}"));
+        }
     }
 }
 

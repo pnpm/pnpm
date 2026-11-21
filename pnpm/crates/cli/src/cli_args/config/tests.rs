@@ -91,6 +91,27 @@ fn set_cafile_global_writes_auth_ini() {
 }
 
 #[test]
+fn unscoped_token_helper_uses_the_auth_file_at_each_location() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+    for (location, path) in [
+        (ConfigLocation::Global, config_dir.join("auth.ini")),
+        (ConfigLocation::Project, tmp.path().join(".npmrc")),
+    ] {
+        config_set(
+            &config,
+            tmp.path(),
+            flags(false, Some(location), false),
+            "tokenHelper".to_owned(),
+            Some("helper".into()),
+        )
+        .unwrap();
+        assert_eq!(read_ini(&path).get("tokenHelper").map(String::as_str), Some("helper"));
+    }
+}
+
+#[test]
 fn set_scoped_registry_project_creates_npmrc() {
     let tmp = TempDir::new().unwrap();
     let config = config_with_dir(&tmp.path().join("global-config"));

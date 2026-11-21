@@ -13,6 +13,7 @@ describe.each(
     '_authToken',
     '_password',
     'username',
+    'tokenHelper',
     'registry',
     '//registry.npmjs.org/:_authToken',
   ]
@@ -183,6 +184,7 @@ describe.each(
     '_authToken',
     '_password',
     'username',
+    'tokenHelper',
     'registry',
     '@foo:registry',
     '//registry.npmjs.org/:_authToken',

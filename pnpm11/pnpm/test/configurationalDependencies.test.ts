@@ -252,11 +252,10 @@ test('pnpm config set succeeds even when configDependencies fail to install', as
 test('pnpm config get succeeds even when configDependencies fail to install', async () => {
   prepare()
   writeFailingConfigDep()
-  const authKey = '//example.com/:_authToken'
-  fs.writeFileSync('.npmrc', `${authKey}=my-secret-token\n`, 'utf8')
+  fs.writeFileSync('.npmrc', '@project:registry=https://project.test/\n', 'utf8')
 
-  const result = execPnpmSync(['config', 'get', '--location=project', authKey], { expectSuccess: true })
-  expect(result.stdout.toString()).toContain('my-secret-token')
+  const result = execPnpmSync(['config', 'get', '--location=project', '@project:registry'], { expectSuccess: true })
+  expect(result.stdout.toString().trim()).toBe('https://project.test/')
 })
 
 test('pnpm set succeeds even when configDependencies fail to install', async () => {
@@ -273,9 +272,8 @@ test('pnpm set succeeds even when configDependencies fail to install', async () 
 test('pnpm get succeeds even when configDependencies fail to install', async () => {
   prepare()
   writeFailingConfigDep()
-  const authKey = '//example.com/:_authToken'
-  fs.writeFileSync('.npmrc', `${authKey}=my-secret-token\n`, 'utf8')
+  fs.writeFileSync('.npmrc', '@project:registry=https://project.test/\n', 'utf8')
 
-  const result = execPnpmSync(['get', '--location=project', authKey], { expectSuccess: true })
-  expect(result.stdout.toString()).toContain('my-secret-token')
+  const result = execPnpmSync(['get', '--location=project', '@project:registry'], { expectSuccess: true })
+  expect(result.stdout.toString().trim()).toBe('https://project.test/')
 })

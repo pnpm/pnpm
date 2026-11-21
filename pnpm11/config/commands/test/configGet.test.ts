@@ -18,6 +18,19 @@ test('config get', async () => {
   expect(getOutputString(getResult)).toBe('~/store')
 })
 
+test.each([
+  { json: false, authConfig: { '//registry.example/:_authToken': 'fixture-token' } },
+  { json: true, authConfig: {} },
+])('config get refuses a protected option with json=$json', async ({ json, authConfig }) => {
+  await expect(config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    authConfig,
+    json,
+  }), ['get', '//registry.example/:_authToken'])).rejects.toMatchObject({ code: 'ERR_PNPM_CONFIG_GET_PROTECTED' })
+})
+
 test('config get works with camelCase', async () => {
   const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),

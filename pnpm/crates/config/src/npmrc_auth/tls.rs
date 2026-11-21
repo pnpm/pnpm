@@ -114,11 +114,6 @@ pub(super) fn split_ssl_key(key: &str) -> Option<(&str, &'static str, bool)> {
     None
 }
 
-pub(super) fn split_inline_identity_key(key: &str) -> Option<(&str, &'static str)> {
-    let (uri, field, is_file) = split_ssl_key(key)?;
-    (!is_file && matches!(field, "cert" | "key")).then_some((uri, field))
-}
-
 /// Write a per-registry TLS value onto a [`RegistryTls`] entry.
 ///
 /// For inline values (`is_file = false`) the parser pre-expands `\n`

@@ -200,6 +200,7 @@ const NPM_AUTH_SETTINGS: &[&str] = &[
     "registry",
     "_auth",
     "_authToken",
+    "tokenHelper",
     "_password",
     "email",
     "username",

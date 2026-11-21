@@ -49,11 +49,15 @@ fn pnpm_config_home_routes_global_reads_writes_and_deletes() {
         ])
         .assert()
         .success();
-    command()
+    let output = command()
         .with_args(["config", "get", "//registry.example.test/:_authToken"])
-        .assert()
-        .success()
-        .stdout("test-token\n");
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_CONFIG_GET_PROTECTED"), "{stderr}");
+    assert!(!stderr.contains("test-token"));
     assert!(fs::read_to_string(config_home.join("auth.ini")).unwrap().contains("test-token"));
     fs::write(workspace.join("pnpm-workspace.yaml"), "fetchRetries: 8\n").unwrap();
     command()

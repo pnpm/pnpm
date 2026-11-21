@@ -2051,6 +2051,10 @@ test('project .npmrc does not expand env variables in auth values', async () => 
     '//attacker.example/:_authToken=${PNPM_TEST_TOKEN}',
     '//attacker.example/:cert=${PNPM_TEST_CERT}',
     '//attacker.example/:key=${PNPM_TEST_KEY}',
+    'cafile=${PNPM_TEST_CERT}',
+    '//attacker.example/:cafile=${PNPM_TEST_CERT}',
+    '//attacker.example/:certfile=${PNPM_TEST_CERT}',
+    '//attacker.example/:keyfile=${PNPM_TEST_KEY}',
     '_authToken=${PNPM_TEST_TOKEN}',
     'username=${PNPM_TEST_USER}',
     '_password=${PNPM_TEST_PASSWORD}',
@@ -5222,7 +5226,12 @@ test('getConfig() resolves a relative cafile= from .npmrc against the npmrc dire
     path.join(projectDir, 'certs', 'ca.pem'),
     'relative-ca\n-----END CERTIFICATE-----'
   )
-  fs.writeFileSync(path.join(projectDir, '.npmrc'), 'cafile=certs/ca.pem\n')
+  fs.writeFileSync(path.join(projectDir, '.npmrc'), [
+    'cafile=certs/ca.pem',
+    '//registry.example/:cafile=certs/ca.pem',
+    '//registry.example/:certfile=certs/ca.pem',
+    '//registry.example/:keyfile=certs/ca.pem',
+  ].join('\n'))
 
   // process.cwd() is the prepareEmpty() root, *not* projectDir. This is the same
   // shape as `pnpm --dir <projectDir> install` invoked from a sibling cwd.
@@ -5232,6 +5241,8 @@ test('getConfig() resolves a relative cafile= from .npmrc against the npmrc dire
   })
 
   expect(config.ca).toStrictEqual(['relative-ca\n-----END CERTIFICATE-----'])
+  const pem = 'relative-ca\n-----END CERTIFICATE-----'
+  expect(config.configByUri['//registry.example/']?.tls).toEqual({ ca: pem, cert: pem, key: pem })
 })
 
 test('getConfig() should read inline SSL certificates from .npmrc', async () => {

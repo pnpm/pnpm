@@ -9,6 +9,7 @@ import { readIniFileSync } from 'read-ini-file'
 
 import { hasEnvPlaceholder, RegistryEnvNotExpandedError } from './envPlaceholders.js'
 import { findLocalPrefix } from './findLocalPrefix.js'
+import { tryParseSslKey } from './getNetworkConfigs.js'
 import { type JsonAuthResult, readGlobalConfigAuth, readJsonAuthEnv } from './jsonAuth.js'
 import { isNpmrcReadableKey } from './localConfig.js'
 import { parseCAFileContents } from './parseCAFileContents.js'
@@ -321,7 +322,7 @@ function readAndFilterNpmrc (
     const entry = readNpmrcEntry(ctx, rawKey, rawValue)
     // Only keep auth/registry related keys
     if (entry == null || !isNpmrcReadableKey(entry.key)) continue
-    result[entry.key] = resolveCafilePath(entry, npmrcDir)
+    result[entry.key] = resolveTlsFilePath(entry, npmrcDir)
   }
   return rescopeUnscopedCreds(result, filePath, warnings)
 }
@@ -394,11 +395,12 @@ function skipsUnexpandedEnv (ctx: NpmrcFilterContext, gate: UnexpandedEnvGate): 
   return false
 }
 
-// A relative `cafile=` resolves against the .npmrc's directory rather
-// than process.cwd(), so `pnpm --dir <project>` from a different cwd
-// still finds it. See https://github.com/pnpm/pnpm/issues/11624.
-function resolveCafilePath ({ key, value }: NpmrcEntry, npmrcDir: string): unknown {
-  if (key === 'cafile' && typeof value === 'string' && value !== '' && !path.isAbsolute(value)) {
+function isTlsFileKey (key: string): boolean {
+  return key === 'cafile' || tryParseSslKey(key)?.isFile === true
+}
+
+function resolveTlsFilePath ({ key, value }: NpmrcEntry, npmrcDir: string): unknown {
+  if (isTlsFileKey(key) && typeof value === 'string' && value !== '' && !path.isAbsolute(value)) {
     return path.resolve(npmrcDir, value)
   }
   return value
@@ -420,7 +422,7 @@ const AUTH_VALUE_KEYS = ['_authToken', '_auth', '_password', 'username', 'tokenH
 const AUTH_VALUE_KEY_SUFFIXES = AUTH_VALUE_KEYS.map(key => `:${key}`)
 
 function isAuthValueKey (key: string): boolean {
-  return (AUTH_VALUE_KEYS as readonly string[]).includes(key) || AUTH_VALUE_KEY_SUFFIXES.some(suffix => key.endsWith(suffix))
+  return isTlsFileKey(key) || (AUTH_VALUE_KEYS as readonly string[]).includes(key) || AUTH_VALUE_KEY_SUFFIXES.some(suffix => key.endsWith(suffix))
 }
 
 const DOCS_URL = 'https://pnpm.io/npmrc'

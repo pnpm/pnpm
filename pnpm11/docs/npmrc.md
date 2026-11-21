@@ -193,6 +193,7 @@ pnpm does not expand environment variables in the project `.npmrc` for:
 * keys that start with `//`
 * credentials: `_authToken`, `_auth`, `_password`, `username`, `tokenHelper`,
   `cert`, `key`
+* TLS file paths: `cafile`, `<URL>:cafile`, `<URL>:certfile`, `<URL>:keyfile`
 
 pnpm ignores such a setting and prints a warning. A `registry` or
 `@scope:registry` URL with a placeholder fails the command instead, because
@@ -259,6 +260,8 @@ not secret can be written out in the project `.npmrc`. For registries in
 [`registries`](./settings/dependency-resolution.md#registries).
 
 ## Certificate settings
+
+Relative TLS file paths resolve from the directory containing the file that declares them.
 
 Like the token settings, these go in `.npmrc` or `auth.ini`.
 

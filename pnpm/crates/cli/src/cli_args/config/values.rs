@@ -122,7 +122,8 @@ pub(super) fn validate_yaml_config_key(key: &str) -> Result<String, ConfigError>
     Err(ConfigError::SetUnsupportedYamlConfigKey { key: key.to_string(), hint })
 }
 
-const STRING_ONLY_INI_KEYS: &[&str] = &["_auth", "_authToken", "_password", "username", "registry"];
+const STRING_ONLY_INI_KEYS: &[&str] =
+    &["_auth", "_authToken", "_password", "username", "tokenHelper", "registry"];
 
 pub(super) fn is_string_only_ini_key(key: &str) -> bool {
     STRING_ONLY_INI_KEYS.contains(&key) || key.starts_with('@') || key.starts_with("//")
@@ -136,6 +137,9 @@ pub(super) fn config_get(
     flags: ConfigFlags,
     key: &str,
 ) -> Result<String, ConfigError> {
+    if protected_settings::is_setting_protected(key) {
+        return Err(ConfigError::GetProtected);
+    }
     let is_scoped = key.starts_with('@');
     let value = match lookup_config(config, key, is_scoped) {
         Some(value) => value,
@@ -259,14 +263,14 @@ fn lookup_scoped_config(config: &Config, key: &str) -> Value {
 /// auth-file value, or null.
 fn lookup_typed_config(config: &Config, kebab: &str) -> Value {
     let camel = naming_cases::to_camel_case(kebab);
-    if let Some(mut value) = config.explicit_settings.get(&camel).cloned() {
-        protected_settings::censor_protected_setting_value(&camel, &mut value);
-        return value;
-    }
-    config.raw_auth_config
-        .get(kebab)
+    let mut value = config.explicit_settings
+        .get(&camel)
         .cloned()
-        .map_or(Value::Null, Value::String)
+        .unwrap_or_else(|| auth_value(config, kebab));
+    if !value.is_null() {
+        protected_settings::censor_protected_setting_value(&camel, &mut value);
+    }
+    value
 }
 
 fn auth_value(config: &Config, key: &str) -> Value {

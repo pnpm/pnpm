@@ -323,7 +323,7 @@ fn global_get_and_list_ignore_the_project_settings() {
         .expect("write package.json");
     fs::write(workspace.join("pnpm-workspace.yaml"), "minimumReleaseAge: 2880\n")
         .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join(".npmrc"), "//project.test/:_authToken=project-token\n")
+    fs::write(workspace.join(".npmrc"), "@project:registry=https://project.test/\n")
         .expect("write .npmrc");
     let config_home = root.path().join("xdg-config");
     fs::create_dir_all(config_home.join("pnpm")).expect("create global config directory");
@@ -351,7 +351,7 @@ fn global_get_and_list_ignore_the_project_settings() {
     assert_eq!(run(&["config", "get", "minimumReleaseAge", "--location=global"]), "undefined");
     assert_eq!(run(&["get", "-g", "minimumReleaseAge"]), "undefined");
     assert_eq!(run(&["config", "get", "minimumReleaseAge", "-g", "--location=project"]), "2880");
-    assert_eq!(run(&["config", "get", "//project.test/:_authToken", "--global"]), "undefined");
+    assert_eq!(run(&["config", "get", "@project:registry", "--global"]), "undefined");
     assert_eq!(run(&["config", "get", "fetchRetries", "--global"]), "5");
 
     let list = run(&["config", "list", "--global"]);

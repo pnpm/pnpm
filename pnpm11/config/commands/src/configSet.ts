@@ -268,7 +268,7 @@ function validateWorkspaceKey (key: string): string {
   return key
 }
 
-const STRING_ONLY_INI_KEYS = ['_auth', '_authToken', '_password', 'username', 'registry']
+const STRING_ONLY_INI_KEYS = ['_auth', '_authToken', '_password', 'username', 'tokenHelper', 'registry']
 
 function isStringOnlyIniKey (key: string): boolean {
   if (STRING_ONLY_INI_KEYS.includes(key)) return true

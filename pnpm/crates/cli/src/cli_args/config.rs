@@ -179,6 +179,10 @@ pub enum ConfigError {
     #[diagnostic(code(ERR_PNPM_CONFIG_NO_PARAMS))]
     NoParams { subcommand: String },
 
+    #[display("This option is protected and cannot be retrieved with pnpm config get")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_GET_PROTECTED))]
+    GetProtected,
+
     #[display("Cannot set {key} to a non-string value ({value})")]
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_AUTH_NON_STRING))]
     SetAuthNonString { key: String, value: String },

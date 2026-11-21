@@ -1,4 +1,5 @@
 import { getGlobalConfigPath, isIniConfigKey, types } from '@pnpm/config.reader'
+import { PnpmError } from '@pnpm/error'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import camelcase from 'camelcase'
@@ -7,11 +8,15 @@ import kebabCase from 'lodash.kebabcase'
 import type { ConfigCommandOptions } from './ConfigCommandOptions.js'
 import { configToRecord } from './configToRecord.js'
 import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
+import { censorProtectedSettingValue, isSettingProtected } from './protectedSettings.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
+  if (isSettingProtected(key)) {
+    throw new PnpmError('CONFIG_GET_PROTECTED', 'This option is protected and cannot be retrieved with pnpm config get')
+  }
   const isScopedKey = key.startsWith('@')
   const configResult = lookupConfig(opts, key, isScopedKey) ?? (isPropertyPath(key) ? lookupByPropertyPath(opts, key) : { value: undefined })
-  const output = displayConfig(configResult?.value, opts)
+  const output = displayConfig(censorProtectedSettingValue(key, configResult?.value), opts)
   return { output, exitCode: 0 }
 }
 
