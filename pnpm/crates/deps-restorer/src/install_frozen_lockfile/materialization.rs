@@ -174,7 +174,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 ConcurrentVerification {
                     lockfile: install.lockfiles.verified,
                     verifiers: install.lockfiles.resolution_verifiers,
-                    exotic_subdeps: install.lockfiles.exotic_subdeps.clone(),
+                    exotic_subdeps: install.lockfiles.policies.exotic_subdeps.clone(),
                     precomputed: phase.verification_override,
                     lockfile_source: install.lockfiles.source,
                     cache_dir: &install.drivers.config.cache_dir,

@@ -76,7 +76,12 @@ struct SettledPnprLockfile<'a> {
 
 async fn verify_settled_exotic_subdeps<Reporter: self::Reporter + 'static>(
     state: &State,
-    SettledPnprLockfile { lockfile, verified, exotic_subdeps, local_policy }: SettledPnprLockfile<'_>,
+    SettledPnprLockfile {
+        lockfile,
+        verified,
+        exotic_subdeps,
+        local_policy,
+    }: SettledPnprLockfile<'_>,
 ) -> miette::Result<()> {
     if !exotic_subdeps.is_enforced()
         || verified.is_cached_by_content(&state.config.cache_dir, &[], exotic_subdeps)
@@ -99,7 +104,12 @@ async fn verify_settled_exotic_subdeps<Reporter: self::Reporter + 'static>(
 async fn verify_merged_repair_policies<Reporter: self::Reporter + 'static>(
     state: &State,
     link: &PnprLink<'_>,
-    SettledPnprLockfile { lockfile, verified, exotic_subdeps, local_policy }: SettledPnprLockfile<'_>,
+    SettledPnprLockfile {
+        lockfile,
+        verified,
+        exotic_subdeps,
+        local_policy,
+    }: SettledPnprLockfile<'_>,
 ) -> miette::Result<Option<VerifierList>> {
     if link.lockfile.trust {
         return Ok(Some(Vec::new()));

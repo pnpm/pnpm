@@ -314,10 +314,15 @@ impl LockfileVerificationGate {
         }
         let verifiers = verifiers.to_vec();
         let lockfile_path = options.lockfile_source.map(|source| source.path.to_path_buf());
-        let lockfile_stat = options.lockfile_source.and_then(|source| source.stat.cloned());
+        let lockfile_stat =
+            options.lockfile_source.and_then(|source| source.stat.cloned());
         let cache_dir = options.cache_dir.to_path_buf();
         let SpawnVerificationGateOptions {
-            exotic_subdeps, replaced, repairs_lockfile, local_policy, ..
+            exotic_subdeps,
+            replaced,
+            repairs_lockfile,
+            local_policy,
+            ..
         } = options;
         Some(Self(tokio::spawn(async move {
             verify_lockfile_resolutions::<Reporter>(

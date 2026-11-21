@@ -44,9 +44,11 @@ impl<'a> MaterializationInputs<'a, '_> {
             resolution_verifiers: self.workspace.requested_importer_ids
                 .map(|_| &[][..])
                 .unwrap_or(self.lockfiles.verification.resolution_verifiers.as_slice()),
-            exotic_subdeps: &self.lockfiles.verification.exotic_subdeps,
+            policies: pnpm_deps_restorer::FrozenVerificationPolicies {
+                exotic_subdeps: &self.lockfiles.verification.exotic_subdeps,
+                local_policy: Some(&self.lockfiles.verification.local_policy),
+            },
             planned_canonical_fetches: Some(&self.lockfiles.verification.planned_canonical_fetches),
-            local_policy: Some(&self.lockfiles.verification.local_policy),
         }
     }
 

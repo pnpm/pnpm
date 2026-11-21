@@ -12,8 +12,8 @@ use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{
     ExoticSubdepsPolicy,
-    LockfileCacheSource,
     LocalResolutionPolicy,
+    LockfileCacheSource,
     VerifyLockfileResolutionsOptions,
     verify_lockfile_resolutions,
 };

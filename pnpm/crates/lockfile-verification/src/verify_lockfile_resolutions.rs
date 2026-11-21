@@ -12,7 +12,6 @@ pub use exotic_subdeps::{
     ExoticSubdepsPolicy,
     ExoticSubdepsScope,
 };
-pub(crate) use offline_checks::with_offline_and_exotic_cache_identities;
 pub use local_containment::{
     LocalDepField,
     LocalResolutionPolicy,
@@ -22,6 +21,7 @@ pub use local_containment::{
     local_resolution_candidate_parents_for_policy,
     verify_lockfile_local_resolutions,
 };
+pub(crate) use offline_checks::with_offline_and_exotic_cache_identities;
 pub use offline_checks::{
     LOCAL_SUBDEP_NOT_ALLOWED_VIOLATION_CODE,
     RESOLUTION_SHAPE_CACHE_VERSION,

@@ -163,13 +163,8 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
             verification_override.await.map_err(map_frozen_lockfile_error)?;
         }
         None => {
-            verify_lockfile_eagerly::<Reporter>(
-                lockfile,
-                resolution_verifiers,
-                policies,
-                paths,
-            )
-            .await?;
+            verify_lockfile_eagerly::<Reporter>(lockfile, resolution_verifiers, policies, paths)
+                .await?;
         }
     }
     Ok(None)

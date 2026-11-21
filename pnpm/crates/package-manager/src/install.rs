@@ -308,7 +308,10 @@ async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
         ExoticSubdepsPolicy,
         pnpm_lockfile_verification::LocalResolutionPolicy,
     ),
-    (lockfile_source, cache_dir): (Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>, &Path),
+    (lockfile_source, cache_dir): (
+        Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>,
+        &Path,
+    ),
 ) -> Result<(), InstallError> {
     verify_lockfile_resolutions::<Reporter>(
         lockfile,

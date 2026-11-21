@@ -97,8 +97,11 @@ impl Verification {
             (&planned_canonical_fetches, shared_caches),
         )?;
         let exotic_subdeps = build_run_exotic_subdeps_policy(execution, scope, project_manifests);
-        let local_policy =
-            build_local_policy(execution, loaded.pnpmfile_hook.is_some(), (scope, project_manifests));
+        let local_policy = build_local_policy(
+            execution,
+            loaded.pnpmfile_hook.is_some(),
+            (scope, project_manifests),
+        );
         let derived_lockfile = lockfiles.wanted
             .matches_single_on_disk_file(loaded)
             .then(|| {
