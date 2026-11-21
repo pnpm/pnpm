@@ -254,6 +254,8 @@ async fn publish_scoped_package_with_sigstore_json_attachment() {
         let payload = body_json(res.into_body()).await;
         assert_eq!(payload["attestations"][0]["predicateType"], "https://slsa.dev/provenance/v0.2");
     }
+    let response = get_req(&app, "/npm/-/npm/v1/attestations/@scope%252Fprov-pkg@2.0.0").await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

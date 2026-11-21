@@ -9,6 +9,7 @@ use super::{
 
 #[test]
 fn parses_text_query() {
+    assert_eq!(parse_query("text=%E8%8C%B6+%2B+tea").as_deref(), Some("茶 + tea"));
     assert_eq!(parse_query("text=is-positive&size=20").as_deref(), Some("is-positive"));
     assert_eq!(parse_query("size=20&text=foo").as_deref(), Some("foo"));
     assert_eq!(parse_query("text=hello%20world").as_deref(), Some("hello world"));
@@ -18,6 +19,7 @@ fn parses_text_query() {
 
 #[test]
 fn parses_q_fallback() {
+    assert_eq!(parse_query("q=%E8%8C%B6").as_deref(), Some("茶"));
     assert_eq!(parse_query("q=foo").as_deref(), Some("foo"));
 }
 

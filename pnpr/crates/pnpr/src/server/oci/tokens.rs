@@ -110,7 +110,7 @@ fn verify_claims(key: &SigningKey, token: &str, now: u64) -> Result<Claims, Regi
 
 impl Claims {
     pub(in crate::server) fn permits(&self, path: &str, method: &Method) -> bool {
-        let decoded = pnpr_search::percent_decode(path);
+        let decoded = pnpm_network::percent_decode_str(path);
         let Some(tail) = decoded
             .strip_prefix(&self.audience)
             .and_then(|tail| tail.strip_prefix("/v2"))
@@ -210,7 +210,7 @@ async fn issue_token(
     };
     let readonly = record.is_some_and(|record| record.readonly);
     let scopes = granted_scopes(state, identity, &target, &GrantQuery { uri, readonly }).await?;
-    let audience = pnpr_search::percent_decode(
+    let audience = pnpm_network::percent_decode_str(
         uri.path()
             .strip_suffix("/v2/token")
             .ok_or(RegistryError::NotFound)?,
@@ -268,7 +268,7 @@ impl Request {
 }
 
 pub(in crate::server) fn rejected(state: &AppState, path: &str, method: &Method) -> Response {
-    let decoded = pnpr_search::percent_decode(path);
+    let decoded = pnpm_network::percent_decode_str(path);
     let response =
         error(ErrorCode::Unauthorized, "OCI token is expired, revoked, or outside its scope");
     let Some((prefix, tail)) = decoded.split_once("/v2") else { return response };

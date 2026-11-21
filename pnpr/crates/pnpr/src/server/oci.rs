@@ -149,7 +149,6 @@ use pnpr_oci::{
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
-use pnpr_search::percent_decode;
 use pnpr_storage::{
     DOCUMENT_WRITE_RETRIES,
     DocumentUpdate,
@@ -568,7 +567,7 @@ fn query_param(query: Option<&str>, key: &str) -> Option<String> {
         .split('&')
         .find_map(|pair| {
             let (name, value) = pair.split_once('=')?;
-            (name == key).then(|| percent_decode(value))
+            (name == key).then(|| pnpm_network::percent_decode_str(value))
         })
 }
 

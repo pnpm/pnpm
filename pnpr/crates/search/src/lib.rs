@@ -51,17 +51,13 @@ pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchPar
 #[must_use]
 pub fn parse_query(query_string: &str) -> Option<String> {
     let mut fallback: Option<String> = None;
-    for pair in query_string.split('&') {
-        let Some((key, value)) = pair.split_once('=') else {
-            continue;
-        };
-        let decoded = percent_decode(value);
-        if decoded.is_empty() {
+    for (key, value) in url::form_urlencoded::parse(query_string.as_bytes()) {
+        if value.is_empty() {
             continue;
         }
-        match key {
-            "text" => return Some(decoded),
-            "q" if fallback.is_none() => fallback = Some(decoded),
+        match key.as_ref() {
+            "text" => return Some(value.into_owned()),
+            "q" if fallback.is_none() => fallback = Some(value.into_owned()),
             _ => {}
         }
     }
@@ -286,43 +282,6 @@ fn maintainer_value_matches(value: Option<&Value>, needle: &str) -> bool {
             .any(|lowercase| lowercase.contains(needle)),
         _ => false,
     }
-}
-
-/// Decode a percent-encoded query value. ASCII-oriented: multi-byte UTF-8
-/// sequences decode byte-by-byte, which is lossless for the ASCII values
-/// (package names, numbers) the query parsers here feed it.
-#[must_use]
-pub fn percent_decode(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    let mut bytes = input.bytes();
-    while let Some(byte) = bytes.next() {
-        match byte {
-            b'+' => out.push(' '),
-            b'%' => {
-                let Some(hi) = bytes.next() else {
-                    out.push('%');
-                    return out;
-                };
-                let Some(lo) = bytes.next() else {
-                    out.push('%');
-                    out.push(hi as char);
-                    return out;
-                };
-                let pair = [hi, lo];
-                if let Ok(s) = std::str::from_utf8(&pair)
-                    && let Ok(decoded) = u8::from_str_radix(s, 16)
-                {
-                    out.push(decoded as char);
-                } else {
-                    out.push('%');
-                    out.push(hi as char);
-                    out.push(lo as char);
-                }
-            }
-            other => out.push(other as char),
-        }
-    }
-    out
 }
 
 #[cfg(test)]

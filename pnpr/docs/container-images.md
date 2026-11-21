@@ -105,9 +105,11 @@ collected.
   scratch for digest verification rather than asking the client to resend.
 * `GET /v2/<name>/referrers/<digest>`, returning an image index of the manifests
   and indexes attached to that subject, with the `artifactType` filter and
-  annotations. A push acknowledges its subject with `OCI-Subject`. Follow the
-  `Link` header to collect every page, even when a filtered page is empty. Each
-  page reads at most 32 manifests and 8 MiB of manifest content.
+  annotations. The filter accepts media types such as `application/spdx+json`
+  with either a literal `+` or `%2B`. A push acknowledges its subject with
+  `OCI-Subject`. Follow the `Link` header to collect every page, even when a
+  filtered page is empty. Each page reads at most 32 manifests and 8 MiB of
+  manifest content.
 * Pagination on `tags/list` and `_catalog` through `n` and `last`, with a `Link`
   header when another page follows. `last` is an exclusive lexical cursor, and
   `n=0` returns an empty list with no continuation link.
