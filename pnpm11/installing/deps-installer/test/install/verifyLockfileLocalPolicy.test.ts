@@ -615,6 +615,46 @@ test('a peer resolved only for an unselected importer does not count', () => {
   }))
 })
 
+test('a local peer declaration authorizes only within its importer', () => {
+  // `app-a` links `helper` itself, so `remote`'s resolved peer edge is
+  // authorized either way. Only `local-lib` vouches for the declared spec.
+  const lockfile = (localLibImporter: 'app-a' | 'app-b'): LockfileObject => {
+    const localLib = { dependencies: { 'local-lib': 'file:local-lib' }, specifiers: { 'local-lib': 'file:local-lib' } }
+    const appA = {
+      dependencies: { helper: 'file:helper', remote: '1.0.0(helper@file:helper)' },
+      specifiers: { helper: 'file:helper', remote: '1.0.0' },
+    }
+    return {
+      lockfileVersion: '9.0',
+      importers: {
+        ['app-a' as ProjectId]: localLibImporter === 'app-a'
+          ? { dependencies: { ...appA.dependencies, ...localLib.dependencies }, specifiers: { ...appA.specifiers, ...localLib.specifiers } }
+          : appA,
+        ['app-b' as ProjectId]: localLibImporter === 'app-b' ? localLib : { specifiers: {} },
+      },
+      packages: {
+        ['local-lib@file:local-lib' as DepPath]: {
+          resolution: { type: 'directory', directory: 'local-lib' },
+          peerDependencies: { helper: 'file:../outside' },
+        },
+        ['remote@1.0.0(helper@file:helper)' as DepPath]: {
+          resolution: { integrity: 'sha512-deadbeef' },
+          dependencies: { helper: 'file:helper' },
+          peerDependencies: { helper: 'file:../outside' },
+        },
+        ['helper@file:helper' as DepPath]: {
+          resolution: { type: 'directory', directory: 'helper' },
+        },
+      },
+    }
+  }
+  const bothSelected = () => buildPolicy({ selectedImporterIds: new Set(['app-a', 'app-b']) })
+  expect(() => verifyLockfileLocalResolutions(lockfile('app-a'), bothSelected())).not.toThrow()
+  expect(() => verifyLockfileLocalResolutions(lockfile('app-b'), bothSelected())).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+  }))
+})
+
 test('a ranged override covers a peer-only declaration', async () => {
   const lockfile: LockfileObject = {
     lockfileVersion: '9.0',

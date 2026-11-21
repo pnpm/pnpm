@@ -78,6 +78,7 @@ export function collectLocalResolutionViolations (
     workspaceDirs: roots.workspaceDirs,
     authorizedPackages,
     authorizedGitPackages,
+    importers: roots.importers,
     ...selectedImporterFilters(policy, roots, reachableBaseKeys),
   }, rawViolations)
   return dedupeViolations(rawViolations)

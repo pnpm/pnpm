@@ -20,7 +20,9 @@ use std::collections::HashSet;
 
 use fast_scan::lockfile_has_any_local_surface;
 use package_entries::{
+    ImporterSelection,
     PackageEntryScan,
+    PeerIndexes,
     collect_package_entry_violations,
 };
 use pnpm_lockfile::{
@@ -96,7 +98,6 @@ fn collect_local_resolution_violations(
     let mut raw_violations = Vec::new();
     let (reachable_packages, authorized_packages, authorized_git_packages) =
         scan_all_scopes(lockfile, policy, &roots, &mut raw_violations);
-    let reachable_filter = policy.scope.selected_importer_ids.as_ref().map(|_| &reachable_packages);
     let selected_snapshots: Option<HashSet<&PkgNameVerPeer>> = policy.scope
         .selected_importer_ids
         .as_ref()
@@ -112,9 +113,11 @@ fn collect_local_resolution_violations(
         workspace_dirs: &roots.workspace_dirs,
         authorized_packages: &authorized_packages,
         authorized_git_packages: &authorized_git_packages,
-        reachable_filter,
-        selected_snapshots: selected_snapshots.as_ref(),
-        resolved_aliases: std::cell::OnceCell::new(),
+        selection: selected_snapshots
+            .as_ref()
+            .map(|snapshots| ImporterSelection { packages: &reachable_packages, snapshots }),
+        importers: &roots.importers,
+        peer_indexes: PeerIndexes::default(),
     };
     collect_package_entry_violations(&pkg_scan, &mut raw_violations);
     dedupe_violations(raw_violations)
