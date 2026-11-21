@@ -35,6 +35,7 @@ impl WorkspaceSettings {
         let update_config_in_yaml = self.update_config.is_some();
         let audit_level_in_yaml = self.audit_level.is_some();
         let audit_config_in_yaml = self.audit_config.is_some();
+        let shamefully_hoist = self.shamefully_hoist;
 
         // `catalogPrune`'s former name, applied before the macro so the
         // canonical key wins when a file carries both.
@@ -80,7 +81,7 @@ impl WorkspaceSettings {
 
         self.apply_update_settings(config, update_config_in_yaml);
 
-        self.apply_optional_settings(config);
+        self.apply_optional_settings(config, shamefully_hoist);
 
         self.apply_path_settings(config, base_dir);
         self.apply_registry_settings(config);
@@ -127,7 +128,11 @@ impl WorkspaceSettings {
         }
     }
 
-    pub(super) fn apply_optional_settings(&mut self, config: &mut Config) {
+    pub(super) fn apply_optional_settings(
+        &mut self,
+        config: &mut Config,
+        shamefully_hoist: Option<bool>,
+    ) {
         overlay_some(&mut config.frozen_lockfile, self.frozen_lockfile.take());
         overlay_some(&mut config.provenance, self.provenance.take());
         overlay_some(&mut config.access, self.access.take());
@@ -145,10 +150,6 @@ impl WorkspaceSettings {
         overlay_some(&mut config.save_prefix, self.save_prefix.take());
         overlay(&mut config.tag_version_prefix, self.tag_version_prefix.take());
 
-        if let Some(node_linker) = self.node_linker.take() {
-            node_linker.apply_to(config);
-        }
-
         overlay(&mut config.hoist_pattern, self.hoist_pattern.take());
         overlay(&mut config.public_hoist_pattern, self.public_hoist_pattern.take());
 
@@ -157,6 +158,16 @@ impl WorkspaceSettings {
         // disables, `hoist: false` wins.
         if !config.hoist {
             config.hoist_pattern = None;
+        }
+
+        match shamefully_hoist {
+            Some(true) => config.public_hoist_pattern = Some(vec!["*".to_string()]),
+            Some(false) => config.public_hoist_pattern = None,
+            None => {}
+        }
+
+        if let Some(node_linker) = self.node_linker.take() {
+            node_linker.apply_to(config);
         }
     }
 

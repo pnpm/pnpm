@@ -259,7 +259,6 @@ impl Config {
         );
 
         self.apply_git_branch_lockfile_derivation::<Sys>();
-        self.apply_shamefully_hoist_derivation();
         self.apply_virtual_store_only_derivation();
         Ok(())
     }

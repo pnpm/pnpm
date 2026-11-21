@@ -22,11 +22,33 @@ project uses a directory named after its last part, such as `vendor` for
 ### nodeLinker
 
 * Default: **isolated**
-* Type: **isolated**, **hoisted**, **pnp**, **loaded**, or a loaded-linker object
+* Type: **isolated**, **hoisted**, **pnp**, **loaded**, or a linker object
 
-Defines what linker should be used for installing Node packages. The existing scalar values remain supported. The experimental loaded linker also accepts an object with `type: loaded` and an optional `excluded` list. Other linker object forms are not supported yet.
+Defines what linker should be used for installing Node packages. Scalar values remain supported. Object values select a linker with `type` and group linker-specific options with it.
 
-Configuration sources replace the whole `nodeLinker` value. A higher-priority scalar or an object without `excluded` clears exclusions from lower-priority sources. The environment variable `PNPM_CONFIG_NODE_LINKER` and `--config.node-linker` accept the object as JSON.
+Configuration sources replace the selected linker. Options provided by a higher-priority object override the same options from lower-priority sources. Flat settings such as `hoistPattern`, `publicHoistPattern`, and `hoistingLimits` remain supported as aliases. When a source sets both a flat setting and its object form, the object form wins. The environment variable `PNPM_CONFIG_NODE_LINKER` and `--config.node-linker` accept the object as JSON.
+
+An omitted or `null` option keeps the value from lower-priority sources. An empty pattern list disables hoisting to that destination. If both `public` and `private` patterns match a package, the public pattern takes precedence.
+
+The isolated linker accepts `hoist` as a boolean or as an object with `public` and `private` pattern lists. `true` selects the defaults, `public: []` and `private: ['*']`. `false` disables both. Public patterns take precedence when both lists match. Negations apply within each list, and packages matching neither list are not hoisted.
+
+```yaml title="pnpm-workspace.yaml"
+nodeLinker:
+  type: isolated
+  hoist:
+    public: []
+    private: ['*']
+```
+
+The hoisted linker accepts `hoistingLimits`:
+
+```yaml title="pnpm-workspace.yaml"
+nodeLinker:
+  type: hoisted
+  hoistingLimits: workspaces
+```
+
+The loaded linker accepts an `excluded` list. Other linker types reject options they do not support.
 
 * **isolated** - dependencies are symlinked from a virtual store at `node_modules/.pnpm`.
 * **hoisted** - a flat `node_modules` without symlinks is created. Same as the `node_modules` created by npm or Yarn Classic. pnpm hoists with Yarn's hoisting algorithm. Legitimate reasons to use this setting:

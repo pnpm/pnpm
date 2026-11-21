@@ -297,13 +297,16 @@ impl ConfigOverrides {
             || self.public_hoist_pattern.is_some()
         {
             // `hoist: false` nullifies the private pattern whichever layer
-            // supplied either, so the two derivations below re-run over the
-            // command line's contribution the way `WorkspaceSettings::apply_to`
-            // runs them over yaml's.
+            // supplied either. `shamefullyHoist` only wins over
+            // `publicHoistPattern` when both come from this command line.
             if !config.hoist {
                 config.hoist_pattern = None;
             }
-            config.apply_shamefully_hoist_derivation();
+            match self.shamefully_hoist {
+                Some(true) => config.public_hoist_pattern = Some(vec!["*".to_string()]),
+                Some(false) => config.public_hoist_pattern = None,
+                None => {}
+            }
             config.apply_virtual_store_only_derivation();
         }
     }

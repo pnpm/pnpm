@@ -73,6 +73,8 @@ pub use global_packages::GLOBAL_PACKAGES_UNSUPPORTED_KEYS;
 pub use loading::ConfigLoadFailure;
 pub use macos_backup::MacosBackupConfig;
 pub use node_linker::{
+    HoistSetting,
+    NodeLinkerHoistPatterns,
     NodeLinkerOptions,
     NodeLinkerSetting,
 };
