@@ -64,7 +64,8 @@ use pnpm_exportable_manifest::{
     CreateExportableManifestOptions,
     PrivateWorkspaceDependencies,
     PrivateWorkspaceDependencyError,
-    create_exportable_manifest,
+    finalize_exportable_manifest,
+    prepare_exportable_manifest,
     private_workspace_dependencies,
 };
 use pnpm_fs::{
@@ -508,16 +509,11 @@ impl PackManifestOptions {
         };
         let mut private_dependencies = private_workspace_dependencies(dir, manifest, &options)
             .map_err(PackError::CreateManifest)?;
-        let mut publish_manifest =
-            create_exportable_manifest(dir, manifest, &options).map_err(PackError::CreateManifest)?;
+        let publish_manifest = prepare_exportable_manifest(dir, manifest, &options)
+            .map_err(PackError::CreateManifest)?;
         private_dependencies.record_exported(&publish_manifest);
 
-        // Run `beforePacking` hooks against the built manifest, before the
-        // file list is computed, so a hook that rewrites `files` / `bin` /
-        // dependency fields is honored. pnpm runs it inside
-        // `createExportableManifest`; pacquet applies it here because
-        // `create_exportable_manifest` is a pure, synchronous transform.
-        publish_manifest = apply_before_packing::<Reporter>(
+        let publish_manifest = apply_before_packing::<Reporter>(
             project_dir,
             dir,
             publish_manifest,
@@ -525,6 +521,8 @@ impl PackManifestOptions {
         )
         .await?;
 
+        let publish_manifest =
+            finalize_exportable_manifest(publish_manifest).map_err(PackError::CreateManifest)?;
         Ok((publish_manifest, private_dependencies))
     }
 }

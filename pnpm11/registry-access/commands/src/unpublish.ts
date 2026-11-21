@@ -234,11 +234,10 @@ function removeVersionsFromPackument (pkg: PackumentResponse, versions: string[]
     }
   }
 
-  // If we removed 'latest', reassign it to the highest remaining version
   if (latestVer && removedSet.has(latestVer)) {
-    const remaining = Object.keys(pkg.versions).sort(semver.compareLoose)
+    const remaining = Object.keys(pkg.versions).sort((left, right) => semver.compareLoose(right, left))
     if (remaining.length > 0) {
-      pkg['dist-tags'].latest = remaining[remaining.length - 1]
+      pkg['dist-tags'].latest = remaining.find((version) => !semver.prerelease(version, { loose: true })) ?? remaining[0]
     }
   }
 

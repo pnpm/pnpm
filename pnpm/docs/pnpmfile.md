@@ -203,7 +203,7 @@ this function, and you can even extend the lockfile's functionality.
 
 Allows you to modify the `package.json` manifest before it is packed into a tarball during `pnpm pack` or `pnpm publish`. This is useful for customizing the published package without affecting your local development `package.json`.
 
-Unlike `hooks.readPackage`, which modifies how dependencies are resolved during installation, `beforePacking` only affects the contents of the tarball that gets published.
+The hook receives the manifest after pnpm rewrites workspace dependencies and applies `publishConfig`. pnpm validates the returned name and version and normalizes fields such as `bin` and `repository` before writing the tarball.
 
 #### Arguments
 

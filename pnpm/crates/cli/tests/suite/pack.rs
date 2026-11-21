@@ -197,6 +197,7 @@ fn before_packing_hook_rewrites_the_packed_manifest() {
   hooks: {
     beforePacking (manifest) {
       delete manifest.devDependencies
+      manifest.bin = 'cli.js'
       manifest.packedByHook = true
       return manifest
     },
@@ -216,12 +217,34 @@ fn before_packing_hook_rewrites_the_packed_manifest() {
         .success();
 
     let manifest = read_manifest_from_tarball(&out.join("pkg-1.0.0.tgz"));
+    assert_eq!(manifest["bin"], json!({ "pkg": "cli.js" }));
     assert_eq!(manifest["packedByHook"], json!(true), "the hook's added field must be packed");
     assert!(
         manifest.get("devDependencies").is_none(),
         "the field the hook deleted must not be in the packed manifest",
     );
 
+    drop(root);
+}
+
+#[test]
+fn before_packing_cannot_remove_the_package_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"example","version":"1.0.0"}"#).unwrap();
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "exports.hooks = { beforePacking(pkg) { delete pkg.name; return pkg } }",
+    )
+    .unwrap();
+    let output = pacquet
+        .with_arg("pack")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert_diagnostic_contains(
+        &String::from_utf8_lossy(&output.stderr),
+        "ERR_PNPM_MISSING_REQUIRED_FIELD",
+    );
     drop(root);
 }
 

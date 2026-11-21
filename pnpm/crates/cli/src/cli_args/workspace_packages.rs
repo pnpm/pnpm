@@ -12,6 +12,7 @@ use std::{
     collections::{
         HashMap,
         HashSet,
+        hash_map::Entry,
     },
     path::Path,
     sync::Arc,
@@ -20,24 +21,22 @@ use std::{
 pub fn build_workspace_package_manifest_map(
     projects: &[pnpm_workspace::Project],
 ) -> HashMap<String, WorkspacePackageManifest> {
-    let mut map = HashMap::new();
+    let mut map: HashMap<String, WorkspacePackageManifest> = HashMap::new();
     for project in projects {
-        let manifest = project.manifest.value();
-        if let Some(name) = manifest.get("name").and_then(|val| val.as_str()) {
-            let version = manifest
-                .get("version")
-                .and_then(|val| val.as_str())
-                .unwrap_or("");
-            let entry = map
-                .entry(name.to_string())
-                .or_insert_with(|| WorkspacePackageManifest {
-                    name: name.to_string(),
-                    version: version.to_string(),
-                    private: manifest.get("private") == Some(&serde_json::Value::Bool(true)),
-                });
-            if entry.version.is_empty() && !version.is_empty() {
-                entry.version = version.to_string();
+        let manifest = WorkspacePackageManifest::from_manifest(project.manifest.value());
+        if manifest.name.is_empty() {
+            continue;
+        }
+        match map.entry(manifest.name.clone()) {
+            Entry::Vacant(entry) => {
+                entry.insert(manifest);
             }
+            Entry::Occupied(mut entry)
+                if entry.get().version.is_empty() && !manifest.version.is_empty() =>
+            {
+                entry.insert(manifest);
+            }
+            Entry::Occupied(_) => {}
         }
     }
     map

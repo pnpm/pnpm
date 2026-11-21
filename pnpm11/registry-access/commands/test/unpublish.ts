@@ -5,7 +5,6 @@ import { publish } from '@pnpm/releasing.commands'
 import { DEFAULT_OPTS as BASE_OPTS, overrideTty } from '@pnpm/testing.command-defaults'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { getRegistryMockToken, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
-import { safeExeca as execa } from 'execa'
 
 const DEFAULT_OPTS = {
   ...BASE_OPTS,
@@ -21,21 +20,11 @@ const CONFIG_BY_URI = {
 }
 
 async function getVersions (pkgName: string): Promise<string[]> {
-  try {
-    const { stdout } = await execa('pnpm', [
-      'view',
-      pkgName,
-      'versions',
-      '--json',
-      '--registry',
-      REGISTRY,
-    ])
-    const parsed = JSON.parse(stdout?.toString() ?? '[]')
-    if (typeof parsed === 'string') return [parsed]
-    return parsed
-  } catch {
-    return []
-  }
+  const response = await fetch(new URL(pkgName, REGISTRY))
+  if (response.status === 404) return []
+  expect(response.status).toBe(200)
+  const packument = await response.json() as { versions: Record<string, unknown> }
+  return Object.keys(packument.versions)
 }
 
 async function publishVersion (name: string, version: string): Promise<void> {
@@ -46,6 +35,7 @@ async function publishVersion (name: string, version: string): Promise<void> {
 
   await publish.handler({
     ...DEFAULT_OPTS,
+    gitChecks: false,
     argv: { original: ['publish'] },
     configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
@@ -226,6 +216,25 @@ describe('unpublish: OTP challenges', () => {
     expect(deleteHeaders['npm-auth-type']).toBe('legacy')
     expect(deleteHeaders['npm-command']).toBe('unpublish')
     expect(deleteHeaders['npm-otp']).toBe('123456')
+  })
+
+  test.each([
+    [['1.0.0', '2.0.0-alpha.1'], '1.0.0'],
+    [['2.0.0-beta.2', '2.0.0-beta.10'], '2.0.0-beta.10'],
+  ] as const)('chooses latest from %j after removing the tagged version', async (remaining, latest) => {
+    const versions = Object.fromEntries([...remaining, '1.1.0'].map(version => [version, {
+      version, dist: { tarball: `${MOCK_REGISTRY}/test-pkg/-/${version}.tgz` },
+    }]))
+    const registry = getMockAgent().get(MOCK_REGISTRY)
+    registry.intercept({ method: 'GET', path: '/test-pkg?write=true' })
+      .reply(200, { ...PACKUMENT, versions, 'dist-tags': { latest: '1.1.0' } }).times(2)
+    registry.intercept({ method: 'PUT', path: '/test-pkg/-rev/3-abc' })
+      .reply(({ body }) => {
+        expect(JSON.parse(String(body))['dist-tags']).toEqual({ latest })
+        return { statusCode: 200, data: {} }
+      })
+    registry.intercept({ method: 'DELETE', path: '/test-pkg/-/1.1.0.tgz/-rev/3-abc' }).reply(200, {})
+    await unpublish.handler({ ...OPTS, cliOptions: {} }, ['test-pkg@1.1.0'])
   })
 
   test('a registry mounted under a path gets the tarball delete under that path', async () => {

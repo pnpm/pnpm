@@ -413,15 +413,14 @@ fn versions_matching_range(versions: &Map<String, Value>, range: &str) -> Vec<St
     }
 }
 
-/// The highest remaining semver version, the new `latest` after the old
-/// one is unpublished.
+/// Prefer the highest stable version for `latest`, falling back to prereleases.
 fn highest_version(versions: &Map<String, Value>) -> Option<String> {
     versions
         .keys()
         .filter_map(|ver_str| {
             Version::parse(ver_str)
                 .ok()
-                .map(|ver| (ver, ver_str))
+                .map(|ver| ((ver.pre_release.is_empty(), ver), ver_str))
         })
         .max_by(|(left, _), (right, _)| left.cmp(right))
         .map(|(_, ver_str)| ver_str.clone())

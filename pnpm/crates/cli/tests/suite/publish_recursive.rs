@@ -178,8 +178,8 @@ fn recursive_publish_batches_selected_packages() {
         .mock("PUT", "/-/pnpr/v0/publish")
         .match_body(Matcher::PartialJson(serde_json::json!({
             "packages": [
-                { "name": "project-1" },
-                { "name": "project-2" },
+                { "name": "project-1", "dist-tags": { "next": "1.0.0" } },
+                { "name": "project-2", "dist-tags": { "next": "1.0.0" } },
             ],
         })))
         .with_status(201)
@@ -195,6 +195,7 @@ fn recursive_publish_batches_selected_packages() {
         .with_arg("-r")
         .with_arg("publish")
         .with_arg("--batch")
+        .with_arg("--config.tag=next")
         .with_arg("--force")
         .with_arg("--no-git-checks")
         .assert()

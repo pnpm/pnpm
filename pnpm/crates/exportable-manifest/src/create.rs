@@ -165,6 +165,29 @@ pub fn create_exportable_manifest(
     original_manifest: &Value,
     opts: &CreateExportableManifestOptions<'_>,
 ) -> Result<Value, CreateExportableManifestError> {
+    let manifest = prepare_exportable_manifest(dir, original_manifest, opts)?;
+    finalize_exportable_manifest(manifest)
+}
+
+/// Normalize the manifest returned by the packing hooks.
+pub fn finalize_exportable_manifest(
+    mut manifest: Value,
+) -> Result<Value, CreateExportableManifestError> {
+    let object = manifest
+        .as_object_mut()
+        .ok_or(CreateExportableManifestError::Transform(TransformError::MissingRequiredField {
+            field: "name",
+        }))?;
+    transform(object).map_err(CreateExportableManifestError::Transform)?;
+    Ok(manifest)
+}
+
+/// Prepare the registry fields that packing hooks receive.
+pub fn prepare_exportable_manifest(
+    dir: &Path,
+    original_manifest: &Value,
+    opts: &CreateExportableManifestOptions<'_>,
+) -> Result<Value, CreateExportableManifestError> {
     let empty = Map::new();
     let original = original_manifest.as_object().unwrap_or(&empty);
 
@@ -199,7 +222,6 @@ pub fn create_exportable_manifest(
         publish.insert("readme".to_string(), Value::String(readme));
     }
 
-    transform(&mut publish).map_err(CreateExportableManifestError::Transform)?;
     Ok(Value::Object(publish))
 }
 

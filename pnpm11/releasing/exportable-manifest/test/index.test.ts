@@ -43,6 +43,20 @@ test('prepublish scripts and packageManager are removed', async () => {
   })
 })
 
+test('workspace dependency ranges use the published name of a renamed target', async () => {
+  const manifest = await createExportableManifest(process.cwd(), {
+    name: 'consumer',
+    version: '1.0.0',
+    dependencies: { 'local-name': 'workspace:^', 'published-name': 'workspace:local-name@~', alias: 'workspace:local-name@2' },
+    peerDependencies: { 'published-name': 'workspace:local-name@^' },
+  }, {
+    catalogs: {},
+    workspacePackages: [{ manifest: { name: 'local-name', version: '2.0.0', publishConfig: { name: 'published-name' } } }],
+  })
+  expect(manifest.dependencies).toEqual({ 'local-name': 'npm:published-name@^2.0.0', 'published-name': '~2.0.0', alias: 'npm:published-name@2' })
+  expect(manifest.peerDependencies).toEqual({ 'published-name': '*' })
+})
+
 test('the packageManager field is removed', async () => {
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',

@@ -177,11 +177,11 @@ fn private_workspace_package(
         .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;
     Ok(target
         .filter(|manifest| manifest.private)
-        .map(
-            |manifest| {
+        .map(|manifest| {
+            manifest.publish_name.unwrap_or_else(|| {
                 if manifest.name.is_empty() { dep_name.to_string() } else { manifest.name }
-            },
-        ))
+            })
+        }))
 }
 
 /// The registry packages a published dependency may install, read

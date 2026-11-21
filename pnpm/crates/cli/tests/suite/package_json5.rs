@@ -145,6 +145,43 @@ fn install_runs_json5_project_hooks() {
 }
 
 #[test]
+fn pack_includes_parked_notes_for_alternative_project_manifests() {
+    let server = mockito::Server::new();
+    for basename in ["package.json5", "package.yaml"] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join(basename), r#"{"name":"example","version":"1.0.0"}"#).unwrap();
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("packages: ['.']\nregistry: {}/\n", server.url()),
+        )
+        .unwrap();
+        pnpm_versioning::write_pending_changelog(&workspace, "example", "1.0.0", "Release note.")
+            .unwrap();
+        command(&pacquet)
+            .with_args(["pack", "--ignore-scripts"])
+            .assert()
+            .success();
+        let file = fs::File::open(workspace.join("example-1.0.0.tgz")).unwrap();
+        let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(file));
+        let mut changelog = archive
+            .entries()
+            .unwrap()
+            .map(Result::unwrap)
+            .find(|entry| {
+                entry
+                    .path()
+                    .unwrap()
+                    .ends_with("package/CHANGELOG.md")
+            })
+            .expect("packed changelog");
+        let mut text = String::new();
+        changelog.read_to_string(&mut text).unwrap();
+        assert!(text.contains("Release note."), "{basename}: {text}");
+        drop(root);
+    }
+}
+
+#[test]
 fn pack_normalizes_alternative_project_manifests() {
     for basename in ["package.json5", "package.yaml"] {
         for (extra, ignored) in [("", false), ("", true), (r#", "files": ["dist"]"#, false)] {
