@@ -54,12 +54,19 @@ fn retargeted_catalogs(
     catalogs: &Catalogs,
     lockfile_catalogs: &LockfileCatalogs,
 ) -> Option<(LockfileCatalogs, bool)> {
+    let peer_references = directory_peer_catalog_lookup(lockfile);
     let mut changed = false;
     let mut updated_catalogs = BTreeMap::new();
     for (catalog_name, entries) in lockfile_catalogs {
         let mut updated_entries = BTreeMap::new();
         for (alias, entry) in entries {
-            match retarget_catalog_entry(lockfile, catalogs, catalog_name, alias, entry)? {
+            match retarget_catalog_entry(
+                (lockfile, &peer_references),
+                catalogs,
+                catalog_name,
+                alias,
+                entry,
+            )? {
                 CatalogEntryUpdate::Dropped => changed = true,
                 CatalogEntryUpdate::Kept(entry) => {
                     updated_entries.insert(alias.clone(), entry);
@@ -90,7 +97,7 @@ enum CatalogEntryUpdate {
 /// `None` when the entry needs a resolution: it is still referenced but no
 /// longer declared, or its locked version cannot satisfy the new specifier.
 fn retarget_catalog_entry(
-    lockfile: &Lockfile,
+    (lockfile, peer_references): (&Lockfile, &impl Fn(&str, &str) -> bool),
     catalogs: &Catalogs,
     catalog_name: &str,
     alias: &str,
@@ -101,7 +108,7 @@ fn retarget_catalog_entry(
         .and_then(|catalog| catalog.get(alias))
     else {
         if importer_references_catalog(lockfile, catalog_name, alias)
-            || directory_peer_references_catalog(lockfile, catalog_name, alias)
+            || peer_references(catalog_name, alias)
         {
             return None;
         }
@@ -110,7 +117,7 @@ fn retarget_catalog_entry(
     if specifier == &entry.specifier {
         return Some(CatalogEntryUpdate::Kept(entry.clone()));
     }
-    if directory_peer_references_catalog(lockfile, catalog_name, alias) {
+    if peer_references(catalog_name, alias) {
         return None;
     }
     let (Ok(version), Some(range)) =
@@ -187,12 +194,13 @@ pub(crate) fn importer_references_catalog(
         })
 }
 
-pub(crate) fn directory_peer_references_catalog(
+pub(crate) fn directory_peer_catalog_lookup(
     lockfile: &Lockfile,
-    catalog_name: &str,
-    alias: &str,
-) -> bool {
-    directory_peer_catalog_references(lockfile).any(|entry| entry == (catalog_name, alias))
+) -> impl Fn(&str, &str) -> bool + '_ {
+    let entries = std::cell::LazyCell::new(|| {
+        directory_peer_catalog_references(lockfile).collect::<std::collections::HashSet<_>>()
+    });
+    move |name, alias| entries.contains(&(name, alias))
 }
 
 pub(crate) fn directory_peer_catalog_references(

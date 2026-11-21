@@ -115,6 +115,17 @@ fn fetch_populates_every_group_by_default() {
     append_workspace_yaml_key(&workspace, "autoInstallPeers", false);
     write_manifest_and_lockfile(&workspace);
     fs::write(config_path, fetch_config).unwrap();
+    let failure = pacquet_at(&workspace)
+        .with_args([
+            "install",
+            "--frozen-lockfile",
+            "--ignore-manifest-check",
+            "--virtual-store-only",
+        ])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&failure.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"), "{stderr}");
     fs::remove_file(workspace.join("package.json")).unwrap();
 
     pacquet_at(&workspace)

@@ -27,7 +27,8 @@ pub(in crate::install) fn project_script_stages(
         ProjectMutation::InstallSome | ProjectMutation::Deploy => &PROJECT_INSTALL_STAGES,
         ProjectMutation::InstallWorkspace
         | ProjectMutation::InstallSelected
-        | ProjectMutation::NoInstall => {
+        | ProjectMutation::NoInstall
+        | ProjectMutation::Fetch => {
             if include_dev {
                 &PROJECT_LIFECYCLE_STAGES
             } else {

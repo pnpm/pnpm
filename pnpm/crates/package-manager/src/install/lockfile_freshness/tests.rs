@@ -44,6 +44,7 @@ pub(crate) async fn check_frozen_fixture(
             catalogs: check.catalogs,
             pnpmfile_hook: None,
             scope: super::FreshnessScope {
+                fetch_only: false,
                 ignore_manifest_check: false,
                 ignore_settings_check: false,
                 allow_missing_dependency_free_importers: false,

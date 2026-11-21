@@ -43,7 +43,7 @@ impl FetchArgs {
         base_install.context.config = fetch_config;
         base_install.lockfile_policy.frozen = true;
         base_install.lockfile_policy.ignore_manifest_check = true;
-        base_install.execution.mutation = ProjectMutation::NoInstall;
+        base_install.execution.mutation = ProjectMutation::Fetch;
         base_install.context.lockfile_path = Some(&lockfile_path);
         base_install.run::<Reporter>().await.wrap_err("fetching dependencies")
     }

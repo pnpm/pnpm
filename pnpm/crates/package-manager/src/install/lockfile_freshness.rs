@@ -278,6 +278,7 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
 /// strictly. See [`check_lockfile_freshness`] for what each one admits.
 #[derive(Default, Clone, Copy)]
 pub(crate) struct FreshnessScope<'a> {
+    pub(crate) fetch_only: bool,
     /// Skip the per-importer specifier gate entirely.
     pub(crate) ignore_manifest_check: bool,
     /// See [`crate::InstallLockfilePolicy::ignore_settings_check`].

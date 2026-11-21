@@ -26,11 +26,12 @@ function rewriteCatalogRanges (
   lockfile: LockfileObject,
   configuredCatalogs: Catalogs
 ): { changed: boolean, updatedCatalogs: Array<[string, Record<string, ResolvedCatalogEntry>]> } {
+  const peerReferences = directoryPeerCatalogLookup(lockfile)
   let changed = false
   const updatedCatalogs: Array<[string, Record<string, ResolvedCatalogEntry>]> = []
   for (const [catalogName, catalog] of Object.entries(lockfile.catalogs ?? {})) {
     const entries = Object.entries(catalog).flatMap(([alias, entry]) => {
-      const nextEntry = nextCatalogEntry(lockfile, {
+      const nextEntry = nextCatalogEntry(lockfile, peerReferences, {
         alias,
         catalogName,
         entry,
@@ -51,6 +52,7 @@ function rewriteCatalogRanges (
  */
 function nextCatalogEntry (
   lockfile: LockfileObject,
+  peerReferences: (name: string, alias: string) => boolean,
   { alias, catalogName, entry, specifier }: {
     alias: string
     catalogName: string
@@ -59,10 +61,10 @@ function nextCatalogEntry (
   }
 ): ResolvedCatalogEntry | undefined {
   if (specifier == null) {
-    return importerReferencesCatalog(lockfile.importers, catalogName, alias) || directoryPeerReferencesCatalog(lockfile, catalogName, alias) ? entry : undefined
+    return importerReferencesCatalog(lockfile.importers, catalogName, alias) || peerReferences(catalogName, alias) ? entry : undefined
   }
   if (specifier === entry.specifier) return entry
-  if (directoryPeerReferencesCatalog(lockfile, catalogName, alias)) return entry
+  if (peerReferences(catalogName, alias)) return entry
   if (!lockedVersionSatisfies(entry.version, specifier)) return entry
   return { specifier, version: entry.version }
 }
@@ -85,11 +87,12 @@ function importerReferencesCatalog (
   )
 }
 
-export function directoryPeerReferencesCatalog (lockfile: LockfileObject, catalogName: string, alias: string): boolean {
-  for (const [name, dependency] of directoryPeerCatalogReferences(Object.values(lockfile.packages ?? {}) as PackageSnapshot[])) {
-    if (catalogName === name && alias === dependency) return true
+export function directoryPeerCatalogLookup (lockfile: LockfileObject): (name: string, alias: string) => boolean {
+  let index: Map<string, Set<string>> | undefined
+  return (name, alias) => {
+    index ??= indexDirectoryPeerCatalogReferences(lockfile)
+    return index.get(name)?.has(alias) === true
   }
-  return false
 }
 
 /**

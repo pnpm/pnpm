@@ -53,7 +53,7 @@ pub(super) async fn check_settings(
         inputs.config,
         inputs.catalogs,
         CheckLockfileSettingsDriftOptions {
-            ignore_manifest_check: inputs.scope.ignore_manifest_check,
+            fetch_only: inputs.scope.fetch_only,
             parsed_overrides: parsed_overrides.as_deref(),
             pnpmfile_checksum: super::super::pnpmfile_checksum_check(
                 inputs,
@@ -126,7 +126,7 @@ fn parse_overrides(
 /// [`PnpmfileChecksumCheck::Skip`].
 #[derive(Clone, Copy)]
 pub(crate) struct CheckLockfileSettingsDriftOptions<'a> {
-    pub ignore_manifest_check: bool,
+    pub fetch_only: bool,
     pub parsed_overrides: Option<&'a [VersionOverride]>,
     pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
 }
@@ -139,7 +139,7 @@ pub(crate) fn check_lockfile_settings_drift(
 ) -> Result<(), FreshnessCheckError> {
     let patched_dependency_hashes =
         config.patched_dependency_hashes().map_err(FreshnessCheckError::CalcPatchHashes)?;
-    if opts.ignore_manifest_check && config.virtual_store_only {
+    if opts.fetch_only {
         return pnpm_lockfile::check_fetch_settings(
             lockfile,
             patched_dependency_hashes.as_ref(),
