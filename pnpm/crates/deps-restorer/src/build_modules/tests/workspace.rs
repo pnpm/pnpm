@@ -162,3 +162,45 @@ fn rebuild_selection_leaves_the_other_packages_uninspected() {
     assert_eq!(requires_build.get(&aaa), Some(&true));
     assert_eq!(requires_build.get(&zzz), Some(&false));
 }
+
+/// A rebuild of edited files reads every installed copy of the selected
+/// snapshot, since the user may have edited any one of them. Only the second
+/// copy here declares a build script.
+#[cfg(unix)]
+#[test]
+fn edited_rebuild_reads_every_copy_of_the_snapshot() {
+    let edited = key("edited", "1.0.0");
+    let snapshots = HashMap::from([(edited.clone(), SnapshotEntry::default())]);
+    let root = tempdir().expect("create temp dir");
+    let first = root.path().join("node_modules/edited");
+    let second = root.path().join("node_modules/parent/node_modules/edited");
+    std::fs::create_dir_all(&first).unwrap();
+    std::fs::create_dir_all(&second).unwrap();
+    std::fs::write(first.join("package.json"), r#"{"name":"edited","version":"1.0.0"}"#).unwrap();
+    std::fs::write(
+        second.join("package.json"),
+        r#"{"name":"edited","version":"1.0.0","scripts":{"postinstall":"true"}}"#,
+    )
+    .unwrap();
+    let by_key = HashMap::from([(edited.clone(), vec![first, second])]);
+    let layout = VirtualStoreLayout::legacy(
+        root.path(),
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let prefetched = HashMap::from([(edited.clone(), false)]);
+    let rebuild = RebuildOptions {
+        selected_snapshots: Some(std::iter::once(edited.clone()).collect()),
+        ..Default::default()
+    };
+
+    let requires_build = requires_build_by_key(RequiresBuildInputs {
+        snapshots: &snapshots,
+        skipped: &SkippedSnapshots::default(),
+        pkg_roots: PkgRoots { layout: &layout, by_key: Some(&by_key) },
+        prefetched: Some(&prefetched),
+        patches: None,
+        rebuild: Some(&rebuild),
+    });
+
+    assert_eq!(requires_build.get(&edited), Some(&true));
+}
