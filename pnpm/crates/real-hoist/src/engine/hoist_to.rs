@@ -30,7 +30,7 @@ use std::{
 
 /// One round of upstream's `hoist` loop: `hoistTo` from the top root.
 pub(super) fn hoist_to(top: &Rc<WorkNode>, options: &EngineOptions<'_>) -> PassOutcome {
-    let mut path_locators: HashSet<Rc<str>> = HashSet::from([Rc::clone(&top.ident)]);
+    let mut path_locators: HashSet<Rc<str>> = HashSet::from([Rc::clone(&top.input.ident)]);
     hoist_to_root(&[Rc::clone(top)], &mut path_locators, &ShadowedNodes::new(), options)
 }
 
@@ -55,14 +55,15 @@ fn hoist_to_root(
         // Upstream iterates the live map, so a child replaced since is
         // visited as it is now.
         let Some(dependency) = root.dependency(&name) else { continue };
-        if root.peer_names.contains(&name) || path_locators.contains(&dependency.ident) {
+        let locator = &dependency.input.ident;
+        if root.input.peer_names.contains(&name) || path_locators.contains(locator) {
             continue;
         }
-        path_locators.insert(Rc::clone(&dependency.ident));
+        path_locators.insert(Rc::clone(locator));
         let mut child_path = root_path.to_vec();
         child_path.push(Rc::clone(&dependency));
         outcome.absorb(hoist_to_root(&child_path, path_locators, &shadowed, options));
-        path_locators.remove(&dependency.ident);
+        path_locators.remove(locator);
     }
     outcome
 }
@@ -143,16 +144,7 @@ fn used_dependencies(root_path: &[Rc<WorkNode>]) -> HashMap<String, Rc<WorkNode>
         if !seen.insert(Rc::as_ptr(&node)) {
             continue;
         }
-        for name in node.hoisted_dependencies.borrow().keys() {
-            if hidden.contains(name) {
-                continue;
-            }
-            for ancestor in root_path {
-                if let Some(reachable) = ancestor.dependency(name) {
-                    used.insert(name.clone(), reachable);
-                }
-            }
-        }
+        add_reachable(&mut used, root_path, &node, &hidden);
         let children_hidden: Rc<HashSet<String>> = Rc::new(
             node.dependencies
                 .borrow()
@@ -160,13 +152,36 @@ fn used_dependencies(root_path: &[Rc<WorkNode>]) -> HashMap<String, Rc<WorkNode>
                 .cloned()
                 .collect(),
         );
-        let children = regular_dependencies(&node);
         pending.extend(
-            children
+            regular_dependencies(&node)
                 .into_iter()
                 .rev()
                 .map(|child| (child, Rc::clone(&children_hidden))),
         );
     }
     used
+}
+
+/// For each name hoisted out of `node` and not in `hidden`, the copy held
+/// nearest the end of `root_path`. Upstream walks the path from the top
+/// and lets each holder overwrite the last.
+fn add_reachable(
+    used: &mut HashMap<String, Rc<WorkNode>>,
+    root_path: &[Rc<WorkNode>],
+    node: &WorkNode,
+    hidden: &HashSet<String>,
+) {
+    let hoisted = node.hoisted_dependencies.borrow();
+    let visible = hoisted
+        .keys()
+        .filter(|name| !hidden.contains(*name));
+    for name in visible {
+        let reachable = root_path
+            .iter()
+            .rev()
+            .find_map(|ancestor| ancestor.dependency(name));
+        if let Some(reachable) = reachable {
+            used.insert(name.clone(), reachable);
+        }
+    }
 }

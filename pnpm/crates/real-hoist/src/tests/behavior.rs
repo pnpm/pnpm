@@ -280,11 +280,11 @@ fn self_alias_keeps_its_entry_and_only_the_alias_repeat_is_cut() {
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("self-alias hoist should succeed");
-    let b = child_of(&result, "b");
+    let aliased = child_of(&result, "b");
     assert_eq!(result.dependencies.borrow().len(), 1, "only b sits at the root: {result:#?}");
     // Upstream refuses to hoist a node whose ident is its parent's, so
     // the alias stays in b's own node_modules.
-    let alias = child_of(&b, "c");
+    let alias = child_of(&aliased, "c");
     assert!(alias.references.borrow().contains("b@1.0.0"), "the alias is b itself: {alias:#?}");
     assert!(
         alias.dependencies.borrow().is_empty(),

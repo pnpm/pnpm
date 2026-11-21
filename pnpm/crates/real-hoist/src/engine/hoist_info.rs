@@ -2,6 +2,7 @@
 //! `getNodeHoistInfo` and the helpers it relies on.
 
 use super::{
+    NodeInput,
     WorkNode,
     graph::is_workspace,
 };
@@ -22,7 +23,10 @@ use std::{
 /// Names a hoist would shadow below each parent, upstream's
 /// `shadowedNodes`. A later pass that hoists one of them past that
 /// parent needs another round.
-pub(super) type ShadowedNodes = HashMap<RcByPtr<WorkNode>, HashSet<String>>;
+///
+/// Keyed by the parent's address: the run's arena keeps every work node
+/// alive, so an address names one node for the whole run.
+pub(super) type ShadowedNodes = HashMap<*const WorkNode, HashSet<String>>;
 
 /// Upstream's `Hoistable`, with `dependsOn` folded into the variant.
 pub(super) enum Hoistable {
@@ -77,29 +81,32 @@ pub(super) fn node_hoist_info(
 /// `webpack` under a root installed as `webpack-5` would no longer be
 /// found by its name.
 fn may_leave_parent(ctx: &RootContext<'_>, node_path: &[Rc<WorkNode>], node: &WorkNode) -> bool {
-    let is_root_under_another_name = ctx.root.ident == node.ident && ctx.root.name != node.name;
+    let root = &ctx.root.input;
+    let is_root_under_another_name =
+        root.ident == node.input.ident && root.name != node.input.name;
     if is_root_under_another_name {
         return false;
     }
     let is_self_reference = node_path
         .last()
-        .is_some_and(|parent| parent.ident == node.ident);
-    let leaves_dependencies_behind = node.dependency_kind
+        .is_some_and(|parent| parent.input.ident == node.input.ident);
+    let leaves_dependencies_behind = node.input.dependency_kind
         == HoisterDependencyKind::ExternalSoftLink
         && has_unhoisted_dependencies(node);
     !is_self_reference
         && !is_workspace(node)
         && !leaves_dependencies_behind
-        && !ctx.root.peer_names.contains(&node.name)
+        && !root.peer_names.contains(&node.input.name)
 }
 
 /// No different version under this name is used from above the root, or
 /// sits on the path between the root and the parent. A path conflict is
 /// recorded in [`RootContext::shadowed`].
 fn is_name_available(ctx: &RootContext<'_>, node_path: &[Rc<WorkNode>], node: &WorkNode) -> bool {
+    let NodeInput { name, ident, .. } = &*node.input;
     if ctx.used
-        .get(&node.name)
-        .is_some_and(|used| used.ident != node.ident)
+        .get(name)
+        .is_some_and(|used| used.input.ident != *ident)
     {
         return false;
     }
@@ -109,23 +116,23 @@ fn is_name_available(ctx: &RootContext<'_>, node_path: &[Rc<WorkNode>], node: &W
         .rev()
         .any(|ancestor| {
             ancestor
-                .dependency(&node.name)
-                .is_some_and(|dep| dep.ident != node.ident)
+                .dependency(name)
+                .is_some_and(|dep| dep.input.ident != *ident)
         });
     if filled && let Some(parent) = node_path.last() {
         let mut shadowed = ctx.shadowed.borrow_mut();
         shadowed
-            .entry(RcByPtr(Rc::clone(parent)))
+            .entry(Rc::as_ptr(parent))
             .or_default()
-            .insert(node.name.clone());
+            .insert(name.clone());
     }
     !filled
 }
 
 fn is_preferred(ctx: &RootContext<'_>, node: &WorkNode) -> bool {
     ctx.hoist_idents
-        .get(&node.name)
-        .is_some_and(|ident| *ident == node.ident)
+        .get(&node.input.name)
+        .is_some_and(|ident| *ident == node.input.ident)
 }
 
 /// Upstream's peer check. Each peer is looked up at the nearest ancestor
@@ -143,33 +150,44 @@ fn peer_providers_to_hoist(
     node_path: &[Rc<WorkNode>],
     node: &WorkNode,
 ) -> Option<Vec<Rc<WorkNode>>> {
-    let mut unchecked: IndexSet<String> = (*node.peer_names).clone();
-    let mut depends_on: Vec<Rc<WorkNode>> = Vec::new();
-    let parent_index = node_path.len().saturating_sub(1);
-    for (index, ancestor) in node_path
+    let mut unchecked: IndexSet<String> = node.input.peer_names.clone();
+    let mut nearest_first = node_path
+        .get(1..)
+        .unwrap_or_default()
         .iter()
-        .enumerate()
-        .skip(1)
-        .rev()
-    {
-        for name in unchecked.clone() {
-            if passes_through(ancestor, &name) {
-                continue;
-            }
-            unchecked.shift_remove(&name);
-            let Some(provider) = ancestor.dependency(&name) else { continue };
-            if ctx.root.dependency(&name).is_some_and(|root_dep| Rc::ptr_eq(&root_dep, &provider)) {
-                continue;
-            }
-            if index != parent_index {
-                return None;
-            }
-            if !depends_on.iter().any(|waiting| Rc::ptr_eq(waiting, &provider)) {
-                depends_on.push(provider);
-            }
+        .rev();
+    let depends_on = nearest_first
+        .next()
+        .map(|parent| unhoisted_providers(ctx, parent, &mut unchecked))
+        .unwrap_or_default();
+    let is_pinned = nearest_first.any(|ancestor| {
+        !unhoisted_providers(ctx, ancestor, &mut unchecked).is_empty()
+    });
+    (!is_pinned).then_some(depends_on)
+}
+
+/// The providers `ancestor` holds for the `unchecked` peer names and the
+/// root does not. Each name the ancestor settles leaves `unchecked`.
+fn unhoisted_providers(
+    ctx: &RootContext<'_>,
+    ancestor: &WorkNode,
+    unchecked: &mut IndexSet<String>,
+) -> Vec<Rc<WorkNode>> {
+    let settled: Vec<String> = unchecked
+        .iter()
+        .filter(|name| !passes_through(ancestor, name))
+        .cloned()
+        .collect();
+    let mut providers = Vec::new();
+    for name in settled {
+        unchecked.shift_remove(&name);
+        let Some(provider) = ancestor.dependency(&name) else { continue };
+        let root_dependency = ctx.root.dependency(&name);
+        if !root_dependency.is_some_and(|at_root| Rc::ptr_eq(&at_root, &provider)) {
+            providers.push(provider);
         }
     }
-    Some(depends_on)
+    providers
 }
 
 /// Whether `ancestor` leaves `name` to be provided above it: it takes the
@@ -178,10 +196,11 @@ fn peer_providers_to_hoist(
 /// A package that is its dependency's peer is found from below through
 /// its parent's `node_modules`, where the next ancestor holds it.
 fn passes_through(ancestor: &WorkNode, name: &str) -> bool {
-    let takes_as_peer = ancestor.peer_names.contains(name)
+    let takes_as_peer = ancestor.input.peer_names.contains(name)
         && ancestor.original_dependencies.borrow().contains_key(name);
     let found_higher = !ancestor.dependencies.borrow().contains_key(name)
-        && (ancestor.hoisted_dependencies.borrow().contains_key(name) || ancestor.name == name);
+        && (ancestor.hoisted_dependencies.borrow().contains_key(name)
+            || ancestor.input.name == name);
     takes_as_peer || found_higher
 }
 
@@ -192,11 +211,12 @@ fn hoisted_dependencies_still_resolve(ctx: &RootContext<'_>, node: &WorkNode) ->
         .borrow()
         .values()
         .all(|hoisted| {
+            let name = &hoisted.input.name;
             let available = ctx.used
-                .get(&hoisted.name)
+                .get(name)
                 .map(Rc::clone)
-                .or_else(|| ctx.root.dependency(&hoisted.name));
-            available.is_some_and(|dep| dep.ident == hoisted.ident)
+                .or_else(|| ctx.root.dependency(name));
+            available.is_some_and(|dep| dep.input.ident == hoisted.input.ident)
         })
 }
 
@@ -205,7 +225,10 @@ fn has_unhoisted_dependencies(node: &WorkNode) -> bool {
     node.dependencies
         .borrow()
         .iter()
-        .any(|(name, dep)| !node.peer_names.contains(name) && dep.ident != node.ident)
+        .any(|(name, dep)| {
+            !node.input.peer_names.contains(name)
+                && dep.input.ident != node.input.ident
+        })
 }
 
 /// Upstream's `getSortedRegularDependencies`: the children that are not
@@ -230,8 +253,8 @@ fn add_after_peers(
     if !seen.insert(Rc::as_ptr(dep)) {
         return;
     }
-    for peer_name in dep.peer_names.iter() {
-        if node.peer_names.contains(peer_name) {
+    for peer_name in &dep.input.peer_names {
+        if node.input.peer_names.contains(peer_name) {
             continue;
         }
         let Some(peer_dep) = node.dependency(peer_name) else { continue };

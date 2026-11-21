@@ -114,28 +114,10 @@ fn check_node(
         if index > 0 && !declared.is_some_and(|declared| declared.has_peers) {
             continue;
         }
-        let edges: Vec<(String, String)> = declared
-            .into_iter()
-            .flat_map(|declared| declared.edges.iter())
-            .filter_map(|(name, target)| Some((name.clone(), target.clone()?)))
-            .collect();
+        let edges = declared.into_iter().flat_map(DeclaredNode::checked_edges);
         for (name, expected) in edges {
-            let found = resolve(node, ancestors, &name);
-            if !found
-                .as_ref()
-                .is_some_and(|found| checker.behaves_like(found, &expected))
-            {
-                let path: Vec<&str> = ancestors
-                    .iter()
-                    .map(|ancestor| ancestor.name.as_str())
-                    .chain([node.name.as_str()])
-                    .collect();
-                let resolved = found.map(|found| served_locators(&found.node));
-                errors.push(format!(
-                    "  {} ({locator}) requires {name}: declared {expected}, resolved {resolved:?}",
-                    path.join(" > "),
-                ));
-            }
+            let error = checker.check_edge(node, ancestors, (&locator, &name, &expected));
+            errors.extend(error);
         }
     }
     ancestors.push(Rc::clone(node));
@@ -150,7 +132,44 @@ fn check_node(
     ancestors.pop();
 }
 
+impl DeclaredNode {
+    /// The edges with a single declared target, as `(name, target)`.
+    fn checked_edges(&self) -> Vec<(String, String)> {
+        self.edges
+            .iter()
+            .filter_map(|(name, target)| Some((name.clone(), target.clone()?)))
+            .collect()
+    }
+}
+
 impl Checker<'_> {
+    /// The error for the edge `name` of `locator`, served by `node`, when it
+    /// does not resolve to a directory that behaves like `expected`.
+    fn check_edge(
+        &mut self,
+        node: &Rc<HoisterResult>,
+        ancestors: &[Rc<HoisterResult>],
+        (locator, name, expected): (&str, &str, &str),
+    ) -> Option<String> {
+        let found = resolve(node, ancestors, name);
+        if found
+            .as_ref()
+            .is_some_and(|found| self.behaves_like(found, expected))
+        {
+            return None;
+        }
+        let path: Vec<&str> = ancestors
+            .iter()
+            .map(|ancestor| ancestor.name.as_str())
+            .chain([node.name.as_str()])
+            .collect();
+        let resolved = found.map(|found| served_locators(&found.node));
+        Some(format!(
+            "  {} ({locator}) requires {name}: declared {expected}, resolved {resolved:?}",
+            path.join(" > "),
+        ))
+    }
+
     fn behaves_like(&mut self, found: &Position, expected: &str) -> bool {
         let served = served_locators(&found.node);
         if served
@@ -173,13 +192,10 @@ impl Checker<'_> {
         if !self.assumed.insert((Rc::as_ptr(&found.node), expected.to_string())) {
             return true;
         }
-        let edges: Vec<(String, String)> = target.edges
-            .iter()
-            .filter_map(|(name, target)| Some((name.clone(), target.clone()?)))
-            .collect();
         let mut ancestors = found.ancestors.clone();
         ancestors.push(Rc::clone(&found.node));
-        edges
+        target
+            .checked_edges()
             .into_iter()
             .all(|(name, expected)| {
                 resolve_from(&ancestors, &name)

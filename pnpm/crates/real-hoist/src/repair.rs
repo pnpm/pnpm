@@ -22,14 +22,7 @@ use crate::{
         provider_of,
     },
 };
-use std::collections::{
-    BTreeSet,
-    HashMap,
-};
-
-/// The peers of each snapshot that the hoister handles as regular
-/// dependencies.
-pub(crate) type RegularPeers = HashMap<PkgNameVerPeer, BTreeSet<String>>;
+use std::collections::HashMap;
 
 /// Every `(snapshot, peer)` whose bound provider the layout does not
 /// reach, peers already held as regular dependencies included: walking up
@@ -137,7 +130,8 @@ fn reaches(
         found.references
             .borrow()
             .iter()
-            .filter_map(|reference| reference.parse::<PkgNameVerPeer>().ok())
+            .map(|reference| reference.parse::<PkgNameVerPeer>())
+            .filter_map(Result::ok)
             .any(|key| crate::pkg_id(&key) == package_id)
     })
 }

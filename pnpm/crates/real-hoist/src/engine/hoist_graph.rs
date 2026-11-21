@@ -16,10 +16,7 @@ use crate::{
     HoisterDependencyKind,
     RcByPtr,
 };
-use indexmap::{
-    IndexMap,
-    IndexSet,
-};
+use indexmap::IndexSet;
 use std::{
     collections::{
         HashMap,
@@ -48,6 +45,11 @@ struct Pass<'pass> {
     parent_shadowed: &'pass ShadowedNodes,
     /// Parents on the current recursion path, upstream's `seenNodes`.
     on_path: HashSet<*const WorkNode>,
+    /// The hoisting root, then the nodes from it down to the parent
+    /// whose children are being decided.
+    node_path: Vec<Rc<WorkNode>>,
+    /// The aliased locators from the top of the tree down to that parent.
+    aliased_path: Vec<String>,
     /// Nodes hoisted to the root in this wave, walked in the next one.
     next_wave: IndexSet<RcByPtr<WorkNode>>,
     outcome: PassOutcome,
@@ -64,24 +66,25 @@ pub(super) fn hoist_graph(
         ctx,
         parent_shadowed,
         on_path: HashSet::new(),
+        node_path: vec![Rc::clone(ctx.root)],
+        aliased_path: root_path
+            .iter()
+            .map(|node| node.aliased_locator())
+            .collect(),
         next_wave: sorted_regular_dependencies(ctx.root)
             .into_iter()
             .map(RcByPtr)
             .collect(),
         outcome: PassOutcome::default(),
     };
-    let aliased_root_path: Vec<String> = root_path
-        .iter()
-        .map(|node| node.aliased_locator())
-        .collect();
     while !pass.next_wave.is_empty() {
         let wave = std::mem::take(&mut pass.next_wave);
         for dep in wave {
-            if dep.ident == ctx.root.ident || dep.is_hoist_border.get() {
+            if dep.input.ident == ctx.root.input.ident || dep.is_hoist_border.get() {
                 continue;
             }
             let decoupled = decouple(ctx.root, &dep.0, ctx.arena);
-            hoist_node_dependencies(&mut pass, &[], &aliased_root_path, &decoupled);
+            hoist_node_dependencies(&mut pass, &decoupled);
         }
     }
     pass.outcome
@@ -89,71 +92,68 @@ pub(super) fn hoist_graph(
 
 /// Upstream's `hoistNodeDependencies`: move what can move from `parent`
 /// to the root, then descend into the children that stayed.
-fn hoist_node_dependencies(
-    pass: &mut Pass<'_>,
-    node_path: &[Rc<WorkNode>],
-    aliased_path: &[String],
-    parent: &Rc<WorkNode>,
-) {
+fn hoist_node_dependencies(pass: &mut Pass<'_>, parent: &Rc<WorkNode>) {
     if pass.on_path.contains(&Rc::as_ptr(parent)) {
         return;
     }
-    let mut next_aliased_path = aliased_path.to_vec();
-    next_aliased_path.push(parent.aliased_locator());
-    let mut full_path: Vec<Rc<WorkNode>> = vec![Rc::clone(pass.ctx.root)];
-    full_path.extend(node_path.iter().map(Rc::clone));
-    full_path.push(Rc::clone(parent));
-    let unhoistable = decide(pass, &full_path, parent);
-    move_hoistable(pass, parent, &unhoistable);
-    let mut next_path = node_path.to_vec();
-    next_path.push(Rc::clone(parent));
+    pass.node_path.push(Rc::clone(parent));
+    pass.aliased_path.push(parent.aliased_locator());
+    let children = sorted_regular_dependencies(parent);
+    let unhoistable = decide(pass, parent, &children);
+    move_hoistable(pass, parent, &children, &unhoistable);
     for child in sorted_regular_dependencies(parent) {
         let stays = unhoistable.contains(&RcByPtr(Rc::clone(&child)));
         if !stays
             || child.is_hoist_border.get()
-            || next_aliased_path.contains(&child.aliased_locator())
+            || pass.aliased_path.contains(&child.aliased_locator())
         {
             continue;
         }
         pass.on_path.insert(Rc::as_ptr(parent));
         let decoupled = decouple(parent, &child, pass.ctx.arena);
-        hoist_node_dependencies(pass, &next_path, &next_aliased_path, &decoupled);
+        hoist_node_dependencies(pass, &decoupled);
         pass.on_path.remove(&Rc::as_ptr(parent));
     }
+    pass.aliased_path.pop();
+    pass.node_path.pop();
 }
 
-/// The hoist decision for every regular child of `parent`. Returns the
-/// children that stay, in decision order, after spreading a refusal to
+/// The hoist decision for each of `children`, the regular children of
+/// `parent`. Returns the children that stay, after spreading a refusal to
 /// every sibling that waited on the refused node as a peer provider.
 fn decide(
     pass: &Pass<'_>,
-    full_path: &[Rc<WorkNode>],
     parent: &WorkNode,
+    children: &[Rc<WorkNode>],
 ) -> IndexSet<RcByPtr<WorkNode>> {
-    let mut decisions: IndexMap<RcByPtr<WorkNode>, bool> = IndexMap::new();
+    let mut refused: Vec<RcByPtr<WorkNode>> = Vec::new();
     let mut dependants: HashMap<String, Vec<String>> = HashMap::new();
-    for child in sorted_regular_dependencies(parent) {
-        let info = node_hoist_info(pass.ctx, full_path, &child);
-        if let Hoistable::Depends(providers) = &info {
-            for provider in providers {
-                dependants
-                    .entry(provider.name.clone())
-                    .or_default()
-                    .push(child.name.clone());
-            }
+    for child in children {
+        match node_hoist_info(pass.ctx, &pass.node_path, child) {
+            Hoistable::Yes => {}
+            Hoistable::No => refused.push(RcByPtr(Rc::clone(child))),
+            Hoistable::Depends(providers) => await_providers(&mut dependants, child, &providers),
         }
-        decisions.insert(RcByPtr(child), !matches!(info, Hoistable::No));
     }
     let mut unhoistable: IndexSet<RcByPtr<WorkNode>> = IndexSet::new();
-    let refused: Vec<RcByPtr<WorkNode>> = decisions
-        .iter()
-        .filter(|(_, hoistable)| !**hoistable)
-        .map(|(node, _)| node.clone())
-        .collect();
     for node in refused {
         refuse(parent, &node, &dependants, &mut unhoistable);
     }
     unhoistable
+}
+
+/// Record `child` as waiting on each of `providers`, by name.
+fn await_providers(
+    dependants: &mut HashMap<String, Vec<String>>,
+    child: &WorkNode,
+    providers: &[Rc<WorkNode>],
+) {
+    for provider in providers {
+        dependants
+            .entry(provider.input.name.clone())
+            .or_default()
+            .push(child.input.name.clone());
+    }
 }
 
 /// Upstream's `addUnhoistableNode`: a refused node takes down every
@@ -170,7 +170,7 @@ fn refuse(
             continue;
         }
         for dependant in dependants
-            .get(&node.name)
+            .get(&node.input.name)
             .into_iter()
             .flatten()
         {
@@ -181,48 +181,51 @@ fn refuse(
     }
 }
 
-/// Move every child of `parent` that may leave it to the root, or merge
+/// Move each of `children` that may leave `parent` to the root, or merge
 /// it into the copy the root already holds.
 fn move_hoistable(
     pass: &mut Pass<'_>,
     parent: &Rc<WorkNode>,
+    children: &[Rc<WorkNode>],
     unhoistable: &IndexSet<RcByPtr<WorkNode>>,
 ) {
     let mut moved = false;
-    for child in sorted_regular_dependencies(parent) {
-        if unhoistable.contains(&RcByPtr(Rc::clone(&child))) {
+    for child in children {
+        if unhoistable.contains(&RcByPtr(Rc::clone(child))) {
             continue;
         }
+        let name = &child.input.name;
         moved = true;
         pass.outcome.is_graph_changed = true;
-        let shadowed = pass.parent_shadowed.get(&RcByPtr(Rc::clone(parent)));
-        if shadowed.is_some_and(|names| names.contains(&child.name)) {
+        let shadowed = pass.parent_shadowed.get(&Rc::as_ptr(parent));
+        if shadowed.is_some_and(|names| names.contains(name)) {
             pass.outcome.another_round_needed = true;
         }
-        parent.dependencies.borrow_mut().shift_remove(&child.name);
+        parent.dependencies.borrow_mut().shift_remove(name);
         parent.hoisted_dependencies
             .borrow_mut()
-            .insert(child.name.clone(), Rc::clone(&child));
-        place_at_root(pass, &child);
+            .insert(name.clone(), Rc::clone(child));
+        place_at_root(pass, child);
     }
-    if moved && parent.dependency_kind == HoisterDependencyKind::ExternalSoftLink {
+    if moved && parent.input.dependency_kind == HoisterDependencyKind::ExternalSoftLink {
         pass.outcome.another_round_needed = true;
     }
 }
 
 fn place_at_root(pass: &mut Pass<'_>, child: &Rc<WorkNode>) {
     let root = pass.ctx.root;
-    if let Some(existing) = root.dependency(&child.name) {
+    let name = &child.input.name;
+    if let Some(existing) = root.dependency(name) {
         let references: Vec<String> = child.references
             .borrow()
             .iter()
             .cloned()
             .collect();
         existing.references.borrow_mut().extend(references);
-    } else if root.ident != child.ident {
+    } else if root.input.ident != child.input.ident {
         root.dependencies
             .borrow_mut()
-            .insert(child.name.clone(), Rc::clone(child));
+            .insert(name.clone(), Rc::clone(child));
         pass.next_wave.insert(RcByPtr(Rc::clone(child)));
     }
 }

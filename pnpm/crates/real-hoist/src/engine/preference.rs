@@ -32,7 +32,7 @@ impl PreferenceEntry {
 type PreferenceMap = IndexMap<(String, Rc<str>), PreferenceEntry>;
 
 fn entry<'map>(map: &'map mut PreferenceMap, node: &WorkNode) -> &'map mut PreferenceEntry {
-    map.entry((node.name.clone(), Rc::clone(&node.ident)))
+    map.entry((node.input.name.clone(), Rc::clone(&node.input.ident)))
         .or_default()
 }
 
@@ -65,7 +65,7 @@ fn add_dependent(
     node: &Rc<WorkNode>,
 ) -> Option<Frame> {
     let is_new = seen.insert(Rc::as_ptr(node));
-    entry(map, node).dependents.insert(Rc::clone(&dependent.ident));
+    entry(map, node).dependents.insert(Rc::clone(&dependent.input.ident));
     is_new.then(|| Frame { node: Rc::clone(node), children: node.dependency_list(), next: 0 })
 }
 
@@ -80,9 +80,9 @@ fn walk_dependents(map: &mut PreferenceMap, seen: &mut HashSet<*const WorkNode>,
         frame.next += 1;
         let node = Rc::clone(&frame.node);
         let dep_entry = entry(map, &dep);
-        dep_entry.hoist_priority = dep_entry.hoist_priority.max(dep.hoist_priority);
-        if node.peer_names.contains(&dep.name) {
-            dep_entry.peer_dependents.insert(Rc::clone(&node.ident));
+        dep_entry.hoist_priority = dep_entry.hoist_priority.max(dep.input.hoist_priority);
+        if node.input.peer_names.contains(&dep.input.name) {
+            dep_entry.peer_dependents.insert(Rc::clone(&node.input.ident));
         } else if let Some(next) = add_dependent(map, seen, &node, &dep) {
             stack.push(next);
         }
@@ -95,9 +95,9 @@ fn walk_dependents(map: &mut PreferenceMap, seen: &mut HashSet<*const WorkNode>,
 pub(super) fn hoist_ident_map(root: &Rc<WorkNode>) -> HoistIdentMap {
     let preferences = build_preference_map(root);
     let mut idents = HoistIdentMap::new();
-    idents.insert(root.name.clone(), VecDeque::from([Rc::clone(&root.ident)]));
+    idents.insert(root.input.name.clone(), VecDeque::from([Rc::clone(&root.input.ident)]));
     for dep in super::graph::regular_dependencies(root) {
-        idents.insert(dep.name.clone(), VecDeque::from([Rc::clone(&dep.ident)]));
+        idents.insert(dep.input.name.clone(), VecDeque::from([Rc::clone(&dep.input.ident)]));
     }
     let mut ranked: Vec<(&(String, Rc<str>), &PreferenceEntry)> = preferences.iter().collect();
     // A stable sort, as JavaScript's `Array.prototype.sort` is.
@@ -107,7 +107,7 @@ pub(super) fn hoist_ident_map(root: &Rc<WorkNode>) -> HoistIdentMap {
             .then_with(|| right.usages().cmp(&left.usages()))
     });
     for ((name, ident), _) in ranked {
-        if root.peer_names.contains(name) {
+        if root.input.peer_names.contains(name) {
             continue;
         }
         let candidates = idents.entry(name.clone()).or_default();

@@ -9,7 +9,10 @@ use crate::{
     SnapshotEntry,
 };
 use pnpm_lockfile::PeerBindings;
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    fmt::Write as _,
+};
 
 /// How the hoister sees a package's peers.
 pub(crate) struct PeerView {
@@ -37,17 +40,25 @@ pub(crate) fn peer_view(
     let mut names = base_peer_names(dep_key, snapshot, lockfile);
     let regular = regular.filter(|regular| !regular.is_empty());
     names.retain(|name| !regular.is_some_and(|regular| regular.contains(name)));
-    let identity = regular.map(|regular| {
-        let providers: String = regular
-            .iter()
-            .map(|peer| {
-                let provider = provider_of(dep_key, snapshot, peer).map(|key| key.to_string());
-                format!("({peer}={})", provider.unwrap_or_default())
-            })
-            .collect();
-        format!("{}{providers}", crate::pkg_id(dep_key))
-    });
+    let identity = regular.map(|regular| identity_with_providers(dep_key, snapshot, regular));
     PeerView { names, identity }
+}
+
+/// The package id followed by each of `regular`'s peers and the provider
+/// it is bound to.
+fn identity_with_providers(
+    dep_key: &PkgNameVerPeer,
+    snapshot: &SnapshotEntry,
+    regular: &BTreeSet<String>,
+) -> String {
+    let mut identity = crate::pkg_id(dep_key);
+    for peer in regular {
+        let provider = provider_of(dep_key, snapshot, peer).map(|key| key.to_string());
+        write!(identity, "({peer}={})", provider.unwrap_or_default()).expect(
+            "writing to a String cannot fail",
+        );
+    }
+    identity
 }
 
 /// The key `peer` is bound to: a dependency of that name, else the
@@ -121,7 +132,8 @@ fn declared_peer_names(dep_key: &PkgNameVerPeer, lockfile: &Lockfile) -> Vec<Str
     let mut names: Vec<String> = meta
         .and_then(|meta| meta.peer_dependencies.as_ref())
         .into_iter()
-        .flat_map(|peers| peers.keys().cloned())
+        .flat_map(|peers| peers.keys())
+        .cloned()
         .collect();
     names.sort();
     names
@@ -137,13 +149,13 @@ fn own_dependencies_declared_as_peers(
     snapshot: &SnapshotEntry,
     declared: &[String],
 ) -> Vec<String> {
-    let bindings = pnpm_lockfile::PeerBindings::from_key(dep_key);
-    if declared.is_empty() || matches!(bindings, Some(pnpm_lockfile::PeerBindings::Hashed)) {
+    let bindings = PeerBindings::from_key(dep_key);
+    if declared.is_empty() || matches!(bindings, Some(PeerBindings::Hashed)) {
         return Vec::new();
     }
     let bound: std::collections::HashSet<PkgNameVerPeer> = bindings
         .iter()
-        .flat_map(|bindings| bindings.providers())
+        .flat_map(PeerBindings::providers)
         .map(|key| key.without_peer())
         .collect();
     declared

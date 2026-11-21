@@ -160,8 +160,6 @@ pub struct HoisterResult {
     /// the same package version that deduplicated into it, in the order
     /// they did.
     pub references: RefCell<IndexSet<String>>,
-    /// The peer names of the input node, in declaration order.
-    pub peer_names: IndexSet<String>,
     pub dependencies: RefCell<IndexSet<RcByPtr<HoisterResult>>>,
 }
 
@@ -292,7 +290,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     // See `repair`: each pass hands the peers the layout failed to resolve
     // to the next as regular dependencies. The set only grows, so the loop
     // ends.
-    let mut regular_peers = repair::RegularPeers::new();
+    let mut regular_peers = RegularPeers::new();
     let (tree, result) = loop {
         let tree = build_tree(lockfile, opts, &regular_peers)?;
         let result = engine::hoist(&tree, opts);
@@ -329,7 +327,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
 fn build_tree(
     lockfile: &Lockfile,
     opts: &HoistOpts,
-    regular_peers: &repair::RegularPeers,
+    regular_peers: &RegularPeers,
 ) -> Result<Rc<HoisterTree>, HoistError> {
     let mut cache = TreeCache { regular_peers: regular_peers.clone(), ..TreeCache::default() };
 
@@ -378,16 +376,6 @@ fn build_tree(
     Ok(root_node)
 }
 
-/// Run the hoist on a prepared input tree under the resolution oracle,
-/// for tests that build the tree by hand. See [`engine`].
-#[cfg(test)]
-fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
-    let result = engine::hoist(tree, opts);
-    #[cfg(test)]
-    tests::resolution::assert_resolves_as_declared(tree, &result);
-    result
-}
-
 #[cfg(test)]
 mod tests;
 
@@ -397,6 +385,7 @@ mod repair;
 
 mod tree;
 use tree::{
+    RegularPeers,
     TreeCache,
     collect_importer_deps,
     external_placeholder,

@@ -16,6 +16,7 @@ use super::{
     empty_lockfile,
     hoist,
     lockfile_version,
+    percent_encode_path,
     pkg_metadata_with_peer,
     pkg_name,
     resolved_dep,
@@ -648,7 +649,50 @@ fn nested_hoist_uses_the_nested_root_locator() {
     assert_eq!(
         names(&child_of(&workspace, "b")),
         ["c"],
-        "the workspace's b border keeps c below b"
+        "the workspace's b border keeps c below b",
+    );
+}
+
+/// An importer id can read like a snapshot key with a peer suffix. Its
+/// locator is the id as written, so the limit keyed by it still applies.
+#[test]
+fn an_importer_id_shaped_like_a_snapshot_key_keeps_its_hoisting_limit() {
+    let importer_id = "packages/foo@1(x)";
+    let encoded_id = percent_encode_path(importer_id);
+    let mut importers = HashMap::new();
+    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
+    let mut workspace_deps = ResolvedDependencyMap::new();
+    workspace_deps.insert(pkg_name("b"), resolved_dep("1.0.0"));
+    importers.insert(
+        importer_id.to_string(),
+        ProjectSnapshot { dependencies: Some(workspace_deps), ..ProjectSnapshot::default() },
+    );
+
+    let mut snapshots = HashMap::new();
+    let deps = HashMap::from([(pkg_name("c"), SnapshotDepRef::Plain(ver_peer("1.0.0")))]);
+    snapshots.insert(
+        dep_key("b", "1.0.0"),
+        SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("c", "1.0.0"), SnapshotEntry::default());
+
+    let mut opts = HoistOpts::default();
+    opts.hoisting_limits.insert(".@".to_string(), BTreeSet::from([encoded_id.clone()]));
+    opts.hoisting_limits.insert(
+        format!("{encoded_id}@workspace:{importer_id}"),
+        BTreeSet::from(["b".to_string()]),
+    );
+
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+    let result = hoist(&lockfile, &opts).expect("hoist with importer limits should succeed");
+
+    let border = child_of(&child_of(&result, &encoded_id), "b");
+    assert!(
+        border.dependencies
+            .borrow()
+            .iter()
+            .any(|dep| dep.0.name == "c"),
+        "the workspace's b border keeps c below b: {result:#?}",
     );
 }
 

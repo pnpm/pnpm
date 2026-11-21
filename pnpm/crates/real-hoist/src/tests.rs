@@ -7,8 +7,8 @@ use super::{
     HoisterResult,
     HoisterTree,
     RcByPtr,
+    engine,
     hoist,
-    nm_hoist,
     percent_encode_path,
 };
 use indexmap::IndexSet;
@@ -105,6 +105,14 @@ fn pkg_metadata_with_peer(peer_name: &str) -> pnpm_lockfile::PackageMetadata {
         peer_dependencies: Some(peer_deps),
         peer_dependencies_meta: None,
     }
+}
+
+/// Run the hoist on a prepared input tree under the resolution oracle,
+/// for tests that build the tree by hand.
+fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
+    let result = engine::hoist(tree, opts);
+    resolution::assert_resolves_as_declared(tree, &result);
+    result
 }
 
 /// Construct a [`HoisterTree`] node directly, for feeding [`nm_hoist`] an

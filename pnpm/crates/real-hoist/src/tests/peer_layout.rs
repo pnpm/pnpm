@@ -95,8 +95,8 @@ snapshots:
 ",
     );
     assert_eq!(names(&result), ["f", "p"], "c must not reach the root's f@1: {result:#?}");
-    let c = serving(&result, "c@1.0.0(f@2.0.0)");
-    assert!(names(&c).is_empty(), "c finds p's f@2 above it: {c:#?}");
+    let dependent = serving(&result, "c@1.0.0(f@2.0.0)");
+    assert!(names(&dependent).is_empty(), "c finds p's f@2 above it: {dependent:#?}");
 }
 
 /// `b@1` provides `f@2` to `e`'s peer, then a nested pass hoists that
@@ -174,9 +174,12 @@ snapshots:
 ",
     );
     assert_eq!(references(&child_of(&result, "helper")), ["helper@1.0.0(core@2.0.0)"]);
-    let x = child_of(&result, "x");
-    assert_eq!(names(&x), ["core", "helper"], "the helper sits next to core@1: {x:#?}");
-    assert!(names(&child_of(&x, "helper")).is_empty(), "and finds it without a copy of its own");
+    let holder = child_of(&result, "x");
+    assert_eq!(names(&holder), ["core", "helper"], "the helper sits next to core@1: {holder:#?}");
+    assert!(
+        names(&child_of(&holder, "helper")).is_empty(),
+        "and finds it without a copy of its own",
+    );
 }
 
 /// The project installs `webpack@5` as `webpack-5`, and pnpm binds

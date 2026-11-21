@@ -67,11 +67,11 @@ impl PackageLocations {
 
     /// Record `dir` under a further snapshot key it serves: a peer
     /// variant the hoister deduplicated into this copy.
-    fn record_served(&mut self, pkg_key: &PackageKey, dir: &Path) {
+    fn record_served(&mut self, pkg_key: PackageKey, dir: PathBuf) {
         self.by_package_key
-            .entry(pkg_key.clone())
+            .entry(pkg_key)
             .or_default()
-            .push(dir.to_path_buf());
+            .push(dir);
     }
 
     fn record(&mut self, pkg_key: &PackageKey, dir: &Path) {
@@ -562,7 +562,7 @@ fn record_served_variants(state: &mut WalkState<'_>, node: &HoisterResult, dir: 
     let references = node.references.borrow();
     for reference in references.iter().skip(1) {
         if let Ok(pkg_key) = reference.parse::<PackageKey>() {
-            state.package_locations.record_served(&pkg_key, dir);
+            state.package_locations.record_served(pkg_key, dir.to_path_buf());
         }
     }
 }

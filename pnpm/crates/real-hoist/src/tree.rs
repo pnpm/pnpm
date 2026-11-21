@@ -1,3 +1,5 @@
+pub(crate) mod peers;
+
 use super::{
     HashMap,
     HoistError,
@@ -16,9 +18,14 @@ use super::{
     SnapshotEntry,
     VersionPart,
 };
-use std::fmt::Write as _;
+use std::{
+    collections::BTreeSet,
+    fmt::Write as _,
+};
 
-pub(crate) mod peers;
+/// The peers of each snapshot that the hoister handles as regular
+/// dependencies. See [`crate::repair`].
+pub(crate) type RegularPeers = HashMap<PkgNameVerPeer, BTreeSet<String>>;
 
 pub(super) fn external_placeholder(dep: &str) -> Rc<HoisterTree> {
     Rc::new(HoisterTree {
@@ -52,9 +59,6 @@ fn package_root_link_node(
     })
 }
 
-/// `HashMap` iteration order is non-deterministic; sort so the
-/// output tree is stable across runs (matters for snapshot
-/// tests).
 /// Empty every node's children. Dependency cycles in the lockfile make
 /// the tree a web of reference cycles that would otherwise never be freed.
 pub(super) fn tear_down(root: &Rc<HoisterTree>) {
@@ -65,6 +69,9 @@ pub(super) fn tear_down(root: &Rc<HoisterTree>) {
     }
 }
 
+/// `HashMap` iteration order is non-deterministic; sort so the
+/// output tree is stable across runs (matters for snapshot
+/// tests).
 pub(super) fn sorted_non_root_importers(lockfile: &Lockfile) -> Vec<(&String, &ProjectSnapshot)> {
     let mut non_root: Vec<(&String, &ProjectSnapshot)> = lockfile.importers
         .iter()
@@ -97,8 +104,7 @@ pub(super) fn importer_node(
 #[derive(Default)]
 pub(super) struct TreeCache {
     pub(super) nodes: HashMap<String, Rc<HoisterTree>>,
-    /// See [`crate::repair`].
-    pub(super) regular_peers: crate::repair::RegularPeers,
+    pub(super) regular_peers: RegularPeers,
 }
 
 /// Dependency groups merged as pnpm v11 spreads them into one object:
@@ -125,12 +131,6 @@ pub(super) fn collect_importer_deps(
     cache: &mut TreeCache,
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
-    // Merge `dependencies + devDependencies + optionalDependencies`
-    // into one alias-keyed object; on a duplicate alias the last
-    // write wins. `ResolvedDependencyMap` is a HashMap so declaration
-    // order is lost; merge into a `HashMap` (last write wins) and emit
-    // in alias-sorted order so the build is deterministic regardless
-    // of map seed.
     let groups = [
         (&importer.dependencies, false),
         (&importer.dev_dependencies, false),
@@ -301,16 +301,12 @@ fn collect_snapshot_deps(
 /// onto: the snapshot key with its peer suffix (and the patch hash
 /// that sits alongside it) removed.
 ///
-/// The hoister maps the id to the first snapshot key it sees for it
-/// and stamps that key on every variant, so only that first key
-/// survives as their shared `reference`. Anything indexing the hoist
-/// result by package therefore has to key *and* look up by this id
-/// rather than by the snapshot key an edge declares; otherwise every
-/// edge on a collapsed variant finds nothing and drops out of the
-/// layout.
+/// The hoister deduplicates nodes by this id, and a directory lists
+/// the snapshot key of every variant it serves in
+/// [`HoisterResult::references`](crate::HoisterResult::references).
 ///
-/// One id can still cover several directories: [`HoisterTree`] nodes
-/// are interned per `(alias, snapshot key)`, so an alias exposing a
+/// One id can cover several directories: [`HoisterTree`] nodes are
+/// interned per `(alias, snapshot key)`, so an alias exposing a
 /// package under a second name gets a node, and a directory, of its
 /// own. An index over the result holds the list and resolves an edge
 /// to its first entry.

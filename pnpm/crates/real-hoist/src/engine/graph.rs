@@ -4,6 +4,7 @@
 use super::{
     Arena,
     EngineOptions,
+    NodeInput,
     WorkNode,
     ident_reference,
 };
@@ -29,8 +30,15 @@ use std::{
     rc::Rc,
 };
 
+/// A workspace or link reference is a path, which can read like a
+/// snapshot key with a peer suffix, so only a regular node's reference is
+/// collapsed.
 pub(crate) fn tree_ident(tree: &HoisterTree) -> String {
-    let identity = tree.identity.clone().unwrap_or_else(|| ident_reference(&tree.reference));
+    let identity = match (&tree.identity, tree.dependency_kind) {
+        (Some(identity), _) => identity.clone(),
+        (None, HoisterDependencyKind::Regular) => ident_reference(&tree.reference),
+        (None, _) => tree.reference.clone(),
+    };
     format!("{}@{identity}", tree.ident_name)
 }
 
@@ -100,19 +108,22 @@ fn work_node(
     (by_ident, arena): (&PeerNamesByIdent, &Arena),
 ) -> Rc<WorkNode> {
     let reference = tree.reference.clone();
-    let node = Rc::new(WorkNode {
+    let input = NodeInput {
         name: tree.name.clone(),
         ident_name: tree.ident_name.clone(),
         ident: tree_ident(tree).into(),
+        peer_names: peer_names_of(tree, by_ident),
+        hoist_priority: tree.hoist_priority,
+        dependency_kind: tree.dependency_kind,
+    };
+    let node = Rc::new(WorkNode {
+        input: Rc::new(input),
         references: RefCell::new(IndexSet::from([reference])),
         dependencies: RefCell::default(),
         original_dependencies: RefCell::default(),
         hoisted_dependencies: RefCell::default(),
-        peer_names: Rc::new(peer_names_of(tree, by_ident)),
         decoupled: Cell::new(true),
         is_hoist_border: Cell::new(is_hoist_border),
-        hoist_priority: tree.hoist_priority,
-        dependency_kind: tree.dependency_kind,
     });
     arena.track(&node);
     node
@@ -171,16 +182,17 @@ fn add_node(
     let is_seen = existing.is_some();
     let node = existing.unwrap_or_else(|| work_node(tree, false, (by_ident, &options.nodes)));
     seen.entry(key).or_insert_with(|| Rc::clone(&node));
-    let parent_limits = options.hoisting_limits.get(parent.ident.as_ref());
-    if parent_limits.is_some_and(|names| names.contains(&node.name)) {
+    let name = &node.input.name;
+    let parent_limits = options.hoisting_limits.get(parent.input.ident.as_ref());
+    if parent_limits.is_some_and(|names| names.contains(name)) {
         node.is_hoist_border.set(true);
     }
     parent.dependencies
         .borrow_mut()
-        .insert(node.name.clone(), Rc::clone(&node));
+        .insert(name.clone(), Rc::clone(&node));
     parent.original_dependencies
         .borrow_mut()
-        .insert(node.name.clone(), Rc::clone(&node));
+        .insert(name.clone(), Rc::clone(&node));
     if is_seen {
         mark_coupled(&node);
         return None;
@@ -207,7 +219,7 @@ pub(super) fn regular_dependencies(node: &WorkNode) -> Vec<Rc<WorkNode>> {
     node.dependencies
         .borrow()
         .values()
-        .filter(|dep| !node.peer_names.contains(&dep.name))
+        .filter(|dep| !node.input.peer_names.contains(&dep.input.name))
         .map(Rc::clone)
         .collect()
 }
@@ -220,29 +232,25 @@ pub(super) fn decouple(parent: &WorkNode, node: &Rc<WorkNode>, arena: &Arena) ->
     }
     let copy = |cell: &RefCell<IndexMap<String, Rc<WorkNode>>>| RefCell::new(cell.borrow().clone());
     let clone = Rc::new(WorkNode {
-        name: node.name.clone(),
-        ident_name: node.ident_name.clone(),
+        input: Rc::clone(&node.input),
         references: RefCell::new(node.references.borrow().clone()),
-        ident: Rc::clone(&node.ident),
         dependencies: copy(&node.dependencies),
         original_dependencies: copy(&node.original_dependencies),
         hoisted_dependencies: copy(&node.hoisted_dependencies),
-        peer_names: Rc::clone(&node.peer_names),
         decoupled: Cell::new(true),
         is_hoist_border: Cell::new(node.is_hoist_border.get()),
-        hoist_priority: node.hoist_priority,
-        dependency_kind: node.dependency_kind,
     });
     arena.track(&clone);
-    let self_dependency = clone.dependency(&clone.name);
-    if self_dependency.is_some_and(|dep| dep.ident == clone.ident) {
+    let name = &clone.input.name;
+    let self_dependency = clone.dependency(name);
+    if self_dependency.is_some_and(|dep| dep.input.ident == clone.input.ident) {
         clone.dependencies
             .borrow_mut()
-            .insert(clone.name.clone(), Rc::clone(&clone));
+            .insert(name.clone(), Rc::clone(&clone));
     }
     parent.dependencies
         .borrow_mut()
-        .insert(clone.name.clone(), Rc::clone(&clone));
+        .insert(name.clone(), Rc::clone(&clone));
     clone
 }
 
@@ -283,11 +291,6 @@ pub(super) fn shrink_tree(root: &Rc<WorkNode>) -> HoisterResult {
             stack.push(shrink_frame(&child, &result));
         }
     }
-    let top = stack_root(top);
-    top
-}
-
-fn stack_root(top: Rc<HoisterResult>) -> HoisterResult {
     Rc::try_unwrap(top).unwrap_or_else(|shared| (*shared).clone())
 }
 
@@ -302,10 +305,9 @@ fn shrink_frame(node: &Rc<WorkNode>, result: &Rc<HoisterResult>) -> ShrinkFrame 
 
 fn result_node(node: &WorkNode) -> Rc<HoisterResult> {
     Rc::new(HoisterResult {
-        name: node.name.clone(),
-        ident_name: node.ident_name.clone(),
+        name: node.input.name.clone(),
+        ident_name: node.input.ident_name.clone(),
         references: RefCell::new(node.references.borrow().clone()),
-        peer_names: (*node.peer_names).clone(),
         dependencies: RefCell::default(),
     })
 }
@@ -322,5 +324,5 @@ pub(super) fn tear_down(arena: &Arena) {
 
 /// Whether a node is a workspace project, which never hoists.
 pub(super) fn is_workspace(node: &WorkNode) -> bool {
-    node.dependency_kind == HoisterDependencyKind::Workspace
+    node.input.dependency_kind == HoisterDependencyKind::Workspace
 }

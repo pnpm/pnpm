@@ -10,7 +10,7 @@
 //!   the same visit order, so a deep dependency chain cannot overflow the
 //!   thread stack. The per-path recursion of `hoistTo` and
 //!   `hoistNodeDependencies` stays recursive, as upstream's does.
-//! * A node is identified by [`WorkNode::ident`], the package with its
+//! * A node is identified by [`NodeInput::ident`], the package with its
 //!   peer suffix collapsed (see [`ident_reference`]), and its own snapshot
 //!   key travels in [`WorkNode::references`]. Upstream gets the same
 //!   split from Yarn's virtual references, whose ident strips the
@@ -46,26 +46,32 @@ use std::{
 /// order, as upstream's `Map<PackageName, HoisterWorkTree>`.
 type Children = RefCell<IndexMap<String, Rc<WorkNode>>>;
 
-/// Upstream's `HoisterWorkTree`, without the fields that only feed its
-/// debug output (`reasons`, `hoistedFrom`, `hoistedTo`).
-pub(crate) struct WorkNode {
+/// What a work node takes from the input tree. No pass changes it, so a
+/// decoupled copy shares it.
+pub(crate) struct NodeInput {
     name: String,
     ident_name: String,
-    /// Every snapshot key served by this directory. The first is the
-    /// node's own; dedups append the keys of the copies they absorb.
-    references: RefCell<IndexSet<String>>,
     /// `ident_name@<collapsed reference>`. Upstream's `ident`, and also
     /// its `locator`, which pnpm v11's wrapper makes equal by collapsing
     /// the reference itself.
     ident: Rc<str>,
+    peer_names: IndexSet<String>,
+    hoist_priority: u32,
+    dependency_kind: HoisterDependencyKind,
+}
+
+/// Upstream's `HoisterWorkTree`, without the fields that only feed its
+/// debug output (`reasons`, `hoistedFrom`, `hoistedTo`).
+pub(crate) struct WorkNode {
+    input: Rc<NodeInput>,
+    /// Every snapshot key served by this directory. The first is the
+    /// node's own; dedups append the keys of the copies they absorb.
+    references: RefCell<IndexSet<String>>,
     dependencies: Children,
     original_dependencies: Children,
     hoisted_dependencies: Children,
-    peer_names: Rc<IndexSet<String>>,
     decoupled: Cell<bool>,
     is_hoist_border: Cell<bool>,
-    hoist_priority: u32,
-    dependency_kind: HoisterDependencyKind,
 }
 
 impl WorkNode {
@@ -88,20 +94,21 @@ impl WorkNode {
 
     /// Upstream's `getAliasedLocator`.
     fn aliased_locator(&self) -> String {
-        format!("{}@{}", self.name, self.ident)
+        format!("{}@{}", self.input.name, self.input.ident)
     }
 }
 
-/// The reference a node is identified by. A snapshot key loses its peer
-/// suffix, so the peer variants of one package version share an ident
-/// and can dedup into one directory, as pnpm v11's `depPathByPkgId`
+/// The reference a regular node is identified by. A snapshot key loses
+/// its peer suffix, so the peer variants of one package version share an
+/// ident and can dedup into one directory, as pnpm v11's `depPathByPkgId`
 /// collapse allows. An injected directory keeps its suffix (see
-/// [`crate::pkg_id`]). References that are not snapshot keys (the root,
-/// `workspace:` and `link:`) stay as they are.
+/// [`crate::pkg_id`]). A reference that is not a snapshot key stays as it
+/// is.
 pub(crate) fn ident_reference(reference: &str) -> String {
     reference
         .parse::<pnpm_lockfile::PkgNameVerPeer>()
-        .map_or_else(|_| reference.to_string(), |key| crate::pkg_id(&key))
+        .map(|key| crate::pkg_id(&key))
+        .unwrap_or_else(|_| reference.to_string())
 }
 
 /// Per-run options. Upstream's `options` object minus the debug fields.
