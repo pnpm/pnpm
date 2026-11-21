@@ -1,8 +1,11 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{
-    AddMockedRegistry,
-    CommandTempCwd,
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    command_env::CommandTestExt,
 };
 use std::fs;
 
@@ -851,13 +854,8 @@ fn link_hard_does_not_warn_about_peer_dependencies() {
 /// writes anything.
 #[test]
 fn link_hard_rejects_directory_with_tarball_name() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest = serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string();
@@ -873,16 +871,23 @@ fn link_hard_rejects_directory_with_tarball_name() {
     )
     .expect("write target package.json");
 
-    let output = pacquet
-        .with_args(["link", "--hard", "../archive-like.tgz"])
-        .output()
-        .expect("spawn pacquet link");
-    assert!(!output.status.success(), "link --hard must fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_LINK_HARD_TARBALL_NAME"),
-        "stderr should name the error: {stderr}",
-    );
+    // A trailing separator must not get past the check: the saved spec
+    // drops it.
+    for target in ["../archive-like.tgz", "../archive-like.tgz/"] {
+        let output = std::process::Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_args(["link", "--hard", target])
+            .output()
+            .expect("spawn pacquet link");
+        assert!(!output.status.success(), "link --hard {target} must fail");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("ERR_PNPM_LINK_HARD_TARBALL_NAME"),
+            "stderr should name the error for {target}: {stderr}",
+        );
+    }
 
     assert_eq!(
         fs::read_to_string(workspace.join("package.json")).expect("read package.json"),

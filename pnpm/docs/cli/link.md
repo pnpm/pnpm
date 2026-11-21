@@ -40,6 +40,8 @@ pnpm link --hard ../foo
 
 Edits to existing files of the linked package show up in your project while the files stay hard linked. Run `pnpm install` to pick up new or deleted files. Also run it after edits if pnpm had to copy the files, for example because the package is on another drive.
 
+`--hard` refuses a directory whose name ends in `.tgz`, `.tar.gz`, or `.tar`, because a `file:` specifier with that ending names a tarball.
+
 If the linked directory is a project of the same workspace, pnpm may still symlink it when [`dedupeInjectedDeps`](../workspaces.md#dedupeinjecteddeps) is enabled.
 
 ## Use cases

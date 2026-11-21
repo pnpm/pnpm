@@ -764,8 +764,8 @@ fn unlink_keeps_file_dependency_replaced_by_a_link_override() {
 /// The override and the dependency name the same directory in different
 /// forms, one through `~/`. `unlink` resolves both the way the installer does
 /// and drops the dependency.
-#[cfg(unix)]
 #[test]
+#[cfg_attr(not(unix), ignore = "sets HOME, which the home directory lookup reads only on Unix")]
 fn unlink_matches_equivalent_file_specifiers() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

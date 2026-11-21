@@ -174,20 +174,24 @@ impl LinkArgs {
         let mut new_overrides = IndexMap::<String, String>::new();
         for path_str in &self.package_paths {
             let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
-            if self.hard && is_tarball_filename(&target_dir.to_string_lossy()) {
+            let dependency_spec = link_spec(protocol, manifest_dir, &target_dir);
+            let override_spec = link_spec(protocol, root_dir, &target_dir);
+            // Check the specs as written, since rendering drops a trailing
+            // separator: `../foo.tgz/` becomes `file:../foo.tgz`.
+            if self.hard
+                && [&dependency_spec, &override_spec]
+                    .into_iter()
+                    .any(|spec| is_tarball_filename(spec))
+            {
                 return Err(LinkError::HardTarballName { dir: path_str.clone() }.into());
             }
 
             if !already_declared(manifest, &package_name) {
                 manifest
-                    .add_dependency(
-                        &package_name,
-                        &link_spec(protocol, manifest_dir, &target_dir),
-                        DependencyGroup::Prod,
-                    )
+                    .add_dependency(&package_name, &dependency_spec, DependencyGroup::Prod)
                     .wrap_err("adding linked dependency to package.json")?;
             }
-            new_overrides.insert(package_name.clone(), link_spec(protocol, root_dir, &target_dir));
+            new_overrides.insert(package_name.clone(), override_spec);
             // A hard-linked package resolves its peers from this project.
             if !self.hard {
                 check_peer_deps::<Reporter>(&package_name, &target_manifest, manifest_dir);
