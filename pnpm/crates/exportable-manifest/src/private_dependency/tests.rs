@@ -198,3 +198,17 @@ fn rejects_a_private_workspace_package_without_a_version() {
     )]);
     assert_rejected(export(&temp, &app("dependencies", "workspace:^1.0.0"), Some(&packages)));
 }
+
+/// A hook that only changes the range still depends on the private package.
+#[test]
+fn rejects_a_private_workspace_package_a_hook_gives_a_new_range() {
+    let temp = fixture(true);
+    for spec in ["^1.0.0", "npm:secret@^1.0.0"] {
+        assert_rejected(export_with(
+            &temp,
+            &app("dependencies", "workspace:*"),
+            None,
+            |published| published["dependencies"]["secret"] = json!(spec),
+        ));
+    }
+}

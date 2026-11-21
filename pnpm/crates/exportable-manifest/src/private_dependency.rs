@@ -66,9 +66,10 @@ pub fn private_workspace_dependencies(
 }
 
 /// Fail when the publishable manifest `published` still lists one of the
-/// `private_dependencies` in `dependencies` with the specifier it had in
-/// `exported`, the manifest before the `beforePacking` hooks ran. A hook may
-/// drop such a dependency or point it at another package. A private manifest
+/// `private_dependencies` in `dependencies` for the registry package it named
+/// in `exported`, the manifest before the `beforePacking` hooks ran. A hook may
+/// drop such a dependency or point it at another package, but a new range for
+/// the same package is still rejected. A private manifest
 /// is never published, so it is not rejected. The caller leaves out the
 /// dependencies the tarball bundles.
 pub fn reject_private_workspace_dependencies(
@@ -89,8 +90,13 @@ pub fn reject_private_workspace_dependencies(
     let rejected = private_dependencies
         .iter()
         .find(|dep_name| {
-            let spec = dependencies.get(dep_name.as_str());
-            spec.is_some() && spec == exported.and_then(|exported| exported.get(dep_name.as_str()))
+            let package = registry_package(dep_name, dependencies.get(dep_name.as_str()));
+            package.is_some()
+                && package
+                    == registry_package(
+                        dep_name,
+                        exported.and_then(|exported| exported.get(dep_name.as_str())),
+                    )
         });
     let Some(dep_name) = rejected else {
         return Ok(());
@@ -120,6 +126,21 @@ fn is_private_workspace_package(
     let target = workspace_target_manifest(dep_name, spec, dir, opts.modules_dir, lookup)
         .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;
     Ok(target.is_some_and(|manifest| manifest.private))
+}
+
+/// The registry package a published specifier installs: the `npm:` alias
+/// target, or `dep_name` for a plain range or tag. `None` for a specifier
+/// that does not install from the registry, such as a path, URL, or git
+/// specifier.
+fn registry_package<'a>(dep_name: &'a str, spec: Option<&'a Value>) -> Option<&'a str> {
+    let spec = spec?.as_str()?;
+    if let Some(aliased) = spec.strip_prefix("npm:") {
+        return Some(match aliased.rfind('@') {
+            Some(index) if index > 0 => &aliased[..index],
+            _ => aliased,
+        });
+    }
+    (!spec.contains(':') && !spec.contains('/')).then_some(dep_name)
 }
 
 fn is_private(manifest: &Map<String, Value>) -> bool {
