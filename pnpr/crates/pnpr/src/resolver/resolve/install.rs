@@ -66,6 +66,7 @@ impl<'a> ResolutionInstall<'a> {
             pnpm_lockfile::MaybeLazyLockfile::Loaded(request.lockfile.as_ref()),
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         );
+        install.lockfile_policy.excludes = pnpm_package_manager::PolicyExcludes::Persist;
         install.lockfile_policy.frozen = request.frozen_lockfile;
         install.lockfile_policy.prefer_frozen = prefer_frozen_lockfile(request);
         install.lockfile_policy.ignore_manifest_check = request.ignore_manifest_check;

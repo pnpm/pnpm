@@ -73,6 +73,8 @@ pub use global_packages::GLOBAL_PACKAGES_UNSUPPORTED_KEYS;
 pub use loading::ConfigLoadFailure;
 pub use macos_backup::MacosBackupConfig;
 pub use node_linker::{
+    HoistSetting,
+    NodeLinkerHoistPatterns,
     NodeLinkerOptions,
     NodeLinkerSetting,
 };
@@ -392,6 +394,9 @@ fn collect_explicit_settings(
     }
     if let Some(section) = settings.node_package_map {
         mirror_node_package_map(target, section);
+    }
+    if let Some(node_linker) = &settings.node_linker {
+        node_linker.mirror_flat_aliases(target);
     }
     // `audit.level` supersedes the deprecated `auditLevel` spelling; mirror it
     // there so `config get audit-level` answers the way pnpm does.

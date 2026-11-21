@@ -68,6 +68,7 @@ use setup::{
 };
 
 mod materialization;
+mod override_warnings;
 use materialization::finish_resolved_install;
 
 mod errors;
@@ -748,32 +749,6 @@ fn report_peer_issues(
             "Peer dependency issues detected (issue renderer not ported yet)",
         );
     }
-}
-
-/// No-op unless the run both parsed overrides and built an overrider for
-/// them; only then are the collected declared ranges complete enough for a
-/// staleness verdict.
-async fn warn_stale_convergence_overrides_if_any<Reporter: pnpm_reporter::Reporter>(
-    npm_resolver: &dyn pnpm_resolving_resolver_base::Resolver,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-    versions_overrider: Option<&crate::VersionsOverrider>,
-    lockfile_dir: &Path,
-    published_by: (
-        Option<jiff::Timestamp>,
-        Option<&pnpm_config::version_policy::PackageVersionPolicy>,
-    ),
-) {
-    let (Some(parsed), Some(overrider)) = (parsed_overrides, versions_overrider) else { return };
-    let (published_by, published_by_exclude) = published_by;
-    resolve::warn_stale_convergence_overrides::<Reporter>(
-        npm_resolver,
-        parsed,
-        overrider,
-        lockfile_dir,
-        published_by,
-        published_by_exclude,
-    )
-    .await;
 }
 
 #[cfg(test)]

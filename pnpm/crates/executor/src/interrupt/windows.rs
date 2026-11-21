@@ -26,7 +26,7 @@ use std::{
     },
 };
 
-pub(super) fn install_handler() {
+pub(crate) fn install_handler() {
     pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {

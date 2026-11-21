@@ -169,7 +169,7 @@ describe('pack-app command', () => {
       pnpm: { app: { entry: 'from-config.cjs' } },
     }))
     fs.writeFileSync(path.join(tempDir, 'from-config.cjs'), 'module.exports = {}')
-    // With entry from config but no target, we hit MISSING_TARGET — that's
+    // With entry from config but no target, we hit MISSING_TARGET. That's
     // enough to verify the entry was picked up from pnpm.app.entry.
     await expect(
       handler(baseOpts() as unknown as Parameters<typeof handler>[0], [])
@@ -183,7 +183,7 @@ describe('pack-app command', () => {
     }))
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     // A bad-target in the config should reach parseTarget and surface
-    // INVALID_TARGET — proves the config list was consulted.
+    // INVALID_TARGET, which proves the config list was consulted.
     await expect(
       handler({ ...baseOpts(), entry: 'entry.cjs' } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_TARGET' })
@@ -193,7 +193,7 @@ describe('pack-app command', () => {
     // Config says targets = [bad-target]. If the CLI list were merged in, the
     // bad config entry would still hit parseTarget and throw INVALID_TARGET.
     // With an unresolvable node version, validation passes but the later
-    // version lookup fails — we only assert that INVALID_TARGET never fires.
+    // version lookup fails. We only assert that INVALID_TARGET never fires.
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
       name: 'test-app',
       pnpm: { app: { entry: 'entry.cjs', targets: ['bad-target'] } },

@@ -269,6 +269,10 @@ pub(super) const CONFIG_KEY: &[KeyPart] = &[
         value: |request, _| serde_json::json!(request.minimum_release_age_ignore_missing_time),
     },
     KeyPart {
+        fields: &["minimumReleaseAgeStrict"],
+        value: |request, _| serde_json::json!(request.minimum_release_age_strict),
+    },
+    KeyPart {
         fields: &["trustPolicy"],
         value: |request, _| serde_json::json!(request.trust_policy),
     },
@@ -331,6 +335,9 @@ pub(super) fn apply_request_policy(config: &mut PacquetConfig, request: &Resolve
     config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
     if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
         config.minimum_release_age_ignore_missing_time = ignore_missing_time;
+    }
+    if let Some(strict) = request.minimum_release_age_strict {
+        config.minimum_release_age_strict = Some(strict);
     }
     config.trust_policy = request.trust_policy;
     config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);

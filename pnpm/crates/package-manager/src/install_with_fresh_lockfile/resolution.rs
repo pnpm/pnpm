@@ -362,6 +362,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             result: workspace_result,
             full_resolution: full_resolution_required(
                 has_reusable_seed,
+                self.owned.resolution.update_seed_policy.max_depth(),
                 importer_manifests.keys().map(String::as_str),
                 &self.prep.reuse.scope,
                 &self.prep.reuse.by_importer,

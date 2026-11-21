@@ -54,6 +54,7 @@ use crate::{
     StatsLog,
     StatsMessage,
     SummaryLog,
+    UnusedOverrideLog,
 };
 
 mod behavior;

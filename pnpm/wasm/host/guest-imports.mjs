@@ -32,6 +32,12 @@ export function createGuestImports (memory, postMessage, checkCancelled) {
       if (result >= 0) target.set(new Uint8Array(buffer, 12, Atomics.load(header, 2)))
       return result
     },
+    response_binary_read (id, pointer, length) {
+      const target = view(pointer, length)
+      const result = call('read-binary', [id, target.length])
+      if (result >= 0) target.set(new Uint8Array(buffer, 12, Atomics.load(header, 2)))
+      return result
+    },
     operation_cancel (id) {
       call('cancel', [id])
     },

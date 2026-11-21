@@ -739,7 +739,7 @@ test("ignore the preferred version if it's not inside the wanted range", async (
 test('ignore the lockfile-derived preferred version when updateRequested is true (the target re-resolves as if its lockfile entries were deleted)', async () => {
   // When the user runs `pnpm up <pkg>`, the target's own lockfile pins
   // (seeded at EXISTING_VERSION_SELECTOR_WEIGHT) must not hold it at the
-  // old version — ignoring them is what makes it an update. Every selector
+  // old version. Ignoring them is what makes it an update. Every selector
   // a fresh install would apply stays in effect (see the tests below).
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -810,7 +810,7 @@ test('a manifest pin that is also locked keeps only its manifest weight when upd
   // getPreferredVersionsFromLockfileAndManifests adds the lockfile weight
   // onto a manifest entry that pins the same version (1000 + 1_000_000).
   // The strip must subtract the lockfile contribution rather than drop the
-  // selector — a fresh install would still honor the manifest pin.
+  // selector, since a fresh install would still honor the manifest pin.
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, {
@@ -869,7 +869,7 @@ test('preserve vulnerability-avoidance range selectors even when updateRequested
   // updateMatching (so updateRequested becomes true for them) and steers
   // resolution away from vulnerable versions with negative-weight `range`
   // selectors in preferredVersions. Only the lockfile-derived pins may be
-  // dropped for the targeted package — the range penalties must survive, or
+  // dropped for the targeted package. The range penalties must survive, or
   // the "fix" would re-pick the vulnerable highest-in-range version.
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -886,10 +886,10 @@ test('preserve vulnerability-avoidance range selectors even when updateRequested
   }, {
     preferredVersions: {
       'is-positive': {
-        // The target's own lockfile pin — dropped so it can't hold the
+        // The target's own lockfile pin, dropped so it can't hold the
         // target at its old version.
         '3.0.0': { selectorType: 'version', weight: 1_000_000 },
-        // A vulnerability penalty on 3.1.0 — must survive so the targeted
+        // A vulnerability penalty on 3.1.0. It must survive so the targeted
         // update lands on 3.0.0 instead of the vulnerable latest.
         '>=3.1.0': { selectorType: 'range', weight: -1000 },
       },

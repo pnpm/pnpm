@@ -121,8 +121,8 @@ export async function extendBuildOptions (
   // by default), not the per-project `node_modules/.pnpm`. Without this,
   // getContext() in the build step defaults virtualStoreDir to the local
   // `.pnpm` and writeModulesManifest overwrites the correct value the install
-  // step recorded — which makes the next install in that project detect a
-  // virtual-store mismatch and prompt to purge node_modules.
+  // step recorded. The next install in that project then detects a
+  // virtual-store mismatch and prompts to purge node_modules.
   if (extendedOpts.enableGlobalVirtualStore) {
     extendedOpts.globalVirtualStoreDir ??= extendedOpts.virtualStoreDir ?? path.join(extendedOpts.storeDir, 'links')
     extendedOpts.virtualStoreDir ??= extendedOpts.globalVirtualStoreDir

@@ -99,7 +99,7 @@ export interface VerifyLockfileResolutionsOptions {
  *
  * Designed for fail-closed semantics at the verifier level: a verifier
  * that can't confirm a resolution is expected to return `{ ok: false }`
- * rather than passing silently — otherwise a registry hiccup or an
+ * rather than passing silently. Otherwise a registry hiccup or an
  * unpublished version would re-open the bypass.
  *
  * Offline dependency-alias checks run before the verification cache lookup,
@@ -267,7 +267,7 @@ function isVerifiedByCache (
     return false
   }
   // A silent short-circuit looks like the policy gate never ran
-  // (pnpm/pnpm#12324), so surface the reused verdict — but only
+  // (pnpm/pnpm#12324), so surface the reused verdict, but only
   // when policy verifiers are active; the shape-only run that
   // every install performs stays quiet.
   if (hasPolicyVerifiers) {

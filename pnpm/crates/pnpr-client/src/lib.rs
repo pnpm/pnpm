@@ -252,6 +252,7 @@ pub struct VerificationPolicy {
     pub minimum_release_age: Option<u64>,
     pub minimum_release_age_exclude: Option<Vec<String>>,
     pub minimum_release_age_ignore_missing_time: bool,
+    pub minimum_release_age_strict: bool,
     pub trust_policy: TrustPolicy,
     pub trust_policy_exclude: Option<Vec<String>>,
     pub trust_policy_ignore_after: Option<u64>,
@@ -378,6 +379,7 @@ pub struct ResolveOutcome {
     pub lockfile: Lockfile,
     pub stats: Stats,
     pub applied_policies: Option<AppliedPolicies>,
+    pub allowed_picks: Vec<String>,
 }
 
 /// Resolution statistics from the response. Field names mirror the

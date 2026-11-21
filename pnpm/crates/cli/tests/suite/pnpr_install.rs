@@ -615,13 +615,17 @@ fn seed_filtered_repair_workspace(workspace: &Path, registry_url: &str) {
         .success();
 }
 
-fn selected_only_pnpr_lockfile(mut lockfile: Lockfile) -> Lockfile {
+fn selected_only_pnpr_lockfile(lockfile: Lockfile) -> Lockfile {
+    selected_only_pnpr_lockfile_for(lockfile, WORKSPACE_HELLO)
+}
+
+fn selected_only_pnpr_lockfile_for(mut lockfile: Lockfile, package_name: &str) -> Lockfile {
     lockfile.importers.retain(|id, _| id == "packages/selected");
     if let Some(packages) = lockfile.packages.as_mut() {
-        packages.retain(|key, _| key.to_string().contains(WORKSPACE_HELLO));
+        packages.retain(|key, _| key.to_string().contains(package_name));
     }
     if let Some(snapshots) = lockfile.snapshots.as_mut() {
-        snapshots.retain(|key, _| key.to_string().contains(WORKSPACE_HELLO));
+        snapshots.retain(|key, _| key.to_string().contains(package_name));
     }
     lockfile
 }
@@ -629,6 +633,7 @@ fn selected_only_pnpr_lockfile(mut lockfile: Lockfile) -> Lockfile {
 fn mock_filtered_repair_response(
     server: &mut mockito::Server,
     lockfile: &Lockfile,
+    allowed_picks: &[String],
 ) -> (mockito::Mock, mockito::Mock) {
     let handshake = server
         .mock("GET", "/-/pnpr")
@@ -641,12 +646,24 @@ fn mock_filtered_repair_response(
         "type": "done",
         "lockfile": lockfile,
         "stats": { "totalPackages": 0 },
+        "allowedPicks": allowed_picks,
     });
+    let expects_release_age = !allowed_picks.is_empty();
     let resolve = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_status(200)
         .with_header("content-type", "application/x-ndjson")
-        .with_body_from_request(move |request| pnpr_done_frame(request, response.clone()))
+        .with_body_from_request(move |request| {
+            if expects_release_age {
+                let request_body: serde_json::Value =
+                    serde_json::from_slice(request.body().unwrap()).unwrap();
+                assert!(
+                    request_body["minimumReleaseAge"].as_u64().is_some(),
+                    "allowed-pick test request did not include minimumReleaseAge: {request_body}",
+                );
+            }
+            pnpr_done_frame(request, response.clone())
+        })
         .expect(1)
         .create();
     (handshake, resolve)
@@ -797,6 +814,7 @@ fn pnpr_done_frame(request: &mockito::Request, mut frame: serde_json::Value) -> 
         "minimumReleaseAge": null,
         "minimumReleaseAgeExclude": [],
         "minimumReleaseAgeIgnoreMissingTime": true,
+        "minimumReleaseAgeStrict": false,
         "trustPolicy": null,
         "trustPolicyExclude": [],
         "trustPolicyIgnoreAfter": null,

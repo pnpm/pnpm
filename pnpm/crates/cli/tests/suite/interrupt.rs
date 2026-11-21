@@ -6,9 +6,13 @@
 //! instead, which `interrupt_windows` tests rather than porting these.
 #![cfg(unix)]
 
-use crate::_utils::terminal::{
-    Terminal,
-    spawn_without_terminal,
+use crate::_utils::{
+    is_running,
+    read_pid,
+    terminal::{
+        Terminal,
+        spawn_without_terminal,
+    },
 };
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -839,39 +843,6 @@ fn signal_group(process: &Child, signal: libc::c_int) {
 fn kill_recorded(pid: libc::pid_t) {
     let Ok(pid) = u32::try_from(pid) else { return };
     pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(pid), libc::SIGKILL);
-}
-
-/// The process id a fixture script wrote to `path`. The fixtures write it
-/// to a temporary file and rename that into place, so a file that exists
-/// already holds the whole id.
-fn read_pid(path: &Path) -> libc::pid_t {
-    fs::read_to_string(path)
-        .expect("read the recorded pid")
-        .trim()
-        .parse()
-        .expect("the fixture recorded its pid")
-}
-
-/// Whether `pid` still names a live process. One the kernel no longer
-/// knows is gone, and so is one that has exited and only waits to be
-/// reaped; one that refuses the probe is still there.
-fn is_running(pid: libc::pid_t) -> bool {
-    let Ok(pid) = u32::try_from(pid) else { return false };
-    if !pnpm_ffi_signal::target_exists(pnpm_ffi_signal::Target::Process(pid)) {
-        return false;
-    }
-    !is_zombie(libc::pid_t::try_from(pid).expect("the pid round-trips"))
-}
-
-/// Whether `pid` has exited and waits for a parent to reap it. An orphan
-/// stays one until init takes it over, which the probe above cannot tell
-/// from a running process.
-fn is_zombie(pid: libc::pid_t) -> bool {
-    let state = Command::new("ps")
-        .with_args(["-o", "stat=", "-p", &pid.to_string()])
-        .output()
-        .expect("run ps");
-    state.stdout.trim_ascii_start().first() == Some(&b'Z')
 }
 
 /// Whether `pid` is gone before `deadline` passes.

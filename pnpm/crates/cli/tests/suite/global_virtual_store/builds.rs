@@ -298,8 +298,8 @@ fn gvs_reinstall_builds_a_built_slot_with_nothing_cached() {
     drop((root, mock_instance));
 }
 
-/// TS: `GVS: approve-builds scenario — install with no builds, then
-/// reinstall with allowBuilds` (`globalVirtualStore.ts:290`). The
+/// TS: the `GVS: approve-builds scenario` test, which installs with no builds,
+/// then reinstalls with allowBuilds (`globalVirtualStore.ts:290`). The
 /// hash-directory move is what makes approval safe: the unbuilt slot stays
 /// intact and the built one is a sibling.
 #[test]

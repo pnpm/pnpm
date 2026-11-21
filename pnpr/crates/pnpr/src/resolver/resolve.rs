@@ -58,6 +58,11 @@ pub enum ResolveError {
     NoLockfile,
 }
 
+pub struct ResolveResult {
+    pub lockfile: Lockfile,
+    pub allowed_picks: Vec<String>,
+}
+
 impl ResolveError {
     pub fn install(message: impl Into<String>) -> Self {
         Self::Install { message: message.into(), code: None }
@@ -105,7 +110,7 @@ pub async fn resolve(
     request: &ResolveRequest,
     auth_headers: &Arc<AuthHeaders>,
     observer: Option<Arc<dyn ResolutionObserver>>,
-) -> Result<Lockfile, ResolveError> {
+) -> Result<ResolveResult, ResolveError> {
     let temp = tempfile::Builder::new().prefix("pnpr-resolve-").tempdir()?;
     let dir = temp.path();
 
@@ -115,17 +120,46 @@ pub async fn resolve(
     let resolved_packages: ResolvedPackages = DashMap::new();
     ResolutionInstall { config, client, request, auth_headers, observer }
         .build(&resolved_packages, &manifest, &lockfile_path)
-        .run::<SilentReporter>()
+        .run_with_prompt_eligibility::<SilentReporter>(false)
         .await
         .map_err(|err| {
             let code = miette::Diagnostic::code(&err).map(|code| code.to_string());
             ResolveError::Install { message: err.to_string(), code }
         })?;
 
-    Lockfile::load_wanted_from_dir(dir)
+    let resolved_excludes = pnpm_config::WorkspaceSettings::load_at(dir)
         .map_err(|err| err.to_string())
         .map_err(ResolveError::install)?
-        .ok_or(ResolveError::NoLockfile)
+        .and_then(|settings| settings.minimum_release_age_exclude)
+        .unwrap_or_default();
+    let allowed_picks =
+        newly_allowed_picks(request.minimum_release_age_exclude.as_deref(), &resolved_excludes)?;
+    let lockfile = Lockfile::load_wanted_from_dir(dir)
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)?
+        .ok_or(ResolveError::NoLockfile)?;
+    Ok(ResolveResult { lockfile, allowed_picks })
+}
+
+fn newly_allowed_picks(
+    requested: Option<&[String]>,
+    resolved: &[String],
+) -> Result<Vec<String>, ResolveError> {
+    let requested =
+        pnpm_config::version_policy::expand_package_version_specs(requested.unwrap_or_default())
+            .map_err(|err| err.to_string())
+            .map_err(ResolveError::install)?;
+    let resolved = pnpm_config::version_policy::expand_package_version_specs(resolved)
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)?;
+    let mut added: Vec<_> = resolved
+        .difference(&requested)
+        .cloned()
+        .collect();
+    added.sort();
+    pnpm_config::version_policy::merge_package_version_specs(added)
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)
 }
 
 async fn prepare_resolve_workspace(

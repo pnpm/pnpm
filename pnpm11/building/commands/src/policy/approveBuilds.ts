@@ -5,6 +5,7 @@ import { allowBuildKeyFromIgnoredBuild, packageNameFromAllowBuildKey, parseAllow
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
+import { parse as parseDepPath } from '@pnpm/deps.path'
 import { isError, PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { install } from '@pnpm/installing.commands'
@@ -153,23 +154,28 @@ function parseSelectors (params: string[], automaticallyIgnoredBuilds: string[])
     )
   }
   if (unknown.length) {
-    requireExactFileSelectors(automaticallyIgnoredBuilds, { approved, denied, unknown })
+    requireExactSelectors(automaticallyIgnoredBuilds, { approved, denied, unknown })
     globalWarn(`The following packages are not awaiting approval: ${unknown.join(', ')}`)
   }
   return { approved, denied }
 }
 
-function requireExactFileSelectors (pending: string[], { approved, denied, unknown }: ParsedSelectors & { unknown: string[] }): void {
-  const fileSelectors = pending.filter((key) => {
+/**
+ * A bare name can approve only a registry version. A `file:`/`link:` path, a
+ * git URL, or a tarball URL needs its exact selector, and a bare-name
+ * approval of one would write an `allowBuilds` entry that never matches.
+ */
+function requireExactSelectors (pending: string[], { approved, denied, unknown }: ParsedSelectors & { unknown: string[] }): void {
+  const selectors = pending.filter((key) => {
     const name = packageNameFromAllowBuildKey(key)
-    return name != null && key.startsWith(`${name}@file:`) &&
+    return name != null && parseDepPath(key).nonSemverVersion != null &&
       unknown.includes(name) && approved.includes(name) &&
       !approved.includes(key) && !denied.includes(key)
   })
-  if (fileSelectors.length) {
+  if (selectors.length) {
     throw new PnpmError(
-      'APPROVE_BUILDS_FILE_SELECTOR_REQUIRED',
-      `Use an exact selector to approve a file dependency: ${fileSelectors.join(', ')}`
+      'APPROVE_BUILDS_EXACT_SELECTOR_REQUIRED',
+      `Use an exact selector to approve a dependency a bare name cannot identify: ${selectors.join(', ')}`
     )
   }
 }

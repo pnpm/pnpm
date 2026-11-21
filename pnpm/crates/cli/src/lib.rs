@@ -51,6 +51,9 @@ mod stdio_inheritance;
 mod virtual_terminal;
 mod with_current;
 
+#[cfg(test)]
+mod wasm_command_inventory;
+
 use boolean_negations::with_boolean_negations;
 use clap::{
     CommandFactory,

@@ -129,6 +129,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "minimumReleaseAge": 1440,
             "minimumReleaseAgeExclude": ["@acme/*"],
             "minimumReleaseAgeIgnoreMissingTime": false,
+            "minimumReleaseAgeStrict": true,
             "trustPolicy": "no-downgrade",
             "trustPolicyExclude": ["legacy-pkg"],
             "trustPolicyIgnoreAfter": 43200,
@@ -327,6 +328,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             minimum_release_age: Some(1440),
             minimum_release_age_exclude: Some(vec!["@acme/*".to_string()]),
             minimum_release_age_ignore_missing_time: false,
+            minimum_release_age_strict: true,
             trust_policy: TrustPolicy::NoDowngrade,
             trust_policy_exclude: Some(vec!["legacy-pkg".to_string()]),
             trust_policy_ignore_after: Some(43200),
@@ -765,6 +767,7 @@ async fn resolve_rejects_missing_applied_policies() {
         "minimumReleaseAge",
         "minimumReleaseAgeExclude",
         "minimumReleaseAgeIgnoreMissingTime",
+        "minimumReleaseAgeStrict",
         "trustPolicy",
         "trustPolicyExclude",
         "trustPolicyIgnoreAfter",
@@ -796,6 +799,7 @@ async fn verify_requires_matching_applied_policies() {
         "minimumReleaseAge",
         "minimumReleaseAgeExclude",
         "minimumReleaseAgeIgnoreMissingTime",
+        "minimumReleaseAgeStrict",
         "trustPolicy",
         "trustPolicyExclude",
         "trustPolicyIgnoreAfter",
@@ -838,6 +842,7 @@ fn mismatched_policy(field: &str) -> Value {
     match field {
         "minimumReleaseAge" | "trustPolicyIgnoreAfter" => json!(0),
         "minimumReleaseAgeExclude" | "trustPolicyExclude" => json!([]),
+        "minimumReleaseAgeStrict" => json!(false),
         "minimumReleaseAgeIgnoreMissingTime" | "projectScopedOptionalPeers" => json!(true),
         "trustPolicy" => json!(null),
         "trustLockfile" | "addMissingPeerTypes" => json!(false),
@@ -851,6 +856,7 @@ async fn resolve_rejects_mismatched_policies() {
         "minimumReleaseAge",
         "minimumReleaseAgeExclude",
         "minimumReleaseAgeIgnoreMissingTime",
+        "minimumReleaseAgeStrict",
         "trustPolicy",
         "trustPolicyExclude",
         "trustPolicyIgnoreAfter",
@@ -1076,4 +1082,55 @@ fn a_sole_lockfile_format_may_be_omitted_but_not_replaced() {
     assert!(expect_sole_lockfile_format(None, PYLOCK).is_ok());
     assert!(expect_sole_lockfile_format(Some(PYLOCK), PYLOCK).is_ok());
     assert!(expect_sole_lockfile_format(Some("cargo-lock"), PYLOCK).is_err());
+}
+
+#[test]
+fn allowed_picks_must_be_exact_versions_in_a_loose_age_policy_lockfile() {
+    let mut options = resolve_projects_options();
+    options.verification.minimum_release_age_strict = false;
+    let lockfile: pnpm_lockfile::Lockfile = serde_json::from_value(json!({
+        "lockfileVersion": "9.0",
+        "packages": { "foo@1.2.3": { "resolution": { "integrity": "sha512-abc" } } }
+    }))
+    .unwrap();
+
+    assert!(
+        super::resolve::assert_allowed_picks(&["foo@1.2.3".to_string()], &lockfile, &options,)
+            .is_ok(),
+    );
+    assert!(
+        super::resolve::assert_allowed_picks(&["foo@*".to_string()], &lockfile, &options,).is_err(),
+    );
+    for pattern_name in ["foo?", "foo*", "!foo"] {
+        assert!(
+            super::resolve::assert_allowed_picks(
+                &[format!("{pattern_name}@1.2.3")],
+                &lockfile,
+                &options,
+            )
+            .is_err(),
+            "pattern package name {pattern_name:?} must not become a persisted exclusion",
+        );
+    }
+
+    let pattern_name_lockfile: pnpm_lockfile::Lockfile = serde_json::from_value(json!({
+        "lockfileVersion": "9.0",
+        "packages": { "foo?@1.2.3": { "resolution": { "integrity": "sha512-abc" } } }
+    }))
+    .unwrap();
+    assert!(
+        super::resolve::assert_allowed_picks(
+            &["foo?@1.2.3".to_string()],
+            &pattern_name_lockfile,
+            &options,
+        )
+        .is_err(),
+        "a pattern name in the server lockfile must not become a persisted exclusion",
+    );
+
+    options.verification.minimum_release_age_strict = true;
+    assert!(
+        super::resolve::assert_allowed_picks(&["foo@1.2.3".to_string()], &lockfile, &options,)
+            .is_err(),
+    );
 }

@@ -386,7 +386,14 @@ async fn finish_before_deadline_drops_sender_for_immediate_eof_and_skips_cache_o
         max_npm_packages: resolver.limits.max_npm_packages,
     };
 
-    finish_before_deadline(task, Ok(synthetic_lockfile(512))).await;
+    finish_before_deadline(
+        task,
+        Ok(super::super::resolve::ResolveResult {
+            lockfile: synthetic_lockfile(512),
+            allowed_picks: Vec::new(),
+        }),
+    )
+    .await;
 
     let frame = tokio::time::timeout(Duration::from_secs(1), rx.recv()).await
         .expect("timeout frame should arrive promptly")

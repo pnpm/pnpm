@@ -377,7 +377,7 @@ fn cached_resolution_response(
     request: &ResolveRequest,
     deadline: tokio::time::Instant,
 ) -> Option<Response> {
-    let lockfile = cached_resolution(
+    let cached = cached_resolution(
         &runtime.cache.entries,
         runtime.cache.ttl,
         key?,
@@ -385,9 +385,10 @@ fn cached_resolution_response(
         identity,
     )?;
     let expired = || tokio::time::Instant::now() >= deadline;
-    let Some(done_res) = try_done_frame_until(
-        &lockfile,
+    let Some(done_res) = super::try_done_frame_with_allowed_picks_until(
+        &cached.lockfile,
         &protocol::AppliedPolicies::from_request(request),
+        &cached.allowed_picks,
         &expired,
     ) else {
         return Some(request_timeout_response());

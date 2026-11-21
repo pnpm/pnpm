@@ -122,6 +122,15 @@ overrides:
   "react-dom>react:peer": "-"
 ```
 
+### warnUnusedOverrides
+
+* Default: **true**
+* Type: **Boolean**
+
+When `true`, an install that resolves the whole dependency graph warns about every entry in [`overrides`](#overrides) that matched no dependency, in one line such as `2 overrides matched no dependency: foo, parent>child`.
+
+Only the entries that `pnpm-workspace.yaml` or a local file it includes declares are reported. Entries a config dependency or an `updateConfig` hook adds are not. Convergence overrides are not reported either, since pnpm warns about them when they go stale, and neither are removal overrides (`"-"`), which leave nothing to match against.
+
 ### packageExtensions
 
 The `packageExtensions` fields offer a way to extend the existing package definitions with additional information. For example, if `react-redux` should have `react-dom` in its `peerDependencies` but it has not, it is possible to patch `react-redux` using `packageExtensions`:
@@ -420,6 +429,8 @@ The default depends on whether you configured `minimumReleaseAge` yourself: if y
 ```yaml title="pnpm-workspace.yaml"
 minimumReleaseAgeStrict: true
 ```
+
+When resolving through a pnpr server, strict mode fails the request if no mature version matches. In non-strict mode, pnpm adds fallback versions selected by the server to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`.
 
 ### trustPolicy
 

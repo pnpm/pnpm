@@ -16,10 +16,12 @@ pub mod fs;
 
 #[cfg(target_family = "wasm")]
 pub use request::{
+    BinaryRequest,
     HostError,
     Request,
     close_resource,
     request,
+    request_binary,
 };
 
 #[cfg(target_family = "wasm")]

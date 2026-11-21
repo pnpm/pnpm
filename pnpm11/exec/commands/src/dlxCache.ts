@@ -213,7 +213,7 @@ export function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): st
 let lastPrepareTimestamp = 0
 
 export function getPrepareDir (cachePath: string): string {
-  // base36 (vs hex) keeps this segment short — see createCacheKey for why dlx
+  // base36 (vs hex) keeps this segment short. See createCacheKey for why dlx
   // path length matters on Windows. Monotonic time+pid stays unique across
   // concurrent dlx processes and across a process's own retries.
   const now = Math.max(Date.now(), lastPrepareTimestamp + 1)

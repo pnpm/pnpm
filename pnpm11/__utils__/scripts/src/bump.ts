@@ -18,8 +18,8 @@ import url from 'node:url'
 // The workspace package selectors for each product released apart from
 // pnpm11, keyed by the product's release token. The `pnpm` product is the Rust
 // CLI (published to npm as `pnpm`, named `pacquet` in-repo, carrying its
-// versioning.fixed `@pnpm/napi` sibling). The `pnpm11` product — the
-// TypeScript CLI and the rest of the default lane — has no single positive
+// versioning.fixed `@pnpm/napi` sibling). The `pnpm11` product (the
+// TypeScript CLI and the rest of the default lane) has no single positive
 // selector, so it is expressed as the complement of these (see
 // releaseFilterArgs).
 const SEPARATE_PRODUCT_PACKAGES = {

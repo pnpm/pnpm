@@ -61,7 +61,7 @@ export interface BuildDependencyOptions {
   enableGlobalVirtualStore?: boolean
   frozenStore?: boolean
   configByUri?: Record<string, RegistryConfig>
-  /** Resolved `engines.runtime` Node version — see [`buildModules`]. */
+  /** Resolved `engines.runtime` Node version. See [`buildModules`]. */
   nodeVersion?: string
   pnprServer?: string
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings

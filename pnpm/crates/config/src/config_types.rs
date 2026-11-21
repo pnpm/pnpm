@@ -119,6 +119,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("publish-wait-timeout", true),
     ("recursive-install", false),
     ("block-exotic-subdeps", false),
+    ("warn-unused-overrides", false),
     ("reporter", false),
     ("resolution-mode", false),
     ("resolve-peers-from-workspace-root", false),

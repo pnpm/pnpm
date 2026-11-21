@@ -54,6 +54,7 @@ use pnpm_reporter::{
     StatsLog,
     StatsMessage,
     SummaryLog,
+    UnusedOverrideLog,
     UpdateCheckLog,
 };
 
@@ -431,3 +432,6 @@ mod deprecations;
 
 #[path = "render/workspace_summary.rs"]
 mod workspace_summary;
+
+#[path = "render/overrides.rs"]
+mod overrides;

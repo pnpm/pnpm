@@ -28,6 +28,7 @@ async fn multi_project_request_sends_every_workspace_project_without_a_synthetic
             "minimumReleaseAge": null,
             "minimumReleaseAgeExclude": [],
             "minimumReleaseAgeIgnoreMissingTime": true,
+            "minimumReleaseAgeStrict": false,
             "trustPolicy": null,
             "trustPolicyExclude": [],
             "trustPolicyIgnoreAfter": null,

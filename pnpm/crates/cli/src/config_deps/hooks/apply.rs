@@ -17,6 +17,7 @@ use super::{
     resolve_configured_state_dir,
 };
 use miette::WrapErr;
+use std::collections::HashSet;
 
 struct HookExecutionChanges {
     changed_extra_bin_paths: Option<Vec<PathBuf>>,
@@ -87,6 +88,7 @@ fn filter_hook_delta(config: &Config, mut delta: Value) -> Value {
             !config.cli_settings.contains(key)
                 && !config.cli_settings.contains(&pnpm_config::naming_cases::to_camel_case(key))
         });
+        super::node_linker_aliases::drop_cli_linker_aliases(config, delta);
     }
     delta
 }
@@ -133,10 +135,12 @@ pub(super) fn apply_hook_delta(
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
     record_explicit_setting_changes(config, &delta, &delta_settings);
+    record_hook_added_overrides(config, input, &delta);
     delta_settings.apply_to(config, base_dir);
     config.apply_cli_registries();
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
+    super::node_linker_aliases::reapply_linker_options(config, &delta);
     let node_path_refresh = lockfile_dir_paths_before_hook.map(|paths_before_hook| {
         apply_lockfile_dir_change(config, paths_before_hook)
     });
@@ -347,9 +351,32 @@ fn record_explicit_setting_changes(
         .map(|(key, _)| key)
     {
         if is_known_setting_key(key) {
+            if key == "nodeLinker" {
+                config.forget_node_linker_aliases();
+            }
             config.explicit_settings.remove(key);
         }
     }
+}
+
+/// Selectors are compared and recorded trimmed, the form the overrides
+/// parser gives them.
+fn record_hook_added_overrides(config: &mut Config, input: &Value, delta: &Value) {
+    let Some(overrides) = delta.get("overrides").and_then(Value::as_object) else {
+        return;
+    };
+    let declared: HashSet<&str> = input
+        .get("overrides")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(serde_json::Map::keys)
+        .map(|selector| selector.trim())
+        .collect();
+    let added = overrides
+        .keys()
+        .map(|selector| selector.trim())
+        .filter(|selector| !declared.contains(selector));
+    config.hook_added_overrides.extend(added.map(str::to_string));
 }
 
 /// A setting the hook set to null is unset, as it is on pnpm 11, and

@@ -44,6 +44,7 @@ pub use manifest_spec_bumps::{
 pub use minimum_release_age::{
     MinimumReleaseAgeError,
     PolicyExcludes,
+    persist_loose_release_age_picks,
 };
 pub use optimistic_repeat_install::*;
 pub use overrides::*;

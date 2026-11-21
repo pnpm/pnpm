@@ -85,6 +85,9 @@ jobs:
       - name: Test the packaged pnpm CLI in a WebContainer
         run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package target/pnpm-wasm.tgz
 
+      - name: Build a Vite app with the packaged pnpm CLI in a WebContainer
+        run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package-frontend target/pnpm-wasm.tgz
+
       - name: Upload WASM build outputs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

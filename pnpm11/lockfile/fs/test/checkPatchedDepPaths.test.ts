@@ -141,7 +141,7 @@ test('checkPatchedDepPaths() accepts a hash shared by several patched packages',
 test('checkPatchedDepPaths() reports a suffix left on a hash that now belongs to a different entry', () => {
   // foo@1.0.0 and foo@2.0.0 started out sharing one patch file, so both
   // recorded SHARED. foo@2.0.0's patch has since diverged to DIVERGED, but its
-  // suffix still says SHARED — a hash the map does still contain, under the
+  // suffix still says SHARED, a hash the map does still contain, under the
   // entry for the *other* version.
   const shared = 'aaaa1111'
   const diverged = 'dddd4444'

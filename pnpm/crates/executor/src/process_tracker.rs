@@ -9,7 +9,10 @@ use std::{
 #[cfg(unix)]
 use std::{
     path::Path,
-    time::Duration,
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
@@ -236,6 +239,11 @@ pub fn spawn_child<'tracker>(
     // Only Unix gives a child a process group of its own, and only then
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
+    // The child joins the relay only once it exists, and the watchdog's
+    // first `sh` widens the gap. What reaches pnpm from here on is relayed
+    // by `SpawningChild::joined` rather than by the handler, which cannot
+    // see a child that has not joined.
+    let mut spawning = crate::interrupt::spawning_child();
     #[cfg(unix)]
     let group_watchdog::ChildWatch { child, watched } = if own_process_group {
         group_watchdog::spawn(command)?
@@ -244,12 +252,14 @@ pub fn spawn_child<'tracker>(
     };
     #[cfg(not(unix))]
     let child = command.spawn()?;
+    spawning.spawned();
     crate::job_control::assign_child(&child);
     // A task a bail may cancel gets a job of its own, so the cancellation
     // reaches everything the task started.
     #[cfg(windows)]
     let job = process_tracker.and_then(|_| crate::job_control::TaskJob::contain(&child));
-    let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
+    let relay = spawning.relay_to_child(child.id(), own_process_group);
+    spawning.joined(&relay);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
             pid: child.id(),
@@ -325,12 +335,28 @@ impl SpawnedChild<'_> {
     }
 }
 
-/// Block until no process of the group led by `leader` is still running.
+/// How long the process group of a signalled child is given to drain.
+///
+/// Every process in the group was sent the signal pnpm relayed, so one
+/// still running at the end of this has declined to stop, and waiting on
+/// it is waiting on something that has already refused.
+#[cfg(unix)]
+const PROCESS_GROUP_SHUTDOWN_GRACE: Duration = Duration::from_secs(30);
+
+/// Block until no process of the group led by `leader` is still running,
+/// or [`PROCESS_GROUP_SHUTDOWN_GRACE`] has passed.
 #[cfg(unix)]
 fn wait_for_process_group(leader: u32) {
     let Ok(leader) = i32::try_from(leader) else { return };
     let table = cfg!(target_os = "linux").then(|| Path::new("/proc"));
+    let deadline = Instant::now() + PROCESS_GROUP_SHUTDOWN_GRACE;
     while group_is_running(leader, table) {
+        if Instant::now() >= deadline {
+            tracing::warn!(
+                "a process the script started has not stopped, so pnpm stops waiting for it",
+            );
+            return;
+        }
         std::thread::sleep(Duration::from_millis(20));
     }
 }
