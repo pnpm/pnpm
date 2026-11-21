@@ -30,6 +30,12 @@ jobs:
         os: [blacksmith-8vcpu-ubuntu-2404] # macOS is too unstable to be useful for benchmark, the variance is always huge.
     name: Run benchmark on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      # Both revisions build with thin LTO and 16 codegen units, so the
+      # comparison stays like for like without the serial fat-LTO link.
+      # Released binaries keep the fat-LTO release profile.
+      CARGO_PROFILE_RELEASE_LTO: thin
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
     steps:
       - name: Checkout Main Branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
