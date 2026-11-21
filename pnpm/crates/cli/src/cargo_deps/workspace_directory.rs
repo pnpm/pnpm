@@ -40,10 +40,10 @@ pub(super) struct ManagedDirectory {
 }
 
 #[cfg_attr(
-    dylint_lib = "perfectionist",
+    all(dylint_lib = "perfectionist", unix),
     expect(
         perfectionist::needless_borrowed_parameters,
-        reason = "The Windows branch canonicalizes from a borrow of `root_dir`, so every platform shares the borrowed signature."
+        reason = "the Windows branch canonicalizes from a borrow of `root_dir`, so every platform shares the borrowed signature"
     )
 )]
 pub(super) fn ensure_workspace_directory(

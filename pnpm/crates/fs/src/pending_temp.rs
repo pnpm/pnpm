@@ -74,6 +74,13 @@ fn store_path(path: &std::path::Path) -> Option<StoredPath> {
 }
 
 #[cfg(not(unix))]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the `cfg(unix)` twin encodes this parameter into a `CString` rather than owning it, and both must offer one signature to the shared call site"
+    )
+)]
 fn store_path(path: &std::path::Path) -> Option<StoredPath> {
     Some(path.to_path_buf())
 }

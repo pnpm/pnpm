@@ -36,7 +36,7 @@ fn assert_recovers_after_lock<Error: Debug>(
     );
     let (sender, receiver) = mpsc::channel();
     let result = with_retry_observer(
-        path,
+        path.to_path_buf(),
         move |attempt| {
             sender
                 .send(

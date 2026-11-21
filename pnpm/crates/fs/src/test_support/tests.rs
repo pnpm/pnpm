@@ -11,13 +11,13 @@ fn observer_is_removed_when_its_callback_panics() {
     let path = root.path().join("shim");
     let result = catch_unwind(|| {
         with_retry_observer(
-            &path,
+            path.clone(),
             |_| panic!("observer failure"),
             || notify_attempt(&path, &Ok(())),
         );
     });
     assert!(result.is_err(), "the observer must have run and panicked");
-    with_retry_observer(&path, |_| {}, || notify_attempt(&path, &Ok(())));
+    with_retry_observer(path.clone(), |_| {}, || notify_attempt(&path, &Ok(())));
 }
 
 #[test]
@@ -26,10 +26,10 @@ fn duplicate_registration_does_not_remove_the_original_observer() {
     let path = root.path().join("shim");
     let (sender, receiver) = std::sync::mpsc::channel();
     with_retry_observer(
-        &path,
+        path.clone(),
         move |_| sender.send(()).unwrap(),
         || {
-            let result = catch_unwind(|| with_retry_observer(&path, |_| {}, || {}));
+            let result = catch_unwind(|| with_retry_observer(path.clone(), |_| {}, || {}));
             assert!(result.is_err(), "duplicate registration must be rejected");
             notify_attempt(&path, &Ok(()));
         },

@@ -58,6 +58,13 @@ pub(super) fn real_deploy_dir(deploy_dir: &Path) -> miette::Result<PathBuf> {
 }
 
 #[cfg(not(unix))]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the `cfg(unix)` twin canonicalizes from a borrow of this parameter, and both must offer one signature to the shared call site"
+    )
+)]
 pub(super) fn real_deploy_dir(deploy_dir: &Path) -> miette::Result<PathBuf> {
     Ok(deploy_dir.to_path_buf())
 }
