@@ -165,10 +165,10 @@ async fn publish_group<Reporter: self::Reporter>(
 ) -> Result<(), BatchPublishError> {
     let registry = registry_for_display(&group.registry);
     for &summary_index in &group.summary_indexes {
-        global_info::<Reporter>(&format!("📦 {} → {registry}", summaries[summary_index].id));
+        global_info::<Reporter>(format!("📦 {} → {registry}", summaries[summary_index].id));
     }
     if opts.dry_run {
-        global_warn::<Reporter>(&format!(
+        global_warn::<Reporter>(format!(
             "Skip publishing {} package(s) to {registry} (dry run)",
             group.documents.len(),
         ));
@@ -177,13 +177,13 @@ async fn publish_group<Reporter: self::Reporter>(
     if let Some(archives) = &group.staged {
         let uploaded =
             stage_archives(network.client, &group.registry, authorization, archives).await?;
-        global_info::<Reporter>(&format!(
+        global_info::<Reporter>(format!(
             "Uploaded {uploaded} of {} archive(s) to {registry} ahead of the publish",
             archives.len(),
         ));
     }
     put_batch::<Reporter>(group, authorization, opts, network, &registry).await?;
-    global_info::<Reporter>(&format!(
+    global_info::<Reporter>(format!(
         "✅ Published {} package(s) to {registry} in a single request",
         group.summary_indexes.len(),
     ));

@@ -70,7 +70,7 @@ impl PythonPrepare<'_> {
         registry.resolution.packages.candidates.clear();
         lock.seed(&mut registry.resolution.packages, &self.interpreter.target)?;
         workspace::offer_locked(&mut registry.resolution.packages, project.local, lock);
-        registry.record_sources(selected)?;
+        registry.record_sources(selected.to_vec())?;
         registry.fetch_wheels::<Reporter>(selected).await?;
         let solution = resolver::selected_solution(&mut registry.resolution, selected)?;
         let installed = self.installable::<Reporter>(registry, solution, project).await?;

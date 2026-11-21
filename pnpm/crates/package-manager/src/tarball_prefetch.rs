@@ -359,14 +359,14 @@ impl TarballPrefetcher {
             .map(|entry| (entry.store_key.clone(), entry.package_id.clone()))
             .collect();
         for package_id in in_store.values() {
-            self.emit_progress::<Reporter>(resolved, package_id);
+            self.emit_progress::<Reporter>(resolved, package_id.clone());
         }
         let missing =
             without_verified_store_hits(&self.store, config.verify_store_integrity, entries).await;
         for entry in &missing {
             in_store.remove(&entry.store_key);
         }
-        for package_id in in_store.values() {
+        for package_id in in_store.into_values() {
             self.emit_progress::<Reporter>(found_in_store, package_id);
         }
         self.fetch_all::<Reporter>(missing).await
@@ -436,11 +436,11 @@ impl TarballPrefetcher {
     fn emit_progress<Reporter: self::Reporter>(
         &self,
         message: fn(String, String) -> ProgressMessage,
-        package_id: &str,
+        package_id: String,
     ) {
         Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
-            message: message(package_id.to_owned(), self.requester.to_string()),
+            message: message(package_id, self.requester.to_string()),
         }));
     }
 

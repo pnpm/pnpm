@@ -195,7 +195,7 @@ fn group_move_is_reported_even_when_version_is_unchanged() {
         dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
         ..Default::default()
     };
-    let diff = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Specifier);
+    let diff = diff_importer(".".to_owned(), Some(&old), Some(&new), ImporterDiffKey::Specifier);
     assert!(!diff.is_empty(), "a dev -> prod move must register as a change: {diff:?}");
     // pnpm merges every group's diff into one alias-keyed map, so the move
     // is one verdict (the last group's) not an addition contradicted by a
@@ -214,10 +214,11 @@ fn specifier_only_change_is_reported() {
         dependencies: Some(importer_map(&[("is-positive", "~1.0.0", "1.0.0")])),
         ..Default::default()
     };
-    let diff = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Specifier);
+    let diff = diff_importer(".".to_owned(), Some(&old), Some(&new), ImporterDiffKey::Specifier);
     assert!(!diff.is_empty(), "a specifier-only change must be reported: {diff:?}");
 
-    let by_version = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Version);
+    let by_version =
+        diff_importer(".".to_owned(), Some(&old), Some(&new), ImporterDiffKey::Version);
     assert!(
         by_version.is_empty(),
         "dedupe --check compares resolved versions, so a specifier-only change is not one: {by_version:?}",
@@ -236,7 +237,7 @@ fn peer_suffix_change_is_reported_by_version() {
         dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0(is-negative@1.0.0)")])),
         ..Default::default()
     };
-    let diff = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Version);
+    let diff = diff_importer(".".to_owned(), Some(&old), Some(&new), ImporterDiffKey::Version);
     assert_eq!(
         diff.updated,
         vec![(
@@ -246,6 +247,7 @@ fn peer_suffix_change_is_reported_by_version() {
         )],
     );
 
-    let by_specifier = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Specifier);
+    let by_specifier =
+        diff_importer(".".to_owned(), Some(&old), Some(&new), ImporterDiffKey::Specifier);
     assert!(by_specifier.is_empty(), "the specifier is unchanged: {by_specifier:?}");
 }

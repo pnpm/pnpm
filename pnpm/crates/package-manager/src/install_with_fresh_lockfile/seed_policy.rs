@@ -89,6 +89,13 @@ pub enum UpdateSeedPolicy {
 /// the specifier written to the manifest doesn't carry it, a `catalog:`
 /// entry keeps the version in the catalog, so without this the entry's
 /// recorded resolution is reused and the request is dropped silently.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the name is copied only for a valid semver version, and every caller keeps using its own"
+    )
+)]
 pub(crate) fn prefer_requested_version(
     preferred: &mut pnpm_resolving_resolver_base::PreferredVersions,
     name: &str,

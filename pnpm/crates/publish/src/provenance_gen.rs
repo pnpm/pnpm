@@ -93,7 +93,9 @@ where
     let timeout = options.fetch_timeout.map(Duration::from_millis);
     let signed = Sys::sign_statement(&jwt, &statement_bytes, timeout).await?;
 
-    global_info::<Reporter>("Signed provenance statement with source and build information");
+    global_info::<Reporter>(
+        "Signed provenance statement with source and build information".to_owned(),
+    );
 
     Ok(ProvenanceAttachment {
         bundle_name: format!("{package_name}-{package_version}.sigstore"),

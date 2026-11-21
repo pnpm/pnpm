@@ -82,11 +82,11 @@ impl Inputs {
 
     pub fn set_resolution_settings(
         &mut self,
-        extra_indexes: &[String],
+        extra_indexes: Vec<String>,
         overrides: &[Requirement],
         constraints: &[Requirement],
     ) {
-        self.extra_indexes = extra_indexes.to_vec();
+        self.extra_indexes = extra_indexes;
         self.overrides = normalized(overrides);
         self.constraints = normalized(constraints);
     }
@@ -114,7 +114,7 @@ impl Inputs {
 
     /// The inputs of a resolution answered for one interpreter.
     #[must_use]
-    pub fn new(requirements: &[Requirement], target: &Target, index: &str) -> Self {
+    pub fn new(requirements: &[Requirement], target: &Target, index: String) -> Self {
         Self {
             requirements: normalized(requirements),
             environment: Some(target.environment.clone()),
@@ -122,7 +122,7 @@ impl Inputs {
             platforms: Vec::new(),
             python_versions: Vec::new(),
             members: Vec::new(),
-            index: index.to_string(),
+            index,
             extra_indexes: Vec::new(),
             overrides: Vec::new(),
             registry_packages: BTreeMap::new(),
@@ -135,18 +135,18 @@ impl Inputs {
     #[must_use]
     pub fn declared(
         requirements: &[Requirement],
-        platforms: &[String],
-        python_versions: &[String],
-        index: &str,
+        platforms: Vec<String>,
+        python_versions: Vec<String>,
+        index: String,
     ) -> Self {
         Self {
             requirements: normalized(requirements),
             environment: None,
             tags: None,
-            platforms: platforms.to_vec(),
-            python_versions: python_versions.to_vec(),
+            platforms,
+            python_versions,
             members: Vec::new(),
-            index: index.to_string(),
+            index,
             extra_indexes: Vec::new(),
             overrides: Vec::new(),
             registry_packages: BTreeMap::new(),

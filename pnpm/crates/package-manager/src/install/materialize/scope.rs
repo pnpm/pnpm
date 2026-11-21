@@ -211,6 +211,13 @@ pub(in crate::install) fn initial_materialization_ids(
 /// gate on a full install. Upstream's headless entry returns before the
 /// announcement for an empty lockfile (`isEmptyLockfile`), and an explicit
 /// `pnpm rebuild` is not an install, so both stay silent.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the prefix is copied only when the install announces itself, and the caller borrows it"
+    )
+)]
 pub(super) fn announce_headless_install<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     rebuild: Option<&RebuildOptions>,

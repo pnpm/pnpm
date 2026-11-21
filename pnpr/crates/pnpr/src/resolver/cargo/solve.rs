@@ -30,7 +30,7 @@ pub(super) struct DiscoveryStep {
 
 pub(super) fn init_discovery(
     metadata: &str,
-    source: &str,
+    source: String,
     preferred_versions: &BTreeMap<String, Vec<String>>,
     cancel: &CancelToken,
 ) -> Result<(pnpm_cargo_resolver::IndexDiscovery, Vec<String>), String> {
@@ -72,7 +72,7 @@ pub(super) async fn spawn_init_discovery(
     let preferred_versions = preferred_versions.clone();
     tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        init_discovery(&metadata, &source, &preferred_versions, &cancel)
+        init_discovery(&metadata, source, &preferred_versions, &cancel)
     })
     .await
     .map_err(|err| err.to_string())?

@@ -97,7 +97,10 @@ impl PickState<'_> {
         }?;
         let meta = Arc::new(document.meta);
         if document.requested == Some(DocumentKind::FullInAbbreviatedMirror) {
-            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(&self.cache_key, &meta);
+            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(
+                self.cache_key.clone(),
+                &meta,
+            );
         }
         Ok(meta)
     }

@@ -31,7 +31,7 @@ const EMPTY_METADATA: &str = r#"{
 
 #[test]
 fn missing_names_until_restores_pending_dependency_when_cancelled() {
-    let mut discovery = IndexDiscovery::new(METADATA, CRATES_IO_SOURCE).unwrap();
+    let mut discovery = IndexDiscovery::new(METADATA, CRATES_IO_SOURCE.to_owned()).unwrap();
     let err = discovery
         .missing_names_until(&|| true)
         .unwrap_err();
@@ -93,7 +93,7 @@ fn discovery_groups_many_zero_zero_lines_linearly_and_preserves_line_feature_gro
       "workspace_members": ["path+file:///workspace#app@0.1.0"]
     }"#;
 
-    let mut discovery = IndexDiscovery::new(metadata, CRATES_IO_SOURCE).unwrap();
+    let mut discovery = IndexDiscovery::new(metadata, CRATES_IO_SOURCE.to_owned()).unwrap();
     discovery
         .add_entries(&BTreeMap::from([("many".to_string(), index)]))
         .unwrap();

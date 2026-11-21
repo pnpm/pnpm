@@ -93,7 +93,14 @@ fn pin_to_locked_version_respects_direct_urls_and_environment_markers() {
             locked_pkg("six", "1.0", Some("sys_platform == 'win32'")),
             locked_pkg("six", "2.0", Some("sys_platform == 'linux'")),
         ],
-        tool: ToolMetadata { pnpm: Inputs::declared(&[], &[], &[], "https://pypi.org/simple/") },
+        tool: ToolMetadata {
+            pnpm: Inputs::declared(
+                &[],
+                Vec::new(),
+                Vec::new(),
+                "https://pypi.org/simple/".to_owned(),
+            ),
+        },
     };
     let lock_index = lock.index().unwrap();
     let exact_opts =

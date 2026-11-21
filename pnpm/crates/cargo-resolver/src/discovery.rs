@@ -47,7 +47,7 @@ struct Discovered {
 pub fn missing_index_names(
     metadata: &str,
     index_files: &BTreeMap<String, String>,
-    source: &str,
+    source: String,
 ) -> Result<Vec<String>> {
     let mut discovery = IndexDiscovery::new(metadata, source)?;
     discovery.add_entries(index_files)?;
@@ -57,7 +57,7 @@ pub fn missing_index_names(
 pub fn missing_index_names_with_preferences(
     metadata: &str,
     index_files: &BTreeMap<String, String>,
-    source: &str,
+    source: String,
     preferred_versions: &BTreeMap<String, Vec<String>>,
 ) -> Result<Vec<String>> {
     let mut discovery = IndexDiscovery::new_with_preferences(metadata, source, preferred_versions)?;
@@ -88,13 +88,13 @@ pub struct IndexDiscovery {
 type VisitKey = (String, String, bool, BTreeSet<String>);
 
 impl IndexDiscovery {
-    pub fn new(metadata: &str, source: &str) -> Result<Self> {
+    pub fn new(metadata: &str, source: String) -> Result<Self> {
         Self::new_with_parsed_preferences(metadata, source, PreferredVersions::new())
     }
 
     pub fn new_with_preferences(
         metadata: &str,
-        source: &str,
+        source: String,
         preferred_versions: &BTreeMap<String, Vec<String>>,
     ) -> Result<Self> {
         Self::new_with_parsed_preferences(
@@ -106,7 +106,7 @@ impl IndexDiscovery {
 
     fn new_with_parsed_preferences(
         metadata: &str,
-        source: &str,
+        source: String,
         preferred_versions: PreferredVersions,
     ) -> Result<Self> {
         let metadata = parse_metadata(metadata)?;

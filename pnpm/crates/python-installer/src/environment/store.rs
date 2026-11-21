@@ -79,7 +79,7 @@ impl EnvironmentStore {
     /// keeps its generations beside it, where 12.4 kept them.
     fn project_directory(&self, root: &Path) -> Result<PathBuf> {
         if self.frozen {
-            return ensure_beside_project(root);
+            return ensure_beside_project(root.to_path_buf());
         }
         let root = dunce::canonicalize(root)
             .into_diagnostic()
@@ -113,7 +113,7 @@ impl EnvironmentStore {
                 let Some(target) = link_target(root, &link)? else {
                     return Ok(EnvironmentLink::Absent);
                 };
-                if !self.holds(&target)? && !holds_beside_project(root, &target)? {
+                if !self.holds(&target)? && !holds_beside_project(root.to_path_buf(), &target)? {
                     return Ok(EnvironmentLink::Unmanaged);
                 }
                 Ok(EnvironmentLink::Managed(target))
@@ -162,7 +162,7 @@ fn link_target(root: &Path, link: &Path) -> Result<Option<PathBuf>> {
 /// Whether `generation` is in the project's own `.pnpm/python-envs`, where
 /// pnpm 12.4 published environments and a frozen store still does. One
 /// published there is pnpm's to replace as much as one in the store.
-fn holds_beside_project(root: &Path, generation: &Path) -> Result<bool> {
+fn holds_beside_project(root: PathBuf, generation: &Path) -> Result<bool> {
     let Some(beside) = existing_beside_project(root)? else {
         return Ok(false);
     };
@@ -172,8 +172,8 @@ fn holds_beside_project(root: &Path, generation: &Path) -> Result<bool> {
 
 /// The project's own `.pnpm/python-envs`, created. A checkout can carry a
 /// `.pnpm` that is a symlink, and pnpm writes nothing through one.
-fn ensure_beside_project(root: &Path) -> Result<PathBuf> {
-    let mut path = root.to_path_buf();
+fn ensure_beside_project(root: PathBuf) -> Result<PathBuf> {
+    let mut path = root;
     for component in [".pnpm", "python-envs"] {
         path.push(component);
         match fs::create_dir(&path) {
@@ -191,8 +191,8 @@ fn ensure_beside_project(root: &Path) -> Result<PathBuf> {
 /// The project's own `.pnpm/python-envs` when it exists, reached through
 /// no symlink: 12.4 published nothing through one, so a generation reached
 /// that way is not its.
-fn existing_beside_project(root: &Path) -> Result<Option<PathBuf>> {
-    let mut path = root.to_path_buf();
+fn existing_beside_project(root: PathBuf) -> Result<Option<PathBuf>> {
+    let mut path = root;
     for component in [".pnpm", "python-envs"] {
         path.push(component);
         if !is_real_directory(&path)? {

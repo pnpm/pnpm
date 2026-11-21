@@ -10,6 +10,13 @@ use super::{
 
 /// Emit `pnpm:progress found_in_store` for a (`package_id`, requester)
 /// pair the cache resolved without a download.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the ids are copied only for the first report of a package, and callers borrow them"
+    )
+)]
 pub(crate) fn emit_progress_found_in_store<Reporter: self::Reporter>(
     package_id: &str,
     requester: &str,
@@ -27,6 +34,13 @@ pub(crate) fn emit_progress_found_in_store<Reporter: self::Reporter>(
     }));
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "the ids are copied only for the first report of a package, and callers borrow them"
+    )
+)]
 pub(crate) fn emit_progress_fetched<Reporter: self::Reporter>(
     package_id: &str,
     requester: &str,
