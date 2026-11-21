@@ -101,13 +101,17 @@ fn is_valid_args_byte(byte: u8) -> bool {
 /// shebang.
 #[must_use]
 pub fn extension_program(extension: &str) -> Option<&'static str> {
-    match extension.to_ascii_lowercase().as_str() {
-        "js" | "cjs" | "mjs" => Some("node"),
-        "cmd" | "bat" => Some("cmd"),
-        "ps1" => Some("pwsh"),
-        "sh" => Some("sh"),
-        _ => None,
-    }
+    [
+        ("js", "node"),
+        ("cjs", "node"),
+        ("mjs", "node"),
+        ("cmd", "cmd"),
+        ("bat", "cmd"),
+        ("ps1", "pwsh"),
+        ("sh", "sh"),
+    ]
+    .into_iter()
+    .find_map(|(suffix, program)| extension.eq_ignore_ascii_case(suffix).then_some(program))
 }
 
 /// Combine an already-parsed shebang runtime with the extension fallback for

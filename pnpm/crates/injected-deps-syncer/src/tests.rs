@@ -237,6 +237,7 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
             .exists(),
     );
     let shim = fs::read_to_string(stale_shim.with_file_name("current")).unwrap();
+    eprintln!("Generated shim:\n{shim}");
     assert!(shim.contains("NODE_PATH"));
     assert!(shim.contains("hoisted"));
     assert!(!stale_shim.exists(), "the shim for the bin the rebuild dropped must be removed");
