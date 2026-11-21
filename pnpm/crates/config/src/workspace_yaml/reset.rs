@@ -45,6 +45,32 @@ fn reset_node_package_map(config: &mut Config, defaults: &Config, key: &str) -> 
     true
 }
 
+fn reset_node_linker(config: &mut Config, defaults: &Config, key: &str) -> bool {
+    if key != "nodeLinker" {
+        return false;
+    }
+    config.node_linker = defaults.node_linker;
+    config.node_linker_excluded.clone_from(&defaults.node_linker_excluded);
+    config.hoisting_limits = config.explicit_settings
+        .get("hoistingLimits")
+        .cloned()
+        .map(serde_json::from_value)
+        .and_then(Result::ok)
+        .unwrap_or(defaults.hoisting_limits);
+    config.hoist = config.explicit_settings
+        .get("hoist")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(defaults.hoist);
+    // The `virtualStoreOnly` snapshot may hold the linker's patterns.
+    config.hoist_patterns_before_virtual_store_only = None;
+    config.hoist_pattern = config.hoist
+        .then(|| explicit_or_default(config, "hoistPattern", defaults.hoist_pattern.as_deref()))
+        .flatten();
+    reset_public_hoist_pattern(config, defaults);
+    config.apply_prefer_symlinked_executables_derivation();
+    true
+}
+
 /// The paths anchored on the lockfile directory, re-anchored the way
 /// pinning it does, so a `modulesDir` still set keeps its shape and a
 /// pinned lockfile directory keeps its paths.
@@ -190,6 +216,7 @@ impl WorkspaceSettings {
             allow_builds, concurrency_groups, boot_config, global_packages_config,
         });
         if reset_node_package_map(config, defaults, key)
+            || reset_node_linker(config, defaults, key)
             || Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir)
         {
             return true;
@@ -234,11 +261,6 @@ impl WorkspaceSettings {
                 reset_public_hoist_pattern(config, defaults);
             }
             "publicHoistPattern" => reset_public_hoist_pattern(config, defaults),
-            "nodeLinker" => {
-                config.node_linker = defaults.node_linker;
-                config.node_linker_excluded.clone_from(&defaults.node_linker_excluded);
-                config.apply_prefer_symlinked_executables_derivation();
-            }
             "preferSymlinkedExecutables" => {
                 config.prefer_symlinked_executables = None;
                 config.apply_prefer_symlinked_executables_derivation();

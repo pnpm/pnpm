@@ -354,6 +354,10 @@ impl ConfigOverrides {
         if let Some(value) = &self.node_linker {
             value.clone().apply_to(config);
             config.explicit_settings.insert("nodeLinker".to_string(), setting_value(value));
+            // The linker's hoist patterns land after the hoist overrides
+            // ran these derivations.
+            config.apply_shamefully_hoist_derivation();
+            config.apply_virtual_store_only_derivation();
             // A CLI-selected hoisted linker turns the default on just
             // like a yaml-selected one, pnpm merges CLI options before
             // its `nodeLinker` switch, so the derivation must see this
