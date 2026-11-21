@@ -137,8 +137,11 @@ impl ProjectScriptRunner<'_> {
             project_modules_dirs: &[],
             bin_links: BinLinkSettings {
                 modules_dir_name: self.config.modules_dir_name(),
-                extend_node_path: self.config.extend_node_path,
-                ignored_directories: self.config.managed_directories(),
+                link_options: self.link_options.clone(),
+                projects: pnpm_workspace::FindWorkspaceProjectsOpts {
+                    patterns: self.config.workspace_package_patterns.clone(),
+                    ignored_directories: self.config.managed_directories(),
+                },
             },
         })
         .map_err(InstallError::SyncInjectedDeps)

@@ -242,6 +242,13 @@ impl FsWalkFiles for Host {
         path.pipe(walkdir::WalkDir::new)
             .follow_links(false)
             .into_iter()
+            .filter_entry(|entry| {
+                entry.depth() == 0
+                    || !entry
+                        .file_name()
+                        .as_encoded_bytes()
+                        .starts_with(b".")
+            })
             .flatten()
             .filter(|entry| entry.file_type().is_file())
             .map(|entry| entry.path().to_path_buf())

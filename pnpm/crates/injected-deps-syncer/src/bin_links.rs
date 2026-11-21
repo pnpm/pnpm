@@ -7,10 +7,7 @@ use pnpm_cmd_shim::{
     remove_bin,
 };
 use pnpm_package_manifest::safe_read_package_json_from_dir;
-use pnpm_workspace::{
-    FindWorkspaceProjectsOpts,
-    find_workspace_projects_no_check,
-};
+use pnpm_workspace::find_workspace_projects_no_check;
 use std::{
     collections::HashSet,
     path::{
@@ -67,15 +64,17 @@ pub(crate) fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjected
         .filter(|name| !current_bin_names.contains(*name))
         .collect();
 
-    let has_bins = manifest.get("bin").is_some();
+    let has_bins = pnpm_package_manifest::manifest_declares_bins(&manifest);
+    if !has_bins && stale_bin_names.is_empty() {
+        return Ok(());
+    }
     let manifest = Arc::new(manifest);
-    let link_options = workspace_link_options(opts);
 
     for copy in opts.copies {
-        sync_target_bins(copy, &manifest, &stale_bin_names, &link_options)?;
+        sync_target_bins(copy, &manifest, &stale_bin_names, &opts.settings.link_options)?;
     }
 
-    relink_project_bins(opts, has_bins, &stale_bin_names)
+    relink_project_bins(opts, &stale_bin_names)
 }
 
 fn sync_target_bins(
@@ -85,7 +84,7 @@ fn sync_target_bins(
     link_options: &LinkBinsOptions,
 ) -> Result<(), SyncInjectedDepsError> {
     let target_dir = copy.dir.as_path();
-    let Some(parent_modules_dir) = target_dir.parent() else {
+    let Some(parent_modules_dir) = pnpm_fs::containing_modules_dir(target_dir) else {
         return Ok(());
     };
     remove_stale_bins(RemoveStaleBins {
@@ -95,9 +94,6 @@ fn sync_target_bins(
         stale_bin_names,
     })?;
 
-    if manifest.get("bin").is_none() {
-        return Ok(());
-    }
     let packages = [PackageBinSource::new(target_dir.to_path_buf(), Arc::clone(manifest))];
     link_bins_of_packages::<pnpm_cmd_shim::Host>(
         &packages,
@@ -107,38 +103,17 @@ fn sync_target_bins(
     .map_err(SyncInjectedDepsError::LinkBins)
 }
 
-fn workspace_link_options(opts: &SyncBinLinks<'_>) -> LinkBinsOptions {
-    LinkBinsOptions {
-        relocatable_root: Some(opts.workspace_dir.to_path_buf()),
-        project_modules_dir_name: (opts.settings.extend_node_path
-            && opts.settings.modules_dir_name != "node_modules")
-            .then(|| opts.settings.modules_dir_name.to_owned()),
-        ..LinkBinsOptions::default()
-    }
-}
-
 fn relink_project_bins(
     opts: &SyncBinLinks<'_>,
-    has_bins: bool,
     stale_bin_names: &[&String],
 ) -> Result<(), SyncInjectedDepsError> {
-    if !has_bins && stale_bin_names.is_empty() {
-        return Ok(());
-    }
-    let projects = find_workspace_projects_no_check(
-        opts.workspace_dir,
-        &FindWorkspaceProjectsOpts {
-            patterns: None,
-            ignored_directories: opts.settings.ignored_directories.clone(),
-        },
-    )
-    .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
-    let link_options = workspace_link_options(opts);
+    let projects = find_workspace_projects_no_check(opts.workspace_dir, &opts.settings.projects)
+        .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
     for project in projects {
         relink_single_project_bins(
             &project.root_dir,
             opts.settings.modules_dir_name,
-            &link_options,
+            &opts.settings.link_options,
             stale_bin_names,
         )?;
     }

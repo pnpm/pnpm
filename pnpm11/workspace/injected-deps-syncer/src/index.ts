@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { containingModulesDir, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { isError, PnpmError } from '@pnpm/error'
@@ -387,7 +387,7 @@ async function linkInjectedTargetBins (
   staleBinNames: string[],
   hoistedBinDir: string | undefined
 ): Promise<void> {
-  const binDir = path.join(path.dirname(resolvedTargetDir), '.bin')
+  const binDir = path.join(containingModulesDir(resolvedTargetDir), '.bin')
   const binDirs = [binDir, path.join(resolvedTargetDir, 'node_modules', '.bin')]
   if (hoistedBinDir != null) binDirs.push(hoistedBinDir)
 
@@ -395,7 +395,7 @@ async function linkInjectedTargetBins (
     dir => staleBinNames.map(async name => removeBin(path.join(dir, name)))
   ))
 
-  if (manifest.bin == null) return
+  if (manifest.bin == null && !manifest.directories?.bin) return
   await linkBinsOfPackages(
     [{
       manifest,

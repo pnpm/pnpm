@@ -220,6 +220,9 @@ fn directories_bin_walks_files_recursively() {
     let bin_dir = pkg.join("bin-dir");
     create_dir_all(bin_dir.join("subdir")).unwrap();
     write_file(bin_dir.join("rootBin.js"), "").unwrap();
+    create_dir_all(bin_dir.join(".hidden")).unwrap();
+    write_file(bin_dir.join(".hidden/nested"), "").unwrap();
+    write_file(bin_dir.join(".gitkeep"), "").unwrap();
     write_file(bin_dir.join("subdir/subBin.js"), "").unwrap();
 
     let manifest = json!({

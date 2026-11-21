@@ -3,6 +3,17 @@ use std::{
     path::Path,
 };
 
+/// The modules directory physically containing a scoped or unscoped package.
+#[must_use]
+pub fn containing_modules_dir(pkg_dir: &Path) -> Option<&Path> {
+    let parent = pkg_dir.parent()?;
+    let is_scope = parent
+        .file_name()
+        .map(std::ffi::OsStr::as_encoded_bytes)
+        .is_some_and(|encoded_bytes| encoded_bytes.starts_with(b"@"));
+    if is_scope { parent.parent() } else { Some(parent) }
+}
+
 /// The package names directly under `modules_dir`, scoped names
 /// included as `@scope/name`.
 ///

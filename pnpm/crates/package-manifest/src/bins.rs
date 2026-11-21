@@ -101,7 +101,7 @@ fn is_valid_args_byte(byte: u8) -> bool {
 /// shebang.
 #[must_use]
 pub fn extension_program(extension: &str) -> Option<&'static str> {
-    match extension {
+    match extension.to_ascii_lowercase().as_str() {
         "js" | "cjs" | "mjs" => Some("node"),
         "cmd" | "bat" => Some("cmd"),
         "ps1" => Some("pwsh"),
@@ -467,11 +467,15 @@ fn resolve_paths_from_directories_bin<'files>(
 }
 
 fn bin_dir_entry_name<'path>(file_path: &'path str, bin_dir: &str) -> Option<&'path str> {
-    let in_bin_dir = bin_dir.is_empty()
-        || file_path
-            .strip_prefix(bin_dir)
-            .is_some_and(|rest| rest.starts_with('/'));
-    if !in_bin_dir {
+    let relative = if bin_dir.is_empty() {
+        file_path
+    } else {
+        file_path.strip_prefix(bin_dir)?.strip_prefix('/')?
+    };
+    if relative
+        .split('/')
+        .any(|part| part.starts_with('.'))
+    {
         return None;
     }
     let file_name = file_path

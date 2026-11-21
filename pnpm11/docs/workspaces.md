@@ -222,6 +222,8 @@ Injected workspace dependencies are collections of hardlinks, which don't add or
 
 This setting is a list of script names. When any of these scripts are executed in a workspace package, the injected dependencies inside `node_modules` will also be synchronized.
 
+After the script succeeds, pnpm refreshes command links for injected packages that declare `bin` or `directories.bin`.
+
 ### preferWorkspacePackages
 
 * Default: **false**

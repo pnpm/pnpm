@@ -18,7 +18,7 @@
 pub(crate) use bins::HoistedBinLinkOutput;
 pub use bins::HoistedBinSources;
 pub use dir_clone::HoistedDirCloneCache;
-use std::ffi::OsStr;
+pub(crate) use pnpm_fs::containing_modules_dir;
 
 mod bins;
 
@@ -267,16 +267,6 @@ pub(crate) fn link_hoisted_modules_with_sources<Reporter: self::Reporter>(
     }));
 
     Ok(bins)
-}
-
-/// The modules directory physically containing a scoped or unscoped package.
-pub(crate) fn containing_modules_dir(pkg_dir: &Path) -> Option<&Path> {
-    let parent = pkg_dir.parent()?;
-    let is_scope = parent
-        .file_name()
-        .map(OsStr::as_encoded_bytes)
-        .is_some_and(|encoded_bytes| encoded_bytes.starts_with(b"@"));
-    if is_scope { parent.parent() } else { Some(parent) }
 }
 
 /// Phase 2 + 3: recursively import packages then link bins for

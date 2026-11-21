@@ -148,12 +148,8 @@ pub struct BinLinkSettings<'a> {
     /// The name of the workspace's modules directories, `node_modules`
     /// unless `modulesDir` says otherwise.
     pub modules_dir_name: &'a std::ffi::OsStr,
-    /// pnpm's `extendNodePath`: the relinked shims put a custom modules
-    /// directory on `NODE_PATH`, as the install's shims do.
-    pub extend_node_path: bool,
-    /// Passed to [`pnpm_workspace::FindWorkspaceProjectsOpts::ignored_directories`] when
-    /// discovering the projects whose bins are relinked.
-    pub ignored_directories: Vec<PathBuf>,
+    pub link_options: pnpm_cmd_shim::LinkBinsOptions,
+    pub projects: pnpm_workspace::FindWorkspaceProjectsOpts,
 }
 
 /// Bring every injected copy of `pkg_root_dir` back in step with it.

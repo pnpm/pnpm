@@ -77,8 +77,8 @@ fn sync_leaves_an_injected_copy_alone_when_its_publish_directory_is_missing() {
         project_modules_dirs: &[],
         bin_links: BinLinkSettings {
             modules_dir_name: OsStr::new("node_modules"),
-            extend_node_path: false,
-            ignored_directories: Vec::new(),
+            link_options: Default::default(),
+            projects: Default::default(),
         },
     })
     .expect("sync should not fail when the publish directory is missing");
@@ -165,16 +165,16 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
     write_file(
         &workspace.join("project-1/dist/package.json"),
         &serde_json::json!({
-            "name": "project-1",
+            "name": "@example/project-1",
             "directories": { "bin": "bin" },
         })
         .to_string(),
     );
     write_file(&workspace.join("project-1/dist/index.js"), "new content");
-    // project-1/dist/bin is intentionally never created, standing in for a
-    // rebuilt publish directory that no longer declares the old bin.
+    write_file(&workspace.join("project-1/dist/bin/current"), "#!/usr/bin/env node");
+    write_file(&workspace.join("fixtures/broken/package.json"), "{");
 
-    let target = workspace.join("project-2/node_modules/project-1");
+    let target = workspace.join("project-2/node_modules/@example/project-1");
     write_file(&target.join("index.js"), "old content");
     let stale_shim = workspace.join("project-2/node_modules/.bin/mycommand");
     write_file(&stale_shim, "stale shim");
@@ -184,19 +184,19 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         &serde_json::json!({
             "virtualStoreDir": "node_modules/.pnpm",
             "injectedDeps": {
-                "project-1/dist": ["project-2/node_modules/project-1"],
+                "project-1/dist": ["project-2/node_modules/@example/project-1"],
             },
         })
         .to_string(),
     );
 
     let manifest = serde_json::json!({
-        "name": "project-1",
+        "name": "@example/project-1",
         "publishConfig": { "directory": "dist" },
         "directories": { "bin": "bin" },
     });
     sync_injected_deps(&SyncInjectedDeps {
-        pkg_name: Some("project-1"),
+        pkg_name: Some("@example/project-1"),
         pkg_root_dir: Path::new("project-1"),
         workspace_dir: Some(workspace),
         workspace_modules_dir: &workspace.join("node_modules"),
@@ -205,8 +205,19 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         project_modules_dirs: &[],
         bin_links: BinLinkSettings {
             modules_dir_name: OsStr::new("node_modules"),
-            extend_node_path: false,
-            ignored_directories: Vec::new(),
+            link_options: pnpm_cmd_shim::LinkBinsOptions {
+                extra_node_paths: vec![
+                    workspace
+                        .join("hoisted")
+                        .display()
+                        .to_string(),
+                ],
+                ..Default::default()
+            },
+            projects: pnpm_workspace::FindWorkspaceProjectsOpts {
+                patterns: Some(vec!["**".into(), "!fixtures/**".into()]),
+                ..Default::default()
+            },
         },
     })
     .expect("sync should not fail");
@@ -216,6 +227,16 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         "new content",
         "the injected copy follows the rebuilt publish directory",
     );
+    assert!(
+        !target
+            .parent()
+            .unwrap()
+            .join(".bin")
+            .exists()
+    );
+    let shim = fs::read_to_string(stale_shim.with_file_name("current")).unwrap();
+    assert!(shim.contains("NODE_PATH"));
+    assert!(shim.contains("hoisted"));
     assert!(!stale_shim.exists(), "the shim for the bin the rebuild dropped must be removed");
 }
 
@@ -273,8 +294,8 @@ fn watch_publishes_from_the_publish_directory_once_it_exists() {
         project_modules_dirs: &[],
         bin_links: BinLinkSettings {
             modules_dir_name: OsStr::new("node_modules"),
-            extend_node_path: false,
-            ignored_directories: Vec::new(),
+            link_options: Default::default(),
+            projects: Default::default(),
         },
     });
     assert_eq!(
@@ -339,8 +360,8 @@ fn edit_sources_include_the_copies_a_project_with_its_own_lockfile_lists() {
             project_modules_dirs,
             bin_links: BinLinkSettings {
                 modules_dir_name: OsStr::new("node_modules"),
-                extend_node_path: false,
-                ignored_directories: Vec::new(),
+                link_options: Default::default(),
+                projects: Default::default(),
             },
         })
         .into_iter()

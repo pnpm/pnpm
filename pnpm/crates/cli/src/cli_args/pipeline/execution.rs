@@ -424,8 +424,11 @@ fn sync_injected_deps_if_configured(
         project_modules_dirs: &project_modules_dirs,
         bin_links: BinLinkSettings {
             modules_dir_name: config.modules_dir_name(),
-            extend_node_path: config.extend_node_path,
-            ignored_directories: config.managed_directories(),
+            link_options: pnpm_deps_restorer::shim_link_options(config, config.node_linker),
+            projects: pnpm_workspace::FindWorkspaceProjectsOpts {
+                patterns: config.workspace_package_patterns.clone(),
+                ignored_directories: config.managed_directories(),
+            },
         },
     })?;
     Ok(())

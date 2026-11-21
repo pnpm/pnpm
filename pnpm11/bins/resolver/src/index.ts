@@ -36,10 +36,10 @@ export async function getBinsFromPackageManifest (manifest: DependencyManifest, 
       return []
     }
     const files = await findFiles(binDir)
-    return files.map((file) => ({
-      name: path.basename(file),
-      path: path.join(binDir, file),
-    }))
+    return files.flatMap((file) => {
+      const name = path.basename(file)
+      return isSafeBinName(name) ? [{ name, path: path.join(binDir, file) }] : []
+    })
   }
   return []
 }

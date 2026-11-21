@@ -27,7 +27,7 @@ export async function relinkModulesDirPackageBins (
   }))
 }
 
-function containingModulesDir (pkgRoot: string): string {
+export function containingModulesDir (pkgRoot: string): string {
   const parent = path.dirname(pkgRoot)
   return path.basename(parent).startsWith('@') ? path.dirname(parent) : parent
 }
