@@ -35,7 +35,7 @@ pub(super) async fn add_owner(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
-    Path(path): Path<super::npm_handlers::NamePath>,
+    Path(path): Path<super::npm_paths::NamePath>,
     Json(owner): Json<Owner>,
 ) -> Response {
     edit_owner(&state, &identity, registry.as_deref(), (&path.name, OwnerEdit::Add(&owner.user)))
