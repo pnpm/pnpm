@@ -26,3 +26,18 @@ test('configured lockfile directory owns the loaders, including when they are mi
   expect(missing.existsPnp(workspaceDir)).toBeUndefined()
   expect(missing.existsPackageMap(workspaceDir)).toBeUndefined()
 })
+
+
+test.each(['../vendor', 'absolute'])('finds a package map in an external modules directory (%s)', (setting) => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  const lockfileDir = path.resolve('lockfiles')
+  const modulesDir = setting === 'absolute' ? path.resolve('outside/vendor') : setting
+  const resolvedModulesDir = path.resolve(lockfileDir, modulesDir)
+  fs.mkdirSync(resolvedModulesDir, { recursive: true })
+  const mapPath = path.join(resolvedModulesDir, '.package-map.json')
+  fs.writeFileSync(mapPath, '{}')
+  const paths = getNodeLoaderPaths({ workspaceDir, lockfileDir, modulesDir, nodeExperimentalPackageMap: true })
+  expect(paths.workspacePackageMapPath).toBe(mapPath)
+  expect(paths.existsPackageMap(path.join(workspaceDir, 'member'))).toBe(mapPath)
+})

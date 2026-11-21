@@ -20,7 +20,7 @@ fn loader_respects_exports_and_resolution_paths() {
     for (directory, value) in [(".hidden", "first"), ("second", "second")] {
         std::fs::write(
             root.join(directory).join("package.json"),
-            r#"{"exports":{".":{"require":"./entry.cjs"},"./sub":"./sub.cjs","./pattern/*":"./*.cjs","./blocked":null,"./conditional":{"custom":"./sub.cjs","require":"./entry.cjs"}}}"#,
+            r#"{"exports":{".":{"require":"./entry.cjs"},"./sub":"./sub.cjs","./pattern/*":"./*.cjs","./blocked":null,"./conditional":{"custom":"./sub.cjs","require":"./entry.cjs"},"./env":{"from-env":"./sub.cjs","default":"./entry.cjs"},"./addons":{"node-addons":"./sub.cjs","default":"./entry.cjs"},"./sync":{"module-sync":"./sub.cjs","default":"./entry.cjs"}}}"#,
         ).unwrap();
         std::fs::write(
             root.join(directory).join("entry.cjs"),
@@ -45,6 +45,9 @@ const path = require('path');
 const api = require('../.pnp.cjs');
 assert.strictEqual(require('alias'), 'first');
 assert.strictEqual(require('alias/sub'), 'sub');
+assert.strictEqual(require('alias/env'), 'sub');
+assert.strictEqual(require('alias/addons'), process.argv[2] === 'disabled' ? 'first' : 'sub');
+assert.strictEqual(require('alias/sync'), process.features.require_module ? 'sub' : 'first');
 assert.strictEqual(require('alias/conditional'), 'sub');
 assert.strictEqual(require(api.resolveRequest('alias/conditional', __filename, {conditions: new Set(['require'])})), 'first');
 assert.strictEqual(require('alias/pattern/sub'), 'sub');
@@ -61,12 +64,29 @@ assert.throws(() => require.resolve('alias', {paths: []}), {code: 'MODULE_NOT_FO
 assert.throws(() => require.resolve('undeclared'), {code: 'MODULE_NOT_FOUND'});
 ";
     std::fs::write(root.join("app/check.cjs"), script).unwrap();
-    let output = std::process::Command::new("node")
-        .with_current_dir(root.join("app"))
-        .with_args(["--conditions=custom", "check.cjs"])
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    for flags in [vec![], vec!["--no-addons", "--no-experimental-require-module"], vec!["--addons"]]
+    {
+        let disabled = flags.contains(&"--no-addons");
+        let output = std::process::Command::new("node")
+            .with_current_dir(root.join("app"))
+            .with_env(
+                "NODE_OPTIONS",
+                if flags.contains(&"--addons") {
+                    "--conditions=from-env --no-addons"
+                } else {
+                    "--conditions=from-env"
+                },
+            )
+            .with_args(flags)
+            .with_args([
+                "--conditions=custom",
+                "check.cjs",
+                if disabled { "disabled" } else { "enabled" },
+            ])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
 }
 
 #[test]

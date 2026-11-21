@@ -5,7 +5,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { packageExportsResolve } from 'yarn-pnp-exports'
 import { getOptionValue } from 'yarn-pnp-node-options'
 
-const defaultConditions = new Set(['node', 'require', ...getOptionValue('--conditions')])
+const defaultConditions = new Set([
+  'node',
+  'require',
+  ...getOptionValue('--no-addons') ? [] : ['node-addons'],
+  ...process.features.require_module ? ['module-sync'] : [],
+  ...getOptionValue('--conditions'),
+])
 const exportsByManifest = new Map()
 
 export function resolvePackageExports ({ packageLocation, packageSubpath, issuer, conditions = defaultConditions }) {

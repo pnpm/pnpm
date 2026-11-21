@@ -35,8 +35,10 @@ pub fn package_map_path_for_execution(config: &Config, dir: &Path) -> Option<Pat
     if !config.node_package_map_mode.loads() {
         return None;
     }
-    // Installs write the map under the configured modules dir, so detect it
-    // by that dir's basename rather than the hard-coded `node_modules`.
+    if config.lockfile_dir.is_some() {
+        let path = config.modules_dir.join(PACKAGE_MAP_FILENAME);
+        return path.is_file().then_some(path);
+    }
     let modules_dir_name = config.modules_dir_name();
     find_execution_file(config, dir, &Path::new(modules_dir_name).join(PACKAGE_MAP_FILENAME))
 }

@@ -629,16 +629,21 @@ fn execution_finds_the_package_map_in_the_lockfile_directory() {
     let temp = tempfile::tempdir().unwrap();
     let workspace = temp.path().join("workspace");
     let lockfile_dir = temp.path().join("lockfiles");
-    let modules_dir = lockfile_dir.join("vendor");
-    std::fs::create_dir_all(&modules_dir).unwrap();
-    let map_path = modules_dir.join(super::PACKAGE_MAP_FILENAME);
-    std::fs::write(&map_path, "{}").unwrap();
-    let config = pnpm_config::Config {
-        workspace_dir: Some(workspace.clone()),
-        lockfile_dir: Some(lockfile_dir),
-        modules_dir,
-        node_package_map_mode: pnpm_config::NodePackageMapMode::Load,
-        ..Default::default()
-    };
-    assert_eq!(super::package_map_path_for_execution(&config, &workspace), Some(map_path));
+    for modules_dir in [
+        lockfile_dir.join("vendor"),
+        lockfile_dir.join("../vendor"),
+        temp.path().join("absolute/vendor"),
+    ] {
+        std::fs::create_dir_all(&modules_dir).unwrap();
+        let map_path = modules_dir.join(super::PACKAGE_MAP_FILENAME);
+        std::fs::write(&map_path, "{}").unwrap();
+        let config = pnpm_config::Config {
+            workspace_dir: Some(workspace.clone()),
+            lockfile_dir: Some(lockfile_dir.clone()),
+            modules_dir,
+            node_package_map_mode: pnpm_config::NodePackageMapMode::Load,
+            ..Default::default()
+        };
+        assert_eq!(super::package_map_path_for_execution(&config, &workspace), Some(map_path));
+    }
 }

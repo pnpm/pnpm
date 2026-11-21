@@ -16,8 +16,8 @@ export function getNodeLoaderPaths (opts: {
   const rootDir = opts.lockfileDir ?? opts.workspaceDir
   const existsPnp = (dir: string) => existsInDir('.pnp.cjs', opts.lockfileDir ?? dir)
   const existsPackageMap = (dir: string) => existsInDir(
-    path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'),
-    opts.lockfileDir ?? dir
+    '.package-map.json',
+    path.resolve(opts.lockfileDir ?? dir, opts.modulesDir ?? 'node_modules')
   )
   return {
     existsPnp,
