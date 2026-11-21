@@ -11,6 +11,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
+pub use bundled::root_bundle_dep_names;
 pub use ignore_walk::files_field::{
     FilesMatcher,
     build_files_matcher,

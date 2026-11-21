@@ -188,6 +188,41 @@ pub fn replace_workspace_protocol_peer_dependency(
     Ok(rewritten)
 }
 
+/// The manifest a `workspace:` specifier resolves to, read with the same
+/// precedence and fallbacks as [`replace_workspace_protocol`]. `None` when
+/// `dep_spec` is not a `workspace:` specifier or names no package the
+/// rewrite could resolve.
+pub(crate) fn workspace_target_manifest(
+    dep_name: &str,
+    dep_spec: &str,
+    dir: &Path,
+    modules_dir: Option<&Path>,
+    lookup: WorkspacePackageLookup<'_>,
+) -> Result<Option<WorkspacePackageManifest>, ReplaceWorkspaceProtocolError> {
+    let Some(workspace_spec) = WorkspaceSpec::parse(dep_spec) else {
+        return Ok(None);
+    };
+    let resolved = match strip_workspace_relative_prefix(dep_spec) {
+        Some(relative) => read_and_check_manifest(
+            dep_name,
+            dep_name,
+            &dir.join(relative),
+            WorkspacePackageLookup { prefer_workspace_for: None, ..lookup },
+        ),
+        None => read_and_check_manifest(
+            dep_name,
+            workspace_spec.alias.as_deref().unwrap_or(dep_name),
+            &installed_modules_dir(dir, modules_dir).join(dep_name),
+            lookup,
+        ),
+    };
+    match resolved {
+        Ok(manifest) => Ok(Some(manifest)),
+        Err(ReplaceWorkspaceProtocolError::CannotResolve(_)) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 /// What a `workspace:` peer specifier parses as, when it parses as one whole.
 enum ParsedPeer {
     /// An `npm:` alias the published manifest records verbatim.
@@ -208,7 +243,7 @@ fn parsed_peer_spec(dep_spec: &str) -> Option<ParsedPeer> {
 
 /// The directory a workspace dependency is installed under: the caller's, or
 /// the project's own `node_modules`.
-pub(crate) fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
+fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
     modules_dir
         .map(Path::to_path_buf)
         .unwrap_or_else(|| dir.join("node_modules"))
@@ -395,7 +430,7 @@ fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch<'_
 
 /// Strip the `workspace:` prefix and return the path portion of a
 /// relative `workspace:./` or `workspace:../` spec.
-pub(crate) fn strip_workspace_relative_prefix(dep_spec: &str) -> Option<&str> {
+fn strip_workspace_relative_prefix(dep_spec: &str) -> Option<&str> {
     if dep_spec.starts_with("workspace:./") || dep_spec.starts_with("workspace:../") {
         return Some(&dep_spec["workspace:".len()..]);
     }

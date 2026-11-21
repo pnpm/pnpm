@@ -347,7 +347,7 @@ pub(super) fn is_safe_bundle_name(name: &str) -> bool {
 /// `bundleDependencies` (or the legacy `bundledDependencies`). Both
 /// spellings appear in real published packages; npm-packlist accepts
 /// either.
-fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
+pub fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
     let raw = manifest
         .get("bundleDependencies")
         .or_else(|| manifest.get("bundledDependencies"));

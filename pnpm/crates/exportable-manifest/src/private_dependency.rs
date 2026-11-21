@@ -9,9 +9,8 @@ use crate::{
         replace_catalog_protocol,
     },
     replace::{
-        ReplaceWorkspaceProtocolError,
-        installed_modules_dir,
-        strip_workspace_relative_prefix,
+        WorkspacePackageLookup,
+        workspace_target_manifest,
     },
 };
 use derive_more::{
@@ -19,8 +18,6 @@ use derive_more::{
     Error,
 };
 use miette::Diagnostic;
-use pnpm_package_manifest::safe_read_package_json_from_dir;
-use pnpm_workspace_spec::WorkspaceSpec;
 use serde_json::{
     Map,
     Value,
@@ -70,8 +67,8 @@ pub fn private_workspace_dependencies(
 
 /// Fail when the publishable manifest `published` still lists one of the
 /// `private_dependencies` in `dependencies`. A private manifest is never
-/// published, and a bundled dependency ships inside the tarball, so neither
-/// is rejected.
+/// published, so it is not rejected. The caller leaves out the dependencies
+/// the tarball bundles.
 pub fn reject_private_workspace_dependencies(
     published: &Value,
     private_dependencies: &[String],
@@ -87,8 +84,7 @@ pub fn reject_private_workspace_dependencies(
     };
     let rejected = private_dependencies
         .iter()
-        .filter(|dep_name| dependencies.contains_key(*dep_name))
-        .find(|dep_name| !is_bundled(published, dep_name));
+        .find(|dep_name| dependencies.contains_key(*dep_name));
     let Some(dep_name) = rejected else {
         return Ok(());
     };
@@ -102,57 +98,25 @@ pub fn reject_private_workspace_dependencies(
     })
 }
 
-/// Whether `spec` is a `workspace:` specifier whose target package is private.
-/// The target is read where the workspace-protocol rewrite reads it: the
-/// relative path, or the installed copy, falling back to the workspace
-/// packages for a dependency that is not installed.
+/// Whether `spec` is a `workspace:` specifier whose target package, resolved
+/// the way the workspace-protocol rewrite resolves it, is private.
 fn is_private_workspace_package(
     dep_name: &str,
     spec: &str,
     dir: &Path,
     opts: &CreateExportableManifestOptions<'_>,
 ) -> Result<bool, CreateExportableManifestError> {
-    let Some(workspace_spec) = WorkspaceSpec::parse(spec) else {
-        return Ok(false);
+    let lookup = WorkspacePackageLookup {
+        packages: opts.workspace_packages,
+        prefer_workspace_for: opts.bumped_workspace_packages,
     };
-    let relative = strip_workspace_relative_prefix(spec);
-    let target_dir = match relative {
-        Some(relative) => dir.join(relative),
-        None => installed_modules_dir(dir, opts.modules_dir).join(dep_name),
-    };
-    let manifest = safe_read_package_json_from_dir(&target_dir)
-        .map_err(|error| {
-            CreateExportableManifestError::ReplaceWorkspaceProtocol(
-                ReplaceWorkspaceProtocolError::ReadManifest(error),
-            )
-        })?;
-    if let Some(manifest) = manifest {
-        return Ok(manifest.as_object().is_some_and(is_private));
-    }
-    if relative.is_some() {
-        return Ok(false);
-    }
-    let target_name = workspace_spec.alias.as_deref().unwrap_or(dep_name);
-    Ok(opts.workspace_packages
-        .and_then(|packages| packages.get(target_name))
-        .is_some_and(|package| package.private))
+    let target = workspace_target_manifest(dep_name, spec, dir, opts.modules_dir, lookup)
+        .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;
+    Ok(target.is_some_and(|manifest| manifest.private))
 }
 
 fn is_private(manifest: &Map<String, Value>) -> bool {
     manifest.get("private") == Some(&Value::Bool(true))
-}
-
-fn is_bundled(manifest: &Map<String, Value>, dep_name: &str) -> bool {
-    ["bundleDependencies", "bundledDependencies"]
-        .iter()
-        .filter_map(|field| manifest.get(*field))
-        .any(|bundled| match bundled {
-            Value::Bool(all) => *all,
-            Value::Array(names) => names
-                .iter()
-                .any(|name| name.as_str() == Some(dep_name)),
-            _ => false,
-        })
 }
 
 #[cfg(test)]

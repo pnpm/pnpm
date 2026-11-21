@@ -75,6 +75,7 @@ use pnpm_fs_packlist::{
     PacklistError,
     PacklistOptions,
     packlist_with_sources,
+    root_bundle_dep_names,
 };
 use pnpm_hooks::{
     HookContext,
@@ -486,7 +487,7 @@ impl PackManifestOptions {
             workspace_packages: self.workspace_packages.as_deref(),
             bumped_workspace_packages: self.bumped_workspace_packages.as_deref(),
         };
-        let private_dependencies = private_workspace_dependencies(dir, manifest, &options)
+        let mut private_dependencies = private_workspace_dependencies(dir, manifest, &options)
             .map_err(PackError::CreateManifest)?;
         let mut publish_manifest =
             create_exportable_manifest(dir, manifest, &options).map_err(PackError::CreateManifest)?;
@@ -503,6 +504,8 @@ impl PackManifestOptions {
             &self.before_packing_hooks,
         )
         .await?;
+        let bundled = root_bundle_dep_names(&publish_manifest);
+        private_dependencies.retain(|dep_name| !bundled.contains(dep_name));
         reject_private_workspace_dependencies(&publish_manifest, &private_dependencies)
             .map_err(PackError::PrivateWorkspaceDependency)?;
 

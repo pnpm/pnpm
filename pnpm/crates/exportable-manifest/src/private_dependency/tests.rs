@@ -109,15 +109,12 @@ fn falls_back_to_the_workspace_packages_when_not_installed() {
 #[test]
 fn allows_what_does_not_need_the_private_package_from_the_registry() {
     let temp = fixture(true);
-    let mut bundled = app("dependencies", "workspace:*");
-    bundled["bundleDependencies"] = json!(["secret"]);
     let mut private = app("dependencies", "workspace:*");
     private["private"] = json!(true);
     for manifest in [
         app("devDependencies", "workspace:*"),
         app("optionalDependencies", "workspace:*"),
         app("peerDependencies", "workspace:*"),
-        bundled,
         private,
     ] {
         export(&temp, &manifest, None).expect("manifest is exportable");
@@ -138,18 +135,37 @@ fn ignores_a_registry_dependency_installed_from_elsewhere() {
 }
 
 #[test]
-fn allows_a_dependency_a_before_packing_hook_removes_or_bundles() {
+fn allows_a_dependency_a_before_packing_hook_removes() {
     let temp = fixture(true);
-    let manifest = app("dependencies", "workspace:*");
-    export_with(&temp, &manifest, None, |published| {
+    export_with(&temp, &app("dependencies", "workspace:*"), None, |published| {
         published["dependencies"]
             .as_object_mut()
             .unwrap()
             .remove("secret");
     })
     .expect("the hook removed the dependency");
-    export_with(&temp, &manifest, None, |published| {
-        published["bundleDependencies"] = json!(["secret"]);
-    })
-    .expect("the hook bundled the dependency");
+}
+
+/// The check falls back to the workspace packages wherever the rewrite does:
+/// an installed manifest without a version, or a missing relative target.
+#[test]
+fn follows_the_rewrite_to_the_workspace_packages() {
+    let temp = fixture(true);
+    fs::write(
+        temp.path().join("app/node_modules/secret/package.json"),
+        json!({ "name": "secret" }).to_string(),
+    )
+    .unwrap();
+    fs::remove_dir_all(temp.path().join("secret")).unwrap();
+    let packages = HashMap::from([(
+        "secret".to_string(),
+        WorkspacePackageManifest {
+            name: "secret".to_string(),
+            version: "1.0.0".to_string(),
+            private: true,
+        },
+    )]);
+    for spec in ["workspace:*", "workspace:../secret"] {
+        assert_rejected(export(&temp, &app("dependencies", spec), Some(&packages)));
+    }
 }
