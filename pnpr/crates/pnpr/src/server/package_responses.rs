@@ -204,13 +204,13 @@ pub(super) async fn packument_response(
     request: PackumentRequest<'_>,
     max_age: u64,
 ) -> Result<Response, RegistryError> {
-    let representation = match request {
-        PackumentRequest::Read(headers) => Representation::requested(headers),
-        PackumentRequest::Write => Representation::Write,
+    let (representation, validators) = match request {
+        PackumentRequest::Read(headers) => (Representation::requested(headers), Some(headers)),
+        PackumentRequest::Write => (Representation::Write, None),
     };
     let rendered =
         processing::render(name, bytes, tarball_base, view, state, representation).await?;
-    if let PackumentRequest::Read(headers) = request
+    if let Some(headers) = validators
         && is_not_modified(headers, &rendered.etag, rendered.last_modified.as_deref())
     {
         return Ok(packument_not_modified_response(

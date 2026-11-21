@@ -63,10 +63,12 @@ pub(super) async fn serve_packument(
         if for_write { PackumentRequest::Write } else { PackumentRequest::Read(&headers) };
     let response =
         serve_registry_packument(state, identity, request, &target, raw_name, &base).await;
-    if matches!(request, PackumentRequest::Write) {
-        return super::private_no_cache(response);
+    match request {
+        PackumentRequest::Write => super::private_no_cache(response),
+        PackumentRequest::Read(_) => {
+            caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
+        }
     }
-    caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
 // Registry dispatch. A `/~<name>/` request resolves the package to
