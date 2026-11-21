@@ -3,7 +3,7 @@ import path from 'node:path'
 import { findDependencyLicenses } from '@pnpm/deps.compliance.license-scanner'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { getStorePath } from '@pnpm/store.path'
-import type { LicensesConfig, ProjectManifest, Registries, SupportedArchitectures } from '@pnpm/types'
+import type { LicensesConfig, ProjectManifest, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 
 import { checkLicenseCompliance, type CheckLicensesResult } from './checkLicenses.js'
 import { collectDirectDepKeys } from './directDeps.js'
@@ -36,7 +36,8 @@ export interface ScanOptions {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   pnpmHomeDir: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   manifest: ProjectManifest
   supportedArchitectures?: SupportedArchitectures
   selectedProjectsGraph?: Record<string, { package: { manifest: ProjectManifest } }>
@@ -77,7 +78,8 @@ export async function scanAndCheckLicenses (opts: ScanOptions): Promise<ScanResu
     virtualStoreDir: opts.virtualStoreDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm'),
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     wantedLockfile: lockfile,
     manifest: opts.manifest,
     includedImporterIds,

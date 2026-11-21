@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import type { LicensesConfig, ProjectManifest, Registries, SupportedArchitectures } from '@pnpm/types'
+import type { LicensesConfig, ProjectManifest, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 
 import { resolveLicensePolicy } from './policy.js'
 import { sanitizeForTerminal } from './sanitize.js'
@@ -15,7 +15,8 @@ export interface CheckAfterInstallOptions {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   pnpmHomeDir: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   manifest: ProjectManifest
   supportedArchitectures?: SupportedArchitectures
   selectedProjectsGraph?: Record<string, { package: { manifest: ProjectManifest } }>
@@ -36,7 +37,8 @@ export async function checkLicensesAfterInstall (opts: CheckAfterInstallOptions)
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
     pnpmHomeDir: opts.pnpmHomeDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     manifest: opts.manifest,
     supportedArchitectures: opts.supportedArchitectures,
     selectedProjectsGraph: opts.selectedProjectsGraph,

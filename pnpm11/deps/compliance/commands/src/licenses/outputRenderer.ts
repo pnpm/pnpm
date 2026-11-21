@@ -1,4 +1,5 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
+import { sanitizeForTerminal } from '@pnpm/deps.compliance.license-checker'
 import { compareVersions, type LicensePackage } from '@pnpm/deps.compliance.license-scanner'
 import { sanitizeInline } from '@pnpm/text.sanitize'
 import { table } from '@zkochan/table'
