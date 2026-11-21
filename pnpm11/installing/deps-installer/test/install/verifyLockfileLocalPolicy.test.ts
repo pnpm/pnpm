@@ -917,3 +917,32 @@ posixOnly('a deployed directory named like a tarball matches its target', () => 
     code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
   }))
 })
+
+test('explicit and hashed peer suffixes both bind a local peer', async () => {
+  const lockfile = (suffix: string): LockfileObject => ({
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { plugin: `1.0.0${suffix}` },
+        specifiers: { plugin: '1.0.0' },
+      },
+    },
+    packages: {
+      [`plugin@1.0.0${suffix}` as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { helper: '1.0.0' },
+        peerDependencies: { helper: 'file:../unused' },
+      },
+      ['helper@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-helper' },
+      },
+    },
+  })
+  for (const suffix of ['(helper@1.0.0)', '(4d6f1c2b9a)', '(patch_hash=abc)(4d6f1c2b9a)']) {
+    // eslint-disable-next-line no-await-in-loop -- sequential assertion per suffix form
+    await expect(verifyLockfileResolutions(lockfile(suffix), [], { localPolicy: buildPolicy({}) })).rejects.toMatchObject({
+      code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+    })
+  }
+  await expect(verifyLockfileResolutions(lockfile('(patch_hash=abc)'), [], { localPolicy: buildPolicy({}) })).resolves.toBeUndefined()
+})

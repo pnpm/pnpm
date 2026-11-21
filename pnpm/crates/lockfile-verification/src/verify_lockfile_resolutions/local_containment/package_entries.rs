@@ -242,13 +242,42 @@ fn index_resolved_aliases(
 }
 
 /// Whether the snapshot key's peer suffix binds `alias`. A regular
-/// dependency of the same name is not a resolved peer. A hashed suffix names
+/// dependency of the same name is not a resolved peer. A hashed group names
 /// no peers, so it counts as binding every alias.
 fn peer_suffix_binds(peer_suffix: &str, alias: &str) -> bool {
-    if peer_suffix.is_empty() {
-        return false;
-    }
-    !peer_suffix.starts_with('(') || peer_suffix.contains(&format!("({alias}@"))
+    peer_suffix.contains(&format!("({alias}@")) || top_level_groups(peer_suffix).any(is_hash_group)
+}
+
+/// The contents of the top-level `(...)` groups of a dependency path suffix.
+fn top_level_groups(suffix: &str) -> impl Iterator<Item = &str> {
+    let mut depth = 0_usize;
+    let mut start = 0;
+    suffix
+        .char_indices()
+        .filter_map(move |(index, ch)| {
+            match ch {
+                '(' => {
+                    if depth == 0 {
+                        start = index + 1;
+                    }
+                    depth += 1;
+                }
+                ')' if depth > 0 => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(&suffix[start..index]);
+                    }
+                }
+                _ => {}
+            }
+            None
+        })
+}
+
+/// A peer graph hash group holds only the hash. Explicit peer groups hold
+/// `name@version` and the patch group holds `patch_hash=...`.
+fn is_hash_group(group: &str) -> bool {
+    !group.is_empty() && group.chars().all(|ch| ch.is_ascii_alphanumeric())
 }
 
 /// Whether an authorized local package declares the same peer, which lets

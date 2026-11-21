@@ -704,3 +704,19 @@ async fn deployed_directory_named_like_a_tarball_matches_its_target() {
     let err = verify(lockfile("../other")).await.expect_err("a different directory must not match");
     assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "{err:?}");
 }
+
+#[test]
+fn explicit_and_hashed_peer_suffixes_both_bind_a_local_peer() {
+    let lockfile = |suffix: &str| {
+        parse(&format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      plugin:\n        specifier: 1.0.0\n        version: 1.0.0{suffix}\npackages:\n  plugin@1.0.0:\n    resolution: {{integrity: sha512-deadbeef}}\n    peerDependencies:\n      helper: file:../unused\n  helper@1.0.0:\n    resolution: {{integrity: sha512-helper}}\nsnapshots:\n  plugin@1.0.0{suffix}:\n    dependencies:\n      helper: 1.0.0\n  helper@1.0.0: {{}}\n",
+        ))
+    };
+    for suffix in ["(helper@1.0.0)", "(4d6f1c2b9a)", "(patch_hash=abc)(4d6f1c2b9a)"] {
+        let err =
+            crate::verify_lockfile_local_resolutions(&lockfile(suffix), None).expect_err(suffix);
+        assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{suffix}: {err:?}");
+    }
+    crate::verify_lockfile_local_resolutions(&lockfile("(patch_hash=abc)"), None)
+        .expect("a patch group binds no peer");
+}

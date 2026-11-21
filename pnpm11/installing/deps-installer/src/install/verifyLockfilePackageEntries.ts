@@ -141,12 +141,42 @@ function isPeerResolved (
 
 /**
  * Whether the dependency path's peer suffix binds `alias`. A regular
- * dependency of the same name is not a resolved peer. A hashed suffix names
+ * dependency of the same name is not a resolved peer. A hashed group names
  * no peers, so it counts as binding every alias.
  */
 function peerSuffixBinds (peerSuffix: string | undefined, alias: string): boolean {
   if (!peerSuffix) return false
-  return !peerSuffix.startsWith('(') || peerSuffix.includes(`(${alias}@`)
+  return peerSuffix.includes(`(${alias}@`) || topLevelGroups(peerSuffix).some(isHashGroup)
+}
+
+function topLevelGroups (suffix: string): string[] {
+  const groups: string[] = []
+  let depth = 0
+  let start = 0
+  for (let index = 0; index < suffix.length; index++) {
+    const delta = parenDepthDelta(suffix[index])
+    if (delta === 1 && depth === 0) start = index + 1
+    depth += delta
+    if (delta === -1 && depth === 0) groups.push(suffix.slice(start, index))
+  }
+  return groups
+}
+
+function parenDepthDelta (char: string): number {
+  if (char === '(') return 1
+  return char === ')' ? -1 : 0
+}
+
+/**
+ * A peer graph hash group holds only the hash. Explicit peer groups hold
+ * `name@version` and the patch group holds `patch_hash=...`.
+ */
+function isHashGroup (group: string): boolean {
+  return group !== '' && Array.from(group).every(isAsciiAlphanumeric)
+}
+
+function isAsciiAlphanumeric (char: string): boolean {
+  return (char >= '0' && char <= '9') || (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z')
 }
 
 function snapshotSkipsPeerCheck (

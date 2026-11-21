@@ -69,7 +69,7 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
         await_lockfile_gate(&mut lockfile_handles.verification_gate).await?;
     }
     verify_repair_if_filtered::<Reporter>(
-        verify_filtered_repair.then_some(install),
+        verify_filtered_repair.then_some((&install, views.catalogs)),
         &built_lockfile,
         lockfile_handles.exotic_subdeps.clone(),
         resolved.hooks.after_all_resolved_hook.as_deref(),

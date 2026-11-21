@@ -126,7 +126,7 @@ fn assert_no_leaked_host_files(workspace: &Path) {
     if !nm.exists() {
         return;
     }
-    for entry in walk_node_modules(&nm, false) {
+    for entry in walk_node_modules(&nm, Links::Inspect) {
         if entry.path_is_symlink() {
             let target = fs::read_link(entry.path())
                 .unwrap_or_else(|err| panic!("read link {:?}: {err}", entry.path()));
@@ -139,7 +139,7 @@ fn assert_no_leaked_host_files(workspace: &Path) {
             );
         }
     }
-    for entry in walk_node_modules(&nm, true) {
+    for entry in walk_node_modules(&nm, Links::Follow) {
         let name = entry.file_name().to_string_lossy();
         assert!(
             name != "hosts.yml" && name != "credentials.txt",
@@ -152,9 +152,17 @@ fn assert_no_leaked_host_files(workspace: &Path) {
 /// Every entry under `nm`. A dangling link is skipped, since a rejected
 /// install can leave one behind. Any other error fails the test rather than
 /// hiding the subtree below it.
-fn walk_node_modules(nm: &Path, follow_links: bool) -> Vec<walkdir::DirEntry> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Links {
+    /// Yield each symlink as an entry of its own.
+    Inspect,
+    /// Descend into what each symlink points at.
+    Follow,
+}
+
+fn walk_node_modules(nm: &Path, links: Links) -> Vec<walkdir::DirEntry> {
     WalkDir::new(nm)
-        .follow_links(follow_links)
+        .follow_links(links == Links::Follow)
         .into_iter()
         .filter_map(|entry| match entry {
             Ok(entry) => Some(entry),

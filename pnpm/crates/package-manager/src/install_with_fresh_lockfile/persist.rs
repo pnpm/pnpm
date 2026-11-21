@@ -34,12 +34,12 @@ use std::{
 };
 
 pub(super) async fn verify_repair_if_filtered<Reporter: pnpm_reporter::Reporter>(
-    filtered_repair: Option<super::FreshInputs<'_>>,
+    filtered_repair: Option<(&super::FreshInputs<'_>, &pnpm_catalogs_types::Catalogs)>,
     built_lockfile: &Lockfile,
     exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
     hook: Option<&dyn pnpm_hooks::PnpmfileHooks>,
 ) -> Result<(), InstallWithFreshLockfileError> {
-    let Some(install) = filtered_repair else {
+    let Some((install, catalogs)) = filtered_repair else {
         return Ok(());
     };
     let (config, http_client) = (install.drivers.config, install.drivers.http_client);
@@ -48,7 +48,7 @@ pub(super) async fn verify_repair_if_filtered<Reporter: pnpm_reporter::Reporter>
         overrides_root_dir.or(config.workspace_dir.as_deref()).unwrap_or(&config.dir);
     let base_policy = pnpm_deps_restorer::local_resolution_policy_for_workspace_with_catalogs(
         config,
-        None,
+        Some(catalogs),
         (overrides_root_dir, containment_root, config.lockfile_dir_for(&config.dir)),
         hook.is_some(),
     );
