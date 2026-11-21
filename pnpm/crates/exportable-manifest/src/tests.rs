@@ -94,17 +94,35 @@ fn workspace_lookup_uses_the_published_target_for_shorthand_and_explicit_ranges(
             "name": "internal", "version": "2.0.0", "publishConfig": { "name": "published" }
         })),
     )]);
+    let installed = dir.path().join("node_modules/alias");
+    fs::create_dir_all(&installed).unwrap();
+    fs::write(
+        installed.join("package.json"),
+        r#"{"name":"stale","version":"8.0.0","publishConfig":{"name":"wrong"}}"#,
+    )
+    .unwrap();
     let lookup = Some(&packages).into();
     for (name, spec, expected) in [
         ("published", "workspace:internal@^", "^2.0.0"),
         ("internal", "workspace:~", "npm:published@~2.0.0"),
         ("alias", "workspace:internal@2", "npm:published@2"),
+        ("alias", "workspace:internal@^", "npm:published@^2.0.0"),
+        ("alias", "workspace:absent@3", "npm:absent@3"),
     ] {
         assert_eq!(
             replace_workspace_protocol(name, spec, dir.path(), None, lookup).unwrap(),
             expected,
         );
     }
+    let peer = replace_workspace_protocol_peer_dependency(
+        "alias",
+        "workspace:other@^1",
+        dir.path(),
+        None,
+        lookup,
+    )
+    .unwrap();
+    assert_eq!(peer, "npm:other@^1");
     assert_eq!(
         replace_workspace_protocol_peer_dependency(
             "published",

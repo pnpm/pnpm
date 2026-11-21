@@ -111,9 +111,8 @@ pub fn replace_workspace_protocol(
 
     if let Some(parsed) = parse_version_alias_spec(rest) {
         let installed = installed_modules_dir(dir, modules_dir);
-        let target_pkg_name = parsed.alias.unwrap_or(dep_name);
         let manifest =
-            read_and_check_manifest(dep_name, target_pkg_name, &installed.join(dep_name), lookup)?;
+            read_and_check_manifest(dep_name, parsed.alias, &installed.join(dep_name), lookup)?;
         let token = match parsed.sentinel {
             Some('^') => "^",
             Some('~') => "~",
@@ -128,7 +127,7 @@ pub fn replace_workspace_protocol(
         // fallback only, since `dep_name` may belong to another package.
         let manifest = read_and_check_manifest(
             dep_name,
-            dep_name,
+            None,
             &dir.join(relative),
             WorkspacePackageLookup { prefer_workspace_for: None, ..lookup },
         )?;
@@ -204,7 +203,7 @@ fn resolve_peer_range(
         return Ok(lookup.renamed_range(dep_name, dep_name, &range, installed)?.unwrap_or(range));
     }
 
-    let manifest = read_and_check_manifest(dep_name, dep_name, &installed.join(dep_name), lookup)?;
+    let manifest = read_and_check_manifest(dep_name, None, &installed.join(dep_name), lookup)?;
     let token = if matched.range_group == "*" { "" } else { matched.range_group };
 
     let mut rewritten = String::with_capacity(dep_spec.len());
@@ -233,19 +232,19 @@ pub(crate) fn workspace_target_manifest(
     let Some(workspace_spec) = WorkspaceSpec::parse(dep_spec) else {
         return Ok(None);
     };
-    let (target_name, target_dir, lookup) = match strip_workspace_relative_prefix(dep_spec) {
+    let (alias, target_dir, lookup) = match strip_workspace_relative_prefix(dep_spec) {
         Some(relative) => (
-            dep_name,
+            None,
             dir.join(relative),
             WorkspacePackageLookup { prefer_workspace_for: None, ..lookup },
         ),
         None => (
-            workspace_spec.alias.as_deref().unwrap_or(dep_name),
+            workspace_spec.alias.as_deref(),
             installed_modules_dir(dir, modules_dir).join(dep_name),
             lookup,
         ),
     };
-    lookup.resolve_manifest(target_name, &target_dir)
+    lookup.resolve_manifest(dep_name, alias, &target_dir)
 }
 
 /// The directory a workspace dependency is installed under: the caller's, or
@@ -272,19 +271,14 @@ fn registry_spec(dep_name: &str, published_name: &str, range: &str) -> String {
     }
 }
 
-/// Read `<dependency_dir>/package.json` and verify the `name` / `version`
-/// fields are present, falling back to the workspace package named
-/// `target_pkg_name`, or starting from it, when the lookup prefers the
-/// workspace manifests. Surfaces the
-/// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` error when the
-/// dependency hasn't been installed yet or its manifest is incomplete.
+/// Require a name and version for a dependency whose range needs the workspace version.
 fn read_and_check_manifest(
     dep_name: &str,
-    target_pkg_name: &str,
+    alias: Option<&str>,
     dependency_dir: &Path,
     lookup: WorkspacePackageLookup<'_>,
 ) -> Result<WorkspacePackageManifest, ReplaceWorkspaceProtocolError> {
-    match lookup.resolve_manifest(target_pkg_name, dependency_dir)? {
+    match lookup.resolve_manifest(dep_name, alias, dependency_dir)? {
         Some(manifest) if manifest.is_complete() => Ok(manifest),
         found => {
             Err(ReplaceWorkspaceProtocolError::CannotResolve(cannot_resolve_error(dep_name, found)))
@@ -353,9 +347,11 @@ pub struct WorkspacePackageLookup<'a> {
 impl WorkspacePackageLookup<'_> {
     fn resolve_manifest(
         self,
-        target_pkg_name: &str,
+        dep_name: &str,
+        alias: Option<&str>,
         dependency_dir: &Path,
     ) -> Result<Option<WorkspacePackageManifest>, ReplaceWorkspaceProtocolError> {
+        let target_pkg_name = alias.unwrap_or(dep_name);
         let workspace_manifest = self.packages.and_then(|pkgs| pkgs.get(target_pkg_name));
         if let Some(preferred) = self.prefer_workspace_for
             && preferred.contains(target_pkg_name)
@@ -365,7 +361,10 @@ impl WorkspacePackageLookup<'_> {
             return Ok(Some(manifest.clone()));
         }
 
-        let manifest_from_dir = read_manifest_fields(dependency_dir)?;
+        let manifest_from_dir = read_manifest_fields(dependency_dir)?
+            .filter(|manifest| {
+                alias.is_none_or(|target| manifest.name.is_empty() || manifest.name == target)
+            });
         if let Some(manifest) = &manifest_from_dir
             && manifest.is_complete()
         {
@@ -393,7 +392,7 @@ impl WorkspacePackageLookup<'_> {
         range: &str,
         modules_dir: &Path,
     ) -> Result<Option<String>, ReplaceWorkspaceProtocolError> {
-        let manifest = self.resolve_manifest(target, &modules_dir.join(dep_name))?;
+        let manifest = self.resolve_manifest(dep_name, Some(target), &modules_dir.join(dep_name))?;
         Ok(manifest
             .and_then(|manifest| manifest.publish_name)
             .map(|name| registry_spec(dep_name, &name, range)))

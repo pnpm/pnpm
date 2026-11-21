@@ -21,10 +21,13 @@ fn project(root_dir: &str, name: &str, version: Option<&str>) -> Project {
 
 #[test]
 fn versioned_manifest_replaces_an_earlier_name_only_manifest() {
-    let map = build_workspace_package_manifest_map(&[
-        project("/workspace/incomplete", "pkg-b", None),
-        project("/workspace/complete", "pkg-b", Some("2.0.0")),
-    ]);
+    let mut incomplete = project("/workspace/incomplete", "pkg-b", None);
+    incomplete.manifest.value_mut()["private"] = json!(true);
+    let mut complete = project("/workspace/complete", "pkg-b", Some("2.0.0"));
+    complete.manifest.value_mut()["publishConfig"] = json!({ "name": "published" });
+    let map = build_workspace_package_manifest_map(&[incomplete, complete]);
+    assert!(map["pkg-b"].private);
+    assert_eq!(map["pkg-b"].publish_name.as_deref(), Some("published"));
 
     assert_eq!(map["pkg-b"].version, "2.0.0");
 }

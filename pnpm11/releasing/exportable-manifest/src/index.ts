@@ -201,19 +201,19 @@ async function readAndCheckManifest (
   getWorkspaceManifest?: (depName: string) => ProjectManifest | undefined,
   targetPkgName?: string
 ): Promise<ProjectManifest> {
-  const manifest = await resolveWorkspaceManifest(dependencyDir, targetPkgName ?? depName, getWorkspaceManifest)
+  const manifest = await resolveWorkspaceManifest(dependencyDir, { depName, target: targetPkgName, getWorkspaceManifest })
   if (manifest?.name && manifest.version) return manifest
   return handleMissingOrInvalidManifest(depName, manifest)
 }
 
 async function resolveWorkspaceManifest (
   dependencyDir: string,
-  target: string,
-  getWorkspaceManifest?: (depName: string) => ProjectManifest | undefined
+  { depName, target, getWorkspaceManifest }: { depName: string, target?: string, getWorkspaceManifest?: (depName: string) => ProjectManifest | undefined }
 ): Promise<ProjectManifest | undefined> {
-  const { manifest: installed } = await tryReadProjectManifest(dependencyDir)
+  const { manifest } = await tryReadProjectManifest(dependencyDir)
+  const installed = target && manifest?.name && manifest.name !== target ? undefined : manifest
   if (installed?.name && installed.version) return installed
-  const workspace = getWorkspaceManifest?.(target)
+  const workspace = getWorkspaceManifest?.(target ?? depName)
   if (workspace?.name && workspace.version) return workspace
   if (installed?.name || installed?.version) return installed
   if (workspace?.name || workspace?.version) return workspace
@@ -314,7 +314,7 @@ function registrySpec (depName: string, name: string | undefined, range: string)
 
 async function renamedRange (depName: string, target: string, range: string, context: PublishDependencyConverterContext): Promise<string | undefined> {
   const modules = context.modulesDir ?? path.join(context.dir, 'node_modules')
-  const manifest = await resolveWorkspaceManifest(path.join(modules, depName), target, context.workspacePackages)
+  const manifest = await resolveWorkspaceManifest(path.join(modules, depName), { depName, target, getWorkspaceManifest: context.workspacePackages })
   const name = manifest && publishedName(manifest)
   return name && name !== manifest?.name ? registrySpec(depName, name, range) : undefined
 }

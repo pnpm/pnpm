@@ -34,6 +34,8 @@ pub fn build_workspace_package_manifest_map(
             Entry::Occupied(mut entry)
                 if entry.get().version.is_empty() && !manifest.version.is_empty() =>
             {
+                let mut manifest = manifest;
+                manifest.private |= entry.get().private;
                 entry.insert(manifest);
             }
             Entry::Occupied(_) => {}
