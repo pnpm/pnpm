@@ -138,21 +138,11 @@ invalidWorkspaceManifests.forEach((filename) => {
 })
 
 function readDirOrUndefined (dir: string): string[] | undefined {
-  try {
-    return fs.readdirSync(dir).sort()
-  } catch (err: any) { // eslint-disable-line
-    if (err?.code === 'ENOENT') return undefined
-    throw err
-  }
+  return fs.existsSync(dir) ? fs.readdirSync(dir).sort() : undefined
 }
 
 function readLockfileOrUndefined (lockfilePath: string): LockfileFile | undefined {
-  try {
-    return readYamlFileSync<LockfileFile>(lockfilePath)
-  } catch (err: any) { // eslint-disable-line
-    if (err?.code === 'ENOENT') return undefined
-    throw err
-  }
+  return fs.existsSync(lockfilePath) ? readYamlFileSync<LockfileFile>(lockfilePath) : undefined
 }
 
 test('install from a nested directory installs the nested package and does not install the root package when there is no parent workspace file', async () => {
@@ -900,7 +890,7 @@ test('installation with --link-workspace-packages links packages even if they we
     },
   ])
 
-  await execPnpm(['-r', 'install', '--verbose', '--no-link-workspace-packages'])
+  await execPnpm(['-r', 'install', '--no-link-workspace-packages'])
 
   {
     const lockfile = projects.project.readLockfile()
@@ -908,7 +898,7 @@ test('installation with --link-workspace-packages links packages even if they we
     expect(lockfile.importers['.'].dependencies?.negative.version).toBe('is-negative@1.0.0')
   }
 
-  await execPnpm(['-r', 'install', '--verbose', '--link-workspace-packages'])
+  await execPnpm(['-r', 'install', '--link-workspace-packages'])
 
   {
     const lockfile = projects.project.readLockfile()
