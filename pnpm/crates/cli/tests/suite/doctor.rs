@@ -287,22 +287,32 @@ fn the_project_probe_gets_the_command_line_settings() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), r#"{"name":"doctor-project","version":"1.0.0"}"#)
         .expect("write package.json");
-    let missing = root.path().join("missing-preload.js");
+    let marker = root.path().join("preload-ran");
+    let preload = root.path().join("preload.js");
+    fs::write(
+        &preload,
+        format!(
+            "require('node:fs').writeFileSync({}, '')\n",
+            serde_json::json!(marker.display().to_string()),
+        ),
+    )
+    .expect("write the preload");
 
     let report = doctor(
-        pacquet.with_arg(format!("--config.node-options=--require={}", missing.display())),
+        pacquet.with_arg(format!(
+            "--config.node-options=--require={}",
+            preload
+                .display()
+                .to_string()
+                .replace('\\', "/"),
+        )),
         root.path(),
     );
 
     let scripts = find_check(&report, "Lifecycle scripts");
     dbg!(scripts);
-    assert_eq!(scripts["status"], "fail");
-    let detail = scripts["detail"].as_str().expect("detail");
-    assert!(detail.starts_with("a script in "), "{detail}");
-    assert!(
-        detail.contains("missing-preload.js"),
-        "the failure must come from the preload: {detail}",
-    );
+    assert_eq!(scripts["status"], "pass");
+    assert!(marker.exists(), "the project probe must run with the forwarded node-options");
 }
 
 /// `verifyDepsBeforeRun` set in the environment outranks the command line, so
