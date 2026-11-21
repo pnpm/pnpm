@@ -11,6 +11,12 @@ use super::{
     child_of,
     hoist,
 };
+use crate::{
+    RegularPeers,
+    build_tree,
+    engine,
+    repair,
+};
 use std::{
     collections::VecDeque,
     path::Path,
@@ -21,6 +27,18 @@ fn hoist_lockfile(yaml: &str) -> HoisterResult {
         .expect("parse the lockfile")
         .expect("the lockfile is not empty");
     hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed")
+}
+
+/// How many peers the first hoist of the lockfile resolves to the wrong
+/// package, before any repair.
+fn first_pass_misses(yaml: &str) -> usize {
+    let lockfile = Lockfile::parse(yaml, Path::new("pnpm-lock.yaml"))
+        .expect("parse the lockfile")
+        .expect("the lockfile is not empty");
+    let opts = HoistOpts::default();
+    let tree = build_tree(&lockfile, &opts, &RegularPeers::new()).expect("build the tree");
+    let result = engine::hoist(&tree, &opts);
+    repair::misresolved_peers(&result, &lockfile, &opts).len()
 }
 
 fn references(node: &HoisterResult) -> Vec<String> {
@@ -212,14 +230,43 @@ snapshots:
     assert_eq!(references(&child_of(&plugin, "webpack")), ["webpack@5.0.0"]);
 }
 
-/// `webpack@5`, installed as `webpack-5`, depends on a plugin whose
-/// `webpack` peer is `webpack@5` itself. Hoisting the plugin's own copy of
-/// `webpack` into `webpack-5` must not drop it as served by the root: the
-/// root is not found under the name `webpack`.
+/// The project installs `webpack@5` only as `webpack-5`, and pnpm binds
+/// `plugin`'s `webpack` peer to it. The project gets a second copy under
+/// the peer's name, where the plugin finds it, and the first pass already
+/// resolves every peer.
 #[test]
-fn a_root_under_an_alias_does_not_absorb_its_own_package() {
-    let result = hoist_lockfile(
-        "lockfileVersion: '9.0'
+fn a_peer_bound_to_a_sibling_under_an_alias_finds_it_under_its_own_name() {
+    let yaml = "lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      plugin: {specifier: 1.0.0, version: 1.0.0(webpack@5.0.0)}
+      webpack-5: {specifier: npm:webpack@5.0.0, version: webpack@5.0.0}
+packages:
+  plugin@1.0.0: {resolution: {integrity: sha512-plugin}, peerDependencies: {webpack: '*'}}
+  webpack@5.0.0: {resolution: {integrity: sha512-webpack5}}
+snapshots:
+  plugin@1.0.0(webpack@5.0.0):
+    dependencies: {webpack: 5.0.0}
+  webpack@5.0.0: {}
+";
+    assert_eq!(first_pass_misses(yaml), 0, "the first pass needs no repair");
+    let result = hoist_lockfile(yaml);
+    assert_eq!(names(&result), ["plugin", "webpack", "webpack-5"]);
+    assert_eq!(references(&child_of(&result, "webpack")), ["webpack@5.0.0"]);
+    assert!(
+        names(&child_of(&result, "plugin")).is_empty(),
+        "the plugin holds no copy: {result:#?}",
+    );
+}
+
+/// `webpack@5`, installed as `webpack-5`, depends on a plugin whose
+/// `webpack` peer is `webpack@5` itself. From inside `webpack-5` the name
+/// `webpack` leads to the root's `webpack@4`, so `webpack-5` holds a copy
+/// of itself under that name.
+#[test]
+fn an_aliased_package_that_is_its_dependency_s_peer_holds_itself_by_name() {
+    let yaml = "lockfileVersion: '9.0'
 importers:
   .:
     dependencies:
@@ -235,8 +282,52 @@ snapshots:
   webpack@4.0.0: {}
   webpack@5.0.0:
     dependencies: {minimizer: 1.0.0(webpack@5.0.0)}
+";
+    assert_eq!(first_pass_misses(yaml), 0, "the first pass needs no repair");
+    let result = hoist_lockfile(yaml);
+    let aliased = child_of(&result, "webpack-5");
+    assert_eq!(names(&aliased), ["minimizer", "webpack"], "{result:#?}");
+    assert_eq!(references(&child_of(&aliased, "webpack")), ["webpack@5.0.0"]);
+    assert!(names(&child_of(&aliased, "minimizer")).is_empty(), "the plugin holds no copy");
+}
+
+/// `minimizer`'s `webpack` peer is `webpack@5`, installed as `webpack-5`,
+/// and `wrapper`, between them, does not record the peer, so the repair
+/// gives the plugin a copy of its own. The root holds other versions of
+/// `wrapper` and `minimizer`, which keeps both inside `webpack-5`. Hoisting
+/// the plugin's copy into `webpack-5` must not drop it as served by that
+/// root: the root is not found under the name `webpack`.
+#[test]
+fn a_root_under_an_alias_does_not_absorb_its_own_package() {
+    let result = hoist_lockfile(
+        "lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      minimizer: {specifier: 2.0.0, version: 2.0.0}
+      webpack: {specifier: 4.0.0, version: 4.0.0}
+      webpack-5: {specifier: npm:webpack@5.0.0, version: webpack@5.0.0}
+      wrapper: {specifier: 2.0.0, version: 2.0.0}
+packages:
+  minimizer@1.0.0: {resolution: {integrity: sha512-minimizer1}, peerDependencies: {webpack: '*'}}
+  minimizer@2.0.0: {resolution: {integrity: sha512-minimizer2}}
+  webpack@4.0.0: {resolution: {integrity: sha512-webpack4}}
+  webpack@5.0.0: {resolution: {integrity: sha512-webpack5}}
+  wrapper@1.0.0: {resolution: {integrity: sha512-wrapper1}}
+  wrapper@2.0.0: {resolution: {integrity: sha512-wrapper2}}
+snapshots:
+  minimizer@1.0.0(webpack@5.0.0):
+    dependencies: {webpack: 5.0.0}
+  minimizer@2.0.0: {}
+  webpack@4.0.0: {}
+  webpack@5.0.0:
+    dependencies: {wrapper: 1.0.0}
+  wrapper@1.0.0:
+    dependencies: {minimizer: 1.0.0(webpack@5.0.0)}
+  wrapper@2.0.0: {}
 ",
     );
-    let minimizer = serving(&result, "minimizer@1.0.0(webpack@5.0.0)");
-    assert_eq!(references(&child_of(&minimizer, "webpack")), ["webpack@5.0.0"]);
+    let aliased = child_of(&result, "webpack-5");
+    let minimizer = serving(&aliased, "minimizer@1.0.0(webpack@5.0.0)");
+    assert_eq!(references(&child_of(&minimizer, "webpack")), ["webpack@5.0.0"], "{result:#?}");
 }

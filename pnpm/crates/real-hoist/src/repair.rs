@@ -4,8 +4,10 @@
 //! walking up `node_modules` by name, which holds for Yarn's model of
 //! peers. A pnpm lockfile can bind a peer to a provider no ancestor holds
 //! under the peer's name: a dependency installed under an alias
-//! (`"webpack-5": "npm:webpack@5"` satisfies a `webpack` peer), or a
-//! provider reached through a dependent whose key no longer records it.
+//! (`"webpack-5": "npm:webpack@5"` satisfies a `webpack` peer) next to
+//! another package that has the peer's name, or a provider reached through
+//! a dependent whose key no longer records it. `tree::aliased` links an
+//! aliased provider whose name is free before the hoist runs.
 //! [`crate::hoist`] checks the layout here and handles each peer found
 //! missing as a regular dependency of that one snapshot, which places the
 //! provider where the package finds it.
@@ -18,8 +20,8 @@ use crate::{
     Rc,
     tree::peers::{
         PeerView,
+        bound_peers,
         peer_view,
-        provider_of,
     },
 };
 use std::collections::HashMap;
@@ -43,13 +45,13 @@ pub(crate) fn misresolved_peers(
 
 /// The peers one snapshot binds: the peer name, and the package id of its
 /// provider.
-type BoundPeers = Rc<Vec<(String, String)>>;
+type BoundPeerIds = Rc<Vec<(String, String)>>;
 
 struct Check<'check> {
     lockfile: &'check Lockfile,
     opts: &'check HoistOpts,
-    /// [`BoundPeers`] by snapshot key, computed once per key.
-    bound: HashMap<String, Option<(PkgNameVerPeer, BoundPeers)>>,
+    /// [`BoundPeerIds`] by snapshot key, computed once per key.
+    bound: HashMap<String, Option<(PkgNameVerPeer, BoundPeerIds)>>,
     misresolved: Vec<(PkgNameVerPeer, String)>,
 }
 
@@ -75,7 +77,7 @@ impl Check<'_> {
         ancestors.pop();
     }
 
-    fn bound_peers(&mut self, reference: &str) -> Option<(PkgNameVerPeer, BoundPeers)> {
+    fn bound_peers(&mut self, reference: &str) -> Option<(PkgNameVerPeer, BoundPeerIds)> {
         if let Some(known) = self.bound.get(reference) {
             return known.clone();
         }
@@ -86,12 +88,9 @@ impl Check<'_> {
                 let snapshot = self.lockfile.snapshots.as_ref()?.get(&key)?;
                 let PeerView { names, .. } =
                     peer_view(&key, snapshot, self.lockfile, self.opts, None);
-                let peers: Vec<(String, String)> = names
+                let peers: Vec<(String, String)> = bound_peers(&key, snapshot, &names)
                     .into_iter()
-                    .filter_map(|peer| {
-                        let provider = provider_of(&key, snapshot, &peer)?;
-                        Some((peer, crate::pkg_id(&provider)))
-                    })
+                    .map(|(peer, provider)| (peer, crate::pkg_id(&provider)))
                     .collect();
                 Some((key, Rc::new(peers)))
             });

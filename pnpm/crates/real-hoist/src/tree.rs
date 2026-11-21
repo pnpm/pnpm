@@ -1,5 +1,7 @@
 pub(crate) mod peers;
 
+mod aliased;
+
 use super::{
     HashMap,
     HoistError,
@@ -105,6 +107,8 @@ pub(super) fn importer_node(
 pub(super) struct TreeCache {
     pub(super) nodes: HashMap<String, Rc<HoisterTree>>,
     pub(super) regular_peers: RegularPeers,
+    /// The peers each node binds, by the node's `reference`.
+    pub(super) bound_peers: HashMap<String, Rc<peers::BoundPeers>>,
 }
 
 /// Dependency groups merged as pnpm v11 spreads them into one object:
@@ -156,6 +160,23 @@ pub(super) fn collect_importer_deps(
         };
         out.insert(RcByPtr(node));
     }
+    let holder = aliased::Holder { name: "", key: None, peer_names: &IndexSet::new() };
+    link_aliased_peer_providers(&holder, (lockfile, opts), cache, out)
+}
+
+/// See [`aliased`].
+fn link_aliased_peer_providers(
+    holder: &aliased::Holder<'_>,
+    (lockfile, opts): (&Lockfile, &HoistOpts),
+    cache: &mut TreeCache,
+    children: &mut IndexSet<RcByPtr<HoisterTree>>,
+) -> Result<(), HoistError> {
+    for (peer, key) in aliased::aliased_peer_providers(holder, children, &cache.bound_peers) {
+        let Ok(alias) = PkgName::parse(peer.as_str()) else { continue };
+        if let Some(node) = build_dep_node(&alias, &key, true, lockfile, opts, cache)? {
+            children.insert(RcByPtr(node));
+        }
+    }
     Ok(())
 }
 
@@ -195,6 +216,9 @@ fn build_dep_node(
     // survives.
     let peers =
         peers::peer_view(dep_key, snapshot, lockfile, opts, cache.regular_peers.get(dep_key));
+    cache.bound_peers
+        .entry(dep_key.to_string())
+        .or_insert_with(|| Rc::new(peers::bound_peers(dep_key, snapshot, &peers.names)));
     let node = Rc::new(HoisterTree {
         identity: peers.identity,
         name: alias.to_string(),
@@ -211,6 +235,9 @@ fn build_dep_node(
     collect_snapshot_deps(snapshot, lockfile, opts, cache, &mut children)?;
     let context = (lockfile, opts);
     link_transitive_peer_providers(dep_key, snapshot, context, cache, &mut children)?;
+    let holder =
+        aliased::Holder { name: &node.name, key: Some(dep_key), peer_names: &node.peer_names };
+    link_aliased_peer_providers(&holder, context, cache, &mut children)?;
     *node.dependencies.borrow_mut() = children;
     Ok(Some(node))
 }

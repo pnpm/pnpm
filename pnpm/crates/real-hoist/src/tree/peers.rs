@@ -61,6 +61,22 @@ fn identity_with_providers(
     identity
 }
 
+/// The peers a snapshot binds: each peer name with the key of its
+/// provider.
+pub(crate) type BoundPeers = Vec<(String, PkgNameVerPeer)>;
+
+/// The provider of each of `names` that `key` binds.
+pub(crate) fn bound_peers(
+    key: &PkgNameVerPeer,
+    snapshot: &SnapshotEntry,
+    names: &IndexSet<String>,
+) -> BoundPeers {
+    names
+        .iter()
+        .filter_map(|peer| Some((peer.clone(), provider_of(key, snapshot, peer)?)))
+        .collect()
+}
+
 /// The key `peer` is bound to: a dependency of that name, else the
 /// provider the key's peer suffix records.
 pub(crate) fn provider_of(
@@ -68,17 +84,12 @@ pub(crate) fn provider_of(
     snapshot: &SnapshotEntry,
     peer: &str,
 ) -> Option<PkgNameVerPeer> {
-    let own = [&snapshot.dependencies, &snapshot.optional_dependencies]
-        .into_iter()
-        .flatten()
-        .flatten()
-        .find(|(alias, _)| alias.to_string() == peer)
-        .and_then(|(alias, dep_ref)| dep_ref.resolve(alias));
-    own.or_else(|| {
-        PeerBindings::from_key(key)?
-            .providers()
-            .find(|provider| provider.name.to_string() == peer)
-    })
+    own_dependency_key(snapshot, peer)
+        .or_else(|| {
+            PeerBindings::from_key(key)?
+                .providers()
+                .find(|provider| provider.name.to_string() == peer)
+        })
 }
 
 /// The peer providers the key's suffix records that `has_edge` does not
