@@ -29,13 +29,14 @@ impl Resolver {
         identity: &Identity,
         footprint: &Arc<Mutex<Footprint>>,
     ) -> Arc<AuthHeaders> {
-        let hook: Arc<dyn UpstreamRouteHook> = self.route_hook(identity, Arc::clone(footprint));
+        let hook: Arc<dyn UpstreamRouteHook> =
+            self.route_hook(identity.clone(), Arc::clone(footprint));
         Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()).with_route_hook(hook))
     }
 
     pub(super) fn route_hook(
         &self,
-        identity: &Identity,
+        identity: Identity,
         footprint: Arc<Mutex<Footprint>>,
     ) -> Arc<RouteHook> {
         Arc::new(
@@ -45,7 +46,7 @@ impl Resolver {
                 footprint,
                 Arc::clone(&self.cache.secret),
             )
-            .with_local_fetch(self.local_registry.fetcher(identity.clone())),
+            .with_local_fetch(self.local_registry.fetcher(identity)),
         )
     }
 }

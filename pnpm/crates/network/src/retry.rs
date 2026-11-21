@@ -304,7 +304,7 @@ pub(crate) async fn get_secure_bytes(
     body_limit: usize,
 ) -> Result<SecureAuthResponse, reqwest::Error> {
     let mut headers = reqwest::header::HeaderMap::new();
-    if let Some(value) = accept.and_then(|value| value.parse().ok()) {
+    if let Some(value) = accept.map(str::parse).and_then(Result::ok) {
         headers.insert(reqwest::header::ACCEPT, value);
     }
     if let Some(response) = auth.fetch_local(url, None, headers) {
