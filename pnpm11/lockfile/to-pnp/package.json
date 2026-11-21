@@ -30,7 +30,10 @@
     "test": "pn compile && pn .test",
     "prepublishOnly": "tsc --build",
     "compile": "tsc --build && pn lint --fix",
-    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+    ".test": "pn pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
+    "build:rust-exports": "node scripts/bundle-rust-exports.mjs",
+    "pretest": "pn check:rust-exports",
+    "check:rust-exports": "node scripts/bundle-rust-exports.mjs --check"
   },
   "dependencies": {
     "@pnpm/deps.path": "workspace:*",
@@ -50,7 +53,9 @@
     "@pnpm/lockfile.to-pnp": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/normalize-path": "catalog:",
-    "@types/ramda": "catalog:"
+    "@types/ramda": "catalog:",
+    "arg": "catalog:",
+    "esbuild": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

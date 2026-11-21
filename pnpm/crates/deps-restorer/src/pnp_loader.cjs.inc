@@ -161,12 +161,13 @@ function resolveRequest(request, issuer, options = {}) {
   const dependencyId = ownerId === undefined ? undefined : registry[ownerId].dependencies[name]
   if (dependencyId === undefined) return resolveUnqualified(unqualified, options)
   const location = packageLocation(registry[dependencyId])
-  // A bare request keeps Node's exports checks; an absolute path bypasses them.
-  const resolved = Module._findPath(`${path.basename(location)}${request.slice(name.length)}`, [path.dirname(location)], false, options.conditions)
-  if (resolved) return resolved
-  const error = new Error(`Cannot find module '${request}' from '${issuer}'`)
-  error.code = 'MODULE_NOT_FOUND'
-  throw error
+  const resolved = pnpmPnpExports.resolvePackageExports({
+    packageLocation: location,
+    packageSubpath: `.${request.slice(name.length)}`,
+    issuer,
+    conditions: options.conditions,
+  })
+  return resolveUnqualified(resolved ?? unqualified, options)
 }
 
 function getAllLocators() {

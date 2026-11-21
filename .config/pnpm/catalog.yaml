@@ -297,6 +297,7 @@ catalog:
   yaml-tag: 1.1.0
   yauzl: ^3.4.0
   enhanced-resolve: 5.27.0
+  arg: 5.0.2
 
 catalogs:
   # The runtime dependencies of get-pnpm, which npx and pnpm/setup install from

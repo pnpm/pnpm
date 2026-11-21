@@ -14,17 +14,17 @@ fn template_markers_inside_values_are_not_replaced() {
 fn loader_respects_exports_and_resolution_paths() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();
-    for directory in ["first", "second", "app", "other"] {
+    for directory in [".hidden", "second", "app", "other"] {
         std::fs::create_dir(root.join(directory)).unwrap();
     }
-    for directory in ["first", "second"] {
+    for (directory, value) in [(".hidden", "first"), ("second", "second")] {
         std::fs::write(
             root.join(directory).join("package.json"),
-            r#"{"name":"exported","exports":{".":{"require":"./entry.cjs"},"./sub":"./sub.cjs","./pattern/*":"./*.cjs","./blocked":null}}"#,
+            r#"{"exports":{".":{"require":"./entry.cjs"},"./sub":"./sub.cjs","./pattern/*":"./*.cjs","./blocked":null,"./conditional":{"custom":"./sub.cjs","require":"./entry.cjs"}}}"#,
         ).unwrap();
         std::fs::write(
             root.join(directory).join("entry.cjs"),
-            format!("module.exports = '{directory}'"),
+            format!("module.exports = '{value}'"),
         )
         .unwrap();
         std::fs::write(root.join(directory).join("sub.cjs"), "module.exports = 'sub'").unwrap();
@@ -34,7 +34,7 @@ fn loader_respects_exports_and_resolution_paths() {
     let registry = serde_json::json!({"packages": {
         ".": {"url":"./app", "dependencies":{"alias":"first"}},
         "other": {"url":"./other", "dependencies":{"alias":"second"}},
-        "first": {"url":"./first", "dependencies":{}},
+        "first": {"url":"./.hidden", "dependencies":{}},
         "second": {"url":"./second", "dependencies":{}}
     }});
     std::fs::write(root.join(".pnp.cjs"), render_pnp_loader(&registry.to_string(), r#"".""#))
@@ -45,23 +45,25 @@ const path = require('path');
 const api = require('../.pnp.cjs');
 assert.strictEqual(require('alias'), 'first');
 assert.strictEqual(require('alias/sub'), 'sub');
+assert.strictEqual(require('alias/conditional'), 'sub');
+assert.strictEqual(require(api.resolveRequest('alias/conditional', __filename, {conditions: new Set(['require'])})), 'first');
 assert.strictEqual(require('alias/pattern/sub'), 'sub');
 for (const specifier of ['alias/private.cjs', 'alias/blocked']) {
   assert.throws(() => require(specifier), {code: 'ERR_PACKAGE_PATH_NOT_EXPORTED'});
 }
 assert.throws(() => require('alias/../second/entry.cjs'), {code: 'MODULE_NOT_FOUND'});
 assert.strictEqual(api.resolveRequest('alias', __filename), require.resolve('alias'));
-assert.strictEqual(api.resolveToUnqualified('alias', __filename), path.resolve('../first'));
+assert.strictEqual(api.resolveToUnqualified('alias', __filename), path.resolve('../.hidden'));
 assert.throws(() => api.resolveRequest('alias/private.cjs', __filename), {code: 'ERR_PACKAGE_PATH_NOT_EXPORTED'});
 assert.strictEqual(require(require.resolve('alias', {paths: [path.resolve('../other')]})), 'second');
-assert.strictEqual(require(require.resolve('alias', {paths: [path.resolve('../first'), path.resolve('../other')]})), 'second');
+assert.strictEqual(require(require.resolve('alias', {paths: [path.resolve('../.hidden'), path.resolve('../other')]})), 'second');
 assert.throws(() => require.resolve('alias', {paths: []}), {code: 'MODULE_NOT_FOUND'});
 assert.throws(() => require.resolve('undeclared'), {code: 'MODULE_NOT_FOUND'});
 ";
     std::fs::write(root.join("app/check.cjs"), script).unwrap();
     let output = std::process::Command::new("node")
         .with_current_dir(root.join("app"))
-        .with_arg("check.cjs")
+        .with_args(["--conditions=custom", "check.cjs"])
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

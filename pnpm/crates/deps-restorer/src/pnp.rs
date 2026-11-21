@@ -15,6 +15,7 @@ use std::path::{
 };
 
 pub const PNP_FILENAME: &str = ".pnp.cjs";
+const PNP_EXPORTS_RESOLVER: &str = include_str!("pnp_exports.cjs.inc");
 const PNP_LOADER_TEMPLATE: &str = include_str!("pnp_loader.cjs.inc");
 const PACKAGE_REGISTRY_PLACEHOLDER: &str = "__PNPM_PACKAGE_REGISTRY__";
 const MODULES_DIR_PLACEHOLDER: &str = "__PNPM_MODULES_DIR__";
@@ -61,8 +62,10 @@ fn render_pnp_loader(registry: &str, modules_dir: &str) -> String {
     let (between_values, after_modules_dir) = after_registry
         .split_once(MODULES_DIR_PLACEHOLDER)
         .expect("embedded PnP loader has a modules directory placeholder");
-    let mut loader =
-        String::with_capacity(PNP_LOADER_TEMPLATE.len() + registry.len() + modules_dir.len());
+    let mut loader = String::with_capacity(
+        PNP_EXPORTS_RESOLVER.len() + PNP_LOADER_TEMPLATE.len() + registry.len() + modules_dir.len(),
+    );
+    loader.push_str(PNP_EXPORTS_RESOLVER);
     loader.push_str(before_registry);
     loader.push_str(registry);
     loader.push_str(between_values);
