@@ -299,6 +299,10 @@ fn the_project_probe_gets_the_command_line_settings() {
     assert_eq!(scripts["status"], "fail");
     let detail = scripts["detail"].as_str().expect("detail");
     assert!(detail.starts_with("a script in "), "{detail}");
+    assert!(
+        detail.contains("missing-preload.js"),
+        "the failure must come from the preload: {detail}",
+    );
 }
 
 /// `verifyDepsBeforeRun` set in the environment outranks the command line, so

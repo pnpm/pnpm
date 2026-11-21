@@ -150,7 +150,7 @@ impl DoctorArgs {
         prefetch_config_paths(config);
         let mut checks = vec![check_versions(), check_install_method(config)];
         checks.push(scripts::check_node_on_path(std::env::var_os("PATH").as_deref()));
-        checks.push(scripts::check_script_shell(config));
+        checks.push(scripts::check_script_shell(config, project_dir));
         checks.push(check_global_bin_dir(config));
         checks.push(check_writable_dir("Cache directory", &config.cache_dir));
         checks.push(check_writable_dir("Store directory", config.store_dir.root()));

@@ -177,7 +177,7 @@ fn fails_when_the_script_shell_is_missing() {
     let missing = root.path().join("no-such-shell");
     let config = Config { script_shell: Some(missing.display().to_string()), ..Config::default() };
 
-    let check = check_script_shell(&config);
+    let check = check_script_shell(&config, root.path());
 
     dbg!(&check);
     assert_eq!(check.status, CheckStatus::Fail);
@@ -187,12 +187,39 @@ fn fails_when_the_script_shell_is_missing() {
     );
 }
 
+/// A relative `scriptShell` resolves against the project, where its scripts
+/// run, not against the directory pnpm was started in.
+#[cfg(unix)]
+#[test]
+fn a_relative_script_shell_is_found_in_the_project() {
+    let project = tempfile::tempdir().expect("create project dir");
+    write_node(&project.path().join("tools"));
+    let config = Config { script_shell: Some("tools/node".to_owned()), ..Config::default() };
+
+    let check = check_script_shell(&config, project.path());
+
+    dbg!(&check);
+    assert_eq!(check.status, CheckStatus::Pass);
+    let detail = check.detail.as_deref().unwrap_or_default();
+    assert!(
+        detail.starts_with(&format!(
+            "scripts run in {}",
+            project
+                .path()
+                .join("tools/node")
+                .display()
+        )),
+        "{detail}",
+    );
+}
+
 #[test]
 fn the_probe_install_gets_the_effective_script_shell() {
+    let project = tempfile::tempdir().expect("create project dir");
     let default_shell =
         pnpm_executor::select_shell(None, cfg!(windows)).expect("select the default shell").program;
     assert_eq!(
-        shell_settings(&Config::default()),
+        shell_settings(&Config::default(), project.path()),
         [
             "--config.shell-emulator=false".to_owned(),
             format!("--config.script-shell={}", default_shell.display()),
@@ -204,28 +231,30 @@ fn the_probe_install_gets_the_effective_script_shell() {
         ..Config::default()
     };
     assert_eq!(
-        shell_settings(&configured),
+        shell_settings(&configured, project.path()),
         ["--config.shell-emulator=false", "--config.script-shell=/opt/shell"],
     );
     let batch_file =
         Config { script_shell: Some("/tools/shell.bat".to_owned()), ..Config::default() };
     assert_eq!(
-        shell_settings(&batch_file),
+        shell_settings(&batch_file, project.path()),
         ["--config.shell-emulator=false", "--config.script-shell=/tools/shell.bat"],
     );
     let relative = Config { script_shell: Some("tools/sh".to_owned()), ..Config::default() };
-    let anchored = std::path::absolute("tools/sh").expect("make the shell path absolute");
+    let anchored =
+        std::path::absolute(project.path().join("tools/sh")).expect("make the shell path absolute");
     assert_eq!(
-        shell_settings(&relative),
+        shell_settings(&relative, project.path()),
         [
             "--config.shell-emulator=false".to_owned(),
             format!("--config.script-shell={}", anchored.display()),
         ],
     );
     let backslashed = Config { script_shell: Some(r"tools\sh".to_owned()), ..Config::default() };
-    let anchored = std::path::absolute(r"tools\sh").expect("make the shell path absolute");
+    let anchored = std::path::absolute(project.path().join(r"tools\sh"))
+        .expect("make the shell path absolute");
     assert_eq!(
-        shell_settings(&backslashed),
+        shell_settings(&backslashed, project.path()),
         [
             "--config.shell-emulator=false".to_owned(),
             format!("--config.script-shell={}", anchored.display()),
@@ -233,9 +262,9 @@ fn the_probe_install_gets_the_effective_script_shell() {
     );
     let bare = Config { script_shell: Some("bash".to_owned()), ..Config::default() };
     assert_eq!(
-        shell_settings(&bare),
+        shell_settings(&bare, project.path()),
         ["--config.shell-emulator=false", "--config.script-shell=bash"],
     );
     let emulated = Config { shell_emulator: true, ..Config::default() };
-    assert_eq!(shell_settings(&emulated), ["--config.shell-emulator=true"]);
+    assert_eq!(shell_settings(&emulated, project.path()), ["--config.shell-emulator=true"]);
 }

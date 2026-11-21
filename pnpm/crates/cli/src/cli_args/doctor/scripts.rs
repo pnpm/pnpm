@@ -144,7 +144,7 @@ fn is_executable(_candidate: &Path) -> bool {
 
 /// Report the shell that runs scripts and, outside Windows, the `/bin/sh` that
 /// starts every `.bin` shim, since the two can differ.
-pub(super) fn check_script_shell(config: &Config) -> CheckResult {
+pub(super) fn check_script_shell(config: &Config, project_dir: &Path) -> CheckResult {
     let title = "Script shell";
     let script_shell = config.script_shell.as_deref().map(Path::new);
     let scripts = if use_shell_emulator(config.shell_emulator, script_shell) {
@@ -152,8 +152,8 @@ pub(super) fn check_script_shell(config: &Config) -> CheckResult {
     } else {
         let shell = select_shell(script_shell, cfg!(windows)).map_err(|error| error.to_string());
         let resolved = shell.and_then(|shell| {
-            which::which(&shell.program)
-                .map_err(|_| format!("{} was not found", shell.program.display()))
+            let program = anchor_relative_shell(&shell.program, project_dir);
+            which::which(&program).map_err(|_| format!("{} was not found", program.display()))
         });
         match resolved {
             Ok(resolved) => describe_resolved(&resolved),
@@ -231,7 +231,7 @@ pub(super) fn check_lifecycle_scripts(
                 pnpm: &pnpm,
                 base: base.path(),
                 shim: consumer.join("node_modules/.bin").join(PROBE_BIN),
-                shell_settings: shell_settings(config),
+                shell_settings: shell_settings(config, project_dir),
                 cli_settings: install_config_args(config).collect(),
                 offline: args.offline,
             };
@@ -248,7 +248,7 @@ pub(super) fn check_lifecycle_scripts(
 /// here. Its temporary project reads only the global config, and an empty
 /// value cannot clear a global setting, so the effective shell is passed
 /// even when it is the default.
-fn shell_settings(config: &Config) -> Vec<String> {
+fn shell_settings(config: &Config, project_dir: &Path) -> Vec<String> {
     let script_shell = config.script_shell.as_deref().map(Path::new);
     let emulator = use_shell_emulator(config.shell_emulator, script_shell);
     let mut settings = vec![format!("--config.shell-emulator={emulator}")];
@@ -258,7 +258,7 @@ fn shell_settings(config: &Config) -> Vec<String> {
     // A configured shell goes as written, so one that scripts reject fails
     // the probe the same way.
     let shell = match script_shell.filter(|shell| !shell.as_os_str().is_empty()) {
-        Some(shell) => Some(anchor_relative_shell(shell)),
+        Some(shell) => Some(anchor_relative_shell(shell, project_dir)),
         None => select_shell(None, cfg!(windows)).ok().map(|shell| shell.program),
     };
     if let Some(shell) = shell {
@@ -267,11 +267,11 @@ fn shell_settings(config: &Config) -> Vec<String> {
     settings
 }
 
-/// `shell` as the probe install, which runs in a temporary project, has to
-/// spell it: a path relative to this directory is made absolute, while a bare
-/// name stays for the `PATH` lookup. The workspace manifest anchors its own
-/// relative `scriptShell` the same way.
-fn anchor_relative_shell(shell: &Path) -> PathBuf {
+/// `shell` as scripts in `project_dir` resolve it: a relative path is made
+/// absolute against `project_dir`, while a bare name stays for the `PATH`
+/// lookup. The workspace manifest anchors its own relative `scriptShell` the
+/// same way.
+fn anchor_relative_shell(shell: &Path, project_dir: &Path) -> PathBuf {
     let is_relative_path = !shell.has_root()
         && shell
             .to_string_lossy()
@@ -279,7 +279,8 @@ fn anchor_relative_shell(shell: &Path) -> PathBuf {
     if !is_relative_path {
         return shell.to_path_buf();
     }
-    std::path::absolute(shell).unwrap_or_else(|_| shell.to_path_buf())
+    let anchored = project_dir.join(shell);
+    std::path::absolute(&anchored).unwrap_or(anchored)
 }
 
 fn run_script_probes(
