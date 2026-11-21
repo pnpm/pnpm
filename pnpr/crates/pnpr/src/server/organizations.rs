@@ -319,12 +319,11 @@ pub(super) fn get_org_teams(
     let teams: Vec<Value> = teams
         .list()
         .into_iter()
-        .map(|(id, team)| {
-            if matches!(format, TeamListFormat::Cli) {
+        .map(|(id, team)| match format {
+            TeamListFormat::Cli => {
                 json!(format!("{}:{}", scope.trim_start_matches('@'), team.name))
-            } else {
-                json!({ "id": id, "name": team.name })
             }
+            TeamListFormat::Detailed => json!({ "id": id, "name": team.name }),
         })
         .collect();
     (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
@@ -352,18 +351,14 @@ pub(super) async fn get_team_members(
         Ok(accounts) => accounts,
         Err(err) => return err.into_response(),
     };
-    let mut members = build_team_member_list(&record.members, accounts);
-    if matches!(format, TeamListFormat::Cli) {
-        for member in &mut members {
-            *member = member["name"].take();
-        }
-    }
+    let members = build_team_member_list(&record.members, accounts, format);
     (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
 }
 
 fn build_team_member_list(
     ids: &std::collections::BTreeSet<String>,
     accounts: Vec<pnpr_auth::UserAccount>,
+    format: TeamListFormat,
 ) -> Vec<Value> {
     let names: std::collections::HashMap<_, _> = accounts
         .into_iter()
@@ -376,13 +371,15 @@ fn build_team_member_list(
                 .get(id)
                 .cloned()
                 .unwrap_or_else(|| format!("deleted:{id}"));
-            json!({ "id": id, "name": name })
+            (name, id)
         })
         .collect();
-    members.sort_by(|left, right| {
-        left["name"]
-            .as_str()
-            .cmp(&right["name"].as_str())
-    });
+    members.sort_unstable();
     members
+        .into_iter()
+        .map(|(name, id)| match format {
+            TeamListFormat::Cli => json!(name),
+            TeamListFormat::Detailed => json!({ "id": id, "name": name }),
+        })
+        .collect()
 }
