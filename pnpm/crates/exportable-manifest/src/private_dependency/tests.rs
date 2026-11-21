@@ -283,3 +283,27 @@ fn allows_an_untouched_registry_dependency_on_a_private_package_name() {
     export(&temp, &manifest, Some(&packages))
         .expect("the registry dependency is not the workspace one");
 }
+
+#[test]
+fn allows_an_untouched_registry_dependency_whose_dev_entry_is_private() {
+    let temp = fixture(true);
+    let manifest = json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": { "secret": "^1.0.0" },
+        "devDependencies": { "secret": "workspace:*" },
+    });
+    export(&temp, &manifest, None).expect("the registry dependency is not the workspace one");
+}
+
+#[test]
+fn allows_a_dependency_shadowed_by_an_optional_one() {
+    let temp = fixture(true);
+    let manifest = json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": { "secret": "workspace:*" },
+        "optionalDependencies": { "secret": "workspace:*" },
+    });
+    export(&temp, &manifest, None).expect("the optional entry is installed instead");
+}

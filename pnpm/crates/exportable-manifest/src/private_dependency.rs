@@ -51,8 +51,8 @@ pub struct PrivateWorkspaceDependencyError {
 pub struct PrivateWorkspaceDependencies {
     /// Registry names of the private targets.
     packages: Vec<String>,
-    /// Dependency keys whose `workspace:` specifier, in any dependency field,
-    /// names one of `packages`.
+    /// Keys of `dependencies` whose `workspace:` specifier names one of
+    /// `packages`.
     keys: Vec<String>,
     /// The `dependencies` of the exported manifest, before the hooks.
     exported: Map<String, Value>,
@@ -70,10 +70,16 @@ pub fn private_workspace_dependencies(
 ) -> Result<PrivateWorkspaceDependencies, CreateExportableManifestError> {
     let dependencies = DEPENDENCY_FIELDS
         .iter()
-        .filter_map(|field| original.get(*field).and_then(Value::as_object))
-        .flatten();
+        .filter_map(|field| {
+            let entries = original.get(*field).and_then(Value::as_object)?;
+            Some(
+                entries
+                    .iter()
+                    .map(move |entry| (*field, entry)),
+            )
+        });
     let mut private = PrivateWorkspaceDependencies::default();
-    for (dep_name, spec) in dependencies {
+    for (field, (dep_name, spec)) in dependencies.flatten() {
         let Some(spec) = spec.as_str() else {
             continue;
         };
@@ -84,7 +90,9 @@ pub fn private_workspace_dependencies(
         if !private.packages.contains(&package) {
             private.packages.push(package);
         }
-        private.keys.push(dep_name.clone());
+        if field == "dependencies" {
+            private.keys.push(dep_name.clone());
+        }
     }
     Ok(private)
 }
@@ -100,11 +108,12 @@ impl PrivateWorkspaceDependencies {
 
     /// Fail when a `dependencies` entry of the publishable manifest
     /// `published` installs one of the private packages from the registry.
-    /// An entry counts when its key was a private `workspace:` dependency, or
-    /// when a hook added or changed it, so an untouched registry dependency
-    /// that shares the private package's name is allowed. The entries named
-    /// in `bundled` ship inside the tarball and are not checked, and a
-    /// private manifest is never published.
+    /// An entry counts when it was a private `workspace:` dependency, or when
+    /// a hook added or changed it, so an untouched registry dependency that
+    /// shares the private package's name is allowed. Not checked: the entries
+    /// named in `bundled`, which ship inside the tarball, entries shadowed by
+    /// an `optionalDependencies` entry of the same name, which is installed
+    /// instead, and a private manifest, which is never published.
     pub fn reject(
         &self,
         published: &Value,
@@ -119,9 +128,13 @@ impl PrivateWorkspaceDependencies {
         let Some(dependencies) = published.get("dependencies").and_then(Value::as_object) else {
             return Ok(());
         };
+        let optional = published.get("optionalDependencies").and_then(Value::as_object);
         let rejected = dependencies
             .iter()
             .filter(|(dep_name, _)| !bundled.contains(dep_name))
+            .filter(|(dep_name, _)| {
+                !optional.is_some_and(|optional| optional.contains_key(dep_name.as_str()))
+            })
             .filter(|(dep_name, spec)| {
                 self.keys.contains(dep_name) || self.exported.get(dep_name.as_str()) != Some(spec)
             })
