@@ -1,11 +1,23 @@
 //! Placing and removing the links of agent skills in the agent skill
 //! directories.
 
-use super::{AgentSkillsError, discovery::MAX_SKILL_DIR_DEPTH, targets::STANDARD_AGENT_DIRS};
+use super::{
+    AgentSkillsError,
+    discovery::MAX_SKILL_DIR_DEPTH,
+    targets::STANDARD_AGENT_DIRS,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs, io,
-    path::{Component, Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn prune(
@@ -54,10 +66,12 @@ fn links_to_a_package_skill(target_root: &Path, path: &Path) -> bool {
         .iter()
         .any(|component| component.as_os_str() == "node_modules")
     {
-        return (0..components.len()).rev().any(|idx| {
-            components[idx].as_os_str() == "node_modules"
-                && is_modules_package_skill(&components[idx + 1..])
-        });
+        return (0..components.len())
+            .rev()
+            .any(|idx| {
+                components[idx].as_os_str() == "node_modules"
+                    && is_modules_package_skill(&components[idx + 1..])
+            });
     }
     is_local_package_skill(target_root, path, &target)
 }
@@ -100,13 +114,7 @@ fn canonical_or_lexical(path: &Path) -> PathBuf {
 
 fn is_modules_package_skill(package: &[Component<'_>]) -> bool {
     let name_len = match package.first() {
-        Some(Component::Normal(first))
-            if first
-                .as_encoded_bytes()
-                .starts_with(b"@") =>
-        {
-            2
-        }
+        Some(Component::Normal(first)) if first.as_encoded_bytes().starts_with(b"@") => 2,
         Some(Component::Normal(_)) => 1,
         _ => return false,
     };
@@ -134,9 +142,11 @@ fn is_valid_skill_subpath(segments: &[Component<'_>]) -> bool {
 
 fn is_valid_skill_segment(component: Component<'_>) -> bool {
     let Component::Normal(segment) = component else { return false };
-    segment.to_str().is_some_and(|name| {
-        !name.is_empty() && !name.starts_with('.') && !name.chars().any(char::is_control)
-    })
+    segment
+        .to_str()
+        .is_some_and(|name| {
+            !name.is_empty() && !name.starts_with('.') && !name.chars().any(char::is_control)
+        })
 }
 
 /// Remove a link or junction without following it. Anything else at the path

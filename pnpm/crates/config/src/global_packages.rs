@@ -2,7 +2,11 @@
 //! `config.yaml` and applied only by the commands that act on them.
 
 use crate::{
-    CommandTarget, Config, ExplicitPaths, WorkspaceSettings, collect_explicit_settings,
+    CommandTarget,
+    Config,
+    ExplicitPaths,
+    WorkspaceSettings,
+    collect_explicit_settings,
     note_declared_registries,
 };
 

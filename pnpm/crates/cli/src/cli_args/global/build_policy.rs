@@ -3,10 +3,19 @@
 //! directory's `pnpm-workspace.yaml` still holds.
 
 use super::{
-    ApprovalStore, Config, GlobalPackagesStore, Path, Reporter, WorkspaceSettings,
-    load_global_packages_config, load_legacy_global_settings,
+    ApprovalStore,
+    Config,
+    GlobalPackagesStore,
+    Path,
+    Reporter,
+    WorkspaceSettings,
+    load_global_packages_config,
+    load_legacy_global_settings,
 };
-use pnpm_config::{GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_PACKAGES_UNSUPPORTED_KEYS};
+use pnpm_config::{
+    GLOBAL_CONFIG_YAML_FILENAME,
+    GLOBAL_PACKAGES_UNSUPPORTED_KEYS,
+};
 use pnpm_reporter::emit_global_warning;
 
 /// Where the build decisions of the global packages are recorded.
@@ -62,8 +71,7 @@ pub(crate) fn warn_about_legacy_global_settings<Reporter: self::Reporter>(
         .filter(|(_, value)| !value.is_null())
         .map(|(key, _)| key.as_str())
         .collect();
-    let global_config = config
-        .config_dir
+    let global_config = config.config_dir
         .as_deref()
         .map(|dir| {
             dir.join(GLOBAL_CONFIG_YAML_FILENAME)
@@ -116,21 +124,11 @@ fn legacy_settings_warnings(path: &str, global_config: &str, keys: &[&str]) -> V
 
 /// Add the decisions of `settings` that no higher layer of `cfg` made.
 fn fill_build_policy(cfg: &mut Config, settings: &WorkspaceSettings) {
-    for (pkg, allowed) in settings
-        .decided_build_approvals()
-        .unwrap_or_default()
-    {
-        cfg.allow_builds
-            .entry(pkg)
-            .or_insert(allowed);
+    for (pkg, allowed) in settings.decided_build_approvals().unwrap_or_default() {
+        cfg.allow_builds.entry(pkg).or_insert(allowed);
     }
-    for (pkg, skills) in settings
-        .decided_skill_approvals()
-        .unwrap_or_default()
-    {
-        cfg.allow_skills
-            .entry(pkg)
-            .or_insert(skills);
+    for (pkg, skills) in settings.decided_skill_approvals().unwrap_or_default() {
+        cfg.allow_skills.entry(pkg).or_insert(skills);
     }
     if cfg.skills_dirs.is_none()
         && let Some(skills) = settings.skills.as_ref()
@@ -140,17 +138,14 @@ fn fill_build_policy(cfg: &mut Config, settings: &WorkspaceSettings) {
         cfg.skills_dirs = Some(resolved);
     }
     if let Some(allow_all) = settings.dangerously_allow_all_builds
-        && !cfg
-            .explicit_settings
-            .contains_key("dangerouslyAllowAllBuilds")
+        && !cfg.explicit_settings.contains_key("dangerouslyAllowAllBuilds")
     {
         cfg.dangerously_allow_all_builds = allow_all;
     }
 }
 
 fn resolve_global_skills_dirs(config: &Config, dirs: &[String]) -> Option<Vec<String>> {
-    let home = config
-        .agent_skills_target_root
+    let home = config.agent_skills_target_root
         .as_deref()
         .or(config.dir.as_path().parent())?;
     let home = dunce::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());

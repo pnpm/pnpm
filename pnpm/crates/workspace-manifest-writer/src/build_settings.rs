@@ -1,8 +1,20 @@
-use pnpm_config::{AllowBuild, PackagePermissions, SkillsPermission};
+use pnpm_config::{
+    AllowBuild,
+    PackagePermissions,
+    SkillsPermission,
+};
 
 use super::{
-    Manifest, ManifestTarget, Path, UpdateWorkspaceManifestError, edit, has_control_char,
-    read_manifest_at, read_owning_manifest, unsupported_inline_key, write_or_remove_manifest,
+    Manifest,
+    ManifestTarget,
+    Path,
+    UpdateWorkspaceManifestError,
+    edit,
+    has_control_char,
+    read_manifest_at,
+    read_owning_manifest,
+    unsupported_inline_key,
+    write_or_remove_manifest,
 };
 
 /// The value of one `permissions` entry: the capability the decision is
@@ -106,11 +118,7 @@ pub fn set_global_packages_permissions(
     }
     let mut changed = false;
     for (name, entry) in permissions {
-        if let Some(allowed) = entry
-            .build
-            .as_ref()
-            .and_then(AllowBuild::decided)
-        {
+        if let Some(allowed) = entry.build.as_ref().and_then(AllowBuild::decided) {
             changed |= edit::set_global_packages_permission(
                 &mut manifest,
                 name,
@@ -131,10 +139,11 @@ pub fn set_global_packages_permissions(
         return Ok(());
     }
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|source| UpdateWorkspaceManifestError::Write {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        std::fs::create_dir_all(dir)
+            .map_err(|source| UpdateWorkspaceManifestError::Write {
+                path: path.to_path_buf(),
+                source,
+            })?;
     }
     write_or_remove_manifest(&target, manifest)
 }
@@ -151,9 +160,7 @@ fn validate_global_permission_entry(
         });
     }
     if let Some(SkillsPermission::Chosen(chosen)) = entry.skills.as_ref()
-        && let Some(skill) = chosen
-            .iter()
-            .find(|skill| has_control_char(skill))
+        && let Some(skill) = chosen.iter().find(|skill| has_control_char(skill))
     {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path: path.to_path_buf(),
@@ -195,10 +202,11 @@ pub fn set_global_packages_skills_dirs(
         return Ok(());
     }
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|source| UpdateWorkspaceManifestError::Write {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        std::fs::create_dir_all(dir)
+            .map_err(|source| UpdateWorkspaceManifestError::Write {
+                path: path.to_path_buf(),
+                source,
+            })?;
     }
     write_or_remove_manifest(&target, manifest)
 }
@@ -283,10 +291,7 @@ fn validate_allow_build_entries(
             key,
         });
     }
-    if let Some((name, _)) = entries
-        .iter()
-        .find(|(name, _)| has_control_char(name))
-    {
+    if let Some((name, _)) = entries.iter().find(|(name, _)| has_control_char(name)) {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path: path.to_path_buf(),
             value: (*name).to_string(),
@@ -365,9 +370,7 @@ fn validate_permission_entries(
             });
         }
         if let PermissionValue::Skills(SkillsPermission::Chosen(chosen)) = value
-            && let Some(skill) = chosen
-                .iter()
-                .find(|skill| has_control_char(skill))
+            && let Some(skill) = chosen.iter().find(|skill| has_control_char(skill))
         {
             return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
                 path: path.to_path_buf(),
@@ -381,9 +384,7 @@ fn validate_permission_entries(
 /// Upsert `entries`, sending build decisions to `allowBuilds` unless the
 /// document already has `permissions`. Returns whether anything changed.
 fn record_permissions(manifest: &mut Manifest, entries: Vec<(&str, PermissionValue)>) -> bool {
-    let builds_in_permissions = manifest
-        .document
-        .keys
+    let builds_in_permissions = manifest.document.keys
         .iter()
         .any(|key| key == "permissions");
     let mut changed = false;
@@ -426,10 +427,7 @@ pub fn set_skills_dirs(dir: &Path, dirs: &[String]) -> Result<(), UpdateWorkspac
     // The upsert splices write every item on its own line but the entry
     // starts after `dirs: `, so a control character in a relative directory
     // would corrupt the document, refuse instead.
-    if let Some(dir_value) = dirs
-        .iter()
-        .find(|dir_value| has_control_char(dir_value))
-    {
+    if let Some(dir_value) = dirs.iter().find(|dir_value| has_control_char(dir_value)) {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path,
             value: dir_value.clone(),

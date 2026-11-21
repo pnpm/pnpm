@@ -11,30 +11,68 @@
 //! instead, and one neither can edit is reported through [`Inline`] so the
 //! caller can refuse the write.
 
-pub(crate) use allow_builds::{add_allow_build, add_undecided_allow_build, prune_allow_builds};
-pub(crate) use catalogs::{CatalogReferences, add_catalogs, remove_unused_catalogs};
-pub(crate) use permissions::{remove_allow_build, set_global_packages_permission, set_permission};
+pub(crate) use allow_builds::{
+    add_allow_build,
+    add_undecided_allow_build,
+    prune_allow_builds,
+};
+pub(crate) use catalogs::{
+    CatalogReferences,
+    add_catalogs,
+    remove_unused_catalogs,
+};
+pub(crate) use permissions::{
+    remove_allow_build,
+    set_global_packages_permission,
+    set_permission,
+};
 pub(crate) use policies::{
-    prune_minimum_release_age_excludes, prune_trust_policy_excludes, set_audit_ignore_ghsas,
+    prune_minimum_release_age_excludes,
+    prune_trust_policy_excludes,
+    set_audit_ignore_ghsas,
     set_minimum_release_age_excludes,
 };
-pub(crate) use scanning::{Inline, document_root_is_inline, has_unsupported_inline_value};
-pub(crate) use skills_dirs::{set_global_packages_skills_dirs, set_skills_dirs};
+pub(crate) use scanning::{
+    Inline,
+    document_root_is_inline,
+    has_unsupported_inline_value,
+};
+pub(crate) use skills_dirs::{
+    set_global_packages_skills_dirs,
+    set_skills_dirs,
+};
 pub(crate) use spacing::uses_blank_line_style;
 
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     ops::Range,
 };
 
 use indexmap::IndexMap;
-use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
-use yamlpatch::{Op, Patch};
-use yamlpath::{Component, Document, Route};
+use pnpm_catalogs_types::{
+    Catalogs,
+    DEFAULT_CATALOG_NAME,
+};
+use yamlpatch::{
+    Op,
+    Patch,
+};
+use yamlpath::{
+    Component,
+    Document,
+    Route,
+};
 
 use crate::{
     flow,
-    model::{AllowBuildValue, Manifest},
+    model::{
+        AllowBuildValue,
+        Manifest,
+    },
     render,
 };
 
@@ -47,16 +85,14 @@ pub(crate) fn add_config_dependency(
     specifier: &str,
 ) -> Result<bool, Box<yamlpatch::Error>> {
     const BLOCK: &str = "configDependencies";
-    let current_matches = manifest
-        .config_dependencies
+    let current_matches = manifest.config_dependencies
         .as_ref()
         .and_then(|deps| deps.get(name))
         .map(String::as_str)
         == Some(specifier);
     let changed = upsert_top_level_entry(manifest, BLOCK, name, specifier, current_matches)?;
     if changed {
-        manifest
-            .config_dependencies
+        manifest.config_dependencies
             .get_or_insert_with(IndexMap::new)
             .insert(name.to_string(), specifier.to_string());
     }
@@ -77,15 +113,13 @@ pub(crate) fn add_patched_dependencies(
 
     let mut changed = drop_omitted_patches(manifest, BLOCK, patched_dependencies);
     for (key, path) in patched_dependencies {
-        let current_matches = manifest
-            .patched_dependencies
+        let current_matches = manifest.patched_dependencies
             .as_ref()
             .and_then(|deps| deps.get(key))
             .map(String::as_str)
             == Some(path);
         if upsert_top_level_entry(manifest, BLOCK, key, path, current_matches)? {
-            manifest
-                .patched_dependencies
+            manifest.patched_dependencies
                 .get_or_insert_with(IndexMap::new)
                 .insert(key.clone(), path.clone());
             changed = true;
@@ -96,22 +130,15 @@ pub(crate) fn add_patched_dependencies(
 
 /// Drop the whole block, for a patch set that is now empty.
 fn drop_patched_dependencies(manifest: &mut Manifest, block: &str) -> bool {
-    let has_block = manifest
-        .document
-        .keys
+    let has_block = manifest.document.keys
         .iter()
         .any(|key| key == block);
     if manifest.patched_dependencies.is_none() && !has_block {
         return false;
     }
-    manifest
-        .document
-        .set_text(remove_top_level_block(manifest.document.text(), block));
+    manifest.document.set_text(remove_top_level_block(manifest.document.text(), block));
     manifest.patched_dependencies = None;
-    manifest
-        .document
-        .keys
-        .retain(|key| key != block);
+    manifest.document.keys.retain(|key| key != block);
     true
 }
 
@@ -132,11 +159,12 @@ fn drop_omitted_patches(
     if omitted.is_empty() {
         return false;
     }
-    manifest
-        .document
-        .set_text(remove_mapping_entries(manifest.document.text(), &[block], &omitted));
-    let current = manifest
-        .patched_dependencies
+    manifest.document.set_text(remove_mapping_entries(
+        manifest.document.text(),
+        &[block],
+        &omitted,
+    ));
+    let current = manifest.patched_dependencies
         .as_mut()
         .expect("existing patched dependencies should remain decoded");
     for key in &omitted {
@@ -153,16 +181,14 @@ pub(crate) fn add_overrides(
     specifier: &str,
 ) -> Result<bool, Box<yamlpatch::Error>> {
     const BLOCK: &str = "overrides";
-    let current_matches = manifest
-        .overrides
+    let current_matches = manifest.overrides
         .as_ref()
         .and_then(|deps| deps.get(selector))
         .map(String::as_str)
         == Some(specifier);
     let changed = upsert_top_level_entry(manifest, BLOCK, selector, specifier, current_matches)?;
     if changed {
-        manifest
-            .overrides
+        manifest.overrides
             .get_or_insert_with(IndexMap::new)
             .insert(selector.to_string(), specifier.to_string());
     }
@@ -203,14 +229,9 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     }
 
     if nothing_remains {
-        manifest
-            .document
-            .set_text(remove_top_level_block(manifest.document.text(), BLOCK));
+        manifest.document.set_text(remove_top_level_block(manifest.document.text(), BLOCK));
         manifest.overrides = None;
-        manifest
-            .document
-            .keys
-            .retain(|key| key != BLOCK);
+        manifest.document.keys.retain(|key| key != BLOCK);
         return true;
     }
 
@@ -221,9 +242,11 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     if has_unsupported_inline_value(manifest.document.text(), &[BLOCK]) {
         return false;
     }
-    manifest
-        .document
-        .set_text(remove_mapping_entries(manifest.document.text(), &[BLOCK], &present));
+    manifest.document.set_text(remove_mapping_entries(
+        manifest.document.text(),
+        &[BLOCK],
+        &present,
+    ));
     true
 }
 
@@ -260,8 +283,7 @@ fn replace_top_level_block(text: &str, span: &TopLevelSpan, rendered: &str) -> S
 /// Where a new `key` entry goes in `mapping` so the keys keep their target
 /// order: right after its predecessor, or at the body start when first.
 fn insertion_offset(mapping: &Mapping, key: &str) -> usize {
-    let existing: Vec<String> = mapping
-        .entries
+    let existing: Vec<String> = mapping.entries
         .iter()
         .map(|entry| entry.key.clone())
         .collect();
@@ -274,8 +296,7 @@ fn insertion_offset(mapping: &Mapping, key: &str) -> usize {
         return mapping.body_start;
     }
     let predecessor = &order[position - 1];
-    mapping
-        .entries
+    mapping.entries
         .iter()
         .find(|entry| &entry.key == predecessor)
         .expect("predecessor entry exists")
@@ -334,19 +355,12 @@ pub(crate) fn set_top_level_field(
         return false;
     }
     let block = pnpm_config::render_yaml_top_level_field(key, value);
-    if manifest
-        .document
-        .keys
+    if manifest.document.keys
         .iter()
         .any(|existing| existing == key)
     {
-        manifest
-            .document
-            .set_text(remove_top_level_block(manifest.document.text(), key));
-        manifest
-            .document
-            .keys
-            .retain(|existing| existing != key);
+        manifest.document.set_text(remove_top_level_block(manifest.document.text(), key));
+        manifest.document.keys.retain(|existing| existing != key);
     }
     let new_text = insert_top_level_block(manifest, key, &block);
     manifest.document.set_text(new_text);
@@ -357,21 +371,14 @@ pub(crate) fn set_top_level_field(
 /// Remove the top-level `key`. Returns whether anything changed (false when the
 /// key is absent).
 pub(crate) fn remove_top_level_field(manifest: &mut Manifest, key: &str) -> bool {
-    if !manifest
-        .document
-        .keys
+    if !manifest.document.keys
         .iter()
         .any(|existing| existing == key)
     {
         return false;
     }
-    manifest
-        .document
-        .set_text(remove_top_level_block(manifest.document.text(), key));
-    manifest
-        .document
-        .keys
-        .retain(|existing| existing != key);
+    manifest.document.set_text(remove_top_level_block(manifest.document.text(), key));
+    manifest.document.keys.retain(|existing| existing != key);
     true
 }
 
@@ -392,8 +399,7 @@ fn remove_mapping_entries(text: &str, path: &[&str], keys: &[String]) -> String 
         return text.to_string();
     };
     let mut out = text.to_string();
-    for entry in mapping
-        .entries
+    for entry in mapping.entries
         .iter()
         .rev()
         .filter(|entry| keys.contains(&entry.key))
@@ -487,7 +493,9 @@ mod policies;
 
 mod sequences;
 use sequences::{
-    detect_sequence_indent, reconcile_sequence_items, render_top_level_sequence,
+    detect_sequence_indent,
+    reconcile_sequence_items,
+    render_top_level_sequence,
     upsert_sequence_entry,
 };
 
@@ -496,7 +504,11 @@ use allow_builds::render_bool;
 
 mod mapping;
 use mapping::{
-    replace_value_at, replace_value_text_at, upsert, write_entry_at, write_rendered_entry_at,
+    replace_value_at,
+    replace_value_text_at,
+    upsert,
+    write_entry_at,
+    write_rendered_entry_at,
 };
 
 mod nested;
@@ -508,11 +520,29 @@ mod skills_dirs;
 mod scanning;
 
 use scanning::{
-    Line, Mapping, TopLevelSpan, comment_start, is_sequence_item_line, is_top_level_block_boundary,
-    is_top_level_key, leading_comment_start, lines, locate, locate_mapping, locate_sequence,
-    mapping_keys, structural_colon_index, structural_indent, top_level_key_line, top_level_span,
+    Line,
+    Mapping,
+    TopLevelSpan,
+    comment_start,
+    is_sequence_item_line,
+    is_top_level_block_boundary,
+    is_top_level_key,
+    leading_comment_start,
+    lines,
+    locate,
+    locate_mapping,
+    locate_sequence,
+    mapping_keys,
+    structural_colon_index,
+    structural_indent,
+    top_level_key_line,
+    top_level_span,
 };
 
 mod spacing;
 
-use spacing::{blank_run_start, blanks_belong_to_kept_scalar, ends_with_blank_line};
+use spacing::{
+    blank_run_start,
+    blanks_belong_to_kept_scalar,
+    ends_with_blank_line,
+};

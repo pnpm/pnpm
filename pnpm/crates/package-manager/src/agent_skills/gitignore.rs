@@ -1,10 +1,20 @@
 //! The `# pnpm` block of each agent skill directory's `.gitignore`.
 
-use super::{AgentSkillsError, links::recorded_parent_is_within_root};
+use super::{
+    AgentSkillsError,
+    links::recorded_parent_is_within_root,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The ignore rule that older pnpm versions added for links named
@@ -28,10 +38,7 @@ pub(super) fn update_gitignores(
         .iter()
         .map(|dir| (dir.clone(), BTreeSet::new()))
         .collect();
-    for entry in linked
-        .iter()
-        .filter(|entry| recorded_parent_is_within_root(target_root, entry))
-    {
+    for entry in linked.iter().filter(|entry| recorded_parent_is_within_root(target_root, entry)) {
         if let Some(dir) = Path::new(entry).parent() {
             by_dir
                 .entry(target_root.join(dir))

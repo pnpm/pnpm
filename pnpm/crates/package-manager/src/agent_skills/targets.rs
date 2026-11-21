@@ -1,9 +1,16 @@
 use super::recorded_path;
 use pnpm_config::Config;
 use std::{
-    collections::{BTreeSet, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeSet,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Environment variables by which an agent identifies itself, and the
@@ -96,10 +103,10 @@ pub(super) fn targets_changed(
         if !pnpm_fs::is_subdir(&canonical_root, &canonical) {
             continue;
         }
-        if seen.insert(canonical) {
-            if let Some(path) = recorded_path(target_root, &dir) {
-                current.insert(path);
-            }
+        if seen.insert(canonical)
+            && let Some(path) = recorded_path(target_root, &dir)
+        {
+            current.insert(path);
         }
     }
     previous != current
@@ -190,7 +197,7 @@ fn candidate_dirs(config: &Config, target_root: &Path, agent_dir: Option<&str>) 
 fn resolve_skills_dir(target_root: &Path, dir: &str) -> Option<PathBuf> {
     let path = Path::new(dir);
     let joined = if path.is_absolute() { path.to_path_buf() } else { target_root.join(path) };
-    if pnpm_fs::is_subdir(target_root, &joined) { Some(joined) } else { None }
+    pnpm_fs::is_subdir(target_root, &joined).then_some(joined)
 }
 
 fn is_contained_in_workspace(target_root: &Path, dir: &Path) -> bool {

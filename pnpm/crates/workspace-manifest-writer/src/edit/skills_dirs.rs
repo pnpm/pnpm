@@ -1,6 +1,14 @@
 use super::{
-    Inline, Manifest, insert_top_level_block, locate, locate_mapping, mapping_keys,
-    remove_mapping_entries, remove_top_level_block, render, upsert_sequence_entry,
+    Inline,
+    Manifest,
+    insert_top_level_block,
+    locate,
+    locate_mapping,
+    mapping_keys,
+    remove_mapping_entries,
+    remove_top_level_block,
+    render,
+    upsert_sequence_entry,
 };
 
 const BLOCK: &str = "skills";
@@ -29,10 +37,7 @@ fn remove_skills_dirs(manifest: &mut Manifest) -> bool {
     let new_text = remove_mapping_entries(text, &[BLOCK], &[DIRS.to_string()]);
     if mapping_keys(&new_text, &[BLOCK]).is_empty() {
         let new_text = remove_top_level_block(&new_text, BLOCK);
-        manifest
-            .document
-            .keys
-            .retain(|key| key != BLOCK);
+        manifest.document.keys.retain(|key| key != BLOCK);
         manifest.document.set_text(new_text);
         return true;
     }
@@ -84,10 +89,7 @@ fn recorded_skills_dirs(text: &str) -> Option<Vec<String>> {
         dirs: Option<Vec<String>>,
     }
 
-    serde_saphyr::from_str::<SkillsDirsProbe>(text)
-        .ok()?
-        .skills?
-        .dirs
+    serde_saphyr::from_str::<SkillsDirsProbe>(text).ok()?.skills?.dirs
 }
 
 /// Upsert `globalPackagesConfig.skills.dirs` in the global `config.yaml`.
@@ -114,10 +116,7 @@ fn remove_global_packages_skills_dirs(manifest: &mut Manifest) -> bool {
             remove_mapping_entries(&new_text, &["globalPackagesConfig"], &["skills".to_string()]);
         if mapping_keys(&new_text, &["globalPackagesConfig"]).is_empty() {
             let new_text = remove_top_level_block(&new_text, "globalPackagesConfig");
-            manifest
-                .document
-                .keys
-                .retain(|key| key != "globalPackagesConfig");
+            manifest.document.keys.retain(|key| key != "globalPackagesConfig");
             manifest.document.set_text(new_text);
             return true;
         }
@@ -166,10 +165,7 @@ fn insert_nested_block(source: &str, parent: &[&str], block: &str) -> String {
     let Some(mapping) = locate(source, parent) else {
         return source.to_string();
     };
-    let insert_at = mapping
-        .entries
-        .last()
-        .map_or(mapping.body_start, |e| e.block_end);
+    let insert_at = mapping.entries.last().map_or(mapping.body_start, |e| e.block_end);
     let mut out = source.to_string();
     out.insert_str(insert_at, block);
     out
@@ -177,8 +173,7 @@ fn insert_nested_block(source: &str, parent: &[&str], block: &str) -> String {
 
 fn upsert_nested_dirs(source: &str, dirs: &[String]) -> String {
     if let Some(skills) = locate(source, &["globalPackagesConfig", "skills"]) {
-        if let Some(entry) = skills
-            .entries
+        if let Some(entry) = skills.entries
             .iter()
             .find(|e| e.key == DIRS)
         {
@@ -198,10 +193,7 @@ fn upsert_nested_dirs(source: &str, dirs: &[String]) -> String {
             block.push_str(&render::render_value(dir));
             block.push('\n');
         }
-        let insert_at = skills
-            .entries
-            .last()
-            .map_or(skills.body_start, |e| e.block_end);
+        let insert_at = skills.entries.last().map_or(skills.body_start, |e| e.block_end);
         let mut out = source.to_string();
         out.insert_str(insert_at, &block);
         return out;
@@ -225,9 +217,5 @@ fn recorded_global_packages_skills_dirs(text: &str) -> Option<Vec<String>> {
         #[serde(default)]
         dirs: Option<Vec<String>>,
     }
-    serde_saphyr::from_str::<Root>(text)
-        .ok()?
-        .global_packages_config?
-        .skills?
-        .dirs
+    serde_saphyr::from_str::<Root>(text).ok()?.global_packages_config?.skills?.dirs
 }
