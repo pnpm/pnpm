@@ -206,7 +206,8 @@ own it, starting with the account that first publishes it. Under the default
 [`publish` rule](configuration.md#the-packages-map), only its owners and the
 `auth.admins` can publish to it.
 
-Owners and `auth.admins` can add and remove owners. Anyone who can read the
+Owners and `auth.admins` can add and remove owners when a grant gives them
+`annotate` on the package. Anyone who can read the
 package can list them. A package keeps at least one owner.
 
 | Ecosystem | Owners URL |

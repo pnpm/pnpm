@@ -162,17 +162,24 @@ impl Grant {
             .collect()
     }
 
-    /// Whether the patterns the grant excludes leave it no package.
-    fn covers_nothing(&self) -> bool {
-        let excluded = |pattern: &PackagePattern| {
-            self.exclude
+    /// Whether the grant covers some name in `claim`. Intersecting package
+    /// patterns are nested, so their intersection is the narrower pattern.
+    fn intersects(&self, claim: &PackagePattern) -> bool {
+        let available = |pattern: &PackagePattern| {
+            !self.exclude
                 .iter()
                 .any(|exclude| exclude.covers(pattern))
         };
-        if self.include.is_empty() {
-            return excluded(&PackagePattern::All);
-        }
-        self.include.iter().all(excluded)
+        self.include
+            .iter()
+            .any(|include| {
+                if include.covers(claim) {
+                    available(claim)
+                } else {
+                    claim.covers(include) && available(include)
+                }
+            })
+            || (self.include.is_empty() && available(claim))
     }
 
     /// Whether the grant gives `action` to a subject `identity` matches.
@@ -270,19 +277,37 @@ impl Grants {
     }
 
     pub(super) fn any_admits(&self, action: Action, identity: &Identity) -> bool {
-        self.all
-            .iter()
-            .filter(|grant| !grant.covers_nothing())
-            .any(|grant| grant.gives(action, identity, false))
+        self.any_admits_in(action, identity, &[PackagePattern::All])
     }
 
     /// Whether `identity` may do `action` on every package.
-    pub(super) fn all_admit(&self, action: Action, identity: &Identity) -> bool {
+    pub(super) fn all_admit(
+        &self,
+        action: Action,
+        identity: &Identity,
+        claims: &[PackagePattern],
+    ) -> bool {
         let giving: Vec<&Grant> = self.all
             .iter()
             .filter(|grant| grant.gives(action, identity, false))
             .collect();
-        covered(&giving, &PackagePattern::All)
+        claims.iter().all(|claim| covered(&giving, claim))
+    }
+
+    pub(super) fn any_admits_in(
+        &self,
+        action: Action,
+        identity: &Identity,
+        claims: &[PackagePattern],
+    ) -> bool {
+        self.all
+            .iter()
+            .any(|grant| {
+                grant.gives(action, identity, false)
+                    && claims
+                        .iter()
+                        .any(|claim| grant.intersects(claim))
+            })
     }
 }
 

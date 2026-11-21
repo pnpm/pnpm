@@ -266,7 +266,19 @@ impl RuleTable {
     /// Whether one grant lets `identity` read every package.
     #[must_use]
     pub fn all_access_admit(&self, identity: &Identity) -> bool {
-        self.grants.all_admit(Action::Read, identity)
+        self.all_access_admit_in(identity, &[PackagePattern::All])
+    }
+
+    /// Whether grants let `identity` read every name the supplied patterns claim.
+    #[must_use]
+    pub fn all_access_admit_in(&self, identity: &Identity, claims: &[PackagePattern]) -> bool {
+        self.grants.all_admit(Action::Read, identity, claims)
+    }
+
+    /// Whether grants let `identity` read any name the supplied patterns claim.
+    #[must_use]
+    pub fn any_access_admits_in(&self, identity: &Identity, claims: &[PackagePattern]) -> bool {
+        self.grants.any_admits_in(Action::Read, identity, claims)
     }
 }
 

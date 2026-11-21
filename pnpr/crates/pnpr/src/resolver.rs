@@ -331,7 +331,7 @@ impl Resolver {
         osv_index: Option<Arc<OsvIndex>>,
         state: &crate::server::AppState,
     ) -> &'a Resolver {
-        routing.resolver.get_or_init(|| {
+        routing.caches.resolver.get_or_init(|| {
             let config = &state.inner.config;
             let shared = shared.get_or_init(|| ResolverShared::new(config));
             let route_context = Arc::clone(&routing.route_context);
