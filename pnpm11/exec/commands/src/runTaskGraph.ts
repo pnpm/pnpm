@@ -24,7 +24,7 @@ import pLimit, { type LimitFunction } from 'p-limit'
 import { realpathMissing } from 'realpath-missing'
 
 import { suppressesScriptEcho } from './createLifecycleOpts.js'
-import { existsInDir } from './existsInDir.js'
+import { getNodeLoaderPaths } from './nodeLoaderPaths.js'
 import { getExecutionDuration, writeRecursiveSummary } from './recursiveSummary.js'
 import type { RecursiveRunOpts } from './runRecursive.js'
 import { projectLockfilesOf, runScript, type RunScriptOptions } from './runScript.js'
@@ -92,10 +92,7 @@ function createRecursiveRunContext (runOpts: RunTaskGraphOptions): RecursiveRunC
     (opts.workspaceConcurrency === 1 || isSerialTaskGraph(taskGraph, sequencedTasks))
       ? 'inherit'
       : 'pipe'
-  const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
-  const existsPackageMap = existsInDir.bind(null, path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'))
-  const workspacePackageMapPath = opts.nodeExperimentalPackageMap && opts.workspaceDir && existsPackageMap(opts.workspaceDir)
+  const { existsPnp, workspacePnpPath, existsPackageMap, workspacePackageMapPath } = getNodeLoaderPaths(opts)
 
   const result: RecursiveSummary = {}
   for (const node of taskGraph.values()) {

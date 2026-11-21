@@ -1,4 +1,5 @@
 pub use hoisted::dependencies_graph_to_package_map;
+pub(crate) use node_options::find_execution_file;
 pub use node_options::{
     make_node_package_map_option,
     make_node_require_option,

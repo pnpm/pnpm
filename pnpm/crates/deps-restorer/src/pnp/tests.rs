@@ -1,4 +1,5 @@
 use super::render_pnp_loader;
+use command_extra::CommandExtra;
 
 #[test]
 fn template_markers_inside_values_are_not_replaced() {
@@ -7,4 +8,83 @@ fn template_markers_inside_values_are_not_replaced() {
 
     assert_eq!(loader.matches("registry __PNPM_MODULES_DIR__").count(), 1);
     assert_eq!(loader.matches("modules __PNPM_PACKAGE_REGISTRY__").count(), 1);
+}
+
+#[test]
+fn loader_respects_exports_and_resolution_paths() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    for directory in ["first", "second", "app", "other"] {
+        std::fs::create_dir(root.join(directory)).unwrap();
+    }
+    for directory in ["first", "second"] {
+        std::fs::write(
+            root.join(directory).join("package.json"),
+            r#"{"name":"exported","exports":{".":{"require":"./entry.cjs"},"./sub":"./sub.cjs","./pattern/*":"./*.cjs","./blocked":null}}"#,
+        ).unwrap();
+        std::fs::write(
+            root.join(directory).join("entry.cjs"),
+            format!("module.exports = '{directory}'"),
+        )
+        .unwrap();
+        std::fs::write(root.join(directory).join("sub.cjs"), "module.exports = 'sub'").unwrap();
+        std::fs::write(root.join(directory).join("private.cjs"), "module.exports = 'private'")
+            .unwrap();
+    }
+    let registry = serde_json::json!({"packages": {
+        ".": {"url":"./app", "dependencies":{"alias":"first"}},
+        "other": {"url":"./other", "dependencies":{"alias":"second"}},
+        "first": {"url":"./first", "dependencies":{}},
+        "second": {"url":"./second", "dependencies":{}}
+    }});
+    std::fs::write(root.join(".pnp.cjs"), render_pnp_loader(&registry.to_string(), r#"".""#))
+        .unwrap();
+    let script = r"
+const assert = require('assert');
+const path = require('path');
+const api = require('../.pnp.cjs');
+assert.strictEqual(require('alias'), 'first');
+assert.strictEqual(require('alias/sub'), 'sub');
+assert.strictEqual(require('alias/pattern/sub'), 'sub');
+for (const specifier of ['alias/private.cjs', 'alias/blocked']) {
+  assert.throws(() => require(specifier), {code: 'ERR_PACKAGE_PATH_NOT_EXPORTED'});
+}
+assert.throws(() => require('alias/../second/entry.cjs'), {code: 'MODULE_NOT_FOUND'});
+assert.strictEqual(api.resolveRequest('alias', __filename), require.resolve('alias'));
+assert.strictEqual(api.resolveToUnqualified('alias', __filename), path.resolve('../first'));
+assert.throws(() => api.resolveRequest('alias/private.cjs', __filename), {code: 'ERR_PACKAGE_PATH_NOT_EXPORTED'});
+assert.strictEqual(require(require.resolve('alias', {paths: [path.resolve('../other')]})), 'second');
+assert.strictEqual(require(require.resolve('alias', {paths: [path.resolve('../first'), path.resolve('../other')]})), 'second');
+assert.throws(() => require.resolve('alias', {paths: []}), {code: 'MODULE_NOT_FOUND'});
+assert.throws(() => require.resolve('undeclared'), {code: 'MODULE_NOT_FOUND'});
+";
+    std::fs::write(root.join("app/check.cjs"), script).unwrap();
+    let output = std::process::Command::new("node")
+        .with_current_dir(root.join("app"))
+        .with_arg("check.cjs")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+}
+
+#[test]
+fn execution_uses_the_configured_lockfile_directory() {
+    let temp = tempfile::tempdir().unwrap();
+    let workspace = temp.path().join("workspace");
+    let lockfile_dir = temp.path().join("lockfiles");
+    std::fs::create_dir(&workspace).unwrap();
+    std::fs::create_dir(&lockfile_dir).unwrap();
+    std::fs::write(workspace.join(super::PNP_FILENAME), "stale").unwrap();
+    std::fs::write(lockfile_dir.join(super::PNP_FILENAME), "configured").unwrap();
+    let config = pnpm_config::Config {
+        workspace_dir: Some(workspace.clone()),
+        lockfile_dir: Some(lockfile_dir.clone()),
+        ..Default::default()
+    };
+    assert_eq!(
+        super::pnp_path_for_execution(&config, &workspace),
+        Some(lockfile_dir.join(super::PNP_FILENAME)),
+    );
+    std::fs::remove_file(lockfile_dir.join(super::PNP_FILENAME)).unwrap();
+    assert_eq!(super::pnp_path_for_execution(&config, &workspace), None);
 }

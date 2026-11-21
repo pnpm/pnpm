@@ -221,6 +221,12 @@ fn check_static_freshness(
     policy: &GatePolicy<'_>,
     scope: Scope<'_>,
 ) -> Result<(), Stale> {
+    if check.config.node_linker == pnpm_config::NodeLinker::Pnp
+        && !check.config.virtual_store_only
+        && !check.workspace_root.join(pnpm_deps_restorer::PNP_FILENAME).is_file()
+    {
+        return Err(Stale::Content("the PnP loader is missing"));
+    }
     // A filtered state without validation records names no installed
     // project, and the current lockfile lists the projects that install did
     // not select as if it had installed them.

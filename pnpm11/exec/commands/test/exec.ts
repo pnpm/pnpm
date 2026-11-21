@@ -106,3 +106,24 @@ test('exec should specify the command', async () => {
   }, [])
   ).rejects.toThrow("'pnpm exec' requires a command to run")
 })
+
+
+test('exec loads PnP from lockfileDir before the workspace directory', async () => {
+  prepareEmpty()
+  const lockfileDir = path.resolve('lockfiles')
+  fs.mkdirSync(lockfileDir)
+  const pnpPath = path.join(lockfileDir, '.pnp.cjs')
+  fs.writeFileSync(pnpPath, '')
+  fs.writeFileSync('.pnp.cjs', '')
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    workspaceDir: process.cwd(),
+    lockfileDir,
+    selectedProjectsGraph: {},
+  }, ['eslint'])
+  const { NODE_OPTIONS } = makeNodeRequireOption(pnpPath, {})
+  expect(execa).toHaveBeenCalledWith('eslint', [], expect.objectContaining({
+    env: expect.objectContaining({ NODE_OPTIONS }),
+  }))
+})
