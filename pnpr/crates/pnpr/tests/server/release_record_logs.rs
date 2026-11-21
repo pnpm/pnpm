@@ -324,10 +324,8 @@ async fn narrowed_claims_withhold_every_bundle_of_the_old_log() {
     let hosted = Registry::Hosted {
         patterns: vec![PackagePattern::parse("@acme/widget", Ecosystem::Npm).unwrap()],
     };
-    config.routing.registries = Registries::new(
-        [("acme".to_string(), hosted)].into_iter().collect(),
-        Some("acme".to_string()),
-    );
+    config.routing.registries =
+        Registries::new([("acme".to_string(), hosted)].into(), Some("acme".to_string()));
     let app = router_with_auth(config, auth);
     assert_eq!(get(&app, "/npm/-/log/checkpoint", None).await.status(), StatusCode::OK);
     for uri in ["/npm/-/log/tile/entries/000.p/1", "/npm/-/log/tile/entries/000.p/2"] {

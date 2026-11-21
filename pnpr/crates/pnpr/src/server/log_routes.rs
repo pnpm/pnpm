@@ -95,13 +95,8 @@ pub(super) async fn get_log_resource(
     } else {
         match resource.parse::<TilePath>() {
             Ok(TilePath::Entries { .. }) if !readers.may_read_all => (not_found(), false),
-            Ok(path @ TilePath::Entries { index, width }) => {
-                match readers::log_still_claimed(&state, &log, index, width).await {
-                    Ok(true) => {}
-                    Ok(false) => return private_no_cache(not_found()),
-                    Err(error) => return error.into_response(),
-                }
-                (serve_tile(&state, &log, path).await, anyone.may_read_all)
+            Ok(TilePath::Entries { index, width }) => {
+                (serve_entry_bundle(&state, &log, index, width).await, anyone.may_read_all)
             }
             Ok(path) => (serve_tile(&state, &log, path).await, anyone.may_read_some),
             Err(_) => (not_found(), false),
@@ -109,6 +104,14 @@ pub(super) async fn get_log_resource(
     };
     // A named registry's responses are always caller-scoped.
     if public && registry.is_none() { response } else { private_no_cache(response) }
+}
+
+async fn serve_entry_bundle(state: &AppState, log: &LogId, index: u64, width: u32) -> Response {
+    match readers::log_still_claimed(state, log, index, width).await {
+        Ok(true) => serve_tile(state, log, TilePath::Entries { index, width }).await,
+        Ok(false) => private_no_cache(not_found()),
+        Err(error) => error.into_response(),
+    }
 }
 
 async fn serve_checkpoint(state: &AppState, log: &LogId) -> Response {
