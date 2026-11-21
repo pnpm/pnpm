@@ -110,8 +110,11 @@ impl WorkEnv {
         );
         let mock_port = pick_unused_port().expect("pick a port for the revision mock");
         let bench_dir = self.bench_dir(BenchId::PnprRevision(revision));
-        let cold = self.options.selection.scenario.and_then(BenchmarkScenario::cold_pnpr_cache)
-            == Some(ColdPnprCache::Tarballs);
+        let cold =
+            match self.options.selection.scenario.and_then(BenchmarkScenario::cold_pnpr_cache) {
+                Some(ColdPnprCache::Tarballs) => true,
+                Some(ColdPnprCache::Resolution) | None => false,
+            };
         let registries = RegistriesHome::of_source(&self.pnpr_source_dir(revision));
         let public_url = served_revision_mock_origin(&registry, cold);
         let launch = RevisionMockLaunch {

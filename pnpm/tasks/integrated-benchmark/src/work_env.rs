@@ -6,7 +6,6 @@ mod scripts;
 use scripts::{
     build_cleanup_command,
     create_install_script,
-    dir_contains_file,
     may_create_lockfile,
     remove_dir_all_with_retry,
     sync_bench_repo,
@@ -42,6 +41,7 @@ use server_config::{
     cold_revision_mock_command,
     distinct_public_route_registries,
     mint_pnpr_token,
+    pnpr_cache_dir,
     serves_npm_under_base_path,
     wait_for_pnpr_ready,
     write_pnpr_benchmark_config,

@@ -66,8 +66,12 @@ impl PnprServerPaths {
     /// It sits outside the database, so emptying it while the server is down
     /// keeps the accounts and the token minted at startup.
     pub(super) fn cache(&self) -> PathBuf {
-        self.storage.join("cache")
+        pnpr_cache_dir(&self.storage)
     }
+}
+/// The `--cache` of the pnpr server whose storage is `storage`.
+pub(super) fn pnpr_cache_dir(storage: &Path) -> PathBuf {
+    storage.join("cache")
 }
 /// A `pnpr@<rev>` target's resolver server, with the paths that launch it
 /// again after a restart with an empty cache.
