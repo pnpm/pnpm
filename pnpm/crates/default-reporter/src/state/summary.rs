@@ -106,7 +106,7 @@ impl ReporterState {
             msg.push('\n');
         }
         self.summary.rendered = true;
-        self.notices.deprecations.clear();
+        self.clear_deprecations();
         let mut slot = std::mem::take(&mut self.summary.slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.summary.slot = slot;

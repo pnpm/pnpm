@@ -18,6 +18,11 @@ use super::{
 
 impl ReporterState {
     pub(super) fn on_deprecation(&mut self, log: &DeprecationLog) {
+        self.notices.deprecation_index
+            .entry(log.pkg_name.clone())
+            .or_default()
+            .entry(log.pkg_version.clone())
+            .or_insert(self.notices.deprecations.len());
         self.notices.deprecations.push(log.clone());
     }
 
@@ -25,9 +30,10 @@ impl ReporterState {
     pub(super) fn deprecation_of(&self, diff: &PackageDiff) -> Option<usize> {
         let version = diff.version.as_deref()?;
         let name = diff.real_name.as_deref().unwrap_or(&diff.name);
-        self.notices.deprecations
-            .iter()
-            .position(|log| log.pkg_name == name && log.pkg_version == version)
+        self.notices.deprecation_index
+            .get(name)?
+            .get(version)
+            .copied()
     }
 
     /// The `name@version` of the deprecated package a summary line names.
@@ -134,10 +140,15 @@ impl ReporterState {
         format!("{} {}", self.rendering.colors.warn_label(), self.rendering.colors.red(&message))
     }
 
+    pub(super) fn clear_deprecations(&mut self) {
+        self.notices.deprecations.clear();
+        self.notices.deprecation_index.clear();
+    }
+
     /// Print the held warnings no summary carried.
     pub(super) fn flush_deprecations(&mut self) {
         let warnings = self.deprecation_warnings(&HashSet::new());
-        self.notices.deprecations.clear();
+        self.clear_deprecations();
         if warnings.is_empty() {
             return;
         }

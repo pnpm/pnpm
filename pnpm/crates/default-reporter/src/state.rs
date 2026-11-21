@@ -272,6 +272,9 @@ struct NoticeState {
     /// Every `pnpm:deprecation` not printed yet. pnpm reports each
     /// deprecated package once, for whichever project reached it first.
     deprecations: Vec<DeprecationLog>,
+    /// The index in `deprecations` of the first notice of each package, by
+    /// name and then version.
+    deprecation_index: HashMap<String, HashMap<String, usize>>,
     deprecated_slot: BlockSlot,
     reported_peer_issues: bool,
     approvals: PendingApprovals,
