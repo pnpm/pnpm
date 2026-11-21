@@ -2,11 +2,12 @@ import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
 import * as dp from '@pnpm/deps.path'
+import { linkFileDepsInsidePackage } from '@pnpm/installing.package-requester'
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import { isNonLocalFilesystemSubdepSpec } from '@pnpm/resolving.local-resolver'
 import type { Resolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { DepPath, PackageExtension, PackageManifest, ReadPackageHook } from '@pnpm/types'
+import type { DependencyManifest, DepPath, PackageExtension, PackageManifest, ReadPackageHook } from '@pnpm/types'
 import normalize from 'normalize-path'
 import { clone } from 'ramda'
 
@@ -151,11 +152,14 @@ async function probeSingleCandidate (
   const pristine = await loadPristineCandidateManifest(candidate, opts.storeController, opts.lockfileDir)
   if (needsRanged && pristine != null) recordPristineSpecs(candidate, pristine, acc.pristineSpecs)
   if (activeHooks == null) return
-  const hooked = await runReadPackageProbe(candidate, pristine, activeHooks, opts.lockfileDir, PROBE_SENTINEL_SPEC)
-  const altHooked = pristine == null
+  // Fresh resolution rewrites in-archive `file:` dependencies before hooks
+  // run, so the replay and its rewrite baseline do too.
+  const prepared = pristine != null ? linkFileDepsInsidePackage(pristine as DependencyManifest) : undefined
+  const hooked = await runReadPackageProbe(candidate, prepared, activeHooks, opts.lockfileDir, PROBE_SENTINEL_SPEC)
+  const altHooked = prepared == null
     ? await runReadPackageProbe(candidate, undefined, activeHooks, opts.lockfileDir, PROBE_ALT_SENTINEL_SPEC)
     : undefined
-  if (hooked != null) recordHookedCandidateRewrites(candidate, { pristine, hooked, altHooked }, acc.rewrites)
+  if (hooked != null) recordHookedCandidateRewrites(candidate, { pristine: prepared, hooked, altHooked }, acc.rewrites)
 }
 
 async function runReadPackageProbe (

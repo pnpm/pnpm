@@ -282,3 +282,82 @@ async fn read_package_error_on_a_real_manifest_reaches_the_caller() {
         .expect("an error on a placeholder manifest only withholds rewrites");
     assert!(rewrites.is_empty());
 }
+
+struct RejectsRawFileSpecs;
+
+#[async_trait::async_trait]
+impl pnpm_hooks::PnpmfileHooks for RejectsRawFileSpecs {
+    async fn read_package(
+        &self,
+        pkg: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
+        let declares_raw_file = pkg["dependencies"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .any(|(_, spec)| {
+                spec.as_str()
+                    .is_some_and(|spec| spec.starts_with("file:"))
+            });
+        if declares_raw_file {
+            return Err(pnpm_hooks::HookError::Execution {
+                pnpmfile: ".pnpmfile.cjs".to_string(),
+                message: "raw file: specifier".to_string(),
+            });
+        }
+        Ok(std::sync::Arc::new(pkg))
+    }
+
+    async fn after_all_resolved(
+        &self,
+        _: serde_json::Value,
+        _: pnpm_hooks::HookContext,
+    ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+        Ok(serde_json::Value::Null)
+    }
+
+    async fn pre_resolution(
+        &self,
+        ctx: pnpm_hooks::PreResolutionHookContext,
+        _: pnpm_hooks::PreResolutionHookLogger,
+    ) -> Result<pnpm_hooks::PreResolutionHookContext, pnpm_hooks::HookError> {
+        Ok(ctx)
+    }
+
+    async fn filter_log(&self, _: serde_json::Value, _: pnpm_hooks::HookContext) -> bool {
+        true
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        None
+    }
+
+    fn source_path(&self) -> Option<&std::path::Path> {
+        None
+    }
+}
+
+#[tokio::test]
+async fn hook_replay_sees_in_archive_file_deps_as_package_root_links() {
+    let parent = pnpm_lockfile_verification::LocalResolutionProbeParent {
+        pkg_key: "remote@1.0.0".parse().expect("parse key"),
+        resolution: None,
+        name: "remote".to_string(),
+        version: Some("1.0.0".to_string()),
+        dep_aliases: vec!["sub".to_string()],
+        optional_aliases: Vec::new(),
+        peer_aliases: Vec::new(),
+    };
+    let pristine = serde_json::json!({ "name": "remote", "dependencies": { "sub": "file:./sub" } });
+    let mut rewrites = Vec::new();
+    super::collect_probed_parent_rewrites(
+        &RejectsRawFileSpecs,
+        &parent,
+        Some(&pristine),
+        &mut rewrites,
+    )
+    .await
+    .expect("fresh resolution hands the hook `link:<root>/sub`, so the replay must too");
+    assert!(rewrites.is_empty());
+}

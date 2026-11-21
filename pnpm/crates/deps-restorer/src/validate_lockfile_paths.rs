@@ -309,6 +309,15 @@ async fn collect_probed_parent_rewrites(
     pristine: Option<&Value>,
     out: &mut Vec<(PackageKey, String, Option<String>, String, String)>,
 ) -> Result<(), HookError> {
+    // Fresh resolution rewrites in-archive `file:` dependencies before the
+    // hook sees the manifest, so the replay and its rewrite baseline do too.
+    let prepared = pristine
+        .cloned()
+        .map(|mut manifest| {
+            pnpm_lockfile::link_file_deps_inside_manifest(&mut manifest);
+            manifest
+        });
+    let pristine = prepared.as_ref();
     let probe =
         pristine.cloned().unwrap_or_else(|| build_probe_manifest(parent, PROBE_SENTINEL_SPEC));
     let hooked =

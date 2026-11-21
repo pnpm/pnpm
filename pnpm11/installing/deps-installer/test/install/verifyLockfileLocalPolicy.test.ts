@@ -740,3 +740,44 @@ test('a readPackage hook that throws on a real parent manifest surfaces its own 
     storeController: store,
   })).rejects.toThrow('hook exploded')
 })
+
+test('the hook replay sees in-archive file: dependencies as package-root links', async () => {
+  const fetchPackage = jest.fn(async () => ({
+    fetching: async () => ({
+      files: { filesMap: new Map(), resolvedFrom: 'remote' as const },
+      bundledManifest: { name: 'tarball-parent', version: '1.0.0', dependencies: { sub: 'file:./sub', helper: '^1.0.0' } },
+    }),
+    filesIndexFile: '/nonexistent',
+  }))
+  const store = { fetchPackage } as unknown as StoreController
+  const rejectsRawFileSpecs: ReadPackageHook = (pkg) => {
+    if (Object.values(pkg.dependencies ?? {}).some((spec) => spec.startsWith('file:'))) {
+      throw new Error('raw file: specifier')
+    }
+    return pkg
+  }
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    pnpmfileChecksum: 'sha256-hook',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { 'tarball-parent': 'https://example.com/parent.tgz' },
+        specifiers: { 'tarball-parent': 'https://example.com/parent.tgz' },
+      },
+    },
+    packages: {
+      ['tarball-parent@https://example.com/parent.tgz' as DepPath]: {
+        version: '1.0.0',
+        resolution: { tarball: 'https://example.com/parent.tgz' },
+        dependencies: { helper: 'file:local-helper' },
+      },
+      ['helper@file:local-helper' as DepPath]: {
+        resolution: { type: 'directory', directory: 'local-helper' },
+      },
+    },
+  }
+  await expect(resolveLocalPolicyForInstall(lockfile, {
+    hooks: { readPackage: [rejectsRawFileSpecs] },
+    storeController: store,
+  })).resolves.toBeDefined()
+})
