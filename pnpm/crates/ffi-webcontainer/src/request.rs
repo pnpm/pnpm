@@ -118,19 +118,22 @@ fn start_request(message: &Value) -> Result<Request, HostError> {
 #[must_use]
 pub struct BinaryRequest(Request);
 
+/// The JSON value of a host response and its out-of-band byte payload, if any.
+type HostResponse = (Value, Option<Vec<u8>>);
+
 impl Future for BinaryRequest {
-    type Output = Result<(Value, Option<Vec<u8>>), HostError>;
+    type Output = Result<HostResponse, HostError>;
 
     fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.get_mut().0).poll_response(context, ResponseReadMode::Binary)
+        self.get_mut().0.poll_response(context, ResponseReadMode::Binary)
     }
 }
 
 impl Future for Request {
     type Output = Result<Value, HostError>;
 
-    fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-        self.as_mut()
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
+        self.get_mut()
             .poll_response(context, ResponseReadMode::Json)
             .map(|result| result.map(|(value, _)| value))
     }
@@ -138,10 +141,10 @@ impl Future for Request {
 
 impl Request {
     fn poll_response(
-        mut self: Pin<&mut Self>,
-        context: &mut Context<'_>,
+        &mut self,
+        context: &Context<'_>,
         read_mode: ResponseReadMode,
-    ) -> Poll<Result<(Value, Option<Vec<u8>>), HostError>> {
+    ) -> Poll<Result<HostResponse, HostError>> {
         let identifier = self.identifier.expect("host request polled after completion");
         self.waker.register(context.waker());
         if HOST_CLOSED.load(Ordering::Acquire) {
@@ -186,7 +189,7 @@ fn read_response(
     identifier: u32,
     length: i32,
     read_mode: ResponseReadMode,
-) -> Result<(Value, Option<Vec<u8>>), HostError> {
+) -> Result<HostResponse, HostError> {
     let length = usize::try_from(length).map_err(|_| HostError::new("Invalid host response"))?;
     if length > MAX_RESPONSE_BYTES {
         return Err(HostError::new("WASM host response exceeds 16 MiB"));

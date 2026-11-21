@@ -113,10 +113,11 @@ team	partial	available
 owner	partial	available
 logout	partial	available
 with	routed	implementation-gap
-edit	routed	not-implemented
+edit	routed	available
+catalog	routed	available
+catalog migrate	routed	available
 profile	partial	available
 token	partial	available
-xmas	routed	not-implemented
 mode:external-script-dispatch	partial	available
 mode:pnpm-pm-dispatch	partial	available
 mode:recursive-execution	partial	available

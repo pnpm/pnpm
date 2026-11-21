@@ -1,6 +1,9 @@
 use crate::cli_args::CliArgs;
 use clap::CommandFactory;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 const COMMANDS: &str = include_str!("../../../wasm/webcontainer-commands.tsv");
 
@@ -19,11 +22,7 @@ fn every_clap_command_has_a_webcontainer_classification() {
             );
             assert!(matches!(
                 fields[2],
-                "available"
-                    | "host-limited"
-                    | "host-blocked"
-                    | "implementation-gap"
-                    | "not-implemented"
+                "available" | "host-limited" | "host-blocked" | "implementation-gap"
             ));
             (fields[0].to_owned(), fields[1].to_owned(), fields[2].to_owned())
         })
@@ -54,7 +53,6 @@ fn every_clap_command_has_a_webcontainer_classification() {
         ("host-blocked", BTreeSet::from(["pack-app"])),
         ("implementation-gap", BTreeSet::from(["self-update", "setup", "with"])),
         ("host-limited", BTreeSet::from(["docs", "env", "login", "repo", "runtime"])),
-        ("not-implemented", BTreeSet::from(["edit", "xmas"])),
     ] {
         assert_eq!(
             classifications

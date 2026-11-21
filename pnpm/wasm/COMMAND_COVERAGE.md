@@ -21,7 +21,6 @@ it does not claim the command's behavior works. `none` means neither is tested.
   not provide.
 - `implementation-gap`: the host can support the operation, but the WebAssembly
   distribution does not implement it.
-- `not-implemented`: pnpm does not implement the command in its native CLI.
 
 Update the ledger when the Clap tree or audited capability changes. Add
 behavioral runtime coverage before changing a command from `routed` to

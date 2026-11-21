@@ -70,7 +70,6 @@ host-specific limits:
   the URL when a browser action is needed.
 - `pnpm setup` and `pnpm self-update` cannot install or switch the WebContainer
   distribution. `pnpm pack-app` cannot run its native app builder.
-- `pnpm edit` and `pnpm xmas` are not implemented by pnpm.
 
 WebContainer's bundled npm applies its own package compatibility replacements.
 This runtime does not use those private integrations. Select
