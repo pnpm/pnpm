@@ -145,6 +145,13 @@ pub(super) fn run_state_settings(
 /// The task graph this run actually schedules: the full graph, or
 /// (under `--resume-from`) the part of it that follows the named project,
 /// minus what the previous run already completed.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`script_name` is copied only under `--resume-from`, after the early return, so an owned parameter would allocate on every recursive run."
+    )
+)]
 pub(super) fn resume_task_graph(
     task_run_state_context: &TaskRunStateContext,
     args: &RunArgs,
@@ -160,7 +167,7 @@ pub(super) fn resume_task_graph(
     Ok(resume_task_graph_from(
         full_task_graph.clone(),
         &anchor,
-        script_name,
+        script_name.to_owned(),
         completed_tasks.as_ref(),
     ))
 }

@@ -178,8 +178,8 @@ pub(super) async fn drive_fetcher<Reporter: self::Reporter>(
     Ok((result, verified))
 }
 
-fn callback_error(message: impl Into<String>, code: &str) -> FetchErrorDetails {
-    FetchErrorDetails { message: message.into(), code: Some(code.to_owned()), status: None }
+fn callback_error(message: impl Into<String>, code: impl Into<String>) -> FetchErrorDetails {
+    FetchErrorDetails { message: message.into(), code: Some(code.into()), status: None }
 }
 
 async fn run_callback<Reporter: self::Reporter>(

@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Builds the directed graph of *inter-project* dependency edges for a
 //! workspace: each node is a project (keyed by its root directory) and
 //! its edges point at the root directories of the workspace siblings it

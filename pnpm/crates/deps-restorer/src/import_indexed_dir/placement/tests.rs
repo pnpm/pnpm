@@ -379,7 +379,7 @@ fn a_file_replaced_by_the_directory_counts_as_cleared() {
     let root = tempdir().unwrap();
     fs::write(root.path().join("nested"), b"blocker").unwrap();
 
-    clear_dirent_blocking_dir::<ReplacedByWhatBelongs>(root.path(), "nested")
+    clear_dirent_blocking_dir::<ReplacedByWhatBelongs>(root.path().to_path_buf(), "nested")
         .expect("the path holds the directory the clearing was for");
 }
 
@@ -388,7 +388,7 @@ fn a_file_removed_by_the_other_installer_counts_as_cleared() {
     let root = tempdir().unwrap();
     fs::write(root.path().join("nested"), b"blocker").unwrap();
 
-    clear_dirent_blocking_dir::<RemovedByTheOtherInstaller>(root.path(), "nested")
+    clear_dirent_blocking_dir::<RemovedByTheOtherInstaller>(root.path().to_path_buf(), "nested")
         .expect("nothing stands where the directory belongs");
 }
 
@@ -397,7 +397,7 @@ fn a_file_still_standing_fails_the_clearing() {
     let root = tempdir().unwrap();
     fs::write(root.path().join("nested"), b"blocker").unwrap();
 
-    clear_dirent_blocking_dir::<LeavesTheBlocker>(root.path(), "nested")
+    clear_dirent_blocking_dir::<LeavesTheBlocker>(root.path().to_path_buf(), "nested")
         .expect_err("the blocker is still in the way");
 }
 

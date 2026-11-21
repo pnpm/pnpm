@@ -293,7 +293,7 @@ impl Lockfile {
                 Some(lockfile) => Ok(lockfile),
                 None => serde_saphyr::from_str_with_options::<Self>(&main, options),
             }
-            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+            .map_err(|source| LoadLockfileError::parse_yaml(file_path.to_path_buf(), &source))
         };
         parsed.map(|mut lockfile| {
             lockfile.reconstruct_missing_directory_resolutions();
@@ -313,6 +313,9 @@ impl Lockfile {
             path: file_path.to_path_buf(),
             reason: source.to_string(),
         };
+        let next_format_error = |source: crate::NextFormatError| {
+            LoadLockfileError::next_format(file_path.to_path_buf(), &source)
+        };
         let mut value = if is_json_document(&main) {
             from_json_str::<serde_json::Value>(&main).map_err(parse_error)?
         } else {
@@ -320,7 +323,7 @@ impl Lockfile {
                 &main,
                 yaml_parse_options(main.len()),
             )
-            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?
+            .map_err(|source| LoadLockfileError::parse_yaml(file_path.to_path_buf(), &source))?
         };
         let next = declares_next_format(&main);
         if next {
@@ -328,22 +331,16 @@ impl Lockfile {
         } else {
             prepare_value_for_fix(&mut value);
         }
-        let parsed = if next {
-            serde_json::from_value::<NextLockfile>(value)
-                .map_err(parse_error)
-                .and_then(|next| {
-                    Lockfile::from_next(next)
-                        .map_err(|source| LoadLockfileError::next_format(file_path, &source))
-                })
+        let mut merge = if next {
+            let next = serde_json::from_value::<NextLockfile>(value).map_err(parse_error)?;
+            Lockfile::from_next(next).map_err(next_format_error)?
         } else {
-            serde_json::from_value::<Self>(value).map_err(parse_error)
+            serde_json::from_value::<Self>(value).map_err(parse_error)?
         };
-        parsed.map(|mut merge| {
-            merge.reconstruct_missing_directory_resolutions();
-            let mut seed = merge.clone();
-            seed.prepare_for_fix();
-            Some(RepairLockfileViews { seed, merge })
-        })
+        merge.reconstruct_missing_directory_resolutions();
+        let mut seed = merge.clone();
+        seed.prepare_for_fix();
+        Ok(Some(RepairLockfileViews { seed, merge }))
     }
 
     /// Load a lockfile from an explicit path. Returns `Ok(None)` when the
@@ -600,10 +597,10 @@ fn parse_next(main: &str, file_path: &Path) -> Result<Lockfile, LoadLockfileErro
             Some(next) => Ok(next),
             None => serde_saphyr::from_str_with_options::<NextLockfile>(main, options),
         }
-        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+        .map_err(|source| LoadLockfileError::parse_yaml(file_path.to_path_buf(), &source))
     };
     next.and_then(|next| {
         Lockfile::from_next(next)
-            .map_err(|source| LoadLockfileError::next_format(file_path, &source))
+            .map_err(|source| LoadLockfileError::next_format(file_path.to_path_buf(), &source))
     })
 }

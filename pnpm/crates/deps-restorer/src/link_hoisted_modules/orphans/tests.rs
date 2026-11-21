@@ -19,7 +19,7 @@ use std::{
         BTreeSet,
         HashMap,
     },
-    ffi::OsStr,
+    ffi::OsString,
     fs,
     path::{
         Path,
@@ -63,7 +63,7 @@ fn link_empty_plan<LogReporter: Reporter>(
         modules_dirs: &ImporterModulesDirs::new(
             lockfile_dir,
             Path::new(root_modules_dir),
-            OsStr::new("node_modules"),
+            OsString::from("node_modules"),
         )
         .with_importers([".", "packages/foo"]),
     };

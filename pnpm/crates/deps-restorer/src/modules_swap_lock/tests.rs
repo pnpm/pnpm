@@ -25,12 +25,12 @@ fn the_lock_is_taken_once_and_free_again_after_release() {
     let temp_dir = tempfile::tempdir().unwrap();
     let modules_dir = temp_dir.path().join("node_modules");
 
-    let first = ModulesSwapLock::new(&modules_dir);
+    let first = ModulesSwapLock::new(modules_dir.clone());
     assert!(first.hold());
     assert!(first.hold(), "a second hold reuses the lock the install already holds");
     first.release();
 
-    let second = ModulesSwapLock::new(&modules_dir);
+    let second = ModulesSwapLock::new(modules_dir);
     assert!(second.hold(), "a released lock is free for the next install");
     drop(second);
     assert!(first.hold(), "a released lock can be taken again once it is free");
@@ -39,7 +39,7 @@ fn the_lock_is_taken_once_and_free_again_after_release() {
 #[test]
 fn an_install_that_could_not_take_the_lock_does_not_try_again() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let lock = ModulesSwapLock::new(&temp_dir.path().join("node_modules"));
+    let lock = ModulesSwapLock::new(temp_dir.path().join("node_modules"));
     // The outcome of an acquisition that waited out `WAIT`, which a test
     // cannot wait for.
     *lock.state.lock().unwrap() = super::State::Unserialized;

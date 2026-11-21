@@ -63,6 +63,6 @@ fn link_package_root_target(
     let symlink_path = safe_join_modules_dir(&node.dir.join("node_modules"), alias)
         .map_err(SymlinkPackageError::InvalidAlias)
         .map_err(HoistedLinkerError::HoistSymlink)?;
-    let target_dir = pnpm_lockfile::join_package_root_link(&node.dir, target);
+    let target_dir = pnpm_lockfile::join_package_root_link(node.dir.clone(), target);
     symlink_package(&target_dir, &symlink_path).map(drop).map_err(HoistedLinkerError::HoistSymlink)
 }

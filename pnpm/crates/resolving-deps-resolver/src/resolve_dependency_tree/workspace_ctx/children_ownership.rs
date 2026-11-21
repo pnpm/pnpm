@@ -254,7 +254,7 @@ pub(in super::super) fn record_children(
         children.insert(Arc::clone(pkg_id), RecordedChildren { edges, context });
         recording
     };
-    ctx.workspace.tree.record_children_by_id_write(pkg_id);
+    ctx.workspace.tree.record_children_by_id_write(pkg_id.to_string());
     ctx.workspace.note_finalization_candidate(pkg_id);
     recording
 }
@@ -304,7 +304,7 @@ pub(in super::super) fn register_peer_dep_names(
     let mut all_peers = lock_recoverable(&ctx.workspace.tree.all_peer_dep_names);
     for name in peer_dependencies.keys() {
         if all_peers.insert(name.clone()) {
-            ctx.workspace.tree.record_peer_dep_name(name);
+            ctx.workspace.tree.record_peer_dep_name(name.clone());
         }
     }
 }

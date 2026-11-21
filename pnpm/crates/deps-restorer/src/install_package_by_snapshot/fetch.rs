@@ -173,13 +173,13 @@ pub(crate) fn walk_directory(
 /// event-construction code is unit-testable; the call site itself
 /// only fires when a non-empty cold-batch lockfile install runs,
 /// which the existing test suite doesn't cover.
-pub(super) fn emit_progress_resolved<Reporter: self::Reporter>(package_id: &str, requester: &str) {
+pub(super) fn emit_progress_resolved<Reporter: self::Reporter>(
+    package_id: String,
+    requester: String,
+) {
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
-        message: ProgressMessage::Resolved {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        },
+        message: ProgressMessage::Resolved { package_id, requester },
     }));
 }
 
@@ -209,7 +209,7 @@ impl InstallPackageBySnapshot<'_> {
     ) -> Result<InstalledPackage, InstallPackageBySnapshotError> {
         // TODO: skip when already exists in store?
         let package_id = package_key.pkg_id();
-        emit_progress_resolved::<Reporter>(&package_id, self.ctx.requester);
+        emit_progress_resolved::<Reporter>(package_id.clone(), self.ctx.requester.to_owned());
 
         let download = self.ingest(metadata, &package_id);
         let custom =

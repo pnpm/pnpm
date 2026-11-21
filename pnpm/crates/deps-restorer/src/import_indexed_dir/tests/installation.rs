@@ -274,7 +274,7 @@ fn concurrent_force_imports_into_the_same_target_accept_the_completed_import() {
             let target = &target;
             let cas = &cas;
             scope.spawn(move || {
-                let swap_lock = crate::ModulesSwapLock::new(target.parent().unwrap());
+                let swap_lock = crate::ModulesSwapLock::new(target.parent().unwrap().to_path_buf());
                 barrier.wait();
                 import_indexed_dir::<SilentReporter>(
                     &AtomicU8::new(0),
@@ -357,7 +357,7 @@ fn assert_concurrent_forced_and_non_forced_imports_converge(
         for (cas, force) in cases {
             let barrier = &barrier;
             scope.spawn(move || {
-                let swap_lock = crate::ModulesSwapLock::new(target.parent().unwrap());
+                let swap_lock = crate::ModulesSwapLock::new(target.parent().unwrap().to_path_buf());
                 barrier.wait();
                 import_indexed_dir::<SilentReporter>(
                     &AtomicU8::new(0),

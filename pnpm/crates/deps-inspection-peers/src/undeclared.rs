@@ -140,7 +140,7 @@ impl<'a> UndeclaredPeerInspector<'a> {
         if let Some(report) = self.reports.get(&query) {
             return report.clone();
         }
-        let reachable = self.reachable_nodes(&query.roots);
+        let reachable = self.reachable_nodes(query.roots.clone());
         let result = self.inspect_reachable(&query, &reachable);
         self.reports.insert(query, result.clone());
         result
@@ -174,8 +174,8 @@ impl<'a> UndeclaredPeerInspector<'a> {
         index_package_names(declared)
     }
 
-    fn reachable_nodes(&mut self, roots: &[PkgNameVerPeer]) -> HashSet<PkgNameVerPeer> {
-        let mut pending = roots.to_vec();
+    fn reachable_nodes(&mut self, roots: Vec<PkgNameVerPeer>) -> HashSet<PkgNameVerPeer> {
+        let mut pending = roots;
         let mut reachable = HashSet::new();
         while let Some(key) = pending.pop() {
             if !reachable.insert(key.clone()) {

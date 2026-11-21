@@ -143,7 +143,7 @@ fn requires_of_dependents(
         },
     };
     let graph = build_dependency_graph(
-        &[TreeNodeId::Importer(".".to_string())],
+        vec![TreeNodeId::Importer(".".to_string())],
         &BuildGraphOptions {
             lockfile,
             include: IncludedDependencies {

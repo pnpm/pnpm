@@ -316,5 +316,5 @@ pub fn verify_lockfile_dependency_names(lockfile: &Lockfile) -> Result<(), Verif
 pub fn verify_lockfile_importer_snapshot_links(lockfile: &Lockfile) -> Result<(), VerifyError> {
     lockfile
         .verify_importer_snapshot_links()
-        .map_err(|error| VerifyError::missing_dependency(&error.0))
+        .map_err(|error| VerifyError::missing_dependency(error.0))
 }

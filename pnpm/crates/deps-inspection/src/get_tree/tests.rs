@@ -123,7 +123,7 @@ fn include_no_optional() -> IncludedDependencies {
     }
 }
 
-fn graph_for(lockfile: &Lockfile, roots: &[TreeNodeId]) -> DependencyGraph {
+fn graph_for(lockfile: &Lockfile, roots: Vec<TreeNodeId>) -> DependencyGraph {
     build_dependency_graph(
         roots,
         &BuildGraphOptions {
@@ -146,7 +146,7 @@ fn tree_with_graph(
     root: &TreeNodeId,
     max_depth: MaxDepth,
 ) -> Vec<DependencyNode> {
-    let graph = graph_for(env.current_lockfile, std::slice::from_ref(root));
+    let graph = graph_for(env.current_lockfile, vec![root.clone()]);
     let opts = GetTreeOptions {
         env,
         graph: &graph,
@@ -165,7 +165,7 @@ fn tree_with_search(
     search: &Searcher,
     show_deduped_search_matches: bool,
 ) -> Vec<DependencyNode> {
-    let graph = graph_for(env.current_lockfile, std::slice::from_ref(root));
+    let graph = graph_for(env.current_lockfile, vec![root.clone()]);
     let opts = GetTreeOptions {
         env,
         graph: &graph,
@@ -575,9 +575,9 @@ importers:
     let root_a = TreeNodeId::Importer("project-a".to_string());
     let root_b = TreeNodeId::Importer("project-b".to_string());
 
-    let multi = graph_for(&lockfile, &[root_a.clone(), root_b.clone()]);
-    let graph_a = graph_for(&lockfile, std::slice::from_ref(&root_a));
-    let graph_b = graph_for(&lockfile, std::slice::from_ref(&root_b));
+    let multi = graph_for(&lockfile, vec![root_a.clone(), root_b.clone()]);
+    let graph_a = graph_for(&lockfile, vec![root_a]);
+    let graph_b = graph_for(&lockfile, vec![root_b]);
 
     dbg!(multi.nodes.keys().collect::<Vec<_>>());
     for key in graph_a.nodes.keys().chain(graph_b.nodes.keys()) {
@@ -596,7 +596,7 @@ fn second_get_tree_call_for_same_node_returns_deduped_children() {
     let lockfile = mock_lockfile(dir.path(), &[("root", &["a"]), ("a", &["b"]), ("b", &["c"])]);
     let env = mock_env(dir.path(), &lockfile);
     let root = pkg_root("root");
-    let graph = graph_for(&lockfile, std::slice::from_ref(&root));
+    let graph = graph_for(&lockfile, vec![root.clone()]);
     let opts = GetTreeOptions {
         env: &env,
         graph: &graph,
@@ -626,7 +626,7 @@ fn deduped_result_preserves_search_match_metadata() {
     let lockfile = mock_lockfile(dir.path(), &[("root", &["a"]), ("a", &["target"])]);
     let env = mock_env(dir.path(), &lockfile);
     let root = pkg_root("root");
-    let graph = graph_for(&lockfile, std::slice::from_ref(&root));
+    let graph = graph_for(&lockfile, vec![root.clone()]);
     let search = finder_searcher("target", "target@1.0.0", "found target");
     let opts = GetTreeOptions {
         env: &env,
@@ -663,7 +663,7 @@ fn deduped_dependencies_count_correctly_reflects_subtree_size() {
     let lockfile = mock_lockfile(dir.path(), &[("root", &["a"]), ("a", &["b", "c"])]);
     let env = mock_env(dir.path(), &lockfile);
     let root = pkg_root("root");
-    let graph = graph_for(&lockfile, std::slice::from_ref(&root));
+    let graph = graph_for(&lockfile, vec![root.clone()]);
     let opts = GetTreeOptions {
         env: &env,
         graph: &graph,
@@ -694,7 +694,7 @@ fn different_max_depth_values_are_cached_independently() {
     let lockfile = mock_lockfile(dir.path(), &[("root", &["a"]), ("a", &["b"]), ("b", &["c"])]);
     let env = mock_env(dir.path(), &lockfile);
     let root = pkg_root("root");
-    let graph = graph_for(&lockfile, std::slice::from_ref(&root));
+    let graph = graph_for(&lockfile, vec![root.clone()]);
     let opts = GetTreeOptions {
         env: &env,
         graph: &graph,
@@ -757,7 +757,7 @@ snapshots:
     let lockfile = load_lockfile(dir.path(), &yaml);
     let env = mock_env(dir.path(), &lockfile);
     let root = pkg_root("foo");
-    let graph = graph_for(&lockfile, std::slice::from_ref(&root));
+    let graph = graph_for(&lockfile, vec![root.clone()]);
     let opts = GetTreeOptions {
         env: &env,
         graph: &graph,
@@ -803,7 +803,7 @@ fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
     let env = mock_env(dir.path(), &lockfile);
     let root_id = TreeNodeId::Package("chain-0@1.0.0".parse().unwrap());
     let graph = build_dependency_graph(
-        std::slice::from_ref(&root_id),
+        vec![root_id.clone()],
         &BuildGraphOptions {
             lockfile: &lockfile,
             include: include_no_optional(),

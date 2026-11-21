@@ -107,8 +107,8 @@ pub struct VirtualStoreLayout {
 }
 
 impl VirtualStoreLayout {
-    pub(crate) fn relocated(&self, root: &Path) -> Self {
-        Self { package_store_dir: root.to_path_buf(), ..self.clone() }
+    pub(crate) fn relocated(&self, root: PathBuf) -> Self {
+        Self { package_store_dir: root, ..self.clone() }
     }
 
     pub(crate) fn engine_name(&self) -> Option<&str> {

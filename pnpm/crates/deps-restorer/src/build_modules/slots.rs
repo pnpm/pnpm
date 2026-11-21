@@ -228,7 +228,7 @@ pub(crate) fn materialize_side_effects<Reporter: self::Reporter>(
 ) -> Result<(), BuildModulesError> {
     // Held only around this one replacement: the build phase runs
     // lifecycle scripts, which may start installs of their own.
-    let swap_lock = crate::ModulesSwapLock::new(directories.modules_dir);
+    let swap_lock = crate::ModulesSwapLock::new(directories.modules_dir.to_path_buf());
     import_indexed_dir::<Reporter>(
         directories.logged_methods,
         directories.import_method,
@@ -314,9 +314,9 @@ fn create_overlay_symlink(link: &Path, target: &str) -> io::Result<()> {
 ///
 /// Non-existent ancestor `.bin` directories are harmless: they
 /// just don't contribute anything to lifecycle-script PATH lookup.
-pub(crate) fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) -> Vec<PathBuf> {
+pub(crate) fn bin_dirs_in_all_parent_dirs(pkg_root: PathBuf, lockfile_dir: &Path) -> Vec<PathBuf> {
     let mut bin_dirs: Vec<PathBuf> = Vec::new();
-    let mut dir: PathBuf = pkg_root.to_path_buf();
+    let mut dir = pkg_root;
     loop {
         let parent = dir.parent().unwrap_or_else(|| Path::new(""));
         let parent_starts_with_at = parent

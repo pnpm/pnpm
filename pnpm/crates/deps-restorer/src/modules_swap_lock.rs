@@ -56,8 +56,8 @@ enum State {
 
 impl ModulesSwapLock {
     #[must_use]
-    pub fn new(modules_dir: &Path) -> Self {
-        ModulesSwapLock { modules_dir: modules_dir.to_path_buf(), state: Mutex::new(State::Free) }
+    pub fn new(modules_dir: PathBuf) -> Self {
+        ModulesSwapLock { modules_dir, state: Mutex::new(State::Free) }
     }
 
     /// Take the lock unless this install already holds it or already

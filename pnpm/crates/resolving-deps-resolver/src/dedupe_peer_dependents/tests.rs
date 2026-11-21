@@ -1071,7 +1071,7 @@ fn a_variant_absorbing_a_protected_one_keeps_its_protection_in_later_rounds() {
 
     let merged = super::deduplicate_all(
         &mut graph,
-        &[
+        vec![
             vec![dp(protected), dp(unprotected), dp(resolves_peer)],
             vec![dp("x@1.0.0"), dp("x@1.0.0(q@1.0.0)")],
         ],

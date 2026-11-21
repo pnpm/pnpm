@@ -124,9 +124,9 @@ pub(super) fn from_text(text: &str, path: &Path) -> Result<EnvLockfile, LoadLock
             })?
     } else {
         serde_saphyr::from_str_with_options(text, yaml_parse_options(text.len()))
-            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
+            .map_err(|source| LoadLockfileError::parse_yaml(path.to_path_buf(), &source))?
     };
-    let next_format = |source| LoadLockfileError::next_format(path, &source);
+    let next_format = |source| LoadLockfileError::next_format(path.to_path_buf(), &source);
     let (packages, snapshots) = match document.packages {
         Some(merged) => split_packages(merged).map_err(next_format)?,
         None => (None, None),

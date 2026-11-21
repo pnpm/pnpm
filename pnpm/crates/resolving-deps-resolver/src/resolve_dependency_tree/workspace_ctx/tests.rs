@@ -364,7 +364,11 @@ fn run_preferred_versions_fold_workspace_manifest_identities_once_reachable() {
     let workspace = WorkspaceTreeCtx::default();
     lock_recoverable(&workspace.tree.packages)
         .insert(Arc::from("link:packages/opt".to_string()), snapshot_package("link:packages/opt"));
-    workspace.versions.record_workspace_manifest_identity("link:packages/opt", "opt", "1.0.0");
+    workspace.versions.record_workspace_manifest_identity(
+        "link:packages/opt".to_owned(),
+        "opt",
+        "1.0.0",
+    );
     insert_named_package(&workspace, "root", "1.0.0");
     workspace.versions.record_preferred_version_roots(std::iter::once("root@1.0.0"));
     workspace.tree.bump_revision();
@@ -390,7 +394,11 @@ fn run_preferred_versions_pick_up_an_identity_recorded_after_the_first_visit() {
     workspace.tree.bump_revision();
     assert!(!workspace.run_preferred_versions().versions.contains_key("opt"));
 
-    workspace.versions.record_workspace_manifest_identity("link:packages/opt", "opt", "1.0.0");
+    workspace.versions.record_workspace_manifest_identity(
+        "link:packages/opt".to_owned(),
+        "opt",
+        "1.0.0",
+    );
     workspace.tree.bump_revision();
     assert_eq!(bucket_versions(&workspace.run_preferred_versions().versions, "opt"), ["1.0.0"]);
 }
@@ -513,7 +521,7 @@ fn record_package(workspace: &WorkspaceTreeCtx, pkg_id: &str, peer_names: &[&str
     let mut all_peers = lock_recoverable(&workspace.tree.all_peer_dep_names);
     for name in peer_names {
         if all_peers.insert((*name).to_string()) {
-            workspace.tree.record_peer_dep_name(name);
+            workspace.tree.record_peer_dep_name((*name).to_string());
         }
     }
     drop(all_peers);

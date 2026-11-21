@@ -136,6 +136,13 @@ pub(super) enum PrefetchedBin {
 /// (see [`PrefetchedBinLookup::requires_build`]); anything else reads
 /// the on-disk manifest, which reflects whatever a build script did to
 /// it.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::needless_borrowed_parameters,
+        reason = "`target` is copied only once the prefetched facts rule out the early returns, and callers borrow it from a shared candidate list, so an owned parameter would allocate for every candidate."
+    )
+)]
 pub(super) fn prefetched_bin_source(
     modules_dir: &Path,
     name: &str,

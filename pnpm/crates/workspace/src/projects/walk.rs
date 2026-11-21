@@ -82,7 +82,7 @@ pub(super) fn entry_is_directory(
     walk_root: &Path,
 ) -> Result<Option<bool>, FindWorkspaceProjectsError> {
     let Some(file_type) = ignore_not_found_or_loop(entry.file_type())
-        .map_err(|source| workspace_walk_error(walk_root, source))?
+        .map_err(|source| workspace_walk_error(walk_root.to_path_buf(), source))?
     else {
         return Ok(None);
     };
@@ -91,7 +91,7 @@ pub(super) fn entry_is_directory(
     }
     if file_type.is_symlink() {
         let Some(metadata) = ignore_not_found_or_loop(fs::metadata(entry.path()))
-            .map_err(|source| workspace_walk_error(walk_root, source))?
+            .map_err(|source| workspace_walk_error(walk_root.to_path_buf(), source))?
         else {
             return Ok(None);
         };
@@ -105,7 +105,7 @@ pub(super) fn entry_is_file(
     walk_root: &Path,
 ) -> Result<bool, FindWorkspaceProjectsError> {
     let Some(file_type) = ignore_not_found_or_loop(entry.file_type())
-        .map_err(|source| workspace_walk_error(walk_root, source))?
+        .map_err(|source| workspace_walk_error(walk_root.to_path_buf(), source))?
     else {
         return Ok(false);
     };
@@ -114,7 +114,7 @@ pub(super) fn entry_is_file(
     }
     if file_type.is_symlink() {
         let Some(metadata) = ignore_not_found_or_loop(fs::metadata(entry.path()))
-            .map_err(|source| workspace_walk_error(walk_root, source))?
+            .map_err(|source| workspace_walk_error(walk_root.to_path_buf(), source))?
         else {
             return Ok(false);
         };
@@ -180,11 +180,11 @@ pub(super) fn for_each_directory_entry(
     let entries = match fs::read_dir(directory) {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(source) => return Err(workspace_walk_error(walk_root, source)),
+        Err(source) => return Err(workspace_walk_error(walk_root.to_path_buf(), source)),
     };
     for entry in entries {
         if let Some(entry) = ignore_not_found_or_loop(entry)
-            .map_err(|source| workspace_walk_error(walk_root, source))?
+            .map_err(|source| workspace_walk_error(walk_root.to_path_buf(), source))?
         {
             visit(entry)?;
         }
@@ -192,8 +192,8 @@ pub(super) fn for_each_directory_entry(
     Ok(())
 }
 
-fn workspace_walk_error(walk_root: &Path, source: std::io::Error) -> FindWorkspaceProjectsError {
-    FindWorkspaceProjectsError::Walk { root: walk_root.to_path_buf(), source }
+fn workspace_walk_error(walk_root: PathBuf, source: std::io::Error) -> FindWorkspaceProjectsError {
+    FindWorkspaceProjectsError::Walk { root: walk_root, source }
 }
 
 fn is_ignored_manifest_directory(
