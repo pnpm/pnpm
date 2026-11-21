@@ -293,13 +293,15 @@ fn lookup_snapshot<'a>(
     edge: Edge,
     lockfile: &'a Lockfile,
 ) -> Result<Option<&'a SnapshotEntry>, HoistError> {
-    match lockfile.snapshots
+    let snapshot = lockfile.snapshots
         .as_ref()
-        .and_then(|snapshots| snapshots.get(dep_key))
-    {
-        Some(snapshot) => Ok(Some(snapshot)),
-        None if matches!(edge, Edge::Optional) => Ok(None),
-        None => Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() }),
+        .and_then(|snapshots| snapshots.get(dep_key));
+    match (snapshot, edge) {
+        (Some(snapshot), _) => Ok(Some(snapshot)),
+        (None, Edge::Optional) => Ok(None),
+        (None, Edge::Required) => {
+            Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() })
+        }
     }
 }
 
