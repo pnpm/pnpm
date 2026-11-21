@@ -16,12 +16,22 @@ use pnpm_lockfile::{
 };
 
 /// Which lockfile edges a reachability walk follows.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(super) enum LockfileWalk {
     /// Only edges to `file:` packages, from local direct dependencies.
     LocalOnly,
     /// Every edge.
     All,
+}
+
+impl LockfileWalk {
+    /// Whether the walk also takes edges to non-local packages.
+    pub(super) const fn follows_non_local(self) -> bool {
+        match self {
+            LockfileWalk::LocalOnly => false,
+            LockfileWalk::All => true,
+        }
+    }
 }
 
 pub(super) fn importer_reachable_lockfile_packages(
@@ -95,7 +105,7 @@ fn collect_importer_dep_roots(
             continue;
         }
         if let Some(key) = dep_spec.version.resolved_key(alias)
-            && (walk == LockfileWalk::All || matches!(key.suffix.version(), VersionPart::File(_)))
+            && (walk.follows_non_local() || matches!(key.suffix.version(), VersionPart::File(_)))
         {
             roots.insert(key);
         }
@@ -132,8 +142,7 @@ fn enqueue_snapshot_dep_map(
         let Some(child_key) = dep_ref.resolve(alias) else {
             continue;
         };
-        if walk == LockfileWalk::LocalOnly
-            && !matches!(child_key.suffix.version(), VersionPart::File(_))
+        if !walk.follows_non_local() && !matches!(child_key.suffix.version(), VersionPart::File(_))
         {
             continue;
         }

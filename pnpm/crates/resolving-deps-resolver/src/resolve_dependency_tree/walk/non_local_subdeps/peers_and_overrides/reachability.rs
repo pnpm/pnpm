@@ -74,7 +74,7 @@ impl<'a> HoistedPeerReachability<'a> {
             };
             let aliases: HashSet<&str> = self.direct_deps
                 .iter()
-                .filter(|dep| walk == LockfileWalk::All || is_local_direct_dep_id(&dep.id))
+                .filter(|dep| walk.follows_non_local() || is_local_direct_dep_id(&dep.id))
                 .map(|dep| dep.alias.as_str())
                 .collect();
             importer_reachable_lockfile_packages(
