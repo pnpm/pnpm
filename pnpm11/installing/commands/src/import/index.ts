@@ -71,11 +71,11 @@ export async function handler (
   const preferredVersions = getPreferredVersions(versionsByPackageNames)
   const lockfilePath = path.join(opts.lockfileDir ?? opts.dir, await getWantedLockfileName(opts))
   await ensureLockfileIsNotSymlink(lockfilePath)
-  const projects = await getImportedProjects(opts)
-  if (opts.sharedWorkspaceLockfile === false && opts.lockfileDir == null) {
+  if (opts.sharedWorkspaceLockfile === false && opts.lockfileDir == null && opts.selectedProjectsGraph) {
     const lockfileName = path.basename(lockfilePath)
-    await Promise.all(projects.map(project => ensureLockfileIsNotSymlink(path.join(project.rootDir, lockfileName))))
+    await Promise.all(Object.keys(opts.selectedProjectsGraph).map(dir => ensureLockfileIsNotSymlink(path.join(dir, lockfileName))))
   }
+  const projects = await getImportedProjects(opts)
   const preferredVersionsByImporterId = await nestedYarnLockPreferredVersions(opts, projects)
   const patchedDependencies = await importYarnPatches({
     projects,
