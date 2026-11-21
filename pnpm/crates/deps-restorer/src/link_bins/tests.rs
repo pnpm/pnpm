@@ -1070,6 +1070,41 @@ fn prefetched_bin_pass_reads_a_link_dep_from_disk() {
     assert!(is_shim_pointing_at(&body, &modules.join(".bin/sibling"), &sibling_dir.join("cli.js")));
 }
 
+/// The second importer linking the same target reuses the manifest the
+/// first one read. Neither its own `node_modules` nor the target has a
+/// manifest left to read.
+#[test]
+fn prefetched_bin_pass_reads_a_link_target_manifest_once_per_lookup() {
+    let tmp = tempdir().unwrap();
+    let first_modules = tmp.path().join("first/node_modules");
+    let sibling_dir = first_modules.join("sibling");
+    create_dir_all(&sibling_dir).unwrap();
+    write_file(
+        sibling_dir.join("package.json"),
+        json!({"name": "sibling", "bin": "cli.js"}).to_string(),
+    )
+    .unwrap();
+    write_file(sibling_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let second_modules = tmp.path().join("second/node_modules");
+    create_dir_all(&second_modules).unwrap();
+
+    let packages = HashMap::new();
+    let lookup = PrefetchedBinLookup::new(Some(&packages), None, None);
+    let deps = [("sibling".to_string(), sibling_dir, None)];
+    let link = |modules: &Path| {
+        link_bins_dir(
+            modules,
+            BinCandidates::Prefetched(&deps, &lookup),
+            BinsDirPass::new(&LinkBinsOptions::default()),
+        )
+        .unwrap();
+    };
+    link(&first_modules);
+    std::fs::remove_file(first_modules.join("sibling/package.json")).unwrap();
+    link(&second_modules);
+    assert!(second_modules.join(".bin/sibling").exists(), "memoized manifest links the bin");
+}
+
 /// On Windows, a command already in `.bin` keeps its entry whatever case
 /// its shim or executable extension is written in. Elsewhere `node.EXE`
 /// is a command of its own and does not hold `node`.
