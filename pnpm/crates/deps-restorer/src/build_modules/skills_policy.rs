@@ -36,7 +36,8 @@ pub fn skill_approval_key(dep_path: &str) -> String {
     let pkg_id_with_patch_hash = get_pkg_id_with_patch_hash(dep_path);
     match parse_dep_path_name_version(pkg_id_with_patch_hash) {
         Some((name, version))
-            if registry_version(version).is_some() || is_local_directory_version(version) =>
+            if node_semver::Version::parse(version).is_ok()
+                || is_local_directory_version(version) =>
         {
             name.to_string()
         }
@@ -124,10 +125,11 @@ impl SkillsPolicy {
     /// `None` when nothing is decided and the skills await approval.
     ///
     /// A `permissions` dep-path or git-repo rule matches any dep path of the
-    /// same shape. A bare-name rule matches registry (`name@semver` and
-    /// `name@<registry>:semver`) and local
-    /// directory (`link:` and non-tarball `file:`) dep paths, while git and
-    /// tarball dep paths stay pending unless matched by source or git repo. A
+    /// same shape. A bare-name rule matches default-registry (`name@semver`)
+    /// and local directory (`link:` and non-tarball `file:`) dep paths, and a
+    /// bare-name or `name@version` denial also matches a named-registry
+    /// (`name@<registry>:semver`) dep path. Git, tarball, and named-registry
+    /// dep paths otherwise stay pending unless matched by source or git repo. A
     /// `name@version` rule outranks a bare-name one.
     #[must_use]
     pub fn check(&self, dep_path: &str) -> Option<SkillsPermission> {
@@ -136,14 +138,15 @@ impl SkillsPolicy {
         let git_repo_key = git_repo_key.as_deref();
         let (name, version) = parse_dep_path_name_version(&normalized_dep_path)
             .unwrap_or((normalized_dep_path.as_str(), ""));
-        let registry_version = registry_version(version);
-        let name_at_version = format!("{name}@{}", registry_version.unwrap_or(version));
+        let name_at_version = format!("{name}@{version}");
+        let denial_name_at_version =
+            format!("{name}@{}", registry_version(version).unwrap_or(version));
 
         let matches = [
             self.dep_paths.get(&normalized_dep_path),
             git_repo_key.and_then(|key| self.git_repos.get(key)),
             self.expanded.get(name),
-            self.expanded.get(&name_at_version),
+            self.expanded.get(&denial_name_at_version),
         ];
         if matches
             .into_iter()
@@ -158,7 +161,7 @@ impl SkillsPolicy {
         if let Some(decision) = git_repo_key.and_then(|key| self.git_repos.get(key)) {
             return Some(decision.clone());
         }
-        if registry_version.is_none() && !is_local_directory_version(version) {
+        if node_semver::Version::parse(version).is_err() && !is_local_directory_version(version) {
             return None;
         }
         if let Some(decision) = self.expanded

@@ -105,19 +105,23 @@ fn explicit_deny_outranks_dangerously_allow_all_builds() {
     assert_eq!(policy.check("pinned@2.0.0"), Some(true));
     assert_eq!(policy.check("other-package@1.0.0"), Some(true));
 }
-/// A package from a named registry (`name@<registry>:semver`) is decided by
-/// the same name and `name@version` rules as one from the default registry.
+/// A named registry may serve a different artifact under the same name, so
+/// approvals stay registry-exact while denials widen.
 #[test]
-fn named_registry_packages_match_name_and_version_rules() {
+fn named_registry_packages_take_denials_but_not_approvals_by_name() {
     let policy = policy_from_specs([("pinned@1.0.0", false)], true);
     assert_eq!(policy.check("pinned@work:1.0.0"), Some(false));
+    assert_eq!(policy.check("pinned@work:1.0.0(peer@2.0.0)"), Some(false));
     assert_eq!(policy.check("pinned@work:2.0.0"), Some(true));
 
-    let policy = policy_from_specs([("allowed", true), ("pinned@1.0.0", true)], false);
-    assert_eq!(policy.check("allowed@work:1.0.0"), Some(true));
-    assert_eq!(policy.check("pinned@work:1.0.0(peer@2.0.0)"), Some(true));
-    assert_eq!(policy.check("pinned@work:2.0.0"), None);
-    assert_eq!(allow_build_key_from_ignored_build("allowed@work:1.0.0"), "allowed");
+    let policy = policy_from_specs(
+        [("allowed", true), ("pinned@1.0.0", true), ("exact@work:1.0.0", true)],
+        false,
+    );
+    assert_eq!(policy.check("allowed@work:1.0.0"), None);
+    assert_eq!(policy.check("pinned@work:1.0.0"), None);
+    assert_eq!(policy.check("exact@work:1.0.0"), Some(true));
+    assert_eq!(allow_build_key_from_ignored_build("allowed@work:1.0.0"), "allowed@work:1.0.0");
 }
 /// Wildcards in `allowBuilds` keys are accepted by the parser
 /// (they land as literal strings in the expanded set) but the

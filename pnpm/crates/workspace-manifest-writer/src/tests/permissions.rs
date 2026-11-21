@@ -285,3 +285,19 @@ fn allow_builds_writes_go_to_an_existing_permissions_block() {
         "permissions:\n  esbuild:\n    build: true\n  sharp:\n    build: false\n",
     );
 }
+
+/// A package's flow-style `permissions` entry is refused, not shadowed by a
+/// duplicate block-style key.
+#[test]
+fn a_flow_style_package_entry_refuses_the_write() {
+    let original = "permissions:\n  sharp: {\n    build: true\n  }\n";
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::write(&path, original).expect("seed manifest");
+
+    let err = crate::set_allow_builds(dir.path(), [("sharp", false)]).unwrap_err();
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+    let err = crate::set_permissions(dir.path(), [("sharp", build(false))]).unwrap_err();
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+    assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+}

@@ -481,7 +481,7 @@ fn a_denied_build_is_not_awaiting_approval_for_an_unnamed_run() {
         scan: crate::cli_args::ignored_builds::get_automatically_ignored_builds(&config).unwrap(),
     };
 
-    pending.exclude_denied_builds(&config);
+    pending.exclude_denied_builds(&config).unwrap();
 
     assert_eq!(pending.by_package, self::pending(&[("drizzle-kit", &[Skills])]));
 }

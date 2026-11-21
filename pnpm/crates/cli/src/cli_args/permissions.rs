@@ -14,6 +14,7 @@ use crate::{
             disambiguated_labels,
             partition_params,
             prompt_for_choices,
+            retain_undecided_builds,
         },
         ignored_builds::{
             IgnoredBuildsScan,
@@ -107,17 +108,20 @@ impl PendingPermissions {
     /// Drop the builds `config` denies. A run that names no packages decides
     /// only what awaits a decision, so it never turns a denial into an
     /// approval.
-    fn exclude_denied_builds(&mut self, config: &Config) {
+    fn exclude_denied_builds(&mut self, config: &Config) -> miette::Result<()> {
+        let mut undecided: Vec<String> = self.by_package
+            .iter()
+            .filter(|(_, capabilities)| capabilities.contains(&PermissionCapability::Build))
+            .map(|(pkg, _)| pkg.clone())
+            .collect();
+        retain_undecided_builds(&mut undecided, self.scan.modules_manifest.as_ref(), config)?;
         self.by_package.retain(|pkg, capabilities| {
-            if !config.allow_builds
-                .get(pkg)
-                .copied()
-                .unwrap_or(true)
-            {
+            if !undecided.contains(pkg) {
                 capabilities.remove(&PermissionCapability::Build);
             }
             !capabilities.is_empty()
         });
+        Ok(())
     }
 }
 
@@ -168,7 +172,7 @@ impl ApproveArgs {
             .validate()?;
         let mut pending = pending_permissions(config)?;
         if self.packages.is_empty() {
-            pending.exclude_denied_builds(config);
+            pending.exclude_denied_builds(config)?;
         }
         if pending.by_package.is_empty() && self.packages.is_empty() {
             pnpm_diagnostics::println!("There are no packages awaiting approval");

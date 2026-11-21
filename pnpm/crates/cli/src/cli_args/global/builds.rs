@@ -11,6 +11,7 @@ use super::{
     Reporter,
     State,
     clear_decided_ignored_builds,
+    exclude_disallowed_builds,
     get_automatically_ignored_builds,
     global_approval_store,
     global_group_config,
@@ -27,17 +28,8 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
     args.validate()?;
     let global_pkg_dir = base_config.global_pkg_dir.as_ref().ok_or(GlobalError::NoGlobalBinDir)?;
     warn_about_legacy_global_settings::<Reporter>(base_config, global_pkg_dir)?;
-    let (groups, mut pending) = scan_global_ignored_builds(base_config, global_pkg_dir)?;
-    if args.packages.is_empty() {
-        let decided =
-            global_approval_store(base_config, global_pkg_dir)?.config_with_approvals(base_config)?;
-        pending.retain(|name| {
-            decided.allow_builds
-                .get(name)
-                .copied()
-                .unwrap_or(true)
-        });
-    }
+    let (groups, pending) =
+        scan_global_ignored_builds(base_config, global_pkg_dir, args.packages.is_empty())?;
     if pending.is_empty() && args.packages.is_empty() {
         pnpm_diagnostics::println!("There are no packages awaiting approval");
         return Ok(());
@@ -72,10 +64,13 @@ type IgnoredBuildGroups = Vec<(PathBuf, IgnoredBuildsScan)>;
 
 /// Each global group's ignored builds, with the union of their names. A
 /// group whose install dir resolves outside the global packages directory is
-/// not this pnpm home's to approve builds for.
+/// not this pnpm home's to approve builds for. With `undecided_only`, the
+/// builds a group's policy denies are left out, see
+/// [`exclude_disallowed_builds`].
 fn scan_global_ignored_builds(
     base_config: &Config,
     global_pkg_dir: &Path,
+    undecided_only: bool,
 ) -> miette::Result<(IgnoredBuildGroups, BTreeSet<String>)> {
     let packages =
         scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
@@ -100,7 +95,10 @@ fn scan_global_ignored_builds(
             global_pkg_dir,
             base_config.supported_architectures.clone(),
         )?;
-        let scan = get_automatically_ignored_builds(&config)?;
+        let mut scan = get_automatically_ignored_builds(&config)?;
+        if undecided_only {
+            exclude_disallowed_builds(&mut scan, &config)?;
+        }
         pending.extend(scan.names.iter().flatten().cloned());
         groups.push((package.install_dir, scan));
     }

@@ -264,7 +264,7 @@ fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
         modules_dir: dir.path().join("node_modules"),
         modules_manifest: None,
     };
-    super::exclude_disallowed_builds(&mut scan, &config);
+    super::exclude_disallowed_builds(&mut scan, &config).expect("exclude denied builds");
     assert_eq!(scan.names.as_deref(), Some(["pending-pkg".to_string()].as_slice()));
 
     let (_, build_packages) = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
@@ -284,6 +284,30 @@ fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
         .expect("overlay approvals");
     assert_eq!(overlaid.allow_builds.get("denied-pkg"), Some(&false));
     assert_eq!(overlaid.allow_builds.get("pending-pkg"), Some(&true));
+}
+
+/// A `name@version` denial drops a key only when it denies every ignored dep
+/// path recorded under that key.
+#[test]
+fn a_version_denial_drops_only_the_keys_it_fully_covers() {
+    let mut config = pnpm_config::Config::default();
+    config.allow_builds.insert("pinned@1.0.0".to_string(), false);
+    config.allow_builds.insert("only@1.0.0".to_string(), false);
+    let ignored = ["pinned@1.0.0", "pinned@2.0.0", "only@1.0.0"].map(|dep_path| {
+        pnpm_modules_yaml::DepPath::from(dep_path.to_string())
+    });
+    let mut scan = crate::cli_args::ignored_builds::IgnoredBuildsScan {
+        names: Some(vec!["pinned".to_string(), "only".to_string()]),
+        modules_dir: std::path::PathBuf::new(),
+        modules_manifest: Some(pnpm_modules_yaml::Modules {
+            ignored_builds: Some(indexmap::IndexSet::from(ignored)),
+            ..Default::default()
+        }),
+    };
+
+    super::exclude_disallowed_builds(&mut scan, &config).expect("exclude denied builds");
+
+    assert_eq!(scan.names, Some(vec!["pinned".to_string()]));
 }
 
 /// `--all` decides only the builds awaiting a decision; a recorded denial

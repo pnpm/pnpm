@@ -130,12 +130,12 @@ where
     let path = target.path.clone();
 
     let entries: Vec<(&str, bool)> = entries.into_iter().collect();
-    validate_allow_build_entries(
-        &manifest,
-        &path,
-        &entries,
-        &[&["allowBuilds"], &["permissions"]],
-    )?;
+    let blocks = permission_blocks(entries.iter().map(|(name, _)| *name));
+    let blocks: Vec<&[&str]> = blocks
+        .iter()
+        .map(Vec::as_slice)
+        .collect();
+    validate_allow_build_entries(&manifest, &path, &entries, &blocks)?;
 
     let mut changed = record_permissions(
         &mut manifest,
@@ -215,15 +215,28 @@ where
     write_or_remove_manifest(&target, manifest)
 }
 
+/// The blocks a build or permission decision for `names` may be spliced
+/// into: `allowBuilds`, `permissions`, and each named package's
+/// `permissions` entry.
+fn permission_blocks<'a>(names: impl Iterator<Item = &'a str>) -> Vec<Vec<&'a str>> {
+    let mut blocks = vec![vec!["allowBuilds"], vec!["permissions"]];
+    blocks.extend(names.map(|name| vec!["permissions", name]));
+    blocks
+}
+
 /// Refuse a write the line-based splices cannot make safely.
 fn validate_permission_entries(
     manifest: &Manifest,
     path: &Path,
     entries: &[(&str, PermissionValue)],
 ) -> Result<(), UpdateWorkspaceManifestError> {
+    let blocks = permission_blocks(entries.iter().map(|(name, _)| *name));
+    let blocks: Vec<&[&str]> = blocks
+        .iter()
+        .map(Vec::as_slice)
+        .collect();
     if !entries.is_empty()
-        && let Some(key) =
-            unsupported_inline_key(manifest.document.text(), &[&["allowBuilds"], &["permissions"]])
+        && let Some(key) = unsupported_inline_key(manifest.document.text(), &blocks)
     {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
             path: path.to_path_buf(),

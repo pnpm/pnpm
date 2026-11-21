@@ -166,7 +166,7 @@ impl ApproveBuildsArgs {
     ) -> miette::Result<Option<(State, Vec<String>)>> {
         self.validate()?;
         if self.packages.is_empty() {
-            exclude_disallowed_builds(&mut scan, config);
+            exclude_disallowed_builds(&mut scan, config)?;
         }
         let pending = scan.names.unwrap_or_default();
         if pending.is_empty() && self.packages.is_empty() {
@@ -326,10 +326,11 @@ pub(crate) struct Partition {
 impl Partition {
     /// Reject a bare-name approval when the pending dependency is one a bare
     /// name cannot identify: a `file:`/`link:` path, a git URL, or a tarball
-    /// URL. A registry semver, from the default or a named registry, is
-    /// approvable by name.
+    /// URL. Only a default-registry semver is approvable by name; a named
+    /// registry key (`name@alias:version`) lacks the registry-origin shape
+    /// that `AllowBuildPolicy` trusts, so it needs the exact selector too.
     /// [`parse_dep_path_name_version`] strips peer and patch suffixes, so a
-    /// patched registry entry stays approvable by name.
+    /// patched default-registry entry stays approvable by name.
     fn require_exact_selectors(&self, pending: &[String]) -> miette::Result<()> {
         if self.unknown.is_empty() {
             return Ok(());
@@ -339,7 +340,7 @@ impl Partition {
             .filter(|key| {
                 parse_dep_path_name_version(key)
                     .is_some_and(|(name, version)| {
-                        pnpm_package_name::registry_version(version).is_none()
+                        node_semver::Version::parse(version).is_err()
                             && self.unknown
                                 .iter()
                                 .any(|unknown| unknown == name)
@@ -446,16 +447,41 @@ mod tests;
 
 /// Drop the builds `config` denies from `scan`. A run that names no
 /// packages decides only the builds awaiting a decision, so it never turns a
-/// denial into an approval.
-pub(crate) fn exclude_disallowed_builds(scan: &mut IgnoredBuildsScan, config: &Config) {
-    if let Some(names) = scan.names.as_mut() {
-        names.retain(|name| {
-            config.allow_builds
-                .get(name)
-                .copied()
-                .unwrap_or(true)
-        });
-    }
+/// denial into an approval. A key stays while one of its ignored dep paths is
+/// not denied, so a `name@version` denial drops only the key of that version.
+pub(crate) fn exclude_disallowed_builds(
+    scan: &mut IgnoredBuildsScan,
+    config: &Config,
+) -> miette::Result<()> {
+    let Some(names) = scan.names.as_mut() else { return Ok(()) };
+    retain_undecided_builds(names, scan.modules_manifest.as_ref(), config)
+}
+
+/// Keep the `allowBuilds` keys in `names` that `config` does not deny for
+/// every dep path `modules` records as ignored under that key.
+pub(crate) fn retain_undecided_builds(
+    names: &mut Vec<String>,
+    modules: Option<&pnpm_modules_yaml::Modules>,
+    config: &Config,
+) -> miette::Result<()> {
+    let policy = pnpm_deps_restorer::AllowBuildPolicy::from_config(config).into_diagnostic()?;
+    let ignored: Vec<&str> = modules
+        .iter()
+        .flat_map(|modules| modules.ignored_builds.iter().flatten())
+        .map(pnpm_modules_yaml::DepPath::as_str)
+        .collect();
+    names.retain(|name| {
+        let mut dep_paths = ignored
+            .iter()
+            .copied()
+            .filter(|dep_path| allow_build_key_from_ignored_build(dep_path) == *name)
+            .peekable();
+        if dep_paths.peek().is_none() {
+            return policy.check(name).unwrap_or(true);
+        }
+        dep_paths.any(|dep_path| policy.check(dep_path).unwrap_or(true))
+    });
+    Ok(())
 }
 
 /// Run the interactive build-approval flow against the just-installed
@@ -467,7 +493,7 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
     store: ApprovalStore<'_>,
 ) -> miette::Result<()> {
     let mut scan = get_automatically_ignored_builds(config)?;
-    exclude_disallowed_builds(&mut scan, config);
+    exclude_disallowed_builds(&mut scan, config)?;
     if scan.names.as_ref().is_none_or(Vec::is_empty) {
         return Ok(());
     }
