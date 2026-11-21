@@ -116,6 +116,7 @@ fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<Pack
         TreeNodeId,
         build::importer_id_for,
         graph::{
+            BoundPeerEdges,
             BuildGraphOptions,
             build_dependency_graph,
         },
@@ -134,6 +135,7 @@ fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<Pack
         },
         only_projects: false,
         peer_edges: PeerEdgeOptions::default(),
+        bound_peer_edges: BoundPeerEdges::Follow,
     };
     let graph = build_dependency_graph(&[node.clone()], &options);
     for part in parts {
