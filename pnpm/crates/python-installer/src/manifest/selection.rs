@@ -21,16 +21,18 @@ use std::collections::{
     BTreeSet,
 };
 
-pub(super) fn deserialize_groups<'de, D: serde::Deserializer<'de>>(
-    deserializer: D,
-) -> std::result::Result<BTreeMap<PackageName, Vec<toml::Value>>, D::Error> {
+pub(super) fn deserialize_groups<'de, Decoder: serde::Deserializer<'de>>(
+    deserializer: Decoder,
+) -> std::result::Result<BTreeMap<PackageName, Vec<toml::Value>>, Decoder::Error> {
     use serde::de::Error as _;
     let raw = BTreeMap::<String, Vec<toml::Value>>::deserialize(deserializer)?;
     let mut groups = BTreeMap::new();
     for (key, entries) in raw {
-        let name = key.parse().map_err(D::Error::custom)?;
+        let name = key.parse().map_err(Decoder::Error::custom)?;
         if groups.insert(name, entries).is_some() {
-            return Err(D::Error::custom(format!("duplicate Python dependency group: {key}")));
+            return Err(Decoder::Error::custom(format!(
+                "duplicate Python dependency group: {key}",
+            )));
         }
     }
     Ok(groups)

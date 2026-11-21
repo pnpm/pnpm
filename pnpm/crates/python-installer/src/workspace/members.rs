@@ -279,15 +279,13 @@ pub(crate) fn environment_root_of(workspace: Option<&Path>, dir: &Path) -> PathB
         .take_while(|ancestor| ancestor.starts_with(&stop))
     {
         let manifest = read_project_manifest(ancestor);
-        if let Some(manifest) = &manifest
-            && let Some(declaration) = &manifest.tool.uv.workspace
+        if let Some(environment) = manifest
+            .as_ref()
+            .and_then(|manifest| {
+                declared_environment(manifest, ancestor, project.unwrap_or(ancestor))
+            })
         {
-            let project = project.unwrap_or(ancestor);
-            if manifest.shares_environment() && Patterns::of(declaration).contain(ancestor, project)
-            {
-                return ancestor.to_path_buf();
-            }
-            return project.to_path_buf();
+            return environment.to_path_buf();
         }
         if project.is_none()
             && (manifest.is_some_and(|manifest| manifest.project.is_some())
@@ -297,6 +295,16 @@ pub(crate) fn environment_root_of(workspace: Option<&Path>, dir: &Path) -> PathB
         }
     }
     project.unwrap_or(&dir).to_path_buf()
+}
+
+fn declared_environment<'a>(
+    manifest: &Manifest,
+    root: &'a Path,
+    project: &'a Path,
+) -> Option<&'a Path> {
+    let declaration = manifest.tool.uv.workspace.as_ref()?;
+    let shared = manifest.shares_environment() && Patterns::of(declaration).contain(root, project);
+    Some(if shared { root } else { project })
 }
 
 /// Whether a `[tool.uv.workspace]` is declared at or above `project`, up

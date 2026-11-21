@@ -147,12 +147,7 @@ fn save_added(
     for project in prepared {
         let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
         let lock_index = lock.index()?;
-        let mut requirements = Vec::new();
-        for requirement in &options.requirements {
-            let mut requirement = pnpm_python_resolver::parse_requirement(requirement)?;
-            pin_to_locked_version(&mut requirement, &lock_index, options, prefix)?;
-            requirements.push(requirement.to_string());
-        }
+        let requirements = pinned_requirements(options, &lock_index, prefix)?;
         for member in &project.members {
             if edited.contains(member) {
                 manifest::add(
@@ -174,6 +169,21 @@ fn save_added(
         project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     }
     Ok(())
+}
+
+fn pinned_requirements(
+    options: &AddOptions,
+    lock_index: &LockIndex<'_>,
+    prefix: &str,
+) -> Result<Vec<String>> {
+    options.requirements
+        .iter()
+        .map(|text| {
+            let mut requirement = pnpm_python_resolver::parse_requirement(text)?;
+            pin_to_locked_version(&mut requirement, lock_index, options, prefix)?;
+            Ok(requirement.to_string())
+        })
+        .collect()
 }
 
 /// Give a requirement the version the lockfile resolved, when the command

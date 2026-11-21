@@ -203,7 +203,7 @@ async fn adding_to_a_member_updates_its_manifest_and_the_shared_lockfile() {
     assert_eq!(lock["tool"]["pnpm"]["requirements"], list(&["alpha", "alpha>=1", "gamma>=1.0"]));
     assert_eq!(
         lock["tool"]["pnpm"]["members"],
-        list(&["packages/a", "packages/b", "packages/worker"])
+        list(&["packages/a", "packages/b", "packages/worker"]),
     );
     assert!(!has_own_environment(&root.path().join("packages/b")));
     python(root.path())

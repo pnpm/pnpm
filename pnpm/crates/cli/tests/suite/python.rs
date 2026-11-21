@@ -1521,7 +1521,7 @@ fn python_dev_add_requires_a_selected_dev_group() {
     let manifest = root.path().join("pyproject.toml");
     let contents = format!(
         "{}\n[tool.pnpm.python]\ngroups = ['test']\n[dependency-groups]\ntest = []\n",
-        fs::read_to_string(&manifest).unwrap()
+        fs::read_to_string(&manifest).unwrap(),
     );
     fs::write(&manifest, &contents).unwrap();
     assert_failure_contains(
