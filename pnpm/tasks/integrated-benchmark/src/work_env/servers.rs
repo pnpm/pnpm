@@ -17,7 +17,6 @@ use super::{
         revision_mock_home,
     },
     registries_home::RegistriesHome,
-    remove_dir_all_with_retry,
     revision_mock::{
         cold_origin_public_url,
         pnpr_server_command,
@@ -284,7 +283,7 @@ impl WorkEnv {
         // through `PnprServer::drop` and kills the process instead of
         // leaking an orphaned server.
         let mut server = PnprServer {
-            process: self.spawn_pnpr_server_process(&paths),
+            process: self.spawn_pnpr_server_process(&paths, PnprServerLogs::Truncate),
             latency_proxy: None,
             origin: None,
         };
@@ -303,17 +302,6 @@ impl WorkEnv {
         self.write_pnpr_client_env(&bench_dir, &client_url, &pnpr_token, pnpr_server_registry);
 
         PnprResolverServer { server, paths }
-    }
-    /// Restart a pnpr resolver server with an empty cache. Killing the process
-    /// is what drops the in-memory resolution cache: emptying the cache
-    /// directory under a live server leaves it warm.
-    pub(super) fn restart_pnpr_server_with_empty_cache(&self, resolver: &mut PnprResolverServer) {
-        let PnprResolverServer { server, paths } = resolver;
-        server.process.kill().expect("stop the pnpr server before restarting it");
-        server.process.wait().expect("wait for the stopped pnpr server to exit");
-        remove_dir_all_with_retry(&paths.cache()).expect("empty the pnpr cache before restart");
-        server.process = self.spawn_pnpr_server_process(paths);
-        wait_for_pnpr_ready(paths.port);
     }
     /// Write the client config variable and the benchmark's registry rewrite source.
     /// The `PNPM_CONFIG` prefix is required for the server to reach the client config.
@@ -336,16 +324,27 @@ impl WorkEnv {
         )
         .expect("write .pnpr-env");
     }
-    pub(super) fn spawn_pnpr_server_process(&self, paths: &PnprServerPaths) -> Child {
+    pub(super) fn spawn_pnpr_server_process(
+        &self,
+        paths: &PnprServerPaths,
+        logs: PnprServerLogs,
+    ) -> Child {
         eprintln!(
             "Starting pnpr server for {} on 127.0.0.1:{}...",
             paths.bench_dir.display(),
             paths.port,
         );
-        let stdout = File::create(paths.bench_dir.join("pnpr-server.stdout.log"))
-            .expect("create pnpr server stdout log");
-        let stderr = File::create(paths.bench_dir.join("pnpr-server.stderr.log"))
-            .expect("create pnpr server stderr log");
+        let open_log = |name: &str| {
+            File::options()
+                .create(true)
+                .write(true)
+                .append(logs == PnprServerLogs::Append)
+                .truncate(logs == PnprServerLogs::Truncate)
+                .open(paths.bench_dir.join(name))
+                .unwrap_or_else(|err| panic!("open the pnpr server log {name}: {err}"))
+        };
+        let stdout = open_log("pnpr-server.stdout.log");
+        let stderr = open_log("pnpr-server.stderr.log");
         let mut command = pnpr_server_command(paths);
         self.apply_serve_timing(&mut command);
         if let Some(registries) = &paths.registries {
@@ -531,4 +530,12 @@ impl WorkEnv {
         }
         mocks
     }
+}
+
+/// Whether a pnpr server start keeps the logs of the runs before it. A
+/// restart appends, so the logs cover every run of the benchmark.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PnprServerLogs {
+    Truncate,
+    Append,
 }

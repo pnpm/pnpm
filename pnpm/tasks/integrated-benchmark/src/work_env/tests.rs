@@ -19,13 +19,13 @@ use super::{
     may_create_lockfile,
     measurements::PhaseEvent,
     non_trivial_cold_batch,
+    pnpr_restart::PnprRestartListener,
     read_phase_events,
     registries_home::RegistriesHome,
     render_diagnostics_markdown,
     requires_fresh_pnpr_cold_batch_metrics,
     seed_peer_heavy_registry,
     server_config::{
-        PnprRestartListener,
         cold_mock_config_yaml,
         pnpr_auth_config_key,
         pnpr_benchmark_config_yaml,
@@ -881,4 +881,25 @@ fn pnpr_restart_prepare_step_fails_when_the_restart_fails() {
     assert!(outcome.is_err());
     let status = status.expect("the --prepare step ran");
     assert!(!status.success());
+}
+
+#[test]
+fn pnpr_restart_listener_ignores_a_request_that_names_no_server() {
+    let restarted = Mutex::new(Vec::new());
+    let listener = PnprRestartListener::bind();
+
+    listener.serve_during(
+        |server| restarted.lock().unwrap().push(server),
+        || {
+            let mut stray = std::net::TcpStream::connect(("127.0.0.1", listener.port()))
+                .expect("connect to the restart listener");
+            writeln!(stray, "not a server").expect("send a stray request");
+            let mut reply = String::new();
+            stray.read_to_string(&mut reply).expect("read the stray reply");
+            assert_eq!(reply, "");
+            assert!(run_prepare_step(&listener.prepare_command(0)).success());
+        },
+    );
+
+    assert_eq!(*restarted.lock().unwrap(), [0]);
 }

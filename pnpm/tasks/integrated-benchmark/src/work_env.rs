@@ -35,7 +35,6 @@ mod revision_mock;
 mod server_config;
 use server_config::{
     PnprResolverServer,
-    PnprRestartListener,
     PnprServer,
     PnprServerPaths,
     RevisionMockRegistry,
@@ -67,6 +66,8 @@ use measurements::{
 mod diagnostics;
 
 mod mock_home;
+mod pnpr_restart;
+use pnpr_restart::PnprRestartListener;
 mod servers;
 
 mod build;
@@ -432,7 +433,10 @@ impl WorkEnv {
         // events to `BENCHMARK_OUTPUT.ndjson` like the timed runs, and only
         // the timed runs' events may reach the diagnostics.
         if self.options.count_syscalls {
-            self.count_syscalls(&cleanup_command);
+            self.count_syscalls(
+                &cleanup_command,
+                resolution_cold_servers(scenario, &mut pnpr_servers),
+            );
             // The traced runs' cleanup removed the lockfiles the parity
             // check reads, so write them again.
             if scenario.uses_peer_heavy_fixture() {
@@ -449,11 +453,11 @@ impl WorkEnv {
         cleanup_command: &str,
         pnpr_servers: &mut [PnprResolverServer],
     ) {
-        if scenario.cold_pnpr_cache() == Some(ColdPnprCache::Resolution) && !pnpr_servers.is_empty()
-        {
-            self.run_hyperfine_restarting_pnpr_servers(cleanup_command, pnpr_servers);
-        } else {
+        let cold_servers = resolution_cold_servers(scenario, pnpr_servers);
+        if cold_servers.is_empty() {
             self.run_hyperfine(&[cleanup_command.to_string()]);
+        } else {
+            self.run_hyperfine_restarting_pnpr_servers(cleanup_command, cold_servers);
         }
     }
 
@@ -514,9 +518,17 @@ impl WorkEnv {
     /// from. Each round traces every target once, so drift across rounds
     /// reaches both revisions alike. A `pnpr@*` target's server was started
     /// before the trace, so its counts cover the client only.
-    fn count_syscalls(&self, cleanup_command: &str) {
+    /// `cold_servers` holds the pnpr servers to restart with an empty cache
+    /// before their target's trace, as in [`Self::run_timed_iterations`].
+    fn count_syscalls(&self, cleanup_command: &str, cold_servers: &mut [PnprResolverServer]) {
         for round in 0..SYSCALL_COUNT_ROUNDS {
+            let mut cold_servers = cold_servers.iter_mut();
             for id in self.benchmarked_ids() {
+                if id.is_pnpr()
+                    && let Some(server) = cold_servers.next()
+                {
+                    self.restart_pnpr_server_with_empty_cache(server);
+                }
                 Command::new("bash")
                     .with_current_dir(self.root())
                     .with_arg("-c")
@@ -624,3 +636,15 @@ impl WorkEnv {
 
 #[cfg(test)]
 mod tests;
+
+/// The pnpr servers a scenario restarts with an empty cache before every
+/// install it measures, in [`WorkEnv::benchmarked_ids`] order.
+fn resolution_cold_servers(
+    scenario: BenchmarkScenario,
+    pnpr_servers: &mut [PnprResolverServer],
+) -> &mut [PnprResolverServer] {
+    match scenario.cold_pnpr_cache() {
+        Some(ColdPnprCache::Resolution) => pnpr_servers,
+        Some(ColdPnprCache::Tarballs) | None => &mut [],
+    }
+}
