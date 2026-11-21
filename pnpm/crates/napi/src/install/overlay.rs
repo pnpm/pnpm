@@ -20,31 +20,25 @@ use super::{
     unsupported_option_error,
 };
 
-/// The caller's projects replace the workspace walk, so a listed project's
-/// `package.json` is never read from disk. An empty list leaves discovery to
-/// the engine: only an `ignorePackageManifest` install accepts one, and it
-/// reads the lockfile, not the manifests.
+/// The caller's projects replace the workspace walk, so the engine reads no
+/// project `package.json` from disk. An empty list is accepted only by an
+/// `ignorePackageManifest` install, which reads the lockfile alone.
 pub(super) fn build_workspace_projects_override(
     projects: &[NodeApiProject],
-) -> Option<Vec<pnpm_workspace::Project>> {
-    if projects.is_empty() {
-        return None;
-    }
-    Some(
-        projects
-            .iter()
-            .map(|project| {
-                let root_dir = PathBuf::from(&project.root_dir);
-                let manifest_path = root_dir.join("package.json");
-                let manifest =
-                    PackageManifest::from_value(manifest_path.clone(), project.manifest.clone());
-                let dependency_manifest = project.dependency_manifest
-                    .as_ref()
-                    .map(|value| PackageManifest::from_value(manifest_path.clone(), value.clone()));
-                pnpm_workspace::Project { root_dir, manifest, dependency_manifest }
-            })
-            .collect(),
-    )
+) -> Vec<pnpm_workspace::Project> {
+    projects
+        .iter()
+        .map(|project| {
+            let root_dir = PathBuf::from(&project.root_dir);
+            let manifest_path = root_dir.join("package.json");
+            let manifest =
+                PackageManifest::from_value(manifest_path.clone(), project.manifest.clone());
+            let dependency_manifest = project.dependency_manifest
+                .as_ref()
+                .map(|value| PackageManifest::from_value(manifest_path.clone(), value.clone()));
+            pnpm_workspace::Project { root_dir, manifest, dependency_manifest }
+        })
+        .collect()
 }
 
 /// Map the install options onto the config overlay. `fetch_shaped` is the

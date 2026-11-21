@@ -535,3 +535,54 @@ fn ignore_package_manifest_accepts_no_projects() {
         });
     assert!(fetched, "the locked dependency must be fetched");
 }
+
+/// With no projects, an `ignorePackageManifest` install still reads no member
+/// manifest, so a malformed one does not stop the fetch.
+#[test]
+fn ignore_package_manifest_without_projects_skips_member_manifests() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let root_dir = temp_dir.path().join("workspace");
+    let member_dir = root_dir.join("packages/member");
+    std::fs::create_dir_all(&member_dir).expect("create member dir");
+    std::fs::write(root_dir.join("package.json"), "{}\n").expect("write root package.json");
+    std::fs::write(member_dir.join("package.json"), "{ not json").expect("write member manifest");
+    std::fs::write(root_dir.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace yaml");
+
+    let root_dir_string = root_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = root_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: root_dir_string,
+        manifest: serde_json::json!({
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" }
+        }),
+        dependency_manifest: None,
+    }];
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
+    options.lockfile_only = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("seed the lockfile");
+    options.lockfile_only = None;
+
+    options.projects.clear();
+    options.ignore_package_manifest = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("fetch-shaped install");
+    let fetched = std::fs::read_dir(root_dir.join("node_modules/.pnpm"))
+        .expect("read the virtual store")
+        .filter_map(Result::ok)
+        .any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("@pnpm.e2e+hello-world-js-bin")
+        });
+    assert!(fetched, "the locked dependency must be fetched");
+}

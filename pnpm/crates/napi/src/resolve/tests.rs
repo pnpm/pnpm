@@ -209,3 +209,20 @@ fn proxy_and_network_config_reach_the_config() {
     assert_eq!(overlay.max_sockets, Some(3));
     assert_eq!(overlay.fetch_retries, Some(7));
 }
+
+#[test]
+fn a_missing_local_directory_keeps_its_error_code() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let wanted = WantedDependencyInput {
+        alias: None,
+        bare_specifier: Some("file:./does-not-exist".to_string()),
+    };
+    let Err(error) = run_resolve_blocking(wanted, &options_for(dir.path())) else {
+        panic!("a missing directory must not resolve");
+    };
+    assert!(
+        error.reason.contains(r#""code":"ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND""#),
+        "unexpected error: {}",
+        error.reason,
+    );
+}

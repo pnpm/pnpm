@@ -31,6 +31,7 @@ use pnpm_resolving_default_resolver::{
     },
 };
 use pnpm_resolving_deps_resolver::ResolveDependencyTreeError;
+use pnpm_resolving_local_resolver::ResolveLocalError;
 use pnpm_resolving_resolver_base::{
     ResolveError,
     ResolveOptions,
@@ -204,6 +205,10 @@ fn current_thread_runtime() -> napi::Result<tokio::runtime::Runtime> {
 fn resolve_error_to_napi(error: ResolveError) -> napi::Error {
     let error = match error.downcast::<SpecNotSupportedByAnyResolverError>() {
         Ok(not_supported) => return to_napi_error(&*not_supported),
+        Err(error) => error,
+    };
+    let error = match error.downcast::<ResolveLocalError>() {
+        Ok(local) => return to_napi_error(&*local),
         Err(error) => error,
     };
     match ResolveDependencyTreeError::from_resolve_error(error) {

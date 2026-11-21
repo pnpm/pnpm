@@ -366,7 +366,9 @@ impl InstallShape {
                     pnpmfile_hook,
                     options.read_package_hook_checksum.as_deref(),
                 ),
-                workspace_projects_override: build_workspace_projects_override(&options.projects),
+                workspace_projects_override: Some(build_workspace_projects_override(
+                    &options.projects,
+                )),
                 ..install.projects
             },
             ..install

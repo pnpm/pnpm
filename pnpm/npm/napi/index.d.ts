@@ -119,7 +119,8 @@ export interface InstallOptions extends SharedEngineOptions {
   dir: string
   /**
    * The importers to install, replacing the workspace's own project list.
-   * Must include the project at `dir`, unless `ignorePackageManifest` is set.
+   * Must include the project at `dir`, unless an `install` call sets
+   * `ignorePackageManifest`.
    */
   projects: NodeApiProject[]
   storeDir?: string
