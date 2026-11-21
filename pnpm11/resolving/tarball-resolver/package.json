@@ -33,11 +33,11 @@
   },
   "dependencies": {
     "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/resolving.tarball-resolver": "workspace:*"
   },
   "engines": {

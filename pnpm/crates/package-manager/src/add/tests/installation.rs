@@ -353,7 +353,7 @@ fn a_tarball_error_chain_drops_url_secrets() {
         "https://example.com/pkg.tgz?token=SIGNEDSECRET",
         "https://alice:hunter2@example.com/pkg.tgz",
         "https://alice:hunter2@example.com/pkg.tgz?token=SIGNEDSECRET#frag",
-        // The HEAD request follows redirects, so the URL a failure names
+        // The archive request follows redirects, so the URL a failure names
         // need not be the one the command was given.
         "https://storage.example.net/blob?X-Amz-Signature=SIGNEDSECRET",
     ] {

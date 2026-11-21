@@ -768,3 +768,17 @@ fn redact_and_sanitize_multiline_collapses_when_a_newline_splits_credentials() {
     assert!(!redacted.contains("user:pass"), "{redacted}");
     assert_eq!(redacted, redact_and_sanitize("url: https://user:pass\n@host/x.git\nfailed"));
 }
+
+#[test]
+fn package_request_auth_respects_path_and_origin() {
+    let headers = AuthHeaders::from_creds_map([(
+        "//registry.example/team/".to_owned(),
+        "Bearer fixture".to_owned(),
+    )]);
+    let url = "https://registry.example/team/archive";
+    let authorize = crate::scoped_redirect_auth(url, |target| headers.for_url(target));
+    assert_eq!(authorize("https://registry.example/team/file").as_deref(), Some("Bearer fixture"));
+    assert_eq!(authorize("https://registry.example/files/archive"), None);
+    assert_eq!(authorize("http://registry.example/team/archive"), None);
+    assert_eq!(authorize("https://registry.example:8080/team/archive"), None);
+}

@@ -104,39 +104,42 @@ async fn immutable_response_without_redirect_keeps_the_requested_url() {
 }
 
 #[tokio::test]
-async fn immutable_response_after_redirect_records_the_final_url() {
-    let mut server = mockito::Server::new_async().await;
-    let final_path = "/canonical-1.0.0.tgz";
-    let final_url = format!("{}{}", server.url(), final_path);
-    let _redirect = server
-        .mock("HEAD", "/redirected-1.0.0.tgz")
-        .with_status(301)
-        .with_header("location", &final_url)
-        .create_async()
-        .await;
-    let _final = server
-        .mock("HEAD", final_path)
-        .with_status(200)
-        .with_header("cache-control", "immutable")
-        .create_async()
-        .await;
-    let requested_url = format!("{}/redirected-1.0.0.tgz", server.url());
+async fn only_successful_immutable_preflight_responses_pin_the_final_url() {
+    for status in [200, 403, 503] {
+        let mut server = mockito::Server::new_async().await;
+        let final_path = "/canonical-1.0.0.tgz";
+        let final_url = format!("{}{}", server.url(), final_path);
+        let _redirect = server
+            .mock("HEAD", "/redirected-1.0.0.tgz")
+            .with_status(301)
+            .with_header("location", &final_url)
+            .create_async()
+            .await;
+        let _final = server
+            .mock("HEAD", final_path)
+            .with_status(status)
+            .with_header("cache-control", "immutable")
+            .create_async()
+            .await;
+        let requested_url = format!("{}/redirected-1.0.0.tgz", server.url());
 
-    let resolver = build_resolver();
-    let wanted = WantedDependency {
-        alias: Some("pkg".to_string()),
-        bare_specifier: Some(requested_url.clone()),
-        ..WantedDependency::default()
-    };
-    let result = resolver
-        .resolve(&wanted, &ResolveOptions::default())
-        .await
-        .unwrap()
-        .expect("claim");
+        let resolver = build_resolver();
+        let wanted = WantedDependency {
+            alias: Some("pkg".to_string()),
+            bare_specifier: Some(requested_url.clone()),
+            ..WantedDependency::default()
+        };
+        let result = resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap()
+            .expect("claim");
 
-    assert_eq!(result.id.to_string(), requested_url);
-    assert_eq!(result.normalized_bare_specifier.as_deref(), Some(requested_url.as_str()));
-    assert_eq!(tarball_url(&result.resolution), final_url);
+        assert_eq!(result.id.to_string(), requested_url);
+        assert_eq!(result.normalized_bare_specifier.as_deref(), Some(requested_url.as_str()));
+        let expected = if status == 200 { final_url } else { requested_url };
+        assert_eq!(tarball_url(&result.resolution), expected);
+    }
 }
 
 #[tokio::test]

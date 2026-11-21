@@ -1,6 +1,5 @@
 import { promises as fs } from 'node:fs'
 import type { IncomingMessage } from 'node:http'
-import { isIP } from 'node:net'
 import path from 'node:path'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
@@ -8,7 +7,7 @@ import { FetchError, FetchTimeoutError, isError, isFetchTimeoutError, redactUrlF
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
-import { isNonRetryableError } from '@pnpm/network.fetch'
+import { isNonRetryableError, isUrlSecureForCredentials } from '@pnpm/network.fetch'
 import { DEFAULT_MAX_TARBALL_UNPACKED_SIZE } from '@pnpm/store.cafs'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
@@ -73,11 +72,9 @@ export function createDownloader (
   const maxTarballUnpackedSize = gotOpts.maxTarballUnpackedSize ?? DEFAULT_MAX_TARBALL_UNPACKED_SIZE
 
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
-    const authHeaderValue = getSecureNodeMirrorAuthHeader(
-      opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name }),
-      url,
-      opts.appendManifest?.name
-    )
+    const authHeaderValue = isUrlSecureForCredentials(url)
+      ? opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name })
+      : undefined
 
     const op = retry.operation(downloadRetryOpts)
 
@@ -159,6 +156,7 @@ async function fetchTarball (ctx: FetchTarballContext): Promise<FetchResult> {
   try {
     const res = await ctx.fetchFromRegistry(ctx.url, {
       authHeaderValue: ctx.authHeaderValue,
+      getRedirectAuthHeader: url => ctx.opts.getAuthHeaderByURI(url, { pkgName: ctx.opts.pkg?.name }),
       headers: { 'accept-encoding': 'identity' },
       retry: { retries: 0 },
       timeout: ctx.gotOpts.timeout,
@@ -402,21 +400,6 @@ function logRetryAttempt (
     timeout,
     url: redactUrlForDisplay(url),
   })
-}
-
-function getSecureNodeMirrorAuthHeader (
-  authHeaderValue: string | undefined,
-  url: string,
-  appendedPackageName: string | undefined
-): string | undefined {
-  if (authHeaderValue == null || appendedPackageName !== 'node') return authHeaderValue
-  const parsed = new URL(url)
-  if (parsed.protocol === 'https:' || isLoopbackHost(parsed.hostname)) return authHeaderValue
-  return undefined
-}
-
-function isLoopbackHost (hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '[::1]' || (isIP(hostname) === 4 && hostname.startsWith('127.'))
 }
 
 // Per RFC 9110 §8.4, Content-Encoding is a comma-separated list of codings.

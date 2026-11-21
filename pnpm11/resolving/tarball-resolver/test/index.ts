@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 // cspell:ignore buildserver
 import { expect, test } from '@jest/globals'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { resolveFromTarball as _resolveFromTarball } from '@pnpm/resolving.tarball-resolver'
 
@@ -65,6 +66,7 @@ test('tarball from URL that redirects to a different URL (immutable)', async () 
   const fetch: any = async (url: string) => {
     if (url === 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz') {
       return {
+        status: 200,
         url: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
         headers: new Map([['cache-control', 'immutable']]),
       }
@@ -172,4 +174,20 @@ test('a rejected body cancellation does not fail the 405 fallback', async () => 
   expect(resolutionResult?.resolution).toStrictEqual({
     tarball: 'https://pkg.pr.new/foo/bar@1.0.0',
   })
+})
+
+test.each([403, 404, 503])('keeps the requested URL for an immutable HTTP %i response', async status => {
+  const bareSpecifier = 'https://example.test/archive.tgz'
+  const fetch: FetchFromRegistry = async (_url, opts) => {
+    expect(opts?.authHeaderValue).toBe('Bearer fixture')
+    expect(opts?.retry?.retries).toBe(0)
+    const response = new Response(null, { status, headers: { 'cache-control': 'immutable' } })
+    Object.defineProperty(response, 'url', { value: 'https://example.test/unavailable' })
+    return response
+  }
+  const result = await _resolveFromTarball(fetch, { bareSpecifier }, {
+    getAuthHeader: () => 'Bearer fixture',
+    retry: { retries: 0 },
+  })
+  expect(result?.resolution.tarball).toBe(bareSpecifier)
 })

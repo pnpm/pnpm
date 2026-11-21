@@ -1,6 +1,9 @@
 use std::{
     collections::BTreeMap,
-    sync::Arc,
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 use dashmap::DashMap;
@@ -75,7 +78,26 @@ pub enum CacheValue {
 /// Ordinary package entries retain their tarball URL key. Revision-addressed
 /// fetches and projections that produce different file sets add a discriminator
 /// so incompatible network policies or archive views never share a result.
-pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
+#[derive(Debug, Default, derive_more::Deref)]
+pub struct MemCache {
+    #[deref]
+    entries: DashMap<String, Arc<RwLock<CacheValue>>>,
+    pub(crate) add_archives: OnceLock<DashMap<String, Box<crate::download::ExtractedArchive>>>,
+}
+
+impl MemCache {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[must_use]
+    pub fn has_add_archive(&self, url: &str) -> bool {
+        self.add_archives
+            .get()
+            .is_some_and(|archives| archives.contains_key(url))
+    }
+}
 
 pub(crate) enum CacheSlotClaim<'a> {
     Claimed(CacheClaimGuard<'a>),

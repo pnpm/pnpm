@@ -348,7 +348,7 @@ fn local_verify_options(
         routing: pnpm_pnpr_client::RegistryRouting {
             registry: local.inputs.resolve_registry.clone(),
             registries: state.config.registry_declarations(),
-            authorization: state.config.auth_headers.for_url(pnpr_server),
+            authorization: state.config.auth_headers.for_secure_url(pnpr_server),
         },
         verification: super::super::pnpr_request::verification_policy(state.config),
     }

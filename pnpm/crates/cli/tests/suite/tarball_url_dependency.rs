@@ -411,17 +411,8 @@ fn a_remote_tarball_is_indexed_once_under_the_bare_url() {
     drop((head_mock, get_mock, root, mock_instance, tarball_server));
 }
 
-/// A tarball whose host answers the preflight with an immutable redirect
-/// is still reused from a warm store on re-resolution.
-///
-/// The lockfile records the *post-redirect* URL in `resolution.tarball`
-/// while the entry's `pkg_id` (its key, and the store-index row it
-/// lands at) stays the bare specifier the manifest asked for. A
-/// re-resolve looks the warm entry up by that specifier, before any
-/// preflight has revealed the redirect, so both sides have to agree on
-/// it. The proof is the same as
-/// [`remote_tarball_reresolves_from_warm_store_without_refetch`]: tear
-/// the host down, then re-resolve.
+/// The lockfile records an immutable redirect's final URL. The store index
+/// still uses the requested URL, which a warm re-resolution looks up.
 #[test]
 fn remote_tarball_behind_an_immutable_redirect_reuses_the_warm_store() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
@@ -433,17 +424,17 @@ fn remote_tarball_behind_an_immutable_redirect_reuses_the_warm_store() {
     let mut tarball_server = mockito::Server::new();
     let canonical_url = format!("{}{canonical_path}", tarball_server.url());
     let redirect_mock = tarball_server
-        .mock("HEAD", requested_path)
+        .mock("GET", requested_path)
         .with_status(302)
         .with_header("location", &canonical_url)
         .create();
     let head_mock = tarball_server
-        .mock("HEAD", canonical_path)
-        .with_status(200)
-        .with_header("cache-control", "immutable")
+        .mock("HEAD", requested_path)
+        .expect(0)
         .create();
     let get_mock = tarball_server
         .mock("GET", canonical_path)
+        .with_header("cache-control", "immutable")
         .with_status(200)
         .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
         .create();
@@ -543,7 +534,7 @@ fn fresh_remote_tarball_skips_the_network_without_a_lockfile() {
         .with_status(200)
         .with_header("etag", r#""pkg-from-tarball""#)
         .with_header("cache-control", "public, max-age=31536000, immutable")
-        .expect(1)
+        .expect(0)
         .create();
     let get_mock = tarball_server
         .mock("GET", tarball_path)
@@ -605,7 +596,7 @@ fn stale_remote_tarball_revalidates_with_if_none_match() {
         .with_status(200)
         .with_header("etag", r#""pkg-from-tarball""#)
         .with_header("cache-control", "public, max-age=31536000, immutable")
-        .expect(1)
+        .expect(0)
         .create();
     let get_mock = tarball_server
         .mock("GET", tarball_path)
@@ -776,7 +767,7 @@ fn response_varying_on_user_agent_is_not_reused() {
     let head = tarball_server
         .mock("HEAD", "/pkg.tgz")
         .with_status(200)
-        .expect(2)
+        .expect(0)
         .create();
     let get = tarball_server
         .mock("GET", "/pkg.tgz")
@@ -821,7 +812,7 @@ fn not_modified_varying_on_user_agent_downloads_again() {
     let head = tarball_server
         .mock("HEAD", "/pkg.tgz")
         .with_status(200)
-        .expect(2)
+        .expect(0)
         .create();
     let get = tarball_server
         .mock("GET", "/pkg.tgz")
@@ -946,7 +937,7 @@ fn remote_tarball_peer_of_a_linked_package_uses_the_manifest_version() {
 }
 
 #[test]
-fn remote_tarball_behind_head_405_falls_back_to_get() {
+fn remote_tarball_resolves_an_immutable_redirect_with_one_download() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -957,7 +948,7 @@ fn remote_tarball_behind_head_405_falls_back_to_get() {
     let canonical_url = format!("{}{canonical_path}", tarball_server.url());
     let head_mock = tarball_server
         .mock("HEAD", requested_path)
-        .with_status(405)
+        .expect(0)
         .create();
     let redirect_mock = tarball_server
         .mock("GET", requested_path)
@@ -972,13 +963,8 @@ fn remote_tarball_behind_head_405_falls_back_to_get() {
         .create();
     let requested_url = format!("{}{requested_path}", tarball_server.url());
 
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({ "dependencies": { "pkg-from-tarball": &requested_url } }).to_string(),
-    )
-    .expect("write package.json");
     pacquet_at(&workspace)
-        .with_arg("install")
+        .with_args(["add", &requested_url])
         .assert()
         .success();
 
@@ -988,5 +974,8 @@ fn remote_tarball_behind_head_405_falls_back_to_get() {
         "lockfile must record post-redirect URL:\n{lockfile}",
     );
 
-    drop((head_mock, redirect_mock, get_mock, tarball_server, root, mock_instance));
+    head_mock.assert();
+    redirect_mock.assert();
+    get_mock.assert();
+    drop((tarball_server, root, mock_instance));
 }

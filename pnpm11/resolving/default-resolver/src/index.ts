@@ -122,6 +122,7 @@ export function createResolver (
       localCtx,
       runtimes,
       fetchFromRegistry,
+      tarballOptions: { getAuthHeader, retry: pnpmOpts.retry },
     }),
     resolveLatest: buildResolveLatestFunction({
       npmResolvers,
@@ -163,6 +164,7 @@ interface ResolveFunctionContext {
   localCtx: { preserveAbsolutePaths?: boolean }
   runtimes: RuntimeResolvers
   fetchFromRegistry: FetchFromRegistry
+  tarballOptions: Parameters<typeof resolveFromTarball>[2]
 }
 
 function buildResolveFunction (ctx: ResolveFunctionContext): DefaultResolver {
@@ -192,7 +194,7 @@ async function dispatchResolve (
     await ctx.npmResolvers.resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
     (spec && (
       await ctx.resolveFromGit(spec, opts) ??
-      await resolveFromTarball(ctx.fetchFromRegistry, spec) ??
+      await resolveFromTarball(ctx.fetchFromRegistry, spec, ctx.tarballOptions) ??
       await resolveFromLocalScheme(ctx.localCtx, spec, opts)
     )) ??
     await ctx.runtimes.resolveNode(wantedDependency, opts) ??
@@ -254,13 +256,14 @@ export function createResolutionVerifiers (
   fetchFromRegistry: FetchFromRegistry,
   opts: ResolutionVerifierFactoryOptions
 ): ResolutionVerifier[] {
+  const getAuthHeaderValueByURI = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const fetchOpts = {
+    getAuthHeader: getAuthHeaderValueByURI,
     fetch: fetchFromRegistry,
     retry: opts.retry ?? {},
     timeout: opts.timeout ?? 60_000,
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10_000,
   }
-  const getAuthHeaderValueByURI = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const verifiers: ResolutionVerifier[] = []
   const npmVerifier = createNpmResolutionVerifier({
     minimumReleaseAge: opts.minimumReleaseAge,

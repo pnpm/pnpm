@@ -668,7 +668,7 @@ This can also be configured via the `--config.pnprServer=<url>` command-line opt
 
 If the server refuses a setting the install uses, or cannot return the lockfile format pnpm reads, pnpm prints a warning and resolves locally.
 
-When `pnprServer` is set, authentication headers configured for the pnpr server URL in `.npmrc` (for example, `//pnpr.example.com/:_authToken=...`) are automatically sent to authenticate requests to the server.
+When `pnprServer` is set, authentication headers configured for the pnpr server URL in `.npmrc` (for example, `//pnpr.example.com/:_authToken=...`) authenticate requests to the server over HTTPS or loopback HTTP.
 
 When remote resolution fails, pnpm reports the server's `ERR_PNPR_` error code and reason.
 

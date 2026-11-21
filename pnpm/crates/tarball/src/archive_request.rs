@@ -2,7 +2,6 @@ use crate::{
     HttpStatusError,
     NetworkError,
     TarballError,
-    auth_header_for_package_download,
 };
 use pnpm_network::{
     AuthHeaders,
@@ -29,6 +28,7 @@ pub struct CacheHeaders {
     pub vary: Option<String>,
 }
 
+#[derive(Debug)]
 pub(crate) struct ArchiveResponseMeta {
     pub not_modified: bool,
     pub cache_headers: CacheHeaders,
@@ -60,25 +60,14 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
             url: pnpm_network::redact_url_credentials(package_url),
         });
     }
-    let client = match content_coding {
-        ArchiveContentCoding::Negotiated => {
-            http_client.acquire_archive_for_url_with_priority(
-                package_url,
-                priority,
-                !revision_addressed,
-            )
-            .await
-        }
-        ArchiveContentCoding::DecodedByClient if revision_addressed => {
-            http_client.acquire_for_url_without_redirects_with_priority(package_url, priority).await
-        }
-        ArchiveContentCoding::DecodedByClient => {
-            http_client.acquire_for_url_with_priority(package_url, priority).await
-        }
+    let options = pnpm_network::ScopedGetOptions {
+        priority,
+        decode_content: content_coding == ArchiveContentCoding::DecodedByClient,
+        follow_redirects: !revision_addressed,
     };
     let sent = send_archive_request(
         http_client,
-        &client,
+        options,
         ArchiveRequest { package_url, package_id, auth_headers, if_none_match, content_coding },
     )
     .await;
@@ -86,9 +75,9 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     let size = sent
         .as_ref()
         .ok()
-        .and_then(reqwest::Response::content_length);
+        .and_then(|(response, _)| response.content_length());
     emit_started::<Reporter>(attempt, package_id.to_owned(), size);
-    let response =
+    let (response, client) =
         sent.map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
     let meta = response_meta(&response);
     let response =
@@ -191,22 +180,30 @@ struct ArchiveRequest<'a> {
     content_coding: ArchiveContentCoding,
 }
 
-async fn send_archive_request(
-    http_client: &ThrottledClient,
-    client: &ThrottledClientGuard<'_>,
+async fn send_archive_request<'client>(
+    http_client: &'client ThrottledClient,
+    options: pnpm_network::ScopedGetOptions,
     archive: ArchiveRequest<'_>,
-) -> Result<reqwest::Response, reqwest::Error> {
+) -> Result<(reqwest::Response, ThrottledClientGuard<'client>), reqwest::Error> {
     if let Some(response) = archive.auth_headers.fetch_local(
         archive.package_url,
         Some(archive.package_id),
         reqwest::header::HeaderMap::new(),
     ) {
-        return Ok(response.await);
+        let client =
+            http_client.acquire_for_url_with_priority(archive.package_url, options.priority).await;
+        return Ok((response.await, client));
     }
+    let authorize = pnpm_network::scoped_redirect_auth(archive.package_url, |url| {
+        archive.auth_headers.for_secure_url_with_package(url, Some(archive.package_id))
+    });
     let mut attempt = 0;
     loop {
-        let request = build_archive_request(client, archive);
-        let error = match request.send().await {
+        let sent = http_client.scoped_get(archive.package_url, options, |request, url| {
+            build_archive_request(request, archive, authorize(url))
+        })
+        .await;
+        let error = match sent {
             Ok(response) => return Ok(response),
             Err(error) => error,
         };
@@ -220,18 +217,12 @@ async fn send_archive_request(
 }
 
 fn build_archive_request(
-    client: &ThrottledClientGuard<'_>,
+    mut request: reqwest::RequestBuilder,
     archive: ArchiveRequest<'_>,
+    authorization: Option<String>,
 ) -> reqwest::RequestBuilder {
-    let ArchiveRequest {
-        package_url,
-        package_id,
-        auth_headers,
-        if_none_match,
-        content_coding,
-    } = archive;
-    let mut request = client.get(package_url);
-    if let Some(value) = auth_header_for_package_download(auth_headers, package_url, package_id) {
+    let ArchiveRequest { if_none_match, content_coding, .. } = archive;
+    if let Some(value) = authorization {
         request = request.header("authorization", value);
     }
     if let Some(etag) = if_none_match {

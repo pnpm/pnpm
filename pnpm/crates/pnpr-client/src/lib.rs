@@ -676,6 +676,7 @@ mod blob_transfer;
 mod pipeline_runs;
 use artifacts::ARTIFACT_REQUEST_TIMEOUT;
 
+mod resolution_request;
 mod resolve;
 use resolve::{
     NdjsonLimits,

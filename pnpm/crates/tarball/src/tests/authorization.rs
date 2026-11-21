@@ -8,37 +8,11 @@ use super::{
     TarballError,
     ThrottledClient,
     assert_eq,
-    auth_header_for_package_download,
     fast_retry_opts,
     fetch_and_extract_with_retry,
     integrity,
     tempdir_with_leaked_path,
 };
-
-#[test]
-fn node_runtime_downloads_do_not_send_auth_over_remote_http() {
-    let auth_headers = AuthHeaders::from_creds_map([(
-        "//mirror.example/".to_string(),
-        "Bearer mirror-token".to_string(),
-    )]);
-    assert_eq!(
-        auth_header_for_package_download(
-            &auth_headers,
-            "http://mirror.example/node.tar.gz",
-            "node@runtime:22.0.0",
-        ),
-        None,
-    );
-    assert_eq!(
-        auth_header_for_package_download(
-            &auth_headers,
-            "https://mirror.example/node.tar.gz",
-            "node@runtime:22.0.0",
-        )
-        .as_deref(),
-        Some("Bearer mirror-token"),
-    );
-}
 
 /// `FetchTarballForResolution` must forward its `package_id` (the package's
 /// `name@version`) for auth/scope selection, so a private scoped registry tarball

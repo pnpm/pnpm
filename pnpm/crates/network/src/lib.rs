@@ -55,7 +55,11 @@ pub use redirect_guard::{
     is_blocked_redirect,
     origins_redirect_guard,
 };
-pub use requests::HeadError;
+pub use requests::{
+    HeadError,
+    ScopedGetOptions,
+    scoped_redirect_auth,
+};
 pub use retry::{
     RetryOpts,
     retry_async,

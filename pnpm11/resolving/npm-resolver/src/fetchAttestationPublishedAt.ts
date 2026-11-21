@@ -35,6 +35,7 @@ export async function fetchAttestationPublishedAt (
   opts: FetchAttestationOptions
 ): Promise<string | undefined> {
   const url = `${opts.registry.replace(/\/$/, '')}/-/npm/v1/attestations/${pkgName}@${version}`
+  const getRedirectAuthHeader = (target: string): string | undefined => fetchOpts.getAuthHeader?.(target, { pkgName })
   const retryOperation = retry.operation(fetchOpts.retry)
   return new Promise<string | undefined>((resolve) => {
     retryOperation.attempt(async () => {
@@ -42,6 +43,7 @@ export async function fetchAttestationPublishedAt (
       try {
         response = await fetchOpts.fetch(url, {
           authHeaderValue: opts.authHeaderValue,
+          getRedirectAuthHeader,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
         })

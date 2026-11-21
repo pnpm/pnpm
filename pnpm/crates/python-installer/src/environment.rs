@@ -207,7 +207,7 @@ pub(super) async fn resolve_via_pnpr(
         target: target.clone(),
         index: index.to_string(),
         requires_python,
-        authorization: config.auth_headers.for_url(pnpr_server),
+        authorization: config.auth_headers.for_secure_url(pnpr_server),
     })
     .await;
     match resolved {

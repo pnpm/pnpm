@@ -334,7 +334,23 @@ impl FetchTarballForResolution<'_> {
         mem_cache: Option<&MemCache>,
         if_none_match: Option<&str>,
     ) -> Result<TarballResolutionFetch, TarballError> {
-        match self.fetch_extracted::<Reporter>(if_none_match).await? {
+        let prepared = mem_cache
+            .filter(|_| {
+                self.package.integrity.is_none()
+                    && if_none_match.is_none()
+                    && !self.revision_addressed
+                    && self.manifest_subdir.is_none()
+                    && self.package.id == self.package.url
+            })
+            .and_then(|cache| cache.add_archives.get()?.remove(self.package.url));
+        let fetched = match prepared {
+            Some((_, archive)) => {
+                self.check_add_archive_access()?;
+                FetchedBody::Extracted(Box::new(self.process_extracted(*archive).await?))
+            }
+            None => self.fetch_extracted::<Reporter>(if_none_match).await?,
+        };
+        match fetched {
             FetchedBody::NotModified(response) => Ok(TarballResolutionFetch::NotModified(response)),
             FetchedBody::Extracted(extracted) => {
                 if let Some(mem_cache) = mem_cache {
@@ -362,14 +378,46 @@ impl FetchTarballForResolution<'_> {
         if self.revision_addressed { IntegrityKind::Tar } else { self.package.integrity_kind }
     }
 
-    /// Resolve-time tarball fetches compute integrity from bytes and
-    /// gate the dependency walk, so they use the same priority class as
-    /// packument requests instead of queuing behind sized downloads.
-    async fn fetch_extracted<Reporter: self::Reporter>(
+    /// Read the manifest needed to name a remote add selector. The install takes
+    /// the extraction and writes its index row using the install's writer.
+    pub async fn prepare_add(
+        &self,
+        cache: &MemCache,
+    ) -> Result<Option<serde_json::Value>, TarballError> {
+        self.check_add_archive_access()?;
+        let archives = cache.add_archives.get_or_init(Default::default);
+        if let Some(entry) = archives.get(self.package.url) {
+            return Ok(entry.index.manifest.clone());
+        }
+        match self.fetch_archive::<pnpm_reporter::SilentReporter>(None).await? {
+            AttemptedFetch::Extracted(archive) => {
+                let entry = archives.entry(self.package.url.to_owned()).or_insert(archive);
+                Ok(entry.index.manifest.clone())
+            }
+            AttemptedFetch::NotModified(_) => {
+                Err(TarballError::HttpStatus(crate::HttpStatusError {
+                    url: self.package.url.to_owned(),
+                    status: 304,
+                }))
+            }
+        }
+    }
+
+    fn check_add_archive_access(&self) -> Result<(), TarballError> {
+        if !self.auth_headers.allows_fetch(self.package.url) {
+            return Err(TarballError::OffAllowlist {
+                url: pnpm_network::redact_url_credentials(self.package.url),
+            });
+        }
+        self.auth_headers.record_route(self.package.url, Some(self.package.id));
+        Ok(())
+    }
+
+    async fn fetch_archive<Reporter: self::Reporter>(
         &self,
         if_none_match: Option<&str>,
-    ) -> Result<FetchedBody, TarballError> {
-        let fetched = fetch_and_extract_conditional::<Reporter>(
+    ) -> Result<AttemptedFetch, TarballError> {
+        fetch_and_extract_conditional::<Reporter>(
             self.http_client,
             self.package.url,
             &ArchiveVerification::new(self.package.integrity, self.kind()),
@@ -386,7 +434,17 @@ impl FetchTarballForResolution<'_> {
             self.revision_addressed,
             if_none_match,
         )
-        .await?;
+        .await
+    }
+
+    /// Resolve-time tarball fetches compute integrity from bytes and
+    /// gate the dependency walk, so they use the same priority class as
+    /// packument requests instead of queuing behind sized downloads.
+    async fn fetch_extracted<Reporter: self::Reporter>(
+        &self,
+        if_none_match: Option<&str>,
+    ) -> Result<FetchedBody, TarballError> {
+        let fetched = self.fetch_archive::<Reporter>(if_none_match).await?;
         match fetched {
             AttemptedFetch::NotModified(meta) => {
                 Ok(FetchedBody::NotModified(NotModifiedResponse {

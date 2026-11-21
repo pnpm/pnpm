@@ -1,3 +1,4 @@
+import { isIP } from 'node:net'
 import { URL } from 'node:url'
 
 import { PnpmError, redactUrlCredentials } from '@pnpm/error'
@@ -78,6 +79,13 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
   })
 }
 
+export function isUrlSecureForCredentials (url: string): boolean {
+  const { hostname, protocol } = new URL(url)
+  return protocol === 'https:' || (protocol === 'http:' && (
+    hostname === 'localhost' || hostname === '[::1]' || (isIP(hostname) === 4 && hostname.startsWith('127.'))
+  ))
+}
+
 function createRequestHeaders (userAgent: string | undefined, opts: FetchFromRegistryRequestOptions): Record<string, string> {
   const headers: Record<string, string> = {
     'user-agent': USER_AGENT,
@@ -96,14 +104,8 @@ function createRequestHeaders (userAgent: string | undefined, opts: FetchFromReg
   }
   // Merge caller-provided headers (e.g. content-type, npm-otp) on top
   if (opts?.headers) {
-    Object.assign(headers, toHeaderRecord(opts.headers))
+    Object.assign(headers, Object.fromEntries(new Headers(opts.headers).entries()))
   }
-  return headers
-}
-
-function toHeaderRecord (headers: NonNullable<RequestInit['headers']>): object {
-  if (headers instanceof Headers) return Object.fromEntries(headers.entries())
-  if (Array.isArray(headers)) return Object.fromEntries(headers)
   return headers
 }
 
@@ -149,20 +151,25 @@ async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clien
     }
 
     redirects++
-    // This is a workaround to remove authorization headers on redirect.
-    // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
     urlObject = resolveRedirectUrl(response, urlObject)
     // The permit stays with the body. Drop it before the next hop so a
     // redirect chain cannot pin a connection slot.
     await response.body?.cancel()
-    if (originalOrigin !== urlObject.origin) {
-      if (opts?.body != null) {
-        throw new PnpmError('REDIRECT_BODY_CROSS_ORIGIN', `Cannot replay request body across origins: ${redactUrlCredentials(urlObject.toString())}`)
-      }
-      removeCredentialHeaders(headers)
-    }
+    scopeRedirectHeaders(urlObject, originalOrigin !== urlObject.origin, opts, headers)
   }
   /* eslint-enable no-await-in-loop */
+}
+
+function scopeRedirectHeaders (url: URL, crossOrigin: boolean, opts: FetchFromRegistryRequestOptions, headers: Record<string, string>): void {
+  if (crossOrigin) {
+    if (opts?.body != null) {
+      throw new PnpmError('REDIRECT_BODY_CROSS_ORIGIN', `Cannot replay request body across origins: ${redactUrlCredentials(url.toString())}`)
+    }
+    removeCredentialHeaders(headers)
+  } else if (headers.authorization && opts?.getRedirectAuthHeader &&
+      opts.getRedirectAuthHeader(url.href) !== headers.authorization) {
+    removeCredentialHeaders(headers)
+  }
 }
 
 function removeCredentialHeaders (headers: Record<string, string>): void {

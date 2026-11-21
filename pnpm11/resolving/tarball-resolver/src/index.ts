@@ -1,4 +1,5 @@
-import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
+import { isUrlSecureForCredentials } from '@pnpm/network.fetch'
 import type { LatestInfo, LatestQuery, PkgResolutionId, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 
 export interface TarballResolveResult extends ResolveResult {
@@ -9,7 +10,8 @@ export interface TarballResolveResult extends ResolveResult {
 
 export async function resolveFromTarball (
   fetchFromRegistry: FetchFromRegistry,
-  wantedDependency: { bareSpecifier: string }
+  wantedDependency: { alias?: string, bareSpecifier: string },
+  opts?: { getAuthHeader?: GetAuthHeader, retry?: RetryTimeoutOptions }
 ): Promise<TarballResolveResult | null> {
   if (!wantedDependency.bareSpecifier.startsWith('http:') && !wantedDependency.bareSpecifier.startsWith('https:')) {
     return null
@@ -20,11 +22,17 @@ export async function resolveFromTarball (
   let resolvedUrl: string
 
   // If there are redirects and the response is immutable, we want to get the final URL address
-  let response = await fetchFromRegistry(normalizedBareSpecifier, { method: 'HEAD' })
-  if (response.status === 405) {
-    response = await fetchFromRegistry(normalizedBareSpecifier, { method: 'GET' })
+  const getAuthHeader = (url: string): string | undefined => opts?.getAuthHeader?.(url, { pkgName: wantedDependency.alias })
+  const requestOptions = {
+    authHeaderValue: isUrlSecureForCredentials(normalizedBareSpecifier) ? getAuthHeader(normalizedBareSpecifier) : undefined,
+    getRedirectAuthHeader: getAuthHeader,
+    retry: opts?.retry,
   }
-  if (response?.headers?.get('cache-control')?.includes('immutable')) {
+  let response = await fetchFromRegistry(normalizedBareSpecifier, { ...requestOptions, method: 'HEAD' })
+  if (response.status === 405) {
+    response = await fetchFromRegistry(normalizedBareSpecifier, { ...requestOptions, method: 'GET' })
+  }
+  if (response.status >= 200 && response.status < 300 && response.headers?.get('cache-control')?.split(',').some(directive => directive.trim().toLowerCase() === 'immutable')) {
     resolvedUrl = response.url
   } else {
     resolvedUrl = normalizedBareSpecifier

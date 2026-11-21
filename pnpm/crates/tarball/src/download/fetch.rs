@@ -149,6 +149,7 @@ async fn fetch_remote<Reporter: self::Reporter>(
     })))
 }
 
+#[derive(Debug)]
 pub(crate) struct ExtractedArchive {
     pub integrity: crate::ArchiveIntegrity,
     pub files: pnpm_fs::CasPaths,

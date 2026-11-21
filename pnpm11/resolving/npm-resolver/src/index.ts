@@ -130,6 +130,7 @@ export function createNpmResolver (
   }
   const fetchOpts: FetchMetadataFromFromRegistryOptions = {
     fetch: fetchFromRegistry,
+    getAuthHeader,
     retry: opts.retry ?? {},
     timeout: opts.timeout ?? 60000,
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10 * 1000, // 10 sec

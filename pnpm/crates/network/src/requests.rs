@@ -17,6 +17,20 @@ use super::{
     retry,
 };
 
+/// Transport settings for a registry GET whose headers are rebuilt on each hop.
+#[derive(Clone, Copy)]
+pub struct ScopedGetOptions {
+    pub priority: u64,
+    pub decode_content: bool,
+    pub follow_redirects: bool,
+}
+
+impl Default for ScopedGetOptions {
+    fn default() -> Self {
+        Self { priority: UNPRIORITIZED, decode_content: true, follow_redirects: true }
+    }
+}
+
 impl ThrottledClient {
     async fn read_response(
         &self,
@@ -155,13 +169,7 @@ impl ThrottledClient {
         url: &str,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
-        self.package_response_with_scoped_headers(
-            reqwest::Method::GET,
-            url,
-            UNPRIORITIZED,
-            configure,
-        )
-        .await
+        self.scoped_get(url, ScopedGetOptions::default(), configure).await
     }
 
     /// Like [`Self::get_response_with_scoped_headers`], validating the initial
@@ -177,7 +185,7 @@ impl ThrottledClient {
             url,
             None,
             guard,
-            UNPRIORITIZED,
+            ScopedGetOptions::default(),
             configure,
         )
         .await
@@ -199,7 +207,7 @@ impl ThrottledClient {
             url,
             Some(timeout),
             None,
-            UNPRIORITIZED,
+            ScopedGetOptions::default(),
             configure,
         )
         .await
@@ -219,7 +227,7 @@ impl ThrottledClient {
             url,
             Some(timeout),
             guard,
-            UNPRIORITIZED,
+            ScopedGetOptions::default(),
             configure,
         )
         .await
@@ -232,42 +240,46 @@ impl ThrottledClient {
         url: &str,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
-        self.package_response_with_scoped_headers(
+        self.response_with_scoped_headers(
             reqwest::Method::HEAD,
             url,
-            UNPRIORITIZED,
+            None,
+            None,
+            ScopedGetOptions::default(),
             configure,
         )
         .await
+        .map_err(HeadError::into_request_error)
     }
 
-    pub(super) async fn package_response_with_scoped_headers(
+    pub async fn scoped_get(
         &self,
-        method: reqwest::Method,
         url: &str,
-        priority: u64,
+        options: ScopedGetOptions,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
-        self.response_with_scoped_headers(method, url, None, None, priority, configure)
+        self.response_with_scoped_headers(reqwest::Method::GET, url, None, None, options, configure)
             .await
             .map_err(HeadError::into_request_error)
     }
 
-    async fn response_with_scoped_headers(
+    pub(super) async fn response_with_scoped_headers(
         &self,
         method: reqwest::Method,
         url: &str,
         head_timeout: Option<Duration>,
         guard: Option<&RedirectGuard>,
-        priority: u64,
+        options: ScopedGetOptions,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), HeadError> {
         let mut current_url = url.to_string();
         let mut head_budget = head_timeout;
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
             ensure_hop_url_allowed(&current_url, guard)?;
-            let client =
-                self.acquire_for_url_without_redirects_with_priority(&current_url, priority).await;
+            let client = self.acquire_with_client(&current_url, options.priority, |clients| {
+                clients.select(false, options.decode_content)
+            })
+            .await;
             let hop_started = client.acquired_at();
             let deadline = head_budget.map(|budget| hop_started + budget);
             let request = configure(client.request(method.clone(), &current_url), &current_url);
@@ -279,7 +291,9 @@ impl ThrottledClient {
                 })?
                 .inspect_err(|error| self.downscale_on_timeout(&current_url, error))
                 .map_err(classify_hop_error)?;
-            if let Some(target) = next_redirect_target(&response, redirect_count) {
+            if options.follow_redirects
+                && let Some(target) = next_redirect_target(&response, redirect_count)
+            {
                 ensure_target_allowed(&target, guard)?;
                 head_budget =
                     head_budget.map(|budget| budget.saturating_sub(hop_started.elapsed()));
@@ -336,6 +350,24 @@ impl ThrottledClient {
     }
 }
 
+/// Keep the initial authorization on same-origin redirects within its credential scope.
+pub fn scoped_redirect_auth(
+    url: &str,
+    lookup: impl Fn(&str) -> Option<String>,
+) -> impl Fn(&str) -> Option<String> {
+    let authorization = lookup(url);
+    move |target| {
+        let value = authorization.as_ref()?;
+        if target == url {
+            return Some(value.clone());
+        }
+        if reqwest::Url::parse(url).ok()?.origin() != reqwest::Url::parse(target).ok()?.origin() {
+            return None;
+        }
+        lookup(target).filter(|header| header == value)
+    }
+}
+
 pub(super) fn authorize_without_downgrade<'auth>(
     auth_headers: &'auth AuthHeaders,
     start_url: &str,
@@ -363,7 +395,7 @@ pub enum HeadError {
 
 impl HeadError {
     /// The request error of a call that set no head deadline or custom guard.
-    fn into_request_error(self) -> reqwest::Error {
+    pub(super) fn into_request_error(self) -> reqwest::Error {
         match self {
             Self::Request(error) | Self::BlockedUrl(Some(error)) => error,
             Self::BlockedUrl(None) => {
