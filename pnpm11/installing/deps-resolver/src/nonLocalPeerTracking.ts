@@ -307,7 +307,10 @@ function isAuthorizedLockfileNonLocalParent (
     key: string
   }
 ): boolean {
-  if (ctx.authorizedNonLocalPeerSpecsByPkgId.get(baseKey as PkgResolutionId)?.has(key)) {
+  // A git or tarball parent is recorded under its bare source, which its
+  // lockfile key prefixes with the package name.
+  const resolverIds = [baseKey, parsed.version == null ? parsed.nonSemverVersion : undefined]
+  if (resolverIds.some((pkgId) => pkgId != null && ctx.authorizedNonLocalPeerSpecsByPkgId.get(pkgId as PkgResolutionId)?.has(key))) {
     return true
   }
   const parent: ParentIdentity = {

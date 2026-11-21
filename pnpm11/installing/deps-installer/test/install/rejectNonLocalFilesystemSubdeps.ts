@@ -593,3 +593,39 @@ test('hoisted local peer authorizations are scoped to the declaring parent and i
     }
   )
 })
+
+test('a hook-authorized local peer of a remote Git parent reinstalls with a lockfile', async () => {
+  prepareEmpty()
+  for (const [dir, name] of [['helper-outside', 'helper'], ['other-outside', 'other']]) {
+    fs.mkdirSync(path.resolve('..', dir), { recursive: true })
+    fs.writeFileSync(path.resolve('..', dir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+  }
+  const gitRepoDir = path.resolve('..', 'git-remote')
+  fs.mkdirSync(gitRepoDir, { recursive: true })
+  fs.writeFileSync(path.join(gitRepoDir, 'package.json'), JSON.stringify({
+    name: 'git-remote',
+    version: '1.0.0',
+    peerDependencies: { helper: '^1.0.0' },
+  }))
+  const localGitSpec = await commitLocalGitRepo(gitRepoDir)
+  const served = await serveGitRepoOverHttp(gitRepoDir, localGitSpec.slice(localGitSpec.lastIndexOf('#') + 1))
+  const readPackage: ReadPackageHook = (pkg) => {
+    if (pkg.name === 'git-remote' && pkg.peerDependencies != null) {
+      pkg.peerDependencies.helper = 'link:../helper-outside'
+    }
+    return pkg
+  }
+  try {
+    const dependencies = { 'git-remote': served.gitSpec }
+    await install(
+      { name: 'app', version: '1.0.0', dependencies },
+      testDefaults({ autoInstallPeers: true, hooks: { readPackage: [readPackage] } })
+    )
+    await install(
+      { name: 'app', version: '1.0.0', dependencies: { ...dependencies, other: 'link:../other-outside' } },
+      testDefaults({ autoInstallPeers: true, hooks: { readPackage: [readPackage] } })
+    )
+  } finally {
+    await served.close()
+  }
+})

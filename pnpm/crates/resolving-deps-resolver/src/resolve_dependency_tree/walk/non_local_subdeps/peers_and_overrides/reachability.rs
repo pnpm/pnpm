@@ -272,7 +272,11 @@ fn lockfile_entry_untrusted_peer_parent(
     }
     let key_str = pkg_key.to_string();
     let peer = (alias.to_string(), spec.to_string());
-    if is_in_memory_authorized_peer(&ctx.workspace.policy.local_subdeps, &key_str, &peer) {
+    if resolver_ids_of(pkg_key, &key_str)
+        .any(|pkg_id| {
+            is_in_memory_authorized_peer(&ctx.workspace.policy.local_subdeps, pkg_id, &peer)
+        })
+    {
         return None;
     }
     let name_str = pkg_key.name.to_string();
@@ -283,6 +287,21 @@ fn lockfile_entry_untrusted_peer_parent(
     (!override_authorizes_spec(ctx, Some((&name_str, ver_str.as_deref())), alias, spec)).then_some(
         key_str,
     )
+}
+
+/// The ids the resolver may have recorded `pkg_key` under. A registry
+/// package's id is its key. A git or tarball package's id is the bare source
+/// its key prefixes with the package name.
+fn resolver_ids_of<'a>(
+    pkg_key: &PkgNameVerPeer,
+    key_str: &'a str,
+) -> impl Iterator<Item = &'a str> {
+    let bare_source = pkg_key.suffix
+        .version_semver()
+        .is_none()
+        .then(|| key_str.strip_prefix(&format!("{}@", pkg_key.name)))
+        .flatten();
+    std::iter::once(key_str).chain(bare_source)
 }
 
 fn is_in_memory_authorized_peer(

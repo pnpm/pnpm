@@ -381,3 +381,62 @@ fn non_registry_tarball_parent_never_falls_back_to_registry_packument_for_ranged
 
     drop((root, server));
 }
+
+#[test]
+fn hook_authorized_local_peer_of_a_remote_git_parent_reinstalls_with_a_lockfile() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (home, auth_file) = setup_host_secrets(root.path());
+    for (dir, name) in [("helper-outside", "helper"), ("other-outside", "other")] {
+        let path = root.path().join(dir);
+        fs::create_dir_all(&path).expect("create local package");
+        fs::write(
+            path.join("package.json"),
+            json!({ "name": name, "version": "1.0.0" }).to_string(),
+        )
+        .expect("write local manifest");
+    }
+    let git_repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "git-remote");
+    git_repo.write_file(
+        "package.json",
+        &json!({
+            "name": "git-remote",
+            "version": "1.0.0",
+            "peerDependencies": { "helper": "^1.0.0" },
+        })
+        .to_string(),
+    );
+    let commit = git_repo.commit("init");
+    let served_git = git_repo.serve_http();
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage(pkg) {\n  if (pkg.name === 'git-remote' && pkg.peerDependencies) {\n    pkg.peerDependencies.helper = 'link:../helper-outside';\n  }\n  return pkg;\n} } };\n",
+    )
+    .expect("write .pnpmfile.cjs");
+    let write_manifest = |extra: Option<(&str, &str)>| {
+        let mut dependencies = json!({
+            "git-remote": served_git.git_url_at(&commit),
+        });
+        if let Some((alias, spec)) = extra {
+            dependencies[alias] = json!(spec);
+        }
+        fs::write(
+            workspace.join("package.json"),
+            json!({ "name": "app", "version": "1.0.0", "dependencies": dependencies }).to_string(),
+        )
+        .expect("write package.json");
+    };
+
+    write_manifest(None);
+    pnpm_cmd(&workspace, &home, &auth_file)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    write_manifest(Some(("other", "link:../other-outside")));
+    pnpm_cmd(&workspace, &home, &auth_file)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    drop((root, served_git));
+}

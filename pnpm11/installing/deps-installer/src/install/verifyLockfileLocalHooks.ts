@@ -155,19 +155,17 @@ async function probeSingleCandidate (
   // Fresh resolution rewrites in-archive `file:` dependencies before hooks
   // run, so the replay and its rewrite baseline do too.
   const prepared = pristine != null ? linkFileDepsInsidePackage(pristine as DependencyManifest) : undefined
-  const hooked = await runReadPackageProbe(candidate, prepared, activeHooks, opts.lockfileDir, PROBE_SENTINEL_SPEC)
+  const hookSettings = { hooks: activeHooks, lockfileDir: opts.lockfileDir }
+  const hooked = await runReadPackageProbe(hookSettings, { candidate, pristine: prepared, sentinel: PROBE_SENTINEL_SPEC })
   const altHooked = prepared == null
-    ? await runReadPackageProbe(candidate, undefined, activeHooks, opts.lockfileDir, PROBE_ALT_SENTINEL_SPEC)
+    ? await runReadPackageProbe(hookSettings, { candidate, sentinel: PROBE_ALT_SENTINEL_SPEC })
     : undefined
   if (hooked != null) recordHookedCandidateRewrites(candidate, { pristine: prepared, hooked, altHooked }, acc.rewrites)
 }
 
 async function runReadPackageProbe (
-  candidate: ProbeCandidate,
-  pristine: PackageManifest | undefined,
-  hooks: ReadPackageHook[],
-  lockfileDir: string | undefined,
-  sentinel: string
+  { hooks, lockfileDir }: { hooks: ReadPackageHook[], lockfileDir: string | undefined },
+  { candidate, pristine, sentinel }: { candidate: ProbeCandidate, pristine?: PackageManifest, sentinel: string }
 ): Promise<PackageManifest | undefined> {
   let pkg: PackageManifest = pristine != null
     ? clone(pristine)

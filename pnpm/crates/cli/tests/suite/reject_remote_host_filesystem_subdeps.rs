@@ -152,7 +152,7 @@ fn assert_no_leaked_host_files(workspace: &Path) {
 /// Every entry under `nm`. A dangling link is skipped, since a rejected
 /// install can leave one behind. Any other error fails the test rather than
 /// hiding the subtree below it.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum Links {
     /// Yield each symlink as an entry of its own.
     Inspect,
@@ -162,7 +162,10 @@ enum Links {
 
 fn walk_node_modules(nm: &Path, links: Links) -> Vec<walkdir::DirEntry> {
     WalkDir::new(nm)
-        .follow_links(links == Links::Follow)
+        .follow_links(match links {
+            Links::Inspect => false,
+            Links::Follow => true,
+        })
         .into_iter()
         .filter_map(|entry| match entry {
             Ok(entry) => Some(entry),
