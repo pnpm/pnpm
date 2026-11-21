@@ -5834,6 +5834,48 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
   })).toBe(10)
 })
 
+test('empty or whitespace-only numeric pnpm_config_* environment variables are ignored', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    fetchRetries: 5,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_network_concurrency: '',
+      pnpm_config_child_concurrency: '   ',
+      pnpm_config_fetch_retries: '',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.networkConcurrency).toBeUndefined()
+  expect(config.childConcurrency).toBeUndefined()
+  expect(config.fetchRetries).toBe(5)
+
+  const { config: zeroAndTrimmed } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_network_concurrency: ' 16 ',
+      pnpm_config_fetch_retries: '0',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(zeroAndTrimmed.networkConcurrency).toBe(16)
+  expect(zeroAndTrimmed.fetchRetries).toBe(0)
+})
+
 test('CLI should override environment variable pnpm_config_*', async () => {
   prepareEmpty()
 
