@@ -15,6 +15,7 @@ import { removeDepsFromManifests } from './removeDepsFromManifests.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { type GraphResolution, resolveProjects } from './resolveProjects.js'
 import { buildExoticSubdepsScopeFromContext } from './verifyLockfileExoticSubdeps.js'
+import { resolveLocalPolicyForInstall, withContextLocalPolicyOptions } from './verifyLockfileLocalResolutions.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
@@ -91,9 +92,15 @@ async function finalizeResolvedLockfile (
 ): Promise<LockfileObject> {
   const finalized = keepImportersOfProjectsMissingFromDisk(newLockfile, { projects, previousPackages })
   if (!opts.trustLockfile && opts.blockExoticSubdeps) {
+    const liveProjects = Object.values(ctx.projects)
     await verifyLockfileResolutions(finalized, [], {
       blockExoticSubdeps: true,
       exoticSubdepsScope: buildExoticSubdepsScopeFromContext(ctx, opts),
+      localPolicy: await resolveLocalPolicyForInstall(
+        finalized,
+        withContextLocalPolicyOptions(opts, ctx.workspacePackages, liveProjects),
+        liveProjects
+      ),
     })
   }
   return finalized

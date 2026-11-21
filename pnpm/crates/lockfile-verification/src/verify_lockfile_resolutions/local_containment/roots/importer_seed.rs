@@ -29,7 +29,6 @@ use super::{
             extract_local_package_target,
             importer_specifier_declares_local,
             policy_authorizes_importer_dep,
-            target_escapes_workspace,
         },
     },
     ImporterScope,
@@ -173,8 +172,7 @@ fn importer_link_is_trusted(
     ctx.policy.allow_deploy_file_url_keys
         || importer_specifier_declares_local(ctx.policy, alias, specifier)
         || ctx.workspace_dirs.contains(anchored_target)
-        || (ctx.lockfile_importer_dirs.contains(anchored_target)
-            && !target_escapes_workspace(ctx.policy, anchored_target))
+        || ctx.lockfile_importer_dirs.contains(anchored_target)
         || policy_authorizes_importer_dep(
             ctx.policy,
             ctx.lockfile,

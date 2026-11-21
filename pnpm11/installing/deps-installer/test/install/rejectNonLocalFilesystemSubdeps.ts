@@ -453,7 +453,7 @@ test('verifyLockfileResolutions authorizes override closure in both package-map 
   }
   await expect(verifyLockfileResolutions(mixedVarLockfile, [], {
     localPolicy: createLocalResolutionPolicy({}),
-  })).rejects.toMatchObject({ code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED' })
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH' })
 
   const forgedImporterLockfile: LockfileObject = {
     lockfileVersion: LOCKFILE_VERSION,

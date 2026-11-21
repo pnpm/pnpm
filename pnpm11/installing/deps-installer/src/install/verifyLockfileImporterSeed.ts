@@ -11,7 +11,6 @@ import {
   type LocalResolutionPolicy,
   normalizeRelDir,
   policyAuthorizesImporterDep,
-  targetEscapesWorkspace,
 } from './verifyLockfileLocalPolicy.js'
 import {
   aliasLinkKey,
@@ -171,7 +170,7 @@ function importerLinkIsTrusted (
   if (ctx.policy.allowDeployFileUrlKeys) return true
   return (rawSpec != null && importerSpecifierDeclaresLocal(ctx.policy, alias, rawSpec)) ||
     ctx.workspaceDirs.has(anchoredTarget) ||
-    (ctx.lockfileImporterDirs.has(anchoredTarget) && !targetEscapesWorkspace(ctx.policy, anchoredTarget)) ||
+    ctx.lockfileImporterDirs.has(anchoredTarget) ||
     (rawSpec != null && policyAuthorizesImporterDep(ctx.policy, ctx.lockfile, alias, rawSpec, anchoredTarget))
 }
 

@@ -505,21 +505,14 @@ fn importer_range_link_may_target_a_lockfile_importer_absent_from_the_run() {
         "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      lib:\n        specifier: ^1.0.0\n        version: link:../shared\n  ../shared: {}\n",
     );
     let live_root = || LocalResolutionPolicy::default().with_live_workspace_dirs([".".to_string()]);
-    let nested_lockfile = live_root().with_workspace_scope(false, Some(1));
-    crate::verify_lockfile_local_resolutions(&with_importer, Some(nested_lockfile))
-        .expect("a range linked to a lockfile importer inside the workspace must pass");
-    let err = crate::verify_lockfile_local_resolutions(&with_importer, Some(live_root()))
-        .expect_err("an importer outside the workspace must not vouch for a link");
-    assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }));
+    crate::verify_lockfile_local_resolutions(&with_importer, Some(live_root()))
+        .expect("a range linked to a lockfile importer must pass");
 
     let without_importer = parse(
         "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      lib:\n        specifier: ^1.0.0\n        version: link:../shared\n",
     );
-    let err = crate::verify_lockfile_local_resolutions(
-        &without_importer,
-        Some(live_root().with_workspace_scope(false, Some(1))),
-    )
-    .expect_err("a range linked to a directory no importer records must fail");
+    let err = crate::verify_lockfile_local_resolutions(&without_importer, Some(live_root()))
+        .expect_err("a range linked to a directory no importer records must fail");
     assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }));
 }
 

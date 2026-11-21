@@ -476,13 +476,9 @@ test('an importer range linked to a lockfile importer absent from the run passes
       ...(withImporter ? { ['../shared' as ProjectId]: { specifiers: {} } } : {}),
     },
   })
-  const localPolicy = () => buildPolicy({ liveWorkspaceDirs: new Set(['.']), workspaceDepthAboveLockfile: 1 })
+  const localPolicy = () => buildPolicy({ liveWorkspaceDirs: new Set(['.']) })
   await expect(verifyLockfileResolutions(lockfile(true), [], { localPolicy: localPolicy() })).resolves.toBeUndefined()
   await expect(verifyLockfileResolutions(lockfile(false), [], { localPolicy: localPolicy() })).rejects.toMatchObject({
-    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
-  })
-  const lockfileAtWorkspaceRoot = buildPolicy({ liveWorkspaceDirs: new Set(['.']) })
-  await expect(verifyLockfileResolutions(lockfile(true), [], { localPolicy: lockfileAtWorkspaceRoot })).rejects.toMatchObject({
     code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
   })
 })

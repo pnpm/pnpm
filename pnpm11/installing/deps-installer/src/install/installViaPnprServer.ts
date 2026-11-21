@@ -249,6 +249,7 @@ async function verifyExistingPnprLockfile ({
     await verifyLockfileResolutions(convertToLockfileObject(existingLockfile), [], {
       blockExoticSubdeps: true,
       exoticSubdepsScope,
+      localPolicy: localPolicyForInstallOptions({ ...opts, lockfileDir }),
     })
   }
 }

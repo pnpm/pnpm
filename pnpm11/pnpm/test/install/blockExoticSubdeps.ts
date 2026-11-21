@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
@@ -140,7 +141,43 @@ async function startTestServer (
   }
 }
 
+/**
+ * Serves a bare clone of `repoDir` over loopback HTTP using git's dumb
+ * protocol, so a registry package can reference it as a remote git
+ * dependency rather than a host-filesystem `git+file:` one.
+ */
+async function serveGitRepoOverHttp (
+  scratchRoot: string,
+  repoDir: string
+): Promise<{ gitSpec: string, close: () => Promise<void> }> {
+  const bareName = `${path.basename(repoDir)}.git`
+  const bareDir = path.join(scratchRoot, 'served', bareName)
+  execFileSync('git', ['clone', '--bare', repoDir, bareDir])
+  execFileSync('git', ['update-server-info'], { cwd: bareDir })
+  const server = http.createServer((req, res) => {
+    const urlPath = decodeURIComponent((req.url ?? '/').split('?')[0])
+    const filePath = path.join(scratchRoot, 'served', urlPath)
+    if (!filePath.startsWith(bareDir) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+      res.writeHead(404).end()
+      return
+    }
+    res.writeHead(200, { 'content-type': 'application/octet-stream' })
+    fs.createReadStream(filePath).pipe(res)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as AddressInfo
+  return {
+    gitSpec: `git+http://127.0.0.1:${port}/${bareName}#main`,
+    close: async () => new Promise<void>((resolve) => server.close(() => resolve())),
+  }
+}
+
 function initLocalGitPackage (scratchRoot: string, repoName: string): string {
+  const normalized = initLocalGitRepo(scratchRoot, repoName).replace(/\\/g, '/')
+  return normalized.startsWith('/') ? `git+file://${normalized}#main` : `git+file:///${normalized}#main`
+}
+
+function initLocalGitRepo (scratchRoot: string, repoName: string): string {
   const repoDir = path.join(scratchRoot, repoName)
   fs.mkdirSync(repoDir, { recursive: true })
   writeJsonFileSync(path.join(repoDir, 'package.json'), {
@@ -155,8 +192,7 @@ function initLocalGitPackage (scratchRoot: string, repoName: string): string {
   execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: repoDir })
   execFileSync('git', ['add', '.'], { cwd: repoDir })
   execFileSync('git', ['commit', '-m', 'init'], { cwd: repoDir })
-  const normalized = repoDir.replace(/\\/g, '/')
-  return normalized.startsWith('/') ? `git+file://${normalized}#main` : `git+file:///${normalized}#main`
+  return repoDir
 }
 
 async function runPnpm (
@@ -256,7 +292,8 @@ describe('lockfile blockExoticSubdeps verification', () => {
   test('frozen and warm installs reject a git subdependency', async () => {
     prepareEmpty()
     const scratchRoot = path.resolve('../git-exotic-fixtures')
-    const gitSpec = initLocalGitPackage(scratchRoot, 'exotic-git')
+    const servedGit = await serveGitRepoOverHttp(scratchRoot, initLocalGitRepo(scratchRoot, 'exotic-git'))
+    const gitSpec = servedGit.gitSpec
     const registryServer = await startTestServer(scratchRoot, {
       packages: [
         {
@@ -293,6 +330,7 @@ describe('lockfile blockExoticSubdeps verification', () => {
       expect(warmGit.output).toContain('ERR_PNPM_EXOTIC_SUBDEP')
     } finally {
       await registryServer.close()
+      await servedGit.close()
     }
   })
 
