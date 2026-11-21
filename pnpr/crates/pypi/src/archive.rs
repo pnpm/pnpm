@@ -90,15 +90,29 @@ fn validate_zip(
         remaining = remaining
             .checked_sub(entry.size())
             .ok_or_else(|| format!("ZIP exceeds {limit} decompressed bytes"))?;
-        if entry.is_symlink() {
-            return Err(format!("unsupported archive entry {name:?}"));
-        }
-        let path = if entry.is_dir() { paths.insert_directory(&name) } else { paths.insert(&name) };
-        path.ok_or_else(|| format!("invalid or duplicate archive path {name:?}"))?;
+        validate_zip_path(&mut paths, &name, entry.unix_mode())?;
         if index != metadata_index {
             verify_zip_size(entry)?;
         }
     }
+    Ok(())
+}
+
+fn validate_zip_path(
+    paths: &mut pnpr_package_name::ArchivePaths,
+    name: &str,
+    unix_mode: Option<u32>,
+) -> Result<(), String> {
+    const FILE_TYPE_MASK: u32 = 0o170_000;
+    const DIRECTORY: u32 = 0o040_000;
+    const REGULAR_FILE: u32 = 0o100_000;
+    let file_type = unix_mode.unwrap_or_default() & FILE_TYPE_MASK;
+    let path = match (file_type, name.ends_with('/')) {
+        (0 | DIRECTORY, true) => paths.insert_directory(name),
+        (0 | REGULAR_FILE, false) => paths.insert(name),
+        _ => return Err(format!("unsupported archive entry {name:?}")),
+    };
+    path.ok_or_else(|| format!("invalid or duplicate archive path {name:?}"))?;
     Ok(())
 }
 

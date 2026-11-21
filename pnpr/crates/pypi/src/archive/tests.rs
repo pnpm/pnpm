@@ -165,3 +165,19 @@ fn resolving_an_upstream_wheel_only_reads_its_metadata() {
     assert_eq!(super::metadata_from_wheel(&zip, filename).unwrap(), b"Name: sample");
     assert!(metadata_from_zip(&zip, filename, DistributionKind::Wheel).is_err());
 }
+
+#[test]
+fn zip_paths_accept_regular_files_and_directories_with_optional_type_bits() {
+    let mut paths = pnpr_package_name::ArchivePaths::default();
+    for (name, mode) in [
+        ("pkg/", Some(0o040_755)),
+        ("a.py", Some(0o100_644)),
+        ("b.py", Some(0o644)),
+        ("c.py", None),
+    ] {
+        super::validate_zip_path(&mut paths, name, mode).unwrap();
+    }
+    for mode in [0o010_644, 0o020_600, 0o060_600, 0o120_777, 0o140_600] {
+        assert!(super::validate_zip_path(&mut paths, "entry", Some(mode)).is_err());
+    }
+}
