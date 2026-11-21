@@ -855,6 +855,7 @@ fn pnpr_restart_prepare_step_returns_after_its_server_restarted() {
     let restart = |server| {
         thread::sleep(Duration::from_millis(100));
         restarted.lock().unwrap().push(server);
+        true
     };
     let listener = PnprRestartListener::bind();
 
@@ -887,16 +888,26 @@ fn pnpr_restart_prepare_step_fails_when_the_restart_fails() {
 fn pnpr_restart_listener_ignores_a_request_that_names_no_server() {
     let restarted = Mutex::new(Vec::new());
     let listener = PnprRestartListener::bind();
+    let send_stray = |request: &str| {
+        let mut stray = std::net::TcpStream::connect(("127.0.0.1", listener.port()))
+            .expect("connect to the restart listener");
+        writeln!(stray, "{request}").expect("send a stray request");
+        let mut reply = String::new();
+        stray.read_to_string(&mut reply).expect("read the stray reply");
+        reply
+    };
 
     listener.serve_during(
-        |server| restarted.lock().unwrap().push(server),
+        |server| {
+            if server != 0 {
+                return false;
+            }
+            restarted.lock().unwrap().push(server);
+            true
+        },
         || {
-            let mut stray = std::net::TcpStream::connect(("127.0.0.1", listener.port()))
-                .expect("connect to the restart listener");
-            writeln!(stray, "not a server").expect("send a stray request");
-            let mut reply = String::new();
-            stray.read_to_string(&mut reply).expect("read the stray reply");
-            assert_eq!(reply, "");
+            assert_eq!(send_stray("not a server"), "");
+            assert_eq!(send_stray("7"), "");
             assert!(run_prepare_step(&listener.prepare_command(0)).success());
         },
     );

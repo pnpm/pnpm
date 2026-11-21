@@ -483,7 +483,11 @@ impl WorkEnv {
             })
             .collect();
         listener.serve_during(
-            |server| self.restart_pnpr_server_with_empty_cache(&mut servers[server]),
+            |server| {
+                let Some(resolver) = servers.get_mut(server) else { return false };
+                self.restart_pnpr_server_with_empty_cache(resolver);
+                true
+            },
             || self.run_hyperfine(&prepare_commands),
         );
     }

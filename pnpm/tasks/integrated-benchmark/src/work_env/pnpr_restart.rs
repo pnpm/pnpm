@@ -76,8 +76,13 @@ impl PnprRestartListener {
     }
 
     /// Serve restart requests on a scoped thread while `run` executes.
-    /// `restart` receives the server index its [`Self::prepare_command`] named.
-    pub(super) fn serve_during(&self, restart: impl FnMut(usize) + Send, run: impl FnOnce()) {
+    /// `restart` receives the server index its [`Self::prepare_command`] named
+    /// and returns whether that index names one of the servers.
+    pub(super) fn serve_during(
+        &self,
+        restart: impl FnMut(usize) -> bool + Send,
+        run: impl FnOnce(),
+    ) {
         thread::scope(|scope| {
             scope.spawn(|| self.serve(restart));
             let _stop = StopOnDrop(self);
@@ -85,7 +90,7 @@ impl PnprRestartListener {
         });
     }
 
-    fn serve(&self, mut restart: impl FnMut(usize)) {
+    fn serve(&self, mut restart: impl FnMut(usize) -> bool) {
         for stream in self.listener.incoming() {
             if self.stopped.load(Ordering::Acquire) {
                 return;
@@ -94,7 +99,9 @@ impl PnprRestartListener {
             // Another local process may connect without naming a server. It
             // gets no acknowledgement, and the listener moves on.
             let Some(server) = Self::read_request(&stream) else { continue };
-            restart(server);
+            if !restart(server) {
+                continue;
+            }
             writeln!(stream, "{}", Self::ACK).expect("acknowledge the pnpr restart");
         }
     }
