@@ -56,6 +56,9 @@ no upstream opts in, a package available only upstream will not appear in search
 results. Hosted npm search results include maintainer and publisher usernames
 and omit the external package-page link.
 
+npm and Cargo search accept UTF-8 search terms. In a search term, `+` encodes a
+space and `%2B` encodes a literal plus sign.
+
 ## Browsing without a search term
 
 ```text

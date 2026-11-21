@@ -1,5 +1,3 @@
-use super::percent_decode;
-
 pub(super) const DEFAULT_PER_PAGE: usize = 100;
 
 pub(super) const MAX_PER_PAGE: usize = 100;
@@ -15,17 +13,13 @@ pub(super) struct StagedListQuery {
 /// parameters, ignoring anything unrecognized or unparsable.
 pub(super) fn parse_staged_list_query(query: &str) -> StagedListQuery {
     let mut parsed = StagedListQuery { page: 0, per_page: DEFAULT_PER_PAGE, package: None };
-    for pair in query.split('&') {
-        let Some((key, value)) = pair.split_once('=') else {
-            continue;
-        };
-        let decoded = percent_decode(value);
-        match key {
-            "page" => parsed.page = decoded.parse().unwrap_or(parsed.page),
+    for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+        match key.as_ref() {
+            "page" => parsed.page = value.parse().unwrap_or(parsed.page),
             "perPage" => {
-                parsed.per_page = decoded.parse().unwrap_or(parsed.per_page);
+                parsed.per_page = value.parse().unwrap_or(parsed.per_page);
             }
-            "package" if !decoded.is_empty() => parsed.package = Some(decoded),
+            "package" if !value.is_empty() => parsed.package = Some(value.into_owned()),
             _ => {}
         }
     }

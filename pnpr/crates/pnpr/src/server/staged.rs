@@ -86,7 +86,6 @@ use super::{
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_search::percent_decode;
 use pnpr_storage::publish::extract_attachments;
 use std::time::Duration;
 

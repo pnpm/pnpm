@@ -348,7 +348,7 @@ pub(super) fn check_workload_request(
     method: &axum::http::Method,
     path: &str,
 ) -> Result<(), RegistryError> {
-    let decoded = pnpr_search::percent_decode(path);
+    let decoded = pnpm_network::percent_decode_str(path);
     let base = pnpr_registry::Ecosystem::Npm.base_path();
     let local = pnpr_registry::Registries::local_name(&workload.registry);
     let registry_base = format!("{base}/~{local}");

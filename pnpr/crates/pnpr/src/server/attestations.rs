@@ -75,7 +75,7 @@ async fn serve_attestations(
     let Some((raw_pkg, version)) = parse_attestation_spec(spec) else {
         return not_found();
     };
-    let Ok(name) = CanonicalPackageName::parse(&raw_pkg, Ecosystem::Npm) else {
+    let Ok(name) = CanonicalPackageName::parse(raw_pkg, Ecosystem::Npm) else {
         return not_found();
     };
     let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
@@ -84,7 +84,7 @@ async fn serve_attestations(
     let resolved_source = resolve_registry_source(state, &target, name.as_str());
     match &resolved_source {
         RegistrySource::Hosted(source) => {
-            serve_hosted_attestations(state, identity, source, &name, &version).await
+            serve_hosted_attestations(state, identity, source, &name, version).await
         }
         RegistrySource::Upstream(source) => {
             if let Err(err) =
@@ -99,18 +99,16 @@ async fn serve_attestations(
     }
 }
 
-fn parse_attestation_spec(spec: &str) -> Option<(String, String)> {
-    let idx = spec.rfind('@')?;
-    if idx == 0 {
+fn parse_attestation_spec(spec: &str) -> Option<(&str, &str)> {
+    let (raw_pkg, version) = spec.rsplit_once('@')?;
+    if raw_pkg.is_empty()
+        || version.is_empty()
+        || version.contains(['/', '\\', '?', '#'])
+        || version.contains("..")
+    {
         return None;
     }
-    let raw_pkg = &spec[..idx];
-    let version = &spec[idx + 1..];
-    if version.is_empty() || version.contains(['/', '\\', '?', '#']) || version.contains("..") {
-        return None;
-    }
-    let decoded_pkg = pnpr_search::percent_decode(raw_pkg);
-    Some((decoded_pkg, version.to_string()))
+    Some((raw_pkg, version))
 }
 
 async fn serve_hosted_attestations(
