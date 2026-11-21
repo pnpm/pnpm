@@ -3,6 +3,7 @@
 "@pnpm/deps.inspection.list": patch
 "@pnpm/deps.inspection.commands": patch
 "pnpm": patch
+"pacquet": patch
 ---
 
-Fixed `pnpm why --exclude-peers` to exclude peer dependency edges from the reverse dependency tree.
+`pnpm why --exclude-peers` now leaves out packages that are reached only as a resolved peer dependency. Previously the flag was accepted but ignored.

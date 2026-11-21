@@ -35,6 +35,8 @@ interface DependencyGraphOptions {
   onlyProjects?: boolean
   /** Edges left out of the graph, from `getPeerSatisfactionEdgesToSkip`. */
   peerSatisfactionEdges?: PeerSatisfactionEdges
+  /** Leaves out the edges through which a package receives its resolved peers. */
+  skipPeerEdges?: boolean
 }
 
 export function buildDependencyGraph (
@@ -82,7 +84,12 @@ function createGraphNode (nodeId: TreeNodeId, opts: DependencyGraphOptions): Dep
       : {}
   ))
 
-  return { nodeId, edges: createEdges(nodeId, deps, opts), peers }
+  const edges = createEdges(nodeId, deps, opts)
+  return {
+    nodeId,
+    edges: opts.skipPeerEdges ? edges.filter(({ alias }) => !peers.has(alias)) : edges,
+    peers,
+  }
 }
 
 function selectImporterDependencies (snapshot: ProjectSnapshot, include: DependencyGraphOptions['include']): DependencyRefs {

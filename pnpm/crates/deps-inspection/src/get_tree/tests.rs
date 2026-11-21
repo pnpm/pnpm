@@ -130,6 +130,7 @@ fn graph_for(lockfile: &Lockfile, roots: &[TreeNodeId]) -> DependencyGraph {
             include: include_no_optional(),
             only_projects: false,
             peer_edges: pnpm_lockfile::PeerEdgeOptions::default(),
+            skip_peer_edges: false,
         },
     )
 }
@@ -807,6 +808,7 @@ fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
             include: include_no_optional(),
             only_projects: false,
             peer_edges: pnpm_lockfile::PeerEdgeOptions::default(),
+            skip_peer_edges: false,
         },
     );
     let mut cache = MaterializationCache::new();

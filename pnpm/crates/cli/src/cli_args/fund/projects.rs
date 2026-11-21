@@ -100,6 +100,7 @@ fn load_hierarchies(
             include,
             only_projects: false,
             peer_edges: config.peer_edge_options(),
+            skip_peer_edges: false,
         },
     );
     let options = BuildTreeOptions {

@@ -84,7 +84,7 @@ function createMockProject (packages: MockPackages): {
     currentPackages[depPath] = {
       resolution: { integrity: `${pkgName}-mock-integrity` },
       dependencies: resolveMockDependencies(info.deps ?? [], packages),
-      peerDependencies: Object.fromEntries((info.peerDeps ?? []).map(dep => [dep, '*'])),
+      ...(info.peerDeps && { peerDependencies: Object.fromEntries(info.peerDeps.map((dep) => [dep, '*'])) }),
     }
   }
 
@@ -115,83 +115,52 @@ function createMockProject (packages: MockPackages): {
 }
 
 describe('buildDependentsTree', () => {
-  test('excludes peer dependency edges from reverse trees', async () => {
-    const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({
-      peer: {
-        version: '1.0.0',
-        manifest: {},
-        topLevel: false,
-      },
-      parent: {
-        version: '1.0.0(peer@1.0.0)',
-        manifest: {},
-        deps: ['peer'],
-        peerDeps: ['peer'],
-      },
-    })
-
-    try {
-      const importerInfoMap = new Map([
-        ['.', { name: 'my-project', version: '0.0.0' }],
-      ])
-
-      const trees = await buildDependentsTree(['peer'], [lockfileDir], {
-        lockfileDir,
-        excludePeerDependencies: true,
-        importerInfoMap,
+  describe('excludePeerDependencies', () => {
+    async function whyTree (pkg: string, project: ReturnType<typeof createMockProject>, excludePeerDependencies: boolean) {
+      return buildDependentsTree([pkg], [project.lockfileDir], {
+        lockfileDir: project.lockfileDir,
+        excludePeerDependencies,
+        importerInfoMap: new Map([['.', { name: 'my-project', version: '0.0.0' }]]),
         lockfile: {
           lockfileVersion: '9.0',
-          importers,
-          packages: currentPackages,
+          importers: project.importers,
+          packages: project.currentPackages,
         },
       })
-
-      expect(trees).toHaveLength(0)
-    } finally {
-      cleanup()
     }
-  })
 
-  test('keeps non-peer dependency edges when excluding peers from reverse trees', async () => {
-    const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({
-      peer: {
-        version: '1.0.0',
-        manifest: {},
-      },
-      parent: {
-        version: '1.0.0(peer@1.0.0)',
-        manifest: {},
-        deps: ['peer'],
-        peerDeps: ['peer'],
-      },
+    test('drops packages that are reached only as a resolved peer, along with their own dependencies', async () => {
+      const project = createMockProject({
+        parent: { version: '1.0.0(peer@1.0.0)', manifest: {}, deps: ['peer'], peerDeps: ['peer'] },
+        peer: { version: '1.0.0', manifest: {}, deps: ['peer-dep'], topLevel: false },
+        'peer-dep': { version: '1.0.0', manifest: {}, topLevel: false },
+      })
+      try {
+        expect(await whyTree('peer', project, true)).toStrictEqual([])
+        expect(await whyTree('peer-dep', project, true)).toStrictEqual([])
+        expect((await whyTree('peer', project, false))[0].dependents.map(({ name }) => name)).toStrictEqual(['parent'])
+        expect((await whyTree('peer-dep', project, false))[0].dependents.map(({ name }) => name)).toStrictEqual(['peer'])
+      } finally {
+        project.cleanup()
+      }
     })
 
-    try {
-      const importerInfoMap = new Map([
-        ['.', { name: 'my-project', version: '0.0.0' }],
-      ])
-
-      const trees = await buildDependentsTree(['peer'], [lockfileDir], {
-        lockfileDir,
-        excludePeerDependencies: true,
-        importerInfoMap,
-        lockfile: {
-          lockfileVersion: '9.0',
-          importers,
-          packages: currentPackages,
-        },
+    test('keeps the non-peer paths to a package that is also a resolved peer', async () => {
+      const project = createMockProject({
+        parent: { version: '1.0.0(peer@1.0.0)', manifest: {}, deps: ['peer'], peerDeps: ['peer'] },
+        peer: { version: '1.0.0', manifest: {} },
       })
+      try {
+        const trees = await whyTree('peer', project, true)
 
-      expect(trees).toHaveLength(1)
-      expect(trees[0].dependents).toEqual([
-        expect.objectContaining({
-          name: 'my-project',
-          depField: 'dependencies',
-        }),
-      ])
-    } finally {
-      cleanup()
-    }
+        expect(trees).toHaveLength(1)
+        expect(trees[0].dependents).toStrictEqual([
+          { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
+        ])
+      } finally {
+        project.cleanup()
+      }
+    })
   })
 
   test('a devDependency that only satisfies an optional peer has no dependents in a production tree', async () => {

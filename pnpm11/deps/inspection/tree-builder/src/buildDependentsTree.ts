@@ -3,21 +3,20 @@ import path from 'node:path'
 import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { withCollapsedVariants } from '@pnpm/deps.path'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
-import {
-  getLockfileImporterId,
-  type LockfileObject,
-  type PackageSnapshots,
-  type ProjectSnapshot,
-  type ResolvedDependencies,
+import type {
+  LockfileObject,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
-import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { DependenciesField, DependencyManifest, DepPath, Finder, RegistriesByScope } from '@pnpm/types'
 import { realpathMissing } from 'realpath-missing'
 
-import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
+import type { DependencyGraph } from './buildDependencyGraph.js'
+import { buildSelectedProjectsGraph } from './buildSelectedProjectsGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
 import {
   compareDependentsTrees,
@@ -36,7 +35,6 @@ interface ReverseEdge {
   parentSerialized: string
   parentNodeId: TreeNodeId
   alias: string
-  isPeer: boolean
 }
 
 export interface DependentNode {
@@ -79,7 +77,6 @@ interface WalkContext {
   importerInfoMap: Map<string, ImporterInfo>
   resolvedPackageNodes: Map<string, { path: string, readManifest: () => DependencyManifest }>
   nameFormatter?: NameFormatter
-  excludePeerDependencies?: boolean
   /** Tracks nodes on the current path for cycle detection. Mutated during walk. */
   visited: Set<string>
   /** Tracks nodes already fully expanded, for deduplication across branches. */
@@ -145,40 +142,12 @@ export async function buildDependentsTree (
     importerInfoMap: opts.importerInfoMap,
     resolvedPackageNodes,
     nameFormatter: opts.nameFormatter,
-    excludePeerDependencies: opts.excludePeerDependencies,
     visited: new Set(),
     expanded: new Set(),
   })
   trees.sort(compareDependentsTrees)
   storeIndex?.close()
   return trees
-}
-
-function buildSelectedProjectsGraph (projectPaths: string[], opts: BuildDependentsTreeOptions): DependencyGraph {
-  const include = opts.include ?? {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-  }
-
-  const allRootIds: TreeNodeId[] = []
-  for (const projectPath of projectPaths) {
-    const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
-    if (opts.lockfile.importers[importerId]) {
-      allRootIds.push({ type: 'importer', importerId })
-    }
-  }
-
-  return buildDependencyGraph(allRootIds, {
-    currentPackages: opts.lockfile.packages ?? {},
-    importers: opts.lockfile.importers,
-    include,
-    lockfileDir: opts.lockfileDir,
-    peerSatisfactionEdges: getPeerSatisfactionEdgesToSkip(opts.lockfile, {
-      include,
-      resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
-    }),
-  })
 }
 
 // Scan all package nodes for matches.
@@ -215,7 +184,6 @@ function buildTreeIfMatched (
   ctx.visited = new Set([serialized])
   ctx.expanded = new Set()
   const dependents = walkReverse(serialized, ctx)
-  if (ctx.excludePeerDependencies && dependents.length === 0) return undefined
   const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
 
   const displayName = ctx.nameFormatter
@@ -272,7 +240,6 @@ function invertGraph (graph: DependencyGraph): Map<string, ReverseEdge[]> {
         parentSerialized,
         parentNodeId: node.nodeId,
         alias: edge.alias,
-        isPeer: node.peers.has(edge.alias),
       })
     }
   }
@@ -356,8 +323,6 @@ function walkReverse (
   const dependents: DependentNode[] = []
 
   for (const edge of sortedEdges) {
-    if (ctx.excludePeerDependencies && edge.isPeer) continue
-
     // Cycle detection: this node is already on our current path
     const dependent = ctx.visited.has(edge.parentSerialized)
       ? createCircularDependent(edge, ctx)

@@ -103,6 +103,9 @@ pub struct BuildGraphOptions<'a> {
     /// How the graph classifies the peer-satisfaction edges it leaves out
     /// while `include` excludes a group.
     pub peer_edges: PeerEdgeOptions,
+    /// Leave out the edges through which a package receives its resolved
+    /// peers, so packages reachable only as a peer are not in the graph.
+    pub skip_peer_edges: bool,
 }
 
 /// Breadth-first walk from `root_ids`, recording every reachable node
@@ -130,11 +133,14 @@ pub fn build_dependency_graph(
             continue;
         }
 
-        let edges = node_edges(&node_id, opts, &skipped_peer_edges, &publish_dirs);
+        let mut edges = node_edges(&node_id, opts, &skipped_peer_edges, &publish_dirs);
         let peers = match &node_id {
             TreeNodeId::Package(dep_path) => peer_names(opts.lockfile, dep_path),
             TreeNodeId::Importer(_) => HashSet::new(),
         };
+        if opts.skip_peer_edges {
+            edges.retain(|edge| !peers.contains(&edge.alias));
+        }
 
         queue.extend(
             edges
@@ -333,3 +339,6 @@ pub fn normalize_importer_path(base: &str, relative: &str) -> Option<String> {
     }
     if parts.is_empty() { Some(".".to_string()) } else { Some(parts.join("/")) }
 }
+
+#[cfg(test)]
+mod tests;

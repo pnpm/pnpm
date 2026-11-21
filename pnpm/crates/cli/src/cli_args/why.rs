@@ -77,9 +77,8 @@ pub struct WhyArgs {
     /// renders the whole tree.
     #[clap(long, value_parser = parse_depth_limit)]
     pub depth: Option<usize>,
-    /// Exclude peer dependencies. Ignored: `pnpm why` always includes them.
-    // The flag is there for parity: pnpm 11's `why` declares it and never
-    // forwards it either.
+    /// Leave out the dependents that reach a package only as a resolved
+    /// peer dependency.
     #[clap(long)]
     pub exclude_peers: bool,
     /// Search by a finder function declared in `.pnpmfile.cjs`.
@@ -230,6 +229,7 @@ impl WhyArgs {
                 include,
                 only_projects: false,
                 peer_edges: config.peer_edge_options(),
+                skip_peer_edges: self.exclude_peers,
             },
         );
         let searcher = self.searcher(&env, &graph, finders).await?;

@@ -152,6 +152,7 @@ fn requires_of_dependents(
             },
             only_projects: false,
             peer_edges: PeerEdgeOptions::default(),
+            skip_peer_edges: false,
         },
     );
     let trees = build_dependents_tree(&BuildDependentsOptions {

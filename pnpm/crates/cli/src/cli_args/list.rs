@@ -300,6 +300,7 @@ impl ListArgs {
                 include,
                 only_projects: self.graph.only_projects,
                 peer_edges: config.peer_edge_options(),
+                skip_peer_edges: false,
             },
         );
         let searcher = self.build_searcher(config, env, &graph, lockfile_dir, params).await?;

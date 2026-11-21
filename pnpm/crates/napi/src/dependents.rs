@@ -283,6 +283,7 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
             include: included_dependencies(options),
             only_projects: false,
             peer_edges: peer_edge_options(options),
+            skip_peer_edges: false,
         },
     );
     let searcher =
