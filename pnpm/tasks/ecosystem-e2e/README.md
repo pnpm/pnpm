@@ -89,9 +89,13 @@ pnpm pack:pnpm:wasm
 node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package target/pnpm-wasm.tgz
 ```
 
+`--wasm-package-frontend` builds a Vite app with the package in a fresh
+WebContainer. Late in the long `--wasm-package` session, Vite's WebAssembly
+can fail to allocate memory.
+
 The workflows cover update, lockfile-only and frozen/offline installs,
 configuration, command failures, `dlx`, `create`, workspace scripts and bins,
-interactive build approval, rebuild, pack, and a Vite build. Expected failures
+interactive build approval, rebuild, and pack. Expected failures
 assert their exit status and diagnostic. These are representative workflow
 tests, not a claim that every command or native dependency works in a browser.
 
