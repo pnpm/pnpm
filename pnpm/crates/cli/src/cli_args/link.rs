@@ -123,26 +123,8 @@ impl LinkArgs {
 
         let root_dir = config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.clone());
 
-        let protocol = if self.hard { "file:" } else { "link:" };
-        let mut new_overrides = IndexMap::<String, String>::new();
-        for path_str in &self.package_paths {
-            let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
-
-            if !already_declared(&manifest, &package_name) {
-                manifest
-                    .add_dependency(
-                        &package_name,
-                        &link_spec(protocol, &manifest_dir, &target_dir),
-                        DependencyGroup::Prod,
-                    )
-                    .wrap_err("adding linked dependency to package.json")?;
-            }
-            new_overrides.insert(package_name.clone(), link_spec(protocol, &root_dir, &target_dir));
-            // A hard-linked package resolves its peers from this project.
-            if !self.hard {
-                check_peer_deps::<Reporter>(&package_name, &target_manifest, &manifest_dir);
-            }
-        }
+        let new_overrides =
+            self.add_links::<Reporter>(&mut manifest, &manifest_dir, &root_dir, cli_dir)?;
 
         manifest.save().wrap_err("saving package.json with linked dependencies")?;
 
@@ -164,6 +146,38 @@ impl LinkArgs {
 
         let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
         install_linked::<Reporter>(&state).await
+    }
+
+    /// Declare each linked package in `manifest`, unless it is declared
+    /// already, and return the overrides that point the workspace at them.
+    fn add_links<Reporter: self::Reporter>(
+        &self,
+        manifest: &mut PackageManifest,
+        manifest_dir: &Path,
+        root_dir: &Path,
+        cli_dir: &Path,
+    ) -> miette::Result<IndexMap<String, String>> {
+        let protocol = if self.hard { "file:" } else { "link:" };
+        let mut new_overrides = IndexMap::<String, String>::new();
+        for path_str in &self.package_paths {
+            let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
+
+            if !already_declared(manifest, &package_name) {
+                manifest
+                    .add_dependency(
+                        &package_name,
+                        &link_spec(protocol, manifest_dir, &target_dir),
+                        DependencyGroup::Prod,
+                    )
+                    .wrap_err("adding linked dependency to package.json")?;
+            }
+            new_overrides.insert(package_name.clone(), link_spec(protocol, root_dir, &target_dir));
+            // A hard-linked package resolves its peers from this project.
+            if !self.hard {
+                check_peer_deps::<Reporter>(&package_name, &target_manifest, manifest_dir);
+            }
+        }
+        Ok(new_overrides)
     }
 
     fn validate_package_paths(&self) -> miette::Result<()> {
