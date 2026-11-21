@@ -17,6 +17,7 @@ use super::{
     is_revision_registry_tarball_url,
     lockfile_revision,
     mapped_tarball_url_violation,
+    metadata_fetch::MetadataCacheMode,
     missing_artifact_violation,
     redact_url_credentials,
     select_revision,
@@ -244,7 +245,10 @@ impl NpmResolutionVerifier {
                 .as_ref()
                 .is_some_and(|artifacts| artifacts.contains_key(version))
         {
-            meta = self.abbreviated_meta_lookup(registry, name, true).await.map_err(fetch_error)?;
+            meta = self
+                .abbreviated_meta_lookup(registry, name, MetadataCacheMode::Revalidate)
+                .await
+                .map_err(fetch_error)?;
         }
         if let Some(sink) = self.artifacts.observed_stats.as_ref()
             && let Some(stats) = meta.version_dist_stats

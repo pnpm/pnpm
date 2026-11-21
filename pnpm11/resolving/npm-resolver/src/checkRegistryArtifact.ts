@@ -38,9 +38,9 @@ export async function runTarballUrlCheck (
   context: PublishedAtLookupContext,
   pin: RegistryPin & { tarballUrl: string }
 ): Promise<ResolutionViolation | undefined> {
-  let lookup = await fetchAbbreviatedMeta(context, pin.registry, pin.name)
+  let lookup = await fetchAbbreviatedMeta(context, pin)
   if (lookup.meta && !context.offline && !lookup.meta.versionTarballs?.has(pin.version)) {
-    lookup = await fetchAbbreviatedMeta(context, pin.registry, pin.name, true)
+    lookup = await fetchAbbreviatedMeta(context, { ...pin, cacheBypass: true })
   }
   const { meta, error } = lookup
   if (error != null) {

@@ -20,6 +20,12 @@ use super::{
     render_fetch_metadata_error,
 };
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum MetadataCacheMode {
+    Use,
+    Revalidate,
+}
+
 impl NpmResolutionVerifier {
     /// Per-`(registry, name)` abbreviated-meta lookup. The result is
     /// projected down to `(modified, versionNames)` and cached so
@@ -45,14 +51,14 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
-        self.abbreviated_meta_lookup(registry, name, false).await
+        self.abbreviated_meta_lookup(registry, name, MetadataCacheMode::Use).await
     }
 
     pub(super) async fn abbreviated_meta_lookup(
         &self,
         registry: &str,
         name: &PkgName,
-        cache_bypass: bool,
+        cache_mode: MetadataCacheMode,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
         // Whether the pnpr document's clamped dates may answer depends on this
         // verifier's window, so verifiers sharing the lookups do not share a
@@ -66,7 +72,7 @@ impl NpmResolutionVerifier {
         if !time_projection.include_time() {
             key.push_str("\0without-time");
         }
-        if cache_bypass {
+        if cache_mode == MetadataCacheMode::Revalidate {
             key.push_str("\0refetched");
         }
         let cell = {
@@ -77,11 +83,9 @@ impl NpmResolutionVerifier {
                     .or_insert_with(|| Arc::new(OnceCell::new())),
             )
         };
-        cell.get_or_init(|| {
-            self.load_abbreviated_meta(registry, name, time_projection, cache_bypass)
-        })
-        .await
-        .clone()
+        cell.get_or_init(|| self.load_abbreviated_meta(registry, name, time_projection, cache_mode))
+            .await
+            .clone()
     }
 
     async fn load_abbreviated_meta(
@@ -89,12 +93,12 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
         time_projection: TimeProjection,
-        cache_bypass: bool,
+        cache_mode: MetadataCacheMode,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
         // A shared packument that turns out to hold a damaged mirror
         // fragment falls through to the fetch below, which repairs it. A full
         // packument's dates are exact, so they answer any window.
-        if !cache_bypass
+        if cache_mode == MetadataCacheMode::Use
             && let Some(shared) = self.read_shared_meta(registry, name)
             && !shared.meta.versions.corrupt_mirror_fragment_found()
         {
@@ -107,7 +111,7 @@ impl NpmResolutionVerifier {
             registry,
             &name.to_string(),
             time_projection.include_time(),
-            cache_bypass,
+            cache_mode,
         )
         .await
     }
@@ -117,7 +121,7 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &str,
         include_time: bool,
-        cache_bypass: bool,
+        cache_mode: MetadataCacheMode,
     ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
         let pnpr_format = self.routing.is_pnpr_registry(registry);
         let opts = FetchFullMetadataCachedOptions {
@@ -134,7 +138,7 @@ impl NpmResolutionVerifier {
                 retry_opts: self.metadata.retry_opts,
             },
         };
-        if cache_bypass {
+        if cache_mode == MetadataCacheMode::Revalidate {
             return crate::fetch_full_metadata_cached::fetch_full_metadata_bypassing_cache(
                 name, &opts,
             )

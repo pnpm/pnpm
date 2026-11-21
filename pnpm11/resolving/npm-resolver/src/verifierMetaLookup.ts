@@ -263,7 +263,7 @@ async function resolvePublishedAt (
   const abbreviatedShortcut = await tryAbbreviatedModifiedShortcut(context, registry, name, version)
   if (abbreviatedShortcut != null) return abbreviatedShortcut
 
-  const { meta } = await fetchAbbreviatedMeta(context, registry, name)
+  const { meta } = await fetchAbbreviatedMeta(context, { registry, name })
   const abbreviatedTime = meta?.time?.[version]
   if (abbreviatedTime) return abbreviatedTime
 
@@ -305,7 +305,7 @@ async function tryAbbreviatedModifiedShortcut (
   name: string,
   version: string
 ): Promise<string | undefined> {
-  const { meta } = await fetchAbbreviatedMeta(context, registry, name)
+  const { meta } = await fetchAbbreviatedMeta(context, { registry, name })
   const modified = meta?.modified
   if (typeof modified !== 'string') return undefined
   const modifiedMs = Date.parse(modified)
@@ -317,9 +317,7 @@ async function tryAbbreviatedModifiedShortcut (
 
 export function fetchAbbreviatedMeta (
   context: PublishedAtLookupContext,
-  registry: string,
-  name: string,
-  cacheBypass = false
+  { registry, name, cacheBypass = false }: { registry: string, name: string, cacheBypass?: boolean }
 ): Promise<AbbreviatedMetaResult> {
   const cacheKey = `${registry}\x00${name}${cacheBypass ? '\x00refetched' : ''}`
   let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
