@@ -1,7 +1,13 @@
 #[cfg(unix)]
 use super::{
+    super::BuildModules,
+    TEST_LOGGED_METHODS,
+    create_marker_pkg,
+    policy_from_specs,
+    root_importers,
+};
+use super::{
     super::{
-        BuildModules,
         RebuildOptions,
         build_requirements::{
             RequiresBuildInputs,
@@ -9,26 +15,18 @@ use super::{
         },
         slots::PkgRoots,
     },
-    TEST_LOGGED_METHODS,
-    create_marker_pkg,
     key,
-    policy_from_specs,
-    root_importers,
 };
-#[cfg(unix)]
 use crate::{
     SkippedSnapshots,
     VirtualStoreLayout,
 };
 #[cfg(unix)]
 use pnpm_config::PackageImportMethod;
-#[cfg(unix)]
 use pnpm_lockfile::SnapshotEntry;
 #[cfg(unix)]
 use pnpm_reporter::SilentReporter;
-#[cfg(unix)]
 use std::collections::HashMap;
-#[cfg(unix)]
 use tempfile::tempdir;
 
 /// A `pacquet rebuild <pkg>` with a selection runs scripts ONLY for the
@@ -166,7 +164,6 @@ fn rebuild_selection_leaves_the_other_packages_uninspected() {
 /// A rebuild of edited files reads every installed copy of the selected
 /// snapshot, since the user may have edited any one of them. Only the second
 /// copy here declares a build script.
-#[cfg(unix)]
 #[test]
 fn edited_rebuild_reads_every_copy_of_the_snapshot() {
     let edited = key("edited", "1.0.0");
