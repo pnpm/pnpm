@@ -172,8 +172,8 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
     let stderr_path = workspace.join("run.stderr");
     let mut run = pacquet
         .with_args(["--workspace-concurrency=2", "-r", "run", "/^dev:/"])
-        .stdout(Stdio::null())
-        .stderr(fs::File::create(&stderr_path).expect("create the run output"))
+        .with_stdout(Stdio::null())
+        .with_stderr(fs::File::create(&stderr_path).expect("create the run output").into())
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child(&mut run);

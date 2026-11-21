@@ -503,7 +503,7 @@ fn relay_to(entry: &RelayEntry, target: i32, signal: libc::c_int, shared_with_gr
 }
 
 /// What a relay entry's `target` names. A negative target names the
-/// process group the child leads, which is the form `relay_to_child`
+/// process group the child leads, which is the form [`relay_to_child`]
 /// stores for a child that leads one.
 #[cfg(unix)]
 fn aimed_at(target: i32) -> pnpm_ffi_signal::Target {

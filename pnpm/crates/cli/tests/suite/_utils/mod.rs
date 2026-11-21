@@ -747,7 +747,7 @@ pub fn is_running(pid: libc::pid_t) -> bool {
 #[cfg(unix)]
 fn has_exited(pid: libc::pid_t) -> bool {
     let state = std::process::Command::new("ps")
-        .args(["-o", "stat=", "-p", &pid.to_string()])
+        .with_args(["-o", "stat=", "-p", &pid.to_string()])
         .output()
         .expect("run ps");
     state.stdout

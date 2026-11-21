@@ -213,7 +213,8 @@ async fn wait_until_ready(addr: SocketAddr) {
             .timeout(ATTEMPT)
             .send()
             .await
-            .is_ok_and(|response| response.status().is_success());
+            .map(|response| response.status())
+            .is_ok_and(|status| status.is_success());
         if answered {
             return;
         }

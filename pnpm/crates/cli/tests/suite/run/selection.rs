@@ -233,8 +233,8 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
     let stderr_path = workspace.join("run.stderr");
     let mut run = pacquet
         .with_args(["--workspace-concurrency=2", "run", "/^dev:/"])
-        .stdout(Stdio::null())
-        .stderr(fs::File::create(&stderr_path).expect("create the run output"))
+        .with_stdout(Stdio::null())
+        .with_stderr(fs::File::create(&stderr_path).expect("create the run output").into())
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child(&mut run);
