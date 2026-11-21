@@ -60,6 +60,7 @@ use prompt::{
 use std::{
     collections::{
         BTreeMap,
+        HashMap,
         HashSet,
     },
     path::Path,
@@ -465,21 +466,22 @@ pub(crate) fn retain_undecided_builds(
     config: &Config,
 ) -> miette::Result<()> {
     let policy = pnpm_deps_restorer::AllowBuildPolicy::from_config(config).into_diagnostic()?;
-    let ignored: Vec<&str> = modules
+    let mut undecided_by_key: HashMap<String, bool> = HashMap::new();
+    let ignored = modules
         .iter()
         .flat_map(|modules| modules.ignored_builds.iter().flatten())
-        .map(pnpm_modules_yaml::DepPath::as_str)
-        .collect();
+        .map(pnpm_modules_yaml::DepPath::as_str);
+    for dep_path in ignored {
+        let undecided = policy.check(dep_path).unwrap_or(true);
+        *undecided_by_key
+            .entry(allow_build_key_from_ignored_build(dep_path))
+            .or_default() |= undecided;
+    }
     names.retain(|name| {
-        let mut dep_paths = ignored
-            .iter()
+        undecided_by_key
+            .get(name)
             .copied()
-            .filter(|dep_path| allow_build_key_from_ignored_build(dep_path) == *name)
-            .peekable();
-        if dep_paths.peek().is_none() {
-            return policy.check(name).unwrap_or(true);
-        }
-        dep_paths.any(|dep_path| policy.check(dep_path).unwrap_or(true))
+            .unwrap_or_else(|| policy.check(name).unwrap_or(true))
     });
     Ok(())
 }
@@ -492,13 +494,13 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
     install_dir: &Path,
     store: ApprovalStore<'_>,
 ) -> miette::Result<()> {
+    let auto_approve = std::env::var("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS").as_deref() == Ok("1");
+    if !auto_approve && !PromptAvailability::detect(config.ci).is_available() {
+        return Ok(());
+    }
     let mut scan = get_automatically_ignored_builds(config)?;
     exclude_disallowed_builds(&mut scan, config)?;
     if scan.names.as_ref().is_none_or(Vec::is_empty) {
-        return Ok(());
-    }
-    let auto_approve = std::env::var("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS").as_deref() == Ok("1");
-    if !auto_approve && !PromptAvailability::detect(config.ci).is_available() {
         return Ok(());
     }
 
