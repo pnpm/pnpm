@@ -926,7 +926,7 @@ fn patch_commit_writes_the_entry_beside_its_patch_in_an_included_file() {
 /// the mocked registry, which the lockfile keys as
 /// `<name>@<registryName>:<version>`.
 fn setup_named_registry_install(
-    dependencies: serde_json::Value,
+    dependencies: &serde_json::Value,
 ) -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -945,7 +945,7 @@ fn setup_named_registry_install(
 #[test]
 fn patch_and_patch_commit_reach_a_named_registry_package() {
     let (root, workspace, npmrc_info) =
-        setup_named_registry_install(serde_json::json!({ "is-positive": "work:1.0.0" }));
+        setup_named_registry_install(&serde_json::json!({ "is-positive": "work:1.0.0" }));
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
@@ -970,7 +970,7 @@ fn patch_and_patch_commit_reach_a_named_registry_package() {
 #[test]
 fn patch_commit_prunes_a_dependency_removed_from_a_named_registry_package() {
     let (root, workspace, npmrc_info) = setup_named_registry_install(
-        serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "work:100.0.0" }),
+        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "work:100.0.0" }),
     );
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
