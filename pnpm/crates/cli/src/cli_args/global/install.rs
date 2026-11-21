@@ -1,40 +1,14 @@
 use super::{
-    AddGroups,
-    CatalogMode,
-    Config,
-    Context,
-    DependencyGroup,
-    GlobalPackageBinSnapshot,
-    GlobalPackageInfo,
-    GlobalUpdateMode,
-    HashMap,
-    HashSet,
-    Lockfile,
-    PackageBinSource,
-    Path,
-    PathBuf,
-    RangeSpecStyle,
-    Reporter,
-    State,
-    SupportedArchitectures,
-    Version,
-    WorkspaceSettings,
-    add_packages,
-    apply_allow_build,
-    apply_global_build_policy,
-    apply_pins,
-    apply_runtime_range_bumps,
-    global_approval_store,
-    infer_local_package_alias,
-    installed_versions,
-    is_registry_version_spec,
-    moves_past_declared_range,
-    needs_runtime_range_bump,
-    prompt_approve_install_builds,
-    tag_checked_selectors,
+    AddGroups, CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot,
+    GlobalPackageInfo, GlobalUpdateMode, HashMap, HashSet, Lockfile, PackageBinSource, Path,
+    PathBuf, RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
+    add_packages, apply_allow_build, apply_global_build_policy, apply_pins,
+    apply_runtime_range_bumps, global_approval_store, infer_local_package_alias,
+    installed_versions, is_registry_version_spec, moves_past_declared_range,
+    needs_runtime_range_bump, prompt_approve_install_builds, tag_checked_selectors,
     update_selectors,
 };
-use pnpm_config::Host;
+use pnpm_config::{GetHomeDir, Host};
 
 /// The pnpm home a global group installs into.
 pub(super) struct GlobalInstallTarget<'a> {
@@ -57,7 +31,9 @@ impl GlobalInstallTarget<'_> {
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<Vec<String>> {
-        let target_selectors = self.target_selectors::<Reporter>(pkg, mode).await?;
+        let target_selectors = self
+            .target_selectors::<Reporter>(pkg, mode)
+            .await?;
         let downgrade_check = Box::pin(pins_for_downgrades::<Reporter>(
             self.base_config,
             self.global_pkg_dir,
@@ -81,15 +57,16 @@ impl GlobalInstallTarget<'_> {
         match mode {
             GlobalUpdateMode::DeclaredRange | GlobalUpdateMode::Tag(_) => {}
             GlobalUpdateMode::Latest => {
-                selectors = self.finalize_latest_runtime_selectors::<Reporter>(
-                    pkg,
-                    install_dir,
-                    selectors,
-                    &downgrade_check.pins,
-                    range_spec_style,
-                    supported_architectures,
-                )
-                .await?;
+                selectors = self
+                    .finalize_latest_runtime_selectors::<Reporter>(
+                        pkg,
+                        install_dir,
+                        selectors,
+                        &downgrade_check.pins,
+                        range_spec_style,
+                        supported_architectures,
+                    )
+                    .await?;
             }
         }
         Ok(selectors)
@@ -106,7 +83,10 @@ impl GlobalInstallTarget<'_> {
     ) -> miette::Result<Vec<String>> {
         match mode {
             GlobalUpdateMode::Tag(tag)
-                if pkg.dependencies.iter().any(|(_, spec)| is_registry_version_spec(spec)) =>
+                if pkg
+                    .dependencies
+                    .iter()
+                    .any(|(_, spec)| is_registry_version_spec(spec)) =>
             {
                 tag_checked_selectors::<Reporter>(self.base_config, &pkg.dependencies, tag).await
             }
@@ -210,7 +190,8 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     }
     let versions_before = installed_versions(&pkg.install_dir);
     // Nothing to compare a resolution against, so nothing to resolve.
-    if !pkg.dependencies
+    if !pkg
+        .dependencies
         .iter()
         .any(|(alias, spec)| {
             moves_past_declared_range(mode, alias, spec) && versions_before.contains_key(alias)
@@ -231,7 +212,8 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     .await?;
     let resolved = resolved_direct_versions(install_dir);
 
-    let pins = pkg.dependencies
+    let pins = pkg
+        .dependencies
         .iter()
         .filter(|(alias, spec)| moves_past_declared_range(mode, alias, spec))
         .filter_map(|(alias, _)| {
@@ -251,16 +233,21 @@ fn resolved_direct_versions(install_dir: &Path) -> HashMap<String, Version> {
     else {
         return HashMap::new();
     };
-    let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else {
+    let Some(importer) = lockfile
+        .importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)
+    else {
         return HashMap::new();
     };
-    importer.dependencies
+    importer
+        .dependencies
         .iter()
         .flatten()
         .filter_map(|(alias, resolved)| {
             Some((
                 alias.to_string(),
-                resolved.version
+                resolved
+                    .version
                     .ver_peer()?
                     .version_semver()?
                     .clone(),
@@ -306,7 +293,8 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
 
     let config: &'static Config = Config::leak(cfg);
 
-    let selectors = install.selectors
+    let selectors = install
+        .selectors
         .iter()
         .map(|selector| infer_local_package_alias(selector))
         .collect::<miette::Result<Vec<_>>>()?;
@@ -337,10 +325,12 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
 /// The virtual store dir a group's install keeps its hidden hoisted modules
 /// under, `install_dir` being the group's install dir or its hash link.
 pub(super) fn group_install_state_dir(install_dir: &Path) -> PathBuf {
-    install_dir.join("node_modules").join(".pnpm")
+    install_dir
+        .join("node_modules")
+        .join(".pnpm")
 }
 
-pub(super) fn global_group_config(
+pub(crate) fn global_group_config(
     base_config: &Config,
     install_dir: &Path,
     global_pkg_dir: &Path,
@@ -390,7 +380,9 @@ pub(super) fn global_group_config(
     cfg.extra_env.remove("NODE_OPTIONS");
     cfg.apply_global_virtual_store_node_path::<Host>();
 
-    cfg.disable_agent_skills();
+    cfg.agent_skills_target_root = Some(
+        Host::home_dir().ok_or_else(|| miette::miette!("unable to determine home directory"))?,
+    );
     apply_global_build_policy(&mut cfg, global_pkg_dir)?;
     // Don't fail the install when a dependency's build is ignored; the
     // global approval prompt (run after the install) records the ignored
@@ -403,14 +395,18 @@ pub(super) fn global_group_config(
 /// Global groups use the global virtual store unless `virtualStoreType` (or
 /// `enableGlobalVirtualStore`) is set explicitly.
 fn use_global_virtual_store_by_default(cfg: &mut Config) {
-    cfg.enable_global_virtual_store = cfg.explicit_settings
+    cfg.enable_global_virtual_store = cfg
+        .explicit_settings
         .get("enableGlobalVirtualStore")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(true);
     if cfg.enable_global_virtual_store {
-        let virtual_store_dir_explicit = cfg.explicit_settings.contains_key("virtualStoreDir");
-        let global_virtual_store_dir_explicit =
-            cfg.explicit_settings.contains_key("globalVirtualStoreDir");
+        let virtual_store_dir_explicit = cfg
+            .explicit_settings
+            .contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit = cfg
+            .explicit_settings
+            .contains_key("globalVirtualStoreDir");
         cfg.apply_global_virtual_store_derivation(
             virtual_store_dir_explicit,
             global_virtual_store_dir_explicit,
@@ -429,7 +425,9 @@ fn merge_persisted_minimum_release_age_excludes(
         return Ok(());
     };
     if let Some(exclude) = settings.minimum_release_age_exclude {
-        cfg.minimum_release_age_exclude.get_or_insert_with(Vec::new).extend(exclude);
+        cfg.minimum_release_age_exclude
+            .get_or_insert_with(Vec::new)
+            .extend(exclude);
     }
     Ok(())
 }

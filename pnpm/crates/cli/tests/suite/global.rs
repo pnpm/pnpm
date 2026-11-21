@@ -3,11 +3,7 @@
 //! create real symlinks / bin shims, so they are Unix-gated.
 
 #[cfg(unix)]
-use crate::_utils::{
-    append_workspace_yaml_key,
-    set_minimum_release_age,
-    without_colors,
-};
+use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, without_colors};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 #[cfg(unix)]
@@ -16,14 +12,8 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 #[cfg(unix)]
 use pnpm_testing_utils::command_env::CommandTestExt;
 #[cfg(unix)]
-use std::path::{
-    Path,
-    PathBuf,
-};
-use std::{
-    fs,
-    process::Command,
-};
+use std::path::{Path, PathBuf};
+use std::{fs, process::Command};
 
 /// Create the global bin directory and seed the pnpm home with the mocked
 /// registry / store / cache. A `-g` install anchors its config at the pnpm
@@ -33,7 +23,7 @@ use std::{
 /// those from the yaml, not `.npmrc`), pinning a per-test store so a build's
 /// side-effects cache can't leak across runs.
 #[cfg(unix)]
-fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
+pub(crate) fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
     fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))
         .expect("seed the pnpm-home npmrc");
@@ -52,7 +42,7 @@ fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
 /// directory prepended to `PATH` (so `checkGlobalBinDir` passes for the
 /// mutating commands).
 #[cfg(unix)]
-fn with_global_env(command: Command, workspace: &Path, pnpm_home: &Path) -> Command {
+pub(crate) fn with_global_env(command: Command, workspace: &Path, pnpm_home: &Path) -> Command {
     // macOS temp paths use `/var` as an alias for `/private/var`, while
     // scanning a hash symlink canonicalizes its install directory. Give the
     // command the canonical fixture home so containment checks compare paths
@@ -60,10 +50,16 @@ fn with_global_env(command: Command, workspace: &Path, pnpm_home: &Path) -> Comm
     let pnpm_home = match fs::canonicalize(pnpm_home) {
         Ok(pnpm_home) => pnpm_home,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            let parent = pnpm_home.parent().expect("pnpm test home parent");
+            let parent = pnpm_home
+                .parent()
+                .expect("pnpm test home parent");
             fs::canonicalize(parent)
                 .expect("canonicalize the pnpm test home parent")
-                .join(pnpm_home.file_name().expect("pnpm test home name"))
+                .join(
+                    pnpm_home
+                        .file_name()
+                        .expect("pnpm test home name"),
+                )
         }
         Err(error) => panic!("canonicalize the pnpm test home: {error}"),
     };
@@ -73,6 +69,7 @@ fn with_global_env(command: Command, workspace: &Path, pnpm_home: &Path) -> Comm
     command
         .with_current_dir(workspace)
         .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("HOME", &pnpm_home)
         .with_env("PATH", path)
         .with_env("XDG_STATE_HOME", pnpm_home.join("state-home"))
         .with_env("XDG_CONFIG_HOME", pnpm_home.join("config-home"))
@@ -81,8 +78,149 @@ fn with_global_env(command: Command, workspace: &Path, pnpm_home: &Path) -> Comm
 }
 
 #[cfg(unix)]
-fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
+pub(crate) fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
     with_global_env(Command::cargo_bin("pnpm").expect("find the pnpm binary"), workspace, pnpm_home)
+}
+
+#[cfg(unix)]
+#[test]
+fn global_install_links_approved_agent_skill_into_home() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    let config_home = pnpm_home
+        .join("config-home")
+        .join("pnpm");
+    fs::create_dir_all(&config_home).expect("create config home");
+    fs::write(
+        config_home.join("config.yaml"),
+        "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/with-agent-skills':\n      skills: true\n",
+    )
+    .expect("write global config");
+    fs::create_dir_all(pnpm_home.join(".claude").join("skills")).expect("create agent dir");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/with-agent-skills@1.0.0"])
+        .assert()
+        .success();
+
+    let link = pnpm_home
+        .join(".claude")
+        .join("skills")
+        .join("guide");
+    assert!(link.symlink_metadata().is_ok(), "approved global skill should be linked in home");
+    let target = fs::canonicalize(&link).expect("resolve skill link");
+    assert!(
+        target.ends_with(Path::new("skills").join("guide")),
+        "skill link should target package skills dir: {target:?}"
+    );
+    assert!(
+        !workspace
+            .join(".claude")
+            .join("skills")
+            .join("guide")
+            .exists(),
+        "global install should not pollute project state"
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn global_permissions_approve_records_and_links_skill() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(pnpm_home.join(".claude").join("skills")).expect("create agent dir");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/with-agent-skills@1.0.0"])
+        .assert()
+        .success();
+    assert!(
+        !pnpm_home
+            .join(".claude")
+            .join("skills")
+            .join("guide")
+            .exists()
+    );
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["permissions", "approve", "-g", "@pnpm.e2e/with-agent-skills"])
+        .assert()
+        .success();
+
+    let config = fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read global config");
+    assert!(
+        config.contains("'@pnpm.e2e/with-agent-skills':") && config.contains("skills: true"),
+        "global skill decision should be recorded: {config}"
+    );
+    assert!(
+        pnpm_home
+            .join(".claude")
+            .join("skills")
+            .join("guide")
+            .exists()
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn global_approve_denies_and_prunes_skill() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(pnpm_home.join(".claude").join("skills")).expect("create agent dir");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/with-agent-skills@1.0.0"])
+        .assert()
+        .success();
+    global_command(&workspace, &pnpm_home)
+        .with_args(["approve", "-g", "@pnpm.e2e/with-agent-skills"])
+        .assert()
+        .success();
+    assert!(
+        pnpm_home
+            .join(".claude")
+            .join("skills")
+            .join("guide")
+            .exists()
+    );
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["approve", "-g", "!@pnpm.e2e/with-agent-skills"])
+        .assert()
+        .success();
+
+    let config = fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read global config");
+    assert!(config.contains("skills: false"), "global denial should be recorded: {config}");
+    assert!(
+        !pnpm_home
+            .join(".claude")
+            .join("skills")
+            .join("guide")
+            .exists(),
+        "denied global skill should be pruned"
+    );
+
+    drop(npmrc_info);
+    drop(root);
 }
 
 #[cfg(unix)]
@@ -118,7 +256,11 @@ fn symlink_entries(dir: &Path) -> Vec<PathBuf> {
     let Ok(entries) = fs::read_dir(dir) else { return Vec::new() };
     entries
         .flatten()
-        .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_symlink()))
+        .filter(|entry| {
+            entry
+                .file_type()
+                .is_ok_and(|ft| ft.is_symlink())
+        })
         .map(|entry| entry.path())
         .collect()
 }
@@ -195,14 +337,20 @@ fn seed_global_group(
     .expect("write seeded global group manifest");
     for (alias, manifest) in packages {
         let manifest_path = dependency_manifest_path(&install_dir, alias);
-        fs::create_dir_all(manifest_path.parent().expect("dependency manifest parent"))
-            .expect("create seeded global dependency directory");
+        fs::create_dir_all(
+            manifest_path
+                .parent()
+                .expect("dependency manifest parent"),
+        )
+        .expect("create seeded global dependency directory");
         if let Some(manifest) = manifest {
             fs::write(manifest_path, manifest).expect("write seeded global dependency manifest");
         }
     }
     std::os::unix::fs::symlink(
-        install_dir.file_name().expect("seeded install directory name"),
+        install_dir
+            .file_name()
+            .expect("seeded install directory name"),
         global_pkg_dir.join(hash),
     )
     .expect("link seeded global group");
@@ -247,7 +395,9 @@ fn global_add_list_remove_round_trip() {
         .success();
 
     assert!(
-        global_bin.join("touch-file-one-bin").exists(),
+        global_bin
+            .join("touch-file-one-bin")
+            .exists(),
         "the package's bin should be linked into the global bin directory",
     );
     let links = symlink_entries(&global_pkg_dir);
@@ -273,7 +423,9 @@ fn global_add_list_remove_round_trip() {
         .success();
 
     assert!(
-        !global_bin.join("touch-file-one-bin").exists(),
+        !global_bin
+            .join("touch-file-one-bin")
+            .exists(),
         "remove -g should unlink the package's bin",
     );
     assert!(
@@ -384,7 +536,9 @@ fn global_add_creates_a_missing_global_bin_dir() {
         .success();
 
     assert!(
-        global_bin.join("touch-file-one-bin").exists(),
+        global_bin
+            .join("touch-file-one-bin")
+            .exists(),
         "the global bin dir should have been created and the bin linked into it",
     );
 
@@ -422,8 +576,12 @@ fn global_add_installs_the_npm_package_a_purl_names() {
     assert!(manifest.contains(r#""node": "22.0.0""#), "{manifest}");
     let installed = fs::canonicalize(install_dir.join("node_modules/node"))
         .expect("resolve the installed node package");
-    let slots = fs::canonicalize(npmrc_info.store_dir.join("v11/links/@/node/22.0.0"))
-        .expect("resolve the node slots");
+    let slots = fs::canonicalize(
+        npmrc_info
+            .store_dir
+            .join("v11/links/@/node/22.0.0"),
+    )
+    .expect("resolve the node slots");
     assert!(
         installed.starts_with(slots),
         "the npm package the purl names must be the one installed: {installed:?}",
@@ -514,7 +672,9 @@ fn global_add_materializes_transitive_optional_dependencies() {
         .and_then(Path::parent)
         .expect("the package sits in its slot's node_modules");
     assert!(
-        slot_modules_dir.join("is-positive/package.json").exists(),
+        slot_modules_dir
+            .join("is-positive/package.json")
+            .exists(),
         "the transitive optional dependency must be materialized and its alias symlink must resolve",
     );
 
@@ -573,7 +733,9 @@ fn global_add_installs_standalone_package_files_without_scripts() {
         r#"{ "name": "@pnpm/exe", "version": "12.0.0", "files": ["dist/"], "scripts": { "install": "exit 1" } }"#,
     )
     .expect("write local package manifest");
-    let bundled_node_gyp = package_dir.path().join("dist/node_modules/node-gyp/bin/node-gyp.js");
+    let bundled_node_gyp = package_dir
+        .path()
+        .join("dist/node_modules/node-gyp/bin/node-gyp.js");
     fs::create_dir_all(bundled_node_gyp.parent().unwrap()).expect("create bundled node-gyp dir");
     fs::write(&bundled_node_gyp, "").expect("write bundled node-gyp");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
@@ -621,7 +783,7 @@ fn global_add_installs_standalone_package_files_without_scripts() {
 
 /// The global `config.yaml` of a [`global_command`] run with `pnpm_home`.
 #[cfg(unix)]
-fn global_config_yaml(pnpm_home: &Path) -> PathBuf {
+pub(crate) fn global_config_yaml(pnpm_home: &Path) -> PathBuf {
     pnpm_home
         .join("config-home")
         .join("pnpm")
@@ -660,11 +822,20 @@ fn global_add_persists_build_approvals_to_the_global_config() {
         config_yaml,
         "globalPackagesConfig:\n  permissions:\n    '@pnpm.e2e/install-script-example':\n      build: true\n",
     );
-    assert!(!global_pkg_dir.join("pnpm-workspace.yaml").exists());
+    assert!(
+        !global_pkg_dir
+            .join("pnpm-workspace.yaml")
+            .exists()
+    );
 
     // No per-group install dir should carry the decision.
-    for entry in fs::read_dir(&global_pkg_dir).expect("read global packages dir").flatten() {
-        if entry.file_type().is_ok_and(|file_type| file_type.is_dir())
+    for entry in fs::read_dir(&global_pkg_dir)
+        .expect("read global packages dir")
+        .flatten()
+    {
+        if entry
+            .file_type()
+            .is_ok_and(|file_type| file_type.is_dir())
             && let Ok(text) = fs::read_to_string(entry.path().join("pnpm-workspace.yaml"))
         {
             assert!(
@@ -947,7 +1118,9 @@ fn global_add_ignores_ambient_global_workspace_yaml() {
         .success();
 
     assert!(
-        global_bin.join("touch-file-one-bin").exists(),
+        global_bin
+            .join("touch-file-one-bin")
+            .exists(),
         "the package's bin should be linked even with a global-settings workspace yaml present",
     );
 
@@ -987,7 +1160,9 @@ fn global_add_ignores_caller_project_overrides() {
         .success();
 
     assert!(
-        global_bin.join("touch-file-one-bin").exists(),
+        global_bin
+            .join("touch-file-one-bin")
+            .exists(),
         "the global install should ignore the caller project's overrides / catalog mode",
     );
 
@@ -1024,7 +1199,9 @@ fn global_add_ignores_caller_project_npmrc_registry() {
         .success();
 
     assert!(
-        global_bin.join("touch-file-one-bin").exists(),
+        global_bin
+            .join("touch-file-one-bin")
+            .exists(),
         "the global install must ignore the caller project's .npmrc registry",
     );
 
@@ -1055,8 +1232,16 @@ fn recursive_global_outdated_reads_each_global_install_lockfile() {
     let links = symlink_entries(&global_pkg_dir);
     assert_eq!(links.len(), 1, "global add should create one install-group link");
     let install_dir = fs::canonicalize(&links[0]).expect("resolve global install-group link");
-    assert!(install_dir.join("package.json").is_file());
-    assert!(install_dir.join("pnpm-lock.yaml").is_file());
+    assert!(
+        install_dir
+            .join("package.json")
+            .is_file()
+    );
+    assert!(
+        install_dir
+            .join("pnpm-lock.yaml")
+            .is_file()
+    );
 
     fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n")
         .expect("poison caller registry");
@@ -1175,7 +1360,9 @@ fn global_commands_read_group_lockfiles_when_the_lockfile_setting_is_off() {
     let links = symlink_entries(&global_pkg_dir);
     let install_dir = fs::canonicalize(&links[0]).expect("resolve global install-group link");
     assert!(
-        install_dir.join("pnpm-lock.yaml").is_file(),
+        install_dir
+            .join("pnpm-lock.yaml")
+            .is_file(),
         "a global install writes its group lockfile even with lockfile=false",
     );
 
@@ -1340,7 +1527,9 @@ fn global_update_latest_upgrades_npm_aliases_and_runtimes_across_majors_without_
         .expect("scan global")
         .expect("find node");
     assert_eq!(
-        pnpm_global::installed_versions(&node_group.install_dir).get("node").map(String::as_str),
+        pnpm_global::installed_versions(&node_group.install_dir)
+            .get("node")
+            .map(String::as_str),
         Some("24.0.0-rc.4"),
     );
 
@@ -1644,9 +1833,9 @@ fn unchanged_global_update_still_approves_a_pending_build() {
         pnpm_global::find_global_package(&global_dir, "@pnpm.e2e/install-script-example")
             .expect("scan global packages")
             .expect("find install-script group");
-    let build_artifact = install_before.install_dir.join(
-        "node_modules/@pnpm.e2e/install-script-example/generated-by-install.js",
-    );
+    let build_artifact = install_before
+        .install_dir
+        .join("node_modules/@pnpm.e2e/install-script-example/generated-by-install.js");
     assert!(!build_artifact.exists());
 
     let output = global_command(&workspace, &pnpm_home)
@@ -1696,14 +1885,22 @@ fn global_update_migrates_the_packages_of_the_previous_layout() {
     let stray_bin = pnpm_home.join("touch-file-one-bin");
     fs::hard_link(legacy_pkg_dir.join("cli.js"), &stray_bin)
         .expect("link the bin the way pnpm 10 did");
-    let legacy_pnpm_dir = legacy_dir.join("node_modules").join("pnpm");
+    let legacy_pnpm_dir = legacy_dir
+        .join("node_modules")
+        .join("pnpm");
     fs::create_dir_all(legacy_pnpm_dir.join("bin")).expect("create the legacy pnpm dir");
     fs::write(
         legacy_pnpm_dir.join("package.json"),
         r#"{"name":"pnpm","version":"10.0.0","bin":{"pnpm":"bin/pnpm.cjs"}}"#,
     )
     .expect("write the legacy pnpm manifest");
-    fs::write(legacy_pnpm_dir.join("bin").join("pnpm.cjs"), "").expect("write the legacy pnpm bin");
+    fs::write(
+        legacy_pnpm_dir
+            .join("bin")
+            .join("pnpm.cjs"),
+        "",
+    )
+    .expect("write the legacy pnpm bin");
     let stray_pnpm_shim = pnpm_home.join("pnpm");
     fs::write(
         &stray_pnpm_shim,
@@ -1726,7 +1923,9 @@ fn global_update_migrates_the_packages_of_the_previous_layout() {
             .is_some(),
         "the legacy package must be installed as a group of the current layout",
     );
-    let migrated_bin = pnpm_home.join("bin").join("touch-file-one-bin");
+    let migrated_bin = pnpm_home
+        .join("bin")
+        .join("touch-file-one-bin");
     assert!(migrated_bin.exists(), "the bin must be linked into the current bin dir");
     assert!(!legacy_dir.exists(), "the previous layout must be removed");
     assert!(fs::symlink_metadata(&stray_bin).is_err(), "the bin pnpm 10 linked must be removed");
@@ -1788,7 +1987,8 @@ fn global_update_leaves_a_legacy_package_a_current_group_declares_to_the_update(
     let groups = pnpm_global::scan_global_packages(&global_dir).expect("scan global packages");
     assert_eq!(groups.len(), 1, "the group must be restored, not replaced by a second one");
     assert!(groups[0].has_alias("@foo/no-deps"), "the sibling must survive the restore");
-    let restored = groups[0].install_dir
+    let restored = groups[0]
+        .install_dir
         .join("node_modules")
         .join("@foo")
         .join("touch-file-one-bin");
@@ -1824,8 +2024,12 @@ fn global_update_restores_group_with_deleted_node_modules() {
     let install_before = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
         .expect("scan global packages")
         .expect("find the touch-file group");
-    fs::remove_dir_all(install_before.install_dir.join("node_modules"))
-        .expect("remove the group's node_modules");
+    fs::remove_dir_all(
+        install_before
+            .install_dir
+            .join("node_modules"),
+    )
+    .expect("remove the group's node_modules");
 
     let output = global_command(&workspace, &pnpm_home)
         .with_args(["update", "-g"])
@@ -1842,8 +2046,9 @@ fn global_update_restores_group_with_deleted_node_modules() {
     // The bin shim reaches its target through the hash link, not through the
     // install dir it currently resolves to, so that is the path the restored
     // package has to be reachable by.
-    let shim_target_package =
-        global_dir.join(&install_after.hash).join("node_modules/@foo/touch-file-one-bin");
+    let shim_target_package = global_dir
+        .join(&install_after.hash)
+        .join("node_modules/@foo/touch-file-one-bin");
     assert!(shim_target_package.is_dir(), "the shim's target package is missing");
 
     drop((root, npmrc_info));
@@ -1879,8 +2084,12 @@ fn global_update_skips_a_group_whose_file_source_no_longer_exists() {
         .expect("scan global packages")
         .expect("find the registry group");
     fs::remove_dir_all(&package_dir).expect("delete the local package");
-    fs::remove_dir_all(registry_before.install_dir.join("node_modules"))
-        .expect("remove the registry group's node_modules");
+    fs::remove_dir_all(
+        registry_before
+            .install_dir
+            .join("node_modules"),
+    )
+    .expect("remove the registry group's node_modules");
 
     let output = global_command(&workspace, &pnpm_home)
         .with_args(["update", "-g"])
@@ -1986,7 +2195,9 @@ fn global_update_approves_an_immature_version_once_across_its_resolution_passes(
     eprintln!("{stdout}");
     assert!(output.status.success(), "{stdout}");
     assert_eq!(
-        stdout.matches("the minimumReleaseAge constraint:").count(),
+        stdout
+            .matches("the minimumReleaseAge constraint:")
+            .count(),
         1,
         "the update must ask once, not once per resolution pass",
     );
@@ -2135,8 +2346,12 @@ fn global_commands_isolate_from_cwd_pnpmfile_workspace_yaml_and_npmrc() {
     );
 
     // Configured globalPnpmfile still runs on global commands.
-    let global_marker = root.path().join("global-pnpmfile-ran.txt");
-    let global_pnpmfile = root.path().join("trusted-global-pnpmfile.cjs");
+    let global_marker = root
+        .path()
+        .join("global-pnpmfile-ran.txt");
+    let global_pnpmfile = root
+        .path()
+        .join("trusted-global-pnpmfile.cjs");
     fs::write(
         &global_pnpmfile,
         format!(
@@ -2170,8 +2385,12 @@ fn global_commands_isolate_from_cwd_pnpmfile_workspace_yaml_and_npmrc() {
     fs::create_dir_all(nested_pnpm_home.join("bin")).expect("create nested global bin dir");
     fs::write(nested_parent.join("pnpm-workspace.yaml"), "packages: [\n")
         .expect("write malformed parent pnpm-workspace.yaml");
-    let nested_hook_marker = root.path().join("nested-global-pnpmfile-ran.txt");
-    let nested_global_pnpmfile = root.path().join("nested-trusted-global-pnpmfile.cjs");
+    let nested_hook_marker = root
+        .path()
+        .join("nested-global-pnpmfile-ran.txt");
+    let nested_global_pnpmfile = root
+        .path()
+        .join("nested-trusted-global-pnpmfile.cjs");
     fs::write(
         &nested_global_pnpmfile,
         format!(

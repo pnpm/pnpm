@@ -85,4 +85,4 @@ pnpm removes a link once the package is removed, the approval is revoked, or the
 
 If a skill is approved but there is no directory to link it into, pnpm installs dependencies without linking the skill.
 
-Global installs, `pnpm dlx`, and `pnpm deploy` do not link skills.
+`pnpm dlx` and `pnpm deploy` do not link skills. Global installs link approved skills into agent skill directories under your home directory. Use `pnpm approve -g` or `pnpm permissions approve -g` to review pending global skill and build approvals, which are stored in [`globalPackagesConfig.permissions`](./configuring.md#settings-for-global-packages) in the global `config.yaml`.

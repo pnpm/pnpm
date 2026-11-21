@@ -1,22 +1,9 @@
-use super::{
-    Skill,
-    SkillSource,
-    keep_highest,
-};
-use crate::agent_skills::{
-    SyncAgentSkills,
-    sync_agent_skills,
-};
-use pnpm_config::{
-    Config,
-    SkillsPermission,
-};
+use super::{Skill, SkillSource, keep_highest};
+use crate::agent_skills::{SyncAgentSkills, sync_agent_skills};
+use pnpm_config::{Config, SkillsPermission};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
-use std::{
-    collections::BTreeMap,
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, path::PathBuf};
 
 fn top_level() -> Skill {
     Skill { name: "guide".to_string(), dir: PathBuf::from("guide") }
@@ -185,7 +172,9 @@ fn sync_does_not_escape_skills_dir_on_backslash_traversal_dep_path() {
         skills_dirs: Some(vec![".claude/skills".to_string()]),
         ..Config::default()
     };
-    config.allow_skills.insert(r"ä\..\..\outside".to_string(), SkillsPermission::All(true));
+    config
+        .allow_skills
+        .insert(r"ä\..\..\outside".to_string(), SkillsPermission::All(true));
 
     let state = sync_agent_skills(&SyncAgentSkills {
         config: &config,
@@ -198,13 +187,22 @@ fn sync_does_not_escape_skills_dir_on_backslash_traversal_dep_path() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.path(),
         hoisted_locations: None,
     })
     .unwrap();
 
     assert_eq!(state.linked, [".claude/skills/pnpm-safe-alias-guide"]);
-    assert!(skills_dir.join("pnpm-safe-alias-guide").exists());
-    assert!(!root.join(".claude/outside-guide").exists());
+    assert!(
+        skills_dir
+            .join("pnpm-safe-alias-guide")
+            .exists()
+    );
+    assert!(
+        !root
+            .join(".claude/outside-guide")
+            .exists()
+    );
     assert!(
         !workspace
             .path()
@@ -216,7 +214,9 @@ fn sync_does_not_escape_skills_dir_on_backslash_traversal_dep_path() {
 #[test]
 fn a_skill_deeper_than_the_bound_is_not_found() {
     let root = tempfile::tempdir().unwrap();
-    let deep = root.path().join("skills/engineering/platform/agent-schema/conventions");
+    let deep = root
+        .path()
+        .join("skills/engineering/platform/agent-schema/conventions");
     std::fs::create_dir_all(&deep).unwrap();
     std::fs::write(deep.join("SKILL.md"), "# skill\n").unwrap();
 
@@ -328,7 +328,9 @@ fn local_directory_and_tarball_dep_paths_use_the_project_alias_for_link_segment(
 #[test]
 fn unsafe_importer_ids_are_ignored_during_discovery() {
     let temp = tempfile::tempdir().unwrap();
-    let outside_pkg = temp.path().join("outside/node_modules/evil");
+    let outside_pkg = temp
+        .path()
+        .join("outside/node_modules/evil");
     std::fs::create_dir_all(outside_pkg.join("skills/pwn")).unwrap();
     std::fs::write(outside_pkg.join("skills/pwn/SKILL.md"), "# pwn\n").unwrap();
     let root = temp.path().join("workspace");
@@ -340,7 +342,9 @@ fn unsafe_importer_ids_are_ignored_during_discovery() {
         install_state_dir: root.join("node_modules/.pnpm"),
         ..Config::default()
     };
-    config.allow_skills.insert("evil".to_string(), SkillsPermission::All(true));
+    config
+        .allow_skills
+        .insert("evil".to_string(), SkillsPermission::All(true));
 
     let state = sync_agent_skills(&SyncAgentSkills {
         config: &config,
@@ -353,6 +357,7 @@ fn unsafe_importer_ids_are_ignored_during_discovery() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.path(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -369,7 +374,9 @@ fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills(
     std::fs::write(pkg_dir.join("package.json"), r#"{"name":"@example/my-skills"}"#).unwrap();
     std::fs::write(pkg_dir.join("skills/demo-skill/SKILL.md"), "# demo\n").unwrap();
 
-    let app_link = root.path().join("packages/app/node_modules/@example/my-skills");
+    let app_link = root
+        .path()
+        .join("packages/app/node_modules/@example/my-skills");
     std::fs::create_dir_all(app_link.parent().unwrap()).unwrap();
     pnpm_fs::force_symlink_dir(&pkg_dir, &app_link).unwrap();
     std::fs::create_dir_all(root.path().join(".agents/skills")).unwrap();
@@ -395,13 +402,16 @@ fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills(
         included,
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
     assert_eq!(unapproved.pending, ["@example/my-skills@link:packages/my-skills"]);
     assert_eq!(unapproved.pending_keys(), ["@example/my-skills"]);
 
-    config.allow_skills.insert("@example/my-skills".to_string(), SkillsPermission::All(true));
+    config
+        .allow_skills
+        .insert("@example/my-skills".to_string(), SkillsPermission::All(true));
     let approved = sync_agent_skills(&SyncAgentSkills {
         config: &config,
         workspace_root: root.path(),
@@ -409,6 +419,7 @@ fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills(
         included,
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -419,7 +430,9 @@ fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills(
             .is_file(),
     );
 
-    config.allow_skills.insert("@example/my-skills".to_string(), SkillsPermission::All(false));
+    config
+        .allow_skills
+        .insert("@example/my-skills".to_string(), SkillsPermission::All(false));
     let revoked = sync_agent_skills(&SyncAgentSkills {
         config: &config,
         workspace_root: root.path(),
@@ -427,6 +440,7 @@ fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills(
         included,
         linked: &approved.linked,
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -460,7 +474,9 @@ fn workspace_link_and_injected_copy_collapse_to_live_link_in_either_importer_ord
         install_state_dir: root.path().join("node_modules/.pnpm"),
         ..Config::default()
     };
-    config.allow_skills.insert("@example/my-skills".to_string(), SkillsPermission::All(true));
+    config
+        .allow_skills
+        .insert("@example/my-skills".to_string(), SkillsPermission::All(true));
     let included = IncludedDependencies {
         dependencies: true,
         dev_dependencies: true,
@@ -497,13 +513,18 @@ fn workspace_link_and_injected_copy_collapse_to_live_link_in_either_importer_ord
             included,
             linked: &[".agents/skills/demo-skill".to_string()],
             agent_dir: None,
+            target_root: root.as_ref(),
             hoisted_locations: None,
         })
         .unwrap();
 
         assert_eq!(state.linked, [".agents/skills/demo-skill"]);
         assert_eq!(
-            std::fs::canonicalize(root.path().join(".agents/skills/demo-skill")).unwrap(),
+            std::fs::canonicalize(
+                root.path()
+                    .join(".agents/skills/demo-skill")
+            )
+            .unwrap(),
             std::fs::canonicalize(live_dir.join("skills/demo-skill")).unwrap(),
         );
     }
@@ -514,7 +535,9 @@ fn distinct_local_and_registry_sources_sharing_alias_and_skill_disambiguate_with
     let root = tempfile::tempdir().unwrap();
     let dir_a = root.path().join("dir-a");
     let dir_b = root.path().join("dir-b");
-    let reg_c = root.path().join("packages/c/node_modules/foo");
+    let reg_c = root
+        .path()
+        .join("packages/c/node_modules/foo");
     for dir in [&dir_a, &dir_b, &reg_c] {
         std::fs::create_dir_all(dir.join("skills/guide")).unwrap();
         std::fs::write(dir.join("skills/guide/SKILL.md"), "# guide\n").unwrap();
@@ -540,7 +563,9 @@ fn distinct_local_and_registry_sources_sharing_alias_and_skill_disambiguate_with
         install_state_dir: root.path().join("node_modules/.pnpm"),
         ..Config::default()
     };
-    config.allow_skills.insert("foo".to_string(), SkillsPermission::All(true));
+    config
+        .allow_skills
+        .insert("foo".to_string(), SkillsPermission::All(true));
 
     let state = sync_agent_skills(&SyncAgentSkills {
         config: &config,
@@ -553,6 +578,7 @@ fn distinct_local_and_registry_sources_sharing_alias_and_skill_disambiguate_with
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -566,15 +592,27 @@ fn distinct_local_and_registry_sources_sharing_alias_and_skill_disambiguate_with
         ],
     );
     assert_eq!(
-        std::fs::canonicalize(root.path().join(".agents/skills/pnpm-foo-guide")).unwrap(),
+        std::fs::canonicalize(
+            root.path()
+                .join(".agents/skills/pnpm-foo-guide")
+        )
+        .unwrap(),
         std::fs::canonicalize(reg_c.join("skills/guide")).unwrap(),
     );
     assert_eq!(
-        std::fs::canonicalize(root.path().join(".agents/skills/pnpm-foo-dir-a-guide")).unwrap(),
+        std::fs::canonicalize(
+            root.path()
+                .join(".agents/skills/pnpm-foo-dir-a-guide")
+        )
+        .unwrap(),
         std::fs::canonicalize(dir_a.join("skills/guide")).unwrap(),
     );
     assert_eq!(
-        std::fs::canonicalize(root.path().join(".agents/skills/pnpm-foo-dir-b-guide")).unwrap(),
+        std::fs::canonicalize(
+            root.path()
+                .join(".agents/skills/pnpm-foo-dir-b-guide")
+        )
+        .unwrap(),
         std::fs::canonicalize(dir_b.join("skills/guide")).unwrap(),
     );
 }
@@ -583,8 +621,9 @@ fn distinct_local_and_registry_sources_sharing_alias_and_skill_disambiguate_with
 fn explicit_injected_file_approval_links_when_live_link_copy_is_undecided() {
     let root = tempfile::tempdir().unwrap();
     let live_dir = root.path().join("packages/my-skills");
-    let injected_dir =
-        root.path().join("node_modules/.pnpm/injected/node_modules/@example/my-skills");
+    let injected_dir = root
+        .path()
+        .join("node_modules/.pnpm/injected/node_modules/@example/my-skills");
     for dir in [&live_dir, &injected_dir] {
         std::fs::create_dir_all(dir.join("skills/demo-skill")).unwrap();
         std::fs::write(
@@ -594,11 +633,15 @@ fn explicit_injected_file_approval_links_when_live_link_copy_is_undecided() {
         .unwrap();
         std::fs::write(dir.join("skills/demo-skill/SKILL.md"), "# demo\n").unwrap();
     }
-    let link_slot = root.path().join("packages/a/node_modules/@example/my-skills");
+    let link_slot = root
+        .path()
+        .join("packages/a/node_modules/@example/my-skills");
     std::fs::create_dir_all(link_slot.parent().unwrap()).unwrap();
     pnpm_fs::force_symlink_dir(&live_dir, &link_slot).unwrap();
 
-    let injected_slot = root.path().join("packages/b/node_modules/@example/my-skills");
+    let injected_slot = root
+        .path()
+        .join("packages/b/node_modules/@example/my-skills");
     std::fs::create_dir_all(injected_slot.parent().unwrap()).unwrap();
     pnpm_fs::force_symlink_dir(&injected_dir, &injected_slot).unwrap();
     std::fs::create_dir_all(root.path().join(".agents/skills")).unwrap();
@@ -631,6 +674,7 @@ fn explicit_injected_file_approval_links_when_live_link_copy_is_undecided() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -638,7 +682,11 @@ fn explicit_injected_file_approval_links_when_live_link_copy_is_undecided() {
     assert_eq!(state.linked, [".agents/skills/demo-skill"]);
     assert_eq!(state.pending, ["@example/my-skills@link:packages/my-skills"]);
     assert_eq!(
-        std::fs::canonicalize(root.path().join(".agents/skills/demo-skill")).unwrap(),
+        std::fs::canonicalize(
+            root.path()
+                .join(".agents/skills/demo-skill")
+        )
+        .unwrap(),
         std::fs::canonicalize(injected_dir.join("skills/demo-skill")).unwrap(),
     );
 }
@@ -675,7 +723,9 @@ fn deep_local_paths_sharing_alias_and_skill_use_bounded_hash_filenames() {
         install_state_dir: root.path().join("node_modules/.pnpm"),
         ..Config::default()
     };
-    config.allow_skills.insert(alias.to_string(), SkillsPermission::All(true));
+    config
+        .allow_skills
+        .insert(alias.to_string(), SkillsPermission::All(true));
 
     let state = sync_agent_skills(&SyncAgentSkills {
         config: &config,
@@ -688,6 +738,7 @@ fn deep_local_paths_sharing_alias_and_skill_use_bounded_hash_filenames() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -741,7 +792,9 @@ fn revoking_descendant_link_package_inside_configured_skills_dir_prunes_symlink(
         skills_dirs: Some(vec!["ai-skills".to_string()]),
         ..Config::default()
     };
-    config.allow_skills.insert("pkg".to_string(), SkillsPermission::All(true));
+    config
+        .allow_skills
+        .insert("pkg".to_string(), SkillsPermission::All(true));
 
     let linked = sync_agent_skills(&SyncAgentSkills {
         config: &config,
@@ -750,6 +803,7 @@ fn revoking_descendant_link_package_inside_configured_skills_dir_prunes_symlink(
         included,
         linked: &[],
         agent_dir: None,
+        target_root: root.path(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -760,7 +814,9 @@ fn revoking_descendant_link_package_inside_configured_skills_dir_prunes_symlink(
             .is_file(),
     );
 
-    config.allow_skills.insert("pkg".to_string(), SkillsPermission::All(false));
+    config
+        .allow_skills
+        .insert("pkg".to_string(), SkillsPermission::All(false));
     let revoked = sync_agent_skills(&SyncAgentSkills {
         config: &config,
         workspace_root: root.path(),
@@ -768,6 +824,7 @@ fn revoking_descendant_link_package_inside_configured_skills_dir_prunes_symlink(
         included,
         linked: &linked.linked,
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -816,7 +873,9 @@ fn long_sibling_skill_names_do_not_erase_colliding_local_package_labels() {
         install_state_dir: root.path().join("node_modules/.pnpm"),
         ..Config::default()
     };
-    config.allow_skills.insert("foo".to_string(), SkillsPermission::All(true));
+    config
+        .allow_skills
+        .insert("foo".to_string(), SkillsPermission::All(true));
 
     let state = sync_agent_skills(&SyncAgentSkills {
         config: &config,
@@ -829,6 +888,7 @@ fn long_sibling_skill_names_do_not_erase_colliding_local_package_labels() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -878,10 +938,9 @@ fn parenthesized_link_dir_approval_does_not_approve_sibling_link_dir() {
         install_state_dir: root.path().join("node_modules/.pnpm"),
         ..Config::default()
     };
-    config.allow_skills.insert(
-        "foo@link:packages/foo(alt)".to_string(),
-        SkillsPermission::All(true),
-    );
+    config
+        .allow_skills
+        .insert("foo@link:packages/foo(alt)".to_string(), SkillsPermission::All(true));
 
     let state = sync_agent_skills(&SyncAgentSkills {
         config: &config,
@@ -894,6 +953,7 @@ fn parenthesized_link_dir_approval_does_not_approve_sibling_link_dir() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();

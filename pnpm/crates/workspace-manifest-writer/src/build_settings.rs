@@ -1,16 +1,8 @@
-use pnpm_config::SkillsPermission;
+use pnpm_config::{AllowBuild, PackagePermissions, SkillsPermission};
 
 use super::{
-    Manifest,
-    ManifestTarget,
-    Path,
-    UpdateWorkspaceManifestError,
-    edit,
-    has_control_char,
-    read_manifest_at,
-    read_owning_manifest,
-    unsupported_inline_key,
-    write_or_remove_manifest,
+    Manifest, ManifestTarget, Path, UpdateWorkspaceManifestError, edit, has_control_char,
+    read_manifest_at, read_owning_manifest, unsupported_inline_key, write_or_remove_manifest,
 };
 
 /// The value of one `permissions` entry: the capability the decision is
@@ -63,34 +55,150 @@ pub fn set_global_packages_build_permissions<'a, Entries>(
 where
     Entries: IntoIterator<Item = (&'a str, bool)>,
 {
+    let decisions = entries
+        .into_iter()
+        .map(|(name, allowed)| {
+            (
+                name.to_string(),
+                PackagePermissions {
+                    build: Some(AllowBuild::Decided(allowed)),
+                    ..Default::default()
+                },
+            )
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    set_global_packages_permissions(path, &decisions)
+}
+
+/// Record `globalPackagesConfig.permissions` decisions in the global
+/// `config.yaml` at `path`, creating the file, its directory, and the
+/// section if absent. Preserves the rest of the document's formatting, and
+/// writes the file back only when something changed.
+pub fn set_global_packages_permissions(
+    path: &Path,
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> Result<(), UpdateWorkspaceManifestError> {
     let target = ManifestTarget::root_manifest(path);
     let mut manifest = read_manifest_at(path)?;
-    let entries: Vec<(&str, bool)> = entries.into_iter().collect();
     let mut blocks =
         vec![vec!["globalPackagesConfig"], vec!["globalPackagesConfig", "permissions"]];
-    blocks.extend(
-        entries
-            .iter()
-            .map(|(name, _)| vec!["globalPackagesConfig", "permissions", *name]),
-    );
+    for (name, entry) in permissions {
+        blocks.push(vec!["globalPackagesConfig", "permissions", name.as_str()]);
+        if entry.build.is_some() {
+            blocks.push(vec!["globalPackagesConfig", "permissions", name.as_str(), "build"]);
+        }
+        if entry.skills.is_some() {
+            blocks.push(vec!["globalPackagesConfig", "permissions", name.as_str(), "skills"]);
+        }
+    }
     let blocks: Vec<&[&str]> = blocks
         .iter()
         .map(Vec::as_slice)
         .collect();
-    validate_allow_build_entries(&manifest, path, &entries, &blocks)?;
+    if let Some(key) = unsupported_inline_key(manifest.document.text(), &blocks) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.to_path_buf(),
+            key,
+        });
+    }
+    for (name, entry) in permissions {
+        validate_global_permission_entry(path, name, entry)?;
+    }
     let mut changed = false;
-    for (name, value) in entries {
-        changed |= edit::set_global_packages_build_permission(&mut manifest, name, value);
+    for (name, entry) in permissions {
+        if let Some(allowed) = entry
+            .build
+            .as_ref()
+            .and_then(AllowBuild::decided)
+        {
+            changed |= edit::set_global_packages_permission(
+                &mut manifest,
+                name,
+                "build",
+                &PermissionValue::Build(allowed),
+            );
+        }
+        if let Some(skills) = entry.skills.as_ref() {
+            changed |= edit::set_global_packages_permission(
+                &mut manifest,
+                name,
+                "skills",
+                &PermissionValue::Skills(skills.clone()),
+            );
+        }
     }
     if !changed {
         return Ok(());
     }
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)
-            .map_err(|source| UpdateWorkspaceManifestError::Write {
+        std::fs::create_dir_all(dir).map_err(|source| UpdateWorkspaceManifestError::Write {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    }
+    write_or_remove_manifest(&target, manifest)
+}
+
+fn validate_global_permission_entry(
+    path: &Path,
+    name: &str,
+    entry: &PackagePermissions,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    if has_control_char(name) {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path: path.to_path_buf(),
+            value: name.to_string(),
+        });
+    }
+    if let Some(SkillsPermission::Chosen(chosen)) = entry.skills.as_ref()
+        && let Some(skill) = chosen
+            .iter()
+            .find(|skill| has_control_char(skill))
+    {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path: path.to_path_buf(),
+            value: skill.clone(),
+        });
+    }
+    Ok(())
+}
+
+/// Record `globalPackagesConfig.skills.dirs` in the global `config.yaml`.
+pub fn set_global_packages_skills_dirs(
+    path: &Path,
+    dirs: &[String],
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let target = ManifestTarget::root_manifest(path);
+    let mut manifest = read_manifest_at(path)?;
+    if let Some(key) = unsupported_inline_key(
+        manifest.document.text(),
+        &[
+            &["globalPackagesConfig"],
+            &["globalPackagesConfig", "skills"],
+            &["globalPackagesConfig", "skills", "dirs"],
+        ],
+    ) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.to_path_buf(),
+            key,
+        });
+    }
+    for dir in dirs {
+        if has_control_char(dir) {
+            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
                 path: path.to_path_buf(),
-                source,
-            })?;
+                value: dir.clone(),
+            });
+        }
+    }
+    if !edit::set_global_packages_skills_dirs(&mut manifest, dirs) {
+        return Ok(());
+    }
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|source| UpdateWorkspaceManifestError::Write {
+            path: path.to_path_buf(),
+            source,
+        })?;
     }
     write_or_remove_manifest(&target, manifest)
 }
@@ -175,7 +283,10 @@ fn validate_allow_build_entries(
             key,
         });
     }
-    if let Some((name, _)) = entries.iter().find(|(name, _)| has_control_char(name)) {
+    if let Some((name, _)) = entries
+        .iter()
+        .find(|(name, _)| has_control_char(name))
+    {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path: path.to_path_buf(),
             value: (*name).to_string(),
@@ -254,7 +365,9 @@ fn validate_permission_entries(
             });
         }
         if let PermissionValue::Skills(SkillsPermission::Chosen(chosen)) = value
-            && let Some(skill) = chosen.iter().find(|skill| has_control_char(skill))
+            && let Some(skill) = chosen
+                .iter()
+                .find(|skill| has_control_char(skill))
         {
             return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
                 path: path.to_path_buf(),
@@ -268,7 +381,9 @@ fn validate_permission_entries(
 /// Upsert `entries`, sending build decisions to `allowBuilds` unless the
 /// document already has `permissions`. Returns whether anything changed.
 fn record_permissions(manifest: &mut Manifest, entries: Vec<(&str, PermissionValue)>) -> bool {
-    let builds_in_permissions = manifest.document.keys
+    let builds_in_permissions = manifest
+        .document
+        .keys
         .iter()
         .any(|key| key == "permissions");
     let mut changed = false;
@@ -311,7 +426,10 @@ pub fn set_skills_dirs(dir: &Path, dirs: &[String]) -> Result<(), UpdateWorkspac
     // The upsert splices write every item on its own line but the entry
     // starts after `dirs: `, so a control character in a relative directory
     // would corrupt the document, refuse instead.
-    if let Some(dir_value) = dirs.iter().find(|dir_value| has_control_char(dir_value)) {
+    if let Some(dir_value) = dirs
+        .iter()
+        .find(|dir_value| has_control_char(dir_value))
+    {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path,
             value: dir_value.clone(),

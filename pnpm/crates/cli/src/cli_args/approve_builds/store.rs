@@ -2,31 +2,18 @@
 
 use super::ApprovalDecision;
 use crate::cli_args::config::ConfigError;
-use miette::{
-    Context,
-    IntoDiagnostic,
-};
+use miette::{Context, IntoDiagnostic};
 use pnpm_config::{
-    Config,
-    GLOBAL_CONFIG_YAML_FILENAME,
-    TrustedSettings,
-    WORKSPACE_MANIFEST_FILENAME,
+    Config, GLOBAL_CONFIG_YAML_FILENAME, TrustedSettings, WORKSPACE_MANIFEST_FILENAME,
     WorkspaceSettings,
 };
 use pnpm_workspace_manifest_writer::{
-    PermissionValue,
-    is_owned_by_config_dependency,
-    set_allow_builds,
-    set_global_packages_build_permissions,
-    set_permissions,
-    update_workspace_setting,
+    PermissionValue, is_owned_by_config_dependency, set_allow_builds,
+    set_global_packages_permissions, set_permissions, update_workspace_setting,
 };
 use std::{
     collections::BTreeMap,
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::{Path, PathBuf},
 };
 
 /// Where build decisions are recorded.
@@ -53,7 +40,10 @@ pub(crate) struct GlobalPackagesStore<'a> {
 impl<'a> GlobalPackagesStore<'a> {
     /// The store of `config`'s global `config.yaml`.
     pub(crate) fn of(config: &'a Config, global_pkg_dir: &'a Path) -> Result<Self, ConfigError> {
-        let config_dir = config.config_dir.as_deref().ok_or(ConfigError::NoGlobalConfigDir)?;
+        let config_dir = config
+            .config_dir
+            .as_deref()
+            .ok_or(ConfigError::NoGlobalConfigDir)?;
         Ok(Self { config_dir, global_pkg_dir })
     }
 }
@@ -61,7 +51,8 @@ impl<'a> GlobalPackagesStore<'a> {
 impl ApprovalStore<'_> {
     /// Record the decisions of an `approve-builds` run.
     pub(crate) fn write_decision(self, decision: &ApprovalDecision) -> miette::Result<()> {
-        let decisions = decision.decisions
+        let decisions = decision
+            .decisions
             .iter()
             .map(|(pkg, &allowed)| (pkg.as_str(), allowed));
         match self {
@@ -71,6 +62,43 @@ impl ApprovalStore<'_> {
             )
             .into_diagnostic(),
             Self::GlobalPackages(store) => store.write(decisions),
+        }
+    }
+
+    /// Write permission decisions from `pnpm approve`/`pnpm permissions approve`.
+    pub(crate) fn write_permission_decisions(
+        self,
+        decisions: &BTreeMap<String, crate::cli_args::permissions::decisions::PackageDecisions>,
+    ) -> miette::Result<()> {
+        match self {
+            Self::Workspace(dir) => {
+                let entries = decisions
+                    .iter()
+                    .flat_map(|(pkg, decided)| {
+                        decided
+                            .build
+                            .map(|allowed| (pkg.as_str(), PermissionValue::Build(allowed)))
+                            .into_iter()
+                            .chain(
+                                decided
+                                    .skills
+                                    .clone()
+                                    .map(|skills| (pkg.as_str(), PermissionValue::Skills(skills))),
+                            )
+                    });
+                set_permissions(dir, entries).into_diagnostic()
+            }
+            Self::GlobalPackages(store) => store.write_permission_decisions(decisions),
+        }
+    }
+
+    /// Write `skills.dirs` to the store's config.
+    pub(crate) fn write_skills_dirs(self, dirs: &[String]) -> miette::Result<()> {
+        match self {
+            Self::Workspace(dir) => {
+                pnpm_workspace_manifest_writer::set_skills_dirs(dir, dirs).into_diagnostic()
+            }
+            Self::GlobalPackages(store) => store.write_skills_dirs(dirs),
         }
     }
 
@@ -96,10 +124,21 @@ impl ApprovalStore<'_> {
             Self::GlobalPackages(store) => store.load_global_packages()?,
         };
         if let Some(settings) = settings {
-            cfg.allow_builds.extend(settings.decided_build_approvals().unwrap_or_default());
-            cfg.allow_skills.extend(settings.decided_skill_approvals().unwrap_or_default());
+            cfg.allow_builds.extend(
+                settings
+                    .decided_build_approvals()
+                    .unwrap_or_default(),
+            );
+            cfg.allow_skills.extend(
+                settings
+                    .decided_skill_approvals()
+                    .unwrap_or_default(),
+            );
             // The approval run may have just written `skills.dirs`.
-            if let Some(dirs) = settings.skills.and_then(|skills| skills.dirs) {
+            if let Some(dirs) = settings
+                .skills
+                .and_then(|skills| skills.dirs)
+            {
                 cfg.skills_dirs = Some(dirs);
             }
         }
@@ -111,35 +150,64 @@ impl GlobalPackagesStore<'_> {
     /// Write `entries` to `globalPackagesConfig.permissions`, moving the
     /// decisions the global packages directory's `pnpm-workspace.yaml` still
     /// holds along with them. A decision already in `globalPackagesConfig`
-    /// outranks the one it would move. Global installs link no agent skills,
-    /// so that file's `permissions` holds build decisions only and moves
-    /// whole.
+    /// outranks the one it would move.
     fn write<'entry>(
         self,
         entries: impl IntoIterator<Item = (&'entry str, bool)>,
     ) -> miette::Result<()> {
-        let movable = self.movable_legacy_settings()?;
-        let recorded = self
-            .load_global_packages()?
-            .and_then(|settings| settings.decided_build_approvals())
-            .unwrap_or_default();
-        let mut decisions: BTreeMap<String, bool> = movable
-            .as_ref()
-            .and_then(WorkspaceSettings::decided_build_approvals)
-            .unwrap_or_default()
+        let decisions = entries
             .into_iter()
-            .filter(|(pkg, _)| !recorded.contains_key(pkg))
-            .collect();
-        decisions.extend(
-            entries
-                .into_iter()
-                .map(|(pkg, allowed)| (pkg.to_string(), allowed)),
-        );
-        set_global_packages_build_permissions(
-            &self.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME),
-            decisions
-                .iter()
-                .map(|(pkg, &allowed)| (pkg.as_str(), allowed)),
+            .map(|(pkg, allowed)| (pkg.to_string(), PermissionValue::Build(allowed)))
+            .collect::<BTreeMap<_, _>>();
+        self.write_permissions(decisions)
+    }
+
+    /// Write capability decisions to `globalPackagesConfig.permissions`,
+    /// moving legacy build decisions from the global packages directory when
+    /// safe.
+    pub(crate) fn write_permissions(
+        self,
+        entries: BTreeMap<String, PermissionValue>,
+    ) -> miette::Result<()> {
+        let movable = self.movable_legacy_settings()?;
+        let recorded = self.load_global_packages()?;
+        let mut decisions: BTreeMap<String, pnpm_config::PackagePermissions> = movable
+            .as_ref()
+            .and_then(|settings| settings.permissions.clone())
+            .map(|m| m.into_iter().collect())
+            .unwrap_or_default();
+        if let Some(recorded_permissions) = recorded
+            .as_ref()
+            .and_then(|settings| settings.permissions.as_ref())
+        {
+            for (pkg, perms) in recorded_permissions {
+                let entry = decisions
+                    .entry(pkg.clone())
+                    .or_default();
+                if entry.build.is_none() {
+                    entry.build = perms.build.clone();
+                }
+                if entry.skills.is_none() {
+                    entry.skills = perms.skills.clone();
+                }
+            }
+        }
+        for (pkg, value) in entries {
+            let entry = decisions.entry(pkg).or_default();
+            match value {
+                PermissionValue::Build(allowed) => {
+                    entry.build = Some(pnpm_config::AllowBuild::Decided(allowed));
+                }
+                PermissionValue::Skills(skills) => {
+                    entry.skills = Some(skills);
+                }
+            }
+        }
+        set_global_packages_permissions(
+            &self
+                .config_dir
+                .join(GLOBAL_CONFIG_YAML_FILENAME),
+            &decisions,
         )
         .into_diagnostic()?;
         let Some(settings) = movable else { return Ok(()) };
@@ -147,11 +215,48 @@ impl GlobalPackagesStore<'_> {
             ("allowBuilds", settings.allow_builds.is_some()),
             ("permissions", settings.permissions.is_some()),
         ];
-        for (key, _) in moved.into_iter().filter(|(_, set)| *set) {
+        for (key, _) in moved
+            .into_iter()
+            .filter(|(_, set)| *set)
+        {
             update_workspace_setting(self.global_pkg_dir, key, &serde_json::Value::Null)
                 .into_diagnostic()?;
         }
         Ok(())
+    }
+
+    /// Write permission decisions from `pnpm approve`/`pnpm permissions approve`.
+    pub(crate) fn write_permission_decisions(
+        self,
+        decisions: &BTreeMap<String, crate::cli_args::permissions::decisions::PackageDecisions>,
+    ) -> miette::Result<()> {
+        let entries = decisions
+            .iter()
+            .flat_map(|(pkg, decided)| {
+                decided
+                    .build
+                    .map(|allowed| (pkg.clone(), PermissionValue::Build(allowed)))
+                    .into_iter()
+                    .chain(
+                        decided
+                            .skills
+                            .clone()
+                            .map(|skills| (pkg.clone(), PermissionValue::Skills(skills))),
+                    )
+            })
+            .collect::<BTreeMap<_, _>>();
+        self.write_permissions(entries)
+    }
+
+    /// Write `globalPackagesConfig.skills.dirs` to the global config.
+    pub(crate) fn write_skills_dirs(self, dirs: &[String]) -> miette::Result<()> {
+        pnpm_workspace_manifest_writer::set_global_packages_skills_dirs(
+            &self
+                .config_dir
+                .join(GLOBAL_CONFIG_YAML_FILENAME),
+            dirs,
+        )
+        .into_diagnostic()
     }
 
     /// The legacy settings whose build decisions may move. A config

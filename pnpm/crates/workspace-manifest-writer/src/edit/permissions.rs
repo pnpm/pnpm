@@ -1,13 +1,6 @@
 use super::{
-    Inline,
-    Manifest,
-    flow,
-    locate,
-    locate_mapping,
-    nested::set_nested_entry,
-    remove_top_level_block,
-    render,
-    render_bool,
+    Inline, Manifest, flow, locate, locate_mapping, nested::set_nested_entry,
+    remove_top_level_block, render, render_bool,
 };
 use crate::build_settings::PermissionValue;
 use pnpm_config::SkillsPermission;
@@ -31,18 +24,18 @@ pub(crate) fn set_permission(
     )
 }
 
-/// Upsert `globalPackagesConfig.permissions.<pkg>.build: <allowed>` in the
-/// global `config.yaml`. Returns whether anything changed.
-pub(crate) fn set_global_packages_build_permission(
+/// Upsert `globalPackagesConfig.permissions.<pkg>.<capability>: <value>`.
+pub(crate) fn set_global_packages_permission(
     manifest: &mut Manifest,
     pkg: &str,
-    allowed: bool,
+    capability: &str,
+    value: &PermissionValue,
 ) -> bool {
     set_nested_entry(
         manifest,
         &["globalPackagesConfig", BLOCK, pkg],
-        "build",
-        (render_bool(allowed), &serde_json::Value::Bool(allowed)),
+        capability,
+        (&render_permission_value(value), &permission_json(value)),
     )
 }
 
@@ -97,18 +90,20 @@ pub(crate) fn remove_allow_build(manifest: &mut Manifest, pkg: &str) -> bool {
     let text = text.as_str();
     let new_text = if allow_builds.is_empty() {
         manifest.allow_builds = None;
-        manifest.document.keys.retain(|key| key != ALLOW_BUILDS);
+        manifest
+            .document
+            .keys
+            .retain(|key| key != ALLOW_BUILDS);
         remove_top_level_block(text, ALLOW_BUILDS)
     } else if let Inline::Flow(collection) = locate_mapping(text, &[ALLOW_BUILDS]) {
         flow::remove_keys(text, &collection, &[pkg.to_string()])
     } else {
-        let Some(entry) = locate(text, &[ALLOW_BUILDS])
-            .and_then(|mapping| {
-                mapping.entries
-                    .into_iter()
-                    .find(|entry| entry.key == pkg)
-            })
-        else {
+        let Some(entry) = locate(text, &[ALLOW_BUILDS]).and_then(|mapping| {
+            mapping
+                .entries
+                .into_iter()
+                .find(|entry| entry.key == pkg)
+        }) else {
             return false;
         };
         let mut out = text.to_string();

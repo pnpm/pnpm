@@ -420,12 +420,20 @@ Added in: v12.11.0
 * Default: **the agent skill directories that exist in the workspace root, plus the one of the agent running pnpm**
 * Type: **String[]**
 
-The directories, relative to the workspace root, that pnpm links approved [agent skills](../agent-skills.md) into. When set, it replaces the detected directories, and pnpm creates the ones that are missing. The first time a project approves a skill, `pnpm approve` lists the detected directories and asks which ones to link into, recording the answer here.
+The directories that pnpm links approved [agent skills](../agent-skills.md) into. In a project, paths are relative to the workspace root. In `globalPackagesConfig` in the global `config.yaml`, paths are relative to the home directory and must stay inside it. When set, it replaces the detected directories, and pnpm creates the ones that are missing. The first time skills are approved, `pnpm approve` or `pnpm approve -g` lists the detected directories and asks which ones to link into, recording the answer here.
 
 ```yaml title="pnpm-workspace.yaml"
 skills:
   dirs:
     - .claude/skills
+```
+
+```yaml title="config.yaml"
+globalPackagesConfig:
+  skills:
+    dirs:
+      - .agents/skills
+      - .claude/skills
 ```
 
 An empty list turns agent skills off. pnpm stops offering them for approval and removes the ones it linked.

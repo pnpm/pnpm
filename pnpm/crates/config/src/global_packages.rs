@@ -2,11 +2,7 @@
 //! `config.yaml` and applied only by the commands that act on them.
 
 use crate::{
-    CommandTarget,
-    Config,
-    ExplicitPaths,
-    WorkspaceSettings,
-    collect_explicit_settings,
+    CommandTarget, Config, ExplicitPaths, WorkspaceSettings, collect_explicit_settings,
     note_declared_registries,
 };
 
@@ -17,7 +13,8 @@ pub const GLOBAL_PACKAGES_UNSUPPORTED_KEYS: &[&str] =
     &["catalog", "catalogs", "overrides", "packageExtensions", "patchedDependencies"];
 
 /// The settings that decide which lifecycle scripts run.
-const BUILD_POLICY_KEYS: &[&str] = &["allowBuilds", "dangerouslyAllowAllBuilds", "permissions"];
+const BUILD_POLICY_KEYS: &[&str] =
+    &["allowBuilds", "dangerouslyAllowAllBuilds", "permissions", "skills"];
 
 /// The build policy the layers below the workspace layer set, restored over
 /// the workspace layer's own by [`Config::apply_global_packages_layer`].

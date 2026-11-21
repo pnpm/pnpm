@@ -1,37 +1,15 @@
 use super::{
-    AgentSkillsError,
-    SyncAgentSkills,
-    agent_skills_dir_from_env,
-    decide_sources,
-    detected_agent_dirs,
-    discover_skill_sources,
-    discovery::SkillSource,
-    sync_agent_skills,
+    AgentSkillsError, SyncAgentSkills, agent_skills_dir_from_env, decide_sources,
+    detected_agent_dirs, discover_skill_sources, discovery::SkillSource, sync_agent_skills,
 };
-use crate::{
-    SkillsPolicy,
-    VersionPolicyError,
-};
-use derive_more::{
-    Display,
-    Error,
-};
+use crate::{SkillsPolicy, VersionPolicyError};
+use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_lockfile::{
-    LoadLockfileError,
-    Lockfile,
-};
-use pnpm_modules_yaml::{
-    Host,
-    ReadModulesError,
-    WriteModulesError,
-};
+use pnpm_lockfile::{LoadLockfileError, Lockfile};
+use pnpm_modules_yaml::{Host, ReadModulesError, WriteModulesError};
 use std::{
-    collections::{
-        BTreeMap,
-        BTreeSet,
-    },
+    collections::{BTreeMap, BTreeSet},
     path::Path,
 };
 
@@ -78,15 +56,14 @@ pub(crate) fn resync_agent_skills_at(
     workspace_root: &Path,
     current_lockfile: Option<&Lockfile>,
 ) -> Result<Vec<String>, ResyncAgentSkillsError> {
-    resync_agent_skills_dep_paths_at(config, workspace_root, current_lockfile)
-        .map(|dep_paths| {
-            dep_paths
-                .iter()
-                .map(|dep_path| crate::skill_approval_key(dep_path))
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .collect()
-        })
+    resync_agent_skills_dep_paths_at(config, workspace_root, current_lockfile).map(|dep_paths| {
+        dep_paths
+            .iter()
+            .map(|dep_path| crate::skill_approval_key(dep_path))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    })
 }
 
 /// Resync installed skills and return the dependency paths awaiting approval.
@@ -109,13 +86,21 @@ pub(crate) fn resync_agent_skills_dep_paths_at(
         let Some(lockfile) = loaded.as_ref() else { return Ok(Vec::new()) };
         lockfile
     };
+    let target_root = config
+        .agent_skills_target_root
+        .as_deref()
+        .unwrap_or(workspace_root);
     let state = sync_agent_skills(&SyncAgentSkills {
         config,
         workspace_root,
         lockfile,
         included: modules.included,
-        linked: modules.linked_skills.as_deref().unwrap_or_default(),
+        linked: modules
+            .linked_skills
+            .as_deref()
+            .unwrap_or_default(),
         agent_dir: agent_skills_dir_from_env(),
+        target_root,
         hoisted_locations: modules.hoisted_locations.as_ref(),
     })
     .map_err(ResyncAgentSkillsError::Sync)?;
@@ -178,6 +163,10 @@ pub fn skill_approval_options(
         };
         lockfile
     };
+    let target_root = config
+        .agent_skills_target_root
+        .clone()
+        .unwrap_or_else(|| workspace_root.clone());
     let sources = discover_skill_sources(&SyncAgentSkills {
         config,
         workspace_root: &workspace_root,
@@ -185,6 +174,7 @@ pub fn skill_approval_options(
         included: modules.included,
         linked: &[],
         agent_dir: agent_skills_dir_from_env(),
+        target_root: &target_root,
         hoisted_locations: modules.hoisted_locations.as_ref(),
     });
     let policy =
@@ -192,14 +182,16 @@ pub fn skill_approval_options(
     let (pending, _) = decide_sources(sources, &policy);
     Ok(SkillApprovalOptions {
         skills_by_key: pending_skills_by_key(pending),
-        detected_dirs: detected_agent_dirs(&workspace_root),
+        detected_dirs: detected_agent_dirs(&target_root),
     })
 }
 
 fn pending_skills_by_key(pending: Vec<SkillSource>) -> BTreeMap<String, Vec<String>> {
     let mut by_key: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for source in pending {
-        let names = by_key.entry(source.approval_key).or_default();
+        let names = by_key
+            .entry(source.approval_key)
+            .or_default();
         for skill in source.skills {
             names.insert(skill.name);
         }

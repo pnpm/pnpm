@@ -1,20 +1,10 @@
 //! The `# pnpm` block of each agent skill directory's `.gitignore`.
 
-use super::{
-    AgentSkillsError,
-    links::recorded_parent_is_within_workspace,
-};
+use super::{AgentSkillsError, links::recorded_parent_is_within_root};
 use std::{
-    collections::{
-        BTreeMap,
-        BTreeSet,
-    },
-    fs,
-    io,
-    path::{
-        Path,
-        PathBuf,
-    },
+    collections::{BTreeMap, BTreeSet},
+    fs, io,
+    path::{Path, PathBuf},
 };
 
 /// The ignore rule that older pnpm versions added for links named
@@ -29,7 +19,7 @@ const GITIGNORE_SECTION: &str = "pnpm";
 /// each directory in `dirs`, or that `linked` or `desired` has entries in,
 /// gets a `# pnpm` block listing exactly the entries `desired` has there.
 pub(super) fn update_gitignores(
-    workspace_root: &Path,
+    target_root: &Path,
     dirs: &[PathBuf],
     linked: &[String],
     desired: &BTreeMap<String, PathBuf>,
@@ -38,12 +28,13 @@ pub(super) fn update_gitignores(
         .iter()
         .map(|dir| (dir.clone(), BTreeSet::new()))
         .collect();
-    for entry in
-        linked.iter().filter(|entry| recorded_parent_is_within_workspace(workspace_root, entry))
+    for entry in linked
+        .iter()
+        .filter(|entry| recorded_parent_is_within_root(target_root, entry))
     {
         if let Some(dir) = Path::new(entry).parent() {
             by_dir
-                .entry(workspace_root.join(dir))
+                .entry(target_root.join(dir))
                 .or_default();
         }
     }
@@ -51,7 +42,7 @@ pub(super) fn update_gitignores(
         let path = Path::new(entry);
         let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else { continue };
         by_dir
-            .entry(workspace_root.join(dir))
+            .entry(target_root.join(dir))
             .or_default()
             .insert(gitignore_rule(&name.to_string_lossy()));
     }

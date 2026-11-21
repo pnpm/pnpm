@@ -3,23 +3,14 @@
 //! directory's `pnpm-workspace.yaml` still holds.
 
 use super::{
-    ApprovalStore,
-    Config,
-    GlobalPackagesStore,
-    Path,
-    Reporter,
-    WorkspaceSettings,
-    load_global_packages_config,
-    load_legacy_global_settings,
+    ApprovalStore, Config, GlobalPackagesStore, Path, Reporter, WorkspaceSettings,
+    load_global_packages_config, load_legacy_global_settings,
 };
-use pnpm_config::{
-    GLOBAL_CONFIG_YAML_FILENAME,
-    GLOBAL_PACKAGES_UNSUPPORTED_KEYS,
-};
+use pnpm_config::{GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_PACKAGES_UNSUPPORTED_KEYS};
 use pnpm_reporter::emit_global_warning;
 
 /// Where the build decisions of the global packages are recorded.
-pub(super) fn global_approval_store<'a>(
+pub(crate) fn global_approval_store<'a>(
     config: &'a Config,
     global_pkg_dir: &'a Path,
 ) -> miette::Result<ApprovalStore<'a>> {
@@ -33,7 +24,7 @@ pub(super) fn global_approval_store<'a>(
 /// come the decisions this command recorded since `cfg` was loaded, which an
 /// earlier group may have moved there, then the legacy decisions of the
 /// global packages directory's `pnpm-workspace.yaml`.
-pub(super) fn apply_global_build_policy(
+pub(crate) fn apply_global_build_policy(
     cfg: &mut Config,
     global_pkg_dir: &Path,
 ) -> miette::Result<()> {
@@ -56,7 +47,7 @@ const LEGACY_BUILD_KEYS: &[&str] = &["allowBuilds", "dangerouslyAllowAllBuilds",
 /// Warn about the settings the global packages directory's
 /// `pnpm-workspace.yaml` holds: the build settings still apply and are
 /// deprecated, and every other setting there is ignored.
-pub(super) fn warn_about_legacy_global_settings<Reporter: self::Reporter>(
+pub(crate) fn warn_about_legacy_global_settings<Reporter: self::Reporter>(
     config: &Config,
     global_pkg_dir: &Path,
 ) -> miette::Result<()> {
@@ -71,7 +62,8 @@ pub(super) fn warn_about_legacy_global_settings<Reporter: self::Reporter>(
         .filter(|(_, value)| !value.is_null())
         .map(|(key, _)| key.as_str())
         .collect();
-    let global_config = config.config_dir
+    let global_config = config
+        .config_dir
         .as_deref()
         .map(|dir| {
             dir.join(GLOBAL_CONFIG_YAML_FILENAME)
@@ -124,14 +116,69 @@ fn legacy_settings_warnings(path: &str, global_config: &str, keys: &[&str]) -> V
 
 /// Add the decisions of `settings` that no higher layer of `cfg` made.
 fn fill_build_policy(cfg: &mut Config, settings: &WorkspaceSettings) {
-    for (pkg, allowed) in settings.decided_build_approvals().unwrap_or_default() {
-        cfg.allow_builds.entry(pkg).or_insert(allowed);
+    for (pkg, allowed) in settings
+        .decided_build_approvals()
+        .unwrap_or_default()
+    {
+        cfg.allow_builds
+            .entry(pkg)
+            .or_insert(allowed);
+    }
+    for (pkg, skills) in settings
+        .decided_skill_approvals()
+        .unwrap_or_default()
+    {
+        cfg.allow_skills
+            .entry(pkg)
+            .or_insert(skills);
+    }
+    if cfg.skills_dirs.is_none()
+        && let Some(skills) = settings.skills.as_ref()
+        && let Some(dirs) = skills.dirs.as_ref()
+        && let Some(resolved) = resolve_global_skills_dirs(cfg, dirs)
+    {
+        cfg.skills_dirs = Some(resolved);
     }
     if let Some(allow_all) = settings.dangerously_allow_all_builds
-        && !cfg.explicit_settings.contains_key("dangerouslyAllowAllBuilds")
+        && !cfg
+            .explicit_settings
+            .contains_key("dangerouslyAllowAllBuilds")
     {
         cfg.dangerously_allow_all_builds = allow_all;
     }
+}
+
+fn resolve_global_skills_dirs(config: &Config, dirs: &[String]) -> Option<Vec<String>> {
+    let home = config
+        .agent_skills_target_root
+        .as_deref()
+        .or(config.dir.as_path().parent())?;
+    let home = dunce::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
+    Some(
+        dirs.iter()
+            .filter_map(|dir| {
+                let path = std::path::Path::new(dir);
+                let joined =
+                    if path.is_absolute() { path.to_path_buf() } else { home.join(path) };
+                let resolved = match pnpm_fs::realpath_missing(&joined) {
+                    Ok(resolved) => resolved,
+                    Err(_) => {
+                        emit_global_warning::<crate::cli_args::reporter::CliReporter>(&format!(
+                            "Ignoring globalPackagesConfig.skills.dirs entry {dir:?}: path could not be resolved"
+                        ));
+                        return None;
+                    }
+                };
+                if !pnpm_fs::is_subdir(&home, &resolved) {
+                    emit_global_warning::<crate::cli_args::reporter::CliReporter>(&format!(
+                        "Ignoring globalPackagesConfig.skills.dirs entry {dir:?}: path must be inside the home directory"
+                    ));
+                    return None;
+                }
+                Some(dir.clone())
+            })
+            .collect(),
+    )
 }
 
 #[cfg(test)]

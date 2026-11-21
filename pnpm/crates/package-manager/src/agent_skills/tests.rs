@@ -1,27 +1,13 @@
-use super::{
-    AgentSkillsError,
-    AgentSkillsState,
-    SyncAgentSkills,
-    sync_agent_skills,
-};
-use pnpm_config::{
-    Config,
-    SkillsPermission,
-};
+use super::{AgentSkillsError, AgentSkillsState, SyncAgentSkills, sync_agent_skills};
+use pnpm_config::{Config, SkillsPermission};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{
-        BTreeMap,
-        HashMap,
-    },
+    collections::{BTreeMap, HashMap},
     fmt::Write as _,
     fs,
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::{Path, PathBuf},
 };
 use tempfile::TempDir;
 
@@ -105,6 +91,7 @@ fn sync(
         included: ALL_GROUPS,
         linked,
         agent_dir,
+        target_root: root,
         hoisted_locations: None,
     })
 }
@@ -124,7 +111,12 @@ fn records_unapproved_skills_as_pending() {
         state,
         AgentSkillsState { pending: vec!["foo@1.0.0".to_string()], ..Default::default() },
     );
-    assert_eq!(fs::read_dir(root.path().join(".claude/skills")).unwrap().count(), 0);
+    assert_eq!(
+        fs::read_dir(root.path().join(".claude/skills"))
+            .unwrap()
+            .count(),
+        0
+    );
 }
 
 #[test]
@@ -132,7 +124,12 @@ fn links_approved_skills_into_existing_agent_dirs() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide", "migrate"])]);
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
     fs::create_dir_all(root.path().join(".cursor/skills")).unwrap();
-    fs::write(root.path().join(".claude/skills/.gitignore"), "local-*").unwrap();
+    fs::write(
+        root.path()
+            .join(".claude/skills/.gitignore"),
+        "local-*",
+    )
+    .unwrap();
 
     let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
 
@@ -148,14 +145,26 @@ fn links_approved_skills_into_existing_agent_dirs() {
     );
     assert_eq!(
         link_target(&root.path().join(".claude/skills/guide")),
-        link_target(&root.path().join("node_modules/foo/skills/guide")),
+        link_target(
+            &root
+                .path()
+                .join("node_modules/foo/skills/guide")
+        ),
     );
     assert_eq!(
-        fs::read_to_string(root.path().join(".claude/skills/.gitignore")).unwrap(),
+        fs::read_to_string(
+            root.path()
+                .join(".claude/skills/.gitignore")
+        )
+        .unwrap(),
         "local-*\n# pnpm\n/guide\n/migrate\n# pnpm end\n",
     );
     assert_eq!(
-        fs::read_to_string(root.path().join(".cursor/skills/.gitignore")).unwrap(),
+        fs::read_to_string(
+            root.path()
+                .join(".cursor/skills/.gitignore")
+        )
+        .unwrap(),
         "# pnpm\n/guide\n/migrate\n# pnpm end\n",
     );
 }
@@ -196,8 +205,16 @@ fn links_skills_nested_in_category_directories() {
 
     assert_eq!(state.linked, [".claude/skills/guide", ".claude/skills/implement"]);
     assert_eq!(
-        link_target(&root.path().join(".claude/skills/implement")),
-        link_target(&root.path().join("node_modules/foo/skills/engineering/implement")),
+        link_target(
+            &root
+                .path()
+                .join(".claude/skills/implement")
+        ),
+        link_target(
+            &root
+                .path()
+                .join("node_modules/foo/skills/engineering/implement")
+        ),
     );
 }
 
@@ -245,7 +262,11 @@ fn links_through_a_symlinked_workspace_path() {
 
     sync(&alias, &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
 
-    assert!(alias.join(".claude/skills/guide/SKILL.md").is_file());
+    assert!(
+        alias
+            .join(".claude/skills/guide/SKILL.md")
+            .is_file()
+    );
 }
 
 #[test]
@@ -289,9 +310,14 @@ fn denied_skills_are_neither_pending_nor_linked() {
 #[test]
 fn prunes_entries_that_are_no_longer_approved() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
-    fs::create_dir_all(root.path().join(".claude/skills/hand-written")).unwrap();
-    let linked =
-        sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap().linked;
+    fs::create_dir_all(
+        root.path()
+            .join(".claude/skills/hand-written"),
+    )
+    .unwrap();
+    let linked = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
+        .unwrap()
+        .linked;
     assert!(
         root.path()
             .join(".claude/skills/guide")
@@ -322,7 +348,9 @@ fn prunes_only_recorded_links() {
     fs::create_dir_all(skills.join("hand-written")).unwrap();
     fs::create_dir_all(skills.join("taken")).unwrap();
     pnpm_fs::force_symlink_dir(
-        &root.path().join("node_modules/foo/skills/guide"),
+        &root
+            .path()
+            .join("node_modules/foo/skills/guide"),
         &skills.join("stale"),
     )
     .unwrap();
@@ -352,8 +380,9 @@ fn prunes_only_recorded_links() {
 fn an_empty_dirs_list_turns_skills_off() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
-    let linked =
-        sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap().linked;
+    let linked = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
+        .unwrap()
+        .linked;
 
     let state =
         sync(root.path(), &lockfile, &config(&[("foo", true)], Some(&[])), &linked, None).unwrap();
@@ -379,7 +408,11 @@ fn a_taken_bare_name_falls_back_to_the_prefixed_one() {
     assert_eq!(state.linked, [".claude/skills/pnpm-foo-guide"]);
     assert_eq!(fs::read_to_string(occupied.join("SKILL.md")).unwrap(), "mine");
     assert_eq!(
-        fs::read_to_string(root.path().join(".claude/skills/.gitignore")).unwrap(),
+        fs::read_to_string(
+            root.path()
+                .join(".claude/skills/.gitignore")
+        )
+        .unwrap(),
         "# pnpm\n/pnpm-foo-guide\n# pnpm end\n",
     );
 }
@@ -416,8 +449,9 @@ fn an_occupied_fallback_keeps_the_existing_links() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"]), ("bar", "1.0.0", &["guide"])]);
     let skills = root.path().join(".claude/skills");
     fs::create_dir_all(&skills).unwrap();
-    let linked =
-        sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap().linked;
+    let linked = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
+        .unwrap()
+        .linked;
     assert_eq!(linked, [".claude/skills/guide"]);
     fs::create_dir_all(skills.join("pnpm-bar-guide")).unwrap();
 
@@ -461,8 +495,12 @@ fn ignores_a_skill_that_resolves_outside_its_package() {
     let outside = root.path().join("outside");
     fs::create_dir_all(&outside).unwrap();
     fs::write(outside.join("SKILL.md"), "# outside\n").unwrap();
-    std::os::unix::fs::symlink(&outside, root.path().join("node_modules/foo/skills/escape"))
-        .unwrap();
+    std::os::unix::fs::symlink(
+        &outside,
+        root.path()
+            .join("node_modules/foo/skills/escape"),
+    )
+    .unwrap();
 
     let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
 
@@ -499,6 +537,7 @@ fn sync_hoisted(
         included: ALL_GROUPS,
         linked: &[],
         agent_dir: None,
+        target_root: root,
         hoisted_locations: Some(&locations),
     })
     .unwrap()
@@ -581,7 +620,12 @@ fn a_directory_of_another_patch_is_not_the_dependency() {
 fn a_custom_modules_dir_names_only_the_root_one() {
     let root = tempfile::tempdir().expect("create workspace");
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
-    install_package(&root.path().join("packages/b/node_modules/foo"), &["guide"]);
+    install_package(
+        &root
+            .path()
+            .join("packages/b/node_modules/foo"),
+        &["guide"],
+    );
     let lockfile: Lockfile = serde_saphyr::from_str(
         "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/b:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n",
     )
@@ -603,6 +647,7 @@ fn a_custom_modules_dir_names_only_the_root_one() {
         included: ALL_GROUPS,
         linked: &[],
         agent_dir: None,
+        target_root: root.path(),
         hoisted_locations: Some(&locations),
     })
     .unwrap();
@@ -639,7 +684,12 @@ fn an_alias_that_leaves_node_modules_is_ignored() {
 fn a_missing_higher_version_does_not_hide_an_installed_one() {
     let root = tempfile::tempdir().expect("create workspace");
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
-    install_package(&root.path().join("packages/b/node_modules/foo"), &["guide"]);
+    install_package(
+        &root
+            .path()
+            .join("packages/b/node_modules/foo"),
+        &["guide"],
+    );
     let lockfile: Lockfile = serde_saphyr::from_str(
         "lockfileVersion: '9.0'\nimporters:\n  packages/a:\n    dependencies:\n      foo:\n        specifier: 2.0.0\n        version: 2.0.0\n  packages/b:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n",
     )
@@ -654,7 +704,12 @@ fn a_missing_higher_version_does_not_hide_an_installed_one() {
 fn a_package_missing_from_one_importer_is_found_in_another() {
     let root = tempfile::tempdir().expect("create workspace");
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
-    install_package(&root.path().join("packages/b/node_modules/foo"), &["guide"]);
+    install_package(
+        &root
+            .path()
+            .join("packages/b/node_modules/foo"),
+        &["guide"],
+    );
     let lockfile: Lockfile = serde_saphyr::from_str(
         "lockfileVersion: '9.0'\nimporters:\n  packages/a:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n  packages/b:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n",
     )
@@ -695,7 +750,12 @@ fn the_highest_version_decides() {
     ))
     .unwrap();
     install_package(&root.path().join("node_modules/foo"), &["guide"]);
-    install_package(&root.path().join("packages/app/node_modules/foo"), &[]);
+    install_package(
+        &root
+            .path()
+            .join("packages/app/node_modules/foo"),
+        &[],
+    );
 
     let state = sync(root.path(), &lockfile, &config(&[], None), &[], None).unwrap();
 
@@ -818,7 +878,11 @@ fn replaces_an_unrecorded_link_to_another_copy_in_the_virtual_store() {
         assert_eq!(state.linked, [format!(".claude/skills/{entry}")]);
         assert_eq!(
             link_target(&link),
-            link_target(&root.path().join("node_modules/foo/skills/guide")),
+            link_target(
+                &root
+                    .path()
+                    .join("node_modules/foo/skills/guide")
+            ),
         );
     }
 }
@@ -845,7 +909,11 @@ fn replaces_an_unrecorded_link_to_a_nested_skill_copy_in_the_virtual_store() {
         assert_eq!(state.linked, [format!(".claude/skills/{entry}")]);
         assert_eq!(
             link_target(&link),
-            link_target(&root.path().join("node_modules/foo/skills/engineering/implement")),
+            link_target(
+                &root
+                    .path()
+                    .join("node_modules/foo/skills/engineering/implement")
+            ),
         );
     }
 }
@@ -940,12 +1008,28 @@ fn two_packages_ship_the_same_skill_name_prefixes_both() {
     assert_eq!(state.linked, [".claude/skills/pnpm-a-guide", ".claude/skills/pnpm-b-guide"]);
     // Both prefixed entries resolve to their own package's skill.
     assert_eq!(
-        link_target(&root.path().join(".claude/skills/pnpm-a-guide")),
-        link_target(&root.path().join("node_modules/a/skills/guide")),
+        link_target(
+            &root
+                .path()
+                .join(".claude/skills/pnpm-a-guide")
+        ),
+        link_target(
+            &root
+                .path()
+                .join("node_modules/a/skills/guide")
+        ),
     );
     assert_eq!(
-        link_target(&root.path().join(".claude/skills/pnpm-b-guide")),
-        link_target(&root.path().join("node_modules/b/skills/guide")),
+        link_target(
+            &root
+                .path()
+                .join(".claude/skills/pnpm-b-guide")
+        ),
+        link_target(
+            &root
+                .path()
+                .join("node_modules/b/skills/guide")
+        ),
     );
 }
 
@@ -986,7 +1070,9 @@ fn entries_prune_and_relink_when_the_naming_changes() {
     // An entry that a pnpm which prefixed every name linked relinks under
     // the bare name.
     pnpm_fs::force_symlink_dir(
-        &root.path().join("node_modules/foo/skills/guide"),
+        &root
+            .path()
+            .join("node_modules/foo/skills/guide"),
         &skills.join("pnpm-foo-guide"),
     )
     .unwrap();

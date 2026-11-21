@@ -1,22 +1,8 @@
 use super::super::{
-    Config,
-    Host,
-    InstallError,
-    InstallWithFreshLockfileError,
-    Lockfile,
-    Modules,
-    PROJECT_LIFECYCLE_STAGES,
-    PackageManifest,
-    Path,
-    PathBuf,
-    SystemTime,
-    build_modules_manifest,
-    current_contains_ignored_build,
-    keep_recorded_layout,
-    merge_filtered_modules_metadata,
-    merge_pending_builds,
-    project_requires_lifecycle_scripts,
-    write_modules_manifest,
+    Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules,
+    PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest,
+    current_contains_ignored_build, keep_recorded_layout, merge_filtered_modules_metadata,
+    merge_pending_builds, project_requires_lifecycle_scripts, write_modules_manifest,
 };
 
 pub(super) struct CommitModulesStateInputs<'a> {
@@ -85,17 +71,29 @@ fn record_agent_skills(
     // Carried over until a sync replaces them, so the entries pnpm linked
     // stay recorded, and prunable, whatever happens below.
     if let Some(prior) = inputs.prior.metadata {
-        next_modules.pending_skills.clone_from(&prior.pending_skills);
-        next_modules.linked_skills.clone_from(&prior.linked_skills);
+        next_modules
+            .pending_skills
+            .clone_from(&prior.pending_skills);
+        next_modules
+            .linked_skills
+            .clone_from(&prior.linked_skills);
         next_modules.has_unlinked_skills = prior.has_unlinked_skills;
     }
     if inputs.tree.config.virtual_store_only {
         return Ok(Vec::new());
     }
     let Some(lockfile) = inputs.lockfiles.materialized else { return Ok(Vec::new()) };
-    let linked = inputs.prior.metadata
+    let linked = inputs
+        .prior
+        .metadata
         .and_then(|modules| modules.linked_skills.as_deref())
         .unwrap_or_default();
+    let target_root = inputs
+        .tree
+        .config
+        .agent_skills_target_root
+        .as_deref()
+        .unwrap_or(inputs.tree.workspace_root);
     let state = crate::sync_agent_skills(&crate::SyncAgentSkills {
         config: inputs.tree.config,
         workspace_root: inputs.tree.workspace_root,
@@ -103,6 +101,7 @@ fn record_agent_skills(
         included: inputs.tree.included,
         linked,
         agent_dir: crate::agent_skills_dir_from_env(),
+        target_root,
         hoisted_locations: next_modules.hoisted_locations.as_ref(),
     })
     .map_err(InstallError::AgentSkills)?;
@@ -140,7 +139,9 @@ pub(super) fn prepare_committed_build_state(
     .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
     .map_err(InstallError::WithFreshLockfile)?;
     let pending_builds = merge_pending_builds(
-        inputs.prior.layout
+        inputs
+            .prior
+            .layout
             .map(|modules| modules.pending_builds.as_slice())
             .unwrap_or(&[][..]),
         deferred_projects(
@@ -197,8 +198,12 @@ fn preserve_skipped_hoisted_tree_metadata(
             next_modules.included = recorded.included;
         }
         if let Some(previous) = inputs.prior.metadata {
-            next_modules.hoisted_locations.clone_from(&previous.hoisted_locations);
-            next_modules.injected_deps.clone_from(&previous.injected_deps);
+            next_modules
+                .hoisted_locations
+                .clone_from(&previous.hoisted_locations);
+            next_modules
+                .injected_deps
+                .clone_from(&previous.injected_deps);
         }
     }
     IgnoredBuildRetention::DeferredByHoistedFetch
@@ -292,7 +297,10 @@ pub(super) fn sweep_virtual_store(
     };
     crate::prune_virtual_store::prune_virtual_store(
         &prune_dir,
-        wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+        wanted
+            .snapshots
+            .iter()
+            .flat_map(|snapshots| snapshots.keys()),
         install_skipped,
         config.virtual_store_dir_max_length as usize,
     )
@@ -318,7 +326,9 @@ fn virtual_store_prune_is_due(
                 false,
                 prior_modules.map(|modules| modules.pruned_at.as_str()),
                 config.modules_cache_max_age,
-                config.source_date_epoch.map_or(now, |epoch| epoch.min(now)),
+                config
+                    .source_date_epoch
+                    .map_or(now, |epoch| epoch.min(now)),
             ))
 }
 
@@ -371,7 +381,9 @@ pub(super) fn save_relinked_wanted_lockfile(
         updated
             .save_to_path_as(
                 config.lockfile_format,
-                &save.workspace_root.join(config.wanted_lockfile_name()),
+                &save
+                    .workspace_root
+                    .join(config.wanted_lockfile_name()),
                 config.symlinked_lockfile(),
             )
             .map_err(InstallError::SaveWantedLockfile)?;
@@ -399,7 +411,9 @@ pub(super) fn retain_current_ignored_builds(
             IgnoredBuildRetention::DeferredByHoistedFetch => decision.unwrap_or(true),
         };
         if current_contains_ignored_build(current, dep_path.as_str()) && still_unbuilt {
-            next.ignored_builds.get_or_insert_default().insert(dep_path.clone());
+            next.ignored_builds
+                .get_or_insert_default()
+                .insert(dep_path.clone());
         }
     }
 }

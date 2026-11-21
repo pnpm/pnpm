@@ -1,26 +1,17 @@
 use super::{
-    ApproveArgs,
-    Capabilities,
-    PromptAvailability,
-    decisions::PackageDecisions,
+    ApproveArgs, Capabilities, PromptAvailability,
+    decisions::{PackageDecisions, confirmation},
     render_permissions,
 };
 use crate::cli_args::approve_builds::ApproveBuildsError;
 use pnpm_config::{
     Config,
-    PermissionCapability::{
-        Build,
-        Skills,
-    },
+    PermissionCapability::{Build, Skills},
     SkillsPermission,
 };
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::Path,
-};
+use std::{collections::BTreeMap, fs, path::Path};
 use tempfile::TempDir;
 
 fn pending(
@@ -39,6 +30,7 @@ fn args(packages: &[&str], all: bool) -> ApproveArgs {
             .map(ToString::to_string)
             .collect(),
         all,
+        global: false,
     }
 }
 
@@ -222,7 +214,11 @@ fn rejects_contradictory_arguments() {
     let error = args(&["foo", "!foo"], false)
         .decide::<SilentReporter>(&BTreeMap::new(), decide_config(), Path::new("/workspace"))
         .expect_err("contradiction");
-    assert!(error.to_string().contains("both approved and denied"));
+    assert!(
+        error
+            .to_string()
+            .contains("both approved and denied")
+    );
 }
 
 #[test]
@@ -376,7 +372,9 @@ async fn approve_run_with_no_pending_and_no_packages_is_a_noop() {
     let manifest = dir.path().join("package.json");
     fs::write(&manifest, "{}\n").unwrap();
 
-    let result = args(&[], false).run::<SilentReporter>(dir.path(), config, &manifest).await;
+    let result = args(&[], false)
+        .run::<SilentReporter>(dir.path(), config, &manifest)
+        .await;
     assert!(result.is_ok());
 }
 
@@ -393,7 +391,9 @@ async fn approve_run_denying_package_writes_decisions_and_exits() {
     let manifest = dir.path().join("package.json");
     fs::write(&manifest, "{}\n").unwrap();
 
-    let result = args(&["!foo"], false).run::<SilentReporter>(dir.path(), config, &manifest).await;
+    let result = args(&["!foo"], false)
+        .run::<SilentReporter>(dir.path(), config, &manifest)
+        .await;
     assert!(result.is_ok());
     let written = fs::read_to_string(&workspace_manifest).unwrap();
     assert!(written.contains("foo"));
@@ -545,10 +545,8 @@ fn pending_permissions_and_clear_decided_key_local_directory_skills_by_package_n
     );
 
     let mut decisions = BTreeMap::new();
-    decisions.insert(
-        "@example/my-skills".to_string(),
-        decided(None, Some(SkillsPermission::All(true))),
-    );
+    decisions
+        .insert("@example/my-skills".to_string(), decided(None, Some(SkillsPermission::All(true))));
     decisions.insert(
         "@example/file-skills".to_string(),
         decided(None, Some(SkillsPermission::All(false))),

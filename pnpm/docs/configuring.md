@@ -55,6 +55,8 @@ globalPackagesConfig:
 
 `catalog`, `catalogs`, `overrides`, `packageExtensions`, and `patchedDependencies` are not supported under `globalPackagesConfig`. pnpm ignores them with a warning.
 
+`globalPackagesConfig.skills.dirs` controls where approved global agent skills are linked. Paths are relative to the home directory and must stay inside it. See [skills.dirs](./settings/build.md#skillsdirs).
+
 `pnpm login` saves registry tokens in this `config.yaml`. Other global auth and certificate settings go in `auth.ini` in the same directory. See [Auth file locations](./npmrc.md#auth-file-locations).
 
 ## Environment variables

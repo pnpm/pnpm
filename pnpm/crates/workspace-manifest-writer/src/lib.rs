@@ -9,46 +9,25 @@
 //! styles of everything it does not touch.
 
 pub use build_settings::{
-    LEGACY_BUILD_SETTINGS,
-    PermissionValue,
-    UNDECIDED_ALLOW_BUILD,
-    scaffold_allow_builds,
-    set_allow_builds,
-    set_allow_builds_clearing_legacy,
-    set_global_packages_build_permissions,
-    set_permissions,
+    LEGACY_BUILD_SETTINGS, PermissionValue, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds,
+    set_allow_builds, set_allow_builds_clearing_legacy, set_global_packages_build_permissions,
+    set_global_packages_permissions, set_global_packages_skills_dirs, set_permissions,
     set_skills_dirs,
 };
 pub use catalog_references::CatalogReferenceSources;
 pub use field_updates::{
-    EditManifestFieldError,
-    ManifestEdit,
-    edit_manifest_field,
-    is_owned_by_config_dependency,
-    update_manifest_field,
-    update_private_manifest_field,
-    update_workspace_setting,
+    EditManifestFieldError, ManifestEdit, edit_manifest_field, is_owned_by_config_dependency,
+    update_manifest_field, update_private_manifest_field, update_workspace_setting,
 };
 pub use pnpm_config::version_policy::ResolvedPackageVersions;
 pub use version_policies::{
-    remove_overrides,
-    set_audit_ignore_ghsas,
-    set_config_dependencies,
-    set_minimum_release_age_excludes,
-    set_overrides,
-    set_patched_dependencies,
+    remove_overrides, set_audit_ignore_ghsas, set_config_dependencies,
+    set_minimum_release_age_excludes, set_overrides, set_patched_dependencies,
 };
 
-use std::{
-    fs,
-    io,
-    path::Path,
-};
+use std::{fs, io, path::Path};
 
-use derive_more::{
-    Display,
-    Error,
-};
+use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
@@ -62,11 +41,7 @@ mod render;
 mod tests;
 
 use model::Manifest;
-use routing::{
-    ManifestTarget,
-    WorkspaceManifests,
-    read_owning_manifest,
-};
+use routing::{ManifestTarget, WorkspaceManifests, read_owning_manifest};
 
 /// Base name of pnpm's workspace manifest.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
@@ -243,14 +218,24 @@ fn edit_manifest_file(
     }
 
     let mut changed = add_updated_catalogs(&mut manifest, opts, path)?;
-    if opts.catalog_prune && !opts.catalog_references.all_projects.is_empty() {
-        let references = opts.catalog_references.collect(merged.unwrap_or(&manifest));
+    if opts.catalog_prune
+        && !opts
+            .catalog_references
+            .all_projects
+            .is_empty()
+    {
+        let references = opts
+            .catalog_references
+            .collect(merged.unwrap_or(&manifest));
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
     }
     if let Some(resolved) = opts.resolved_package_versions {
         changed |= prune_version_policies(&mut manifest, opts, resolved);
     }
-    if !opts.added_minimum_release_age_excludes.is_empty() {
+    if !opts
+        .added_minimum_release_age_excludes
+        .is_empty()
+    {
         changed |= add_minimum_release_age_excludes(&mut manifest, opts, path)?;
     }
     Ok(changed.then_some(manifest))
@@ -278,11 +263,14 @@ fn unsupported_edit_target(
     manifest: &Manifest,
     opts: &UpdateWorkspaceManifestOptions<'_>,
 ) -> Option<String> {
-    if let Some(updated_catalogs) = opts.updated_catalogs.filter(|catalogs| {
-        catalogs
-            .values()
-            .any(|entries| !entries.is_empty())
-    }) {
+    if let Some(updated_catalogs) = opts
+        .updated_catalogs
+        .filter(|catalogs| {
+            catalogs
+                .values()
+                .any(|entries| !entries.is_empty())
+        })
+    {
         let named: Vec<Vec<&str>> = updated_catalogs
             .keys()
             .map(|name| vec!["catalogs", name.as_str()])
@@ -293,7 +281,10 @@ fn unsupported_edit_target(
             return Some(key);
         }
     }
-    if opts.added_minimum_release_age_excludes.is_empty() {
+    if opts
+        .added_minimum_release_age_excludes
+        .is_empty()
+    {
         return None;
     }
     unsupported_inline_key(manifest.document.text(), &[&["minimumReleaseAgeExclude"]])
@@ -343,13 +334,18 @@ fn add_minimum_release_age_excludes(
     path: &Path,
 ) -> Result<bool, UpdateWorkspaceManifestError> {
     let merged = pnpm_config::version_policy::merge_package_version_specs(
-        manifest.exceptions.release_age
+        manifest
+            .exceptions
+            .release_age
             .iter()
             .flatten()
             .chain(opts.added_minimum_release_age_excludes),
     )
     .map_err(UpdateWorkspaceManifestError::VersionPolicy)?;
-    if let Some(bad) = merged.iter().find(|exclude| has_control_char(exclude)) {
+    if let Some(bad) = merged
+        .iter()
+        .find(|exclude| has_control_char(exclude))
+    {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path: path.to_path_buf(),
             value: bad.clone(),
@@ -366,7 +362,9 @@ fn first_control_char_value(catalogs: &Catalogs) -> Option<&str> {
     catalogs
         .iter()
         .flat_map(|(catalog_name, entries)| {
-            std::iter::once(catalog_name).chain(entries.keys()).chain(entries.values())
+            std::iter::once(catalog_name)
+                .chain(entries.keys())
+                .chain(entries.values())
         })
         .find(|value| has_control_char(value))
         .map(String::as_str)
@@ -392,7 +390,8 @@ fn write_or_remove_manifest(
     if manifest.document.keys.is_empty() && !target.included {
         return remove_manifest(path);
     }
-    let text = manifest.document
+    let text = manifest
+        .document
         .into_text()
         .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
     write_atomic(path, &text)

@@ -11,16 +11,10 @@
 
 pub(crate) use installed::resync_agent_skills_dep_paths_at;
 pub use installed::{
-    ResyncAgentSkillsError,
-    SkillApprovalError,
-    SkillApprovalOptions,
-    resync_installed_agent_skills,
-    skill_approval_options,
+    ResyncAgentSkillsError, SkillApprovalError, SkillApprovalOptions,
+    resync_installed_agent_skills, skill_approval_options,
 };
-pub use targets::{
-    agent_skills_dir_from_env,
-    detected_agent_dirs,
-};
+pub use targets::{agent_skills_dir_from_env, detected_agent_dirs};
 
 /// Whether an install whose tree is up to date still has agent skills to
 /// link, because an approved skill's target directories changed since the
@@ -28,7 +22,10 @@ pub use targets::{
 /// approved.
 pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path) -> bool {
     if config.agent_skills_disabled
-        || !config.allow_skills.values().any(SkillsPermission::links_any)
+        || !config
+            .allow_skills
+            .values()
+            .any(SkillsPermission::links_any)
     {
         return false;
     }
@@ -37,9 +34,22 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
     else {
         return false;
     };
-    let linked = modules.linked_skills.unwrap_or_default();
-    (!linked.is_empty() || modules.has_unlinked_skills.unwrap_or(false))
-        && targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
+    let linked = modules
+        .linked_skills
+        .unwrap_or_default();
+    (!linked.is_empty()
+        || modules
+            .has_unlinked_skills
+            .unwrap_or(false))
+        && targets::targets_changed(
+            config,
+            config
+                .agent_skills_target_root
+                .as_deref()
+                .unwrap_or(workspace_root),
+            agent_skills_dir_from_env(),
+            &linked,
+        )
 }
 
 mod discovery;
@@ -48,51 +58,25 @@ mod installed;
 mod links;
 mod targets;
 
-use crate::{
-    SkillsPolicy,
-    VersionPolicyError,
-};
-use derive_more::{
-    Display,
-    Error,
-};
+use crate::{SkillsPolicy, VersionPolicyError};
+use derive_more::{Display, Error};
 use discovery::{
-    Skill,
-    SkillSource,
-    discover_skill_sources,
+    Skill, SkillSource, discover_skill_sources,
     local_identity::{
-        DIGEST_HEX_LEN,
-        MAX_SKILL_ENTRY_BYTES,
-        dedup_approved_local_copies,
-        disambiguate_local_segments,
-        truncate_utf8,
+        DIGEST_HEX_LEN, MAX_SKILL_ENTRY_BYTES, dedup_approved_local_copies,
+        disambiguate_local_segments, truncate_utf8,
     },
 };
 use gitignore::update_gitignores;
-use links::{
-    ensure_unoccupied,
-    is_occupied,
-    materialize,
-    prune,
-};
+use links::{ensure_unoccupied, is_occupied, materialize, prune};
 use miette::Diagnostic;
-use pnpm_config::{
-    Config,
-    SkillsPermission,
-};
+use pnpm_config::{Config, SkillsPermission};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{
-    collections::{
-        BTreeMap,
-        BTreeSet,
-        btree_map,
-    },
+    collections::{BTreeMap, BTreeSet, btree_map},
     io,
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::{Path, PathBuf},
 };
 
 /// The prefix of every entry pnpm links into an agent skill directory.
@@ -111,6 +95,9 @@ pub struct SyncAgentSkills<'a> {
     /// The agent skill directory of the agent running pnpm, from
     /// [`agent_skills_dir_from_env`].
     pub agent_dir: Option<&'a str>,
+    /// Root directory where skills are linked. Defaults to
+    /// `workspace_root`. Global installs pass the user home directory.
+    pub target_root: &'a Path,
     /// Where the hoisted linker placed each dep path, as recorded in
     /// `.modules.yaml`. Read only under that linker.
     pub hoisted_locations: Option<&'a BTreeMap<String, Vec<String>>>,
@@ -220,34 +207,34 @@ pub fn sync_agent_skills(
     input: &SyncAgentSkills<'_>,
 ) -> Result<AgentSkillsState, AgentSkillsError> {
     if input.config.agent_skills_disabled
-        || input.config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
+        || input
+            .config
+            .skills_dirs
+            .as_ref()
+            .is_some_and(Vec::is_empty)
     {
-        prune(input.workspace_root, input.linked, &BTreeSet::new())?;
-        update_gitignores(input.workspace_root, &[], input.linked, &BTreeMap::new())?;
+        prune(input.target_root, input.linked, &BTreeSet::new())?;
+        update_gitignores(input.target_root, &[], input.linked, &BTreeMap::new())?;
         return Ok(AgentSkillsState::default());
     }
     let sources = discover_skill_sources(input);
-    let policy =
-        SkillsPolicy::from_approvals(&input.config.allow_skills).map_err(AgentSkillsError::Policy)?;
+    let policy = SkillsPolicy::from_approvals(&input.config.allow_skills)
+        .map_err(AgentSkillsError::Policy)?;
     let (pending_sources, approved) = decide_sources(sources, &policy);
+    let target_root = input.target_root;
     let dirs = if approved.is_empty() {
         Vec::new()
     } else {
-        targets::target_dirs(input.config, input.workspace_root, input.agent_dir)
+        targets::target_dirs(input.config, target_root, input.agent_dir)
             .map_err(|(path, source)| AgentSkillsError::Io { path, source })?
     };
     let entries =
         if dirs.is_empty() { BTreeMap::new() } else { link_entries(input, &dirs, &approved)? };
-    let desired = desired_entries(input.workspace_root, &dirs, &entries);
-    ensure_unoccupied(
-        input.workspace_root,
-        input.linked,
-        &desired,
-        input.config.virtual_store_dir(),
-    )?;
-    prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
-    materialize(input.workspace_root, &desired)?;
-    update_gitignores(input.workspace_root, &dirs, input.linked, &desired)?;
+    let desired = desired_entries(target_root, &dirs, &entries);
+    ensure_unoccupied(target_root, input.linked, &desired)?;
+    prune(target_root, input.linked, &desired.keys().cloned().collect())?;
+    materialize(target_root, &desired)?;
+    update_gitignores(target_root, &dirs, input.linked, &desired)?;
     let mut pending: Vec<String> = pending_sources
         .into_iter()
         .map(|source| source.dep_path)
@@ -271,7 +258,8 @@ fn decide_sources(
             pending.push(source);
             continue;
         };
-        let skills: Vec<Skill> = source.skills
+        let skills: Vec<Skill> = source
+            .skills
             .iter()
             .filter(|skill| decision.links_skill(&skill.name))
             .cloned()
@@ -350,7 +338,10 @@ fn insert_skill_entries<'a>(
 /// The directory an approved skill links to, already resolved to the
 /// package's real location.
 fn target_of(source: &SkillSource, skill: &Skill) -> PathBuf {
-    source.package_dir.join("skills").join(&skill.dir)
+    source
+        .package_dir
+        .join("skills")
+        .join(&skill.dir)
 }
 
 /// The fallback entry name: `pnpm-<package>-<skill>`, shortened with a SHA-256
@@ -364,8 +355,7 @@ fn prefixed_name(source: &SkillSource, skill: &Skill) -> String {
     let digest =
         &pnpm_crypto_hash::create_short_hash(&format!("{}\0{}", source.dep_path, skill.name))
             [..DIGEST_HEX_LEN];
-    let min_with_skill =
-        AGENT_SKILL_LINK_PREFIX.len() + DIGEST_HEX_LEN + 1 + skill.name.len();
+    let min_with_skill = AGENT_SKILL_LINK_PREFIX.len() + DIGEST_HEX_LEN + 1 + skill.name.len();
     if min_with_skill <= MAX_SKILL_ENTRY_BYTES {
         let room = MAX_SKILL_ENTRY_BYTES - min_with_skill;
         if room > 1 {
@@ -391,15 +381,16 @@ fn bare_name_free(
     name: &str,
     target: &Path,
 ) -> bool {
-    !dirs
-        .iter()
-        .any(|dir| {
-            let path = input.workspace_root.join(dir).join(name);
-            let recorded = input.linked
+    !dirs.iter().any(|dir| {
+        let path = dir.join(name);
+        let recorded = recorded_path(input.target_root, &path).is_some_and(|entry| {
+            input
+                .linked
                 .iter()
-                .any(|entry| *entry == recorded_path(input.workspace_root, &path));
-            is_occupied(&path, target, recorded, input.config.virtual_store_dir())
-        })
+                .any(|linked| *linked == entry)
+        });
+        is_occupied(&path, target, recorded)
+    })
 }
 
 /// Record the entry name with the skill directory it links to, erroring
@@ -425,7 +416,7 @@ fn insert_entry<'a>(
 
 /// Every entry to link, keyed by the form recorded in `.modules.yaml`.
 fn desired_entries(
-    workspace_root: &Path,
+    target_root: &Path,
     dirs: &[PathBuf],
     entries: &BTreeMap<String, PathBuf>,
 ) -> BTreeMap<String, PathBuf> {
@@ -433,16 +424,22 @@ fn desired_entries(
         .flat_map(|dir| {
             entries
                 .iter()
-                .map(move |(name, target)| {
-                    (recorded_path(workspace_root, &dir.join(name)), target.clone())
+                .filter_map(move |(name, target)| {
+                    Some((recorded_path(target_root, &dir.join(name))?, target.clone()))
                 })
         })
         .collect()
 }
 
-pub(super) fn recorded_path(workspace_root: &Path, path: &Path) -> String {
-    let path = path.strip_prefix(workspace_root).unwrap_or(path);
-    path.to_string_lossy().replace('\\', "/")
+pub(super) fn recorded_path(root: &Path, path: &Path) -> Option<String> {
+    let rel = path.strip_prefix(root).ok()?;
+    if !rel
+        .components()
+        .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        return None;
+    }
+    Some(rel.to_string_lossy().replace('\\', "/"))
 }
 
 #[cfg(test)]
