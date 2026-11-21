@@ -72,8 +72,13 @@ async fn filtered_repair_verifies_the_merged_lockfile() {
     )
     .expect("parse lockfile");
 
-    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[]).await
-        .expect_err("the merged lockfile must pass structural verification");
+    let error = verify_merged_repair::<SilentReporter>(
+        &lockfile,
+        &[],
+        pnpm_lockfile_verification::ExoticSubdepsPolicy::Allow,
+    )
+    .await
+    .expect_err("the merged lockfile must pass structural verification");
     assert!(matches!(
         error,
         super::InstallWithFreshLockfileError::LockfileVerification(

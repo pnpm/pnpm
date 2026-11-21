@@ -38,12 +38,13 @@ impl<'a> MaterializationInputs<'a, '_> {
         pnpm_deps_restorer::FrozenLockfileInputs {
             wanted: scope.lockfile(),
             verified: lockfile,
-            path: self.lockfiles.verification.derived_lockfile_path.as_deref(),
+            source: self.lockfiles.verification.cache_source(),
             current: self.lockfiles.current,
             current_entries: LockfileEntries::of_previous_install(self.lockfiles.current),
             resolution_verifiers: self.workspace.requested_importer_ids
                 .map(|_| &[][..])
                 .unwrap_or(self.lockfiles.verification.resolution_verifiers.as_slice()),
+            exotic_subdeps: &self.lockfiles.verification.exotic_subdeps,
             planned_canonical_fetches: Some(&self.lockfiles.verification.planned_canonical_fetches),
         }
     }
@@ -133,12 +134,14 @@ impl<'a> MaterializationInputs<'a, '_> {
         );
         assert_supported_lockfile_major(scope.lockfile());
 
+        let exotic_subdeps = self.lockfiles.verification.exotic_subdeps.clone();
         let frozen_verification_override = settle_frozen_verification::<Reporter>(
             self.workspace.requested_importer_ids,
             self.lockfiles.verification_override.take(),
             lockfile,
             &self.lockfiles.verification.resolution_verifiers,
-            self.lockfiles.verification.derived_lockfile_path.as_deref(),
+            exotic_subdeps,
+            self.lockfiles.verification.cache_source(),
             &self.install.context.config.cache_dir,
         )
         .await?;

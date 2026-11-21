@@ -320,7 +320,7 @@ export type PeerId = { name: string, version: string } | string
  * marker. `hashed` is the opaque hash written once the segments exceed
  * `peersSuffixMaxLength`, which names no provider.
  */
-export type PeerBindings = { kind: 'explicit', segments: string[] } | { kind: 'hashed' }
+export type PeerBindings = { kind: 'explicit', segments: string[] } | { kind: 'hashed', hash: string }
 
 /**
  * The bindings `depPath`'s peer suffix records. `undefined` when it has no
@@ -332,7 +332,9 @@ export function parsePeerBindings (depPath: string): PeerBindings | undefined {
   const segments = splitPeerSuffixSegments(peerDepGraphHash)
   if (segments == null) return undefined
   const providerSegments = segments.filter((segment) => !segment.startsWith('patch_hash='))
-  if (providerSegments.length === 1 && isPeerSuffixHash(providerSegments[0])) return { kind: 'hashed' }
+  if (providerSegments.length === 1 && isPeerSuffixHash(providerSegments[0])) {
+    return { kind: 'hashed', hash: providerSegments[0] }
+  }
   return { kind: 'explicit', segments }
 }
 

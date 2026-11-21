@@ -413,6 +413,7 @@ fn applied_carried_settings<'a>(
         (true, false) => ResolvedImporters::All,
     };
     CarriedSettings {
+        trust_lockfile: inputs.resolution.trust_lockfile,
         established_auto_dedupe: (config.auto_dedupe && resolved.is_some()).then_some(true),
         registry_keys_verified: crate::install::registry_keys_current(config, lockfile),
         registry_routes: Some(crate::install_state::recorded_registry_routes_after_install(

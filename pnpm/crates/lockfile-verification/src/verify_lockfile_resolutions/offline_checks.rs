@@ -18,7 +18,11 @@ use pnpm_resolving_resolver_base::{
     VerifyFuture,
 };
 
-use super::VerifyLockfileResolutionsOptions;
+use super::{
+    ExoticSubdepsPolicy,
+    ExoticSubdepsScope,
+    VerifyLockfileResolutionsOptions,
+};
 use crate::errors::VerifyError;
 
 pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MISMATCH";
@@ -80,13 +84,38 @@ fn variation_resolution_cache_identity() -> Arc<dyn ResolutionVerifier> {
     offline_cache_identity("variationResolutionCheck", serde_json::Value::Bool(true))
 }
 
+struct ExoticSubdepsCacheIdentity {
+    policy: serde_json::Map<String, serde_json::Value>,
+    scope_digest: String,
+}
+
+fn exotic_subdeps_cache_identity(scope: &ExoticSubdepsScope) -> Arc<dyn ResolutionVerifier> {
+    let scope_digest = scope.cache_digest();
+    let mut policy = serde_json::Map::new();
+    policy.insert("blockExoticSubdeps".to_string(), serde_json::Value::Bool(true));
+    policy.insert(
+        "blockExoticSubdepsScope".to_string(),
+        serde_json::Value::String(scope_digest.clone()),
+    );
+    Arc::new(ExoticSubdepsCacheIdentity { policy, scope_digest })
+}
+
 /// Append the always-on offline structural checks' identities to `verifiers`
 /// before consulting or recording a whole-lockfile verification cache, so a
 /// record written before one of those rules existed fails
 /// `can_trust_past_check` and forces re-verification.
+#[must_use]
 pub fn with_offline_check_cache_identities(
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> Vec<Arc<dyn ResolutionVerifier>> {
+    with_offline_and_exotic_cache_identities(verifiers, &ExoticSubdepsPolicy::Allow)
+}
+
+pub(crate) fn with_offline_and_exotic_cache_identities(
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
+) -> Vec<Arc<dyn ResolutionVerifier>> {
+    let exotic_identity = exotic_subdeps.scope().map(exotic_subdeps_cache_identity);
     verifiers
         .iter()
         .cloned()
@@ -95,7 +124,35 @@ pub fn with_offline_check_cache_identities(
             dependency_alias_cache_identity(),
             variation_resolution_cache_identity(),
         ])
+        .chain(exotic_identity)
         .collect()
+}
+
+/// Snapshot the combined policy map for all active verifiers and offline checks.
+#[must_use]
+pub fn snapshot_verification_policy(
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut merged = serde_json::Map::new();
+    for verifier in with_offline_and_exotic_cache_identities(verifiers, exotic_subdeps) {
+        for (key, value) in verifier.policy() {
+            merged.insert(key.clone(), value.clone());
+        }
+    }
+    merged
+}
+
+/// Whether `recorded` satisfies every currently active verifier and offline check.
+#[must_use]
+pub fn can_trust_prepared_policy(
+    recorded: &serde_json::Map<String, serde_json::Value>,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
+) -> bool {
+    with_offline_and_exotic_cache_identities(verifiers, exotic_subdeps)
+        .iter()
+        .all(|verifier| verifier.can_trust_past_check(recorded))
 }
 
 impl ResolutionVerifier for OfflineCheckCacheIdentity {
@@ -116,12 +173,32 @@ impl ResolutionVerifier for OfflineCheckCacheIdentity {
     }
 }
 
+impl ResolutionVerifier for ExoticSubdepsCacheIdentity {
+    fn verify<'a>(
+        &'a self,
+        _resolution: &'a LockfileResolution,
+        _ctx: VerifyCtx<'a>,
+    ) -> VerifyFuture<'a> {
+        Box::pin(async { ResolutionVerification::Ok })
+    }
+
+    fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.policy
+    }
+
+    fn can_trust_past_check(&self, cached: &serde_json::Map<String, serde_json::Value>) -> bool {
+        cached.get("blockExoticSubdeps") == Some(&serde_json::Value::Bool(true))
+            && cached.get("blockExoticSubdepsScope").and_then(serde_json::Value::as_str)
+                == Some(self.scope_digest.as_str())
+    }
+}
+
 /// Whether a resolution is registry-shaped. A plain tarball
 /// resolution is registry-shaped because the npm verifier unconditionally
 /// binds explicit tarball URLs of semver-keyed entries to the registry's
 /// own `dist.tarball`. A git-hosted tarball is not, and trust is gated on
 /// the tarball URL rather than the `gitHosted` flag alone.
-pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
+fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {
         LockfileResolution::Registry(_) => true,
         LockfileResolution::Tarball(tarball) => {
@@ -152,7 +229,7 @@ pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> 
 /// Whether a tarball URL uses an HTTP or HTTPS scheme, the only schemes a
 /// registry artifact is served over. Case-insensitive to reject a
 /// tampered uppercase scheme.
-fn is_http_tarball_url(url: &str) -> bool {
+pub(super) fn is_http_tarball_url(url: &str) -> bool {
     url.get(..8)
         .is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"))
         || url

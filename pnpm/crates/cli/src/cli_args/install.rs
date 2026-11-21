@@ -52,12 +52,6 @@ use pnpm_lockfile::{
     LockfileResolution,
     MaybeLazyLockfile,
 };
-use pnpm_lockfile_verification::{
-    VerifiedOfflineLockfile,
-    VerifyLockfileResolutionsOptions,
-    record_lockfile_verified,
-    verify_lockfile_resolutions,
-};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manager::{
     InstallFrozenLockfileError,
@@ -70,12 +64,14 @@ use pnpm_package_manager::{
     WantedLockfileSatisfactionCheck,
     WorkspaceInstallSelection,
     build_resolution_verifiers,
+    config_exotic_subdeps_policy,
     install_already_up_to_date,
     install_already_up_to_date_from_records,
     install_already_up_to_date_per_project,
     materialization_closure,
     merge_filtered_wanted_lockfile,
     report_merged_lockfile_conflicts,
+    verified_project_workspace_dirs,
     wanted_lockfile_satisfies_workspace,
 };
 use pnpm_package_manifest::DependencyGroup;
@@ -97,6 +93,7 @@ use pnpr_lockfile::{
     merge_and_save_pnpr_lockfile,
     pnpr_lockfile_dir,
     selection_importer_ids,
+    verify_frozen_pnpr_preflight,
 };
 use pnpr_pnpmfile::{
     check_frozen_pnpmfile,
@@ -117,7 +114,7 @@ use pnpr_resolution::{
     prefetch_allowed,
 };
 use pnpr_verification::{
-    local_lockfile_verification,
+    state_resolution_verifiers,
     verify_pnpr_input_lockfile,
     verify_settled_pnpr_lockfile,
 };

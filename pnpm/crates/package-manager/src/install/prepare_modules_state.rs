@@ -226,8 +226,10 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
         },
         verification: crate::install::state_options::LockfileVerificationInputs {
             verifiers: inputs.verification.verifiers,
-            path: inputs.verification.path,
+            source: inputs.verification.source,
             override_check: inputs.verification.override_check,
+            trust_lockfile: inputs.verification.trust_lockfile,
+            exotic_subdeps: inputs.verification.exotic_subdeps,
         },
         write: crate::install::state_options::LockfileWritePolicy {
             synthesized_from_current: inputs.write.synthesized_from_current,

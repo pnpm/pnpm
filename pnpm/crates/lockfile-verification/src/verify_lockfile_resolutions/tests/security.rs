@@ -173,8 +173,19 @@ snapshots:
         );
 
         let verifiers = std::slice::from_ref(&active_verifier);
-        assert!(!lockfile_verification_is_cached(&cache_dir, &lockfile_path, &lockfile, verifiers));
-        assert!(!lockfile_verification_is_cached_by_content(&cache_dir, &lockfile, verifiers));
+        assert!(!lockfile_verification_is_cached(
+            &cache_dir,
+            &lockfile_path,
+            &lockfile,
+            verifiers,
+            &crate::ExoticSubdepsPolicy::Allow,
+        ));
+        assert!(!lockfile_verification_is_cached_by_content(
+            &cache_dir,
+            &lockfile,
+            verifiers,
+            &crate::ExoticSubdepsPolicy::Allow,
+        ));
 
         let err = verify_lockfile_resolutions::<SilentReporter>(
             &lockfile,

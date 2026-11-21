@@ -18,8 +18,11 @@ use super::{
     State,
     discover_workspace_projects,
     get_catalogs_from_workspace_manifest,
+    pnpr_lockfile::pnpr_exotic_subdeps_policy,
+    pnpr_lockfile_dir,
     prefetch_allowed,
 };
+use pnpm_lockfile_verification::ExoticSubdepsPolicy;
 use pnpm_network::normalize_registry_url;
 
 const BENCHMARK_PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
@@ -37,14 +40,16 @@ pub(super) struct PnprRequestInputs {
     pub(super) pnpmfile_hook: Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub(super) prefetch_allowed: bool,
     pub(super) lockfile_path: PathBuf,
+    pub(super) exotic_subdeps: ExoticSubdepsPolicy,
 }
 
 pub(super) async fn pnpr_request_inputs(
     state: &State,
     link: &PnprLink<'_>,
-    lockfile_dir: &std::path::Path,
+    session: &PnprSession<'_>,
     pnpmfile_hook: Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> miette::Result<PnprRequestInputs> {
+    let lockfile_dir = pnpr_lockfile_dir(state, link);
     let overrides = state.config.overrides
         .as_ref()
         .map(serde_json::to_value)
@@ -64,6 +69,7 @@ pub(super) async fn pnpr_request_inputs(
         Some(lockfile_path) => lockfile_path.to_path_buf(),
         None => lockfile_dir.join(state.config.wanted_lockfile_name()),
     };
+    let exotic_subdeps = pnpr_exotic_subdeps_policy(state, link, session);
     Ok(PnprRequestInputs {
         overrides,
         patched_dependencies,
@@ -72,6 +78,7 @@ pub(super) async fn pnpr_request_inputs(
         pnpmfile_hook,
         prefetch_allowed,
         lockfile_path,
+        exotic_subdeps,
     })
 }
 

@@ -248,6 +248,32 @@ impl SettingsComparison<'_> {
         let live = self.live;
         return_drift_if!(
             self,
+            "blockExoticSubdeps",
+            recorded.block_exotic_subdeps != live.block_exotic_subdeps,
+        );
+        if let Some(drift) = self.minimum_release_age_drift() {
+            return Some(drift);
+        }
+        return_drift_if!(
+            self,
+            "nodeLinker",
+            recorded.node_linker != live.node_linker
+                || recorded.node_linker_excluded != live.node_linker_excluded
+        );
+        return_drift_if!(self, "optional", recorded.optional != live.optional);
+        return_drift_if!(self, "overrides", recorded.overrides != live.overrides);
+        let package_extensions_drift = !package_extensions_match(
+            recorded.package_extensions.as_ref(),
+            live.package_extensions.as_ref(),
+        );
+        return_drift_if!(self, "packageExtensions", package_extensions_drift);
+        None
+    }
+    fn minimum_release_age_drift(&self) -> Option<&'static str> {
+        let recorded = self.recorded;
+        let live = self.live;
+        return_drift_if!(
+            self,
             "minimumReleaseAge",
             recorded.minimum_release_age != live.minimum_release_age,
         );
@@ -267,19 +293,6 @@ impl SettingsComparison<'_> {
             "minimumReleaseAgeStrict",
             recorded.minimum_release_age_strict != live.minimum_release_age_strict,
         );
-        return_drift_if!(
-            self,
-            "nodeLinker",
-            recorded.node_linker != live.node_linker
-                || recorded.node_linker_excluded != live.node_linker_excluded
-        );
-        return_drift_if!(self, "optional", recorded.optional != live.optional);
-        return_drift_if!(self, "overrides", recorded.overrides != live.overrides);
-        let package_extensions_drift = !package_extensions_match(
-            recorded.package_extensions.as_ref(),
-            live.package_extensions.as_ref(),
-        );
-        return_drift_if!(self, "packageExtensions", package_extensions_drift);
         None
     }
     fn workspace_policy_drift(&self) -> Option<&'static str> {
@@ -401,6 +414,7 @@ fn recorded_allow_builds(
 
 fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
     WorkspaceStateSettings {
+        block_exotic_subdeps: Some(config.block_exotic_subdeps),
         lockfile_include_resolution_settings: config
             .lockfile_records_resolution_settings()
             .then_some(true),

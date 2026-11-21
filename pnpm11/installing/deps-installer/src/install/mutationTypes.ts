@@ -68,6 +68,7 @@ export interface PreparedFrozenMutation {
   preResolutionRan: boolean
   validatedInputLockfile?: LockfileObject
   verifiedLockfile: boolean
+  verifiedPolicySnapshot?: Record<string, unknown>
 }
 
 export type SingleProjectInstallOptions = Omit<InstallOptions, 'allProjects'> & {

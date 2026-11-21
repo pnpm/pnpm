@@ -6024,6 +6024,7 @@ dependencies = [
  "ssri",
  "tempfile",
  "tokio",
+ "url",
 ]
 
 [[package]]

@@ -208,6 +208,8 @@ pub(super) async fn join_current_lockfile_load<Reporter: self::Reporter>(
 #[derive(Default)]
 pub(super) struct LoadedWantedLockfile<'a> {
     pub(super) lockfile: Option<&'a Lockfile>,
+    pub(super) loaded_path: Option<&'a Path>,
+    pub(super) loaded_metadata: Option<&'a std::fs::Metadata>,
     pub(super) shared: Option<Arc<Lockfile>>,
     pub(super) merge: Option<&'a Lockfile>,
     pub(super) pre_merge_importers:
@@ -231,6 +233,12 @@ pub(super) fn load_wanted_lockfile<'a, Reporter: self::Reporter>(
             report_merged_lockfile_conflicts::<Reporter>(merged_conflict_files, prefix);
             Ok(LoadedWantedLockfile {
                 lockfile,
+                loaded_path: lockfile_source
+                    .loaded_path()
+                    .map_err(InstallError::LoadWantedLockfile)?,
+                loaded_metadata: lockfile_source
+                    .loaded_metadata()
+                    .map_err(InstallError::LoadWantedLockfile)?,
                 shared: lockfile_source.shared().map_err(InstallError::LoadWantedLockfile)?,
                 merge: lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
                 pre_merge_importers: lockfile_source

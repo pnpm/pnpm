@@ -18,7 +18,10 @@ use derive_more::{
     Display,
     Error,
 };
-use install::source_pnpmfile_hooks;
+use install::{
+    DeployInstallMode,
+    source_pnpmfile_hooks,
+};
 use legacy_source::LegacyDeploySource;
 use lockfile::{
     ConvertCtx,
@@ -150,6 +153,7 @@ use workspace_project_builds::{
     NamedProjectRoot,
     approve_legacy_workspace_project_builds,
     approve_workspace_project_builds,
+    deployed_workspace_project_dirs,
 };
 
 #[derive(Debug, Args)]
@@ -244,11 +248,33 @@ impl SelectedProject {
     fn has_bin(&self, root: &Path) -> Option<bool> {
         self.project_info(root).map(|project| project.has_bin)
     }
-}
 
-enum DeployInstallMode {
-    Legacy { workspace_projects: Vec<NamedProjectRoot>, source_lockfile_dir: PathBuf },
-    Shared { workspace_config: Box<DeployWorkspaceSettings> },
+    fn all_project_root_dirs(&self) -> Vec<PathBuf> {
+        self.projects_by_path
+            .values()
+            .map(|project| project.root_dir.clone())
+            .collect()
+    }
+
+    fn all_package_dirs(&self) -> Vec<PathBuf> {
+        self.projects_by_path
+            .values()
+            .flat_map(|project| {
+                std::iter::once(project.root_dir.clone())
+                    .chain(
+                        project.linked_publish_dir
+                            .as_deref()
+                            .filter(|dir| {
+                                pnpm_package_manager::is_verified_publish_dir(
+                                    &project.root_dir,
+                                    dir,
+                                )
+                            })
+                            .map(Path::to_path_buf),
+                    )
+            })
+            .collect()
+    }
 }
 
 impl DeployArgs {
@@ -316,6 +342,8 @@ impl DeployArgs {
             deploy_dir,
             DeployInstallMode::Legacy {
                 workspace_projects: selected.workspace_projects.clone(),
+                project_root_dirs: selected.all_project_root_dirs(),
+                project_package_dirs: selected.all_package_dirs(),
                 source_lockfile_dir: source_lockfile_dir.to_path_buf(),
             },
             false,
@@ -390,7 +418,10 @@ impl DeployArgs {
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
             config,
             deploy_dir,
-            DeployInstallMode::Shared { workspace_config: Box::new(deploy_files.workspace_config) },
+            DeployInstallMode::Shared {
+                workspace_config: Box::new(deploy_files.workspace_config),
+                project_package_dirs: selected.all_package_dirs(),
+            },
             true,
             source_hooks,
             None,

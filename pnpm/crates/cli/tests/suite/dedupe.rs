@@ -321,6 +321,33 @@ fn dedupe_reads_cached_registry_metadata_when_the_lockfile_records_no_deprecatio
 }
 
 #[test]
+fn dedupe_reuses_the_verification_of_a_lockfile_saved_in_a_format_that_omits_fields() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_recording_mocked_registry_without_fields(&[]);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfile:\n  format: v13\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/deprecated": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["dedupe", "--lockfile-only"])
+        .output()
+        .expect("run dedupe");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "{stdout}");
+    assert!(stdout.contains("Lockfile passes supply-chain policies (verified"), "{stdout}");
+    drop((root, mock_instance));
+}
+
+#[test]
 fn dedupe_materializes_node_modules_unless_lockfile_only() {
     let CommandTempCwd {
         pacquet,

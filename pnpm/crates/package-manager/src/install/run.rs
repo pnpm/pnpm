@@ -8,6 +8,7 @@ pub use validate_frozen::{
     FrozenVirtualStoreClean,
     PreparedFrozenInstall,
 };
+pub(super) use verification::Verification;
 
 mod fast_path;
 use fast_path::{
@@ -68,22 +69,20 @@ mod time_machine_capture;
 mod uninstall_hooks;
 mod up_to_date_scripts;
 mod validate_frozen;
+mod verification;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
 use super::{
     Arc,
     DependencyGroup,
-    InMemoryPackageMetaCache,
     Install,
     InstallError,
     InstallRunOptions,
     Lockfile,
-    PackageManifest,
     Path,
     PathBuf,
     Reporter,
     UpdateSeedPolicy,
-    build_resolution_verifiers,
     configured_or_discovered_workspace_dir,
     lockfile_root_dir,
 };
@@ -425,103 +424,6 @@ pub struct ResolutionInputs {
     pub observer: Option<Arc<dyn crate::ResolutionObserver>>,
     pub peer_issues_sink: Option<crate::PeerIssuesSink>,
     pub deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
-}
-
-// One per-install packument cache shared with both the
-// lockfile-verifier (below) and the resolver in
-// `install_with_fresh_lockfile` (further down). The
-// single instance lets a name the resolver fetched during this
-// install short-circuit the verifier's own fetch chain, and
-// vice versa.
-// `trust_lockfile` or no active resolution policy leaves the verifier
-// list empty, making every gate a no-op, fresh local resolution is
-// already filtered by the resolver's own per-version gate
-// (`minimumReleaseAge` via `ResolveResult::policy_violation`,
-// `trustPolicy='no-downgrade'` via the npm resolver's
-// `fail_if_trust_downgraded_for_pick`). The list is built whenever
-// a policy could apply, independent of whether a lockfile is loaded, so the
-// fresh-resolve path can record the freshly written lockfile as
-// already-verified (see `record_lockfile_verified` below).
-// Shared with `CreateVirtualStore`, which fills it after its
-// warm/cold partition so the verifier's age gate can lean on
-// this install's own canonical tarball fetches instead of a
-// metadata body per entry.
-pub(super) struct Verification {
-    pub(super) meta_cache: Arc<InMemoryPackageMetaCache>,
-    pub(super) planned_canonical_fetches: pnpm_resolving_resolver_base::PlannedCanonicalFetches,
-    pub(super) resolution_verifiers: Vec<Arc<dyn super::ResolutionVerifier>>,
-    pub(super) derived_lockfile_path: Option<PathBuf>,
-    /// The record an `autoDedupe` `--lockfile-only` install that resolves the
-    /// whole workspace writes once it saves the lockfile, and that a later one
-    /// checks. `None` for every other install.
-    pub(super) auto_dedupe_baseline: Option<super::auto_dedupe_baseline::AutoDedupeBaseline>,
-}
-
-impl Verification {
-    fn set_up(
-        execution: &RunExecution<'_>,
-        lockfiles: &Lockfiles<'_>,
-        (scope, project_manifests): (&InstallScope<'_>, &[(PathBuf, &PackageManifest)]),
-    ) -> Result<Self, InstallError> {
-        let install = execution.install;
-        let owned = &execution.owned;
-        let shared_caches = owned.shared_caches();
-        let meta_cache: Arc<InMemoryPackageMetaCache> =
-            shared_caches.map_or_else(Default::default, |caches| Arc::clone(&caches.packuments));
-        let planned_canonical_fetches =
-            pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
-        let resolution_verifiers = install_resolution_verifiers(
-            install.context.config,
-            install.lockfile_policy.trust,
-            (&owned.http_client_arc, &meta_cache, owned.resolution.auth_override.as_ref()),
-            (&planned_canonical_fetches, shared_caches),
-        )?;
-        Ok(Self {
-            meta_cache,
-            planned_canonical_fetches,
-            resolution_verifiers,
-            derived_lockfile_path: lockfiles.wanted
-                .get()
-                .is_some()
-                .then(|| execution.wanted_lockfile_path()),
-            auto_dedupe_baseline: execution.auto_dedupe_baseline(scope, project_manifests),
-        })
-    }
-}
-
-/// Resolution verifiers re-apply `minimumReleaseAge` /
-/// `trustPolicy='no-downgrade'` (plus the tarball-URL anti-tamper check) to
-/// every entry in the loaded `pnpm-lock.yaml`. `trust_lockfile` (the opt-out
-/// for environments that treat the on-disk lockfile as already-trusted)
-/// leaves the list empty, making every gate a no-op.
-fn install_resolution_verifiers(
-    config: &Config,
-    trust_lockfile: bool,
-    clients: (
-        &Arc<pnpm_network::ThrottledClient>,
-        &Arc<InMemoryPackageMetaCache>,
-        Option<&Arc<super::AuthHeaders>>,
-    ),
-    shared: (
-        &pnpm_resolving_resolver_base::PlannedCanonicalFetches,
-        Option<&super::SharedInstallCaches>,
-    ),
-) -> Result<Vec<Arc<dyn super::ResolutionVerifier>>, InstallError> {
-    if trust_lockfile {
-        return Ok(Vec::new());
-    }
-    let (http_client_arc, meta_cache, auth_override) = clients;
-    let (planned_canonical_fetches, shared_caches) = shared;
-    build_resolution_verifiers(
-        config,
-        Arc::clone(http_client_arc),
-        Some(Arc::clone(meta_cache) as Arc<dyn pnpm_resolving_npm_resolver::PackageMetaCache>),
-        auth_override.cloned(),
-        None,
-        Some(std::sync::Arc::clone(planned_canonical_fetches)),
-        shared_caches.map(|caches| caches.verifier_lookups.clone()),
-    )
-    .map_err(InstallError::BuildVerifiers)
 }
 
 fn reject_frozen_with_update_checksums(

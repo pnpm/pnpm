@@ -55,8 +55,10 @@ export {
   type UpdateMatchingFunction,
   type WantedDependency,
 }
+export { createCyclicPeerPredicate, type PeerGraphEntry } from './cyclicPeerContexts.js'
 export { type DependencyManifestContext, lockedVersionSatisfies, prepareDependencyManifest } from './dependencyManifest.js'
 export { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
+export { linkPathToPeerVersion } from './linkPathToPeerVersion.js'
 export { getPeerSet } from './resolvedPackage.js'
 export { getLockfilePeerDependencies } from './updateLockfile.js'
 export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'

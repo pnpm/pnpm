@@ -43,7 +43,7 @@ import {
 import { reportVerifiedFileIntegrity } from './reportVerifiedFileIntegrity.js'
 import { runMutations } from './runMutations.js'
 import { validateModules } from './validateModules.js'
-import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { buildExoticSubdepsScopeFromContext, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 export async function mutateModules (
   projects: MutatedProject[],
@@ -83,7 +83,7 @@ export async function mutateModules (
   applyPreparedFrozenProjects(opts, maybeOpts._preparedFrozen)
 
   const run = await prepareMutationRun({ projects, maybeOpts, opts, detachReporter })
-  const result = await settleInstall(runMutations(run), run.verifyLockfilePromise, detachReporter)
+  const result = await settleInstall(() => runMutations(run), run.verifyLockfilePromise, detachReporter)
 
   reportVerifiedFileIntegrity(verifiedFileIntegritySince(verifiedFileIntegrityBaseline))
 
@@ -340,23 +340,21 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
  */
 export async function startLockfileVerification (
   { ctx, installsOnly, opts, projects }: Pick<OpenedMutationRun, 'ctx' | 'installsOnly' | 'opts' | 'projects'>,
-  { skipStatShortcut = false }: { skipStatShortcut?: boolean } = {}
+  { skipStatShortcut = false, disableCache = false }: { skipStatShortcut?: boolean, disableCache?: boolean } = {}
 ): Promise<{ verifyLockfilePromise?: Promise<void> }> {
   if (willDelegateToPacquet(opts, ctx, installsOnly) || opts.trustLockfile) return {}
-  const cacheActive = !skipStatShortcut &&
-    !opts.mergeGitBranchLockfiles &&
-    opts.cacheDir != null &&
-    opts.resolutionVerifiers.length > 0
-  const wantedLockfilePath = cacheActive
-    ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
-      useGitBranchLockfile: opts.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    }))
-    : undefined
+  const cacheActive = !disableCache && !skipStatShortcut &&
+    ctx.existsWantedLockfile && !ctx.wantedLockfileIsModified &&
+    !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles &&
+    !ctx.lockfileHadConflicts && opts.cacheDir != null &&
+    (opts.resolutionVerifiers.length > 0 || Boolean(opts.blockExoticSubdeps))
+  const wantedLockfilePath = cacheActive ? path.resolve(ctx.lockfileDir, await getWantedLockfileName(opts)) : undefined
   const verifyLockfilePromise = verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-    cacheDir: opts.cacheDir,
+    cacheDir: disableCache ? undefined : opts.cacheDir,
     lockfilePath: wantedLockfilePath,
     isReplaced: matchReplacedLockfileEntries(projects, ctx, opts),
+    blockExoticSubdeps: opts.blockExoticSubdeps,
+    exoticSubdepsScope: opts.blockExoticSubdeps ? buildExoticSubdepsScopeFromContext(ctx, opts) : undefined,
   })
   // Keep the rejection from going unhandled in the window before
   // `settleInstall` awaits the verdict — a preResolution hook or the
@@ -457,19 +455,23 @@ function shouldPruneVirtualStore (opts: StrictInstallOptions, ctx: PnpmContext):
 // install's result (or error) surfaced. detachReporter mirrors the success
 // path's cleanup so a long-lived process doesn't leak the stream listener on
 // a rejected install.
+const VERIFICATION_PENDING = Symbol('verificationPending')
+
 async function settleInstall (
-  install: Promise<InnerInstallResult>,
+  startInstall: () => Promise<InnerInstallResult>,
   verification: Promise<void> | undefined,
   detachReporter: () => void
 ): Promise<InnerInstallResult> {
-  if (verification != null) {
-    // Handle the install's eventual rejection up front so a fail-fast
-    // verification throw below doesn't leave the still-running install
-    // unhandled.
-    install.catch(() => {})
-  }
   try {
     if (verification != null) {
+      await Promise.race([verification, Promise.resolve(VERIFICATION_PENDING)])
+    }
+    const install = startInstall()
+    if (verification != null) {
+      // Handle the install's eventual rejection up front so a fail-fast
+      // verification throw below doesn't leave the still-running install
+      // unhandled.
+      install.catch(() => {})
       await verification
     }
     return await install

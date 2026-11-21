@@ -30,15 +30,27 @@ impl<'a> CycleProbe<'a> {
 
     /// `false` only when every dependency path from `provider` was followed
     /// and none led back to the provider's package or to the consumer's.
+    /// Once the visit budget is spent, any provider with a dependency may be
+    /// cut, and a provider without one still cannot be.
     pub(super) fn may_be_cut(&mut self, provider: &PkgNameVerPeer) -> bool {
-        let provider_package = provider.without_peer();
-        let Some(mut pending) = self.children(provider) else {
+        if self.remaining_visits == 0 {
+            return self.has_children_or_is_unknown(provider);
+        }
+        let Some(pending) = self.children(provider) else {
             return true;
         };
+        self.reaches_cut_point(&provider.without_peer(), pending)
+    }
+
+    fn reaches_cut_point(
+        &mut self,
+        provider_package: &PkgNameVerPeer,
+        mut pending: Vec<PkgNameVerPeer>,
+    ) -> bool {
         let mut visited = HashSet::new();
         while let Some(current) = pending.pop() {
             let package = current.without_peer();
-            if package == provider_package || package == self.consumer {
+            if &package == provider_package || package == self.consumer {
                 return true;
             }
             if visited.contains(&current) {
@@ -55,6 +67,14 @@ impl<'a> CycleProbe<'a> {
             visited.insert(current);
         }
         false
+    }
+
+    fn has_children_or_is_unknown(&self, key: &PkgNameVerPeer) -> bool {
+        self.snapshots
+            .get(key)
+            .is_none_or(|snapshot| {
+                all_dep_refs(snapshot).any(|(alias, dep_ref)| dep_ref.resolve(alias).is_some())
+            })
     }
 
     fn children(&self, key: &PkgNameVerPeer) -> Option<Vec<PkgNameVerPeer>> {

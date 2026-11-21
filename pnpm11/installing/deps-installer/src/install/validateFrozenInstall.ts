@@ -33,7 +33,8 @@ import {
   createNoLockfileError,
   verifyLockedTarballIntegrity,
 } from './verifyFrozenLockfile.js'
-import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { buildExoticSubdepsScopeFromContext } from './verifyLockfileExoticSubdeps.js'
+import { snapshotVerificationPolicy, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 
 export interface ValidatedFrozenInstall {
   wantedLockfile?: LockfileObject
@@ -128,8 +129,9 @@ async function validateWithoutWantedLockfile (
   if (preResolution.wantedMutated) {
     await verifyLockfileStructureAndSettings(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   }
+  let verifiedPolicySnapshot: Record<string, unknown> | undefined
   if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
+    verifiedPolicySnapshot = await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
   }
   return {
     wantedLockfile: rawCtx.wantedLockfile,
@@ -141,6 +143,7 @@ async function validateWithoutWantedLockfile (
       lockfileHadConflicts: false,
       preResolutionRan: true,
       verifiedLockfile: !opts.trustLockfile,
+      verifiedPolicySnapshot,
     },
   }
 }
@@ -156,8 +159,9 @@ async function prepareUnverifiedLockfile (
   if (preResolution.wantedMutated) {
     await verifyLockfileStructureAndSettings(rawCtx, { maybeOpts, opts, projects, usesPnpr, checkMajorVersion: false })
   }
+  let verifiedPolicySnapshot: Record<string, unknown> | undefined
   if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
+    verifiedPolicySnapshot = await verifyLockfilePolicies(rawCtx, opts, { wantedMutated: preResolution.wantedMutated })
   }
   return {
     wantedLockfile: rawCtx.wantedLockfile,
@@ -170,6 +174,7 @@ async function prepareUnverifiedLockfile (
       preResolutionRan: true,
       validatedInputLockfile,
       verifiedLockfile: !opts.trustLockfile,
+      verifiedPolicySnapshot,
     },
   }
 }
@@ -269,8 +274,9 @@ async function verifyFrozenMutationRun (
   if (!opts.lockfileOnly) {
     await verifyLockedTarballIntegrity(run)
   }
+  let verifiedPolicySnapshot: Record<string, unknown> | undefined
   if (!opts.trustLockfile) {
-    await verifyLockfilePolicies(ctx, opts, { wantedMutated: preResolution.wantedMutated })
+    verifiedPolicySnapshot = await verifyLockfilePolicies(ctx, opts, { wantedMutated: preResolution.wantedMutated })
   }
   return {
     wantedLockfile: ctx.wantedLockfile,
@@ -283,6 +289,7 @@ async function verifyFrozenMutationRun (
       preResolutionRan: true,
       validatedInputLockfile,
       verifiedLockfile: !opts.trustLockfile,
+      verifiedPolicySnapshot,
     },
   }
 }
@@ -327,13 +334,13 @@ async function verifyLockfilePolicies (
   ctx: PnpmContext,
   opts: StrictInstallOptions,
   { wantedMutated }: { wantedMutated: boolean }
-): Promise<void> {
+): Promise<Record<string, unknown>> {
   const canUseOnDiskCache = !wantedMutated &&
     !opts.mergeGitBranchLockfiles &&
     ctx.existsWantedLockfile &&
     !ctx.lockfileHadConflicts &&
     opts.cacheDir != null &&
-    opts.resolutionVerifiers.length > 0
+    (opts.resolutionVerifiers.length > 0 || Boolean(opts.blockExoticSubdeps))
   const wantedLockfileName = canUseOnDiskCache
     ? await getWantedLockfileName({
       useGitBranchLockfile: opts.useGitBranchLockfile,
@@ -344,9 +351,18 @@ async function verifyLockfilePolicies (
     (!opts.useGitBranchLockfile || wantedLockfileName !== WANTED_LOCKFILE)
     ? path.resolve(ctx.lockfileDir, wantedLockfileName)
     : undefined
+  const exoticSubdepsScope = opts.blockExoticSubdeps
+    ? buildExoticSubdepsScopeFromContext(ctx, opts)
+    : undefined
   await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
     cacheDir: wantedMutated ? undefined : opts.cacheDir,
     lockfilePath: wantedLockfilePath,
+    blockExoticSubdeps: opts.blockExoticSubdeps,
+    exoticSubdepsScope,
+  })
+  return snapshotVerificationPolicy(opts.resolutionVerifiers, {
+    blockExoticSubdeps: opts.blockExoticSubdeps,
+    exoticSubdepsScope,
   })
 }
 

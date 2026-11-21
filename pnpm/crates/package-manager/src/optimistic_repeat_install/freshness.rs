@@ -529,6 +529,7 @@ fn refreshed_state(
         },
         filesystem_now_ms: filesystem_now,
         carried: crate::install::CarriedSettings {
+            trust_lockfile: check.config.trust_lockfile,
             established_auto_dedupe: state.settings.auto_dedupe,
             // A gate that ignores `registryPrefixes` passes on a recorded
             // verification of other prefixes, which proves nothing about these.

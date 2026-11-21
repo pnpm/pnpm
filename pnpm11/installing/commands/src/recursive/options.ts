@@ -63,6 +63,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   workspace?: boolean
   interactiveUpdate?: boolean
   allowNew?: boolean
+  deployedWorkspaceDirs?: readonly string[]
   ignoredPackages?: Set<string>
   /**
    * Skip the workspace root project, which a filtered install otherwise

@@ -18,7 +18,6 @@ use super::{
     State,
     TarballPrefetcher,
     WantedLockfileSatisfactionCheck,
-    check_frozen_pnpmfile,
     check_pnpr_applied_settings,
     full_workspace_importer_ids,
     install_from_local_lockfile,
@@ -36,7 +35,7 @@ use super::{
     resolve_projects_for_pnpr,
     resolve_projects_options,
     selection_importer_ids,
-    verify_pnpr_input_lockfile,
+    verify_frozen_pnpr_preflight,
     wanted_lockfile_satisfies_workspace,
 };
 use miette::WrapErr;
@@ -85,7 +84,7 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let pnpr_server = target.server;
     let lockfile_dir = pnpr_lockfile_dir(state, &link);
     let session = prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir).await?;
-    let inputs = pnpr_request_inputs(state, &link, lockfile_dir, target.pnpmfile_hook).await?;
+    let inputs = pnpr_request_inputs(state, &link, &session, target.pnpmfile_hook).await?;
 
     if (session.satisfied_without_server
         || (link.lockfile.frozen && (selection.is_some() || !link.lockfile.only)))
@@ -96,16 +95,7 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
             pnpr_server,
             selection,
             &link,
-            &LocalLockfileInstall {
-                lockfile,
-                lockfile_dir,
-                lockfile_path: &inputs.lockfile_path,
-                selection_importer_ids: session.selection_importer_ids.as_ref(),
-                overrides: inputs.overrides.as_ref(),
-                resolve_registry: &inputs.resolve_registry,
-                prefetch_allowed: inputs.prefetch_allowed,
-                pnpmfile_hook: inputs.pnpmfile_hook,
-            },
+            &LocalLockfileInstall { lockfile, lockfile_dir, session: &session, inputs: &inputs },
         )
         .await;
     }
@@ -439,12 +429,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     mut session: PnprSession<'_>,
     mut inputs: PnprRequestInputs,
 ) -> miette::Result<()> {
-    if link.lockfile.frozen
-        && let Some(previous_wanted) = session.previous_wanted
-    {
-        verify_pnpr_input_lockfile(&link, previous_wanted)?;
-        check_frozen_pnpmfile(state, inputs.pnpmfile_hook.as_ref(), previous_wanted).await?;
-    }
+    verify_frozen_pnpr_preflight::<Reporter>(state, &link, &session, &inputs).await?;
     let prefetcher = streaming_prefetcher(state, lockfile_dir, &link, &session, &inputs).await;
     let opts = resolve_projects_options(state, pnpr_server, &link, &mut session, &mut inputs);
     let resolved = resolve_via_pnpr(

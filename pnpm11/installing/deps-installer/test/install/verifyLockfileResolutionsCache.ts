@@ -94,6 +94,101 @@ describe('tryLockfileVerificationCache', () => {
     expect(result.hit).toBe(false)
   })
 
+  test('in-place edit restoring mtime still misses stat shortcut via ctimeNs on POSIX', async () => {
+    if (process.platform === 'win32') return
+    const fixedTimeSec = 1_700_000_000
+    await fs.promises.writeFile(lockfilePath, 'aaaaaaaaaaaa')
+    fs.utimesSync(lockfilePath, fixedTimeSec, fixedTimeSec)
+    const beforeStat = fs.statSync(lockfilePath, { bigint: true })
+    recordVerification(cacheDir, {
+      lockfilePath,
+      verifiers: [mraVerifier(60)],
+      hashLockfile: hashLockfileFor('content-a'),
+    })
+
+    let hashCalls = 0
+    const baselineLookup = tryLockfileVerificationCache(cacheDir, {
+      lockfilePath,
+      verifiers: [mraVerifier(60)],
+      hashLockfile: () => {
+        hashCalls += 1
+        return 'hash:content-a'
+      },
+    })
+    expect(baselineLookup.hit).toBe(true)
+    expect(hashCalls).toBe(0)
+
+    const rewriteRestoringMtime = async (remainingAttempts: number): Promise<fs.BigIntStats> => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      const fd = fs.openSync(lockfilePath, 'r+')
+      try {
+        fs.writeSync(fd, Buffer.from('bbbbbbbbbbbb'), 0, 12, 0)
+        fs.futimesSync(fd, fixedTimeSec, fixedTimeSec)
+      } finally {
+        fs.closeSync(fd)
+      }
+      const stat = fs.statSync(lockfilePath, { bigint: true })
+      if (stat.ctimeNs === beforeStat.ctimeNs && remainingAttempts > 1) {
+        return rewriteRestoringMtime(remainingAttempts - 1)
+      }
+      return stat
+    }
+    const afterStat = await rewriteRestoringMtime(10)
+    expect(afterStat.size).toBe(beforeStat.size)
+    expect(afterStat.ino).toBe(beforeStat.ino)
+    expect(afterStat.mtimeNs).toBe(beforeStat.mtimeNs)
+    expect(afterStat.ctimeNs).not.toBe(beforeStat.ctimeNs)
+
+    const result = tryLockfileVerificationCache(cacheDir, {
+      lockfilePath,
+      verifiers: [mraVerifier(60)],
+      hashLockfile: () => {
+        hashCalls += 1
+        return 'hash:content-b'
+      },
+    })
+    expect(hashCalls).toBe(1)
+    expect(result.hit).toBe(false)
+  })
+
+  test('cache read failure preserves captured stat across lockfile replacement', async () => {
+    await fs.promises.writeFile(lockfilePath, 'verified-lockfile')
+    const beforeStat = fs.statSync(lockfilePath, { bigint: true })
+    await fs.promises.mkdir(path.join(cacheDir, 'lockfile-verified.jsonl'), { recursive: true })
+
+    const lookup = tryLockfileVerificationCache(cacheDir, {
+      lockfilePath,
+      verifiers: [mraVerifier(60)],
+      hashLockfile: hashLockfileFor('verified'),
+    })
+    expect(lookup.hit).toBe(false)
+    expect(lookup.precomputed.stat).toEqual({
+      size: Number(beforeStat.size),
+      mtimeNs: beforeStat.mtimeNs.toString(),
+      ctimeNs: beforeStat.ctimeNs.toString(),
+      inode: beforeStat.ino.toString(),
+    })
+
+    await fs.promises.writeFile(lockfilePath, 'replacement-lockfile-with-different-length')
+    await fs.promises.rmdir(path.join(cacheDir, 'lockfile-verified.jsonl'))
+    recordVerification(
+      cacheDir,
+      { lockfilePath, verifiers: [mraVerifier(60)], hashLockfile: hashLockfileFor('verified') },
+      lookup.precomputed
+    )
+
+    const raw = await fs.promises.readFile(path.join(cacheDir, 'lockfile-verified.jsonl'), 'utf8')
+    const written = JSON.parse(raw.trim()) as {
+      lockfile: { size: number, mtimeNs: string, ctimeNs: string, inode: string }
+    }
+    expect(written.lockfile).toMatchObject({
+      size: Number(beforeStat.size),
+      mtimeNs: beforeStat.mtimeNs.toString(),
+      ctimeNs: beforeStat.ctimeNs.toString(),
+      inode: beforeStat.ino.toString(),
+    })
+  })
+
   test('hash-fallback hit when size matches but mtime/inode were reset', async () => {
     // Simulate a CI checkout: same content, fresh inode + mtime.
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
@@ -297,6 +392,7 @@ describe('recordVerification', () => {
     expect(typeof record.verifiedAt).toBe('string')
     expect(typeof record.lockfile.size).toBe('number')
     expect(typeof record.lockfile.mtimeNs).toBe('string')
+    expect(typeof record.lockfile.ctimeNs).toBe('string')
     expect(typeof record.lockfile.inode).toBe('string')
   })
 
