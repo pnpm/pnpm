@@ -177,8 +177,7 @@ async fn a_restarted_registry_serves_and_unpublishes_from_sqlite() {
     let token = self::token(&restarted).await;
     let (_, document) = packument(&restarted, &token).await;
     assert_eq!(document["versions"]["1.0.0"]["version"], "1.0.0");
-    let (status, ..) =
-        send(&restarted, request("DELETE", "/npm/sql-pkg/-rev/1", &token, None)).await;
+    let (status, ..) = send(&restarted, request("DELETE", "/npm/sql-pkg", &token, None)).await;
     assert_eq!(status, StatusCode::CREATED);
     let (status, ..) = send(&restarted, request("GET", "/npm/sql-pkg", &token, None)).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
@@ -226,7 +225,7 @@ async fn unpublished_versions_and_ownership_survive_restart() {
     assert!(document["versions"].get("1.0.0").is_none());
 
     // Unpublishing the whole package keeps every version it had.
-    let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg/-rev/1", &token, None)).await;
+    let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg", &token, None)).await;
     assert_eq!(status, StatusCode::CREATED);
     let app = pnpr::router_with_auth(sqlite_config(tmp.path()), auth.clone());
     // Other bytes than the first publish of 1.1.0, so the request is not a
@@ -258,7 +257,7 @@ async fn an_unpublish_whose_archive_removal_fails_leaves_the_archive_to_gc_and_t
     let archive = pnpr_storage::layout::local_archive_path(tmp.path().to_path_buf(), "", npm, &key);
     let archives = archive.parent().unwrap();
     std::fs::set_permissions(archives, std::fs::Permissions::from_mode(0o555)).unwrap();
-    let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg/-rev/1", &alice, None)).await;
+    let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg", &alice, None)).await;
     std::fs::set_permissions(archives, std::fs::Permissions::from_mode(0o755)).unwrap();
     assert_eq!(status, StatusCode::CREATED);
     assert!(archive.is_file());

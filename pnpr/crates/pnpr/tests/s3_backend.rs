@@ -156,7 +156,7 @@ async fn rejected_publish_uploads_nothing_and_leaves_no_staging_file() {
     assert_eq!(staging_file_count(&storage), 0, "no staging tmp file should be left behind");
 }
 
-/// A full-package unpublish (`DELETE /:pkg/-rev/:rev`) must remove the
+/// A full-package unpublish must remove the
 /// package's objects from the bucket.
 #[tokio::test]
 async fn unpublish_removes_the_package_from_the_bucket() {
@@ -182,7 +182,7 @@ async fn unpublish_removes_the_package_from_the_bucket() {
     );
     assert_eq!(bucket_archives(&store).await.len(), 1, "the tarball uploaded");
 
-    let request = Request::delete("/npm/mypkg/-rev/anything")
+    let request = Request::delete("/npm/mypkg")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();

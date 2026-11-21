@@ -379,6 +379,11 @@ fn apply_packument(
         super::removed::record_package(commit.transaction, commit.key, &row.state, principal)?;
     }
     let mut changed = if !stored_versions.is_empty() && rows.versions.is_empty() {
+        let (namespace, _, name) = commit.key.params();
+        commit.transaction.execute(
+            "DELETE FROM npm_stars WHERE namespace = ?1 AND name = ?2",
+            params![namespace, name],
+        )?;
         commit.delete_state()?;
         true
     } else {

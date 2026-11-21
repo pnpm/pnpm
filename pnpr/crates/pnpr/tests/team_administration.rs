@@ -450,6 +450,18 @@ async fn a_member_sees_only_the_teams_it_is_in() {
 
     assert_eq!(team_names(&app, &root).await, json!([{ "name": "ops" }, { "name": "readers" }]));
     assert_eq!(team_names(&app, &member).await, json!([{ "name": "readers" }]));
+    assert_eq!(
+        send(&app, "GET", &format!("{teams}?format=cli"), Some(&member), None)
+            .await
+            .1,
+        json!(["acme:readers"]),
+    );
+    assert_eq!(
+        send(&app, "GET", &format!("{roster}?format=cli"), Some(&member), None)
+            .await
+            .1,
+        json!(["member"]),
+    );
     for (token, expected) in [(&root, StatusCode::OK), (&member, StatusCode::NOT_FOUND)] {
         let (status, _) = send(&app, "GET", "/npm/-/team/acme/ops/user", Some(token), None).await;
         assert_eq!(status, expected);

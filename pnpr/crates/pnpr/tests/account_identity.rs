@@ -223,6 +223,11 @@ async fn renaming_an_account_preserves_tokens_and_grants() {
     );
 }
 
+async fn owner_update_path(fixture: &Fixture) -> String {
+    let (_, document) = send(&fixture.app, "GET", "/npm/owned-package", "", None).await;
+    format!("/npm/owned-package/-rev/{}", document["_rev"].as_str().unwrap())
+}
+
 #[tokio::test]
 async fn a_maintainer_update_cannot_forge_an_account_id() {
     let fixture = Fixture::new().await;
@@ -235,7 +240,7 @@ async fn a_maintainer_update_cannot_forge_an_account_id() {
     );
     let body = json!({"maintainers": [{"name": "operator", "userId": fixture.member_id}]});
     assert_eq!(
-        send(&fixture.app, "PUT", "/npm/owned-package/-rev/1-fixture", &fixture.member, Some(body))
+        send(&fixture.app, "PUT", &owner_update_path(&fixture).await, &fixture.member, Some(body))
             .await
             .0,
         StatusCode::BAD_REQUEST,
@@ -255,12 +260,17 @@ async fn an_admin_can_explicitly_assign_a_reused_name_to_its_new_account() {
         StatusCode::CREATED,
     );
     let (replacement_id, replacement) = fixture.replace_member().await;
-    let owner_update = "/npm/owned-package/-rev/1-fixture";
     let echoed = json!({"maintainers": [{"name": "member", "userId": fixture.member_id}]});
     assert_eq!(
-        send(&fixture.app, "PUT", owner_update, &fixture.operator, Some(echoed))
-            .await
-            .0,
+        send(
+            &fixture.app,
+            "PUT",
+            &owner_update_path(&fixture).await,
+            &fixture.operator,
+            Some(echoed)
+        )
+        .await
+        .0,
         StatusCode::CREATED,
     );
     let next = crate::npm::publish_doc("owned-package", "1.1.0", b"next");
@@ -272,9 +282,15 @@ async fn an_admin_can_explicitly_assign_a_reused_name_to_its_new_account() {
     );
     let assigned = json!({"maintainers": [{"name": "member", "userId": replacement_id}]});
     assert_eq!(
-        send(&fixture.app, "PUT", owner_update, &fixture.operator, Some(assigned))
-            .await
-            .0,
+        send(
+            &fixture.app,
+            "PUT",
+            &owner_update_path(&fixture).await,
+            &fixture.operator,
+            Some(assigned)
+        )
+        .await
+        .0,
         StatusCode::CREATED,
     );
     let (_, stored) = send(&fixture.app, "GET", "/npm/owned-package", "", None).await;
@@ -285,4 +301,58 @@ async fn an_admin_can_explicitly_assign_a_reused_name_to_its_new_account() {
             .0,
         StatusCode::CREATED,
     );
+}
+
+#[tokio::test]
+async fn package_stars_belong_to_the_reader_and_owners_change_individually() {
+    let fixture = Fixture::new().await;
+    let app = &fixture.app;
+    let (_, reader) = fixture.replace_member().await;
+    let package = "@example/library";
+    let path = "/npm/@example%2flibrary";
+    let document = crate::npm::publish_doc(package, "1.0.0", b"first");
+    assert_eq!(
+        send(app, "PUT", path, &fixture.operator, Some(document)).await.0,
+        StatusCode::CREATED,
+    );
+    let stars = "/npm/-/user/v1/star";
+    let body = json!({"name": package, "package": package});
+    assert_eq!(send(app, "PUT", stars, &reader, Some(body.clone())).await.0, StatusCode::OK);
+    assert_eq!(send(app, "GET", stars, &reader, None).await.1, json!([package]));
+    assert_eq!(
+        send(app, "GET", "/npm/-/user/member/stars", &fixture.operator, None)
+            .await
+            .1,
+        json!([package]),
+    );
+    assert_eq!(send(app, "DELETE", stars, &reader, Some(body)).await.0, StatusCode::OK);
+    assert_eq!(send(app, "GET", stars, &reader, None).await.1, json!([]));
+
+    let owners = "/npm/-/package/@example%2flibrary/owners";
+    let new_owner = json!({"user":"member"});
+    assert_eq!(
+        send(app, "PUT", owners, &reader, Some(new_owner.clone())).await.0,
+        StatusCode::FORBIDDEN,
+    );
+    assert_eq!(
+        send(app, "PUT", owners, &fixture.operator, Some(new_owner)).await.0,
+        StatusCode::CREATED,
+    );
+    assert_eq!(
+        send(app, "DELETE", &format!("{owners}/operator"), &reader, None).await.0,
+        StatusCode::CREATED,
+    );
+    assert_eq!(
+        send(app, "DELETE", &format!("{owners}/member"), &reader, None).await.0,
+        StatusCode::BAD_REQUEST,
+    );
+    let (_, stored) = send(app, "GET", path, &reader, None).await;
+    assert_eq!(
+        stored["maintainers"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(stored["maintainers"][0]["name"], "member");
 }

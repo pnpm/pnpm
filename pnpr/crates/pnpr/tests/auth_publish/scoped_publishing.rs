@@ -307,7 +307,7 @@ async fn unpublish_force_removes_entire_package() {
         .is_some(),
     );
 
-    let request = Request::delete("/npm/unpub-force/-rev/anything")
+    let request = Request::delete("/npm/unpub-force")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();

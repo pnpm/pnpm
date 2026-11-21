@@ -295,13 +295,13 @@ pub(super) fn visible_teams(
 }
 
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`,
-/// list the teams the caller may see, in the shape the pnpm team command
-/// consumes: an array of `{"name": ...}`.
+/// list the teams the caller may see.
 pub(super) fn get_org_teams(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
+    cli: bool,
 ) -> Response {
     let teams = match visible_teams(state, identity, registry, scope) {
         Ok(teams) => teams,
@@ -310,20 +310,25 @@ pub(super) fn get_org_teams(
     let teams: Vec<Value> = teams
         .list()
         .into_iter()
-        .map(|(id, team)| json!({ "id": id, "name": team.name }))
+        .map(|(id, team)| {
+            if cli {
+                json!(format!("{}:{}", scope.trim_start_matches('@'), team.name))
+            } else {
+                json!({ "id": id, "name": team.name })
+            }
+        })
         .collect();
     (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
 }
 
 /// `GET /-/team/{scope}/{team}/user` (path-less) or
-/// `GET /~<name>/-/team/{scope}/{team}/user`, list a team's members, in
-/// the shape the pnpm team command consumes: an array of `{"name": ...}`.
+/// `GET /~<name>/-/team/{scope}/{team}/user`, list a team's members.
 pub(super) async fn get_team_members(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
-    scope: &str,
-    team: &str,
+    (scope, team): (&str, &str),
+    cli: bool,
 ) -> Response {
     let teams = match visible_teams(state, identity, registry, scope) {
         Ok(teams) => teams,
@@ -338,7 +343,12 @@ pub(super) async fn get_team_members(
         Ok(accounts) => accounts,
         Err(err) => return err.into_response(),
     };
-    let members = build_team_member_list(&record.members, accounts);
+    let mut members = build_team_member_list(&record.members, accounts);
+    if cli {
+        for member in &mut members {
+            *member = member["name"].take();
+        }
+    }
     (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
 }
 

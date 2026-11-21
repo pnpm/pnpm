@@ -224,7 +224,18 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         .is_some(),
     );
 
-    let request = Request::delete("/npm/unpub-policy/-rev/anything")
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/unpub-policy")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let document = body_json(response.into_body()).await;
+    let revision = document["_rev"].as_str().unwrap();
+    let request = Request::delete(format!("/npm/unpub-policy/-rev/{revision}"))
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::empty())
         .unwrap();

@@ -86,6 +86,7 @@ mod render;
 mod schema_monitor;
 mod scim;
 mod staged;
+mod stars;
 mod store_binding;
 mod tags;
 mod teams;

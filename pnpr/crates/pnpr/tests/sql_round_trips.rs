@@ -182,7 +182,7 @@ async fn npm_operations_make_few_round_trips_to_a_libsql_primary() {
     assert_eq!(status, StatusCode::OK);
     operations.push(("a view read the cache answers", round_trips));
 
-    let (status, round_trips) = registry.send("DELETE", "/npm/sql-pkg/-rev/1", None).await;
+    let (status, round_trips) = registry.send("DELETE", "/npm/sql-pkg", None).await;
     assert_eq!(status, StatusCode::CREATED);
     operations.push(("an unpublish", round_trips));
 

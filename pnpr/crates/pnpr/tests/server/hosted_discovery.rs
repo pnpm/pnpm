@@ -433,7 +433,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let delete_pkg = app
         .clone()
         .oneshot(
-            authed(Request::delete("/npm/~acme/@acme%2Fwidget/-rev/1"))
+            authed(Request::delete("/npm/~acme/@acme%2Fwidget"))
                 .body(Body::empty())
                 .unwrap(),
         )

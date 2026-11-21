@@ -173,6 +173,20 @@ async fn scoped_revisions_are_shared_across_tar_and_tgz_views_and_reject_stale_w
         format!("/npm/~zstd/@acme%2Fwidget/-rev/{revision}"),
     ] {
         assert_eq!(put_json(&app, &path, &token, &removed).await.status(), StatusCode::CONFLICT);
+        let owners = serde_json::json!({"maintainers": stale["maintainers"]});
+        assert_eq!(put_json(&app, &path, &token, &owners).await.status(), StatusCode::CONFLICT);
+        let delete = Request::delete(&path)
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.clone()
+                .oneshot(delete)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::CONFLICT,
+        );
     }
     assert_eq!(
         put_json(&app, "/npm/~acme/@acme/widget", &token, &stale).await.status(),

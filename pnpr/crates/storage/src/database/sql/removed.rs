@@ -38,6 +38,7 @@ pub(crate) enum RemovedPackage {
 fn ecosystem_package_tables(ecosystem: Ecosystem) -> &'static [&'static str] {
     match ecosystem {
         Ecosystem::Npm => &[
+            "npm_stars",
             "npm_release_records",
             "npm_accepted_manifests",
             "npm_readmes",

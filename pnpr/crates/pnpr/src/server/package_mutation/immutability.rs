@@ -130,12 +130,12 @@ pub(super) fn submitted_packument(
     {
         return Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() });
     }
-    if let Some(body_name) = packument.get("name").and_then(Value::as_str)
-        && body_name != name.as_str()
+    if let Some(body_name) = packument.get("name")
+        && body_name.as_str() != Some(name.as_str())
     {
         return Err(RegistryError::BadRequest {
             reason: format!(
-                "packument name {body_name:?} does not match the URL package {:?}",
+                "packument name {body_name} does not match the URL package {:?}",
                 name.as_str(),
             ),
         });

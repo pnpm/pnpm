@@ -52,6 +52,12 @@ pub(super) struct NamePath {
 }
 
 #[derive(Deserialize)]
+pub(super) struct DeletePath {
+    name: String,
+    rev: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub(super) struct RevisionPath {
     pub(super) name: String,
     pub(super) rev: String,
@@ -363,7 +369,7 @@ pub(super) async fn unpublish_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
-    Path(path): Path<NamePath>,
+    Path(path): Path<DeletePath>,
 ) -> Response {
     if let Some((pkg_name, version)) = split_package_identifier(&path.name) {
         return unpublish_version_tarball(
@@ -375,7 +381,7 @@ pub(super) async fn unpublish_package(
         )
         .await;
     }
-    delete_package(&state, &identity, registry.as_deref(), &path.name).await
+    delete_package(&state, &identity, registry.as_deref(), (&path.name, path.rev.as_deref())).await
 }
 
 /// `DELETE {base}/@{scope}/{pkg}`: remove a whole scoped package, or remove
@@ -386,7 +392,8 @@ pub(super) async fn delete_scoped_package(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<TwoSegments>,
 ) -> Response {
-    unpublish_scoped(&state, &identity, registry.as_deref(), &path.first, &path.second).await
+    unpublish_scoped(&state, &identity, registry.as_deref(), &path.first, (&path.second, None))
+        .await
 }
 
 /// `DELETE {base}/@{scope}/{pkg}/-rev/{rev}`: remove a whole scoped package,
@@ -398,7 +405,14 @@ pub(super) async fn unpublish_scoped_package(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopedRevPath>,
 ) -> Response {
-    unpublish_scoped(&state, &identity, registry.as_deref(), &path.scope, &path.name).await
+    unpublish_scoped(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.scope,
+        (&path.name, Some(&path.rev)),
+    )
+    .await
 }
 
 async fn unpublish_scoped(
@@ -406,7 +420,7 @@ async fn unpublish_scoped(
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
-    name: &str,
+    (name, revision): (&str, Option<&str>),
 ) -> Response {
     if !scope.starts_with('@') || scope.contains('/') {
         return not_found();
@@ -416,7 +430,7 @@ async fn unpublish_scoped(
         return unpublish_version_tarball(state, identity, registry, &full, version).await;
     }
     let full = format!("{scope}/{name}");
-    delete_package(state, identity, registry, &full).await
+    delete_package(state, identity, registry, (&full, revision)).await
 }
 
 async fn unpublish_version_tarball(

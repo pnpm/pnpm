@@ -399,8 +399,9 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
 
     let adapter = db.instance_adapter();
     tokio::task::spawn_blocking(move || {
-        let steps: &[Step] = &[schema::step_1, future_step_ddl, future_step_data_fix];
-        let refused = schema::prepare_adapter_with_steps(&*adapter, steps)?;
+        let mut steps = schema::STEPS.to_vec();
+        steps.extend([future_step_ddl as Step, future_step_data_fix]);
+        let refused = schema::prepare_adapter_with_steps(&*adapter, &steps)?;
         assert_eq!(refused, None);
         Ok::<_, RegistryError>(())
     })
@@ -408,7 +409,7 @@ async fn applying_from_each_released_version_fixture_preserves_data_and_advances
     .unwrap()
     .unwrap();
 
-    assert_eq!(marker(&db).await, [1, 2, 3]);
+    assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION + 2).collect::<Vec<_>>());
     assert_migrated_v1_fixture_rows(&db).await;
 }
 
@@ -487,15 +488,19 @@ fn step_2_increment_generation(connection: &dyn Connection) -> Result<()> {
 async fn two_replicas_starting_at_once_do_not_both_migrate(db: Db) {
     let adapter_a = db.instance_adapter();
     let adapter_b = db.instance_adapter();
-    let steps: &[Step] = &[schema::step_1, step_2_increment_generation];
-    let task_a =
-        tokio::task::spawn_blocking(move || schema::prepare_adapter_with_steps(&*adapter_a, steps));
-    let task_b =
-        tokio::task::spawn_blocking(move || schema::prepare_adapter_with_steps(&*adapter_b, steps));
+    let start = |adapter: Box<dyn pnpr_sql::adapter::Adapter>| {
+        tokio::task::spawn_blocking(move || {
+            let mut steps = schema::STEPS.to_vec();
+            steps.push(step_2_increment_generation);
+            schema::prepare_adapter_with_steps(&*adapter, &steps)
+        })
+    };
+    let task_a = start(adapter_a);
+    let task_b = start(adapter_b);
     let (res_a, res_b) = tokio::join!(task_a, task_b);
     assert_eq!(res_a.unwrap().unwrap(), None);
     assert_eq!(res_b.unwrap().unwrap(), None);
-    assert_eq!(marker(&db).await, [1, 2]);
+    assert_eq!(marker(&db).await, (1..=SCHEMA_VERSION + 1).collect::<Vec<_>>());
 
     let adapter = db.adapter();
     tokio::task::spawn_blocking(move || {
