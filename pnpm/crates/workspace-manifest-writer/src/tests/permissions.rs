@@ -286,7 +286,7 @@ fn allow_builds_writes_go_to_an_existing_permissions_block() {
     );
 }
 
-/// A package's flow-style `permissions` entry is refused, not shadowed by a
+/// A package's multi-line flow `permissions` entry is refused, not shadowed by a
 /// duplicate block-style key.
 #[test]
 fn a_flow_style_package_entry_refuses_the_write() {
