@@ -302,7 +302,11 @@ impl SpawningChild {
     /// reached whatever process group the child is already in.
     #[cfg_attr(
         not(unix),
-        expect(clippy::unused_self, reason = "only Unix relays what a spawn missed")
+        expect(
+            clippy::unused_self,
+            clippy::needless_pass_by_ref_mut,
+            reason = "only Unix relays what a spawn missed",
+        )
     )]
     pub(crate) fn spawned(&mut self) {
         #[cfg(unix)]
@@ -372,12 +376,6 @@ impl Drop for SignalRelay {
             entry.target.store(0, Ordering::Release);
         }
     }
-}
-
-/// [`SpawningChild::relay_to_child`] for a child no spawn claim covers.
-#[cfg(all(windows, test))]
-pub(crate) fn relay_to_child(pid: u32, own_process_group: bool) -> SignalRelay {
-    register(pid, own_process_group)
 }
 
 /// Claim a relay entry for `pid`, starting it at `handover`.
