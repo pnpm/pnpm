@@ -449,7 +449,7 @@ async fn hook_replay_sees_package_extensions() {
             rewritten,
             [("helper", "link:../helper")],
             "real manifest: {}",
-            pristine.is_some()
+            pristine.is_some(),
         );
     }
 }
