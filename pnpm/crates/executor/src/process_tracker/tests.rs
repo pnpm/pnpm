@@ -507,7 +507,7 @@ fn a_signal_taken_while_a_child_is_spawned_reaches_it_once_it_joins() {
     wait_for_marker(&mut child.0, &trapped);
 
     take_interrupt();
-    let relay = crate::interrupt::relay_to_child(child.0.id(), true);
+    let relay = spawning.relay_to_child(child.0.id(), true);
     spawning.joined(&relay);
 
     assert!(
@@ -534,7 +534,7 @@ fn a_signal_taken_before_a_child_exists_reaches_it_once_it_joins() {
     spawning.spawned();
     wait_for_marker(&mut child.0, &trapped);
 
-    let relay = crate::interrupt::relay_to_child(child.0.id(), true);
+    let relay = spawning.relay_to_child(child.0.id(), true);
     spawning.joined(&relay);
 
     assert!(
@@ -554,15 +554,87 @@ fn a_signal_taken_before_a_child_exists_reaches_it_once_it_joins() {
 #[test]
 fn two_signals_taken_while_a_child_is_spawned_both_reach_it() {
     let directory = TempDir::new().expect("create a temporary directory");
-    let received = directory.path().join("received");
-    let (int_ready, term_ready) =
-        (directory.path().join("int-ready"), directory.path().join("term-ready"));
+    let (received, ready) = (directory.path().join("received"), directory.path().join("ready"));
     let mut spawning = crate::interrupt::spawning_child();
+    let mut child =
+        KillGroupOnDrop(record_signals(&received, &ready).spawn().expect("spawn the child"));
+    spawning.spawned();
+    wait_for_marker(&mut child.0, &ready.with_extension("int"));
+    wait_for_marker(&mut child.0, &ready.with_extension("term"));
+
+    take_interrupt();
+    take_interrupt();
+    let relay = spawning.relay_to_child(child.0.id(), true);
+    spawning.joined(&relay);
+
+    let seen = wait_for_signals(&received, ["INT", "TERM"]);
+    assert!(seen.contains("INT"), "the child missed INT, having received {seen:?}");
+    assert!(seen.contains("TERM"), "the child missed TERM, having received {seen:?}");
+}
+
+/// A handler that counted its signal before the child joined, and walks
+/// the relay only after the join passed that signal on, finds nothing
+/// left to relay. Relaying it again would escalate one interrupt to
+/// `SIGTERM`.
+#[test]
+fn a_signal_the_join_passed_on_is_not_relayed_again_by_its_handler() {
+    let directory = TempDir::new().expect("create a temporary directory");
+    let (received, ready) = (directory.path().join("received"), directory.path().join("ready"));
+    let mut spawning = crate::interrupt::spawning_child();
+    let mut child =
+        KillGroupOnDrop(record_signals(&received, &ready).spawn().expect("spawn the child"));
+    spawning.spawned();
+    wait_for_marker(&mut child.0, &ready.with_extension("int"));
+    wait_for_marker(&mut child.0, &ready.with_extension("term"));
+
+    let taken = crate::interrupt::count_signal(libc::SIGINT);
+    let relay = spawning.relay_to_child(child.0.id(), true);
+    spawning.joined(&relay);
+    crate::interrupt::relay_counted(taken, libc::SIGINT);
+
+    wait_for_signals(&received, ["INT"]);
+    // A `SIGTERM` sent alongside would be recorded within this.
+    sleep(Duration::from_millis(500));
+    let seen = fs::read_to_string(&received).expect("read the signals the child recorded");
+    assert_eq!(seen.trim(), "INT", "one interrupt reaches the child once");
+}
+
+/// A signal taken before the child was registered and one taken after it
+/// are two interrupts, whichever of the handler and the join relays them.
+/// Here the second handler gets there first, and still owes the child the
+/// escalation.
+#[test]
+fn a_handler_that_runs_before_the_join_relays_what_the_child_missed() {
+    let directory = TempDir::new().expect("create a temporary directory");
+    let (received, ready) = (directory.path().join("received"), directory.path().join("ready"));
+    let mut spawning = crate::interrupt::spawning_child();
+    let mut child =
+        KillGroupOnDrop(record_signals(&received, &ready).spawn().expect("spawn the child"));
+    spawning.spawned();
+    wait_for_marker(&mut child.0, &ready.with_extension("int"));
+    wait_for_marker(&mut child.0, &ready.with_extension("term"));
+
+    take_interrupt();
+    let relay = spawning.relay_to_child(child.0.id(), true);
+    take_interrupt();
+    spawning.joined(&relay);
+
+    let seen = wait_for_signals(&received, ["INT", "TERM"]);
+    assert!(seen.contains("INT"), "the child missed INT, having received {seen:?}");
+    assert!(seen.contains("TERM"), "the child missed TERM, having received {seen:?}");
+}
+
+/// A child in a process group of its own that appends each `INT` and
+/// `TERM` it receives to `received`, and creates `ready` with the
+/// extensions `int` and `term` once each trap is armed.
+///
+/// One shell per signal: bash runs only one trap for an `INT` and a `TERM`
+/// that land together, and the relay sends them back to back. The `TERM`
+/// recorder is started before the leader ignores `TERM`, and a background
+/// job ignores `INT`, which it never needs to trap. Recording rather than
+/// exiting gives a later signal something to arrive at.
+fn record_signals(received: &Path, ready: &Path) -> Command {
     let mut command = Command::new("sh");
-    // One shell per signal: bash runs only one trap for an `INT` and a
-    // `TERM` that land together, and the relay sends them back to back.
-    // The `TERM` recorder is started before the leader ignores `TERM`, and
-    // a background job ignores `INT`, which it never needs to trap.
     command
         .arg("-c")
         .arg(format!(
@@ -570,25 +642,11 @@ fn two_signals_taken_while_a_child_is_spawned_both_reach_it() {
              trap 'echo INT >> {received}' INT; trap '' TERM; \
              : > {int_ready}; while :; do sleep 0.05; done",
             received = received.display(),
-            int_ready = int_ready.display(),
-            term_ready = term_ready.display(),
+            int_ready = ready.with_extension("int").display(),
+            term_ready = ready.with_extension("term").display(),
         ))
         .process_group(0);
-    // Recording rather than exiting, so the second signal has something
-    // to arrive at and neither races the child's exit.
-    let mut child = KillGroupOnDrop(command.spawn().expect("spawn the child"));
-    spawning.spawned();
-    wait_for_marker(&mut child.0, &int_ready);
-    wait_for_marker(&mut child.0, &term_ready);
-
-    take_interrupt();
-    take_interrupt();
-    let relay = crate::interrupt::relay_to_child(child.0.id(), true);
-    spawning.joined(&relay);
-
-    let seen = wait_for_signals(&received, ["INT", "TERM"]);
-    assert!(seen.contains("INT"), "the child missed INT, having received {seen:?}");
-    assert!(seen.contains("TERM"), "the child missed TERM, having received {seen:?}");
+    command
 }
 
 /// A child that traps `SIGINT` to exit 42, marks `trapped` once the trap
@@ -658,7 +716,7 @@ fn wait_for_marker(child: &mut Child, marker: &Path) {
 /// The child records a signal when it handles one, which it does on its
 /// own schedule. The deadline is what turns a signal that never arrives
 /// into an assertion naming it.
-fn wait_for_signals(path: &Path, wanted: [&str; 2]) -> String {
+fn wait_for_signals<const COUNT: usize>(path: &Path, wanted: [&str; COUNT]) -> String {
     let deadline = Instant::now() + Duration::from_secs(30);
     let mut seen = String::new();
     while Instant::now() < deadline

@@ -258,7 +258,7 @@ pub fn spawn_child<'tracker>(
     // reaches everything the task started.
     #[cfg(windows)]
     let job = process_tracker.and_then(|_| crate::job_control::TaskJob::contain(&child));
-    let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
+    let relay = spawning.relay_to_child(child.id(), own_process_group);
     spawning.joined(&relay);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
