@@ -28,7 +28,9 @@ const MACOS_LINK_THREADS_ENV: &str = "PNPM_MACOS_LINK_THREADS";
 #[cfg(target_os = "macos")]
 fn link_threads(configured: Option<&str>) -> Option<usize> {
     let threads = configured
-        .and_then(|threads| threads.trim().parse::<usize>().ok())
+        .map(str::trim)
+        .map(str::parse::<usize>)
+        .and_then(Result::ok)
         .unwrap_or(MACOS_LINK_THREADS);
     (threads > 0).then_some(threads)
 }
