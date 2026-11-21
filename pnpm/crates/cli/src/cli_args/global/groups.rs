@@ -29,6 +29,7 @@ use super::{
     create_global_cache_key,
     create_install_dir,
     discard_install_dir_on_error,
+    emit_global_summary,
     fs,
     get_actual_bin_names,
     get_hash_link,
@@ -55,6 +56,36 @@ use pnpm_modules_yaml::{
 };
 
 impl GlobalInstallTarget<'_> {
+    /// Install each `add -g` group in turn, stopping at the first that fails.
+    /// The reporter prints only the first summary, so the groups close with
+    /// one summary that lists the packages of all of them, including the
+    /// groups installed before one that fails.
+    pub(super) async fn add_groups<Reporter: self::Reporter + 'static>(
+        &self,
+        groups: &[Vec<String>],
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+        allow_build: &[String],
+    ) -> miette::Result<()> {
+        let filter = EventFilter::GlobalUpdateMaterialization.apply();
+        let mut installed = Ok(());
+        for group in groups {
+            installed = self.add_group::<Reporter>(
+                group,
+                range_spec_style,
+                supported_architectures.clone(),
+                allow_build,
+            )
+            .await;
+            if installed.is_err() {
+                break;
+            }
+        }
+        drop(filter);
+        emit_global_summary::<Reporter>(self.global_pkg_dir);
+        installed
+    }
+
     /// Install one `add -g` group and activate it over the groups it
     /// replaces.
     pub(super) async fn add_group<Reporter: self::Reporter + 'static>(

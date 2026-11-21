@@ -54,7 +54,6 @@ use crate::{
             get_automatically_ignored_builds,
         },
         rebuild::run_rebuild,
-        reporter::EventFilter,
         shim::{
             record_package_manager_shims,
             virtual_shim_bins_to_restore,
@@ -309,26 +308,8 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
     };
-    // The reporter prints only the first summary, so the groups close with
-    // one summary that lists the packages of all of them, including the
-    // groups installed before one that fails.
-    let filter = EventFilter::GlobalUpdateMaterialization.apply();
-    let mut installed = Ok(());
-    for group in groups {
-        installed = target.add_group::<Reporter>(
-            &group,
-            range_spec_style,
-            supported_architectures.clone(),
-            allow_build,
-        )
-        .await;
-        if installed.is_err() {
-            break;
-        }
-    }
-    drop(filter);
-    emit_global_summary::<Reporter>(&global_pkg_dir);
-    installed
+    target.add_groups::<Reporter>(&groups, range_spec_style, supported_architectures, allow_build)
+        .await
 }
 
 /// `pnpm update -g`. Reinstalls each matching group (within its existing
