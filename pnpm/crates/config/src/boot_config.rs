@@ -143,6 +143,16 @@ impl Config {
         config
     }
 
+    /// Whether the workspace itself declares the `overrides` entry
+    /// `selector`, in `pnpm-workspace.yaml` or a local file it includes.
+    /// An entry a config dependency or an `updateConfig` hook adds is not
+    /// declared by the workspace.
+    #[must_use]
+    pub fn declares_override(&self, selector: &str) -> bool {
+        !self.is_owned_by_config_dependency("overrides")
+            && !self.hook_added_overrides.contains(selector)
+    }
+
     fn is_owned_by_config_dependency(&self, setting: &str) -> bool {
         self.workspace_includes
             .as_ref()

@@ -21,6 +21,7 @@ use super::{
     SkippedOptionalDependencyLog,
     SkippedOptionalPackage,
     SkippedOptionalReason,
+    UnusedOverrideLog,
     UpdateCheckLog,
     cached_verdict,
     detect_install_source,
@@ -349,6 +350,37 @@ impl ReporterState {
             &mut self.display.frame,
             self.options.append_only,
             &message,
+        );
+    }
+
+    pub(super) fn on_unused_override(&mut self, log: &UnusedOverrideLog) {
+        self.notices.unused_overrides.push(log.selector.clone());
+    }
+
+    /// One grouped, sorted warning for every selector buffered since the
+    /// last `resolution_done`. Selectors come from `pnpm-workspace.yaml`, which
+    /// a contributor can edit, so they are sanitized before rendering.
+    pub(super) fn flush_unused_overrides(&mut self) {
+        if self.notices.unused_overrides.is_empty() {
+            return;
+        }
+        let mut selectors: Vec<String> = std::mem::take(&mut self.notices.unused_overrides)
+            .iter()
+            .map(String::as_str)
+            .map(pnpm_text_sanitize::sanitize_inline)
+            .map(std::borrow::Cow::into_owned)
+            .collect();
+        selectors.sort();
+        let head = if selectors.len() == 1 {
+            "1 override matched no dependency".to_string()
+        } else {
+            format!("{} overrides matched no dependency", selectors.len())
+        };
+        self.notices.push_warning(
+            self.rendering.colors,
+            &mut self.display.frame,
+            self.options.append_only,
+            &format!("{head}: {}", selectors.join(", ")),
         );
     }
 

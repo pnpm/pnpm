@@ -133,6 +133,7 @@ pub(super) fn apply_hook_delta(
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
     record_explicit_setting_changes(config, &delta, &delta_settings);
+    record_hook_added_overrides(config, input, &delta);
     delta_settings.apply_to(config, base_dir);
     config.apply_cli_registries();
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
@@ -350,6 +351,17 @@ fn record_explicit_setting_changes(
             config.explicit_settings.remove(key);
         }
     }
+}
+
+fn record_hook_added_overrides(config: &mut Config, input: &Value, delta: &Value) {
+    let Some(overrides) = delta.get("overrides").and_then(Value::as_object) else {
+        return;
+    };
+    let declared = input.get("overrides").and_then(Value::as_object);
+    let added = overrides
+        .keys()
+        .filter(|selector| declared.is_none_or(|declared| !declared.contains_key(*selector)));
+    config.hook_added_overrides.extend(added.cloned());
 }
 
 /// A setting the hook set to null is unset, as it is on pnpm 11, and

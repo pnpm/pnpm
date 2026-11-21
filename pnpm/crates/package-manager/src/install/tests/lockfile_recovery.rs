@@ -9,6 +9,7 @@ use super::{
     assert_package_absent,
     assert_package_present,
     fresh_lockfile_only_with_overrides,
+    fresh_lockfile_only_with_overrides_reporting,
     install_then_go_offline,
     install_with_pnpmfile,
     touch_manifest,
@@ -805,6 +806,63 @@ async fn fresh_lockfile_applies_overrides_to_transitive_dependencies() {
     assert_package_present(&lockfile, "@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0");
     assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
     assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+}
+/// Only the override that rewrote no edge is reported. Convergence and
+/// removal overrides are never reported.
+#[tokio::test]
+async fn fresh_lockfile_reports_overrides_that_matched_no_dependency() {
+    use pnpm_reporter::{
+        LogEvent,
+        Reporter,
+    };
+    use std::sync::Mutex;
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    fresh_lockfile_only_with_overrides_reporting::<RecordingReporter>(
+        &[("@pnpm.e2e/foo", "^100.0.0")],
+        &[
+            ("@pnpm.e2e/foo@^100.0.0", "100.0.0"),
+            ("@pnpm.e2e/missing-pkg@^1.0.0", "1.0.0"),
+            ("@pnpm.e2e/missing-converge@", "1.0.0"),
+            ("@pnpm.e2e/missing-removal", "-"),
+        ],
+        None,
+    )
+    .await;
+
+    let events = EVENTS.lock().unwrap();
+    let unused: Vec<&str> = events
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::UnusedOverride(log) => Some(log.selector.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(unused, vec!["@pnpm.e2e/missing-pkg@^1.0.0"]);
+    let unused_at = events
+        .iter()
+        .position(|event| matches!(event, LogEvent::UnusedOverride(_)));
+    let resolution_done_at = events
+        .iter()
+        .position(|event| {
+            matches!(
+                event,
+                LogEvent::Stage(log) if matches!(log.stage, pnpm_reporter::Stage::ResolutionDone),
+            )
+        });
+    assert!(unused_at < resolution_done_at, "unused overrides must precede resolution_done");
 }
 // The `afterAllResolved` hook receives the resolved
 // lockfile object and its return value is what gets written, so an arbitrary

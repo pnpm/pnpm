@@ -25,6 +25,7 @@ use super::{
     resolver_setup,
     run_on_disk_phases,
     warn_stale_convergence_overrides_if_any,
+    warn_unused_overrides_if_any,
 };
 use crate::{
     AllowBuildPolicy,
@@ -152,6 +153,14 @@ pub(super) async fn warn_stale_overrides<Reporter: self::Reporter + 'static>(
             (setup.policy.published_by, setup.policy.published_by_exclude.as_ref()),
         )
         .await;
+        if install.drivers.config.warn_unused_overrides {
+            warn_unused_overrides_if_any::<Reporter>(
+                install.drivers.config,
+                resolved.overrides.parsed_overrides.as_deref(),
+                resolved.overrides.versions_overrider.as_deref(),
+                install.projects.lockfile_dir,
+            );
+        }
     }
 }
 

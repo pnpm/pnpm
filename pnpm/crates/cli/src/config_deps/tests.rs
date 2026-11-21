@@ -325,6 +325,26 @@ async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
 }
 
 #[tokio::test]
+async fn update_config_records_the_overrides_it_adds() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "overrides:\n  declared: 1.0.0\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.overrides = { ...config.overrides, declared: '2.0.0', added: '1.0.0' }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.hook_added_overrides.iter().collect::<Vec<_>>(), ["added"]);
+    assert!(config.declares_override("declared"));
+    assert!(!config.declares_override("added"));
+}
+
+#[tokio::test]
 async fn update_config_lockfile_dir_reanchors_install_paths() {
     let root = tempfile::tempdir().expect("workspace tempdir");
     fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");

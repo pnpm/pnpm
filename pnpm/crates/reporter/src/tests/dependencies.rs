@@ -7,6 +7,7 @@ use super::{
     SkippedOptionalDependencyLog,
     SkippedOptionalPackage,
     SkippedOptionalReason,
+    UnusedOverrideLog,
     Value,
     assert_eq,
 };
@@ -137,4 +138,25 @@ fn peer_dependency_issues_event_matches_pnpm_wire_shape() {
     assert_eq!(json["name"], "pnpm:peer-dependency-issues");
     assert_eq!(json["level"], "debug");
     assert_eq!(json["issuesByProjects"]["."]["bad"]["react"][0]["foundVersion"], "19.1.0");
+}
+
+/// `pnpm:unused-override` matches pnpm's wire shape: `prefix` and
+/// `selector` at the top level alongside the envelope `level`.
+#[test]
+fn unused_override_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::UnusedOverride(UnusedOverrideLog {
+        level: LogLevel::Debug,
+        prefix: "/projects/x".to_string(),
+        selector: "foo>bar".to_string(),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert_eq!(json["name"], "pnpm:unused-override");
+    assert_eq!(json["level"], "debug");
+    assert_eq!(json["prefix"], "/projects/x");
+    assert_eq!(json["selector"], "foo>bar");
 }

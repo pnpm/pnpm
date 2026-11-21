@@ -214,3 +214,29 @@ fn self_update_ignores_boot_config() {
         Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
     assert_eq!(config.for_boot().minimum_release_age, Config::default().minimum_release_age);
 }
+
+#[test]
+fn the_workspace_declares_the_overrides_it_or_a_local_file_sets() {
+    let root = load(&[("pnpm-workspace.yaml", "overrides:\n  foo: 1.0.0\n")]).expect("loads");
+    assert!(root.declares_override("foo"));
+    let included = load(&[
+        ("pnpm-workspace.yaml", "include:\n  ./overrides.yaml: [overrides]\n"),
+        ("overrides.yaml", "overrides:\n  foo: 1.0.0\n"),
+    ])
+    .expect("loads");
+    assert!(included.declares_override("foo"));
+}
+
+#[test]
+fn the_workspace_does_not_declare_the_overrides_of_a_config_dependency() {
+    let root = "configDependencies:\n  policy: 1.0.0\ninclude:\n  policy: [overrides]\n";
+    let config = load_with_policy(root, "overrides:\n  foo: 1.0.0\n", &[]);
+    assert_eq!(
+        config.overrides
+            .as_ref()
+            .and_then(|overrides| overrides.get("foo"))
+            .map(String::as_str),
+        Some("1.0.0"),
+    );
+    assert!(!config.declares_override("foo"));
+}

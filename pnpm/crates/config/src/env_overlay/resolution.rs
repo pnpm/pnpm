@@ -59,6 +59,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, dedupe_injected_deps, "DEDUPE_INJECTED_DEPS");
         json_field!(settings, reader, ignore_compatibility_db, "IGNORE_COMPATIBILITY_DB");
         json_field!(settings, reader, block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");
+        json_field!(settings, reader, warn_unused_overrides, "WARN_UNUSED_OVERRIDES");
         json_field!(settings, reader, verify_store_integrity, "VERIFY_STORE_INTEGRITY");
         json_field!(
             settings,

@@ -776,6 +776,43 @@ async fn warn_stale_convergence_overrides_if_any<Reporter: pnpm_reporter::Report
     .await;
 }
 
+/// Emit one `pnpm:unused-override` per explicit override that rewrote no
+/// edge, before the caller emits `resolution_done` (the reporter flushes its
+/// buffer on that stage). Only meaningful after a full resolution, since
+/// reused subtrees never stream their manifests through the overrider.
+///
+/// Not reported:
+/// - convergence overrides, which have their own staleness warning;
+/// - removal (`"-"`) overrides, which leave no trace to check against;
+/// - entries the workspace does not declare (see [`Config::declares_override`]),
+///   which its user cannot remove.
+fn warn_unused_overrides_if_any<Reporter: pnpm_reporter::Reporter>(
+    config: &Config,
+    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    versions_overrider: Option<&crate::VersionsOverrider>,
+    lockfile_dir: &Path,
+) {
+    let (Some(parsed), Some(overrider)) = (parsed_overrides, versions_overrider) else { return };
+    let applied = overrider.applied_selectors();
+    let prefix = lockfile_dir.display().to_string();
+    for override_entry in parsed {
+        if override_entry.converge
+            || override_entry.new_bare_specifier == "-"
+            || applied.contains(&override_entry.selector)
+            || !config.declares_override(&override_entry.selector)
+        {
+            continue;
+        }
+        Reporter::emit(&pnpm_reporter::LogEvent::UnusedOverride(
+            pnpm_reporter::UnusedOverrideLog {
+                level: pnpm_reporter::LogLevel::Debug,
+                prefix: prefix.clone(),
+                selector: override_entry.selector.clone(),
+            },
+        ));
+    }
+}
+
 #[cfg(test)]
 mod tests;
 
