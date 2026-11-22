@@ -227,22 +227,48 @@ fn scalars(text: &str) -> Vec<Scalar<'_>> {
 /// than by text alone. Edits are local, so the common prefix and suffix are
 /// matched first and the quadratic search only covers what lies between.
 fn kept_from(original: &[&str], edited: &[&str]) -> Vec<bool> {
-    let prefix = original
-        .iter()
-        .zip(edited)
-        .take_while(|(left, right)| left == right)
-        .count();
-    let suffix = original[prefix..]
-        .iter()
-        .rev()
-        .zip(edited[prefix..].iter().rev())
-        .take_while(|(left, right)| left == right)
-        .count();
-    let old = &original[prefix..original.len() - suffix];
-    let new = &edited[prefix..edited.len() - suffix];
+    let prefix = common_len(original.iter(), edited.iter());
+    let suffix = common_len(original[prefix..].iter().rev(), edited[prefix..].iter().rev());
+    let mut kept = vec![true; edited.len()];
+    let changed = prefix..edited.len() - suffix;
+    let matched = lcs_matches(&original[prefix..original.len() - suffix], &edited[changed.clone()]);
+    kept[changed].copy_from_slice(&matched);
+    kept
+}
 
-    // `lengths[i * width + j]` is the length of the longest common
-    // subsequence of `old[i..]` and `new[j..]`.
+/// How many leading items `left` and `right` share.
+fn common_len<'item>(
+    left: impl Iterator<Item = &'item &'item str>,
+    right: impl Iterator<Item = &'item &'item str>,
+) -> usize {
+    left.zip(right)
+        .take_while(|(left, right)| left == right)
+        .count()
+}
+
+/// Which items of `new` a longest common subsequence with `old` matches.
+fn lcs_matches(old: &[&str], new: &[&str]) -> Vec<bool> {
+    let width = new.len() + 1;
+    let lengths = lcs_lengths(old, new);
+    let mut matched = vec![false; new.len()];
+    let (mut i, mut j) = (0, 0);
+    while i < old.len() && j < new.len() {
+        if old[i] == new[j] {
+            matched[j] = true;
+            i += 1;
+            j += 1;
+        } else if lengths[(i + 1) * width + j] >= lengths[i * width + j + 1] {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    matched
+}
+
+/// The table where `lengths[i * (new.len() + 1) + j]` is the length of the
+/// longest common subsequence of `old[i..]` and `new[j..]`.
+fn lcs_lengths(old: &[&str], new: &[&str]) -> Vec<u32> {
     let width = new.len() + 1;
     let mut lengths = vec![0u32; (old.len() + 1) * width];
     for i in (0..old.len()).rev() {
@@ -254,20 +280,5 @@ fn kept_from(original: &[&str], edited: &[&str]) -> Vec<bool> {
             };
         }
     }
-
-    let mut kept = vec![true; edited.len()];
-    kept[prefix..edited.len() - suffix].fill(false);
-    let (mut i, mut j) = (0, 0);
-    while i < old.len() && j < new.len() {
-        if old[i] == new[j] {
-            kept[prefix + j] = true;
-            i += 1;
-            j += 1;
-        } else if lengths[(i + 1) * width + j] >= lengths[i * width + j + 1] {
-            i += 1;
-        } else {
-            j += 1;
-        }
-    }
-    kept
+    lengths
 }
