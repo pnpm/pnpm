@@ -355,31 +355,51 @@ fn exact_requirement(version: &Version) -> VersionReq {
     }
 }
 
+/// The dependencies Cargo records for `package` under `selection`, each path
+/// dependency among them pinned by [`locked_requirement`]. Only those are
+/// pinned: Cargo does not check the version of a dependency it drops.
 fn activated_dependencies(
     metadata: &CargoMetadata,
     package: &MetadataPackage,
     selection: &FeatureSelection,
     options: DependencyOptions,
 ) -> Result<Vec<RegistryDependency>> {
-    let dependencies = package.dependencies
+    let declared = package.dependencies
         .iter()
-        .map(|dependency| {
-            Ok(RegistryDependency {
-                alias: dependency.rename
-                    .clone()
-                    .unwrap_or_else(|| dependency.name.clone()),
-                name: dependency.name.clone(),
-                requirement: locked_requirement(metadata, dependency)?,
-                kind: dependency.kind,
-                registry: dependency.origin.source.clone(),
-                optional: dependency.optional,
-                default_features: dependency.uses_default_features,
-                features: dependency.features
-                    .iter()
-                    .cloned()
-                    .collect(),
-            })
+        .map(|dependency| RegistryDependency {
+            alias: dependency.rename.clone().unwrap_or_else(|| dependency.name.clone()),
+            name: dependency.name.clone(),
+            requirement: dependency.req.clone(),
+            kind: dependency.kind,
+            registry: dependency.origin.source.clone(),
+            optional: dependency.optional,
+            default_features: dependency.uses_default_features,
+            features: dependency.features
+                .iter()
+                .cloned()
+                .collect(),
         })
-        .collect::<Result<Vec<_>>>()?;
-    dependencies_from_parts(&dependencies, &package.features, selection, options)
+        .collect::<Vec<_>>();
+    dependencies_from_parts(&declared, &package.features, selection, options)?
+        .into_iter()
+        .map(|dependency| pin_path_dependency(metadata, package, dependency))
+        .collect()
+}
+
+fn pin_path_dependency(
+    metadata: &CargoMetadata,
+    package: &MetadataPackage,
+    mut dependency: RegistryDependency,
+) -> Result<RegistryDependency> {
+    let declaration = package.dependencies
+        .iter()
+        .find(|declaration| {
+            declaration.origin.source.is_none()
+                && declaration.kind == dependency.kind
+                && declaration.rename.as_deref().unwrap_or(&declaration.name) == dependency.alias
+        });
+    if let (None, Some(declaration)) = (&dependency.registry, declaration) {
+        dependency.requirement = locked_requirement(metadata, declaration)?;
+    }
+    Ok(dependency)
 }

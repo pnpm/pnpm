@@ -445,3 +445,20 @@ fn rejects_a_path_package_outside_the_declared_requirement() {
 
     assert_eq!(error.to_string(), "path dependency foo ^1 does not match the package at its path");
 }
+
+#[test]
+fn ignores_the_version_of_a_dev_dependency_outside_the_workspace() {
+    let metadata = TWO_LOCAL_FOO_METADATA.replace(
+        r#""manifest_path": "/libs/foo1/Cargo.toml",
+      "dependencies": []"#,
+        r#""manifest_path": "/libs/foo1/Cargo.toml",
+      "dependencies": [
+        {"name": "foo", "source": null, "req": "^3", "kind": "dev", "path": "/libs/foo2"}
+      ]"#,
+    );
+    assert_ne!(metadata, TWO_LOCAL_FOO_METADATA);
+
+    let lockfile = resolve_lockfile(&metadata, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap();
+
+    verify_lockfile(&metadata, &lockfile).unwrap();
+}
