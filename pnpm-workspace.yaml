@@ -57,6 +57,7 @@ packages:
   - pnpm/esm-loader
   - pnpm/npm/pnpm
   - pnpm/tasks/registry-mock
+  - pnpm/test-oracles
   - pnpm/tasks/ecosystem-e2e/webcontainer
   - pnpm/wasm
   - pnpr/npm/pnpr

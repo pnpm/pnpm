@@ -44,7 +44,6 @@ pub(super) fn env_lockfile_sync_plan(
 pub(super) fn env_lockfile_sync_from_loaded(
     config: &Config,
     root_manifest: &Value,
-    roots: &PinRoots,
     on_fail: PmOnFail,
     env_lockfile: Option<&EnvLockfile>,
     running_version: &str,
@@ -53,12 +52,9 @@ pub(super) fn env_lockfile_sync_from_loaded(
     if !config.lockfile {
         return Ok(None);
     }
-    let Some(mut package_manager) = package_manager_to_sync_for_version(
-        root_manifest,
-        &roots.manifest,
-        Some(on_fail),
-        running_version,
-    ) else {
+    let Some(mut package_manager) =
+        package_manager_to_sync_for_version(root_manifest, Some(on_fail), running_version)
+    else {
         return Ok(None);
     };
     if keep_locked_range_version

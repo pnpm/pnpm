@@ -3,9 +3,9 @@
 //!
 //! pnpm is the source of truth (see
 //! [`pnpm/AGENTS.md`](../../AGENTS.md#the-cardinal-rule)). Its CLI
-//! defaults live in one object literal, `defaultOptions`, in
-//! `config/reader/src/index.ts`. This test reads that literal from
-//! source at test time and compares each value against
+//! defaults live in one object literal, `defaultOptions`. This test reads
+//! that literal from a copy of pnpm v11's source,
+//! `tests/fixtures/pnpm11-config-reader/defaultOptions.ts`, and compares each value against
 //! [`Config::default()`], so a drift on either side (pnpm changing a
 //! default, or pacquet hard-coding the wrong one, the
 //! `dedupeDirectDeps` regression that broke the v11.5.1 release) fails
@@ -304,34 +304,20 @@ fn save_workspace_protocol_scalar(value: SaveWorkspaceProtocol) -> Scalar {
     }
 }
 
-/// The `defaultOptions` object literal, sliced out of pnpm's
-/// config-reader source. Read live so the test tracks pnpm rather than
-/// a checked-in copy that could silently drift.
+/// The `defaultOptions` object literal, sliced out of a copy of pnpm
+/// v11's config-reader source.
 fn read_pnpm_default_options() -> String {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../pnpm11/config/reader/src/getConfig/defaultOptions.ts",
-    );
-    let src = std::fs::read_to_string(path)
-        .unwrap_or_else(|err| {
-            panic!(
-                "read pnpm config-reader source at {path}: {err}. \
-             This contract test reads pnpm's `defaultOptions` from the TypeScript \
-             tree; if config/reader moved, update the path.",
-            )
-        });
+    let src = include_str!("../tests/fixtures/pnpm11-config-reader/defaultOptions.ts");
     let marker = "const defaultOptions: Partial<KebabCaseConfig> = {";
     let start = src
         .find(marker)
-        .unwrap_or_else(|| {
-            panic!("`{marker}` not found in config/reader/src/getConfig/defaultOptions.ts")
-        });
+        .unwrap_or_else(|| panic!("`{marker}` not found in defaultOptions.ts"));
     let body = &src[start + marker.len()..];
     // The block ends at the first line that is exactly the closing brace
     // at the object's indentation (`\n}`).
     let end = body
         .find("\n}")
-        .expect("unterminated `defaultOptions` object literal in config/reader/src/getConfig/defaultOptions.ts");
+        .expect("unterminated `defaultOptions` object literal in defaultOptions.ts");
     body[..end].to_string()
 }
 
@@ -463,7 +449,7 @@ fn pacquet_defaults_match_pnpm_cli_defaults() {
         assert_eq!(
             pacquet_value, pnpm_value,
             "default for {key:?} diverges from pnpm: pacquet={pacquet_value:?}, pnpm={pnpm_value:?} \
-             (pnpm source: config/reader/src/index.ts)",
+             (pnpm source: tests/fixtures/pnpm11-config-reader/defaultOptions.ts)",
         );
     }
 }

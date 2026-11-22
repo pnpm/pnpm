@@ -84,7 +84,6 @@ pub(crate) struct PackageManagerToSync {
 /// which overrides the manifest's own `onFail`.
 pub(crate) fn package_manager_to_sync_for_version(
     manifest: &Value,
-    root_dir: &Path,
     on_fail: Option<PmOnFail>,
     running_version: &str,
 ) -> Option<PackageManagerToSync> {
@@ -98,18 +97,6 @@ pub(crate) fn package_manager_to_sync_for_version(
     }
     if !version_satisfies(running_version, wanted_version) {
         return None;
-    }
-    if running_version == PNPM_VERSION {
-        let source_version = current_source_pnpm_version().or_else(|| pnpm_version_from(root_dir));
-        if let Some(version) =
-            source_version.filter(|version| version_satisfies(version, wanted_version))
-        {
-            return Some(PackageManagerToSync {
-                specifier: wanted_version.to_string(),
-                version,
-                running_pnpm_for_range: false,
-            });
-        }
     }
     if let Some(version) = exact_version(wanted_version) {
         return Some(PackageManagerToSync {
@@ -243,23 +230,6 @@ pub(crate) fn should_persist_package_manager_lockfile(pm: &WantedPackageManager)
         .map(node_semver::Version::parse)
         .and_then(Result::ok)
         .is_some_and(|version| version.major >= 12)
-}
-
-pub(crate) fn current_source_pnpm_version() -> Option<String> {
-    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir.ancestors().find_map(pnpm_version_from)
-}
-
-fn pnpm_version_from(root_dir: &Path) -> Option<String> {
-    let path = root_dir
-        .join("pnpm11")
-        .join("pnpm")
-        .join("package.json");
-    let value = read_manifest_json(&path).ok()??;
-    value
-        .get("version")
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
 }
 
 /// The one version `version` pins, or `None` when it pins a range, a

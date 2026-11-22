@@ -72,12 +72,6 @@ jobs:
           unset XDG_DATA_HOME
           just install
 
-      - name: Bundle pnpm v11
-        shell: bash
-        run: |
-          pnpm --filter pnpm exec tsc --build
-          pnpm --filter pnpm run bundle
-
       - name: Switch matrix across released outer pnpm versions (11.latest, 12.0.0, 12.latest) and pins (10, 11, 12, HEAD)
         # zizmor: ignore[adhoc-packages] -- This matrix intentionally installs
         # the latest published pnpm 11 and 12 dist-tags to test cross-version
@@ -119,6 +113,6 @@ jobs:
           unset IFS
           unset PNPM_HOME
           unset XDG_DATA_HOME
-          PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
+          PNPM_V11_BUNDLE="$PWD/pnpm/test-oracles/node_modules/pnpm-v11/dist/pnpm.mjs" \
           PNPM_TEST_OUTER_CLIS="$outer_clis" \
             cargo nextest run --locked --run-ignored all -p pnpm-cli --test suite -E 'test(/^version::/)'

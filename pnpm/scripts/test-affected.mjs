@@ -30,12 +30,14 @@ const WORKSPACE_WIDE = [
  * Cargo attributes a file to the manifest above it, so these would otherwise
  * be attributed to no crate at all and report that nothing changed.
  */
+const ORACLE_CONSUMERS = ['pnpm-cli', 'pnpm-config', 'pnpm-fs-packlist']
 const EXTERNAL_TEST_INPUTS = [
   { prefix: 'fixtures/gvs-link-hash-parity.json', packages: ['pnpm-deps-restorer'] },
   { prefix: 'fixtures/pin-decision.json', packages: ['pnpm-cli', 'pnpm-config'] },
-  { prefix: 'pnpm11/config/reader/src/', packages: ['pnpm-config'] },
-  { prefix: 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/', packages: ['pnpm-cli'] },
-  { prefix: 'pnpm11/deps/compliance/commands/test/sbom/fixtures/', packages: ['pnpm-cli'] },
+  { prefix: 'pnpm/test-oracles/', packages: ORACLE_CONSUMERS },
+  // The oracles' versions come from the catalog and are locked here.
+  { prefix: '.config/pnpm/catalog.yaml', packages: ORACLE_CONSUMERS },
+  { prefix: 'pnpm-lock.yaml', packages: ORACLE_CONSUMERS },
 ]
 
 export function workspaceWideChanges (files) {

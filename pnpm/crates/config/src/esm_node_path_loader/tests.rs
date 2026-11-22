@@ -10,20 +10,11 @@ use std::{
     process::Command,
 };
 
-/// The TypeScript CLI asserts its derived flag against the same file
-/// (`pnpm11/exec/esm-node-path-loader/test/index.ts`), so the two stacks
-/// cannot drift apart without one of the tests failing.
+/// `import-flag.txt` is a copy of the golden file pnpm v11 asserts its
+/// derived flag against, so both CLIs inject the same `NODE_OPTIONS` value.
 #[test]
-fn flag_matches_the_golden_copy_shared_with_the_typescript_cli() {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../pnpm11/exec/esm-node-path-loader/test/import-flag.txt",
-    );
-    let golden = std::fs::read_to_string(path)
-        .unwrap_or_else(|err| {
-            panic!("the golden flag file must be readable at {path}: {err}");
-        });
-    assert_eq!(esm_node_path_loader_import_flag(), golden);
+fn flag_matches_the_golden_copy_of_the_typescript_cli() {
+    assert_eq!(esm_node_path_loader_import_flag(), include_str!("import-flag.txt"));
 }
 
 #[test]

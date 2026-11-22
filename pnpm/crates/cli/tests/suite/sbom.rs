@@ -18,14 +18,7 @@ use tempfile::TempDir;
 
 fn copy_fixture(name: &str) -> TempDir {
     let tmp = TempDir::new().expect("create temp dir");
-    let local_fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name);
-    let fixture_dir = if local_fixture.exists() {
-        local_fixture
-    } else {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../pnpm11/deps/compliance/commands/test/sbom/fixtures")
-            .join(name)
-    };
+    let fixture_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name);
     for entry in fs::read_dir(&fixture_dir).expect("read fixture dir") {
         let entry = entry.expect("read dir entry");
         let dest = tmp.path().join(entry.file_name());

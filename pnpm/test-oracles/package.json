@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm-private/test-oracles",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Published packages that Rust tests compare pnpm against",
+  "devDependencies": {
+    "@pnpm/fs.packlist": "1100.0.15",
+    "ci-info": "catalog:",
+    "npm-packlist": "catalog:",
+    "pnpm-v11": "npm:pnpm@11.29.0"
+  }
+}

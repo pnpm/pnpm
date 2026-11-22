@@ -7,14 +7,12 @@ use pnpm_config::{
     PNPM_VERSION,
     PmOnFail,
 };
-use std::path::Path;
 
 fn package_manager_to_sync(
     manifest: &serde_json::Value,
-    root_dir: &Path,
     on_fail: Option<PmOnFail>,
 ) -> Option<super::PackageManagerToSync> {
-    package_manager_to_sync_for_version(manifest, root_dir, on_fail, PNPM_VERSION)
+    package_manager_to_sync_for_version(manifest, on_fail, PNPM_VERSION)
 }
 
 fn dev_engines_manifest(version: &str) -> serde_json::Value {
@@ -35,7 +33,7 @@ fn a_corepack_build_is_not_part_of_the_pinned_version() {
 
     let pin = format!("{PNPM_VERSION}+sha512.0123456789abcdef");
 
-    let sync = package_manager_to_sync(&manifest, Path::new("."), None).expect("an entry to sync");
+    let sync = package_manager_to_sync(&manifest, None).expect("an entry to sync");
 
     assert_eq!(sync.version, PNPM_VERSION);
     // The specifier records the pin as the manifest writes it, the way the
@@ -51,7 +49,7 @@ fn a_range_pin_is_left_as_written() {
     let pm = wanted_package_manager(&manifest).expect("a pinned package manager");
 
     assert_eq!(pm.version.as_deref(), Some(">=9.1.0 <9.1.2"));
-    assert!(package_manager_to_sync(&manifest, Path::new("."), None).is_none());
+    assert!(package_manager_to_sync(&manifest, None).is_none());
 }
 
 /// Every expectation is npm's own answer, read off

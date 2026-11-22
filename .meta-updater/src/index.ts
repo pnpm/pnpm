@@ -33,6 +33,8 @@ const NON_TYPESCRIPT_PKGS = new Set([
   '@pnpm/pnpr',
   '@pnpm/pnpr-ui',
   '@pnpm/esm-loader',
+  // Pins published releases, which workspace: and catalog: would replace.
+  '@pnpm-private/test-oracles',
 ])
 
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
