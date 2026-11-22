@@ -80,6 +80,7 @@ use team_handlers::team_routes;
 
 mod note_handlers;
 mod npm_handlers;
+mod npm_paths;
 mod owner_handlers;
 mod star_handlers;
 use npm_handlers::{

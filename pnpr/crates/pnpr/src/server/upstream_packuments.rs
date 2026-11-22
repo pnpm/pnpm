@@ -64,7 +64,7 @@ mod write_order;
 ///
 /// An upstream registry's per-package rules gate the read, and the hosted gate
 /// answers a denial itself, a not-found mask or an explicit-rule 401/403.
-/// Both are the same checks [`serve_registry_packument`](super::package_reads::serve_registry_packument) applies.
+/// Both are the same checks the registry packument handler applies.
 pub(super) async fn read_source_packument(
     state: &AppState,
     identity: &Identity,

@@ -558,10 +558,15 @@ name and target rules. A package-document update cannot remove `latest` while
 published versions remain.
 
 Unpublishing a version removes every dist-tag pointing at it. If `latest`
-pointed at it and versions remain, `latest` moves to the highest remaining
-version. npm visibility and collaborator endpoints return `404` with the
+pointed at it, pnpr restores the most recent former `latest` that is still
+published. If none remains, pnpr picks the highest remaining stable version,
+or the highest prerelease if only prereleases remain. When `latest` moves, the
+package README and its filename follow the new target.
+
+npm visibility and collaborator endpoints return `404` with the
 `ERR_PNPR_UNSUPPORTED_ROUTE` code.
 
+An npm publish document must list at least one version.
 Every key under `versions` and its manifest's `version` must be valid SemVer.
 pnpr rejects an invalid version with `400`, including versions in DELETE requests.
 Publish version keys with build metadata, such as `1.0.0+build.5`, return `400`
@@ -578,13 +583,20 @@ way no writer's update is silently discarded. See
 
 ### Packument revisions
 
-A hosted package's full metadata document includes `_rev`. Whole-package deletes, partial unpublishes, and maintainer updates
-through a revision URL must use that value in `/{package}/-rev/{rev}`. If the body also includes
-`_rev`, it must match the path. A stale revision returns `409` without changing
-the package. Read the package metadata again before retrying.
+Fetch `/{package}?write=true` to get a hosted package's current full metadata
+document and its `_rev`, even when requesting install metadata. This read requires
+an authenticated account with `publish` or `annotate` access. It includes
+versions hidden from install metadata by OSV advisories. The response
+carries `Cache-Control: private, no-store`.
+
+Whole-package deletes, partial unpublishes, and maintainer updates through a
+revision URL must use that value in `/{package}/-rev/{rev}`. If the body also
+includes `_rev`, it must match the path. A stale revision returns `409` without
+changing the package. Read the package metadata again before retrying.
 
 A deprecation PUT to `/{package}` must include the current `_rev`. It changes
-only the versions' `deprecated` fields. Dist-tags and other package metadata
+only the versions' `deprecated` fields. Set `deprecated` to a string to
+deprecate a version. An empty string clears the deprecation. Dist-tags and other package metadata
 stay unchanged. A missing or stale `_rev` returns `409`.
 
 ### Publish-time manifest verification {#publish-time-manifest-verification}

@@ -105,7 +105,31 @@ pub(super) struct Readme {
     pub(super) filename: Option<Value>,
 }
 
+impl PackumentRows {
+    pub(super) fn replace_latest_readme(&mut self) {
+        let latest = self.tags
+            .get("latest")
+            .and_then(|version| self.versions.get(version));
+        match latest {
+            Some(rows) => rows.readme.replace_in(&mut self.state),
+            None => Readme::default().replace_in(&mut self.state),
+        }
+    }
+}
+
 impl Readme {
+    pub(super) fn replace_in(&self, state: &mut Map<String, Value>) {
+        for (key, value) in [(README, &self.text), (README_FILENAME, &self.filename)] {
+            match value
+                .as_ref()
+                .filter(|value| !value.is_null())
+            {
+                Some(value) => state.insert(key.to_owned(), value.clone()),
+                None => state.shift_remove(key),
+            };
+        }
+    }
+
     pub(super) fn is_empty(&self) -> bool {
         self.text.is_none() && self.filename.is_none()
     }
@@ -186,7 +210,15 @@ fn take_versions(state: &mut Map<String, Value>) -> Result<BTreeMap<String, Vers
 fn version_rows(version: &str, mut manifest: Map<String, Value>) -> Result<VersionRows> {
     let interpretation =
         Interpretation::from_record(version, manifest.shift_remove(ARCHIVE_MANIFEST_FIELD))?;
-    let deprecated = manifest.shift_remove(DEPRECATED);
+    let deprecated = match manifest.shift_remove(DEPRECATED) {
+        Some(Value::String(message)) if message.is_empty() => None,
+        deprecated @ (None | Some(Value::String(_))) => deprecated,
+        Some(_) => {
+            return Err(bad_request(format!(
+                "deprecated for version {version:?} must be a string",
+            )));
+        }
+    };
     let readme = Readme {
         text: manifest.shift_remove(README),
         filename: manifest.shift_remove(README_FILENAME),

@@ -142,6 +142,15 @@ pub(in super::super) async fn validate_publish_doc(
     let storage = hosted_storage(state, Some(&target.namespace));
     check_publish_tombstone(state, identity, &storage, &name).await?;
 
+    if incoming
+        .get("versions")
+        .and_then(Value::as_object)
+        .is_none_or(serde_json::Map::is_empty)
+    {
+        return Err(RegistryError::BadRequest {
+            reason: "a publish must include at least one version".to_string(),
+        });
+    }
     let attachments = extract_attachments(&mut incoming)?;
     record_publisher(&mut incoming, identity);
 
@@ -381,6 +390,7 @@ async fn prepare_publish_document(
         base.revision_checked = true;
     } else {
         doc.name.validate_npm_publish()?;
+        super::manifest::keep_published_readme(&mut doc.incoming, &doc.prepared);
     }
     if let Some(object) = doc.incoming.as_object_mut() {
         object.remove("_rev");

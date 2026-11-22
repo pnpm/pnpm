@@ -131,7 +131,7 @@ pub(super) async fn restore_submitted_tgz_integrities(
     if let Some(hosted) = hosted
         && submits_other_integrity(incoming, hosted)
     {
-        let tar_integrities = storage.read_tar_integrities(name).await?;
+        let tar_integrities = storage.refresh_tar_integrities(name).await?;
         restore_tgz_integrities(hosted, &tar_integrities, incoming);
     }
     Ok(())
@@ -159,6 +159,36 @@ pub(super) fn integrity_changed(incoming_manifest: &Value, hosted_manifest: &Val
     let incoming_integrity = incoming_manifest.pointer("/dist/integrity").and_then(Value::as_str);
     let hosted_integrity = hosted_manifest.pointer("/dist/integrity").and_then(Value::as_str);
     incoming_integrity.is_some_and(|integrity| Some(integrity) != hosted_integrity)
+}
+
+/// Keep a README submitted at package level with the version it describes.
+pub(super) fn keep_published_readme(incoming: &mut Value, prepared: &[PreparedAttachment]) {
+    let Some(latest) = incoming.pointer("/dist-tags/latest").and_then(Value::as_str) else {
+        return;
+    };
+    let Some(target) = prepared
+        .iter()
+        .filter(|item| item.kind == AttachmentKind::Tarball)
+        .find(|item| item.version == latest)
+    else {
+        return;
+    };
+    for key in ["readme", "readmeFilename"] {
+        let Some(value) = incoming
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            continue;
+        };
+        if let Some(manifest) = incoming
+            .get_mut("versions")
+            .and_then(|versions| versions.get_mut(&target.version))
+            && manifest[key].is_null()
+        {
+            manifest[key] = Value::String(value);
+        }
+    }
 }
 
 pub(super) fn prepare_staged_document(

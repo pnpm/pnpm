@@ -201,11 +201,18 @@ pub(super) async fn packument_response(
     tarball_base: &str,
     view: DistView<'_>,
     state: &AppState,
-    headers: &HeaderMap,
+    request: PackumentRequest<'_>,
     max_age: u64,
 ) -> Result<Response, RegistryError> {
-    let rendered = processing::render(name, bytes, tarball_base, view, state, headers).await?;
-    if is_not_modified(headers, &rendered.etag, rendered.last_modified.as_deref()) {
+    let (representation, validators) = match request {
+        PackumentRequest::Read(headers) => (Representation::requested(headers), Some(headers)),
+        PackumentRequest::Write => (Representation::Write, None),
+    };
+    let rendered =
+        processing::render(name, bytes, tarball_base, view, state, representation).await?;
+    if let Some(headers) = validators
+        && is_not_modified(headers, &rendered.etag, rendered.last_modified.as_deref())
+    {
         return Ok(packument_not_modified_response(
             &rendered.etag,
             rendered.last_modified.clone(),
@@ -221,10 +228,17 @@ pub(super) async fn packument_response(
     ))
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum PackumentRequest<'a> {
+    Read(&'a HeaderMap),
+    Write,
+}
+
 /// The form of a package document a client asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Representation {
     Full,
+    Write,
     Abbreviated,
     /// pnpr's own format (see [`super::split_packuments`]).
     InstallV2,

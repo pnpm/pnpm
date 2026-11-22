@@ -10,7 +10,6 @@ use super::{
     AppState,
     CanonicalPackageName,
     DistView,
-    HeaderMap,
     RegistryError,
     Representation,
     Value,
@@ -112,7 +111,7 @@ pub(super) async fn render(
     tarball_base: &str,
     view: DistView<'_>,
     state: &AppState,
-    headers: &HeaderMap,
+    representation: Representation,
 ) -> Result<Arc<RenderedPackument>, RegistryError> {
     let input = RenderInput {
         name: name.clone(),
@@ -124,7 +123,7 @@ pub(super) async fn render(
             tar_registry: view.tar_registry,
             hosted: view.hosted,
         },
-        representation: Representation::requested(headers),
+        representation,
     };
     let lookup_input = input.clone();
     let lookup_state = state.clone();
@@ -250,11 +249,13 @@ fn render_document(
     now: Timestamp,
 ) -> Result<RenderedPackument, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
-    if view.hosted && representation == Representation::Full {
+    if view.hosted && matches!(representation, Representation::Full | Representation::Write) {
         doc["_rev"] = Value::String(super::super::package_mutation::revisions::revision(&doc));
     }
     let osv_index = state.inner.osv_index.as_ref();
-    filter_osv_vulnerable_versions(&mut doc, name, osv_index);
+    if representation != Representation::Write {
+        filter_osv_vulnerable_versions(&mut doc, name, osv_index);
+    }
     match view.revision_registry {
         Some(source) => rewrite_upstream_tarball_urls(&mut doc, name, source, tarball_base),
         None => rewrite_tarball_urls(&mut doc, name, tarball_base),
@@ -289,7 +290,7 @@ fn cache_expiry(representation: Representation, doc: &Value, now: Timestamp) -> 
         {
             next_precision_change(doc, now)
         }
-        Representation::Full | Representation::InstallV2 => None,
+        Representation::Write | Representation::Full | Representation::InstallV2 => None,
     }
 }
 

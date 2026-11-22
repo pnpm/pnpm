@@ -92,7 +92,7 @@ pub(super) fn claim_query<'query>(
                      )
               FROM publication_outcomes AS outcome
               WHERE namespace = ?1 AND principal = ?2 AND idempotency_key = ?3
-                AND committed_at >= ?4",
+                AND publication IS NOT NULL AND committed_at >= ?4",
         params: vec![
             Param::Text(namespace),
             Param::Text(&request.principal),
@@ -143,17 +143,16 @@ pub(super) fn record(
     name_taken: bool,
 ) -> Result<Option<u64>> {
     let members = members_of(batch, artifacts);
-    let publication = if members.is_empty() {
-        None
-    } else {
-        let publisher = request.map_or(publisher, |request| Some(request.principal.as_str()));
-        insert_publication(batch, request, publisher, &members, name_taken)?;
-        Some(batch.generation())
-    };
+    if members.is_empty() {
+        return Ok(None);
+    }
+    let publisher = request.map_or(publisher, |request| Some(request.principal.as_str()));
+    insert_publication(batch, request, publisher, &members, name_taken)?;
+    let publication = batch.generation();
     if let Some(request) = request {
         record_outcome(batch, request, publication)?;
     }
-    Ok(publication)
+    Ok(Some(publication))
 }
 
 /// The members of the publication the batch records: the npm versions it
@@ -178,11 +177,7 @@ const RECORD_OUTCOME: DialectSql = DialectSql::with_mysql(
        publication = excluded.publication, committed_at = excluded.committed_at",
 );
 
-fn record_outcome(
-    batch: &Batch<'_>,
-    request: &PublicationRequest,
-    publication: Option<u64>,
-) -> Result<()> {
+fn record_outcome(batch: &Batch<'_>, request: &PublicationRequest, publication: u64) -> Result<()> {
     batch
         .transaction()
         .execute(
@@ -199,7 +194,7 @@ fn record_outcome(
                 request.idempotency_key,
                 request.request_digest,
                 to_column(batch.generation()),
-                publication.map(to_column),
+                to_column(publication),
                 now_millis(),
             ],
         )?;

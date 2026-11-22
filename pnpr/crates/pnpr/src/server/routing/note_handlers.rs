@@ -8,7 +8,7 @@
 //!   package's notes; no tarball is named `notes`.
 
 use super::{
-    npm_handlers::{
+    npm_paths::{
         NamePath,
         ScopedVersionPath,
     },
