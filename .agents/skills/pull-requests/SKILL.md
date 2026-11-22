@@ -71,9 +71,8 @@ is still a draft too; the review steps start when you mark it ready.
 4. **Bring the title and description with the code.** Reread them after any push
    that changes what the PR does, and edit them when they no longer describe it
    (`gh pr edit --title`, `--body`). This is not housekeeping: the title becomes
-   the squash commit's subject and the template's Squash Commit Body section
-   becomes its message, so whatever is stale at merge time is what lands in the
-   history for good.
+   the squash commit's subject and the description becomes its body, so
+   whatever is stale at merge time is what lands in the history for good.
 5. **Go back to 1** after the push that carries the fixes.
 
 A round is finished only when every reviewer's summary comment names your head

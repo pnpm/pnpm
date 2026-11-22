@@ -3,22 +3,14 @@ CI is green. Please wait for those to pass before expecting human review. -->
 
 ## Summary
 
-<!-- Describe what this PR changes and why, for reviewers. Link any related
-issues here (Closes pnpm/pnpm#123, Fixes pnpm/pnpm#456, or Related to
-pnpm/pnpm#123 for a partial fix). -->
+<!-- This PR will be squash-merged. The PR title becomes the commit subject
+and this description becomes the commit body.
 
-## Squash Commit Body
-
-<!-- This PR will be squash-merged, using the PR title as the commit subject.
-Provide the body of that commit below.
-
-This body is for developers reading the git history, so be as detailed as the
-change warrants: explain the rationale, design decisions, and trade-offs. The
-user-facing release note belongs in the changeset, not here. -->
-
-```text
-Explain what changed and why. Reference issues here too (Closes pnpm/pnpm#123).
-```
+Describe what this PR changes and why. Write for developers reading the git
+history, as detailed as the change warrants: the rationale, design decisions,
+and trade-offs. The user-facing release note belongs in the changeset, not
+here. Link any related issues (Closes pnpm/pnpm#123, Fixes pnpm/pnpm#456, or
+Related to pnpm/pnpm#123 for a partial fix). -->
 
 ## Checklist
 
