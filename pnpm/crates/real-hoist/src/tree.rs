@@ -83,6 +83,17 @@ pub(super) fn sorted_non_root_importers(lockfile: &Lockfile) -> Vec<(&String, &P
     non_root
 }
 
+/// The project whose directory holds the directory of `importer_id`, when
+/// one of `projects` does: the nearest one.
+pub(super) fn enclosing_project<'projects>(
+    importer_id: &str,
+    projects: &'projects HashMap<&str, Rc<HoisterTree>>,
+) -> Option<&'projects Rc<HoisterTree>> {
+    importer_id
+        .rmatch_indices('/')
+        .find_map(|(separator, _)| projects.get(&importer_id[..separator]))
+}
+
 pub(super) fn importer_node(
     importer_id: &str,
     children: IndexSet<RcByPtr<HoisterTree>>,

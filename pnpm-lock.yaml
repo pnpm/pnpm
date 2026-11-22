@@ -1043,7 +1043,7 @@ snapshots:
 		},
 		"patchedDependencies": {
 			"@tybys/wasm-util@0.10.5": "b4720f25df1fb0342d181651d5be567d5239215aaca02dd8bbedf8d541d5bb4e",
-			"@yarnpkg/nm@4.1.1": "4aa6174589c5d2a07e0283c8383af9355811fedc7dac08f3528afb04b31210be",
+			"@yarnpkg/nm@4.1.1": "9fdb45a4fcfb6f6058b74da3318c5a6636270c61a316efe8d2289cad53721ca0",
 			"@yarnpkg/pnp@4.1.7": "5679b75f737d6a035d80ca67056cd14f6c4e45a200f902fe8a992128702605a2",
 			"deepmerge@4.3.1": "6241e75cd0ebdeefbe93564d0f9a0da153bc6608add12970bd3c390910e7e4f4",
 			"glob@11.1.0": "aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3",

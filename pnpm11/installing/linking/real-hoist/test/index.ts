@@ -192,6 +192,75 @@ test('getHoistingLimits preserves synthetic root border when root importer is om
   expect(limits!.get('.@')).toStrictEqual(new Set(['packages%2Ffoo']))
 })
 
+test('hoist keeps in a nested project what the enclosing project shadows', () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: { specifiers: {} },
+      ['a' as ProjectId]: {
+        dependencies: { x: '1.0.0' },
+        specifiers: { x: '1.0.0' },
+      },
+      ['a/b' as ProjectId]: {
+        dependencies: { x: '2.0.0', y: '1.0.0' },
+        specifiers: { x: '2.0.0', y: '1.0.0' },
+      },
+      ['c' as ProjectId]: {
+        dependencies: { x: '2.0.0', y: '2.0.0' },
+        specifiers: { x: '2.0.0', y: '2.0.0' },
+      },
+      ['d' as ProjectId]: {
+        dependencies: { y: '2.0.0' },
+        specifiers: { y: '2.0.0' },
+      },
+    },
+    packages: {
+      ['x@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-x1' } },
+      ['x@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-x2' } },
+      ['y@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-y1' }, dependencies: { x: '2.0.0' } },
+      ['y@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-y2' } },
+    },
+  }
+
+  const result = hoist(lockfile, { autoInstallPeers: false })
+
+  expect(heldBy(result, 'a')).toStrictEqual(['x@1.0.0'])
+  expect(heldBy(result, 'a%2Fb')).toStrictEqual(['x@2.0.0', 'y@1.0.0'])
+})
+
+test('hoist does not move the dependency of a nested project to the enclosing project', () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { z: '1.0.0' },
+        specifiers: { z: '1.0.0' },
+      },
+      ['a' as ProjectId]: { specifiers: {} },
+      ['a/b' as ProjectId]: {
+        dependencies: { z: '2.0.0' },
+        specifiers: { z: '2.0.0' },
+      },
+    },
+    packages: {
+      ['z@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-z1' } },
+      ['z@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-z2' } },
+    },
+  }
+
+  const result = hoist(lockfile, { autoInstallPeers: false })
+
+  expect(heldBy(result, 'a')).toStrictEqual([])
+  expect(heldBy(result, 'a%2Fb')).toStrictEqual(['z@2.0.0'])
+})
+
+/** What the root-level project `name` holds in its node_modules, by first reference. */
+function heldBy (result: HoisterResult, name: string): string[] {
+  const project = [...result.dependencies].find((dependency) => dependency.name === name)
+  if (project == null) throw new Error(`No project ${name} at the root`)
+  return [...project.dependencies].map((dependency) => [...dependency.references][0]).sort()
+}
+
 /**
  * Every dependency a hoisted package finds, walking up from its directory,
  * at another version than its snapshot records.

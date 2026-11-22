@@ -3,7 +3,10 @@
 
 use super::{
     WorkNode,
-    graph::decouple,
+    graph::{
+        decouple,
+        is_workspace,
+    },
     hoist_info::{
         Hoistable,
         RootContext,
@@ -46,7 +49,19 @@ struct Pass<'pass> {
     aliased_path: Vec<Rc<str>>,
     /// Nodes hoisted to the root in this wave, walked in the next one.
     next_wave: IndexSet<RcByPtr<WorkNode>>,
+    /// Whether the hoisting root is the top of the tree. Only the top
+    /// takes what a project nested in another project depends on: the
+    /// enclosing project's `node_modules` is not on the path of the nested
+    /// project's scripts.
+    is_top_root: bool,
     outcome: PassOutcome,
+}
+
+impl Pass<'_> {
+    /// Whether nothing below `node` may move to the hoisting root.
+    fn is_closed(&self, node: &WorkNode) -> bool {
+        node.is_hoist_border.get() || (!self.is_top_root && is_workspace(node))
+    }
 }
 
 /// Upstream's `hoistGraph`. `root_path` runs from the top of the tree to
@@ -64,12 +79,13 @@ pub(super) fn hoist_graph(ctx: &RootContext<'_>, root_path: &[Rc<WorkNode>]) -> 
             .into_iter()
             .map(RcByPtr)
             .collect(),
+        is_top_root: root_path.len() == 1,
         outcome: PassOutcome::default(),
     };
     while !pass.next_wave.is_empty() {
         let wave = std::mem::take(&mut pass.next_wave);
         for dep in wave {
-            if dep.input.ident == ctx.root.input.ident || dep.is_hoist_border.get() {
+            if dep.input.ident == ctx.root.input.ident || pass.is_closed(&dep) {
                 continue;
             }
             let decoupled = decouple(ctx.root, &dep.0, ctx.arena);
@@ -93,7 +109,7 @@ fn hoist_node_dependencies(pass: &mut Pass<'_>, parent: &Rc<WorkNode>) {
     for child in staying_children(parent, children, &unhoistable) {
         let stays = unhoistable.contains(&RcByPtr(Rc::clone(&child)));
         if !stays
-            || child.is_hoist_border.get()
+            || pass.is_closed(&child)
             || pass.aliased_path.contains(&child.input.aliased_locator)
         {
             continue;
