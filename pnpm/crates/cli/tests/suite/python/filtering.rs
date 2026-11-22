@@ -428,3 +428,27 @@ fn failed_python_remove_restores_the_manifest() {
             .exists(),
     );
 }
+
+#[tokio::test]
+async fn dedicated_recursive_update_validates_explicit_requests_across_projects() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _mocks = serve(&mut server, "alpha", &[("1.5", wheel("alpha", "1.5", "", &[]))]).await;
+    project(root.path(), &server.url(), &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    let config = root.path().join("pnpm-workspace.yaml");
+    let settings = fs::read_to_string(&config).unwrap();
+    fs::write(config, format!("{settings}\nsharedWorkspaceLockfile: false\n")).unwrap();
+    requirements_project(root.path(), "one", &["alpha>=1"]);
+    requirements_project(root.path(), "two", &["beta>=1"]);
+    pacquet_in(root.path())
+        .with_args(["update", "-r", "pypi:missing", "--lockfile-only"])
+        .assert()
+        .failure();
+    pacquet_in(root.path())
+        .with_args(["update", "-r", "pypi:alpha", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(installed(root.path(), "one"));
+    assert!(!installed(root.path(), "two"));
+}

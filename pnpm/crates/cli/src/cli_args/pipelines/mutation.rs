@@ -348,16 +348,18 @@ impl UpdatePipeline {
                 for dir in standalone {
                     projects.dependencies.entry(dir).or_default();
                 }
+                let mut args = self.args;
+                args.validate_dedicated_requests(projects.dependencies.keys(), self.cfg).await?;
                 DedicatedProjectRuns {
                     config: self.cfg,
                     projects: *projects,
                     require_lockfile: false,
                     http_client: None,
-                    prune_excludes: !self.args.save.no_save,
-                    sync_injected_deps: !self.args.install.lockfile_only,
+                    prune_excludes: !args.save.no_save,
+                    sync_injected_deps: !args.install.lockfile_only,
                     pipelined: false,
                 }
-                .run::<Reporter, _, _>(|state| Box::pin(self.args.clone().run::<Reporter>(state)))
+                .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
                 .await?;
             }
             InstallFamilyPlan::Shared(selection) => {

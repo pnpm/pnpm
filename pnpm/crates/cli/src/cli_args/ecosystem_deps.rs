@@ -65,6 +65,7 @@ use std::{
 
 pub(crate) struct EcosystemUpdateStepOptions<'a> {
     pub(crate) selectors: &'a [String],
+    pub(crate) requests_validated: bool,
     pub(crate) include_groups: &'a [DependencyGroup],
     pub(crate) ignore_matcher: Option<&'a Matcher>,
     pub(crate) latest: bool,
@@ -141,7 +142,9 @@ async fn run_ecosystem_updates_on_targets<Reporter: self::Reporter + 'static>(
     } else {
         PythonUpdateTargets::default()
     };
-    validate_explicit_requests(target_dirs, &python_targets, config, &parsed)?;
+    if !options.requests_validated {
+        validate_explicit_requests(target_dirs, &python_targets, config, &parsed)?;
+    }
     let all_groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
     let python_dep_names = python_targets.declared_names_for_groups(&all_groups);
     let updated_any = update_ecosystem_targets::<Reporter>(
@@ -210,6 +213,24 @@ async fn update_ecosystem_targets<Reporter: self::Reporter + 'static>(
     let py_updated =
         update_python_projects::<Reporter>(python_targets, install_context, &py_opts).await?;
     Ok(cargo_updated || py_updated)
+}
+
+pub(crate) async fn validate_dedicated_update_requests<'a>(
+    dirs: impl Iterator<Item = &'a PathBuf>,
+    config: &'static Config,
+    selectors: &[String],
+) -> Result<()> {
+    if !selectors.iter().any(|selector| is_ecosystem_prefixed(selector)) {
+        return Ok(());
+    }
+    let target_dirs: Vec<_> = dirs.cloned().collect();
+    let parsed = parse_update_selectors(selectors, config)?;
+    let python_targets = if parsed.python_requests.iter().any(|request| request.explicit) {
+        resolve_python_update_targets(&target_dirs, config).await?
+    } else {
+        PythonUpdateTargets::default()
+    };
+    validate_explicit_requests(&target_dirs, &python_targets, config, &parsed)
 }
 
 fn validate_explicit_requests(

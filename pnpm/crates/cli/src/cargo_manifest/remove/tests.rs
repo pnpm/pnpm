@@ -22,3 +22,22 @@ fn removes_each_shape_of_declaration_and_preserves_unrelated_entries() {
         assert!(!updated.contains("old"), "{updated}");
     }
 }
+
+#[test]
+fn removing_optional_dependency_prunes_only_its_feature_references() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("Cargo.toml");
+    std::fs::write(&path, "[dependencies]\nold = { package = 'example', version = '1', optional = true }\n[features]\nold = []\npublic = ['dep:old', 'old?/derive', 'old/derive', 'old']\n").unwrap();
+    remove_dependencies(
+        &path,
+        &BTreeSet::from(["example".to_string()]),
+        None,
+        &mut BTreeSet::new(),
+    )
+    .unwrap();
+    let manifest: toml::Table = toml::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    assert_eq!(
+        manifest["features"]["public"].as_array().unwrap(),
+        &[toml::Value::String("old".into())],
+    );
+}

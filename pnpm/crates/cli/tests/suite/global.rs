@@ -1065,6 +1065,7 @@ fn recursive_global_outdated_reads_each_global_install_lockfile() {
         .with_arg("outdated")
         .with_arg("-g")
         .with_arg("-r")
+        .with_arg("!*pkg_with_1_dep")
         .with_arg("--format")
         .with_arg("json")
         .output()

@@ -9,6 +9,8 @@ use pnpm_package_manifest::DependencyGroup;
 /// dependency groups to update.
 #[derive(Debug, Clone, Args)]
 pub struct UpdateDependencyOptions {
+    #[clap(skip)]
+    pub(crate) ecosystem_requests_validated: bool,
     /// Update packages only in "dependencies" and "optionalDependencies".
     #[clap(short = 'P', long, visible_alias = "production")]
     pub(crate) prod: bool,

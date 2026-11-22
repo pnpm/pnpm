@@ -7,7 +7,6 @@ pub use query::{
     OutdatedPackage,
     OutdatedQuery,
     TargetVersion,
-    collect_outdated,
 };
 pub(crate) use query::{
     OutdatedRun,

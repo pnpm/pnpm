@@ -1,3 +1,5 @@
+mod features;
+
 use super::{
     spans::{
         apply_edits,
@@ -49,6 +51,7 @@ pub(crate) fn remove_dependencies(
     if paths.is_empty() {
         return Ok(());
     }
+    features::prune_feature_references(&mut manifest, &mut paths);
     let updated = render_removal(original, &manifest, paths, path)?;
     pnpm_fs::write_atomic(path, updated.as_bytes()).into_diagnostic()
 }
@@ -175,7 +178,11 @@ fn declaration_edits(
     let (key, value) =
         super::spans::find_entry(source, name).expect("source of dependency declaration");
     if rest.is_empty() {
-        remove_declaration(text, key.span(), value, edits);
+        if let Some(replacement) = remaining.get(name) {
+            edits.push((value.span(), replacement.to_string()));
+        } else {
+            remove_declaration(text, key.span(), value, edits);
+        }
     } else if is_inline_table(text, &value.span()) {
         edits.push((value.span(), remaining[name].to_string()));
     } else {

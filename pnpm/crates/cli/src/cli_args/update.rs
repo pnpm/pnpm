@@ -102,6 +102,19 @@ struct InvalidTagError {
 }
 
 impl UpdateArgs {
+    pub(crate) async fn validate_dedicated_requests<'a>(
+        &mut self,
+        dirs: impl Iterator<Item = &'a std::path::PathBuf>,
+        config: &'static Config,
+    ) -> miette::Result<()> {
+        if !self.selection.display.interactive {
+            super::ecosystem_deps::validate_dedicated_update_requests(dirs, config, &self.packages)
+                .await?;
+            self.dependency_options.ecosystem_requests_validated = true;
+        }
+        Ok(())
+    }
+
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         self.scripts.apply(config);
         if let Some(pnpr_server) = self.install.pnpr_server.clone() {

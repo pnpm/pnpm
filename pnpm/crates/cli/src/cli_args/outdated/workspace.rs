@@ -15,7 +15,6 @@ use super::{
     PathBuf,
     Reporter,
     State,
-    collect_outdated,
     collect_outdated_for_importer_in_run,
     discover_workspace_projects,
     github_actions,
@@ -378,13 +377,15 @@ impl OutdatedArgs {
         let mut outdated = Vec::new();
         if !self.selects_github_actions_only(&package_patterns) {
             for state in states {
+                let run = OutdatedRun::new(config, Arc::clone(&state.http_client), &query)?
+                    .with_raw_packages(package_patterns.clone());
                 outdated.extend(
-                    collect_outdated(
+                    collect_outdated_for_importer_in_run(
                         &state.manifest,
                         wanted_lockfile(&state)?,
-                        config,
-                        &state.http_client,
+                        Lockfile::ROOT_IMPORTER_KEY,
                         &query,
+                        &run,
                     )
                     .await?,
                 );
