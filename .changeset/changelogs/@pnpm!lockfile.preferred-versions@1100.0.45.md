@@ -1,0 +1,9 @@
+## 1100.0.45
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/lockfile.utils@1102.1.13
+  - @pnpm/pkg-manifest.utils@1100.4.14
+  - @pnpm/resolving.resolver-base@1101.3.7
+  - @pnpm/types@1102.1.5

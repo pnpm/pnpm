@@ -1,5 +1,23 @@
 # get-pnpm
 
+## 0.1.0
+
+### Minor Changes
+
+- pnpm now provides a prebuilt binary for Linux on LoongArch (loong64) with glibc.
+
+### Patch Changes
+
+- When the `pnpm` package downloads its native binary on first run, it now reads the registry and credentials from the global `auth.ini`, where `pnpm login` writes them, and from the `_auth` setting of the global `config.yaml`.
+
+- `npx get-pnpm` now reads a `pnpm-workspace.yaml` or `package.yaml` that holds only blank lines or comments as empty. It failed with "expected a document, but the input is empty".
+
+- `npx get-pnpm` now installs pnpm from a registry that carries no npm signatures, such as Azure Artifacts, by checking the download against the signatures on registry.npmjs.org. It failed with "carries no npm registry signature".
+
+- When the `pnpm` package downloads its native binary on first run, a `${NPM_TOKEN?}` placeholder in `.npmrc` now expands to the variable. It expanded to an empty value, so the download was sent without credentials.
+
+- When the `pnpm` package downloads its native binary on first run, credentials configured for a registry path, such as `//registry.example.com/org-a/npm/:_authToken`, are now sent only to that path. They were sent to any path on the same host.
+
 ## 0.0.13
 
 ### Patch Changes

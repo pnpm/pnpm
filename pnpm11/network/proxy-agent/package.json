@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.proxy-agent",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Creates an http/s/socks proxy agent",
   "keywords": [
     "pnpm",
