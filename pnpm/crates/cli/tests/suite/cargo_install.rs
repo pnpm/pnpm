@@ -484,7 +484,7 @@ fn install_locks_a_path_dependency_outside_the_workspace() {
     assert!(!output.status.success(), "{stderr}");
     assert_diagnostic_contains(
         &stderr,
-        "Cargo.lock does not lock the path dependency libfoo 0.2.0",
+        "app depends on libfoo =0.2.0, but Cargo.lock locks libfoo 0.1.0",
     );
 }
 

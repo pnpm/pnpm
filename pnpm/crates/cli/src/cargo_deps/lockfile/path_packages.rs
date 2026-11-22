@@ -55,6 +55,7 @@ pub(super) async fn with_path_packages(document: &str, cargo: &Path) -> Result<S
             packages.push(package);
         }
     }
+    packages.iter_mut().for_each(canonicalize_paths);
     serde_json::to_string(&document).into_diagnostic().wrap_err("serialize cargo metadata")
 }
 
@@ -79,6 +80,30 @@ async fn path_package(manifest: &Path, cargo: &Path) -> Result<serde_json::Value
             let manifest = manifest.display();
             miette::miette!("cargo metadata lists no package for {manifest}")
         })
+}
+
+/// Spell a package's `manifest_path` and its dependencies' `path`s the same
+/// way, so the resolver finds the package a path dependency points to even
+/// when the two were reached through different symlinks. A path that does not
+/// resolve is left as Cargo wrote it.
+fn canonicalize_paths(package: &mut serde_json::Value) {
+    canonicalize_field(package, "manifest_path");
+    let dependencies = package.get_mut("dependencies").and_then(serde_json::Value::as_array_mut);
+    for dependency in dependencies.into_iter().flatten() {
+        canonicalize_field(dependency, "path");
+    }
+}
+
+fn canonicalize_field(object: &mut serde_json::Value, key: &str) {
+    let Some(field) = object.get_mut(key) else { return };
+    let canonical = field
+        .as_str()
+        .map(dunce::canonicalize)
+        .and_then(Result::ok)
+        .and_then(|path| path.to_str().map(str::to_string));
+    if let Some(canonical) = canonical {
+        *field = canonical.into();
+    }
 }
 
 fn package_manifest_path(package: &serde_json::Value) -> Option<PathBuf> {

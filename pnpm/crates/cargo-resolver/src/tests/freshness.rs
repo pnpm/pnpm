@@ -204,7 +204,10 @@ fn rejects_a_lockfile_with_another_version_of_a_path_dependency() {
 
     let error = verify_lockfile(&metadata, &locked_path_package()).unwrap_err();
 
-    assert_eq!(error.to_string(), "Cargo.lock does not lock the path dependency libfoo 0.3.0");
+    assert_eq!(
+        error.to_string(),
+        "app depends on libfoo =0.3.0, but Cargo.lock locks libfoo 0.2.0",
+    );
 }
 
 const GIT_FOO_LOCKFILE: &str = r#"version = 4
@@ -360,4 +363,73 @@ fn with_app_dependency(dependency: &str) -> String {
     }]"#,
         &format!(r#""req": "^1.0" }}, {{ {dependency} }}]"#),
     )
+}
+
+/// `app` depends on two path packages named `foo`, renamed and without a
+/// version requirement, so only their directories tell them apart.
+const TWO_LOCAL_FOO_METADATA: &str = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#app@0.1.0",
+      "name": "app",
+      "version": "0.1.0",
+      "manifest_path": "/workspace/Cargo.toml",
+      "dependencies": [
+        {"name": "foo", "source": null, "req": "*", "rename": "foo1", "path": "/libs/foo1"},
+        {"name": "foo", "source": null, "req": "*", "rename": "foo2", "path": "/libs/foo2"}
+      ]
+    },
+    {
+      "id": "path+file:///libs/foo1#foo@1.0.0",
+      "name": "foo",
+      "version": "1.0.0",
+      "manifest_path": "/libs/foo1/Cargo.toml",
+      "dependencies": []
+    },
+    {
+      "id": "path+file:///libs/foo2#foo@2.0.0",
+      "name": "foo",
+      "version": "2.0.0",
+      "manifest_path": "/libs/foo2/Cargo.toml",
+      "dependencies": []
+    }
+  ],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+
+#[test]
+fn locks_each_path_dependency_against_the_package_in_its_directory() {
+    let lockfile =
+        resolve_lockfile(TWO_LOCAL_FOO_METADATA, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap();
+    let parsed = cargo_lock::Lockfile::from_str(&lockfile).unwrap();
+    let app = parsed.packages
+        .iter()
+        .find(|package| package.name.as_str() == "app")
+        .expect("app is locked");
+    let edges = app.dependencies
+        .iter()
+        .map(|edge| edge.version.to_string())
+        .collect::<Vec<_>>();
+    let reduced = crate::resolve_inputs(TWO_LOCAL_FOO_METADATA).unwrap();
+
+    assert_eq!(edges, ["1.0.0", "2.0.0"]);
+    assert_eq!(parsed.packages.len(), 3);
+    verify_lockfile(TWO_LOCAL_FOO_METADATA, &lockfile).unwrap();
+    assert!(!reduced.contains("/libs"), "{reduced}");
+    assert_eq!(resolve_lockfile(&reduced, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap(), lockfile);
+}
+
+#[test]
+fn rejects_an_edge_to_an_older_version_of_a_path_dependency() {
+    let metadata =
+        TWO_LOCAL_FOO_METADATA.replace(r#""path": "/libs/foo1""#, r#""path": "/libs/foo2""#);
+    let lockfile =
+        resolve_lockfile(TWO_LOCAL_FOO_METADATA, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap();
+
+    let error = verify_lockfile(&metadata, &lockfile).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "Cargo.lock locks foo 1.0.0 for app, which no dependency of app accounts for",
+    );
 }

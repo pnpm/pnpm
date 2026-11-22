@@ -48,6 +48,36 @@ fn git_dependency_sources_preserve_the_requested_revision() {
 }
 
 #[test]
+fn ignores_git_dev_dependencies_of_a_path_dependency_outside_the_workspace() {
+    let metadata = r#"{
+  "packages": [
+    {
+      "id": "path+file:///workspace#app@0.1.0",
+      "name": "app",
+      "version": "0.1.0",
+      "dependencies": [{"name": "libfoo", "source": null, "req": "*"}]
+    },
+    {
+      "id": "path+file:///libfoo#0.1.0",
+      "name": "libfoo",
+      "version": "0.1.0",
+      "dependencies": [{
+        "name": "tool",
+        "source": "git+https://example.test/tool",
+        "req": "*",
+        "kind": "dev"
+      }]
+    }
+  ],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+
+    let sources = git_dependency_sources(metadata).unwrap();
+
+    assert!(sources.is_empty(), "{sources:?}");
+}
+
+#[test]
 fn registry_and_path_dependencies_do_not_require_git_resolution() {
     for metadata in
         [METADATA.to_string(), METADATA.replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null")]

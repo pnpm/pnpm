@@ -7,6 +7,7 @@ use crate::{
     model::{
         CargoMetadata,
         FeatureSelection,
+        MetadataDependency,
         MetadataPackage,
         RegistryDependency,
         accepts_declared_version,
@@ -17,23 +18,31 @@ use miette::{
     Result,
     WrapErr,
 };
-use semver::VersionReq;
-use std::collections::{
-    BTreeMap,
-    VecDeque,
+use semver::{
+    Comparator,
+    Op,
+    Version,
+    VersionReq,
+};
+use std::{
+    collections::{
+        BTreeMap,
+        VecDeque,
+    },
+    path::Path,
 };
 
 pub(crate) fn parse_metadata(metadata: &str) -> Result<CargoMetadata> {
     serde_json::from_str(metadata).into_diagnostic().wrap_err("parse cargo metadata")
 }
 
-/// Git sources declared by the packages in a Cargo metadata document.
-/// The metadata need not contain a resolved dependency graph.
+/// Git sources of the dependencies Cargo locks for the workspace members and
+/// the path dependencies they reach in a Cargo metadata document. The
+/// metadata need not contain a resolved dependency graph.
 pub fn git_dependency_sources(metadata: &str) -> Result<Vec<cargo_lock::SourceId>> {
-    parse_metadata(metadata)?.packages
+    root_dependencies(&parse_metadata(metadata)?)?
         .into_iter()
-        .flat_map(|package| package.dependencies)
-        .filter_map(|dependency| dependency.source)
+        .filter_map(|dependency| dependency.registry)
         .filter(|source| source.starts_with("git+"))
         .map(|source| {
             source
@@ -45,18 +54,21 @@ pub fn git_dependency_sources(metadata: &str) -> Result<Vec<cargo_lock::SourceId
 }
 
 /// The `cargo metadata` package keys that resolution reads and copies
-/// through unchanged; `id` and `dependencies` are rewritten instead.
+/// through unchanged; `id`, `manifest_path`, and `dependencies` are
+/// rewritten instead.
 /// Mirrors [`MetadataPackage`], so a field read there is listed here too.
 const PACKAGE_KEYS: [&str; 3] = ["name", "version", "features"];
 
-/// The keys of a package's dependency that resolution reads. Mirrors
+/// The keys of a package's dependency that resolution reads and copies
+/// through unchanged; `path` is rewritten instead. Mirrors
 /// [`crate::model::MetadataDependency`], so a field read there is listed
 /// here too.
 const DEPENDENCY_KEYS: [&str; 8] =
     ["name", "source", "req", "kind", "rename", "optional", "uses_default_features", "features"];
 
 /// Reduce a `cargo metadata` document to what resolution reads, replacing
-/// each package id with its position.
+/// each package id with its position. A package's directory becomes its
+/// position too, and so does the `path` of a dependency on it.
 ///
 /// The document a workspace produces describes the machine it was produced
 /// on: `manifest_path`, `workspace_root`, every target's `src_path`, and the
@@ -77,9 +89,10 @@ pub fn resolve_inputs(metadata: &str) -> Result<String> {
             Some((package.get("id")?.as_str()?, position.to_string()))
         })
         .collect();
+    let directories = package_directories(packages, &ids);
     let packages = packages
         .iter()
-        .map(|package| reduce_package(package, &ids))
+        .map(|package| reduce_package(package, &ids, &directories))
         .collect::<Vec<_>>();
     let workspace_members = document
         .get("workspace_members")
@@ -102,12 +115,35 @@ pub fn resolve_inputs(metadata: &str) -> Result<String> {
     .wrap_err("serialize cargo metadata")
 }
 
-fn reduce_package(package: &serde_json::Value, ids: &BTreeMap<&str, String>) -> serde_json::Value {
+/// Each package's position, by the directory of its manifest.
+fn package_directories<'a>(
+    packages: &'a [serde_json::Value],
+    ids: &'a BTreeMap<&str, String>,
+) -> BTreeMap<&'a Path, &'a str> {
+    packages
+        .iter()
+        .filter_map(|package| {
+            let directory = Path::new(package.get("manifest_path")?.as_str()?).parent()?;
+            Some((
+                directory,
+                ids.get(package.get("id")?.as_str()?)?
+                    .as_str(),
+            ))
+        })
+        .collect()
+}
+
+fn reduce_package(
+    package: &serde_json::Value,
+    ids: &BTreeMap<&str, String>,
+    directories: &BTreeMap<&Path, &str>,
+) -> serde_json::Value {
     let mut reduced = retained_keys(package, &PACKAGE_KEYS);
     if let Some(id) = package.get("id").and_then(serde_json::Value::as_str)
         && let Some(position) = ids.get(id)
     {
         reduced.insert("id".to_string(), position.as_str().into());
+        reduced.insert("manifest_path".to_string(), format!("{position}/Cargo.toml").into());
     }
     let dependencies = package
         .get("dependencies")
@@ -115,13 +151,26 @@ fn reduce_package(package: &serde_json::Value, ids: &BTreeMap<&str, String>) -> 
         .map(|dependencies| {
             dependencies
                 .iter()
-                .map(|dependency| {
-                    serde_json::Value::Object(retained_keys(dependency, &DEPENDENCY_KEYS))
-                })
+                .map(|dependency| reduce_dependency(dependency, directories))
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
     reduced.insert("dependencies".to_string(), dependencies.into());
+    serde_json::Value::Object(reduced)
+}
+
+fn reduce_dependency(
+    dependency: &serde_json::Value,
+    directories: &BTreeMap<&Path, &str>,
+) -> serde_json::Value {
+    let mut reduced = retained_keys(dependency, &DEPENDENCY_KEYS);
+    if let Some(position) = dependency
+        .get("path")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|path| directories.get(Path::new(path)))
+    {
+        reduced.insert("path".to_string(), (*position).into());
+    }
     serde_json::Value::Object(reduced)
 }
 
@@ -174,6 +223,7 @@ pub(crate) fn local_packages(metadata: &CargoMetadata) -> Result<Vec<LocalPackag
             continue;
         }
         let dependencies = activated_dependencies(
+            metadata,
             package,
             &selections[&position],
             DependencyOptions { include_dev: false, lockfile: true },
@@ -209,7 +259,7 @@ fn member_dependencies(
                     .collect(),
             };
             let options = DependencyOptions { include_dev: true, lockfile: true };
-            Ok((position, activated_dependencies(package, &selection, options)?))
+            Ok((position, activated_dependencies(metadata, package, &selection, options)?))
         })
         .collect()
 }
@@ -246,7 +296,57 @@ fn path_dependencies(
         .cloned()
 }
 
+/// The package a path dependency points to: the one in its directory, or,
+/// when `metadata` names no such directory, the first one with its name
+/// whose version its requirement accepts.
+fn path_target<'a>(
+    metadata: &'a CargoMetadata,
+    dependency: &MetadataDependency,
+) -> Option<&'a MetadataPackage> {
+    let in_directory = dependency.origin.path
+        .as_deref()
+        .and_then(|directory| {
+            metadata.packages
+                .iter()
+                .find(|package| {
+                    package.manifest_path
+                        .as_deref()
+                        .map(Path::new)
+                        .and_then(Path::parent)
+                        .is_some_and(|parent| parent == Path::new(directory))
+                })
+        });
+    in_directory.or_else(|| {
+        path_package_position(metadata, &dependency.name, &dependency.req)
+            .map(|position| &metadata.packages[position])
+    })
+}
+
+/// The requirement Cargo locks a dependency by: for a path dependency, the
+/// version of the package it points to, which is the only one it accepts.
+fn locked_requirement(metadata: &CargoMetadata, dependency: &MetadataDependency) -> VersionReq {
+    match dependency.origin.source {
+        None => path_target(metadata, dependency)
+            .map(|package| exact_requirement(&package.version))
+            .unwrap_or_else(|| dependency.req.clone()),
+        Some(_) => dependency.req.clone(),
+    }
+}
+
+fn exact_requirement(version: &Version) -> VersionReq {
+    VersionReq {
+        comparators: vec![Comparator {
+            op: Op::Exact,
+            major: version.major,
+            minor: Some(version.minor),
+            patch: Some(version.patch),
+            pre: version.pre.clone(),
+        }],
+    }
+}
+
 fn activated_dependencies(
+    metadata: &CargoMetadata,
     package: &MetadataPackage,
     selection: &FeatureSelection,
     options: DependencyOptions,
@@ -256,9 +356,9 @@ fn activated_dependencies(
         .map(|dependency| RegistryDependency {
             alias: dependency.rename.clone().unwrap_or_else(|| dependency.name.clone()),
             name: dependency.name.clone(),
-            requirement: dependency.req.clone(),
+            requirement: locked_requirement(metadata, dependency),
             kind: dependency.kind,
-            registry: dependency.source.clone(),
+            registry: dependency.origin.source.clone(),
             optional: dependency.optional,
             default_features: dependency.uses_default_features,
             features: dependency.features
