@@ -6,6 +6,7 @@ use derive_more::{
     Error,
 };
 use miette::Diagnostic;
+use pnpm_workspace_range_resolver::matches_any_workspace_version;
 use pnpm_workspace_spec::WorkspaceSpec;
 
 /// Error raised when the input does not start with `workspace:` (and
@@ -36,16 +37,6 @@ pub fn workspace_pref_to_npm(
         Some(alias) => format!("npm:{alias}@{version_part}"),
         None => version_part.to_string(),
     })
-}
-
-/// `^`, `~`, and the empty string stand for the workspace package's own
-/// version, so a `||` union with one of them, such as `^ || ^2.0.0`,
-/// admits every workspace version.
-fn matches_any_workspace_version(version: &str) -> bool {
-    version
-        .split("||")
-        .map(str::trim)
-        .any(|branch| matches!(branch, "^" | "~" | "*" | ""))
 }
 
 #[cfg(test)]

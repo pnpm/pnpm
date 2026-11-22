@@ -534,6 +534,10 @@ fn workspace_caret_union_links_the_sibling() {
             is_symlink_or_junction(&workspace.join("pkg-b/node_modules/pkg-a")).unwrap(),
             "{field}: pkg-a is not linked",
         );
+        pacquet_at(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
 
         drop((root, mock_instance));
     }

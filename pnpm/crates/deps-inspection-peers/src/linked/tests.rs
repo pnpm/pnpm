@@ -64,6 +64,7 @@ fn linked_projects_are_checked_from_all_manifest_formats() {
                 project_manifests: &ProjectManifests::new(),
             },
             &PeerDependencyRules::default(),
+            None,
         )
         .expect("inspect peers")
         .expect("the provider's version is outside the peer range");
@@ -141,6 +142,7 @@ fn linked_projects_are_checked_from_the_given_manifests() {
             project_manifests: &project_manifests,
         },
         &PeerDependencyRules::default(),
+        None,
     )
     .expect("inspect peers")
     .expect("the provider's version is outside the peer range");
@@ -257,6 +259,7 @@ fn dedicated_lockfile_checks_peers_of_linked_workspace_sibling() {
                 project_manifests: &ProjectManifests::new(),
             },
             &PeerDependencyRules::default(),
+            None,
         )
         .expect("inspect peers")
     };

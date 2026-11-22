@@ -276,3 +276,47 @@ fn install_fails_on_a_missing_peer_of_a_linked_sibling_under_dedicated_lockfiles
 
     drop(root);
 }
+
+#[test]
+fn install_accepts_a_peer_the_linked_sibling_provides_from_its_own_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nautoInstallPeers: false\nstrictPeerDependencies: true\n",
+    )
+    .expect("write workspace manifest");
+    let provider = workspace.join("provider");
+    fs::create_dir_all(&provider).expect("create provider dir");
+    fs::write(provider.join("package.json"), r#"{"name":"provider","version":"1.0.0"}"#)
+        .expect("write provider manifest");
+    for (dir, manifest) in [
+        (
+            "lib",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "provider": "^1.0.0" },
+                "devDependencies": { "provider": "link:../../provider" },
+            }),
+        ),
+        (
+            "app",
+            serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "lib": "workspace:*" },
+            }),
+        ),
+    ] {
+        let dir = workspace.join("packages").join(dir);
+        fs::create_dir_all(&dir).expect("create project dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    }
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    drop(root);
+}

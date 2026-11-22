@@ -184,8 +184,10 @@ pub struct ImporterPeerCheck<'a> {
 pub fn peer_issues_for_lockfile(
     check: ImporterPeerCheck<'_>,
     rules: &PeerDependencyRules,
+    linked_lockfiles: Option<&mut LinkedLockfileLoader<'_>>,
 ) -> Result<Option<PeerIssuesReport>, CatalogResolutionError> {
-    let issues = filter_peer_issues(check_peer_dependencies_of_importers(check)?, rules);
+    let issues =
+        filter_peer_issues(check_peer_dependencies_of_importers(check, linked_lockfiles)?, rules);
     let has_missing_peer = issues
         .values()
         .any(|project_issues| {
@@ -233,6 +235,7 @@ pub fn check_peer_dependencies_from_lockfile(
 /// applies [`filter_peer_issues`].
 pub fn check_peer_dependencies_of_importers(
     check: ImporterPeerCheck<'_>,
+    linked_lockfiles: Option<&mut LinkedLockfileLoader<'_>>,
 ) -> Result<IssuesByProjects, CatalogResolutionError> {
     let roots = LinkRoots::new(check.lockfile_dir, check.workspace_dir);
     let context = PeerWalkContext {
@@ -242,7 +245,7 @@ pub fn check_peer_dependencies_of_importers(
         resolve_peers_from_workspace_root: check.resolve_peers_from_workspace_root,
         project_manifests: check.project_manifests,
     };
-    check_peer_dependencies_with_context(&context, check.importer_ids, None)
+    check_peer_dependencies_with_context(&context, check.importer_ids, linked_lockfiles)
 }
 
 fn check_peer_dependencies_with_context(

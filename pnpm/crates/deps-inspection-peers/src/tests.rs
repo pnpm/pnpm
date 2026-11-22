@@ -49,6 +49,7 @@ fn tarball_peer_versions_use_metadata_through_aliases_and_peer_suffixes() {
                     project_manifests: &super::ProjectManifests::new(),
                 },
                 &PeerDependencyRules::default(),
+                None,
             )
             .expect("inspect peers");
             if version == "1.0.0" {
@@ -112,6 +113,7 @@ fn remote_tarball_peer_versions_of_linked_packages_use_metadata() {
                 project_manifests: &super::ProjectManifests::new(),
             },
             &PeerDependencyRules::default(),
+            None,
         )
         .expect("inspect peers");
         if version == "1.0.0" {

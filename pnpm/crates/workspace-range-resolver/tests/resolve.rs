@@ -25,6 +25,14 @@ fn resolves_empty_string_to_max_version_including_prereleases() {
 }
 
 #[test]
+fn resolves_union_with_a_sentinel_branch_to_max_version_including_prereleases() {
+    assert_eq!(
+        resolve_workspace_range("^ || ^4.0.0", &versions()).as_deref(),
+        Some("3.0.0-beta.1"),
+    );
+}
+
+#[test]
 fn resolves_semver_range() {
     assert_eq!(resolve_workspace_range("^1.0.0", &versions()).as_deref(), Some("1.0.0"));
     assert_eq!(resolve_workspace_range("^2.0.0", &versions()).as_deref(), Some("2.0.0"));
