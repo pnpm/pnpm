@@ -271,10 +271,11 @@ pub(crate) fn parse_update_selection(
         };
         if is_cargo_prefixed(selector) || is_python_prefixed(selector) || is_purl(selector) {
             parse_prefixed_update_selector(selector, mode, &mut parsed)?;
-        } else if matches!(bare_names, BareUpdateNames::NodeOnly) {
-            parsed.node_selectors.push(raw.clone());
         } else {
-            parse_bare_update_selector(raw, &mut parsed);
+            match bare_names {
+                BareUpdateNames::NodeOnly => parsed.node_selectors.push(raw.clone()),
+                BareUpdateNames::AllEcosystems => parse_bare_update_selector(raw, &mut parsed),
+            }
         }
     }
     parsed.node_selectors = pnpm_matcher::prune_orphan_ignores(parsed.node_selectors, packages);

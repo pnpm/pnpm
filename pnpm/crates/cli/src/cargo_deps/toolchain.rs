@@ -108,9 +108,12 @@ pub(crate) async fn provision_for_command<Reporter: self::Reporter>(
             }
             Err(error) => return Err(error.into()),
         };
-        if matches!(link_in_project, ToolchainLink::Publish) {
-            let dir = file.parent().expect("a toolchain file has a parent directory");
-            link(dir, &toolchain.dir)?;
+        match link_in_project {
+            ToolchainLink::Publish => {
+                let dir = file.parent().expect("a toolchain file has a parent directory");
+                link(dir, &toolchain.dir)?;
+            }
+            ToolchainLink::Preserve => {}
         }
         PROVISIONED
             .lock()
