@@ -18,8 +18,6 @@ Related to pnpm/pnpm#123 for a partial fix). -->
 
 - [ ] I checked the referenced issue and verified that none of the PRs
   already linked to it solves it.
-- [ ] New features are implemented only in the Rust pnpm v12 CLI. Bug fixes
-  are implemented in every affected version.
 - [ ] Added a changeset (`pnpm changeset`) if this PR changes any published
   package. Keep it short and written for pnpm users — it becomes a release note.
 - [ ] Added or updated tests.
