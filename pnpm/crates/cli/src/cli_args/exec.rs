@@ -371,7 +371,7 @@ fn command_search_path(
         );
     }
     prepend.push(config.project_modules_dir(project, project_name).join(".bin"));
-    prepend.extend(crate::ecosystem_install::execution_paths(config, project).iter().cloned());
+    prepend.extend(crate::ecosystem_install::execution_paths(config, project, dir).iter().cloned());
     prepend_dirs_to_path(&prepend).map_err(ExecError::from)
 }
 

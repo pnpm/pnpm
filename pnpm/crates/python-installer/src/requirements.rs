@@ -76,13 +76,13 @@ impl Parser {
     fn read_entries(&mut self, path: &Path, contents: &str) -> Result<()> {
         let mut logical = String::new();
         for (index, line) in contents.lines().enumerate() {
+            let line = strip_comment(line);
             if let Some(line) = line.strip_suffix('\\') {
                 logical.push_str(line);
                 continue;
             }
             logical.push_str(line);
-            let entry = strip_comment(&logical);
-            self.read_entry(path, index + 1, entry)?;
+            self.read_entry(path, index + 1, logical.trim())?;
             logical.clear();
         }
         if !logical.is_empty() {
@@ -153,14 +153,11 @@ fn read_regular_file(path: &Path) -> Result<String> {
 }
 
 fn strip_comment(line: &str) -> &str {
-    let entry = line.trim();
-    entry
-        .char_indices()
+    line.char_indices()
         .find(|(index, character)| {
-            *character == '#' && (*index == 0 || entry[..*index].ends_with(char::is_whitespace))
+            *character == '#' && (*index == 0 || line[..*index].ends_with(char::is_whitespace))
         })
-        .map_or(entry, |(index, _)| &entry[..index])
-        .trim()
+        .map_or(line, |(index, _)| &line[..index])
 }
 
 #[cfg(test)]

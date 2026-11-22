@@ -39,13 +39,15 @@ fn locked_pkg(name: &str, version: &str, marker: Option<&str>) -> LockedPackage 
 fn manifest_add_preserves_disjoint_markers_and_replaces_canonical_matches() {
     let dir = tempfile::tempdir().unwrap();
     let pyproject = dir.path().join("pyproject.toml");
+    let config = pnpm_config::Config::new();
     fs::write(
         &pyproject,
         "[project]\nname = 'app'\nversion = '0.1.0'\ndependencies = [\n    \"six==1.0 ; sys_platform == 'win32'\",\n]\n",
     )
     .unwrap();
 
-    manifest::add(&pyproject, &["six>=2.0 ; sys_platform == 'linux'".to_string()], false).unwrap();
+    manifest::add(&pyproject, &["six>=2.0 ; sys_platform == 'linux'".to_string()], false, &config)
+        .unwrap();
     let parsed: toml::Value = toml::from_str(&fs::read_to_string(&pyproject).unwrap()).unwrap();
     assert_eq!(
         parsed["project"]["dependencies"].as_array().unwrap(),
@@ -55,8 +57,13 @@ fn manifest_add_preserves_disjoint_markers_and_replaces_canonical_matches() {
         ],
     );
 
-    manifest::add(&pyproject, &[r#"six>=2.1 ; "linux" == sys_platform"#.to_string()], false)
-        .unwrap();
+    manifest::add(
+        &pyproject,
+        &[r#"six>=2.1 ; "linux" == sys_platform"#.to_string()],
+        false,
+        &config,
+    )
+    .unwrap();
     let parsed: toml::Value = toml::from_str(&fs::read_to_string(&pyproject).unwrap()).unwrap();
     assert_eq!(
         parsed["project"]["dependencies"].as_array().unwrap(),
@@ -66,8 +73,8 @@ fn manifest_add_preserves_disjoint_markers_and_replaces_canonical_matches() {
         ],
     );
 
-    manifest::add(&pyproject, &["six>=1.5".to_string()], false).unwrap();
-    manifest::add(&pyproject, &["six>=3.0".to_string()], false).unwrap();
+    manifest::add(&pyproject, &["six>=1.5".to_string()], false, &config).unwrap();
+    manifest::add(&pyproject, &["six>=3.0".to_string()], false, &config).unwrap();
     let parsed: toml::Value = toml::from_str(&fs::read_to_string(&pyproject).unwrap()).unwrap();
     assert_eq!(
         parsed["project"]["dependencies"].as_array().unwrap(),

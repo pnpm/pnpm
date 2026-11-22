@@ -24,7 +24,7 @@ fn invalid_requirements_report_the_file_and_line() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("requirements.txt");
     for contents in
-        ["# comment\nnot a valid requirement\n", "# comment\n--index-url=https://example.com\n"]
+        ["  # comment\\\nnot a valid requirement\n", "# comment\n--index-url=https://example.com\n"]
     {
         fs::write(&path, contents).unwrap();
         let error = format!("{:?}", read(&path, root.path()).unwrap_err());
@@ -33,6 +33,15 @@ fn invalid_requirements_report_the_file_and_line() {
     fs::write(&path, r"alpha\").unwrap();
     let error = format!("{:?}", read(&path, root.path()).unwrap_err());
     assert!(error.contains("unfinished"), "{error}");
+}
+
+#[test]
+fn a_backslash_in_a_comment_does_not_continue_the_requirement() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("requirements.txt");
+    fs::write(&path, "  # notes\\\nalpha # comment\\\nbeta\\\n==1\ngamma\\\n# note\ndelta\n")
+        .unwrap();
+    assert_eq!(read(&path, root.path()).unwrap(), ["alpha", "beta==1", "delta", "gamma"]);
 }
 
 #[test]

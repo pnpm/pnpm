@@ -176,10 +176,15 @@ async fn adding_to_a_member_updates_its_manifest_and_the_shared_lockfile() {
     let mut server = mockito::Server::new_async().await;
     let _backends = serve_backends(&mut server).await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    let beta = serve(&mut server, "beta", &[("1.0", wheel("beta", "1.0", "", &[]))]).await;
     let _gamma = serve(&mut server, "gamma", &[("1.0", wheel("gamma", "1.0", "", &[]))]).await;
     shared_workspace(root.path(), &server.url());
     python_project(&root.path().join("packages/a"), "a", "dependencies = ['alpha']");
     python_project(&root.path().join("packages/b"), "b", "dependencies = []");
+
+    let worker = root.path().join("packages/worker");
+    fs::create_dir(&worker).unwrap();
+    fs::write(worker.join("requirements.txt"), "beta>=1").unwrap();
 
     pacquet_in(&root.path().join("packages/b"))
         .with_args(["add", "pypi:gamma"])
@@ -196,13 +201,32 @@ async fn adding_to_a_member_updates_its_manifest_and_the_shared_lockfile() {
     );
     let lock: toml::Value =
         toml::from_str(&fs::read_to_string(root.path().join("pylock.toml")).unwrap()).unwrap();
-    assert_eq!(lock["tool"]["pnpm"]["requirements"], list(&["alpha", "gamma>=1.0"]));
-    assert_eq!(lock["tool"]["pnpm"]["members"], list(&["packages/a", "packages/b"]));
+    assert_eq!(lock["tool"]["pnpm"]["requirements"], list(&["alpha", "beta>=1", "gamma>=1.0"]));
+    assert_eq!(
+        lock["tool"]["pnpm"]["members"],
+        list(&["packages/a", "packages/b", "packages/worker"]),
+    );
     assert!(!has_own_environment(&root.path().join("packages/b")));
     python(root.path())
         .with_args(["-c", "import alpha, gamma, a, b"])
         .assert()
         .success();
+    drop(beta);
+    let _beta = serve(
+        &mut server,
+        "beta",
+        &[("1.0", wheel("beta", "1.0", "", &[])), ("2.0", wheel("beta", "2.0", "", &[]))],
+    )
+    .await;
+    pacquet_in(&root.path().join("packages/b"))
+        .with_args(["update", "pypi:gamma"])
+        .assert()
+        .success();
+    python(root.path())
+        .with_args(["-c", "import beta; assert beta.VERSION == '1.0'"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(worker.join("requirements.txt")).unwrap(), "beta>=1");
     pacquet_in(root.path())
         .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()

@@ -460,7 +460,7 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     let alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "Provides-Extra: speed\nRequires-Dist: beta>=1,<2; extra == 'speed'\nRequires-Dist: unavailable; python_version < '2'", &[
-        ("alpha-1.0.dist-info/entry_points.txt", "[console_scripts]\nalpha-cli = alpha:main\n"),
+        ("alpha-1.0.dist-info/entry_points.txt", "[console_scripts]\nalpha-cli = alpha : main\n"),
         ("alpha-1.0.data/data/share/alpha.txt", "data file"),
     ]))]).await;
     let beta = serve(
@@ -1480,6 +1480,7 @@ async fn wheel_scripts_rewrite_placeholder_shebangs_and_record_the_installed_byt
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
     let scripts = [
+        ("alpha-1.0.data/scripts/unbuffered", "#!python -u\r\nprint(1)\n"),
         ("alpha-1.0.data/scripts/lf", "#!python\nprint('hello')\n"),
         ("alpha-1.0.data/scripts/crlf", "#!python\r\nprint('hello')\r\n"),
         ("alpha-1.0.data/scripts/gui", "#!pythonw\r\nprint('hello')\r\n"),
@@ -1500,6 +1501,7 @@ interpreter = scripts.resolve() / Path(sys.executable).name
 for name, body in [('lf', b"print('hello')\n"), ('crlf', b"print('hello')\r\n"), ('gui', b"print('hello')\r\n")]:
     contents = (scripts / name).read_bytes()
     assert contents == ('#!' + str(interpreter) + '\n').encode() + body, contents
+assert (scripts / 'unbuffered').read_bytes() == ('#!' + str(interpreter) + ' -u\nprint(1)\n').encode()
 assert (scripts / 'other').read_bytes() == b'#!/bin/sh\nprintf hello\n'
 site = Path(sysconfig.get_path('purelib'))
 with (site / 'alpha-1.0.dist-info/RECORD').open(newline='') as record:
@@ -1510,6 +1512,23 @@ with (site / 'alpha-1.0.dist-info/RECORD').open(newline='') as record:
         assert digest == 'sha256=' + base64.urlsafe_b64encode(hashlib.sha256(contents).digest()).rstrip(b'=').decode(), path
         assert int(size) == len(contents), path
 "#]).assert().success();
+}
+
+#[test]
+fn python_dev_add_requires_a_selected_dev_group() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    let manifest = root.path().join("pyproject.toml");
+    let contents = format!(
+        "{}\n[tool.pnpm.python]\ngroups = ['test']\n[dependency-groups]\ntest = []\n",
+        fs::read_to_string(&manifest).unwrap(),
+    );
+    fs::write(&manifest, &contents).unwrap();
+    assert_failure_contains(
+        &mut pacquet_in(root.path()).with_args(["add", "-D", "pypi:alpha"]),
+        "select the dev group",
+    );
+    assert_eq!(fs::read_to_string(manifest).unwrap(), contents);
 }
 
 #[test]

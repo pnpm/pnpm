@@ -34,3 +34,14 @@ fn command_search_path_includes_extra_bin_paths() {
         1,
     );
 }
+
+#[test]
+fn command_search_path_uses_the_project_environment_without_a_workspace() {
+    let mut config = Config::default();
+    config.python.enabled = true;
+    let project = Path::new("/app");
+    let run = project.join("src");
+    let path = command_search_path(ExecDirs { project, run: &run }, &config, None).unwrap();
+    let bin = if cfg!(windows) { "Scripts" } else { "bin" };
+    assert!(std::env::split_paths(&path).any(|entry| entry == project.join(".venv").join(bin)));
+}

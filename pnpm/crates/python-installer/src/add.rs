@@ -66,6 +66,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
                 &root.join("pyproject.toml"),
                 &options.requirements,
                 options.development,
+                context.config,
             )?;
         }
         let config = context.config;
@@ -86,7 +87,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             selected.clone(),
         )
         .await?;
-        save_added(&mut prepared, config, &workspace, &options, &selected)?;
+        save_added(&mut prepared, config, &workspace, &options, &selected).await?;
         Ok(prepared)
     };
     Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
@@ -135,7 +136,7 @@ pub fn writable_project(root: &Path) -> Result<PathBuf> {
 
 /// Write the versions the lockfile resolved back to the manifests the add
 /// edited, and record what the members require now in the lockfile.
-fn save_added(
+async fn save_added(
     prepared: &mut [Prepared],
     config: &pnpm_config::Config,
     workspace: &Workspace,
@@ -146,22 +147,37 @@ fn save_added(
     for project in prepared {
         let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
         let lock_index = lock.index()?;
-        let mut requirements = Vec::new();
-        for requirement in &options.requirements {
-            let mut requirement = pnpm_python_resolver::parse_requirement(requirement)?;
-            pin_to_locked_version(&mut requirement, &lock_index, options, prefix)?;
-            requirements.push(requirement.to_string());
-        }
+        let requirements = pinned_requirements(options, &lock_index, prefix)?;
         for member in &project.members {
             if edited.contains(member) {
-                manifest::add(&member.join("pyproject.toml"), &requirements, options.development)?;
+                manifest::add(
+                    &member.join("pyproject.toml"),
+                    &requirements,
+                    options.development,
+                    config,
+                )?;
             }
         }
-        let recorded = workspace.recorded_requirements(config, &project.members)?;
+        let recorded = workspace.recorded_requirements(config, &project.members).await?;
         lock.tool.pnpm.set_requirements(&recorded);
         project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     }
     Ok(())
+}
+
+fn pinned_requirements(
+    options: &AddOptions,
+    lock_index: &LockIndex<'_>,
+    prefix: &str,
+) -> Result<Vec<String>> {
+    options.requirements
+        .iter()
+        .map(|text| {
+            let mut requirement = pnpm_python_resolver::parse_requirement(text)?;
+            pin_to_locked_version(&mut requirement, lock_index, options, prefix)?;
+            Ok(requirement.to_string())
+        })
+        .collect()
 }
 
 /// Give a requirement the version the lockfile resolved, when the command

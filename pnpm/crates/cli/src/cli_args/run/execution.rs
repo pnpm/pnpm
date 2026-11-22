@@ -490,7 +490,9 @@ pub(in super::super) fn run_stage(
     let status = run_script(&RunScript {
         environment: super::script_environment(ctx.config, ctx.init_cwd, ctx.extra_env),
         execution: pnpm_executor::ScriptExecutionOptions {
-            extra_bin_paths: &crate::ecosystem_install::execution_paths(ctx.config, ctx.dir),
+            extra_bin_paths: &crate::ecosystem_install::execution_paths(
+                ctx.config, ctx.dir, ctx.dir,
+            ),
             node_gyp_bin: None,
             shell: ctx.config.script_shell.as_deref().map(Path::new),
             shell_emulator: ctx.config.shell_emulator,
