@@ -11,7 +11,6 @@
 use std::{
     borrow::Cow,
     cmp::Ordering,
-    collections::HashMap,
     ops::Range,
 };
 
@@ -171,7 +170,7 @@ impl AddedQuotes {
             .map(String::as_str)
             .collect();
         let edited = scalars(&text);
-        if !adds_single_quoted(&original, &edited) {
+        if edited.iter().all(|scalar| scalar.single_quoted.is_none()) {
             return text;
         }
         let sources: Vec<&str> = edited
@@ -184,28 +183,6 @@ impl AddedQuotes {
         };
         double_quote_added(&text, &edited, &kept)
     }
-}
-
-/// Whether `edited` holds more single-quoted copies of some scalar than
-/// `original` does, the only case where a scalar may need new quotes.
-fn adds_single_quoted(original: &[&str], edited: &[Scalar<'_>]) -> bool {
-    let mut unclaimed: HashMap<&str, usize> = HashMap::new();
-    for source in original
-        .iter()
-        .filter(|source| source.starts_with('\''))
-    {
-        *unclaimed.entry(source).or_default() += 1;
-    }
-    edited
-        .iter()
-        .filter(|scalar| scalar.single_quoted.is_some())
-        .any(|scalar| match unclaimed.get_mut(scalar.source) {
-            Some(count) if *count > 0 => {
-                *count -= 1;
-                false
-            }
-            _ => true,
-        })
 }
 
 /// `text` with every single-quoted scalar of `edited` that `kept` does not
@@ -268,8 +245,14 @@ fn kept_from(original: &[&str], edited: &[&str]) -> Option<Vec<bool>> {
     let old = &original[prefix..original.len() - suffix];
     let changed = prefix..edited.len() - suffix;
     let new = &edited[changed.clone()];
-    // With nothing on one side, everything on the other was added or removed.
-    let matched = if old.is_empty() || new.is_empty() {
+    // A changed region without single-quoted scalars has nothing to convert,
+    // and against an empty original region every scalar in it was added.
+    let matched = if !new
+        .iter()
+        .any(|source| source.starts_with('\''))
+    {
+        vec![true; new.len()]
+    } else if old.is_empty() {
         vec![false; new.len()]
     } else {
         myers_matches(old, new)?

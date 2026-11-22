@@ -141,3 +141,15 @@ fn added_quotes_tell_an_added_scalar_before_an_equal_existing_one_inside_a_wider
         "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  \"@x\": true\ncatalog:\n  '@x': ^1.0.0\nlast: \"2.0.0\"\n",
     );
 }
+
+#[test]
+fn added_quotes_double_quote_a_scalar_moved_across_untouched_entries() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\ntrustPolicyExclude:\n  - '@scope/pkg'\ncatalog:\n  react: \"^18.0.0\"\n  vue: \"^3.0.0\"\n";
+    let edited = "packages:\n  - \"a\"\n  - \"b\"\ncatalog:\n  react: \"^18.0.0\"\n  vue: \"^3.0.0\"\nallowBuilds:\n  '@scope/pkg': true\n";
+    let out = AddedQuotes::detect(original).apply(edited.to_string());
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(
+        out,
+        "packages:\n  - \"a\"\n  - \"b\"\ncatalog:\n  react: \"^18.0.0\"\n  vue: \"^3.0.0\"\nallowBuilds:\n  \"@scope/pkg\": true\n",
+    );
+}

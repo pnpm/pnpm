@@ -104,3 +104,15 @@ fn catalog_entries_double_quote_new_keys_in_a_double_quoted_manifest() {
         "packages:\n  - \"packages/*\"\ncatalog:\n  \"@types/react\": ^18.0.0\n  react: \"^18.0.0\"\n",
     );
 }
+
+#[test]
+fn config_set_double_quotes_a_value_moved_to_another_key() {
+    let original = "packages:\n  - \"apps/*\"\n  - \"packages/*\"\noverrides:\n  a: '>=1.0.0'\n  b: 1.0.0\n  c: 2.0.0\n  z: 3.0.0\n";
+    let overrides = json!({ "a": "3.0.0", "b": "1.0.0", "c": "2.0.0", "z": ">=1.0.0" });
+    let out = run_update_field(Some(original), "overrides", &overrides).expect("file written");
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(
+        out,
+        "packages:\n  - \"apps/*\"\n  - \"packages/*\"\noverrides:\n  a: 3.0.0\n  b: 1.0.0\n  c: 2.0.0\n  z: \">=1.0.0\"\n",
+    );
+}
