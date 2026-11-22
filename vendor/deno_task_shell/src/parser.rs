@@ -234,7 +234,12 @@ pub enum WordPart {
     /// Variable substitution (ex. `$MY_VAR`)
     Variable(String),
     /// Choose a parameter expansion using the shell state at evaluation time.
-    ParameterExpansion { name: String, empty_is_unset: bool, alternate: bool, word: Vec<WordPart> },
+    ParameterExpansion {
+        name: String,
+        empty_is_unset: bool,
+        alternate: bool,
+        word: Result<Vec<WordPart>, String>,
+    },
     /// An unquoted field boundary in a parameter expansion's replacement word.
     FieldBoundary,
     /// Tilde expansion (ex. `~`)
@@ -964,7 +969,7 @@ fn parse_word_parts(mode: ParseWordPartsMode) -> impl Fn(&str) -> ParseResult<'_
                     }
                 }
                 PendingPart::Tilde => {
-                    if i == 0 {
+                    if i == 0 && mode == ParseWordPartsMode::Unquoted {
                         if matches!(parts.peek(), None | Some((_, PendingPart::Char('/')))) {
                             result.push(WordPart::Tilde);
                         } else {

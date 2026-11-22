@@ -17,7 +17,7 @@ impl<'a> OutputGlobs<'a> {
                 Some(body) => (body, &mut exclude),
                 None => (pattern.as_str(), &mut include),
             };
-            let glob = Glob::new(body)
+            let glob = Glob::new(strip_cur_dir_prefixes(body))
                 .map_err(|error| miette::miette!("invalid glob {pattern:?}: {error}"))?;
             if !matches!(glob.has_root(), wax::query::When::Never) {
                 return Err(miette::miette!("cache glob must be relative: {pattern:?}"));
@@ -35,4 +35,11 @@ impl<'a> OutputGlobs<'a> {
                 .iter()
                 .any(|glob| glob.is_match(path))
     }
+}
+
+pub(super) fn strip_cur_dir_prefixes(mut pattern: &str) -> &str {
+    while let Some(tail) = pattern.strip_prefix("./") {
+        pattern = tail;
+    }
+    pattern
 }

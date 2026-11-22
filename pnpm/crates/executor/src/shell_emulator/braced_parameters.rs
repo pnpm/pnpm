@@ -28,7 +28,7 @@ pub(super) fn parse(script: &str) -> Result<deno_task_shell::parser::SequentialL
     let mut list =
         deno_task_shell::parser::parse(&prepared.text).map_err(|error| error.to_string())?;
     if !prepared.parameters.is_empty() {
-        ast::resolve(&mut list, &prepared)?;
+        ast::resolve(&mut list, &prepared);
     }
     Ok(list)
 }

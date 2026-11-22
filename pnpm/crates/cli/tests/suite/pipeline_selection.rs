@@ -297,7 +297,9 @@ fn assert_filtered_tasks(document: &serde_json::Value, expected_lint: &[&str]) {
             .all(|task| task["project"] != "packages/other"),
         "{document}",
     );
-    if !expected_lint.is_empty() {
+    if expected_lint.is_empty() {
+        assert!(tasks.is_empty(), "{document}");
+    } else {
         assert!(
             tasks
                 .iter()

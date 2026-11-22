@@ -14,11 +14,14 @@ use deno_task_shell::parser::{
     WordPart,
 };
 
-pub(super) fn resolve(list: &mut SequentialList, prepared: &PreparedScript) -> Result<(), String> {
+pub(super) fn resolve(list: &mut SequentialList, prepared: &PreparedScript) {
     let mut parameters = Vec::with_capacity(prepared.parameters.len());
     for parameter in &prepared.parameters {
-        let mut word = parse_replacement(parameter)?;
-        resolve_parts(&mut word, &prepared.prefix, &parameters);
+        let word = parse_replacement(parameter)
+            .map(|mut word| {
+                resolve_parts(&mut word, &prepared.prefix, &parameters);
+                word
+            });
         parameters.push(WordPart::ParameterExpansion {
             name: parameter.name.clone(),
             empty_is_unset: parameter.empty_is_unset,
@@ -27,7 +30,6 @@ pub(super) fn resolve(list: &mut SequentialList, prepared: &PreparedScript) -> R
         });
     }
     resolve_list(list, &prepared.prefix, &parameters);
-    Ok(())
 }
 
 fn parse_replacement(parameter: &Parameter) -> Result<Vec<WordPart>, String> {

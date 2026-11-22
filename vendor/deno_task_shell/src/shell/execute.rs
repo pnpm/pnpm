@@ -757,6 +757,8 @@ pub enum EvaluateWordTextError {
     },
     #[error("failed resolving home directory for tilde expansion")]
     NoHomeDirectory,
+    #[error("invalid parameter expansion: {0}")]
+    InvalidParameterExpansion(String),
 }
 
 impl EvaluateWordTextError {
@@ -964,6 +966,8 @@ fn evaluate_word_parts(
                             .get_var(OsStr::new(&name))
                             .is_some_and(|value| !empty_is_unset || !value.is_empty());
                         if has_value == alternate {
+                            let word =
+                                word.map_err(EvaluateWordTextError::InvalidParameterExpansion)?;
                             for part in word.into_iter().rev() {
                                 pending.push_front(part);
                             }
@@ -1023,6 +1027,10 @@ fn evaluate_word_parts(
                 };
 
                 if let Some(text) = evaluation_result_text {
+                    if is_quoted {
+                        current_text.push(TextPart::Text(text));
+                        continue;
+                    }
                     // turn the text into a vector of strings
                     let mut parts = split_osstring_on_space(&text)
                         .into_iter()

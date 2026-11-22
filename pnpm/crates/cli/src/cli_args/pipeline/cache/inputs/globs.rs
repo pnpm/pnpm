@@ -1,4 +1,5 @@
 use super::{
+    super::output_globs::strip_cur_dir_prefixes,
     FileIterator,
     HashedFile,
     IntoDiagnostic,
@@ -146,13 +147,6 @@ fn rebase_to_ancestor(
         out.push_str(file_tail);
     }
     Some(out)
-}
-
-fn strip_cur_dir_prefixes(mut pattern: &str) -> &str {
-    while let Some(tail) = pattern.strip_prefix("./") {
-        pattern = tail;
-    }
-    pattern
 }
 
 fn split_parent_segments(pattern: &str) -> (usize, &str) {

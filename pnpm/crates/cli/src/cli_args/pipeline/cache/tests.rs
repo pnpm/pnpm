@@ -113,6 +113,21 @@ fn output_globs_select_only_declared_files_and_deduplicate() {
 }
 
 #[test]
+fn output_globs_accept_current_directory_prefixes() {
+    let (project, _storage, cache) = setup();
+    fs::write(project.path().join("out/result.map"), "map").unwrap();
+    let outputs = ["././out/**".to_string(), "!./out/**/*.map".to_string()];
+    assert_eq!(collect_output_files(project.path(), &outputs).unwrap(), ["out/result"]);
+    cache
+        .store("prefixed", project.path(), "build", &outputs, Vec::new())
+        .unwrap();
+    fs::remove_file(project.path().join("out/result")).unwrap();
+    let stored = cache.lookup("prefixed").unwrap();
+    cache.restore(&stored, project.path(), "build").unwrap();
+    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "built");
+}
+
+#[test]
 fn repeat_publication_leaves_the_first_snapshot_complete() {
     let (project, _storage, cache) = setup();
     fs::write(project.path().join("out/result"), "changed").unwrap();

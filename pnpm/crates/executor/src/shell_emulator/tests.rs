@@ -608,3 +608,39 @@ fn unsupported_nested_parameter_forms_remain_literal() {
         assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), [word]);
     }
 }
+
+#[test]
+fn quoted_parameter_defaults_keep_tildes_literal() {
+    let dir = tempdir().unwrap();
+    for script in [
+        r#"echo "${MISSING:-~/out}" "${MISSING:-~literal}""#,
+        r#"echo ${MISSING:-"~/out"} ${MISSING:-"~literal"}"#,
+        r#"VALUE=set && echo "${VALUE:-~literal}""#,
+    ] {
+        let (code, lines) = run(script, dir.path(), &HashMap::new());
+        assert_eq!(code, 0);
+        let expected = if script.starts_with("VALUE=") { "set" } else { "~/out ~literal" };
+        assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), [expected]);
+    }
+}
+
+#[test]
+fn quoted_runtime_parameter_values_preserve_whitespace() {
+    let dir = tempdir().unwrap();
+    let value = "North  Wing\troom";
+    let env = HashMap::from([("LABEL".to_string(), value.to_string())]);
+    let (code, lines) = run(r#"echo "${LABEL:-fallback}""#, dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), [value]);
+}
+
+#[test]
+fn unsupported_replacement_syntax_errors_only_when_selected() {
+    let dir = tempdir().unwrap();
+    let (code, lines) = run(r#"MODE=prod && echo "${MODE:-$#}""#, dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), ["prod"]);
+    let (code, lines) = run(r#"echo "${MISSING:-$#}""#, dir.path(), &HashMap::new());
+    assert_ne!(code, 0);
+    assert!(!lines_from(&lines, LifecycleStdio::Stderr).is_empty());
+}
