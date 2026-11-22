@@ -32,6 +32,9 @@ Besides moving `pnpm-lock.yaml` to the newly resolved versions, `pnpm update` wr
 * A runtime (`node`, `deno`, `bun` declared in `devEngines.runtime`, `engines.runtime`, or through the `runtime:` / `tool:` protocol) and a package manager (`pnpm`, `npm`, `yarn`, `bun` declared in `devEngines.packageManager` or `packageManager`) are updated too, and their new versions or ranges are written back to `package.json` (and `pnpm-lock.yaml` when the pin is recorded there). An `engines.pnpm` range moves with the pnpm pin, the way [`pnpm self-update`](./self-update.md) moves it.
 * When [`cargo.enabled`](../cargo.md#cargoenabled) is `true`, Cargo dependencies in `Cargo.toml` and `Cargo.lock` are updated too. Pass `crate:<name>` (or `crate:<name>@<req>`) to target specific crates.
 * When [`python.enabled`](../python.md#pythonenabled) is `true`, Python dependencies in `pyproject.toml` and `pylock.toml` are updated too. Pass `pypi:<name>` (or `pypi:<requirement>`) to target specific Python distributions.
+
+Recursive and filtered updates include standalone Python and Cargo workspace members. Python name patterns ignore case and treat runs of dots, underscores, and hyphens as one hyphen. Cargo selectors match both the dependency alias and the crate name.
+
 * Since v12.6.0, a dependency whose specifier comes from a [`packageExtensions`](../settings/dependency-resolution.md#packageextensions) entry, a [`readPackage`](../pnpmfile.md#hooks) hook, or an [`override`](../settings/dependency-resolution.md#overrides) is not written to `package.json`. The lockfile keeps that specifier. `pnpm update` and `pnpm audit --fix=update` still move it inside the range.
 
 An exact pin from one of those sources is left as it is. When that pin is a vulnerable version, `pnpm audit --fix=update` warns and points at `pnpm audit --fix`, which writes an override. An override is applied after `packageExtensions` and `readPackage`, so it replaces a specifier those supply.

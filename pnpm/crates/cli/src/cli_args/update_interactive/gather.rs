@@ -15,9 +15,17 @@ use super::{
     UpdateDetails,
     ignored_dependencies_matcher,
 };
-use crate::cli_args::outdated::{
-    OutdatedRun,
-    collect_outdated_for_importer_in_run,
+use crate::cli_args::{
+    ecosystem_deps::validate_ecosystem_selectors,
+    outdated::{
+        OutdatedRun,
+        collect_outdated_for_importer_in_run,
+    },
+};
+use futures_util::{
+    StreamExt,
+    future,
+    stream,
 };
 use pnpm_github_actions as github_actions;
 
@@ -29,7 +37,7 @@ pub(super) struct ChoiceFilter<'a> {
 }
 
 pub(super) async fn gather_choices_for_projects<Reporter: self::Reporter>(
-    projects: &[InteractiveUpdateProject<'_>],
+    projects: (&[InteractiveUpdateProject<'_>], &[std::path::PathBuf]),
     root: &Path,
     lockfile: Option<&Lockfile>,
     config: &Config,
@@ -90,16 +98,13 @@ async fn append_github_actions<Reporter: self::Reporter>(
 }
 
 pub(super) async fn collect_filtered_choices(
-    projects: &[InteractiveUpdateProject<'_>],
+    (projects, standalone_dirs): (&[InteractiveUpdateProject<'_>], &[std::path::PathBuf]),
     lockfile: Option<&Lockfile>,
     config: &Config,
     http_client: &Arc<ThrottledClient>,
     filter: ChoiceFilter<'_>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
-    crate::cli_args::ecosystem_deps::validate_ecosystem_selectors(
-        filter.package_selectors,
-        config,
-    )?;
+    validate_ecosystem_selectors(filter.package_selectors, config)?;
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
         target_version: filter.target_version,
@@ -113,7 +118,7 @@ pub(super) async fn collect_filtered_choices(
     };
     let run = OutdatedRun::new(config, Arc::clone(http_client), &query)?
         .with_raw_packages(normalize_choice_selectors(filter.package_selectors));
-    let choices = futures_util::future::join_all(
+    let node = future::join_all(
         projects
             .iter()
             .map(|project| {
@@ -125,8 +130,17 @@ pub(super) async fn collect_filtered_choices(
                     &run,
                 )
             }),
-    )
-    .await;
+    );
+    let queries: Vec<_> = standalone_dirs
+        .iter()
+        .map(|dir| crate::cli_args::outdated::standalone_project_outdated(dir, &query, &run))
+        .collect();
+    let standalone = stream::iter(queries)
+        .buffered(config.network_concurrency.max(1))
+        .map(|result| result.map(|(_, packages)| packages))
+        .collect::<Vec<_>>();
+    let (mut choices, standalone) = future::join(node, standalone).await;
+    choices.extend(standalone);
     unique_choices(choices)
 }
 
@@ -154,6 +168,7 @@ fn unique_choices(
     for choices in choices {
         for choice in choices? {
             let key = (
+                choice.metadata.update_prefix,
                 choice.alias.clone(),
                 choice.package_name.clone(),
                 choice.current.to_string(),

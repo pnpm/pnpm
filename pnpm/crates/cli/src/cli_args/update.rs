@@ -102,6 +102,19 @@ struct InvalidTagError {
 }
 
 impl UpdateArgs {
+    pub(crate) async fn validate_dedicated_requests<'a>(
+        &mut self,
+        dirs: impl Iterator<Item = &'a std::path::PathBuf>,
+        config: &'static Config,
+    ) -> miette::Result<()> {
+        if !self.selection.display.interactive {
+            super::ecosystem_deps::validate_dedicated_update_requests(dirs, config, &self.packages)
+                .await?;
+            self.dependency_options.ecosystem_requests_validated = true;
+        }
+        Ok(())
+    }
+
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         self.scripts.apply(config);
         if let Some(pnpr_server) = self.install.pnpr_server.clone() {
@@ -111,15 +124,16 @@ impl UpdateArgs {
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        Box::pin(self.run_inner::<Reporter>(state, None)).await
+        Box::pin(self.run_inner::<Reporter>(state, None, Vec::new())).await
     }
 
     pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         selection: InstallFamilySelection,
+        standalone_dirs: Vec<std::path::PathBuf>,
     ) -> miette::Result<()> {
-        Box::pin(self.run_inner::<Reporter>(state, Some(selection))).await
+        Box::pin(self.run_inner::<Reporter>(state, Some(selection), standalone_dirs)).await
     }
 
     fn interactive_options<'a>(
@@ -191,7 +205,7 @@ impl UpdateArgs {
     async fn prompted_or_given_for_projects<Reporter: self::Reporter + 'static>(
         &self,
         state: &State,
-        selection: &InstallFamilySelection,
+        selection: (&InstallFamilySelection, &[std::path::PathBuf]),
         lockfile: Option<&pnpm_lockfile::Lockfile>,
         actions_root: &Path,
         prompt: InteractiveUpdateOptions<'_>,

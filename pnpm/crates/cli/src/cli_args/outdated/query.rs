@@ -301,6 +301,7 @@ pub(crate) struct OutdatedDisplayVersions {
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct OutdatedMetadata {
+    pub update_prefix: &'static str,
     /// Deprecation reason of the `target` version, when the registry
     /// marked it deprecated.
     pub deprecated: Option<String>,
@@ -340,6 +341,7 @@ impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
             wanted: action.wanted,
             github_action: true,
             metadata: OutdatedMetadata {
+                update_prefix: "",
                 deprecated: None,
                 homepage: Some(action.homepage),
                 repository: None,
@@ -351,7 +353,7 @@ impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
     }
 }
 
-/// What counts as outdated for a [`collect_outdated`] run.
+/// Which dependencies an outdated query includes.
 pub struct OutdatedQuery<'a> {
     /// The registry version each dependency is compared against.
     pub target_version: TargetVersion<'a>,
@@ -406,24 +408,6 @@ pub(crate) fn ignored_dependencies_matcher(config: &Config) -> Option<Matcher> {
 ///
 /// Registry failures abort the query with package context; dependencies whose
 /// metadata has no compatible target are omitted from the result.
-pub async fn collect_outdated(
-    manifest: &PackageManifest,
-    lockfile: Option<&Lockfile>,
-    config: &Config,
-    http_client: &Arc<ThrottledClient>,
-    query: &OutdatedQuery<'_>,
-) -> miette::Result<Vec<OutdatedPackage>> {
-    collect_outdated_for_importer(
-        manifest,
-        lockfile,
-        Lockfile::ROOT_IMPORTER_KEY,
-        config,
-        http_client,
-        query,
-    )
-    .await
-}
-
 pub(crate) async fn collect_outdated_for_importer(
     manifest: &PackageManifest,
     lockfile: Option<&Lockfile>,

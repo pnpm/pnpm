@@ -12,12 +12,18 @@ use super::{
     sequence_project_dependencies,
 };
 use crate::{
-    cli_args::recursive::{
-        AutoExcludeRoot,
-        RecursiveSelection,
-        UnmatchedFilters,
-        discover_workspace_projects,
-        select_recursive_projects_deferring_no_match,
+    cli_args::{
+        ecosystem_deps::{
+            select_standalone_ecosystem_dirs,
+            standalone::StandaloneEcosystemSelection,
+        },
+        recursive::{
+            AutoExcludeRoot,
+            RecursiveSelection,
+            UnmatchedFilters,
+            discover_workspace_projects,
+            select_recursive_projects_deferring_no_match,
+        },
     },
     state::{
         ProjectHost,
@@ -48,6 +54,28 @@ pub(crate) struct InstallFamily {
     pub(crate) plan: InstallFamilyPlan,
     pub(crate) scope: Option<WorkspaceScope>,
     pub(crate) unmatched: Option<UnmatchedFilters>,
+}
+
+impl InstallFamily {
+    pub(super) async fn standalone_dirs(
+        &mut self,
+        config: &Config,
+        prefix: &Path,
+    ) -> miette::Result<Vec<PathBuf>> {
+        let standalone = if let Some(scope) = &self.scope {
+            select_standalone_ecosystem_dirs(
+                config.workspace_dir.as_deref().unwrap_or(prefix),
+                prefix,
+                &scope.projects,
+                &scope.selected,
+                config,
+            )
+            .await?
+        } else {
+            StandaloneEcosystemSelection::default()
+        };
+        standalone.resolve(self.unmatched.take())
+    }
 }
 
 /// What a `--filter` selection resolved to among the npm workspace

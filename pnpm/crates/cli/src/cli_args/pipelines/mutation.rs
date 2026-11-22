@@ -11,7 +11,6 @@ use super::{
     InstallFamilyPlan,
     Path,
     PathBuf,
-    RemoveArgs,
     Reporter,
     RuntimePolicy,
     State,
@@ -262,7 +261,7 @@ async fn run_mixed_add<Reporter: self::Reporter + 'static>(
         manifest_path,
         http_client,
     } = node;
-    let metadata = node_add_metadata_paths(cfg, &manifest_path);
+    let metadata = node_mutation_metadata_paths(cfg, &manifest_path);
     let node_install = async move {
         let state = init_shared_state(manifest_path, cfg, false, None, http_client)?;
         Box::pin(args.run::<Reporter>(state, None)).await
@@ -272,7 +271,7 @@ async fn run_mixed_add<Reporter: self::Reporter + 'static>(
         .await
 }
 
-pub(super) fn node_add_metadata_paths(config: &Config, manifest_path: &Path) -> Vec<PathBuf> {
+pub(super) fn node_mutation_metadata_paths(config: &Config, manifest_path: &Path) -> Vec<PathBuf> {
     let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
     let mut paths = vec![
         manifest_path.to_path_buf(),
@@ -307,7 +306,7 @@ impl UpdatePipeline {
         self.args.update_config_dependencies::<Reporter>(self.cfg, &self.config_root).await?;
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
         prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Config(false))).await?;
-        let plan = select_install_family_plan::<Reporter>(
+        let mut family = select_install_family::<Reporter>(
             self.cfg,
             &self.prefix,
             &self.manifest_path,
@@ -315,16 +314,10 @@ impl UpdatePipeline {
             false,
             false,
         )?;
-        // An empty selection has nothing to update, and (like the shared
-        // path) must not generate a changeset.
-        match &plan {
-            InstallFamilyPlan::PerProject(projects) if projects.is_empty() => {
-                return Ok(());
-            }
-            InstallFamilyPlan::Shared(selection) if selection.selected_dirs.is_empty() => {
-                return Ok(());
-            }
-            _ => {}
+        let standalone = family.standalone_dirs(self.cfg, &self.prefix).await?;
+        let plan = family.plan;
+        if standalone.is_empty() && plan_is_empty(&plan) {
+            return Ok(());
         }
         // Dedicated per-project lockfiles: the non-recursive command
         // mutates only the active project, whose outputs anchor at the
@@ -339,7 +332,7 @@ impl UpdatePipeline {
             .generates_changeset(self.cfg)
             .then(|| UpdateChangesetContext::capture(self.cfg, &self.manifest_path))
             .transpose()?;
-        self.run_plan::<Reporter>(plan).await?;
+        self.run_plan::<Reporter>(plan, standalone).await?;
         if let Some(changeset_context) = changeset_context {
             changeset_context.generate::<Reporter>()?;
         }
@@ -348,26 +341,32 @@ impl UpdatePipeline {
     pub(super) async fn run_plan<Reporter: self::Reporter + 'static>(
         self,
         plan: InstallFamilyPlan,
+        standalone: Vec<PathBuf>,
     ) -> miette::Result<()> {
         match plan {
-            InstallFamilyPlan::PerProject(projects) => {
+            InstallFamilyPlan::PerProject(mut projects) => {
+                for dir in standalone {
+                    projects.dependencies.entry(dir).or_default();
+                }
+                let mut args = self.args;
+                args.validate_dedicated_requests(projects.dependencies.keys(), self.cfg).await?;
                 DedicatedProjectRuns {
                     config: self.cfg,
                     projects: *projects,
                     require_lockfile: false,
                     http_client: None,
-                    prune_excludes: !self.args.save.no_save,
-                    sync_injected_deps: !self.args.install.lockfile_only,
+                    prune_excludes: !args.save.no_save,
+                    sync_injected_deps: !args.install.lockfile_only,
                     pipelined: false,
                 }
-                .run::<Reporter, _, _>(|state| Box::pin(self.args.clone().run::<Reporter>(state)))
+                .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
                 .await?;
             }
             InstallFamilyPlan::Shared(selection) => {
                 let cfg: &'static Config = self.cfg;
                 let state =
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(self.args.run_selected::<Reporter>(state, *selection)).await?;
+                Box::pin(self.args.run_selected::<Reporter>(state, *selection, standalone)).await?;
             }
             InstallFamilyPlan::Single => {
                 let cfg: &'static Config = self.cfg;
@@ -380,73 +379,11 @@ impl UpdatePipeline {
     }
 }
 
-pub(crate) struct RemovePipeline {
-    pub(crate) args: RemoveArgs,
-    pub(crate) cfg: &'static mut Config,
-    pub(crate) config_root: PathBuf,
-    pub(crate) prefix: PathBuf,
-    pub(crate) manifest_path: PathBuf,
-    pub(crate) recursive_sort: bool,
-}
-
-impl RemovePipeline {
-    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
-        prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Config(false))).await?;
-        let plan = select_install_family_plan::<Reporter>(
-            self.cfg,
-            &self.prefix,
-            &self.manifest_path,
-            self.recursive_sort,
-            false,
-            false,
-        )?;
-        self.run_plan::<Reporter>(plan).await
-    }
-
-    async fn run_plan<Reporter: self::Reporter + 'static>(
-        self,
-        plan: InstallFamilyPlan,
-    ) -> miette::Result<()> {
-        let Self { args, cfg, manifest_path, .. } = self;
-        match plan {
-            InstallFamilyPlan::PerProject(projects) => {
-                // Dedicated per-project lockfiles: remove the packages from
-                // each selected project independently.
-                DedicatedProjectRuns {
-                    config: cfg,
-                    projects: *projects,
-                    require_lockfile: false,
-                    http_client: None,
-                    prune_excludes: true,
-                    sync_injected_deps: false,
-                    pipelined: false,
-                }
-                .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
-                .await
-            }
-            InstallFamilyPlan::Shared(selection) => {
-                if selection.selected_dirs.is_empty() {
-                    return Ok(());
-                }
-                let cfg: &'static Config = cfg;
-                let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run_selected::<Reporter>(state, *selection)).await
-            }
-            InstallFamilyPlan::Single => {
-                // Dedicated per-project lockfiles: the non-recursive command
-                // mutates only the active project, whose outputs anchor at the
-                // project dir.
-                if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() {
-                    anchor_active_project(cfg, &manifest_path);
-                }
-                let cfg: &'static Config = cfg;
-                let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(state)).await
-            }
-        }
+fn plan_is_empty(plan: &InstallFamilyPlan) -> bool {
+    match plan {
+        InstallFamilyPlan::Shared(selection) => selection.selected_dirs.is_empty(),
+        InstallFamilyPlan::PerProject(projects) => projects.is_empty(),
+        InstallFamilyPlan::Single => false,
     }
 }
 

@@ -1,3 +1,4 @@
+pub(crate) mod remove;
 pub(crate) mod workspace;
 
 pub(crate) use workspace::{

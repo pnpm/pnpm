@@ -61,6 +61,28 @@ pub(crate) async fn provision<Reporter: self::Reporter>(
     manifests: &[PathBuf],
     checkout: Option<&Path>,
 ) -> Result<()> {
+    provision_for_command::<Reporter>(
+        config,
+        http_client,
+        manifests,
+        checkout,
+        ToolchainLink::Publish,
+    )
+    .await
+}
+
+pub(crate) enum ToolchainLink {
+    Publish,
+    Preserve,
+}
+
+pub(crate) async fn provision_for_command<Reporter: self::Reporter>(
+    config: &Config,
+    http_client: &ThrottledClient,
+    manifests: &[PathBuf],
+    checkout: Option<&Path>,
+    link_in_project: ToolchainLink,
+) -> Result<()> {
     let Some(checkout) = checkout else { return Ok(()) };
     if !installs_toolchains(config) {
         return Ok(());
@@ -86,8 +108,13 @@ pub(crate) async fn provision<Reporter: self::Reporter>(
             }
             Err(error) => return Err(error.into()),
         };
-        let dir = file.parent().expect("a toolchain file has a parent directory");
-        link(dir, &toolchain.dir)?;
+        match link_in_project {
+            ToolchainLink::Publish => {
+                let dir = file.parent().expect("a toolchain file has a parent directory");
+                link(dir, &toolchain.dir)?;
+            }
+            ToolchainLink::Preserve => {}
+        }
         PROVISIONED
             .lock()
             .expect("the provisioned toolchains are not poisoned")

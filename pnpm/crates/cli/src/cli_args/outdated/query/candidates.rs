@@ -393,6 +393,7 @@ fn outdated_target(
         target,
         github_action: false,
         metadata: OutdatedMetadata {
+            update_prefix: "",
             deprecated,
             homepage: target_manifest
                 .get("homepage")

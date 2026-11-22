@@ -100,7 +100,7 @@ fn update_selectors_keep_negated_cargo_exclusions_out_of_node_selectors() {
 
     assert!(parsed.node_selectors.is_empty());
     assert!(parsed.cargo_requests.is_empty());
-    assert!(parsed.bare_patterns.is_empty());
+    assert!(parsed.cargo_patterns.is_empty());
     assert_eq!(parsed.cargo_exclusions, vec!["sha2"]);
 }
 
@@ -118,7 +118,7 @@ fn update_selectors_route_negated_ecosystem_purls_to_their_exclusions() {
     assert!(parsed.node_selectors.is_empty());
     assert!(parsed.cargo_requests.is_empty());
     assert!(parsed.python_requests.is_empty());
-    assert!(parsed.bare_patterns.is_empty());
+    assert!(parsed.cargo_patterns.is_empty());
     assert_eq!(parsed.cargo_exclusions, vec!["serde"]);
     assert_eq!(parsed.python_exclusions, vec!["requests"]);
 }
@@ -144,7 +144,7 @@ fn update_selectors_keep_prefixed_exclusions_scoped_alongside_positive_requests(
     assert_eq!(parsed.cargo_exclusions, vec!["serde"]);
     assert_eq!(parsed.python_requests.len(), 1);
     assert_eq!(parsed.python_exclusions, vec!["requests"]);
-    assert_eq!(parsed.bare_patterns, vec!["foo*"]);
+    assert_eq!(parsed.cargo_patterns, vec!["foo*"]);
 }
 
 #[test]
@@ -170,14 +170,14 @@ fn update_selectors_drop_orphan_exclusions_across_ecosystems() {
         parse_update_selectors(&["crate:serde".to_string(), "!lodash".to_string()], &config)
             .unwrap();
     assert!(cargo_and_exclude.node_selectors.is_empty());
-    assert!(cargo_and_exclude.bare_patterns.is_empty());
+    assert!(cargo_and_exclude.cargo_patterns.is_empty());
     assert_eq!(cargo_and_exclude.cargo_requests.len(), 1);
     assert_eq!(cargo_and_exclude.cargo_exclusions, vec!["lodash"]);
 
     let bare_and_exclude =
         parse_update_selectors(&["react".to_string(), "!lodash".to_string()], &config).unwrap();
     assert_eq!(bare_and_exclude.node_selectors, vec!["react", "!lodash"]);
-    assert!(bare_and_exclude.bare_patterns.is_empty());
+    assert!(bare_and_exclude.cargo_patterns.is_empty());
     assert_eq!(bare_and_exclude.cargo_exclusions, vec!["lodash"]);
     assert_eq!(bare_and_exclude.python_exclusions, vec!["lodash"]);
 
@@ -185,13 +185,13 @@ fn update_selectors_drop_orphan_exclusions_across_ecosystems() {
         parse_update_selectors(&["@scope/pkg".to_string(), "!lodash".to_string()], &config)
             .unwrap();
     assert_eq!(scoped_and_exclude.node_selectors, vec!["@scope/pkg", "!lodash"]);
-    assert!(scoped_and_exclude.bare_patterns.is_empty());
+    assert!(scoped_and_exclude.cargo_patterns.is_empty());
     assert!(scoped_and_exclude.cargo_requests.is_empty());
     assert!(scoped_and_exclude.python_requests.is_empty());
 
     let only_exclude = parse_update_selectors(&["!lodash".to_string()], &config).unwrap();
     assert_eq!(only_exclude.node_selectors, vec!["!lodash"]);
-    assert_eq!(only_exclude.bare_patterns, vec!["!lodash"]);
+    assert_eq!(only_exclude.cargo_patterns, vec!["!lodash"]);
 }
 
 #[test]
@@ -204,4 +204,38 @@ fn patterns_for_ecosystem_drops_orphan_exclusions_when_another_ecosystem_is_sele
     );
     assert!(patterns_for_ecosystem(&selectors, EcosystemFilterKind::Python).unwrap().is_empty());
     assert!(patterns_for_ecosystem(&selectors, EcosystemFilterKind::Node).unwrap().is_empty());
+}
+
+#[test]
+fn python_globs_normalize_only_python_names() {
+    let mut config = Config::default();
+    config.python.enabled = true;
+    config.cargo.enabled = true;
+    let selectors = [
+        "Foo.Bar*".to_owned(),
+        "crate:Cr*".to_owned(),
+        "pypi:Oth?R*".to_owned(),
+        "!Mixed_Name".to_owned(),
+    ];
+    let parsed = parse_update_selectors(&selectors, &config).unwrap();
+    assert_eq!(parsed.python_patterns, ["foo-bar*", "oth?r*", "!mixed-name"]);
+    assert_eq!(parsed.cargo_patterns, ["Foo.Bar*", "Cr*", "!Mixed_Name"]);
+    assert_eq!(parsed.python_exclusions, ["mixed-name"]);
+}
+
+#[test]
+fn interactive_choices_route_exact_names_to_the_selected_ecosystem() {
+    let mut config = Config::default();
+    config.cargo.enabled = true;
+    config.python.enabled = true;
+    let selectors =
+        ["node-example", "crate:cargo-example", "pypi:python-example"].map(String::from);
+    let parsed =
+        super::parse_update_selection(&selectors, &config, super::BareUpdateNames::NodeOnly)
+            .unwrap();
+    assert_eq!(parsed.node_selectors, ["node-example"]);
+    assert_eq!(parsed.cargo_requests.len(), 1);
+    assert_eq!(parsed.cargo_requests[0].name, "cargo-example");
+    assert_eq!(parsed.python_requests.len(), 1);
+    assert_eq!(parsed.python_requests[0].name, "python-example");
 }

@@ -1,3 +1,5 @@
+pub(crate) mod rewrite;
+
 use super::{
     Discovery,
     InstallOptions,
@@ -44,7 +46,6 @@ use std::{
     },
 };
 
-mod rewrite;
 mod specifiers;
 #[cfg(test)]
 mod tests;

@@ -13,6 +13,8 @@ pnpm remove <pkg>...
 
 Without a `--save-*` option, the package is removed from every dependency field.
 
+With Python or Cargo enabled, use `pypi:<name>` or `crate:<name>` to remove a dependency from `pyproject.toml` or `Cargo.toml` and update its lockfile. Package URLs such as `pkg:pypi/example` and `pkg:cargo/example` also work. Removing Python or Cargo dependencies requires exact names and does not support exclusions.
+
 ## Patterns
 
 Added in: v12.23.0

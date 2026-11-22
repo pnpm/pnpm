@@ -194,6 +194,7 @@ fn build_cargo_outdated_package(
         wanted: semver_to_node_version(wanted),
         github_action: false,
         metadata: OutdatedMetadata {
+            update_prefix: "crate:",
             deprecated: None,
             repository: None,
             homepage,

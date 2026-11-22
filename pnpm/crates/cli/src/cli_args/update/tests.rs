@@ -19,7 +19,14 @@ fn update_args(args: &[&str]) -> UpdateArgs {
 }
 
 fn options(prod: bool, dev: bool, optional: bool, no_optional: bool) -> UpdateDependencyOptions {
-    UpdateDependencyOptions { prod, dev, optional, no_optional, peer: false }
+    UpdateDependencyOptions {
+        prod,
+        dev,
+        optional,
+        no_optional,
+        peer: false,
+        ecosystem_requests_validated: false,
+    }
 }
 
 #[test]

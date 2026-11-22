@@ -256,6 +256,7 @@ fn into_outdated_package(
         wanted: pep440_to_node_version(&entry.wanted),
         github_action: false,
         metadata: OutdatedMetadata {
+            update_prefix: "pypi:",
             deprecated: None,
             repository: None,
             homepage: Some(format!("https://pypi.org/project/{name_str}/")),

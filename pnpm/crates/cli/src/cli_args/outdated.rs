@@ -7,7 +7,6 @@ pub use query::{
     OutdatedPackage,
     OutdatedQuery,
     TargetVersion,
-    collect_outdated,
 };
 pub(crate) use query::{
     OutdatedRun,
@@ -20,6 +19,8 @@ pub(crate) use render::{
     colorize_target,
     render_trust_change,
 };
+
+pub(crate) use workspace::standalone_project_outdated;
 
 use crate::{
     State,

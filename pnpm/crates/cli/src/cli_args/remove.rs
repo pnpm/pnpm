@@ -1,3 +1,5 @@
+mod ecosystem;
+
 use crate::{
     State,
     cli_args::{
@@ -79,6 +81,50 @@ impl RemoveArgs {
             self.no_trust_lockfile,
             config.trust_lockfile,
         );
+    }
+
+    pub(crate) fn take_ecosystem_packages(
+        &mut self,
+        config: &pnpm_config::Config,
+    ) -> miette::Result<Vec<crate::package_specifier::EcosystemPackageSpecifier>> {
+        use crate::{
+            cli_args::{
+                add::AddRequest,
+                ecosystem_deps::{
+                    EcosystemFilterKind,
+                    is_ecosystem_prefixed,
+                    patterns_for_ecosystem,
+                    selectors::{
+                        is_cargo_prefixed,
+                        is_python_prefixed,
+                    },
+                    validate_ecosystem_selectors,
+                },
+            },
+            package_specifier::PackageSpecifierPlan,
+        };
+        if !self.package_names.iter().any(|name| is_ecosystem_prefixed(name)) {
+            return Ok(Vec::new());
+        }
+        validate_ecosystem_selectors(&self.package_names, config)?;
+        if self.package_names
+            .iter()
+            .any(|name| is_cargo_prefixed(name) || is_python_prefixed(name))
+            && self.package_names
+                .iter()
+                .any(|name| name.starts_with('!'))
+        {
+            miette::bail!("exclusions cannot be combined with Python or Cargo dependency removal");
+        }
+        let packages = PackageSpecifierPlan::parse(
+            self.package_names
+                .iter()
+                .map(String::as_str)
+                .map(AddRequest::from),
+        )?;
+        self.package_names =
+            patterns_for_ecosystem(&self.package_names, EcosystemFilterKind::Node)?;
+        Ok(packages.ecosystem_packages)
     }
 
     fn prepare_remove<'a>(

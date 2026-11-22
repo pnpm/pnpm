@@ -55,21 +55,66 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
     options: AddOptions,
 ) -> Result<pnpm_install_coordinator::InstallTask<'static>> {
     options.validate(context.config)?;
-    let projects = selected
-        .iter()
-        .map(|root| writable_project(root))
-        .collect::<Result<Vec<_>>>()?;
-    let metadata = metadata_paths(&discovery, &projects, &selected);
-    let prepare = async move {
-        for root in &projects {
-            manifest::add(
-                &root.join("pyproject.toml"),
-                &options.requirements,
-                options.development,
-                context.config,
-            )?;
+    for project in &selected {
+        writable_project(project)?;
+    }
+    Ok(plan_edit::<Reporter>(context, discovery, selected, ManifestEdit::Add(options)))
+}
+
+enum ManifestEdit {
+    Add(AddOptions),
+    Remove(BTreeSet<pep508_rs::PackageName>, Option<crate::PythonDependencyGroup>),
+}
+
+impl ManifestEdit {
+    fn apply(&self, selected: &BTreeSet<PathBuf>, config: &pnpm_config::Config) -> Result<()> {
+        let mut removed = BTreeSet::new();
+        for root in selected {
+            let path = root.join("pyproject.toml");
+            match self {
+                ManifestEdit::Add(options) => {
+                    manifest::add(&path, &options.requirements, options.development, config)?;
+                }
+                ManifestEdit::Remove(names, group) => {
+                    crate::update::rewrite::remove_requirements(
+                        &path,
+                        names,
+                        *group,
+                        &mut removed,
+                    )?;
+                }
+            }
         }
+        if let ManifestEdit::Remove(names, _) = self
+            && let Some(name) = names.difference(&removed).next()
+        {
+            bail!("cannot remove {name}: not declared in the selected Python dependencies");
+        }
+        Ok(())
+    }
+}
+
+/// Remove matching requirements across the selected projects and prepare their environments.
+pub fn plan_remove<Reporter: self::Reporter + 'static>(
+    context: InstallOptions,
+    discovery: Discovery,
+    selected: BTreeSet<PathBuf>,
+    names: BTreeSet<pep508_rs::PackageName>,
+    group: Option<crate::PythonDependencyGroup>,
+) -> pnpm_install_coordinator::InstallTask<'static> {
+    plan_edit::<Reporter>(context, discovery, selected, ManifestEdit::Remove(names, group))
+}
+
+fn plan_edit<Reporter: self::Reporter + 'static>(
+    context: InstallOptions,
+    discovery: Discovery,
+    selected: BTreeSet<PathBuf>,
+    edit: ManifestEdit,
+) -> pnpm_install_coordinator::InstallTask<'static> {
+    let metadata = metadata_paths(&discovery, &selected);
+    let prepare = async move {
         let config = context.config;
+        edit.apply(&selected, config)?;
         // Every member's manifest is read again, not only the edited ones:
         // the discovery above ran before the workspace lock was taken.
         let members = discovery.workspace
@@ -87,20 +132,18 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             selected.clone(),
         )
         .await?;
-        save_added(&mut prepared, config, &workspace, &options, &selected).await?;
+        if let ManifestEdit::Add(options) = edit {
+            save_added(&mut prepared, config, &workspace, &options, &selected).await?;
+        }
         Ok(prepared)
     };
-    Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
+    pnpm_install_coordinator::InstallTask::new(metadata, prepare)
 }
 
 /// The files an add may change: each edited manifest, and the lockfile of
 /// every unit the edited projects install into.
-fn metadata_paths(
-    discovery: &Discovery,
-    projects: &[PathBuf],
-    selected: &BTreeSet<PathBuf>,
-) -> Vec<PathBuf> {
-    projects
+fn metadata_paths(discovery: &Discovery, selected: &BTreeSet<PathBuf>) -> Vec<PathBuf> {
+    selected
         .iter()
         .map(|root| root.join("pyproject.toml"))
         .chain(

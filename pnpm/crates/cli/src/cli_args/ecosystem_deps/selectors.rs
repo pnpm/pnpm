@@ -26,7 +26,8 @@ pub(crate) struct ParsedUpdateSelectors {
     pub(crate) python_requests: Vec<PythonUpdateSelector>,
     pub(crate) cargo_exclusions: Vec<String>,
     pub(crate) python_exclusions: Vec<String>,
-    pub(crate) bare_patterns: Vec<String>,
+    pub(crate) cargo_patterns: Vec<String>,
+    pub(crate) python_patterns: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -66,7 +67,7 @@ pub(super) fn updates_all_except_exclusions(
     selectors: &[String],
     parsed: &ParsedUpdateSelectors,
 ) -> bool {
-    excludes_only(selectors) && parsed.bare_patterns.is_empty()
+    excludes_only(selectors) && parsed.cargo_patterns.is_empty()
 }
 
 pub(crate) fn is_cargo_prefixed(selector: &str) -> bool {
@@ -132,7 +133,12 @@ fn push_selector_pattern(
     if is_purl(raw) {
         return push_negated_purl_pattern(raw, kind, negated, out);
     }
-    out.push(format_pattern(negated, raw));
+    let pattern = if kind == EcosystemFilterKind::Python {
+        normalize_python_name_pattern(raw)
+    } else {
+        raw.to_string()
+    };
+    out.push(format_pattern(negated, &pattern));
     Ok(())
 }
 
@@ -177,7 +183,7 @@ fn python_pattern_name(spec: &str) -> Result<String> {
 
 /// Applies Python name normalization to the literal parts of a glob, so it
 /// matches the normalized names of declared dependencies.
-fn normalize_python_name_pattern(pattern: &str) -> String {
+pub(super) fn normalize_python_name_pattern(pattern: &str) -> String {
     let mut normalized = String::with_capacity(pattern.len());
     for character in pattern.chars() {
         if matches!(character, '-' | '_' | '.') {
@@ -242,6 +248,20 @@ pub(crate) fn parse_update_selectors(
     packages: &[String],
     config: &Config,
 ) -> Result<ParsedUpdateSelectors> {
+    parse_update_selection(packages, config, BareUpdateNames::AllEcosystems)
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum BareUpdateNames {
+    AllEcosystems,
+    NodeOnly,
+}
+
+pub(crate) fn parse_update_selection(
+    packages: &[String],
+    config: &Config,
+    bare_names: BareUpdateNames,
+) -> Result<ParsedUpdateSelectors> {
     validate_ecosystem_selectors(packages, config)?;
     let mut parsed = ParsedUpdateSelectors::default();
     for raw in packages {
@@ -252,11 +272,15 @@ pub(crate) fn parse_update_selectors(
         if is_cargo_prefixed(selector) || is_python_prefixed(selector) || is_purl(selector) {
             parse_prefixed_update_selector(selector, mode, &mut parsed)?;
         } else {
-            parse_bare_update_selector(raw, &mut parsed);
+            match bare_names {
+                BareUpdateNames::NodeOnly => parsed.node_selectors.push(raw.clone()),
+                BareUpdateNames::AllEcosystems => parse_bare_update_selector(raw, &mut parsed),
+            }
         }
     }
     parsed.node_selectors = pnpm_matcher::prune_orphan_ignores(parsed.node_selectors, packages);
-    parsed.bare_patterns = pnpm_matcher::prune_orphan_ignores(parsed.bare_patterns, packages);
+    parsed.cargo_patterns = pnpm_matcher::prune_orphan_ignores(parsed.cargo_patterns, packages);
+    parsed.python_patterns = pnpm_matcher::prune_orphan_ignores(parsed.python_patterns, packages);
     Ok(parsed)
 }
 
@@ -271,6 +295,21 @@ fn parse_prefixed_update_selector(
     mode: SelectorMode,
     parsed: &mut ParsedUpdateSelectors,
 ) -> Result<()> {
+    if let Some(pattern) = raw.strip_prefix("pypi:").filter(|name| is_package_name_glob(name)) {
+        let name = normalize_python_name_pattern(pattern);
+        match mode {
+            SelectorMode::Include => parsed.python_patterns.push(name),
+            SelectorMode::Exclude => parsed.python_exclusions.push(name),
+        }
+        return Ok(());
+    }
+    if let Some(pattern) = raw.strip_prefix("crate:").filter(|name| is_package_name_glob(name)) {
+        match mode {
+            SelectorMode::Include => parsed.cargo_patterns.push(pattern.to_owned()),
+            SelectorMode::Exclude => parsed.cargo_exclusions.push(pattern.to_owned()),
+        }
+        return Ok(());
+    }
     let plan = PackageSpecifierPlan::parse([AddRequest::from(raw)])?;
     for node in plan.node_packages {
         push_node_update_selector(node.selector().to_owned(), mode, parsed);
@@ -279,6 +318,13 @@ fn parse_prefixed_update_selector(
         push_ecosystem_update_selector(eco, mode, parsed)?;
     }
     Ok(())
+}
+
+fn is_package_name_glob(name: &str) -> bool {
+    name.contains(['*', '?'])
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_.*?".contains(&byte))
 }
 
 fn push_node_update_selector(
@@ -362,11 +408,13 @@ fn parse_bare_update_selector(raw: &str, parsed: &mut ParsedUpdateSelectors) {
         if let Ok(py_name) = python_pattern_name(excluded) {
             parsed.python_exclusions.push(py_name);
         }
-        parsed.bare_patterns.push(raw.to_string());
+        parsed.cargo_patterns.push(raw.to_string());
+        parsed.python_patterns.push(normalize_python_name_pattern(raw));
         return;
     }
-    if raw.contains('*') {
-        parsed.bare_patterns.push(raw.to_string());
+    if raw.contains(['*', '?']) {
+        parsed.cargo_patterns.push(raw.to_string());
+        parsed.python_patterns.push(normalize_python_name_pattern(raw));
         return;
     }
     let (name, spec) = match raw.rsplit_once('@') {

@@ -13,6 +13,7 @@ pub(crate) use pnpm_process::asynchronous as async_process;
 pub use add::{
     AddOptions,
     plan_add,
+    plan_remove,
     writable_project,
 };
 pub use discovery::{

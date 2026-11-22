@@ -15,7 +15,6 @@ use super::{
     PathBuf,
     Reporter,
     State,
-    collect_outdated,
     collect_outdated_for_importer_in_run,
     discover_workspace_projects,
     github_actions,
@@ -157,19 +156,27 @@ async fn collect_standalone_ecosystem_outdated(
 ) -> miette::Result<Vec<miette::Result<(Vec<OutdatedPackage>, DependentProject)>>> {
     let mut project_results = Vec::new();
     for dir in dirs {
-        if requires_ecosystem_lockfile(dir, &run.config, query, &run.raw_packages)? {
-            return Err(no_lockfile_error(dir));
-        }
-        let name = ecosystem_project_name(dir, &run.config)
-            .unwrap_or_else(|| dir.to_string_lossy().into_owned());
-        let outdated =
-            collect_ecosystem_outdated(dir, Some(name.clone()), query, &run.raw_packages, run)
-                .await?;
+        let (name, outdated) = standalone_project_outdated(dir, query, run).await?;
         if !outdated.is_empty() {
             project_results.push(Ok((outdated, DependentProject { name, location: dir.clone() })));
         }
     }
     Ok(project_results)
+}
+
+pub(crate) async fn standalone_project_outdated(
+    dir: &std::path::Path,
+    query: &OutdatedQuery<'_>,
+    run: &OutdatedRun,
+) -> miette::Result<(String, Vec<OutdatedPackage>)> {
+    if requires_ecosystem_lockfile(dir, &run.config, query, &run.raw_packages)? {
+        return Err(no_lockfile_error(dir));
+    }
+    let name = ecosystem_project_name(dir, &run.config)
+        .unwrap_or_else(|| dir.to_string_lossy().into_owned());
+    let outdated =
+        collect_ecosystem_outdated(dir, Some(name.clone()), query, &run.raw_packages, run).await?;
+    Ok((name, outdated))
 }
 
 pub(super) struct ProjectOutdatedInputs<'a> {
@@ -378,13 +385,15 @@ impl OutdatedArgs {
         let mut outdated = Vec::new();
         if !self.selects_github_actions_only(&package_patterns) {
             for state in states {
+                let run = OutdatedRun::new(config, Arc::clone(&state.http_client), &query)?
+                    .with_raw_packages(package_patterns.clone());
                 outdated.extend(
-                    collect_outdated(
+                    collect_outdated_for_importer_in_run(
                         &state.manifest,
                         wanted_lockfile(&state)?,
-                        config,
-                        &state.http_client,
+                        Lockfile::ROOT_IMPORTER_KEY,
                         &query,
+                        &run,
                     )
                     .await?,
                 );

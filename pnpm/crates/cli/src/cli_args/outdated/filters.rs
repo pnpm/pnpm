@@ -119,16 +119,15 @@ pub(super) fn validate_package_patterns<'a>(
         return Ok(());
     }
     let deps = collect_all_declared_names(manifests, standalone_dirs, config, include)?;
-    let unmatched = positive_patterns
-        .iter()
-        .any(|pattern| {
-            let normalized = normalize_single_pattern(pattern);
-            let matcher = create_matcher(std::slice::from_ref(&normalized));
-            !deps
-                .iter()
-                .any(|dep| matcher.matches(dep))
-        });
-    if unmatched {
+    for pattern in positive_patterns {
+        let candidates = validation_patterns(std::slice::from_ref(pattern))?;
+        let matcher = create_matcher(&candidates);
+        if deps
+            .iter()
+            .any(|dep| matcher.matches(dep))
+        {
+            continue;
+        }
         let message = if recursive {
             "None of the specified packages were found in the dependencies of any of the projects."
         } else {
@@ -137,6 +136,20 @@ pub(super) fn validate_package_patterns<'a>(
         return Err(miette::miette!(code = "ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES", "{message}"));
     }
     Ok(())
+}
+
+fn validation_patterns(pattern: &[String]) -> miette::Result<Vec<String>> {
+    let mut candidates = Vec::new();
+    for (kind, prefix) in [
+        (EcosystemFilterKind::Node, "npm:"),
+        (EcosystemFilterKind::Python, "pypi:"),
+        (EcosystemFilterKind::Cargo, "crate:"),
+    ] {
+        for name in patterns_for_ecosystem(pattern, kind)? {
+            candidates.push(format!("{prefix}{name}"));
+        }
+    }
+    Ok(candidates)
 }
 
 fn collect_all_declared_names<'a>(
@@ -150,10 +163,12 @@ fn collect_all_declared_names<'a>(
         deps.extend(
             manifest
                 .dependencies(include.iter().copied())
-                .map(|(name, _)| name.to_string()),
+                .map(|(name, _)| format!("npm:{name}")),
         );
         deps.extend(
-            declared_engine_deps(manifest, config, include).into_iter().map(|dep| dep.name),
+            declared_engine_deps(manifest, config, include)
+                .into_iter()
+                .map(|dep| format!("npm:{}", dep.name)),
         );
         deps.extend(declared_ecosystem_dep_names(project_dir(manifest), config, include)?);
     }
@@ -161,28 +176,4 @@ fn collect_all_declared_names<'a>(
         deps.extend(declared_ecosystem_dep_names(dir, config, include)?);
     }
     Ok(deps)
-}
-
-fn normalize_single_pattern(pattern: &str) -> String {
-    if let Ok(mut names) =
-        patterns_for_ecosystem(&[pattern.to_string()], EcosystemFilterKind::Cargo)
-        && let Some(first) = names.pop()
-        && pattern.to_ascii_lowercase().starts_with("pkg:cargo/")
-    {
-        return format!("crate:{first}");
-    }
-    if let Ok(mut names) =
-        patterns_for_ecosystem(&[pattern.to_string()], EcosystemFilterKind::Python)
-        && let Some(first) = names.pop()
-        && pattern.to_ascii_lowercase().starts_with("pkg:pypi/")
-    {
-        return format!("pypi:{first}");
-    }
-    if let Ok(mut names) = patterns_for_ecosystem(&[pattern.to_string()], EcosystemFilterKind::Node)
-        && let Some(first) = names.pop()
-        && pattern.to_ascii_lowercase().starts_with("pkg:npm/")
-    {
-        return first;
-    }
-    pattern.to_string()
 }
