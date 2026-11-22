@@ -1,13 +1,16 @@
 use crate::{
     features::{
         DependencyOptions,
-        dependencies_from_parts,
+        indexed_dependencies_from_parts,
+        widen_selection,
     },
     model::{
         CargoMetadata,
         FeatureSelection,
+        MetadataDependency,
         MetadataPackage,
         RegistryDependency,
+        accepts_declared_version,
     },
 };
 use miette::{
@@ -15,19 +18,31 @@ use miette::{
     Result,
     WrapErr,
 };
-use std::collections::BTreeMap;
+use semver::{
+    Comparator,
+    Op,
+    Version,
+    VersionReq,
+};
+use std::{
+    collections::{
+        BTreeMap,
+        VecDeque,
+    },
+    path::Path,
+};
 
 pub(crate) fn parse_metadata(metadata: &str) -> Result<CargoMetadata> {
     serde_json::from_str(metadata).into_diagnostic().wrap_err("parse cargo metadata")
 }
 
-/// Git sources declared by the packages in a Cargo metadata document.
-/// The metadata need not contain a resolved dependency graph.
+/// Git sources of the dependencies Cargo locks for the workspace members and
+/// the path dependencies they reach in a Cargo metadata document. The
+/// metadata need not contain a resolved dependency graph.
 pub fn git_dependency_sources(metadata: &str) -> Result<Vec<cargo_lock::SourceId>> {
-    parse_metadata(metadata)?.packages
+    root_dependencies(&parse_metadata(metadata)?)?
         .into_iter()
-        .flat_map(|package| package.dependencies)
-        .filter_map(|dependency| dependency.source)
+        .filter_map(|dependency| dependency.registry)
         .filter(|source| source.starts_with("git+"))
         .map(|source| {
             source
@@ -39,18 +54,21 @@ pub fn git_dependency_sources(metadata: &str) -> Result<Vec<cargo_lock::SourceId
 }
 
 /// The `cargo metadata` package keys that resolution reads and copies
-/// through unchanged; `id` and `dependencies` are rewritten instead.
+/// through unchanged; `id`, `manifest_path`, and `dependencies` are
+/// rewritten instead.
 /// Mirrors [`MetadataPackage`], so a field read there is listed here too.
 const PACKAGE_KEYS: [&str; 3] = ["name", "version", "features"];
 
-/// The keys of a package's dependency that resolution reads. Mirrors
+/// The keys of a package's dependency that resolution reads and copies
+/// through unchanged; `path` is rewritten instead. Mirrors
 /// [`crate::model::MetadataDependency`], so a field read there is listed
 /// here too.
 const DEPENDENCY_KEYS: [&str; 8] =
     ["name", "source", "req", "kind", "rename", "optional", "uses_default_features", "features"];
 
 /// Reduce a `cargo metadata` document to what resolution reads, replacing
-/// each package id with its position.
+/// each package id with its position. A package's directory becomes its
+/// position too, and so does the `path` of a dependency on it.
 ///
 /// The document a workspace produces describes the machine it was produced
 /// on: `manifest_path`, `workspace_root`, every target's `src_path`, and the
@@ -71,9 +89,10 @@ pub fn resolve_inputs(metadata: &str) -> Result<String> {
             Some((package.get("id")?.as_str()?, position.to_string()))
         })
         .collect();
+    let directories = package_directories(packages, &ids);
     let packages = packages
         .iter()
-        .map(|package| reduce_package(package, &ids))
+        .map(|package| reduce_package(package, &ids, &directories))
         .collect::<Vec<_>>();
     let workspace_members = document
         .get("workspace_members")
@@ -96,12 +115,35 @@ pub fn resolve_inputs(metadata: &str) -> Result<String> {
     .wrap_err("serialize cargo metadata")
 }
 
-fn reduce_package(package: &serde_json::Value, ids: &BTreeMap<&str, String>) -> serde_json::Value {
+/// Each package's position, by the directory of its manifest.
+fn package_directories<'a>(
+    packages: &'a [serde_json::Value],
+    ids: &'a BTreeMap<&str, String>,
+) -> BTreeMap<&'a Path, &'a str> {
+    packages
+        .iter()
+        .filter_map(|package| {
+            let directory = Path::new(package.get("manifest_path")?.as_str()?).parent()?;
+            Some((
+                directory,
+                ids.get(package.get("id")?.as_str()?)?
+                    .as_str(),
+            ))
+        })
+        .collect()
+}
+
+fn reduce_package(
+    package: &serde_json::Value,
+    ids: &BTreeMap<&str, String>,
+    directories: &BTreeMap<&Path, &str>,
+) -> serde_json::Value {
     let mut reduced = retained_keys(package, &PACKAGE_KEYS);
     if let Some(id) = package.get("id").and_then(serde_json::Value::as_str)
         && let Some(position) = ids.get(id)
     {
         reduced.insert("id".to_string(), position.as_str().into());
+        reduced.insert("manifest_path".to_string(), format!("{position}/Cargo.toml").into());
     }
     let dependencies = package
         .get("dependencies")
@@ -109,13 +151,26 @@ fn reduce_package(package: &serde_json::Value, ids: &BTreeMap<&str, String>) -> 
         .map(|dependencies| {
             dependencies
                 .iter()
-                .map(|dependency| {
-                    serde_json::Value::Object(retained_keys(dependency, &DEPENDENCY_KEYS))
-                })
+                .map(|dependency| reduce_dependency(dependency, directories))
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
     reduced.insert("dependencies".to_string(), dependencies.into());
+    serde_json::Value::Object(reduced)
+}
+
+fn reduce_dependency(
+    dependency: &serde_json::Value,
+    directories: &BTreeMap<&Path, &str>,
+) -> serde_json::Value {
+    let mut reduced = retained_keys(dependency, &DEPENDENCY_KEYS);
+    if let Some(position) = dependency
+        .get("path")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|path| directories.get(Path::new(path)))
+    {
+        reduced.insert("path".to_string(), (*position).into());
+    }
     serde_json::Value::Object(reduced)
 }
 
@@ -129,32 +184,194 @@ fn retained_keys(
         .collect()
 }
 
-pub(crate) fn root_dependencies(metadata: &CargoMetadata) -> Result<Vec<RegistryDependency>> {
+/// A package Cargo locks without a source: a workspace member, or a path
+/// dependency that is not one.
+pub(crate) struct LocalPackage<'a> {
+    pub(crate) package: &'a MetadataPackage,
+    pub(crate) member: bool,
+    /// The dependencies Cargo records for it. A member records every one it
+    /// declares, as Cargo locks members with all their features and
+    /// dev-dependencies. A path dependency outside the workspace records only
+    /// the ones the features its dependents ask for activate, without its
+    /// dev-dependencies.
+    pub(crate) dependencies: Vec<RegistryDependency>,
+}
+
+/// The workspace members and every path dependency they reach, in the order
+/// of `metadata.packages`.
+///
+/// `cargo metadata --no-deps` lists only the members, so the caller appends
+/// the packages of path dependencies outside the workspace. A path
+/// dependency on a package `metadata` does not list is not walked.
+pub(crate) fn local_packages(metadata: &CargoMetadata) -> Result<Vec<LocalPackage<'_>>> {
+    let mut locked = member_dependencies(metadata)?;
+    let mut pending = locked
+        .values()
+        .flat_map(|dependencies| path_dependencies(dependencies))
+        .collect::<VecDeque<_>>();
+    let mut selections = BTreeMap::<usize, FeatureSelection>::new();
+    while let Some(dependency) = pending.pop_front() {
+        let Some(position) =
+            path_package_position(metadata, &dependency.name, &dependency.requirement)
+        else {
+            continue;
+        };
+        let package = &metadata.packages[position];
+        if metadata.workspace_members.contains(&package.id)
+            || !widen_selection(&mut selections, &dependency, &position)
+        {
+            continue;
+        }
+        let dependencies = activated_dependencies(
+            metadata,
+            package,
+            &selections[&position],
+            DependencyOptions { include_dev: false, lockfile: true },
+        )?;
+        pending.extend(path_dependencies(&dependencies));
+        locked.insert(position, dependencies);
+    }
+    Ok(locked
+        .into_iter()
+        .map(|(position, dependencies)| {
+            let package = &metadata.packages[position];
+            let member = metadata.workspace_members.contains(&package.id);
+            LocalPackage { package, member, dependencies }
+        })
+        .collect())
+}
+
+/// The dependencies of each workspace member, by position, with all its
+/// features and dev-dependencies.
+fn member_dependencies(
+    metadata: &CargoMetadata,
+) -> Result<BTreeMap<usize, Vec<RegistryDependency>>> {
     metadata.packages
         .iter()
-        .filter(|package| metadata.workspace_members.contains(&package.id))
-        .map(locked_metadata_dependencies)
-        .collect::<Result<Vec<_>>>()
-        .map(|dependencies| {
-            dependencies
-                .into_iter()
-                .flatten()
-                .filter(|dependency| dependency.registry.is_some())
-                .collect()
+        .enumerate()
+        .filter(|(_, package)| metadata.workspace_members.contains(&package.id))
+        .map(|(position, package)| {
+            let selection = FeatureSelection {
+                default_features: true,
+                features: package.features
+                    .keys()
+                    .cloned()
+                    .collect(),
+            };
+            let options = DependencyOptions { include_dev: true, lockfile: true };
+            Ok((position, activated_dependencies(metadata, package, &selection, options)?))
+        })
+        .collect()
+}
+
+/// The registry and git dependencies of every local package.
+pub(crate) fn root_dependencies(metadata: &CargoMetadata) -> Result<Vec<RegistryDependency>> {
+    Ok(local_packages(metadata)?
+        .into_iter()
+        .flat_map(|local| local.dependencies)
+        .filter(|dependency| dependency.registry.is_some())
+        .collect())
+}
+
+/// The position of the package a path dependency on `name` with `requirement`
+/// points to, `None` when `metadata` does not list it.
+pub(crate) fn path_package_position(
+    metadata: &CargoMetadata,
+    name: &str,
+    requirement: &VersionReq,
+) -> Option<usize> {
+    metadata.packages
+        .iter()
+        .position(|package| {
+            package.name == name && accepts_declared_version(requirement, None, &package.version)
         })
 }
 
-pub(crate) fn locked_metadata_dependencies(
+fn path_dependencies(
+    dependencies: &[RegistryDependency],
+) -> impl Iterator<Item = RegistryDependency> + '_ {
+    dependencies
+        .iter()
+        .filter(|dependency| dependency.registry.is_none())
+        .cloned()
+}
+
+/// The package a path dependency points to: the one in its directory, or,
+/// when `metadata` names no such directory, the first one with its name
+/// whose version its requirement accepts.
+fn path_target<'a>(
+    metadata: &'a CargoMetadata,
+    dependency: &MetadataDependency,
+) -> Option<&'a MetadataPackage> {
+    let in_directory = dependency.origin.path
+        .as_deref()
+        .and_then(|directory| {
+            metadata.packages
+                .iter()
+                .find(|package| {
+                    package.manifest_path
+                        .as_deref()
+                        .map(Path::new)
+                        .and_then(Path::parent)
+                        .is_some_and(|parent| parent == Path::new(directory))
+                })
+        });
+    in_directory.or_else(|| {
+        path_package_position(metadata, &dependency.name, &dependency.req)
+            .map(|position| &metadata.packages[position])
+    })
+}
+
+/// The requirement Cargo locks a dependency by: for a path dependency, the
+/// version of the package it points to, which is the only one it accepts.
+/// Fails when that package's version is one the declared requirement
+/// rejects, as Cargo does.
+fn locked_requirement(
+    metadata: &CargoMetadata,
+    dependency: &MetadataDependency,
+) -> Result<VersionReq> {
+    let (None, Some(package)) = (&dependency.origin.source, path_target(metadata, dependency))
+    else {
+        return Ok(dependency.req.clone());
+    };
+    if !accepts_declared_version(&dependency.req, None, &package.version) {
+        let (name, requirement) = (&dependency.name, &dependency.req);
+        return Err(miette::miette!(
+            "path dependency {name} {requirement} does not match the package at its path"
+        ));
+    }
+    Ok(exact_requirement(&package.version))
+}
+
+fn exact_requirement(version: &Version) -> VersionReq {
+    VersionReq {
+        comparators: vec![Comparator {
+            op: Op::Exact,
+            major: version.major,
+            minor: Some(version.minor),
+            patch: Some(version.patch),
+            pre: version.pre.clone(),
+        }],
+    }
+}
+
+/// The dependencies Cargo records for `package` under `selection`, each path
+/// dependency among them pinned by [`locked_requirement`]. Only those are
+/// pinned: Cargo does not check the version of a dependency it drops.
+fn activated_dependencies(
+    metadata: &CargoMetadata,
     package: &MetadataPackage,
+    selection: &FeatureSelection,
+    options: DependencyOptions,
 ) -> Result<Vec<RegistryDependency>> {
-    let dependencies = package.dependencies
+    let declared = package.dependencies
         .iter()
         .map(|dependency| RegistryDependency {
             alias: dependency.rename.clone().unwrap_or_else(|| dependency.name.clone()),
             name: dependency.name.clone(),
             requirement: dependency.req.clone(),
             kind: dependency.kind,
-            registry: dependency.source.clone(),
+            registry: dependency.origin.source.clone(),
             optional: dependency.optional,
             default_features: dependency.uses_default_features,
             features: dependency.features
@@ -163,16 +380,14 @@ pub(crate) fn locked_metadata_dependencies(
                 .collect(),
         })
         .collect::<Vec<_>>();
-    dependencies_from_parts(
-        &dependencies,
-        &package.features,
-        &FeatureSelection {
-            default_features: true,
-            features: package.features
-                .keys()
-                .cloned()
-                .collect(),
-        },
-        DependencyOptions { include_dev: true, lockfile: true },
-    )
+    indexed_dependencies_from_parts(&declared, &package.features, selection, options)
+        .into_iter()
+        .map(|(position, mut dependency)| {
+            let declaration = &package.dependencies[position];
+            if declaration.origin.source.is_none() {
+                dependency.requirement = locked_requirement(metadata, declaration)?;
+            }
+            Ok(dependency)
+        })
+        .collect()
 }

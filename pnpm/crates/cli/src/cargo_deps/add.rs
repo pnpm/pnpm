@@ -10,11 +10,16 @@ use futures_util::{
     TryStreamExt,
     stream,
 };
-use miette::Result;
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_config::Config;
 use pnpm_install_coordinator::InstallTask;
 use pnpm_network::ThrottledClient;
 use std::{
+    fs,
     path::{
         Path,
         PathBuf,
@@ -43,6 +48,7 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
         let manifest_path = manifest_path.display();
         return Err(miette::miette!("cannot add a crate because {manifest_path} does not exist"));
     }
+    ensure_package_manifest(&manifest_path)?;
     let manifest_dir = manifest_path.parent().unwrap_or(&manifest_path);
     let toolchain_checkout =
         cargo_deps::checkout(context.config.workspace_dir.as_deref().unwrap_or(manifest_dir));
@@ -119,6 +125,26 @@ async fn prepare_manifest(
         .try_collect::<Vec<_>>()
         .await?;
     cargo_manifest::add_dependencies(cargo_manifest_path, &resolved, dependency_kind)
+}
+
+/// Fail on a virtual manifest, a `[workspace]` with no `[package]`: Cargo
+/// rejects dependency tables there, as `cargo add` does.
+fn ensure_package_manifest(manifest_path: &Path) -> Result<()> {
+    let contents = fs::read_to_string(manifest_path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", manifest_path.display()))?;
+    let manifest = toml::from_str::<toml::Table>(&contents)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse {}", manifest_path.display()))?;
+    if manifest.contains_key("package") || !manifest.contains_key("workspace") {
+        return Ok(());
+    }
+    let manifest_path = manifest_path.display();
+    Err(miette::miette!(
+        code = "ERR_PNPM_CARGO_VIRTUAL_MANIFEST",
+        help = "Run the command in the directory of a workspace member.",
+        "cannot add a crate to {manifest_path}, a virtual Cargo workspace manifest with no [package]",
+    ))
 }
 
 fn saved_version(version: &str, save_exact: bool, save_prefix: Option<&str>) -> String {

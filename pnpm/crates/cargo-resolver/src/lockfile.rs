@@ -4,7 +4,8 @@ use crate::{
         locked_dependencies,
     },
     metadata::{
-        locked_metadata_dependencies,
+        local_packages,
+        path_package_position,
         root_dependencies,
     },
     model::{
@@ -13,7 +14,6 @@ use crate::{
         PackageKey,
         RegistryDependency,
         RegistryVersion,
-        accepts_declared_version,
     },
     packages::selected_package_with_preferences,
     preferences::PreferredVersions,
@@ -138,7 +138,7 @@ fn registry_packages(
     Ok(packages)
 }
 
-/// The lock entries for the workspace's own members.
+/// The lock entries for the [local packages](local_packages).
 fn workspace_packages(
     metadata: &CargoMetadata,
     registry: &Registry,
@@ -147,23 +147,20 @@ fn workspace_packages(
     preferred_versions: &PreferredVersions,
 ) -> Result<Vec<Package>> {
     let mut packages = Vec::new();
-    for package in metadata.packages
-        .iter()
-        .filter(|package| metadata.workspace_members.contains(&package.id))
-    {
-        let dependencies = locked_metadata_dependencies(package)?
+    for local in local_packages(metadata)? {
+        let dependencies = local.dependencies
             .iter()
             .map(|dependency| {
                 if dependency.registry.is_some() {
                     locked_dependency(dependency, registry, solution, sources, preferred_versions)
                 } else {
-                    locked_workspace_dependency(&dependency.name, &dependency.requirement, metadata)
+                    locked_path_dependency(&dependency.name, &dependency.requirement, metadata)
                 }
             })
             .collect::<Result<Vec<_>>>()?;
         packages.push(Package {
-            name: Name::from_str(&package.name).into_diagnostic()?,
-            version: package.version.clone(),
+            name: Name::from_str(&local.package.name).into_diagnostic()?,
+            version: local.package.version.clone(),
             source: None,
             checksum: None,
             dependencies,
@@ -294,18 +291,18 @@ fn declared_source(dependency: &RegistryDependency, inherited: &str, configured:
     }
 }
 
-fn locked_workspace_dependency(
+fn locked_path_dependency(
     name: &str,
     requirement: &VersionReq,
     metadata: &CargoMetadata,
 ) -> Result<Dependency> {
-    let package = metadata.packages
-        .iter()
-        .filter(|package| metadata.workspace_members.contains(&package.id))
-        .find(|package| {
-            package.name == name && accepts_declared_version(requirement, None, &package.version)
-        })
-        .ok_or_else(|| miette::miette!("workspace dependency {name} is not a workspace member"))?;
+    let position = path_package_position(metadata, name, requirement)
+        .ok_or_else(|| {
+            miette::miette!(
+                "path dependency {name} {requirement} does not match the package at its path"
+            )
+        })?;
+    let package = &metadata.packages[position];
     Ok(Dependency {
         name: Name::from_str(&package.name).into_diagnostic()?,
         version: package.version.clone(),

@@ -39,7 +39,7 @@ fn declared(req: &str) -> DeclaredCargoDep {
         version_req: VersionReq::parse(req).unwrap(),
         group: DependencyGroup::Prod,
         manifest_path: PathBuf::from("Cargo.toml"),
-        table: "workspace.dependencies",
+        table: ["workspace", "dependencies"].map(String::from).to_vec(),
     }
 }
 

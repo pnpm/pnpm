@@ -138,22 +138,37 @@ pub(crate) fn dependencies_from_parts(
     selection: &FeatureSelection,
     options: DependencyOptions,
 ) -> Result<Vec<RegistryDependency>> {
+    Ok(indexed_dependencies_from_parts(dependencies, features, selection, options)
+        .into_iter()
+        .map(|(_, dependency)| dependency)
+        .collect())
+}
+
+/// [`dependencies_from_parts`], each dependency paired with its position in
+/// `dependencies`.
+pub(crate) fn indexed_dependencies_from_parts(
+    dependencies: &[RegistryDependency],
+    features: &BTreeMap<String, Vec<String>>,
+    selection: &FeatureSelection,
+    options: DependencyOptions,
+) -> Vec<(usize, RegistryDependency)> {
     let activations =
         collect_feature_activations(dependencies, features, selection, options.lockfile);
-    Ok(dependencies
+    dependencies
         .iter()
-        .filter(|dependency| options.include_dev || dependency.kind != DependencyKind::Dev)
-        .filter(|dependency| {
+        .enumerate()
+        .filter(|(_, dependency)| options.include_dev || dependency.kind != DependencyKind::Dev)
+        .filter(|(_, dependency)| {
             !dependency.optional || activations.active_aliases.contains(&dependency.alias)
         })
-        .map(|dependency| {
+        .map(|(position, dependency)| {
             let mut dependency = dependency.clone();
             if let Some(features) = activations.dependency_features.get(&dependency.alias) {
                 dependency.features.extend(features.iter().cloned());
             }
-            dependency
+            (position, dependency)
         })
-        .collect())
+        .collect()
 }
 
 fn collect_feature_activations(
@@ -256,7 +271,7 @@ fn collect_feature_selections(
             None => newest_line_package(registry, &dependency, preferred_versions)?,
         };
         let Some(package) = package else { continue };
-        if !widen_line_selection(&mut selections, &dependency, &package) {
+        if !widen_selection(&mut selections, &dependency, &package) {
             continue;
         }
         let Some(selected_version) = solution.and_then(|solution| solution.get(&package)) else {
@@ -274,10 +289,10 @@ fn collect_feature_selections(
 
 /// Fold what `dependency` asks for into `package`'s selection, reporting
 /// whether that added anything, which is what makes it worth walking again.
-fn widen_line_selection(
-    selections: &mut BTreeMap<PackageKey, FeatureSelection>,
+pub(crate) fn widen_selection<Package: Ord + Clone>(
+    selections: &mut BTreeMap<Package, FeatureSelection>,
     dependency: &RegistryDependency,
-    package: &PackageKey,
+    package: &Package,
 ) -> bool {
     let previous = selections.get(package).cloned();
     let selection = selections.entry(package.clone()).or_default();

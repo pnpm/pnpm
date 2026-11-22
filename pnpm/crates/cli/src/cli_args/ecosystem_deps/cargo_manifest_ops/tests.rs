@@ -128,7 +128,7 @@ fn declared_cargo_deps_and_manifest_edits_resolve_renamed_workspace_dependencies
     assert_eq!(itoa.manifest_key, "itoa");
     assert_eq!(itoa.package_name, "itoa");
     assert_eq!(itoa.raw_spec, "1.0.0");
-    assert_eq!(itoa.table, "workspace.dependencies");
+    assert_eq!(itoa.table, ["workspace", "dependencies"]);
 
     let ryu = deps
         .iter()
@@ -136,7 +136,7 @@ fn declared_cargo_deps_and_manifest_edits_resolve_renamed_workspace_dependencies
         .expect("my_ryu resolved");
     assert_eq!(ryu.package_name, "ryu");
     assert_eq!(ryu.raw_spec, "1.0.0");
-    assert_eq!(ryu.table, "workspace.dependencies");
+    assert_eq!(ryu.table, ["workspace", "dependencies"]);
     assert!(ryu.has_alias("my_ryu"));
     assert!(ryu.has_alias("other_ryu"));
     assert!(ryu.matches_name("other_ryu"));
@@ -156,7 +156,12 @@ fn declared_cargo_deps_and_manifest_edits_resolve_renamed_workspace_dependencies
     let edits: Vec<_> = deps
         .iter()
         .map(|dep| {
-            (dep.manifest_path.clone(), dep.table, dep.manifest_key.clone(), "1.0.18".to_string())
+            (
+                dep.manifest_path.clone(),
+                dep.table.clone(),
+                dep.manifest_key.clone(),
+                "1.0.18".to_string(),
+            )
         })
         .collect();
     apply_manifest_edits(&edits).unwrap();
@@ -224,4 +229,36 @@ fn outdated_query_exclusions_apply_across_all_merged_cargo_identities() {
 
     let negated_alias = create_matcher(&["!other_ryu".to_string()]);
     assert!(!ryu.matches_query(&make_outdated_query(&groups, Some(&negated_alias), None)));
+}
+
+#[test]
+fn declared_cargo_deps_include_target_specific_tables() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[target.'cfg(unix)'.dependencies]\nlibc = \"0.2\"\n\n[target.x86_64-pc-windows-msvc.dev-dependencies]\nwinapi = \"0.3\"\n",
+    )
+    .unwrap();
+
+    let deps = declared_cargo_deps(dir.path(), None).unwrap();
+    let tables = deps
+        .iter()
+        .map(|dep| (dep.package_name.as_str(), dep.table.clone(), dep.group))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        tables,
+        [
+            (
+                "libc",
+                ["target", "cfg(unix)", "dependencies"].map(String::from).to_vec(),
+                DependencyGroup::Prod,
+            ),
+            (
+                "winapi",
+                ["target", "x86_64-pc-windows-msvc", "dev-dependencies"].map(String::from).to_vec(),
+                DependencyGroup::Dev,
+            ),
+        ],
+    );
 }

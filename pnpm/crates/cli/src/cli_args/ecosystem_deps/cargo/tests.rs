@@ -22,7 +22,7 @@ fn declared(name: &str) -> DeclaredCargoDep {
         version_req: VersionReq::parse("1").unwrap(),
         group: DependencyGroup::Prod,
         manifest_path: PathBuf::from("Cargo.toml"),
-        table: "workspace.dependencies",
+        table: ["workspace", "dependencies"].map(String::from).to_vec(),
     }
 }
 
@@ -42,7 +42,7 @@ fn unchanged_deps_are_pinned_except_updated_and_patched_crates() {
         pins,
         [(
             PathBuf::from("Cargo.toml"),
-            "workspace.dependencies",
+            ["workspace", "dependencies"].map(String::from).to_vec(),
             "kept".to_string(),
             "=1.2.0".to_string(),
         )],

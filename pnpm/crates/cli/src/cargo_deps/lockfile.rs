@@ -24,6 +24,9 @@ use super::{
     stream,
 };
 use miette::WrapErr;
+use path_packages::with_path_packages;
+
+mod path_packages;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct LockedCrate {
@@ -160,7 +163,10 @@ pub(super) async fn discover_workspace_roots(
 /// Fail a frozen install when an existing `Cargo.lock` does not satisfy the
 /// dependencies its workspace declares. An absent lockfile is left to
 /// [`read_or_resolve_lockfile`].
-pub(super) fn verify_existing_lockfile(workspace: &DiscoveredWorkspace) -> Result<()> {
+pub(super) async fn verify_existing_lockfile(
+    workspace: &DiscoveredWorkspace,
+    checkout: Option<&Path>,
+) -> Result<()> {
     let path = workspace.root.join("Cargo.lock");
     let lockfile = match fs::read_to_string(&path) {
         Ok(lockfile) => lockfile,
@@ -171,7 +177,9 @@ pub(super) fn verify_existing_lockfile(workspace: &DiscoveredWorkspace) -> Resul
                 .wrap_err_with(|| format!("read {}", path.display()));
         }
     };
-    pnpm_cargo_resolver::verify_lockfile(&workspace.metadata, &lockfile)
+    let cargo = super::toolchain::program("cargo", &workspace.root, checkout);
+    let metadata = with_path_packages(&workspace.metadata, &cargo).await?;
+    pnpm_cargo_resolver::verify_lockfile(&metadata, &lockfile)
         .wrap_err_with(|| {
             format!("{} is out of date, but --frozen-lockfile forbids updating it", path.display())
         })
@@ -320,7 +328,9 @@ fn read_cargo_lock_preferences(
 }
 
 async fn read_cargo_metadata(root_dir: &Path, checkout: Option<&Path>) -> Result<String> {
-    read_cargo_metadata_for_manifest(&root_dir.join("Cargo.toml"), checkout).await
+    let document = read_cargo_metadata_for_manifest(&root_dir.join("Cargo.toml"), checkout).await?;
+    let cargo = super::toolchain::program("cargo", root_dir, checkout);
+    with_path_packages(&document, &cargo).await
 }
 
 async fn read_cargo_metadata_for_manifest(
@@ -332,6 +342,11 @@ async fn read_cargo_metadata_for_manifest(
         manifest_path.parent().unwrap_or(manifest_path),
         checkout,
     );
+    run_cargo_metadata(cargo, manifest_path).await
+}
+
+/// `cargo metadata --no-deps` for `manifest_path`, run with `cargo`.
+async fn run_cargo_metadata(cargo: PathBuf, manifest_path: &Path) -> Result<String> {
     let manifest_path = manifest_path.to_path_buf();
     let output = tokio::task::spawn_blocking(move || {
         Command::new(cargo)

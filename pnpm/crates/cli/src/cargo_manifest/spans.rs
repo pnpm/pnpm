@@ -42,10 +42,9 @@ fn collect_value_header_spans(
 
 pub(super) fn lookup_table_path<'a, 'i>(
     doc: &'a Spanned<DeTable<'i>>,
-    table_path: &str,
+    table_path: &[&str],
 ) -> Option<&'a Spanned<DeValue<'i>>> {
-    let mut segments = table_path.split('.');
-    let first = segments.next()?;
+    let (first, segments) = table_path.split_first()?;
     let (_, mut current) = find_entry(doc.get_ref(), first)?;
     for segment in segments {
         let table = current.get_ref().as_table()?;
@@ -248,12 +247,13 @@ pub(super) fn quoted(value: &str) -> String {
 
 pub(super) fn append_new_table(
     contents: &str,
-    table: &str,
+    table: &[&str],
     name: &str,
     version_spec: &str,
 ) -> String {
     let separator = appended_table_separator(contents);
-    format!("{contents}{separator}[{table}]\n{} = {}\n", format_key(name), quoted(version_spec))
+    let header = table_header(table);
+    format!("{contents}{separator}[{header}]\n{} = {}\n", format_key(name), quoted(version_spec))
 }
 
 /// What has to come between the existing contents and a table appended
@@ -267,6 +267,15 @@ fn appended_table_separator(contents: &str) -> &'static str {
     } else {
         "\n\n"
     }
+}
+
+/// `table` as a dotted TOML key, each segment quoted where it has to be.
+pub(super) fn table_header(table: &[&str]) -> String {
+    table
+        .iter()
+        .map(|segment| format_key(segment))
+        .collect::<Vec<_>>()
+        .join(".")
 }
 
 pub(super) fn format_key(name: &str) -> String {

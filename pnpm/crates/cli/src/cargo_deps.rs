@@ -209,7 +209,9 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
     .await?;
     let workspaces = discover_workspace_roots(manifests, checkout.as_deref()).await?;
     if context.frozen_lockfile {
-        workspaces.iter().try_for_each(verify_existing_lockfile)?;
+        for workspace in &workspaces {
+            verify_existing_lockfile(workspace, checkout.as_deref()).await?;
+        }
     }
     let roots = workspaces
         .into_iter()

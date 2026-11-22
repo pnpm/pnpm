@@ -39,13 +39,15 @@ pnpm writes the dependency into `Cargo.toml` without reformatting anything else 
 
 `pnpm add crate:` and `pnpm add rust@` fail with `--recursive` or `--filter`. Run them in the project instead.
 
+`pnpm add crate:` also fails in a virtual workspace root, a `Cargo.toml` with `[workspace]` and no `[package]`. Run it in the directory of a workspace member.
+
 [`pnpm outdated`](./cli/outdated.md) and [`pnpm update`](./cli/update.md) also check and update Cargo dependencies when `cargo.enabled` is `true`, and accept `crate:<name>` selectors to target specific crates.
 
 `pnpm add crate:<name>` and `pnpm update crate:<name>` keep the other compatible versions recorded in `Cargo.lock`. `pnpm update` without selectors updates every crate in `Cargo.lock`, as `cargo update` does.
 
 ## What an install does
 
-1. Reads the workspace's `Cargo.toml`, including its members.
+1. Reads the workspace's `Cargo.toml`, including its members and the path dependencies outside the workspace. Cargo locks those path dependencies without their dev-dependencies, and pnpm does the same.
 2. Resolves the graph against the sparse index, or with Cargo (see [Source overrides](#source-overrides)), and writes a deterministic `Cargo.lock`. When `Cargo.lock` is already there, it is used as-is.
 3. Verifies each locked `.crate` archive against its checksum and unpacks it into pnpm's store.
 4. Links the store slots into a Cargo [directory source](https://doc.rust-lang.org/cargo/reference/source-replacement.html) under `.pnpm/crates/crates-io`, generating the `.cargo-checksum.json` files Cargo expects.

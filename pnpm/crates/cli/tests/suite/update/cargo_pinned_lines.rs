@@ -268,3 +268,76 @@ fn update_latest_resolves_member_package_rename_inherited_from_workspace() {
     let cargo_lock = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
     assert!(cargo_lock.contains("name = \"itoa\"\nversion = \"1.0.18\""), "{cargo_lock}");
 }
+
+/// A single-crate workspace with `manifest_tail` after its `[package]`, a
+/// lock recording `foo` 1.0.0, and an index that also offers 1.0.1.
+fn setup_foo_workspace(root: &Path, manifest_tail: &str) -> PathBuf {
+    let workspace = root.join("workspace");
+    let cache_dir = root.join("cache");
+    fs::create_dir_all(workspace.join("src")).unwrap();
+    fs::write(workspace.join("src/lib.rs"), "").unwrap();
+    write_index(&cache_dir, "3/f", "foo", &["1.0.0", "1.0.1"]);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "cargo:\n  enabled: true\nstoreDir: '{}'\ncacheDir: '{}'\n",
+            root.join("store").display(),
+            cache_dir.display(),
+        ),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.toml"),
+        format!(
+            "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n{manifest_tail}",
+        ),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("Cargo.lock"),
+        format!(
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\"foo\"]\n\n{}",
+            locked_package("foo", "1.0.0"),
+        ),
+    )
+    .unwrap();
+    workspace
+}
+
+#[test]
+fn update_bumps_a_target_specific_dependency() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace =
+        setup_foo_workspace(root.path(), "[target.'cfg(unix)'.dependencies]\nfoo = \"1.0.0\"\n");
+
+    pacquet(&workspace, ["update", "--offline", "--lockfile-only"]).assert().success();
+
+    let cargo_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    assert!(
+        cargo_toml.contains("[target.'cfg(unix)'.dependencies]\nfoo = \"1.0.1\""),
+        "{cargo_toml}",
+    );
+    let cargo_lock = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
+    assert!(cargo_lock.contains("name = \"foo\"\nversion = \"1.0.1\""), "{cargo_lock}");
+}
+
+#[test]
+fn update_prod_moves_a_crate_also_declared_as_a_dev_dependency() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = setup_foo_workspace(
+        root.path(),
+        "[dependencies]\nfoo = \"1.0.0\"\n\n[dev-dependencies]\nfoo = \"1.0.0\"\n",
+    );
+
+    pacquet(&workspace, ["update", "--prod", "--offline", "--lockfile-only"]).assert().success();
+
+    let cargo_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    assert!(
+        cargo_toml.contains(
+            "[dependencies]\nfoo = \"1.0.1\"\n\n[dev-dependencies]\nfoo = \"1.0.0\"\n",
+        ),
+        "{cargo_toml}",
+    );
+    let cargo_lock = fs::read_to_string(workspace.join("Cargo.lock")).unwrap();
+    assert!(cargo_lock.contains("name = \"foo\"\nversion = \"1.0.1\""), "{cargo_lock}");
+}

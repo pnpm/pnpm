@@ -26,12 +26,15 @@ pub(crate) struct MetadataPackage {
     pub(crate) dependencies: Vec<MetadataDependency>,
     #[serde(default)]
     pub(crate) features: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub(crate) manifest_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MetadataDependency {
     pub(crate) name: String,
-    pub(crate) source: Option<String>,
+    #[serde(flatten)]
+    pub(crate) origin: DependencyOrigin,
     pub(crate) req: VersionReq,
     #[serde(default)]
     pub(crate) kind: DependencyKind,
@@ -43,6 +46,15 @@ pub(crate) struct MetadataDependency {
     pub(crate) uses_default_features: bool,
     #[serde(default)]
     pub(crate) features: Vec<String>,
+}
+
+/// Where a dependency comes from: a registry or git `source`, or, for a path
+/// dependency, no source and the `path` of its directory.
+#[derive(Debug, Deserialize)]
+pub(crate) struct DependencyOrigin {
+    pub(crate) source: Option<String>,
+    #[serde(default)]
+    pub(crate) path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
