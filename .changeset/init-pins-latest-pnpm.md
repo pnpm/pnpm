@@ -1,5 +1,5 @@
 ---
-"pacquet": minor
+"pnpm": minor
 ---
 
 `pnpm init` now pins the latest pnpm version, instead of the version of pnpm that ran the command. A project scaffolded by an outdated pnpm therefore no longer inherits that staleness through its own `devEngines.packageManager` / `packageManager` pin [#7490](https://github.com/pnpm/pnpm/issues/7490).

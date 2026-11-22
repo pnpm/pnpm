@@ -161,7 +161,7 @@ jobs:
           PNPR_VERSION=$(jq -r .version pnpr/npm/pnpr/package.json)
           GET_PNPM_VERSION=$(jq -r .version pnpm/npm/get-pnpm/package.json)
 
-          # pacquet and @pnpm/napi are a versioning.fixed group; a drift means
+          # pnpm and @pnpm/napi are a versioning.fixed group; a drift means
           # the versions were edited by hand inconsistently.
           if [ "$RUST_VERSION" != "$NAPI_VERSION" ]; then
             echo "::error::pnpm/npm/pnpm ($RUST_VERSION) and pnpm/npm/napi ($NAPI_VERSION) versions differ"
@@ -295,7 +295,7 @@ jobs:
           runtime: node@22
 
       - name: Bundle node-gyp
-        run: pnpm --filter=pacquet run bundle-node-gyp
+        run: pnpm --filter=pnpm run bundle-node-gyp
 
       - name: Archive payload
         # Archived rather than uploaded as a directory, for the same reason the
@@ -744,8 +744,8 @@ jobs:
         run: tar xzf wasm-payload/wasm-payload.tar.gz -C pnpm/npm
 
       - name: Generate npm packages
-        # Rewrites the committed private `pacquet` wrapper into the publishable
-        # `pnpm` manifest and generates the per-platform packages.
+        # Rewrites the committed private `pnpm` wrapper into the publishable
+        # manifest and generates the per-platform packages.
         run: |
           node pnpm/npm/pnpm/scripts/generate-packages.mjs
           node pnpm/npm/napi/scripts/generate-packages.mjs
@@ -1194,7 +1194,7 @@ jobs:
         env:
           VERSION: ${{ needs.plan.outputs.rust_version }}
         run: |
-          changelog=".changeset/changelogs/pacquet@${VERSION}.md"
+          changelog=".changeset/changelogs/pnpm@${VERSION}.md"
           if [ -f "$changelog" ]; then
             tail -n +2 "$changelog" | sed '/./,$!d' > RELEASE.md
           else

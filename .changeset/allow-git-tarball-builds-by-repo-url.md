@@ -1,5 +1,5 @@
 ---
-"pacquet": patch
+"pnpm": patch
 ---
 
 `allowBuilds` entries can now approve git-hosted packages that pnpm downloads as a tarball, such as `github:` dependencies (which are fetched from `codeload.github.com` rather than cloned), by their repository URL without the resolved commit hash. This matches the hashless `git+` matching already supported for cloned git dependencies. For example:

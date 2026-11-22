@@ -60,8 +60,8 @@ describe('releaseFilterArgs', () => {
   })
 
   test('includes only the selected products', () => {
-    assert.deepEqual(releaseFilterArgs(new Set(['pnpm'])), ['--filter=pacquet', '--filter=@pnpm/napi'])
-    assert.deepEqual(releaseFilterArgs(new Set(['pnpm', 'pnpr'])), ['--filter=pacquet', '--filter=@pnpm/napi', '--filter=@pnpm/pnpr'])
+    assert.deepEqual(releaseFilterArgs(new Set(['pnpm'])), ['--filter=pnpm', '--filter=@pnpm/napi'])
+    assert.deepEqual(releaseFilterArgs(new Set(['pnpm', 'pnpr'])), ['--filter=pnpm', '--filter=@pnpm/napi', '--filter=@pnpm/pnpr'])
     assert.deepEqual(releaseFilterArgs(new Set(['get-pnpm'])), ['--filter=get-pnpm'])
   })
 })
@@ -84,12 +84,12 @@ describe('parkPublishedPrivateChangelogs', () => {
   const section = '## 12.8.0\n\n### Minor Changes\n\n- A change.\n\n### Patch Changes\n\n- A fix.\n'
 
   test('moves the committed changelog to the parked section of the released version', () => {
-    writeProject('pnpm/npm/pnpm', { name: 'pacquet', version: '12.8.0' }, `# pacquet\n\n${section}`)
+    writeProject('pnpm/npm/pnpm', { name: 'pnpm', version: '12.8.0' }, `# pnpm\n\n${section}`)
     writeProject('pnpm/npm/napi', { name: '@pnpm/napi', version: '12.8.0' }, '# @pnpm/napi\n\n## 12.8.0\n')
 
     parkPublishedPrivateChangelogs(dir, ['pnpm/npm/pnpm', 'pnpm/npm/napi'])
 
-    assert.equal(fs.readFileSync(path.join(dir, '.changeset/changelogs/pacquet@12.8.0.md'), 'utf8'), section)
+    assert.equal(fs.readFileSync(path.join(dir, '.changeset/changelogs/pnpm@12.8.0.md'), 'utf8'), section)
     assert.equal(fs.readFileSync(path.join(dir, '.changeset/changelogs/@pnpm!napi@12.8.0.md'), 'utf8'), '## 12.8.0\n')
     assert.equal(fs.existsSync(path.join(dir, 'pnpm/npm/pnpm/CHANGELOG.md')), false)
     assert.equal(fs.existsSync(path.join(dir, 'pnpm/npm/napi/CHANGELOG.md')), false)
@@ -104,14 +104,14 @@ describe('parkPublishedPrivateChangelogs', () => {
   })
 
   test('refuses a changelog that holds more than the released section', () => {
-    writeProject('pnpm/npm/pnpm', { name: 'pacquet', version: '12.9.0' }, `# pacquet\n\n## 12.9.0\n\n- New.\n\n${section}`)
+    writeProject('pnpm/npm/pnpm', { name: 'pnpm', version: '12.9.0' }, `# pnpm\n\n## 12.9.0\n\n- New.\n\n${section}`)
 
-    assert.throws(() => parkPublishedPrivateChangelogs(dir, ['pnpm/npm/pnpm']), /exactly one section, for pacquet@12\.9\.0/)
+    assert.throws(() => parkPublishedPrivateChangelogs(dir, ['pnpm/npm/pnpm']), /exactly one section, for pnpm@12\.9\.0/)
     assert.equal(fs.existsSync(path.join(dir, 'pnpm/npm/pnpm/CHANGELOG.md')), true)
   })
 
   test('refuses a changelog without a section for the released version', () => {
-    writeProject('pnpm/npm/pnpm', { name: 'pacquet', version: '12.9.0' }, `# pacquet\n\n${section}`)
+    writeProject('pnpm/npm/pnpm', { name: 'pnpm', version: '12.9.0' }, `# pnpm\n\n${section}`)
 
     assert.throws(() => parkPublishedPrivateChangelogs(dir, ['pnpm/npm/pnpm']), /exactly one section/)
   })

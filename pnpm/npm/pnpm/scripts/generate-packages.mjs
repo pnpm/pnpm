@@ -3,10 +3,8 @@
 // Generates the per-platform `@pnpm/exe.<target>` native packages and the
 // `@pnpm/exe` wrapper (an equal-content copy of the committed wrapper).
 //
-// The committed wrapper is the private workspace package `pacquet` (so its
-// name can't collide with the TypeScript CLI package `pnpm`, which the
-// meta-updater and pnpm's own name-keyed resolution key on); this script
-// rewrites it into the publishable `pnpm` manifest.
+// The committed wrapper is the private workspace package `pnpm`; this script
+// rewrites it into the publishable manifest.
 
 import console from "node:console";
 import { dirname, resolve } from "node:path";
@@ -107,12 +105,9 @@ function generateNativePackage(target) {
   fs.copyFileSync(resolve(PNPM_ROOT, NOTICES_FILE), resolve(packageRoot, NOTICES_FILE));
 }
 
-// Rewrite the committed `pacquet` manifest into the publishable one: no
-// `private` flag, and the full set of `@pnpm/exe.<target>` optional
-// dependencies. Other fields are preserved. The published name is not set
-// here — the manifest declares it as `publishConfig.name`, which `pnpm pack`
-// hoists, so the parked changelog section and the ledger keep addressing this
-// project by its workspace name.
+// Rewrite the committed manifest into the publishable one: no `private`
+// flag, and the full set of `@pnpm/exe.<target>` optional dependencies.
+// Other fields are preserved.
 export function createWrapperManifest(manifest = rootManifest) {
   const published = { ...manifest };
   delete published.private;
@@ -154,20 +149,11 @@ function generateExeWrapper() {
   }
 
   const baseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
-  // The wrapper states its own name outright, so it must not inherit the base
-  // manifest's `publishConfig.name` rename — that would publish it as `pnpm`.
-  const publishConfig = { ...baseManifest.publishConfig };
-  delete publishConfig.name;
   const exeManifest = {
     ...baseManifest,
     name: EXE_WRAPPER_NAME,
     repository: { ...baseManifest.repository, directory: `pnpm/npm/${EXE_WRAPPER_DIR}` },
   };
-  if (Object.keys(publishConfig).length > 0) {
-    exeManifest.publishConfig = publishConfig;
-  } else {
-    delete exeManifest.publishConfig;
-  }
   console.log(`Create wrapper ${exeRoot}`);
   fs.writeFileSync(resolve(exeRoot, "package.json"), JSON.stringify(exeManifest));
 }

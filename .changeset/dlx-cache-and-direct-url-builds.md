@@ -1,5 +1,5 @@
 ---
-"pacquet": patch
+"pnpm": patch
 ---
 
 `pnpm dlx`, `pnx`, and `pnpm create` now handle local isolation, script skipping, and non-registry package specifiers consistently:

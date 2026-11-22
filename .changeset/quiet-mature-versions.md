@@ -1,5 +1,5 @@
 ---
-"pacquet": patch
+"pnpm": patch
 ---
 
 The `minimumReleaseAge` approval prompt now counts and displays each package version once [pnpm/pnpm#15083](https://github.com/pnpm/pnpm/issues/15083).

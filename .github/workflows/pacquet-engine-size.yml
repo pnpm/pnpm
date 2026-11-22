@@ -64,7 +64,7 @@ jobs:
         run: find . -path ./target -prune -o -type d -name node_modules -prune -exec rm -rf {} +
 
       - name: Install pull request crates
-        run: pnpm install --frozen-lockfile --filter pacquet --filter @pnpm/esm-loader
+        run: pnpm install --frozen-lockfile --filter pnpm --filter @pnpm/esm-loader
 
       - name: Test reduced profile
         run: >-

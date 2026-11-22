@@ -1,5 +1,5 @@
 ---
-"pacquet": minor
+"pnpm": minor
 ---
 
 `pnpm config get` and `pnpm config list` now show the settings pnpm acts on under their documented names:

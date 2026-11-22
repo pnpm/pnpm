@@ -1,5 +1,5 @@
 ---
-"pacquet": minor
+"pnpm": minor
 ---
 
 `pnpm self-update` no longer takes any instruction from the project it is run in:

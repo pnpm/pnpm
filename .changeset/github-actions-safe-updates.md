@@ -1,5 +1,5 @@
 ---
-"pacquet": patch
+"pnpm": patch
 ---
 
 GitHub Actions updates now stop if an action reference changes while its versions are being resolved. Unrelated workflow edits are preserved.

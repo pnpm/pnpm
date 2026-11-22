@@ -1,5 +1,5 @@
 ---
-"pacquet": minor
+"pnpm": minor
 "@pnpm/pnpr": minor
 ---
 

@@ -1,5 +1,5 @@
 ---
-"pacquet": minor
+"pnpm": minor
 ---
 
 A registry can now declare that its abbreviated metadata carries the `time` field, so `resolutionMode: time-based` reads the full metadata document only from the registries that need it:

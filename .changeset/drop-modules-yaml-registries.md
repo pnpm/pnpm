@@ -1,5 +1,5 @@
 ---
-"pacquet": minor
+"pnpm": minor
 ---
 
 `node_modules/.modules.yaml` no longer records the registries an install resolved from, and the recorded copy is dropped from the file on the first install that rewrites it.

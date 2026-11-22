@@ -1,8 +1,7 @@
 {
-  "name": "pacquet",
+  "name": "pnpm",
   "private": true,
   "publishConfig": {
-    "name": "pnpm",
     "executableFiles": [
       "./dist/node-gyp-bin/node-gyp",
       "./dist/node-gyp-bin/node-gyp.cmd",

@@ -21,7 +21,7 @@ grouped, what order they appear in, and how the page reads end to end.
    them**, and composes them into `.changeset/changelogs/<package>@<version>.md`,
    one section per released package, grouped into Major, Minor, and Patch changes.
 3. That file is the release page. The Rust CLI's GitHub release body is literally
-   `tail -n +2 .changeset/changelogs/pacquet@<version>.md` plus the sponsors
+   `tail -n +2 .changeset/changelogs/pnpm@<version>.md` plus the sponsors
    fragment (`.github/workflows/release.yml`), and the same section is composed into
    the published `CHANGELOG.md`. For a stable pnpm release, it also becomes the pnpm.io release page
    ([DOCUMENTATION.md](../../../DOCUMENTATION.md#release-pages)).
@@ -185,7 +185,7 @@ style identical across every entry in a release.
 `pnpm change status` prints the planned version for every package before anything is
 written. Read the line for each released package and ask whether it matches the
 entries you are about to curate. Read the packages that carry no intent of their own
-too: `@pnpm/napi` rides pacquet's `versioning.fixed` group, and `release.yml` fails
+too: `@pnpm/napi` rides pnpm's `versioning.fixed` group, and `release.yml` fails
 the build if the two versions have drifted apart.
 
 The release engine applies plain semver: a `major` intent on a `0.x` package moves it

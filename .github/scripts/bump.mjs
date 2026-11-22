@@ -12,10 +12,10 @@ import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 // The workspace packages each product releases, keyed by the product's
-// `--release` token. `pnpm` is the Rust CLI: published to npm as `pnpm`, named
-// `pacquet` in-repo, with its versioning.fixed `@pnpm/napi` sibling.
+// `--release` token. `pnpm` is the Rust CLI with its versioning.fixed
+// `@pnpm/napi` sibling.
 export const PRODUCT_PACKAGES = {
-  pnpm: ['pacquet', '@pnpm/napi'],
+  pnpm: ['pnpm', '@pnpm/napi'],
   pnpr: ['@pnpm/pnpr'],
   'get-pnpm': ['get-pnpm'],
 }

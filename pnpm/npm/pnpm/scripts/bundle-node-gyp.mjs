@@ -53,7 +53,7 @@ function deployNodeGyp () {
     '--config.inject-workspace-packages=true',
     '--config.node-linker=hoisted',
     '--ignore-scripts',
-    '--filter=pacquet',
+    '--filter=pnpm',
     '--prod',
     'deploy',
     DEPLOY_DIR,
