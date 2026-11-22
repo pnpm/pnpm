@@ -421,14 +421,16 @@ jobs:
         run: |
           # Each platform package links itself into its own node_modules
           # (node_modules/@pnpm/<name> -> ../..), and Git Bash's tar on Windows
-          # cannot recreate that loop.
-          tar --exclude=node_modules -czf ts-executable-artifacts.tar.gz \
-            pnpm11/pnpm/artifacts/darwin-arm64 \
-            pnpm11/pnpm/artifacts/linux-x64 \
-            pnpm11/pnpm/artifacts/linux-arm64 \
-            pnpm11/pnpm/artifacts/linux-x64-musl \
-            pnpm11/pnpm/artifacts/win32-x64 \
-            pnpm11/pnpm/artifacts/win32-arm64 \
+          # cannot recreate that loop. exe/dist/node_modules holds the bundled
+          # runtime dependencies, so it stays in the archive.
+          paths=()
+          excludes=()
+          for platform in darwin-arm64 linux-x64 linux-arm64 linux-x64-musl win32-x64 win32-arm64; do
+            paths+=("pnpm11/pnpm/artifacts/$platform")
+            excludes+=("--exclude=pnpm11/pnpm/artifacts/$platform/node_modules")
+          done
+          tar "${excludes[@]}" -czf ts-executable-artifacts.tar.gz \
+            "${paths[@]}" \
             pnpm11/pnpm/artifacts/exe/dist \
             pnpm11/pnpm/artifacts/verify-binary.mjs
 
