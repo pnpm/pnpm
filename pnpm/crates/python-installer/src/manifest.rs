@@ -65,6 +65,8 @@ pub(super) struct Manifest {
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(super) struct Project {
+    #[serde(skip)]
+    pub(super) from_requirements_file: bool,
     /// Absent only in a manifest that is not a distribution: PEP 621
     /// requires it of one that is.
     pub(super) name: Option<PackageName>,
@@ -238,6 +240,7 @@ impl Project {
 impl Manifest {
     pub(super) fn set_requirements_file(&mut self, requirements: Vec<String>) {
         self.project = Some(Project {
+            from_requirements_file: true,
             name: None,
             version: None,
             dependencies: requirements,

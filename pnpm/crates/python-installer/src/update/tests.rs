@@ -421,18 +421,18 @@ async fn updated_names_are_scoped_to_each_lock_root() {
         no_save: false,
     };
     let updated_markers = collect_updated_markers(&discovery, &selected, &options).unwrap();
+    let locks = BTreeMap::from([(
+        ws2.clone(),
+        sample_lock(Vec::new(), vec![locked_pkg("alpha", "1.0", None)]),
+    )]);
     let stage = StageContext {
-        discovery: &discovery,
         selected: &selected,
         updated_markers,
         options: &options,
-        locks: BTreeMap::from([(
-            ws2.clone(),
-            sample_lock(Vec::new(), vec![locked_pkg("alpha", "1.0", None)]),
-        )]),
+        lock_indices: super::index_locks(&locks).unwrap(),
     };
     let members = BTreeSet::from([member_a, member_b, member_c.clone()]);
-    stage_manifests_for_resolution(&members, &stage).unwrap();
+    stage_manifests_for_resolution(&members, &discovery.workspace, &stage).unwrap();
 
     let staged_c: toml::Value =
         toml::from_str(&fs::read_to_string(member_c.join("pyproject.toml")).unwrap()).unwrap();

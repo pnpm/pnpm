@@ -114,11 +114,10 @@ fn update_metadata_paths(
 pub(super) type UpdatedMarkersByLockRoot = BTreeMap<PathBuf, BTreeMap<PackageName, MarkerTree>>;
 
 pub(super) struct StageContext<'a> {
-    pub(super) discovery: &'a Discovery,
     pub(super) selected: &'a BTreeSet<PathBuf>,
     pub(super) updated_markers: UpdatedMarkersByLockRoot,
     pub(super) options: &'a UpdateOptions,
-    pub(super) locks: BTreeMap<PathBuf, Lockfile>,
+    pub(super) lock_indices: BTreeMap<&'a Path, LockIndex<'a>>,
 }
 
 async fn run_update_prepare<Reporter: self::Reporter + 'static>(
@@ -159,15 +158,16 @@ async fn stage_and_prepare<Reporter: self::Reporter + 'static>(
     selected: &BTreeSet<PathBuf>,
     options: &UpdateOptions,
 ) -> Result<Vec<Prepared>> {
+    let locks = collect_existing_locks(memberships);
     let stage = StageContext {
-        discovery: &discovery,
         selected,
         updated_markers: collect_updated_markers(&discovery, selected, options)?,
         options,
-        locks: collect_existing_locks(memberships),
+        lock_indices: index_locks(&locks)?,
     };
-    stage_manifests_for_resolution(members, &stage)?;
-    let discovery = discovery.reread(context.config, members).await?;
+    stage_manifests_for_resolution(members, &discovery.workspace, &stage)?;
+    let mut discovery = discovery.reread(context.config, members).await?;
+    stage_requirements_files(&mut discovery, members, &stage)?;
     prepare::<Reporter>(
         context,
         discovery,
@@ -247,24 +247,69 @@ fn collect_existing_locks(
     locks
 }
 
-pub(super) fn stage_manifests_for_resolution(
+fn index_locks(locks: &BTreeMap<PathBuf, Lockfile>) -> Result<BTreeMap<&Path, LockIndex<'_>>> {
+    locks
+        .iter()
+        .map(|(root, lock)| Ok((root.as_path(), lock.index()?)))
+        .collect()
+}
+
+fn stage_requirements_files(
+    discovery: &mut Discovery,
     members: &BTreeSet<PathBuf>,
     stage: &StageContext<'_>,
 ) -> Result<()> {
-    let lock_indices: BTreeMap<&Path, LockIndex<'_>> = stage.locks
-        .iter()
-        .map(|(root, lock)| Ok((root.as_path(), lock.index()?)))
-        .collect::<Result<_>>()?;
+    for (root, manifest) in &mut discovery.roots {
+        if !members.contains(root)
+            || !manifest.project.as_ref().is_some_and(|project| project.from_requirements_file)
+        {
+            continue;
+        }
+        let lock_root = discovery.workspace.lock_root(root);
+        let Some(index) = stage.lock_indices.get(lock_root) else { continue };
+        let non_index = discovery.workspace.non_index_sources(root, manifest);
+        let project =
+            std::sync::Arc::make_mut(manifest).project.as_mut().expect("requirements file project");
+        let updated_in_env = stage.updated_markers.get(lock_root);
+        pin_file_requirements(&mut project.dependencies, &non_index, index, updated_in_env)?;
+    }
+    Ok(())
+}
+
+fn pin_file_requirements(
+    requirements: &mut Vec<String>,
+    non_index: &BTreeSet<PackageName>,
+    index: &LockIndex<'_>,
+    updated_in_env: Option<&BTreeMap<PackageName, MarkerTree>>,
+) -> Result<()> {
+    for raw in std::mem::take(requirements) {
+        let requirement = pnpm_python_resolver::parse_requirement(&raw)?;
+        if !non_index.contains(&requirement.name)
+            && let Some(pinned) = pin_unselected_requirement(&requirement, updated_in_env, index)?
+        {
+            requirements.extend(pinned.into_iter().map(|requirement| requirement.to_string()));
+        } else {
+            requirements.push(raw);
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn stage_manifests_for_resolution(
+    members: &BTreeSet<PathBuf>,
+    workspace: &Workspace,
+    stage: &StageContext<'_>,
+) -> Result<()> {
     for member in members {
         let scope = if stage.selected.contains(member) {
             StagingScope::SelectedProject
         } else {
             StagingScope::SiblingProject
         };
-        let lock_root = stage.discovery.workspace.lock_root(member);
-        let lock_index = lock_indices.get(lock_root);
+        let lock_root = workspace.lock_root(member);
+        let lock_index = stage.lock_indices.get(lock_root);
         let updated_in_env = stage.updated_markers.get(lock_root);
-        rewrite_pyproject_many(member, &stage.discovery.workspace, |group, req| {
+        rewrite_pyproject_many(member, workspace, |group, req| {
             stage_requirement(group, req, scope, stage.options, updated_in_env, lock_index)
         })?;
     }
@@ -285,9 +330,6 @@ pub(super) fn stage_requirement(
     updated_in_env: Option<&BTreeMap<PackageName, MarkerTree>>,
     lock_index: Option<&LockIndex<'_>>,
 ) -> Result<Option<Vec<Requirement>>> {
-    if matches!(req.version_or_url, Some(VersionOrUrl::Url(_))) {
-        return Ok(None);
-    }
     match scope {
         StagingScope::SelectedProject if options.selects(group, &req.name) => {
             stage_selected_requirement(&mut req, options)
@@ -296,16 +338,30 @@ pub(super) fn stage_requirement(
             let Some(lock_index) = lock_index else {
                 return Ok(None);
             };
-            let excluded = updated_in_env.and_then(|markers| markers.get(&req.name));
-            lock_index.pinned_index_requirements(&req, excluded)
+            pin_unselected_requirement(&req, updated_in_env, lock_index)
         }
     }
+}
+
+fn pin_unselected_requirement(
+    requirement: &Requirement,
+    updated_in_env: Option<&BTreeMap<PackageName, MarkerTree>>,
+    index: &LockIndex<'_>,
+) -> Result<Option<Vec<Requirement>>> {
+    if matches!(requirement.version_or_url, Some(VersionOrUrl::Url(_))) {
+        return Ok(None);
+    }
+    let excluded = updated_in_env.and_then(|markers| markers.get(&requirement.name));
+    index.pinned_index_requirements(requirement, excluded)
 }
 
 fn stage_selected_requirement(
     req: &mut Requirement,
     options: &UpdateOptions,
 ) -> Result<Option<Vec<Requirement>>> {
+    if matches!(req.version_or_url, Some(VersionOrUrl::Url(_))) {
+        return Ok(None);
+    }
     if let Some(Some(explicit_spec)) = options.targets.get(&req.name) {
         req.version_or_url =
             Some(VersionOrUrl::VersionSpecifier(explicit_spec.parse().into_diagnostic()?));
