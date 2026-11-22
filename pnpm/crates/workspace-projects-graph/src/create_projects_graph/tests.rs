@@ -92,6 +92,18 @@ fn workspace_star_resolves_to_versioned_sibling() {
 }
 
 #[test]
+fn workspace_union_with_a_caret_branch_resolves_like_workspace_star() {
+    let projects = vec![
+        project("/ws/a", "a", "1.0.0", &[("b", "workspace:^ || ^2.0.0")]),
+        project("/ws/b-stable", "b", "2.0.0", &[]),
+        project("/ws/b-next", "b", "3.0.0-beta.1", &[]),
+    ];
+    let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
+    assert_eq!(edges(&result.graph, "/ws/a"), vec!["/ws/b-next".to_string()]);
+    assert!(result.unmatched.is_empty());
+}
+
+#[test]
 fn plain_range_resolves_to_sibling() {
     let projects = vec![
         project("/ws/a", "a", "1.0.0", &[("b", "^2.0.0")]),

@@ -290,6 +290,8 @@ async fn apply<Reporter: self::Reporter + 'static>(
     )
 }
 
+/// The resolve-only run's peer workspace: it installs nothing, so siblings
+/// answer from their wanted lockfiles.
 fn peer_report_workspace<'a>(
     inputs: &'a ApplyMaterializationInputs<'_, '_>,
 ) -> crate::peer_dependency_issues::PeerReportWorkspace<'a> {
@@ -297,6 +299,7 @@ fn peer_report_workspace<'a>(
         lockfile_dir: &inputs.projects.workspace_root,
         catalogs: inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs),
         project_manifests: inputs.projects.importers.declared_manifests.as_slice(),
+        sibling_lockfile: crate::peer_dependency_issues::SiblingLockfile::Wanted,
     }
 }
 

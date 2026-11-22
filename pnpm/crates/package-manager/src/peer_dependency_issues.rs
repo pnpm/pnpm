@@ -82,7 +82,9 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
         project_manifests: &project_manifests,
     };
-    let Some(report) = peer_issues(check, config)? else { return Ok(()) };
+    let Some(report) = peer_issues(check, workspace.sibling_lockfile, config)? else {
+        return Ok(());
+    };
     if config.strict_peer_dependencies {
         return Err(InstallError::PeerDependencyIssues {
             rendered: Reporter::report_fatal_error(report.render_error()),
@@ -99,12 +101,14 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
 /// loaded where the workspace gives each project one.
 fn peer_issues(
     check: ImporterPeerCheck<'_>,
+    sibling_lockfile: SiblingLockfile,
     config: &Config,
 ) -> Result<Option<PeerIssuesReport>, InstallError> {
     let mut sibling_err = None;
     let mut load_sibling =
         |sibling_dir: &Path, sibling_name: Option<&str>| match load_sibling_lockfile(
             config,
+            sibling_lockfile,
             sibling_dir,
             sibling_name,
         ) {
@@ -134,16 +138,20 @@ fn has_dedicated_lockfiles(config: &Config) -> bool {
     config.workspace_dir.is_some() && !config.shares_one_lockfile()
 }
 
-/// The lockfile `pnpm peers check` reads for the sibling: the current one,
-/// which records what is installed, and the wanted one before an install.
 fn load_sibling_lockfile(
     config: &Config,
+    sibling_lockfile: SiblingLockfile,
     sibling_dir: &Path,
     sibling_name: Option<&str>,
 ) -> Result<Option<Arc<Lockfile>>, LoadLockfileError> {
     let mut sibling_config = config.clone();
     sibling_config.anchor_dedicated_project(sibling_dir, sibling_name);
-    let current = Lockfile::load_current_from_install_state_dir(&sibling_config.install_state_dir)?;
+    let current = match sibling_lockfile {
+        SiblingLockfile::Installed => {
+            Lockfile::load_current_from_install_state_dir(&sibling_config.install_state_dir)?
+        }
+        SiblingLockfile::Wanted => None,
+    };
     let lockfile = match current {
         Some(lockfile) => Some(lockfile),
         None => Lockfile::load_wanted(sibling_dir, &sibling_config.wanted_lockfile_selection())?,
@@ -163,6 +171,19 @@ pub(crate) struct PeerReportWorkspace<'a> {
     /// `readPackage`. A `link:` to one of these projects is checked without
     /// reading its manifest again.
     pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) sibling_lockfile: SiblingLockfile,
+}
+
+/// Which lockfile of a linked sibling with its own lockfile answers for
+/// its dependencies, matching what `pnpm peers check` reads.
+#[derive(Clone, Copy)]
+pub(crate) enum SiblingLockfile {
+    /// The current lockfile, which records what is installed, or the
+    /// wanted one before the sibling's first install.
+    Installed,
+    /// The wanted lockfile, for a run that installs nothing, such as
+    /// `--lockfile-only`.
+    Wanted,
 }
 
 impl<'a> PeerReportWorkspace<'a> {
