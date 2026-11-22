@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: pnpm/pnpm.io
-          ref: f5c920521d391d229912b7363ccaa629f671a846 # pnpm.io documentation importer
+          ref: 29f86c5f4170e6fc0477c5ef90b4d8160f8902aa # pnpm.io documentation importer
           path: website
           persist-credentials: false
       - uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
@@ -47,16 +47,10 @@ jobs:
           install: false
       - name: Test release source validation
         run: node --test .github/scripts/prepare-docs-sync.test.mjs .github/scripts/copy-docs-artifact.test.mjs
-      # The website's preview imports every documentation line, and the 11.x
-      # docs live on the release/11 branch.
-      - name: Add the v11 documentation
-        run: |
-          git fetch --no-tags --depth=1 origin release/11
-          git restore --source=FETCH_HEAD --worktree -- pnpm11/docs
       - name: Build the website with this PR's documentation
         working-directory: website
         run: |
           pnpm install --frozen-lockfile
-          node scripts/sync-docs.mjs .. --preview
+          node scripts/sync-docs.mjs .. --preview 12.x pnpr
           pnpm build
           pnpm check-urls

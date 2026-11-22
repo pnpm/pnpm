@@ -69,14 +69,6 @@ jobs:
         env:
           DOCS_COMMIT: ${{ steps.source.outputs.docs_commit }}
         run: git worktree add --detach "$RUNNER_TEMP/docs-source" "$DOCS_COMMIT"
-      # The website's main sync imports every documentation line, and the 11.x
-      # docs live on the release/11 branch.
-      - name: Add the v11 documentation to the main snapshot
-        if: steps.source.outputs.main_sync == 'true'
-        working-directory: ${{ runner.temp }}/docs-source
-        run: |
-          git fetch --no-tags --depth=1 origin release/11
-          git restore --source=FETCH_HEAD --worktree -- pnpm11/docs
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.source.outputs.publish == 'true'
         with:
@@ -109,7 +101,7 @@ jobs:
           DOCS_COMMIT: ${{ steps.source.outputs.docs_commit }}
         run: |
           if [ "$MAIN_SYNC" = true ]; then
-            node scripts/sync-docs.mjs "$RUNNER_TEMP/docs-source" --preview
+            node scripts/sync-docs.mjs "$RUNNER_TEMP/docs-source" --preview 12.x pnpr
           else
             node scripts/sync-docs.mjs "$RUNNER_TEMP/docs-source" "$LINE" "$VERSION" "$RELEASE_COMMIT" "$DOCS_COMMIT"
           fi
