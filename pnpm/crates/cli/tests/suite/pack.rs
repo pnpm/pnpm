@@ -228,24 +228,28 @@ fn before_packing_hook_rewrites_the_packed_manifest() {
 }
 
 #[test]
-fn before_packing_cannot_remove_the_package_name() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("package.json"), r#"{"name":"example","version":"1.0.0"}"#).unwrap();
-    fs::write(
-        workspace.join(".pnpmfile.cjs"),
-        "exports.hooks = { beforePacking(pkg) { delete pkg.name; return pkg } }",
-    )
-    .unwrap();
-    let output = pacquet
-        .with_arg("pack")
-        .output()
+fn before_packing_must_return_a_valid_package_name() {
+    for (change, code) in [
+        ("delete pkg.name", "ERR_PNPM_MISSING_REQUIRED_FIELD"),
+        ("pkg.name = 42", "ERR_PNPM_INVALID_PACKAGE_NAME"),
+        ("pkg.name = 42; pkg.bin = 'cli.js'", "ERR_PNPM_INVALID_PACKAGE_NAME"),
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), r#"{"name":"example","version":"1.0.0"}"#)
+            .unwrap();
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            format!("exports.hooks = {{ beforePacking(pkg) {{ {change}; return pkg }} }}"),
+        )
         .unwrap();
-    assert!(!output.status.success());
-    assert_diagnostic_contains(
-        &String::from_utf8_lossy(&output.stderr),
-        "ERR_PNPM_MISSING_REQUIRED_FIELD",
-    );
-    drop(root);
+        let output = pacquet
+            .with_arg("pack")
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert_diagnostic_contains(&String::from_utf8_lossy(&output.stderr), code);
+        drop(root);
+    }
 }
 
 /// The workspace-root `.pnpmfile.cjs` applies to a `--filter`-selected

@@ -63,12 +63,12 @@ where
     let manifest = read_manifest(&dir)?;
     prevent_bundled_dependencies_with_pnp(opts.manifest.node_linker, &manifest)?;
 
-    let name = packed_identity(&manifest)?;
+    validate_source_identity(&manifest)?;
 
     let (mut publish_manifest, private_workspace_dependencies) =
         opts.manifest.export::<Reporter>(&opts.dir, &dir, &manifest).await?;
 
-    let (normalized_name, published_version) = published_identity(&mut publish_manifest, name)?;
+    let (normalized_name, published_version) = published_identity(&mut publish_manifest)?;
     let bins = executable_sources(&publish_manifest, &manifest, &dir);
     Ok(PackSource {
         entry_manifest,
@@ -81,24 +81,9 @@ where
     })
 }
 
-/// The name the tarball is packed under, once the manifest's name *and*
-/// version are known to be publishable.
-///
-/// Both are interpolated into the default tarball filename
-/// (`<name>-<version>.tgz`) and the manifest is attacker-controlled, so a
-/// path separator in the version would let it smuggle path components into the
-/// join and write the tarball outside `dest_dir`. A real semver version never
-/// contains one. The version itself is read back off the publish manifest by
-/// [`published_identity`], which a `publishConfig` rename can change.
-fn packed_identity(manifest: &Value) -> Result<&str, PackError> {
-    let name = manifest
-        .get("name")
-        .and_then(Value::as_str)
-        .filter(|name| !name.is_empty())
-        .ok_or(PackError::PackageNameNotFound)?;
-    if !is_valid_old_npm_package_name(name) {
-        return Err(PackError::InvalidPackageName { name: name.to_string() });
-    }
+/// Check the source manifest before applying publish overrides and hooks.
+fn validate_source_identity(manifest: &Value) -> Result<(), PackError> {
+    package_name(manifest)?;
     let version = manifest
         .get("version")
         .and_then(Value::as_str)
@@ -106,6 +91,20 @@ fn packed_identity(manifest: &Value) -> Result<&str, PackError> {
         .ok_or(PackError::PackageVersionNotFound)?;
     if is_invalid_tarball_version(version) {
         return Err(PackError::InvalidPackageVersion { version: version.to_string() });
+    }
+    Ok(())
+}
+
+fn package_name(manifest: &Value) -> Result<&str, PackError> {
+    let name = manifest.get("name").ok_or(PackError::PackageNameNotFound)?;
+    let name = name
+        .as_str()
+        .ok_or_else(|| PackError::InvalidPackageName { name: name.to_string() })?;
+    if name.is_empty() {
+        return Err(PackError::PackageNameNotFound);
+    }
+    if !is_valid_old_npm_package_name(name) {
+        return Err(PackError::InvalidPackageName { name: name.to_string() });
     }
     Ok(name)
 }
@@ -118,14 +117,11 @@ fn packed_identity(manifest: &Value) -> Result<&str, PackError> {
 ///
 /// The name and version are read back off the publish manifest so a
 /// `publishConfig.name` rename or a `beforePacking` hook modification reaches
-/// the filename too. Neither went through [`packed_identity`], so both are
+/// the filename too. Neither went through [`validate_source_identity`], so both are
 /// validated here: they land in the tarball path, where a separator or `.` /
 /// `..` segment would smuggle path components into the join and write outside
 /// `dest_dir`.
-fn published_identity(
-    publish_manifest: &mut Value,
-    name: &str,
-) -> Result<(String, String), PackError> {
+fn published_identity(publish_manifest: &mut Value) -> Result<(String, String), PackError> {
     let raw_version = publish_manifest
         .get("version")
         .and_then(Value::as_str)
@@ -137,14 +133,7 @@ fn published_identity(
     if let Some(object) = publish_manifest.as_object_mut() {
         object.insert("version".to_string(), Value::String(published_version.clone()));
     }
-    let published_name = publish_manifest
-        .get("name")
-        .and_then(Value::as_str)
-        .filter(|name| !name.is_empty())
-        .unwrap_or(name);
-    if !is_valid_old_npm_package_name(published_name) {
-        return Err(PackError::InvalidPackageName { name: published_name.to_string() });
-    }
+    let published_name = package_name(publish_manifest)?;
     Ok((normalize_tarball_name(published_name), published_version))
 }
 
