@@ -28,15 +28,7 @@ use pnpm_resolving_local_resolver::{
     resolve_from_local_scheme,
 };
 use pnpm_resolving_resolver_base::GitResolveError;
-use pnpm_resolving_tarball_resolver::{
-    TarballFetchContext,
-    TarballResolver,
-};
-use pnpm_store_dir::SharedVerifiedFilesCache;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::sync::Arc;
 
 /// The package name and manifest specifier for an add selector that names
 /// no alias: a git URL, a remote tarball URL, or a local directory /
@@ -64,11 +56,16 @@ pub(super) async fn resolve_aliasless_specifier(
     if pnpm_resolving_git_resolver::parse_bare_specifier(specifier).is_some() {
         return resolve_aliasless_git(specifier, inputs).await.map(Some);
     }
-    if specifier.starts_with("http:") || specifier.starts_with("https:") {
+    if let Some(url) = pnpm_resolving_tarball_resolver::remote_tarball_id(specifier) {
+        let url = url.map_err(|error| AddError::ResolveTarball {
+            specifier: redact_url_for_display(specifier),
+            reason: redacted_error_chain(error.as_ref()),
+        })?;
         return resolve_aliasless_tarball(
-            specifier,
+            url,
             inputs.add.config,
             &inputs.owned.http_client_arc,
+            &inputs.owned.tarball_mem_cache,
         )
         .await
         .map(Some);
@@ -146,65 +143,36 @@ pub(super) async fn resolve_aliasless_local(
 /// Resolve a remote (non-registry) tarball URL by downloading and
 /// extracting it: a tarball's name lives in the `package.json` it bundles,
 /// and nothing in the URL is required to spell it.
-///
-/// No store-index row is written here. The install that follows re-resolves
-/// the dependency with the writer it owns, keyed by the same `pkg_id`, so a
-/// row from this pass would only duplicate that one.
-pub(super) async fn resolve_aliasless_tarball(
-    specifier: &str,
-    config: &'static Config,
-    http_client: &Arc<ThrottledClient>,
+async fn resolve_aliasless_tarball(
+    url: String,
+    config: &Config,
+    http_client: &ThrottledClient,
+    mem_cache: &pnpm_tarball::MemCache,
 ) -> Result<AliaslessDependency, AddError> {
-    let resolver = aliasless_tarball_resolver(config, http_client);
-    let wanted = pnpm_resolving_resolver_base::WantedDependency {
-        bare_specifier: Some(specifier.to_string()),
-        ..pnpm_resolving_resolver_base::WantedDependency::default()
-    };
-    let result = pnpm_resolving_resolver_base::Resolver::resolve(
-        &resolver,
-        &wanted,
-        &pnpm_resolving_resolver_base::ResolveOptions::default(),
-    )
-    .await
-    .map_err(|source| match source.downcast::<pnpm_tarball::TarballError>() {
-        Ok(tarball) => AddError::TarballResolve(tarball),
-        Err(source) => AddError::ResolveTarball {
-            specifier: redact_url_for_display(specifier),
-            reason: redacted_error_chain(source.as_ref()),
+    let fetch = pnpm_tarball::FetchTarballForResolution {
+        http_client,
+        store: pnpm_tarball::ResolutionStore { dir: &config.store_dir, index_writer: None },
+        package: pnpm_tarball::TarballPackage {
+            integrity_kind: config.lockfile_integrity_target.into(),
+            integrity: None,
+            unpacked_size: None,
+            file_count: None,
+            url: url.as_str(),
+            id: url.as_str(),
         },
-    })?
-    .ok_or_else(|| AddError::MissingPackageName { specifier: redact_url_for_display(specifier) })?;
-    let manifest_specifier =
-        result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
-    let package_name = aliasless_package_name(result.package.manifest.as_deref(), specifier)?;
-    Ok(AliaslessDependency { package_name, manifest_specifier, linked_manifest: None })
-}
-
-fn aliasless_tarball_resolver(
-    config: &'static Config,
-    http_client: &Arc<ThrottledClient>,
-) -> TarballResolver {
-    TarballResolver {
-        http_client: Arc::clone(http_client),
-        fetch_context: Some(TarballFetchContext {
-            mem_cache: None,
-            auth_headers: Arc::clone(&config.auth_headers),
-            retry_opts: config.retry_opts(),
-            tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),
-            prior_tarball_entries: Arc::new(HashMap::new()),
-            cache_dir: Some(config.cache_dir.clone()),
-            integrity_target: config.lockfile_integrity_target,
-            store: pnpm_tarball::ArchiveStoreContext {
-                strict_pkg_content_check: false,
-                prefetched_cas_paths: None,
-                dir: std::borrow::Cow::Borrowed(&config.store_dir),
-                index_writer: None,
-                index: None,
-                verify_integrity: config.verify_store_integrity,
-                verified_files_cache: SharedVerifiedFilesCache::default(),
-            },
-        }),
-    }
+        auth_headers: &config.auth_headers,
+        retry_opts: config.retry_opts(),
+        tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),
+        manifest_subdir: None,
+        revision_addressed: false,
+    };
+    let manifest = fetch
+        .prepare_add(mem_cache)
+        .await
+        .map_err(Box::new)
+        .map_err(AddError::TarballResolve)?;
+    let package_name = aliasless_package_name(manifest.as_ref(), &url)?;
+    Ok(AliaslessDependency { package_name, manifest_specifier: url, linked_manifest: None })
 }
 /// Flatten an error chain into one line, with every URL in it cut back to
 /// its display-safe form.
@@ -212,7 +180,7 @@ fn aliasless_tarball_resolver(
 /// `reqwest` echoes the request URL back in its own message and redacts
 /// only the userinfo, while a signed tarball URL carries its token in the
 /// query string, which [`redact_and_sanitize`] keeps too. The scrub is
-/// URL-agnostic rather than keyed to the specifier: the HEAD request
+/// URL-agnostic rather than keyed to the specifier: the archive request
 /// follows redirects, so the URL a failure names may be a signed storage
 /// URL the caller never saw.
 pub(super) fn redacted_error_chain(error: &(dyn std::error::Error + 'static)) -> String {

@@ -560,6 +560,25 @@ fn an_untyped_frame_is_a_protocol_error() {
 }
 
 #[tokio::test]
+async fn resolution_credentials_require_secure_transport() {
+    let remote = PnprClient::new("http://registry.example");
+    assert!(matches!(
+        remote.resolution_post("resolve", Some("Bearer fixture")).await,
+        Err(PnprClientError::Protocol(_))
+    ));
+    assert!(remote.resolution_post("resolve", None).await.is_ok());
+    for url in ["https://registry.example", "http://127.0.0.1"] {
+        let request = PnprClient::new(url)
+            .resolution_post("resolve", Some("Bearer fixture"))
+            .await
+            .unwrap()
+            .build()
+            .unwrap();
+        assert_eq!(request.headers()[reqwest::header::AUTHORIZATION], "Bearer fixture");
+    }
+}
+
+#[tokio::test]
 async fn pipeline_reports_refuse_credentials_on_non_loopback_http() {
     let client = PnprClient::new("http://example.invalid");
     let request = super::PublishPipelineRunRequest {

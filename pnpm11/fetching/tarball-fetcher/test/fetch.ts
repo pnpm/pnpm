@@ -68,7 +68,7 @@ const testFixtures = fixtures(import.meta.dirname)
 const tarballPath = testFixtures.find('babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
-const registry = 'http://example.com'
+const registry = 'https://example.com'
 const fetchFromRegistry = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
@@ -743,7 +743,7 @@ test.each([
   ['http://example.com', undefined],
   ['http://127.attacker.example', undefined],
   ['http://127.0.0.1', 'Bearer mirror-token'],
-])('selects secure Node.js mirror auth for %s', async (origin, expectedAuthHeaderValue) => {
+])('selects secure tarball auth for %s', async (origin, expectedAuthHeaderValue) => {
   const tarballContent = fs.readFileSync(tarballPath)
   const mockPool = mockAgent.get(origin)
 
@@ -775,7 +775,6 @@ test.each([
     storeIndex,
     filesIndexFile,
     integrity: tarballIntegrity,
-    appendManifest: { name: 'node', version: '22.0.0' },
   })
 
   expect(index).toBeTruthy()

@@ -456,12 +456,10 @@ impl PnprClient {
         // downstream by the lockfile merge, not a way to inject dependencies.
         let permitted_importers = permitted_importers(&opts);
         self.handshake_project_transforms(&opts).await?;
-        let mut post = self.http
-            .post(format!("{}-/pnpr/v0/resolve", self.base_url))
+        let post = self
+            .resolution_post("-/pnpr/v0/resolve", opts.routing.authorization.as_deref())
+            .await?
             .json(&resolve_request_body(&opts));
-        if let Some(authorization) = opts.routing.authorization.as_deref() {
-            post = post.header("authorization", authorization);
-        }
         let response = post.send().await?;
         let response = super::check_status(response, "/-/pnpr/v0/resolve").await?;
 

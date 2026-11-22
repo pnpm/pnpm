@@ -11,6 +11,7 @@ export type FetchFromRegistry = (
   url: string,
   opts?: RequestInit & {
     authHeaderValue?: string
+    getRedirectAuthHeader?: (url: string) => string | undefined
     compress?: boolean
     fullMetadata?: boolean
     ifModifiedSince?: string

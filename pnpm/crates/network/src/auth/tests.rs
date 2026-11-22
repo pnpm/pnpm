@@ -768,3 +768,31 @@ fn redact_and_sanitize_multiline_collapses_when_a_newline_splits_credentials() {
     assert!(!redacted.contains("user:pass"), "{redacted}");
     assert_eq!(redacted, redact_and_sanitize("url: https://user:pass\n@host/x.git\nfailed"));
 }
+
+#[test]
+fn package_request_auth_respects_path_and_origin() {
+    let headers = AuthHeaders::from_creds_map([(
+        "//registry.example/team/".to_owned(),
+        "Bearer fixture".to_owned(),
+    )]);
+    let url = "https://registry.example/team/archive";
+    let authorize = crate::scoped_redirect_auth(url, |target| headers.for_url(target));
+    assert_eq!(authorize("https://registry.example/team/file").as_deref(), Some("Bearer fixture"));
+    assert_eq!(authorize("https://registry.example/files/archive"), None);
+    assert_eq!(authorize("http://registry.example/team/archive"), None);
+    assert_eq!(authorize("https://registry.example:8080/team/archive"), None);
+}
+
+#[test]
+fn insecure_userinfo_is_removed_before_building_requests() {
+    for (input, expected) in [
+        ("http://user:fixture@registry.example/pkg?x=1", "http://registry.example/pkg?x=1"),
+        ("https://user:fixture@registry.example/pkg", "https://user:fixture@registry.example/pkg"),
+        ("http://user:fixture@localhost/pkg", "http://user:fixture@localhost/pkg"),
+        ("http://registry.example/@scope/pkg", "http://registry.example/@scope/pkg"),
+    ] {
+        let mut url = input.to_string();
+        super::strip_insecure_url_credentials(&mut url);
+        assert_eq!(url, expected);
+    }
+}

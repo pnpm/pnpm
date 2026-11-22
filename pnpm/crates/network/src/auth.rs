@@ -29,6 +29,7 @@ pub use url::{
     base64_encode_bytes,
     is_url_secure_for_credentials,
     nerf_dart,
+    strip_insecure_url_credentials,
 };
 
 use crate::{
@@ -506,6 +507,7 @@ impl AuthHeaders {
     #[must_use]
     pub fn for_secure_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
         if !is_url_secure_for_credentials(url) {
+            self.record_route(url, pkg_name);
             return None;
         }
         self.for_url_with_package(url, pkg_name)

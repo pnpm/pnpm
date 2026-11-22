@@ -116,7 +116,6 @@ use std::{
 };
 
 use dashmap::DashSet;
-use pnpm_network::AuthHeaders;
 use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
@@ -140,18 +139,6 @@ const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
 
 /// Maximum payload size of a buffered TAR metadata extension.
 pub const MAX_TARBALL_METADATA_BYTES: u64 = MAX_UNTRUSTED_PREALLOC_BYTES as u64;
-
-fn auth_header_for_package_download(
-    auth_headers: &AuthHeaders,
-    package_url: &str,
-    package_id: &str,
-) -> Option<String> {
-    if package_id.starts_with("node@runtime:") {
-        auth_headers.for_secure_url_with_package(package_url, Some(package_id))
-    } else {
-        auth_headers.for_url_with_package(package_url, Some(package_id))
-    }
-}
 
 /// Cap on concurrent post-download tarball work (SHA-512 of the whole
 /// tarball + gzip inflate + per-file SHA-512 + CAFS writes). The body is

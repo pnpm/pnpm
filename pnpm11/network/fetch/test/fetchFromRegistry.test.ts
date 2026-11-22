@@ -119,6 +119,25 @@ test('authorization headers are not removed before redirection if the target is 
   }
 })
 
+test('uses the credential scope when following a registry redirect', async () => {
+  setupMockAgent()
+  try {
+    const origin = 'https://registry.example'
+    const pool = getMockAgent().get(origin)
+    pool.intercept({ path: '/team/start' }).reply(302, '', { headers: { location: '/team/archive' } })
+    pool.intercept({ path: '/team/archive', headers: { authorization: 'Bearer fixture' } })
+      .reply(302, '', { headers: { location: '/archive' } })
+    pool.intercept({ path: '/archive', headers: headers => headers.authorization === undefined }).reply(200, 'ok')
+    const response = await createFetchFromRegistry({})(origin + '/team/start', {
+      authHeaderValue: 'Bearer fixture',
+      getRedirectAuthHeader: url => new URL(url).pathname.startsWith('/team/') ? 'Bearer fixture' : undefined,
+    })
+    expect(await response.text()).toBe('ok')
+  } finally {
+    await teardownMockAgent()
+  }
+})
+
 test.each([307, 308])('request body is not replayed across origins after HTTP %s redirect', async status => {
   setupMockAgent()
   try {

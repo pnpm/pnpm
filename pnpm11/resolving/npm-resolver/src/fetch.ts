@@ -12,7 +12,7 @@ import {
   redactUrlCredentials,
   redactUrlForDisplay,
 } from '@pnpm/error'
-import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import * as retry from '@zkochan/retry'
@@ -131,6 +131,7 @@ function consumeTrailingDigits (text: string, end: number): number {
 
 export interface FetchMetadataFromFromRegistryOptions {
   fetch: FetchFromRegistry
+  getAuthHeader?: GetAuthHeader
   retry: RetryTimeoutOptions
   timeout: number
   fetchWarnTimeoutMs: number
@@ -244,6 +245,7 @@ async function requestMetadata (request: MetadataRequest): Promise<RegistryRespo
   const { fetchOpts, uri, cacheBypass, hasValidator } = request
   const requestOptions = {
     authHeaderValue: request.authHeaderValue,
+    getRedirectAuthHeader: (url: string) => fetchOpts.getAuthHeader?.(url, { pkgName: request.pkgName }),
     compress: true,
     fullMetadata: request.fullMetadata,
     ifNoneMatch: request.ifNoneMatch,

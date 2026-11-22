@@ -93,6 +93,8 @@ Exotic sources are useful for development but may pose supply chain risks when u
 
 ### Remote tarball
 
+pnpm sends registry credentials for tarball downloads over HTTPS or loopback HTTP. A redirect receives credentials only within the configured registry path on the same origin.
+
 The argument must be a fetchable URL starting with "http://" or "https://".
 
 Example:

@@ -106,7 +106,7 @@ pub(super) fn resolve_projects_options(
             // Only the caller's identity to pnpr is sent. Upstream registry
             // credentials are never forwarded: pnpr selects them from its own
             // route policy, so they stay out of the request body.
-            authorization: state.config.auth_headers.for_url(pnpr_server),
+            authorization: state.config.auth_headers.for_secure_url(pnpr_server),
         },
         transforms: pnpm_pnpr_client::ManifestTransforms {
             overrides: inputs.overrides.take(),

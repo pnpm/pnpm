@@ -263,7 +263,7 @@ async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
         .build()
         .unwrap();
     let client = ThrottledClient::from_clients(client, no_redirects);
-    let mut auth = AuthHeaders::default().with_secure_transport();
+    let mut auth = AuthHeaders::default();
     auth.insert_url_header(
         &format!("https://registry.example:{}/simple/", address.port()),
         "Basic secret".to_string(),

@@ -140,6 +140,7 @@ pub type DepMap = BTreeMap<String, String>;
 #[must_use]
 pub struct PnprClient {
     http: Client,
+    authenticated_http: tokio::sync::OnceCell<Client>,
     base_url: String,
     artifact_request_timeout: Duration,
     capability: tokio::sync::OnceCell<HandshakeCapability>,
@@ -555,11 +556,13 @@ pub struct CargoResolveOptions {
 impl PnprClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         let mut base_url = base_url.into();
+        pnpm_network::strip_insecure_url_credentials(&mut base_url);
         if !base_url.ends_with('/') {
             base_url.push('/');
         }
         PnprClient {
             http: Client::new(),
+            authenticated_http: tokio::sync::OnceCell::new(),
             base_url,
             artifact_request_timeout: ARTIFACT_REQUEST_TIMEOUT,
             capability: tokio::sync::OnceCell::new(),
@@ -676,6 +679,7 @@ mod blob_transfer;
 mod pipeline_runs;
 use artifacts::ARTIFACT_REQUEST_TIMEOUT;
 
+mod resolution_request;
 mod resolve;
 use resolve::{
     NdjsonLimits,

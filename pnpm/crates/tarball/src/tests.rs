@@ -13,7 +13,6 @@ use super::{
     TarLimits,
     archive_integrity::ArchiveVerification,
     archive_retry::is_transient_error,
-    auth_header_for_package_download,
     download::{
         IngestTarballToStore,
         download_priority,

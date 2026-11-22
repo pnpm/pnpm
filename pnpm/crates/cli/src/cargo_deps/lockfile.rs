@@ -265,7 +265,7 @@ pub(super) async fn resolve_via_pnpr_with_preferences(
         metadata,
         preferred_versions: preferred_versions.clone(),
         registry: config.cargo_index_url().to_string(),
-        authorization: config.auth_headers.for_url(pnpr_server),
+        authorization: config.auth_headers.for_secure_url(pnpr_server),
     })
     .await;
     match resolved {

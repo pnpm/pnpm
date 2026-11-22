@@ -1,12 +1,16 @@
 use std::{
     collections::BTreeMap,
-    sync::Arc,
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 use dashmap::DashMap;
 use pipe_trait::Pipe;
 use pnpm_package_manifest::PackageBin;
 use tokio::sync::{
+    Mutex,
     Notify,
     RwLock,
 };
@@ -70,12 +74,41 @@ pub enum CacheValue {
     Failed(Arc<str>),
 }
 
+type AddArchive = Arc<Mutex<Option<Box<crate::download::ExtractedArchive>>>>;
+
 /// Internal in-memory cache of tarballs.
 ///
 /// Ordinary package entries retain their tarball URL key. Revision-addressed
 /// fetches and projections that produce different file sets add a discriminator
 /// so incompatible network policies or archive views never share a result.
-pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
+#[derive(Debug, Default, derive_more::Deref)]
+pub struct MemCache {
+    #[deref]
+    entries: DashMap<String, Arc<RwLock<CacheValue>>>,
+    pub(crate) add_archives: OnceLock<DashMap<String, AddArchive>>,
+}
+
+impl MemCache {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) async fn take_add_archive(
+        &self,
+        url: &str,
+    ) -> Option<Box<crate::download::ExtractedArchive>> {
+        let (_, slot) = self.add_archives.get()?.remove(url)?;
+        slot.lock().await.take()
+    }
+
+    #[must_use]
+    pub fn has_add_archive(&self, url: &str) -> bool {
+        self.add_archives
+            .get()
+            .is_some_and(|archives| archives.contains_key(url))
+    }
+}
 
 pub(crate) enum CacheSlotClaim<'a> {
     Claimed(CacheClaimGuard<'a>),

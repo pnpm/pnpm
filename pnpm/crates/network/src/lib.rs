@@ -27,6 +27,7 @@ pub use auth::{
     redact_npm_auth_key,
     redact_url_credentials,
     redact_url_for_display,
+    strip_insecure_url_credentials,
 };
 pub use certificates::bundled_root_certs;
 pub use client_builder::{
@@ -55,7 +56,11 @@ pub use redirect_guard::{
     is_blocked_redirect,
     origins_redirect_guard,
 };
-pub use requests::HeadError;
+pub use requests::{
+    HeadError,
+    ScopedGetOptions,
+    scoped_redirect_auth,
+};
 pub use retry::{
     RetryOpts,
     retry_async,

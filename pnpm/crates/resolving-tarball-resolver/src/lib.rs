@@ -6,12 +6,8 @@
 //!   through `url::Url` so a redundant default port
 //!   (`registry.npmjs.org:443`) is dropped before it reaches the
 //!   lockfile.
-//! - **Immutable-redirect follow.** A HEAD request runs against the
-//!   normalized URL; if the response carries `cache-control:
-//!   immutable`, the *post-redirect* URL is stored in the
-//!   resolution. Mutable hosts (e.g. `github.com/.../tarball/master`)
-//!   keep the original URL so subsequent installs revalidate the
-//!   moving target.
+//! - **Immutable redirects.** A successful immutable response pins the final
+//!   URL in the lockfile. Mutable responses keep the requested URL.
 //!
 //! Because pacquet builds the lockfile *before* the install/fetch
 //! pass, for a remote (non-registry) tarball *direct* dependency the
