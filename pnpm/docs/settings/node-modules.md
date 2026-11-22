@@ -383,7 +383,7 @@ Using a global virtual store can speed up installations when a warm cache is ava
 
 To support hoisted dependencies when using a global virtual store, pnpm relies on the `NODE_PATH` environment variable. This allows Node.js to resolve packages from the hoisted `node_modules` directory. Node.js does not respect `NODE_PATH` for ESM imports, so every process pnpm spawns for the project (`pnpm run`, `pnpm exec`, lifecycle scripts, and the tools `pnpm dlx` runs) receives both `NODE_PATH` and a `NODE_OPTIONS` `--import` flag that registers a resolve hook restoring `NODE_PATH` lookups for ESM. A dependency that imports a package **not declared in its own `package.json`** (which is considered bad practice) resolves for CommonJS and ESM alike.
 
-A `node` process started outside pnpm does not inherit these settings. Setting [`extendNodePath`](./other.md#extendnodepath) to `false` disables both `NODE_PATH` support and the resolve hook. Use [packageExtensions] to declare missing dependencies in either case. This also helps [TypeScript resolve undeclared imports](../global-virtual-store.md#limitations).
+When you start `node` outside pnpm, or set [`extendNodePath`](./other.md#extendnodepath) to `false`, pnpm does not add the global virtual store's `NODE_PATH` entries or ESM resolve hook to the process environment. Use [packageExtensions] to declare missing dependencies in either case. This also helps [TypeScript resolve undeclared imports](../global-virtual-store.md#limitations).
 
 :::
 
