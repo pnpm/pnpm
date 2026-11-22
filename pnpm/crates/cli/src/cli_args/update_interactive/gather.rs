@@ -29,7 +29,7 @@ pub(super) struct ChoiceFilter<'a> {
 }
 
 pub(super) async fn gather_choices_for_projects<Reporter: self::Reporter>(
-    projects: &[InteractiveUpdateProject<'_>],
+    projects: (&[InteractiveUpdateProject<'_>], &[std::path::PathBuf]),
     root: &Path,
     lockfile: Option<&Lockfile>,
     config: &Config,
@@ -90,7 +90,7 @@ async fn append_github_actions<Reporter: self::Reporter>(
 }
 
 pub(super) async fn collect_filtered_choices(
-    projects: &[InteractiveUpdateProject<'_>],
+    (projects, standalone_dirs): (&[InteractiveUpdateProject<'_>], &[std::path::PathBuf]),
     lockfile: Option<&Lockfile>,
     config: &Config,
     http_client: &Arc<ThrottledClient>,
@@ -113,7 +113,7 @@ pub(super) async fn collect_filtered_choices(
     };
     let run = OutdatedRun::new(config, Arc::clone(http_client), &query)?
         .with_raw_packages(normalize_choice_selectors(filter.package_selectors));
-    let choices = futures_util::future::join_all(
+    let mut choices = futures_util::future::join_all(
         projects
             .iter()
             .map(|project| {
@@ -127,6 +127,11 @@ pub(super) async fn collect_filtered_choices(
             }),
     )
     .await;
+    for dir in standalone_dirs {
+        let (_, outdated) =
+            crate::cli_args::outdated::standalone_project_outdated(dir, &query, &run).await?;
+        choices.push(Ok(outdated));
+    }
     unique_choices(choices)
 }
 

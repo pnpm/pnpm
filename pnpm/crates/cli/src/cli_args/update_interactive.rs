@@ -226,7 +226,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
 ) -> miette::Result<Option<Vec<String>>> {
     let projects = [InteractiveUpdateProject { manifest, importer_id: importer_id.to_string() }];
     let choices = gather_choices_for_projects::<Reporter>(
-        &projects,
+        (&projects, &[]),
         root,
         lockfile,
         config,
@@ -246,7 +246,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
 
 pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
     root: &Path,
-    selection: &InstallFamilySelection,
+    (selection, standalone_dirs): (&InstallFamilySelection, &[std::path::PathBuf]),
     lockfile: Option<&Lockfile>,
     config: &Config,
     http_client: &Arc<ThrottledClient>,
@@ -264,7 +264,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         })
         .collect::<Vec<_>>();
     let choices = gather_choices_for_projects::<Reporter>(
-        &projects,
+        (&projects, standalone_dirs),
         root,
         lockfile,
         config,

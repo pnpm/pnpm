@@ -156,19 +156,27 @@ async fn collect_standalone_ecosystem_outdated(
 ) -> miette::Result<Vec<miette::Result<(Vec<OutdatedPackage>, DependentProject)>>> {
     let mut project_results = Vec::new();
     for dir in dirs {
-        if requires_ecosystem_lockfile(dir, &run.config, query, &run.raw_packages)? {
-            return Err(no_lockfile_error(dir));
-        }
-        let name = ecosystem_project_name(dir, &run.config)
-            .unwrap_or_else(|| dir.to_string_lossy().into_owned());
-        let outdated =
-            collect_ecosystem_outdated(dir, Some(name.clone()), query, &run.raw_packages, run)
-                .await?;
+        let (name, outdated) = standalone_project_outdated(dir, query, run).await?;
         if !outdated.is_empty() {
             project_results.push(Ok((outdated, DependentProject { name, location: dir.clone() })));
         }
     }
     Ok(project_results)
+}
+
+pub(crate) async fn standalone_project_outdated(
+    dir: &std::path::Path,
+    query: &OutdatedQuery<'_>,
+    run: &OutdatedRun,
+) -> miette::Result<(String, Vec<OutdatedPackage>)> {
+    if requires_ecosystem_lockfile(dir, &run.config, query, &run.raw_packages)? {
+        return Err(no_lockfile_error(dir));
+    }
+    let name = ecosystem_project_name(dir, &run.config)
+        .unwrap_or_else(|| dir.to_string_lossy().into_owned());
+    let outdated =
+        collect_ecosystem_outdated(dir, Some(name.clone()), query, &run.raw_packages, run).await?;
+    Ok((name, outdated))
 }
 
 pub(super) struct ProjectOutdatedInputs<'a> {

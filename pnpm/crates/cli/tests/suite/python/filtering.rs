@@ -460,3 +460,18 @@ async fn dedicated_recursive_update_validates_explicit_requests_across_projects(
     assert!(installed(root.path(), "one"));
     assert!(!installed(root.path(), "two"));
 }
+
+#[test]
+fn interactive_update_checks_the_selected_standalone_project() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://example.invalid", &[]);
+    fs::remove_file(root.path().join("pyproject.toml")).unwrap();
+    requirements_project(root.path(), "one", &["alpha>=1"]);
+    let failure = pacquet_in(root.path())
+        .with_args(["--filter", "one", "update", "--interactive", "pypi:alpha"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&failure.get_output().stderr);
+    assert!(stderr.contains("No lockfile in directory"), "{stderr}");
+    assert!(stderr.contains("one"), "{stderr}");
+}

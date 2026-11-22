@@ -205,7 +205,7 @@ impl UpdateArgs {
     async fn prompted_or_given_for_projects<Reporter: self::Reporter + 'static>(
         &self,
         state: &State,
-        selection: &InstallFamilySelection,
+        selection: (&InstallFamilySelection, &[std::path::PathBuf]),
         lockfile: Option<&pnpm_lockfile::Lockfile>,
         actions_root: &Path,
         prompt: InteractiveUpdateOptions<'_>,

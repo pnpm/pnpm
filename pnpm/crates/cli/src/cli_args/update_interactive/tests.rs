@@ -73,7 +73,7 @@ pub(super) async fn collect_choices(
     details: UpdateDetails,
 ) -> miette::Result<Vec<OutdatedPackage>> {
     collect_filtered_choices(
-        projects,
+        (projects, &[]),
         lockfile,
         config,
         http_client,

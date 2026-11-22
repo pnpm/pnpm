@@ -20,6 +20,8 @@ pub(crate) use render::{
     render_trust_change,
 };
 
+pub(crate) use workspace::standalone_project_outdated;
+
 use crate::{
     State,
     cli_args::{

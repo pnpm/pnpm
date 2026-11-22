@@ -326,7 +326,7 @@ impl UpdateArgs {
             Some(selection) => {
                 self.prompted_or_given_for_projects::<Reporter>(
                     state,
-                    selection,
+                    (selection, &inputs.standalone_dirs),
                     lockfile,
                     &inputs.actions_root,
                     prompt,
