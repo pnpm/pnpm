@@ -280,7 +280,7 @@ fn force_symlink_inner(
 }
 
 /// Read the entry a link create conflicted with. On Windows this waits out a
-/// link another process is still creating, see [`windows::read_settled_link`].
+/// link another process is still creating.
 fn read_conflicting_link(link: &Path) -> io::Result<PathBuf> {
     #[cfg(windows)]
     return windows::read_settled_link(link);

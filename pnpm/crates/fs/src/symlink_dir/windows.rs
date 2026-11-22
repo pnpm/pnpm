@@ -189,11 +189,10 @@ pub(super) fn read_settled_link(link: &Path) -> io::Result<PathBuf> {
 /// has become a link since a read found it was not one. A link lists its
 /// target's entries, so the tag is read after the listing.
 fn may_become_link(path: &Path) -> bool {
-    let may_be_half_created = fs::read_dir(path)
-        .map_or_else(
-            |error| crate::retry::is_transient_file_lock_error(&error),
-            |mut entries| entries.next().is_none(),
-        );
+    let may_be_half_created = match fs::read_dir(path) {
+        Ok(mut entries) => entries.next().is_none(),
+        Err(error) => crate::retry::is_transient_file_lock_error(&error),
+    };
     may_be_half_created || reparse_tag(path).is_some()
 }
 
