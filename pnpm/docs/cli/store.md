@@ -96,11 +96,12 @@ Keeping an index entry does not preserve its unreferenced files. A later install
 downloads the package again if it cannot reuse the stored files.
 
 `pnpm store prune` keeps the wheels and source distributions that the
-`pylock.toml` of an installed Python project pins, so a later
-`pnpm install --offline` can recreate the environment. An install registers
+`pylock.toml` of each registered Python project pins, so a later
+`pnpm install --offline` can recreate its environment. An install registers
 each Python project that has an environment, even one whose store is inside
-it. An install with `frozenStore` registers none. Pruning stops if a
-registered project's `pylock.toml` cannot be parsed.
+it, unless `frozenStore` is enabled. A project installed by an earlier pnpm
+version is registered on its next install. Pruning stops if a registered
+project's `pylock.toml` cannot be parsed.
 
 `pnpm store prune` fails with `ERR_PNPM_FROZEN_STORE_WRITE` when
 [`frozenStore`](../settings/store.md#frozenstore) is enabled.
