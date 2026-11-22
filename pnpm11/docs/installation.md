@@ -54,10 +54,11 @@ wget -qO- https://get.pnpm.io/install.sh | env PNPM_VERSION=latest-11 sh -
 
 :::info Linux runtime requirements
 
-The install script picks a glibc or musl build based on your system's libc. A separate musl build is provided for Alpine and other musl-based distros on x64. The glibc build requires glibc 2.27 or newer plus `libatomic.so.1`. Both are present on most full distros but may be missing from minimal container images. If you see `error while loading shared libraries: libatomic.so.1`, install it with your distro's package manager:
+The install script picks a glibc or musl build based on your system's libc. A separate musl build is provided for Alpine and other musl-based distros on x64. The glibc build requires glibc 2.27 or newer plus `libatomic.so.1`. The musl build also requires `libatomic.so.1`. These are present on most full distros but may be missing from minimal container images. If you see `error while loading shared libraries: libatomic.so.1`, install it with your distro's package manager:
 
 - Debian/Ubuntu: `apt-get install -y libatomic1`
 - Fedora/RHEL: `dnf install -y libatomic`
+- Alpine: `apk add libatomic`
 
 :::
 
