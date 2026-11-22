@@ -1,9 +1,11 @@
+pub(super) use reach::Reached;
 use std::collections::{
     HashMap,
     HashSet,
 };
 
 use importer_seed::{
+    ImporterSeedBuffers,
     ImporterSeedCtx,
     finish_importer_scope,
     seed_importer,
@@ -22,7 +24,6 @@ use pnpm_lockfile::{
     is_tarball_filename,
 };
 use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
-pub(super) use reach::Reached;
 use reach::{
     SnapshotGraph,
     Stamps,
@@ -63,21 +64,7 @@ pub(super) struct AuthorizedLocalRoots<'a> {
 impl<'a> AuthorizedLocalRoots<'a> {
     pub(super) fn collect(lockfile: &'a Lockfile, policy: &LocalResolutionPolicy) -> Self {
         let workspace_dirs = collect_workspace_importer_dirs(lockfile, policy);
-        let lockfile_importer_dirs = collect_lockfile_importer_dirs(lockfile);
-        let snapshots_by_base = index_local_snapshots(lockfile);
-        let seeds: Vec<_> = active_importers(lockfile, policy, &workspace_dirs)
-            .into_iter()
-            .map(|(imp_id, imp_snap)| {
-                let seed_ctx = ImporterSeedCtx {
-                    lockfile,
-                    policy,
-                    workspace_dirs: &workspace_dirs,
-                    lockfile_importer_dirs: &lockfile_importer_dirs,
-                    importer_id: &imp_id,
-                };
-                seed_importer(&seed_ctx, imp_snap)
-            })
-            .collect();
+        let seeds = seed_active_importers(lockfile, policy, &workspace_dirs);
         let all_seeds = || seeds.iter().flat_map(|bufs| &bufs.all_seed);
         let graph = SnapshotGraph::build(lockfile, all_seeds());
         let reached = graph.reach_all(all_seeds());
@@ -89,8 +76,30 @@ impl<'a> AuthorizedLocalRoots<'a> {
                 finish_importer_scope(lockfile, bufs, relevant)
             })
             .collect();
+        let snapshots_by_base = index_local_snapshots(lockfile);
         Self { workspace_dirs, importers, reached, snapshots_by_base }
     }
+}
+
+fn seed_active_importers(
+    lockfile: &Lockfile,
+    policy: &LocalResolutionPolicy,
+    workspace_dirs: &HashSet<String>,
+) -> Vec<ImporterSeedBuffers> {
+    let lockfile_importer_dirs = collect_lockfile_importer_dirs(lockfile);
+    active_importers(lockfile, policy, workspace_dirs)
+        .into_iter()
+        .map(|(imp_id, imp_snap)| {
+            let seed_ctx = ImporterSeedCtx {
+                lockfile,
+                policy,
+                workspace_dirs,
+                lockfile_importer_dirs: &lockfile_importer_dirs,
+                importer_id: &imp_id,
+            };
+            seed_importer(&seed_ctx, imp_snap)
+        })
+        .collect()
 }
 
 pub(super) fn is_snapshot_backed_by_local_resolution(
