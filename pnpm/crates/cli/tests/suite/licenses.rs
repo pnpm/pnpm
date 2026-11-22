@@ -1118,3 +1118,143 @@ snapshots:
 }
 
 mod named_registries;
+
+#[test]
+fn licenses_reads_cached_metadata_without_node_modules() {
+    let CommandTempCwd {
+        root: _root,
+        workspace,
+        npmrc_info: _registry,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "dependencies": { "@pnpm.e2e/legacy-license": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    for args in [["install", "--lockfile-only"].as_slice(), ["fetch"].as_slice()] {
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+    }
+    let read_licenses = || {
+        let output = pacquet_in(&workspace)
+            .with_args(["licenses", "list", "--json"])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    let before = read_licenses();
+    assert_eq!(before["MIT"][0]["name"], "@pnpm.e2e/legacy-license");
+    if workspace.join("node_modules").exists() {
+        fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    }
+    let after = read_licenses();
+    assert_eq!(after, before);
+    assert!(!workspace.join("node_modules").exists());
+}
+
+#[test]
+fn licenses_reads_license_file_from_cached_local_tarball() {
+    for format in ["sqlite", "files"] {
+        let CommandTempCwd {
+            root,
+            workspace,
+            npmrc_info: _registry,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let package = root.path().join("archive-source");
+        fs::create_dir(&package).unwrap();
+        fs::write(
+            package.join("package.json"),
+            json!({
+                "name": "cached-license-example", "version": "1.0.0",
+                "license": "SEE LICENSE IN LICENSE", "description": "Cached package details",
+            })
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(package.join("LICENSE"), "MIT License").unwrap();
+        pacquet_in(&package)
+            .with_args(["pack", "--pack-destination"])
+            .with_arg(&workspace)
+            .assert()
+            .success();
+        fs::write(workspace.join("package.json"), json!({
+            "dependencies": { "cached-license-example": "file:cached-license-example-1.0.0.tgz" },
+        }).to_string()).unwrap();
+        let config_path = workspace.join("pnpm-workspace.yaml");
+        let config = fs::read_to_string(&config_path).unwrap_or_default();
+        let config = format!("{config}\nstoreIndexFormat: {format}\n");
+        fs::write(&config_path, &config).unwrap();
+        pacquet_in(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        assert!(!workspace.join("node_modules").exists());
+        pacquet_in(&workspace)
+            .with_arg("fetch")
+            .assert()
+            .success();
+        if workspace.join("node_modules").exists() {
+            fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+        }
+        fs::write(&config_path, format!("{config}frozenStore: true\n")).unwrap();
+        let output = pacquet_in(&workspace)
+            .with_args(["licenses", "list", "--json"])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let parsed: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(parsed["MIT"][0]["name"], "cached-license-example", "{parsed}");
+        assert_eq!(parsed["MIT"][0]["description"], "Cached package details");
+        assert!(!workspace.join("node_modules").exists());
+    }
+}
+
+#[test]
+fn licenses_reads_cached_git_metadata() {
+    use pnpm_testing_utils::git_repo::GitRepoFixture;
+
+    for ignore_scripts in [false, true] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();
+        let repo = GitRepoFixture::init(root.path(), "cached-git-example");
+        repo.write_file(
+            "package.json",
+            r#"{"name":"cached-git-example","version":"1.0.0","license":"SEE LICENSE IN LICENSE"}"#,
+        );
+        repo.write_file("LICENSE", "MIT License");
+        let commit = repo.commit("init");
+        fs::write(
+            workspace.join("package.json"),
+            json!({
+                "dependencies": { "cached-git-example": repo.git_url_at(&commit) },
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let args =
+            if ignore_scripts { vec!["install", "--ignore-scripts"] } else { vec!["install"] };
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+        let mut args = vec!["licenses", "list", "--json"];
+        if ignore_scripts {
+            args.push("--ignore-scripts");
+        }
+        let output = pacquet_in(&workspace)
+            .with_args(args)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let parsed: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(parsed["MIT"][0]["name"], "cached-git-example", "{parsed}");
+    }
+}

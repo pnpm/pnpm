@@ -1,5 +1,8 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { type StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { ReadOnlyStoreIndex, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DependencyManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -26,4 +29,9 @@ export function readManifestFromCafs (storeDir: string, storeIndex: StoreIndex, 
     // Fall through to undefined
   }
   return undefined
+}
+
+export function openInspectionStoreIndex (storeDir: string | undefined): StoreIndex | undefined {
+  if (!storeDir || !['index.db', 'index.fallback'].some(name => fs.existsSync(path.join(storeDir, name)))) return undefined
+  return new ReadOnlyStoreIndex(storeDir)
 }

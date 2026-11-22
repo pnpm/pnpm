@@ -423,8 +423,14 @@ export class StoreIndex {
  */
 export class ReadOnlyStoreIndex extends StoreIndex {
   protected override openDatabase (storeDir: string): void {
-    this.db = this.openConnection(storeDir)
-    this.db.prepare('PRAGMA busy_timeout=5000').run()
+    const sqlitePath = path.join(storeDir, 'index.db')
+    const hasSqliteDatabase = fs.existsSync(sqlitePath) && fs.statSync(sqlitePath).size > 0
+    if (!hasSqliteDatabase && fs.existsSync(path.join(storeDir, 'index.fallback'))) {
+      this.db = createFallbackDatabase(storeDir)
+    } else {
+      this.db = adaptStoreDatabase(this.openConnection(storeDir), storeDir)
+      this.db.prepare('PRAGMA busy_timeout=5000').run()
+    }
   }
 
   protected override openConnection (storeDir: string): DatabaseSyncType {

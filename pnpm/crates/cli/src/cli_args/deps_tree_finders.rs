@@ -4,6 +4,7 @@
 //! pnpmfile Node worker, so their verdicts are gathered up front and
 //! the synchronous tree walk consults the recorded results.
 
+use super::stored_package::StoredPackageReader;
 use pnpm_config::Config;
 use pnpm_deps_inspection::{
     TreeNodeId,
@@ -17,11 +18,7 @@ use pnpm_deps_inspection::{
 };
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::parse_manifest_bytes;
-use pnpm_store_dir::{
-    StoreDir,
-    StoreIndex,
-    store_index_key,
-};
+
 use std::{
     collections::HashMap,
     path::Path,
@@ -179,17 +176,17 @@ fn edge_candidate<'a>(
 /// several finders return one), truthy results a plain match.
 pub(crate) async fn evaluate_finders(
     env: &PkgInfoEnv<'_>,
+    frozen_store: bool,
     finders: &[FinderHandle],
     candidates: Vec<(String, Option<TreeNodeId>, ManifestSource)>,
 ) -> miette::Result<HashMap<(String, Option<TreeNodeId>), SearchMatch>> {
     let store_index = env.layout.store_dir
         .as_ref()
-        .map(|store_dir| StoreIndex::open_readonly(store_dir))
-        .and_then(Result::ok);
+        .and_then(|store_dir| StoredPackageReader::open(store_dir.clone(), frozen_store));
 
     let mut results = HashMap::new();
     for (alias, node_id, source) in candidates {
-        let manifest = read_manifest(env, store_index.as_ref(), &source);
+        let manifest = read_manifest(store_index.as_ref(), &source);
         let ctx = serde_json::json!({
             "alias": alias,
             "name": source.name,
@@ -255,11 +252,10 @@ fn truthy(value: &serde_json::Value) -> bool {
 /// (available even when `node_modules` was never materialized) and
 /// falling back to the package directory.
 fn read_manifest(
-    env: &PkgInfoEnv<'_>,
-    store_index: Option<&StoreIndex>,
+    store_index: Option<&StoredPackageReader>,
     source: &ManifestSource,
 ) -> serde_json::Value {
-    if let Some(manifest) = read_manifest_from_cafs(env, store_index, source) {
+    if let Some(manifest) = read_manifest_from_cafs(store_index, source) {
         return manifest;
     }
     std::fs::read(source.path.join("package.json"))
@@ -269,21 +265,13 @@ fn read_manifest(
 }
 
 fn read_manifest_from_cafs(
-    env: &PkgInfoEnv<'_>,
-    store_index: Option<&StoreIndex>,
+    store_index: Option<&StoredPackageReader>,
     source: &ManifestSource,
 ) -> Option<serde_json::Value> {
     let store_index = store_index?;
     let integrity = source.integrity.as_deref()?;
-    let store_dir = StoreDir::new(env.layout.store_dir.as_ref()?.clone());
     let pkg_id = format!("{}@{}", source.name, source.version);
-    let index = store_index
-        .get(&store_index_key(integrity, &pkg_id))
-        .ok()??;
-    let manifest_entry = index.files.get("package.json")?;
-    let manifest_path =
-        store_dir.cas_file_path_by_mode(&manifest_entry.digest, manifest_entry.mode)?;
-    std::fs::read(manifest_path)
-        .ok()
-        .and_then(|bytes| parse_manifest_bytes(&bytes).ok())
+    store_index
+        .package(pnpm_store_dir::store_index_key(integrity, &pkg_id))
+        .manifest()
 }

@@ -1,3 +1,7 @@
+use super::stored_package::{
+    StoredPackage,
+    StoredPackageReader,
+};
 use crate::cli_args::{
     deps_tree::{
         dep_types::{
@@ -184,7 +188,7 @@ impl LicensesArgs {
         let LicensedPackages { package_dirs, dependencies } =
             LicensedPackages::collect(config, dir, recursive, include)?;
 
-        let results_by_license = group_by_license(&package_dirs, dependencies).await;
+        let results_by_license = group_by_license(&package_dirs, dependencies, config).await;
 
         if self.json {
             pnpm_diagnostics::println!("{}", render_licenses_json(&results_by_license)?);
@@ -236,7 +240,10 @@ fn check_licenses_subcommand(subcommand: Option<&str>) -> Result<(), LicensesErr
 async fn group_by_license(
     package_dirs: &[PackageDirs],
     dependencies: Vec<(usize, LicensedDependency)>,
+    config: &Config,
 ) -> LicensesByGroup {
+    let store =
+        StoredPackageReader::open(config.store_dir.root().to_path_buf(), config.frozen_store);
     let mut results_by_license = LicensesByGroup::new();
     for (lockfile_index, dependency) in dependencies {
         let dirs = package_dirs[lockfile_index].package_dirs(
@@ -244,8 +251,11 @@ async fn group_by_license(
             &dependency.name,
             &dependency.version,
         );
+        let cached = store
+            .as_ref()
+            .and_then(|store| Some(store.package(dependency.store_key.clone()?)));
         for pkg_dir in dirs.iter() {
-            record_license(&mut results_by_license, &dependency, pkg_dir).await;
+            record_license(&mut results_by_license, &dependency, pkg_dir, cached.as_ref()).await;
         }
     }
     results_by_license
@@ -255,8 +265,9 @@ async fn record_license(
     results_by_license: &mut LicensesByGroup,
     dependency: &LicensedDependency,
     pkg_dir: &std::path::Path,
+    cached: Option<&StoredPackage<'_>>,
 ) {
-    let details = read_license_details(pkg_dir, &dependency.name).await;
+    let details = read_license_details(pkg_dir, &dependency.name, cached).await;
     let path_str = pkg_dir.to_string_lossy().to_string();
 
     let license_group = results_by_license.entry(details.license.clone()).or_default();
@@ -319,11 +330,17 @@ struct LicenseDetails {
 
 /// The package's declared license, falling back to a license file in its
 /// directory when the manifest declares none or defers to one.
-async fn read_license_details(pkg_dir: &std::path::Path, name: &str) -> LicenseDetails {
+async fn read_license_details(
+    pkg_dir: &std::path::Path,
+    name: &str,
+    cached: Option<&StoredPackage<'_>>,
+) -> LicenseDetails {
     let manifest = if is_unsafe_path_component(name) {
         None
     } else {
-        safe_read_package_json_from_dir(pkg_dir).unwrap_or(None)
+        safe_read_package_json_from_dir(pkg_dir)
+            .unwrap_or(None)
+            .or_else(|| cached.and_then(StoredPackage::manifest))
     };
     let Some(manifest) = manifest else {
         return LicenseDetails {
@@ -335,9 +352,11 @@ async fn read_license_details(pkg_dir: &std::path::Path, name: &str) -> LicenseD
     };
     let license = match extract_license(&manifest) {
         Some(license) if !license.to_ascii_lowercase().contains("see license") => license,
-        manifest_license => license_resolver::resolve_license_from_dir(manifest_license, pkg_dir)
-            .await
-            .unwrap_or_else(|| "Unknown".to_string()),
+        manifest_license => {
+            license_resolver::resolve_license_from_dir(manifest_license, pkg_dir, cached)
+                .await
+                .unwrap_or_else(|| "Unknown".to_string())
+        }
     };
     LicenseDetails {
         license,

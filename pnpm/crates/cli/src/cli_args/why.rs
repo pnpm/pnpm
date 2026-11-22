@@ -233,7 +233,7 @@ impl WhyArgs {
                 bound_peer_edges: self.bound_peer_edges(),
             },
         );
-        let searcher = self.searcher(&env, &graph, finders).await?;
+        let searcher = self.searcher(&env, &graph, finders, config.frozen_store).await?;
         Ok(Some(build_dependents_tree(&BuildDependentsOptions {
             env: &env,
             graph: &graph,
@@ -267,11 +267,12 @@ impl WhyArgs {
         env: &PkgInfoEnv<'_>,
         graph: &DependencyGraph,
         finders: &[FinderHandle],
+        frozen_store: bool,
     ) -> miette::Result<Searcher> {
         let mut searcher = Searcher::from_queries(&self.packages)?;
         if !finders.is_empty() {
             let candidates = finder_candidates(env, graph);
-            let results = evaluate_finders(env, finders, candidates).await?;
+            let results = evaluate_finders(env, frozen_store, finders, candidates).await?;
             searcher.set_finder_results(results);
         }
         Ok(searcher)

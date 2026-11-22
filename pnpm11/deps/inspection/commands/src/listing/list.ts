@@ -10,7 +10,7 @@ import type { Finder, IncludedDependencies, Project } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
-import { BASE_RC_OPTION_KEYS, computeInclude, determineReportAs, resolveFinders, SHARED_CLI_HELP_OPTIONS } from './common.js'
+import { BASE_RC_OPTION_KEYS, computeInclude, determineReportAs, resolveFinders, resolveInspectionStoreDir, SHARED_CLI_HELP_OPTIONS } from './common.js'
 import { listRecursive } from './recursive.js'
 
 export const EXCLUDE_PEERS_HELP = {
@@ -114,13 +114,16 @@ export type ListCommandOptions = Pick<Config,
   parseable?: boolean
   onlyProjects?: boolean
   recursive?: boolean
+  getStoreDir?: () => Promise<string | undefined>
   findBy?: string[]
-} & Partial<Pick<Config, 'global' | 'globalPkgDir' | 'packageConfigs'>>
+} & Partial<Pick<Config, 'global' | 'globalPkgDir' | 'packageConfigs' | 'storeDir' | 'pnpmHomeDir' | 'workspaceDir'>>
 
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
+  const storeOptions = opts
+  opts = { ...opts, storeDir: undefined, getStoreDir: () => resolveInspectionStoreDir(storeOptions) }
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.global && opts.globalPkgDir) {
@@ -264,6 +267,8 @@ interface RenderOptions {
   workspaceProjectPublishDirs?: Record<string, string>
   parseable?: boolean
   modulesDir?: string
+  storeDir?: string
+  getStoreDir?: () => Promise<string | undefined>
   resolvePeersFromWorkspaceRoot?: boolean
   virtualStoreDirMaxLength: number
   finders?: Record<string, Finder>
@@ -288,6 +293,8 @@ function getListOptions (opts: RenderOptions) {
     showExtraneous: false,
     showSummary: true,
     modulesDir: opts.modulesDir,
+    storeDir: opts.storeDir,
+    getStoreDir: opts.getStoreDir,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     finders,

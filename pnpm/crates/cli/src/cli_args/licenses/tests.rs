@@ -471,13 +471,14 @@ async fn license_report_keeps_newest_metadata_and_every_installed_version() {
         )
         .unwrap();
         let dependency = LicensedDependency {
+            store_key: None,
             key: format!("alpha@{version}").parse().unwrap(),
             belongs_to: BelongsTo::Prod,
             name: "alpha".to_string(),
             version: version.to_string(),
             registry_name: None,
         };
-        record_license(&mut groups, &dependency, &dir).await;
+        record_license(&mut groups, &dependency, &dir, None).await;
     }
     let info = &groups["MIT"][&("alpha".to_string(), None)];
     assert_eq!(info.author.as_deref(), Some("3.0.0"));
@@ -505,13 +506,14 @@ async fn license_report_separates_default_and_named_registry_packages() {
         )
         .unwrap();
         let dependency = LicensedDependency {
+            store_key: None,
             key: key_str.parse().unwrap(),
             belongs_to: BelongsTo::Prod,
             name: "alpha".to_string(),
             version: version.to_string(),
             registry_name,
         };
-        record_license(&mut groups, &dependency, &dir).await;
+        record_license(&mut groups, &dependency, &dir, None).await;
     }
 
     let mit = &groups["MIT"];

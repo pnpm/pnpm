@@ -97,7 +97,7 @@ pub(super) struct WalkStores {
     pub(super) components_map: IndexMap<String, SbomComponent>,
     pub(super) relationships: Vec<SbomRelationship>,
     pub(super) visited: HashSet<PackageKey>,
-    pub(super) ws_purl_by_importer: HashMap<String, String>,
+    pub(super) parent_purl_by_importer: HashMap<String, String>,
     pub(super) queue: Vec<String>,
     pub(super) visited_importers: HashSet<String>,
 }
@@ -107,10 +107,9 @@ struct ImporterWalk<'a> {
     components_map: &'a mut IndexMap<String, SbomComponent>,
     relationships: &'a mut Vec<SbomRelationship>,
     visited: &'a mut HashSet<PackageKey>,
-    /// The component purl each workspace importer resolved to, so a
-    /// linked sibling's own dependencies hang off it rather than off the
-    /// root.
-    ws_purl_by_importer: &'a mut HashMap<String, String>,
+    /// The parent purl for each importer: the root for selected importers,
+    /// its workspace component for importers reached only through links.
+    parent_purl_by_importer: &'a mut HashMap<String, String>,
     queue: &'a mut Vec<String>,
 }
 
@@ -130,7 +129,7 @@ fn collect_importer_components(
     importer: &pnpm_lockfile::ProjectSnapshot,
     walk: &mut ImporterWalk<'_>,
 ) -> miette::Result<()> {
-    let parent_purl = walk.ws_purl_by_importer
+    let parent_purl = walk.parent_purl_by_importer
         .get(importer_id)
         .cloned()
         .unwrap_or_else(|| inputs.root_purl.to_owned());
@@ -245,7 +244,7 @@ fn collect_linked_workspace_component(
             workspace_component(&ws_manifest, ws_name, ws_version, dev_only),
         );
     }
-    walk.ws_purl_by_importer.insert(target_id.clone(), ws_purl);
+    walk.parent_purl_by_importer.entry(target_id.clone()).or_insert(ws_purl);
     walk.queue.push(target_id);
     Ok(true)
 }
@@ -401,11 +400,14 @@ pub(super) fn walk_importer_components(
     inputs: &ImporterComponents<'_>,
     stores: &mut WalkStores,
 ) -> miette::Result<()> {
+    for importer_id in &stores.queue {
+        stores.parent_purl_by_importer.insert(importer_id.clone(), inputs.root_purl.to_owned());
+    }
     let mut walk = ImporterWalk {
         components_map: &mut stores.components_map,
         relationships: &mut stores.relationships,
         visited: &mut stores.visited,
-        ws_purl_by_importer: &mut stores.ws_purl_by_importer,
+        parent_purl_by_importer: &mut stores.parent_purl_by_importer,
         queue: &mut stores.queue,
     };
     while let Some(importer_id) = walk.queue.pop() {

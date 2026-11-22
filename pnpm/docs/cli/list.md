@@ -42,6 +42,10 @@ Show extended information. `pnpm ll` and `pnpm la` are shorthands for `pnpm list
 
 Read package information from the lockfile instead of checking the actual `node_modules` directory. This is useful for quickly inspecting what would be installed without requiring a full installation.
 
+With `--find-by`, finder callbacks can read manifests from the configured store
+even when `node_modules` is absent. Run `pnpm fetch` first if the packages have
+not been downloaded.
+
 ### --parseable
 
 Outputs package directories in a parseable format instead of their tree view.

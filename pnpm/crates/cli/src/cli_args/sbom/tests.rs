@@ -751,3 +751,85 @@ fn integrity_string_publishes_only_verified_hashes() {
     });
     assert_eq!(integrity_string(&git), None);
 }
+
+#[test]
+fn workspace_relationships_do_not_depend_on_importer_order() {
+    use super::walk::{
+        ImporterComponents,
+        TransitiveEdges,
+        WalkContext,
+        WalkStores,
+        walk_importer_components,
+    };
+    use std::collections::HashMap;
+
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["app", "shared"] {
+        let project = dir.path().join(name);
+        std::fs::create_dir(&project).unwrap();
+        std::fs::write(
+            project.join("package.json"),
+            serde_json::json!({"name": name, "version": "1.0.0"}).to_string(),
+        )
+        .unwrap();
+    }
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  app:
+    dependencies:
+      shared: {specifier: 'workspace:*', version: 'link:../shared'}
+  shared:
+    dependencies:
+      leaf: {specifier: '1.0.0', version: '1.0.0'}
+snapshots:
+  leaf@1.0.0: {}
+",
+    )
+    .unwrap();
+    let config = pnpm_config::Config::default();
+    let dep_types = HashMap::new();
+    let ctx = WalkContext {
+        snapshots: lockfile.snapshots.as_ref(),
+        packages: None,
+        dep_types: &dep_types,
+        registries: SanitizedRegistries::new(config.registry_context()),
+        virtual_store_dirs: &[],
+        virtual_store_dir_max_length: 120,
+        transitive: TransitiveEdges { include_optional: true, skipped_peer_edges: None },
+        installability: InstallabilityOptions::default(),
+    };
+    let inputs = ImporterComponents {
+        lockfile: &lockfile,
+        lockfile_dir: dir.path(),
+        include: super::IncludeFilter {
+            dependencies: true,
+            dev_dependencies: true,
+            optional_dependencies: true,
+        },
+        exclude_peers: false,
+        root_purl: "pkg:npm/root@1.0.0",
+        ctx: &ctx,
+    };
+    for (queue, parent) in [
+        (vec!["app", "shared"], "pkg:npm/root@1.0.0"),
+        (vec!["shared", "app"], "pkg:npm/root@1.0.0"),
+        (vec!["app"], "pkg:npm/shared@1.0.0"),
+    ] {
+        let mut stores = WalkStores {
+            queue: queue
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            ..Default::default()
+        };
+        walk_importer_components(&inputs, &mut stores).unwrap();
+        let parents = stores.relationships
+            .iter()
+            .filter(|edge| edge.to == "pkg:npm/leaf@1.0.0")
+            .map(|edge| edge.from.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(parents, [parent]);
+    }
+}
