@@ -1,7 +1,7 @@
 //! A modules directory linked with another store, virtual store, or layout
 //! version: `add`, `remove`, and `update` refuse it, and `install`
 //! recreates it. Mirrors `validateModules` and `checkCompatibility` in
-//! `pnpm11/installing/deps-installer/src/install/`.
+//! [`pnpm11/installing/deps-installer/src/install/`](https://github.com/pnpm/pnpm/tree/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/installing/deps-installer/src/install).
 
 use crate::_utils::{
     append_workspace_yaml_key,

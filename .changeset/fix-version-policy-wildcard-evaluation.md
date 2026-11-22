@@ -1,6 +1,4 @@
 ---
-"@pnpm/config.version-policy": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

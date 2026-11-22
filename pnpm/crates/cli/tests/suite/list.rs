@@ -344,8 +344,11 @@ fn list_only_projects_omits_unsaved_dependencies() {
 
 // --- ports of the TypeScript listing command tests ---------------------------
 //
-// Sources: pnpm11/deps/inspection/commands/test/listing/{index.ts,json.ts,
-// recursive.ts} and pnpm11/pnpm/test/list.ts.
+// Sources:
+// - https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/inspection/commands/test/listing/index.ts
+// - https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/inspection/commands/test/listing/json.ts
+// - https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/inspection/commands/test/listing/recursive.ts
+// - https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/test/list.ts
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const HELLO: &str = "@pnpm.e2e/hello-world-js-bin";

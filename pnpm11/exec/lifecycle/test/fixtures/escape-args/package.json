@@ -1,8 +1,0 @@
-{
-  "name": "issue-3907",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "echo": "node echo.js"
-  }
-}

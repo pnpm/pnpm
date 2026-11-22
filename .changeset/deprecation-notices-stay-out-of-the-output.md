@@ -1,14 +1,4 @@
 ---
-"@pnpm/core-loggers": major
-"@pnpm/resolving.resolver-base": minor
-"@pnpm/resolving.npm-resolver": minor
-"@pnpm/store.controller-types": minor
-"@pnpm/cli.default-reporter": patch
-"@pnpm/deps.inspection.commands": patch
-"@pnpm/installing.deps-resolver": patch
-"@pnpm/installing.package-requester": patch
-"@pnpm/text.sanitize": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

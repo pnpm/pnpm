@@ -7,7 +7,7 @@
 //! intent-file cleanup).
 //!
 //! The TypeScript counterpart is `@pnpm/releasing.versioning`
-//! (`pnpm11/releasing/versioning`); the two must stay behaviorally identical.
+//! ([`pnpm11/releasing/versioning`](https://github.com/pnpm/pnpm/tree/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/releasing/versioning)); the two must stay behaviorally identical.
 //! See the native monorepo versioning RFC:
 //! <https://github.com/pnpm/rfcs/pull/18>.
 

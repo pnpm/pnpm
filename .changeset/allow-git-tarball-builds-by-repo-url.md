@@ -1,6 +1,4 @@
 ---
-"@pnpm/building.policy": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

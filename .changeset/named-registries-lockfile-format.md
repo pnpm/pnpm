@@ -1,24 +1,4 @@
 ---
-"@pnpm/constants": minor
-"@pnpm/deps.path": minor
-"@pnpm/resolving.npm-resolver": minor
-"@pnpm/resolving.resolver-base": minor
-"@pnpm/store.controller-types": minor
-"@pnpm/lockfile.utils": major
-"@pnpm/lockfile.fs": minor
-"@pnpm/installing.deps-resolver": minor
-"@pnpm/installing.deps-installer": minor
-"@pnpm/installing.deps-restorer": minor
-"@pnpm/installing.context": minor
-"@pnpm/deps.graph-builder": minor
-"@pnpm/deps.compliance.license-scanner": minor
-"@pnpm/deps.compliance.sbom": minor
-"@pnpm/deps.compliance.commands": minor
-"@pnpm/deps.inspection.tree-builder": minor
-"@pnpm/deps.inspection.list": minor
-"@pnpm/config.reader": minor
-"@pnpm/installing.commands": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

@@ -1,13 +1,15 @@
 {
-  "extends": "@pnpm/tsconfig",
+  "extends": "./pnpm/npm/get-pnpm/tsconfig.json",
   "compilerOptions": {
-    "outDir": "lib",
-    "rootDir": "src"
+    "noEmit": true,
+    "rootDir": "."
   },
   "include": [
-    ".meta-updater/**/*.ts",
     "**/src/**/*.ts",
-    "**/test/**/*.ts",
-    "typings/**/*.d.ts"
+    "**/test/**/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/fixtures"
   ]
 }

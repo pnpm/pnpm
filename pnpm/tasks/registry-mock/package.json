@@ -6,8 +6,7 @@
     "@pnpm-private/pacquet-registry-mock-launcher": "workspace:*"
   },
   "keywords": [
-    "pnpm",
-    "pnpm11"
+    "pnpm"
   ],
   "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/tasks/registry-mock"
 }

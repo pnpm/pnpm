@@ -1,8 +1,0 @@
-{
-  "name": "peer-variant-missing-resolution",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "pkg-a": "workspace:*"
-  }
-}

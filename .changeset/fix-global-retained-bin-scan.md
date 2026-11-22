@@ -1,7 +1,4 @@
 ---
-"@pnpm/global.commands": patch
-"@pnpm/bins.linker": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

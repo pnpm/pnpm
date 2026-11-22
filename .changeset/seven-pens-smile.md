@@ -1,6 +1,4 @@
 ---
-"@pnpm/pkg-manifest.utils": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

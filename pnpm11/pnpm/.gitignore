@@ -1,5 +1,0 @@
-bin/nodes
-dist-spnpm
-
-# Used by bundle-deps.ts
-/temp-deploy

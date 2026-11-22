@@ -1,5 +1,5 @@
 //! E2E coverage for the `verify-deps-before-run` gate, mirroring the
-//! TypeScript scenarios in `pnpm11/pnpm/test/verifyDepsBeforeRun/` that
+//! TypeScript scenarios in [`pnpm11/pnpm/test/verifyDepsBeforeRun/`](https://github.com/pnpm/pnpm/tree/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/test/verifyDepsBeforeRun) that
 //! translate to pacquet (the interactive `prompt` flow needs a PTY and
 //! is exercised only through its non-interactive error branch).
 

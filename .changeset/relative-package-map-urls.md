@@ -1,6 +1,4 @@
 ---
-"@pnpm/lockfile.to-pnp": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

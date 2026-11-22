@@ -1,9 +1,4 @@
 ---
-"@pnpm/types": patch
-"@pnpm/resolving.npm-resolver": patch
-"@pnpm/pkg-manifest.utils": patch
-"@pnpm/engine.pm.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

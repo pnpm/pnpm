@@ -19,10 +19,4 @@ export default [
             }],
         },
     },
-    {
-        files: ["pnpm11/pnpm/src/**/*.ts"],
-        rules: {
-            "import-x/no-extraneous-dependencies": "off",
-        },
-    },
 ]

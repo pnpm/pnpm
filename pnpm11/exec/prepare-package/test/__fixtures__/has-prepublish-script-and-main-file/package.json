@@ -1,8 +1,0 @@
-{
-  "name": "has-prepublish-script",
-  "version": "1.0.0",
-  "file": "main.js",
-  "scripts": {
-    "prepublish": "node -e \"console.log('prepublish')\" | test-ipc-server-client ./test.sock"
-  }
-}

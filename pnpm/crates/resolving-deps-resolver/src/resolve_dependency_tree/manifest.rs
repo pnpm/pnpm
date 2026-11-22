@@ -414,7 +414,7 @@ fn deprecated_pkg_name_ver(
 
 /// Whether `pkg_name@pkg_version` satisfies its entry in the
 /// `pnpm.allowedDeprecatedVersions` map, matching the TS check at
-/// `pnpm11/installing/deps-resolver/src/resolveDependencies.ts:2122`.
+/// [`pnpm11/installing/deps-resolver/src/addResolvedPackageToGraph.ts:125`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/installing/deps-resolver/src/addResolvedPackageToGraph.ts#L125).
 fn is_deprecation_allowed(
     pkg_name: &str,
     pkg_version: &str,

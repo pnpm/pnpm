@@ -1,4 +1,4 @@
-//! Ports `pnpm11/pnpm/test/packageManagerCheck.test.ts`.
+//! Ports [`pnpm11/pnpm/test/packageManagerCheck.test.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/test/packageManagerCheck.test.ts).
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

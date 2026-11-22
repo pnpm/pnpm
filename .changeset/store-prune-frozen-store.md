@@ -1,6 +1,4 @@
 ---
-"@pnpm/store.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

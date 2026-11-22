@@ -1,5 +1,4 @@
 ---
-"pnpm": minor
 "pacquet": minor
 ---
 

@@ -202,7 +202,7 @@ pub(super) fn normalized_pattern(pattern: Option<&[String]>) -> &[String] {
 /// deleting the directory. pnpm never purges the root project's
 /// `node_modules` for an included mismatch: its `validateModules` only
 /// does so for non-root importers (the `lockfileDir !== rootDir` check
-/// in `pnpm11/installing/deps-installer/src/install/validateModules.ts`)
+/// in [`pnpm11/installing/deps-installer/src/install/validateModules.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/installing/deps-installer/src/install/validateModules.ts))
 /// so purging here would destroy the user's own non-pnpm entries (a
 /// vendored directory, stray files) on a routine flag change. The
 /// up-to-date fast path still compares `included` via

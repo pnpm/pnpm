@@ -3,7 +3,7 @@
 //! applying it (manifest bumps, changelogs, the consumed-intents ledger,
 //! intent-file cleanup) and release-lane management via
 //! `pnpm lane`. Mirrors the
-//! TypeScript CLI's `pnpm11/releasing/commands/test/change/index.test.ts`.
+//! TypeScript CLI's [`pnpm11/releasing/commands/test/change/index.test.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/releasing/commands/test/change/index.test.ts).
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

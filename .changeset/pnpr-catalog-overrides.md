@@ -1,7 +1,4 @@
 ---
-"@pnpm/installing.deps-installer": patch
-"@pnpm/pnpr.client": patch
-"pnpm": patch
 "@pnpm/pnpr": patch
 ---
 

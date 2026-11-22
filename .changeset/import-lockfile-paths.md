@@ -1,7 +1,4 @@
 ---
-"pnpm": patch
-"@pnpm/installing.commands": patch
-"@pnpm/lockfile.fs": patch
 "pacquet": patch
 ---
 

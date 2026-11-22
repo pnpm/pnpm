@@ -1,6 +1,6 @@
 ---
 name: testing-changes
-description: Run the tests that cover a change in the pnpm repository, in the Rust workspace (pnpm/, pnpr/) or the TypeScript CLI (pnpm11/), and recognize the cases where a scoped run passes without testing anything. Use whenever verifying a change before committing or pushing, or when deciding what to run after an edit.
+description: Run the tests that cover a change in the pnpm repository, in the Rust workspace (pnpm/, pnpr/) or the TypeScript and JavaScript packages and scripts, and recognize the cases where a scoped run passes without testing anything. Use whenever verifying a change before committing or pushing, or when deciding what to run after an edit.
 ---
 
 # Testing a change
@@ -33,25 +33,16 @@ For anything narrower, `pnpm test:rust` (`node pnpm/scripts/run-rust-tests.mjs`)
 
 Do not reach for nextest's `rdeps()` to widen a selection. `pnpm-cli` holds a third of the workspace's tests and sits downstream of nearly every crate, so `rdeps()` on anything core selects 84% or more of the suite. Restructuring that target is [pnpm/pnpm#14984](https://github.com/pnpm/pnpm/issues/14984).
 
-## TypeScript (`pnpm11/`)
+## TypeScript and JavaScript
 
 ```sh
-pnpm --filter <package_name> test                                 # one package
-pnpm --filter <package_name> test <file_path>                     # one file
-pnpm --filter <package_name> test <file_path> -t <name_pattern>   # one case
+pnpm --filter get-pnpm test                  # builds with tsc, then runs node:test
+node --test .github/scripts/bump.test.mjs   # a script's sibling test
 ```
 
-The end-to-end tests in `pnpm11/pnpm/test/` run the **bundled** `pnpm11/pnpm/dist/pnpm.mjs`, not each package's `lib/`. After changing any TypeScript package, rebuild the bundle before running them:
+## Fixes shared with pnpm v11
 
-```sh
-pnpm --filter pnpm run compile
-```
-
-Skip that and the run tests the previous bundle, passing without ever touching your change.
-
-## Both stacks
-
-A bug present in both pnpm v11 and v12 is fixed in both, so it is tested in both. Run the TypeScript test for the scenario and the Rust test for the same scenario before calling the fix done.
+A bug present in both pnpm v11 and `main` is tested on both lines: the Rust test here, and the same scenario's TypeScript test in the `release/11` backport.
 
 ## Reporting
 

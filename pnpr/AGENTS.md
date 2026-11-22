@@ -30,7 +30,7 @@ the `Cargo.lock` stays unified.
   CLI flags in place. Do not add backward-compatibility fallbacks, serde aliases
   for old field names, or migration commands between alpha builds.
 
-The pnpm v12 and v11 coverage policy governs the CLI implementations, not
+The [release-line policy](../AGENTS.md#release-lines-and-backports) governs the CLI, not
 pnpr. The registry can pick its own architecture, flags, and config format. It
 must still be compatible with the npm registry protocol that pnpm (and npm,
 yarn, etc.) clients speak.

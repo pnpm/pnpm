@@ -5,7 +5,7 @@
 Expose pnpm v12's Rust engine (pacquet) to Node.js hosts through a NAPI addon, so
 programmatic consumers of pnpm — Bit being the reference consumer — can run installs,
 resolution, rebuilds, peer-dependency checks, and pack through the Rust implementation
-instead of the TypeScript `@pnpm/*` packages published from `pnpm11/`.
+instead of the TypeScript `@pnpm/*` packages published from [`pnpm11/`](https://github.com/pnpm/pnpm/tree/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11).
 
 The binding covers the **engine** surface plus the two things a consumer cannot
 reasonably reimplement over it — pnpm's terminal output and its reverse dependency

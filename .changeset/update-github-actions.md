@@ -1,10 +1,4 @@
 ---
-"@pnpm/deps.inspection.commands": minor
-"@pnpm/installing.commands": minor
-"@pnpm/config.reader": minor
-"@pnpm/resolving.git-resolver": patch
-"@pnpm/types": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

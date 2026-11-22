@@ -2,7 +2,7 @@
 //!
 //! pnpm accepts `--prefix` for `--dir` and `--store` for `--store-dir`,
 //! renaming them over argv before parsing (the rename table in
-//! `pnpm11/pnpm/src/parseCliArgs.ts`). Clap accepts the alias spellings
+//! [`pnpm11/pnpm/src/parseCliArgs.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/src/parseCliArgs.ts)). Clap accepts the alias spellings
 //! itself (they are hidden aliases on the two options, so the help output
 //! documents neither, exactly like pnpm's) which leaves only the
 //! precedence rule to reproduce: when a command line spells the same

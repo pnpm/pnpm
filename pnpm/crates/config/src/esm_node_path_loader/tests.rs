@@ -55,7 +55,7 @@ fn keep_reapplies_the_flag_only_when_the_previous_value_carried_it() {
 }
 
 /// Mirrors the TypeScript test `require() from a module compiled from a
-/// string loads ...` in `pnpm11/exec/esm-node-path-loader/test/index.ts`.
+/// string loads ...` in [`pnpm11/exec/esm-node-path-loader/test/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/exec/esm-node-path-loader/test/index.ts).
 /// A module created with `new Module()` has no filename, so its `require()`
 /// calls reach the resolve hook without a parent URL, like the entry point
 /// does, and resolve relative specifiers from the working directory
@@ -99,7 +99,7 @@ console.log(compiled.exports)
 }
 
 /// Mirrors the TypeScript test of the same name in
-/// `pnpm11/exec/esm-node-path-loader/test/index.ts`. The alias hook stands in
+/// [`pnpm11/exec/esm-node-path-loader/test/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/exec/esm-node-path-loader/test/index.ts). The alias hook stands in
 /// for the tsconfig paths hook in pnpm/pnpm#16979. `NODE_OPTIONS` imports
 /// register before command-line ones, so it runs first and reads
 /// `context.parentURL` after the fallback fails.

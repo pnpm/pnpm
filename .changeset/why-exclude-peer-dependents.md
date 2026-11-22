@@ -1,8 +1,4 @@
 ---
-"@pnpm/deps.inspection.tree-builder": patch
-"@pnpm/deps.inspection.list": patch
-"@pnpm/deps.inspection.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

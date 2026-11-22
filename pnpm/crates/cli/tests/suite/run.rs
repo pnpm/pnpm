@@ -96,7 +96,7 @@ fn run_passes_extra_arguments_to_the_script() {
 /// shaped like an option of the script's own program reaches the script
 /// instead of being claimed by it (pnpm/pnpm#13295). Asserts what the
 /// script received rather than the echoed command line, and mirrors the
-/// TypeScript counterpart in `pnpm11/pnpm/test/run.ts` ("run: pass the
+/// TypeScript counterpart in [`pnpm11/pnpm/test/run.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/test/run.ts) ("run: pass the
 /// args to the command that is specified in the build script"), down to
 /// only the main stage seeing the arguments.
 #[test]
@@ -688,7 +688,7 @@ fn prefix_selects_the_dir_before_the_subcommand_and_is_the_script_s_after_it() {
 /// error, and the verify-deps-before-run gate (here on its `install`
 /// action) must skip the directory rather than spawn an install that
 /// has no manifest to work with. Mirrors the TypeScript regression
-/// tests in `pnpm11/deps/status/test/checkDepsStatus.test.ts`
+/// tests in [`pnpm11/deps/status/test/checkDepsStatus.test.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/status/test/checkDepsStatus.test.ts)
 /// ("missing workspace state").
 #[test]
 fn top_level_fallback_without_manifest_does_not_attempt_an_install() {

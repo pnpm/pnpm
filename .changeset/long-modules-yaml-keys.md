@@ -1,6 +1,4 @@
 ---
-"@pnpm/installing.modules-yaml": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

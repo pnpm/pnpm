@@ -1,8 +1,0 @@
-{
-  "name": "private",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "is-positive": "1.0.0"
-  }
-}

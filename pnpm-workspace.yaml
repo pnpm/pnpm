@@ -1,57 +1,5 @@
 packages:
-  - .meta-updater
-  - pnpm11/__typecheck__
-  - pnpm11/__typings__
-  - pnpm11/__utils__/*
-  - '!pnpm11/__utils__/build-artifacts'
-  - pnpm11/auth/*
-  - pnpm11/building/*
-  - pnpm11/cache/*
-  - pnpm11/catalogs/*
-  - pnpm11/cli/*
-  - pnpm11/config/*
-  - pnpm11/crypto/*
-  - pnpm11/installing/dedupe/*
-  - pnpm11/deps/*
-  - pnpm11/deps/compliance/*
-  - pnpm11/deps/inspection/*
-  - pnpm11/deps/security/*
-  - pnpm11/engine/*
-  - pnpm11/engine/pm/*
-  - pnpm11/engine/runtime/*
-  - pnpm11/exec/*
-  - pnpm11/fetching/*
-  - pnpm11/fs/*
-  - pnpm11/global/*
-  - pnpm11/hooks/*
-  - pnpm11/lockfile/*
-  - pnpm11/log/*
-  - pnpm11/network/*
-  - pnpm11/modules-mounter/*
-  - pnpm11/object/*
-  - pnpm11/os/*
-  - pnpm11/os/env/*
-  - pnpm11/core/*
-  - pnpm11/bins/*
-  - pnpm11/installing/*
-  - pnpm11/installing/linking/*
-  - pnpm11/pkg-manifest/*
-  - pnpm11/patching/*
-  - pnpm11/pnpm
-  - pnpm11/pnpm/dev
-  - pnpm11/testing/*
-  - pnpm11/worker
-  - pnpm11/pnpm/artifacts/*
-  - pnpr/client
-  - pnpm11/registry-access/*
-  - pnpm11/releasing/*
-  - pnpm11/resolving/*
-  - pnpm11/resolving/registry/*
-  - pnpm11/shell/*
-  - pnpm11/store/*
-  - pnpm11/text/*
-  - pnpm11/workspace/*
-  - pnpm11/yaml/*
+  - pnpm/crates/deps-restorer/pnp-runtime
   - pnpm/npm/get-pnpm
   - pnpm/npm/napi
   - pnpm/esm-loader
@@ -66,7 +14,6 @@ packages:
   - '!bench-work-env/**'
   - '!**/example/**'
   - '!**/test/**'
-  - '!pnpm11/resolving/local-resolver/example-package/**'
 
 include:
   ./.config/pnpm/policies.yaml:
@@ -99,37 +46,12 @@ include:
 # The Rust CLI wrapper is the workspace package `pacquet` (published to npm as
 # `pnpm`); generate-packages.mjs rewrites the name at pack time.
 versioning:
-  # @pnpm/logger is a workspace package, but every consumer depends on the
-  # published one through the `^1100.0.0` catalog entry (a `catalog:` peer, kept
-  # deliberately so Jest loads the published CJS-bole logger — see the `bole`
-  # note in the catalog). The release engine would otherwise reject those
-  # catalog: peers as internal ranges that must use the workspace: protocol, so
-  # freeze @pnpm/logger from the automated release: it is bumped out of band.
-  ignore:
-    - '@pnpm/logger'
   # Groups that always release together at one shared version:
   #   - the Rust CLI wrapper and its NAPI addon;
-  #   - the pnpr wrapper and the web UI it serves;
-  #   - the pnpm CLI with its prebuilt executable (@pnpm/exe) and the
-  #     per-platform binary packages under pnpm11/pnpm/artifacts/. Those ship the
-  #     same build and must carry the CLI's exact version.
+  #   - the pnpr wrapper and the web UI it serves.
   fixed:
     - [ 'pacquet', '@pnpm/napi' ]
     - [ '@pnpm/pnpr', '@pnpm/pnpr-ui' ]
-    - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
-  # The TypeScript CLI (`pnpm`) leads an epic that bands every library package
-  # under pnpm11/ to the CLI's major: while `pnpm` is on major 11 the libraries
-  # live in majors 1100-1199. Members move independently inside the band (patch,
-  # minor, and an in-band major); the release engine rejects a bump that would
-  # carry one past the band ceiling, and re-bases every member to the next band
-  # floor when the CLI crosses to a new stable major. The built release
-  # artifacts under pnpm11/pnpm/artifacts/ are excluded from the band — they ride
-  # the CLI's exact version through the fixed group above.
-  epics:
-    - lead: pnpm
-      packages:
-        - './pnpm11/**'
-        - '!./pnpm11/pnpm/artifacts/**'
   lanes:
     '@pnpm/pnpr': alpha
     '@pnpm/pnpr-ui': alpha
@@ -142,9 +64,6 @@ enablePrePostScripts: false
 engineStrict: false
 
 gitChecks: false
-
-hoistPattern:
-  - jest-runner
 
 lockfile:
   format: v13

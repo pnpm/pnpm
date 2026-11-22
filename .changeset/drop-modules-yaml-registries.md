@@ -1,14 +1,5 @@
 ---
-"@pnpm/building.after-install": major
-"@pnpm/building.commands": major
-"@pnpm/deps.inspection.tree-builder": major
-"@pnpm/installing.context": major
-"@pnpm/installing.deps-installer": major
-"@pnpm/installing.deps-restorer": major
-"@pnpm/installing.modules-yaml": major
-"@pnpm/installing.read-projects-context": major
 "pacquet": minor
-"pnpm": minor
 ---
 
 `node_modules/.modules.yaml` no longer records the registries an install resolved from, and the recorded copy is dropped from the file on the first install that rewrites it.

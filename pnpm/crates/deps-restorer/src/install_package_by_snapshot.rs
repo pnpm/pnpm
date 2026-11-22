@@ -103,7 +103,7 @@ pub enum InstallPackageBySnapshotError {
     /// A plain remote tarball the lockfile pins no `integrity` for.
     /// Message and code mirror the TypeScript
     /// `assertFetchableResolution` in
-    /// `pnpm11/installing/package-requester/src/packageRequester.ts`.
+    /// [`pnpm11/installing/package-requester/src/packageRequester.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/installing/package-requester/src/packageRequester.ts).
     /// See [`unverified_fetch_is_allowed`] for the shapes that are
     /// exempt.
     #[display(
@@ -170,7 +170,7 @@ pub enum InstallPackageBySnapshotError {
     /// A custom-typed resolution reached the built-in dispatch, no
     /// pnpmfile custom fetcher claimed it. Message and code mirror the
     /// TypeScript `pickFetcher` in
-    /// `pnpm11/fetching/pick-fetcher/src/index.ts`.
+    /// [`pnpm11/fetching/pick-fetcher/src/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/fetching/pick-fetcher/src/index.ts).
     #[display(
         "Cannot fetch dependency with custom resolution type \"{resolution_type}\". Custom resolutions must be handled by custom fetchers."
     )]

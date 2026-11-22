@@ -1,7 +1,5 @@
 ---
 "@pnpm/pnpr": patch
-"@pnpm/pnpr.client": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

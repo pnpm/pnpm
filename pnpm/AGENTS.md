@@ -6,43 +6,37 @@ Guidance for AI coding agents working in `pnpm/`.
 
 ## What this project is
 
-`pacquet` is pnpm v12, implemented in Rust and the target for new feature
-development. The TypeScript CLI under `../pnpm11/` is pnpm v11, which is
-maintained for bug fixes. New features are developed only in pacquet.
+`pacquet` is the newest pnpm major, implemented in Rust. pnpm v11, the
+TypeScript CLI, is maintained on the `release/11` branch.
+
 
 ## Version policy
 
-**Implement new features only in pnpm v12. Do not add them to pnpm v11.** A
-new command, flag, behavior, or format introduced in pacquet does not need a
-TypeScript implementation.
-
-Bug fixes follow the affected versions. If a bug is present in both pnpm v11
-and v12, fix and test it in both implementations. If it is present in only one
-version, fix only that version. The repo-wide policy lives in
-[`../AGENTS.md`](../AGENTS.md#pnpm-v12-and-v11-development-policy); this section
-is the pacquet-side detail.
+The repo-wide policy lives in
+[`../AGENTS.md`](../AGENTS.md#release-lines-and-backports); this section is
+the pacquet-side detail. A new command, flag, behavior, or format introduced
+in pacquet does not need a TypeScript implementation.
 
 Working rules:
 
-1. **Classify the change before editing v11.** New features and v12-only bug
-   fixes stay in pacquet. Only edit `../pnpm11/` when fixing a bug that is also
-   present in v11 or when doing work explicitly requested for v11.
-2. **Fix shared bugs in both versions.** For a bug present in both releases,
-   find the counterpart under `../pnpm11/` and make both implementations agree
+1. **Classify the change.** Determine whether the bug is also present in v11.
+   New features and bugs absent from v11 need no backport.
+2. **Backport shared fixes.** For a bug present in both releases, the
+   `release/11` backport makes the TypeScript counterpart agree with pacquet
    on logic, edge cases, config resolution, error messages, and file/lockfile
    formats affected by the fix.
 3. **Match observable behavior, not structure.** Structural similarity (similar
    function decomposition and names) is a convenience for cross-referencing, not
    a requirement. What must match is what a user or a downstream tool can
    observe for the shared bug fix.
-4. **Keep version-specific behavior deliberate.** A new v12 feature is an
+4. **Keep version-specific behavior deliberate.** A new feature is an
    intentional difference, not something to backport to v11. Do not introduce
    unrelated differences while implementing a shared bug fix.
 5. **Log emissions are part of shared bug-fix behavior.** When a shared fix
    changes a function that fires `pnpm:<channel>` events through the reporter,
-   keep the call site, payload, and ordering consistent in both stacks so
+   keep the call site, payload, and ordering consistent with v11 so
    `@pnpm/cli.default-reporter` parses pacquet's NDJSON the same way it parses
-   the TypeScript CLI's. See
+   v11's. See
    [Reporter / log events](./CODE_STYLE_GUIDE.md#reporter--log-events)
    in the style guide for the convention (channel mapping, threading
    `R: Reporter`, emit-site placement, recording-fake tests).
@@ -222,9 +216,9 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
 - Tests that need the mocked registry start `pnpr` through
   `pnpm-testing-utils`; `cargo test` / `cargo nextest run` should not
   require a separate `just registry-mock launch` step.
-- When a bug fix spans both versions, keep their tests in sync — give
-  pacquet a Rust test for the same scenario the TypeScript stack covers (and
-  vice versa) whenever it translates. Matching test coverage is the easiest
+- When a bug fix spans both versions, keep their tests in sync — the
+  `release/11` backport tests the same scenario as the Rust test whenever it
+  translates. Matching test coverage is the easiest
   way to prove the shared bug is fixed consistently.
 - The active test-porting plan lives in
   [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It enumerates the
@@ -450,9 +444,8 @@ are part of the public contract, not implementation detail. See
 
 - Keep commits focused. A bug fix commit should not also refactor or
   reformat unrelated code.
-- When a bug fix also applies to pnpm v11, land both implementations together;
-  if they must be split, cross-reference the matching PR so a reviewer can
-  confirm both versions are fixed.
+- When a bug fix also applies to pnpm v11, name the `release/11` backport PR
+  in the PR description.
 - Before pushing, run `typos`, the formatter, `pnpm check:rust`,
   `pnpm lint:rust`, and the tests for the crates you touched. Keep `check` and
   `lint` workspace-wide; scope the tests. Reach for the full `pnpm ready:rust`
@@ -487,10 +480,8 @@ perf(store-dir): share one read-only StoreIndex across cache lookups
 
 ## Things not to do
 
-- Do not implement new features, flags, or behaviors in pnpm v11. New features
-  belong only in pnpm v12.
-- Do not fix a bug in only one implementation when the same bug is present in
-  both pnpm v11 and v12.
+- Do not leave a bug present in both pnpm v11 and pacquet without a
+  `release/11` backport.
 - A dependency that is already declared in `[workspace.dependencies]` in the
   root `Cargo.toml` may be added to any crate that needs it.
 - Do not add a dependency that is not already declared in the workspace

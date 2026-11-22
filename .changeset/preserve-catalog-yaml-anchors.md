@@ -1,7 +1,4 @@
 ---
-"@pnpm/yaml.document-sync": patch
-"@pnpm/workspace.workspace-manifest-writer": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

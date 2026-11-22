@@ -1,6 +1,4 @@
 ---
-"@pnpm/exec.esm-node-path-loader": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

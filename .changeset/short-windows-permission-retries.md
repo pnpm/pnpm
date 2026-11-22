@@ -1,6 +1,4 @@
 ---
-"@pnpm/fs.graceful-fs": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

@@ -1,6 +1,4 @@
 ---
-"@pnpm/exec.lifecycle": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

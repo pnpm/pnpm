@@ -1,7 +1,0 @@
-{
-  "name": "background-output",
-  "version": "1.0.0",
-  "scripts": {
-    "prepare": "node start-background"
-  }
-}

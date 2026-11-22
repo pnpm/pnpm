@@ -1,8 +1,4 @@
 ---
-"@pnpm/deps.compliance.commands": minor
-"@pnpm/config.reader": minor
-"@pnpm/types": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

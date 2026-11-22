@@ -1,7 +1,4 @@
 ---
-"@pnpm/fs.read-modules-dir": patch
-"@pnpm/installing.deps-restorer": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

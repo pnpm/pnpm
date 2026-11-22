@@ -1,5 +1,5 @@
 //! `pacquet update --latest` over `jsr:` dependencies, ported from
-//! `pnpm11/installing/commands/test/update/jsr.ts`.
+//! [`pnpm11/installing/commands/test/update/jsr.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/installing/commands/test/update/jsr.ts).
 //!
 //! Upstream pins `latest` with `addDistTag` first; the fixture registry
 //! already serves 2.0.0 as the highest published version of

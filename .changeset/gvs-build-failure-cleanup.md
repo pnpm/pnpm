@@ -1,6 +1,4 @@
 ---
-"@pnpm/building.during-install": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

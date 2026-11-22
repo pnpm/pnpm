@@ -1,7 +1,4 @@
 ---
-"@pnpm/deps.compliance.commands": patch
-"@pnpm/deps.compliance.audit": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

@@ -1,3 +1,0 @@
-first line of patch-target
-second line of patch-target
-third line of patch-target

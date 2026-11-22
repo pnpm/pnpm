@@ -1,7 +1,0 @@
-{
-  "name": "bin-dir",
-  "version": "0.0.0",
-  "directories": {
-    "bin": "bin"
-  }
-}

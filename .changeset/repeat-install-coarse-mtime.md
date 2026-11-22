@@ -1,6 +1,4 @@
 ---
-"@pnpm/deps.status": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

@@ -68,15 +68,16 @@ cell that looks like a pnpm/pacquet regression. Bump pins deliberately.
 `webcontainer/` installs a small project with the pnpm CLI bundle inside a
 StackBlitz WebContainer, booted in headless Chromium. WebContainers run
 Node.js in the browser with their own `fs` and `node:sqlite`, which differ from
-Node.js in ways no local test reproduces. The default mode tests the TypeScript
-CLI bundle: install without a lockfile, repeat install, offline reinstall from
-the store, `add`, `remove`, and `list`.
+Node.js in ways no local test reproduces. Without a probe mode it tests a
+pnpm v11 package passed as `--pnpm-dir`: install without a lockfile, repeat
+install, offline reinstall from the store, `add`, `remove`, and `list`.
 
-From the repo root, with the bundle built (`pnpm --filter pnpm run compile`):
+From the repo root:
 
 ```sh
+pnpm install --filter @pnpm-private/ecosystem-e2e-webcontainer --filter @pnpm-private/test-oracles
 pnpm --filter @pnpm-private/ecosystem-e2e-webcontainer exec playwright-core install --only-shell chromium
-node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --pnpm-dir pnpm/test-oracles/node_modules/pnpm-v11
 ```
 
 The Rust CLI runs through the WebAssembly runtime. Test the `@pnpm/wasm`
@@ -104,8 +105,7 @@ tests, not a claim that every command or native dependency works in a browser.
 
 The v12 WebContainer port is tracked in
 [pnpm/tasks#63](https://github.com/pnpm/tasks/issues/63). The capability probe
-runs a Rust WASI module and Node host checks in a real WebContainer without
-building or running the TypeScript CLI:
+runs a Rust WASI module and Node host checks in a real WebContainer:
 
 ```sh
 rustup target add wasm32-wasip1
@@ -139,8 +139,6 @@ validation boundaries.
 ## CI
 
 `.github/workflows/ecosystem-e2e.yml` runs the grid on a daily cron (one job
-per stack) against this repo's built pnpm bundle and a freshly built pacquet.
-A red cell is something to investigate, not a merge blocker — hence cron, not
-per-PR.
-The `webcontainer` job in the same workflow runs the WebContainer test
-against the same bundle.
+per stack) against the published pnpm v11 pinned in `pnpm/test-oracles` and a
+freshly built pacquet. A red cell is something to investigate, not a merge
+blocker — hence cron, not per-PR.

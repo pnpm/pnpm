@@ -1,8 +1,5 @@
 ---
-"@pnpm/pnpr.client": minor
-"@pnpm/installing.deps-installer": patch
 "@pnpm/pnpr": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

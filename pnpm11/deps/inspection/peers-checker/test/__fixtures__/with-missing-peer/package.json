@@ -1,7 +1,0 @@
-{
-  "name": "with-missing-peer",
-  "version": "1.0.0",
-  "dependencies": {
-    "ajv-keywords": "3.4.1"
-  }
-}

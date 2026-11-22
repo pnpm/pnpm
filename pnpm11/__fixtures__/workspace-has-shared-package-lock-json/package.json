@@ -1,8 +1,0 @@
-{
-  "private": true,
-  "name": "workspace-has-shared-package-lock-json",
-  "version": "1.0.0",
-  "workspaces": [
-    "core/**"
-  ]
-}

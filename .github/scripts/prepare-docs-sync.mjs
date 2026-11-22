@@ -18,8 +18,9 @@ export function prepareDocsSync ({ githubRef, releaseTag: tag, docsRef: correcti
   if (prefix === 'v' && version.includes('-')) return undefined
   const releaseCommit = git('rev-parse', '--verify', `refs/tags/${tag}^{commit}`)
   git('verify-tag', tag)
-  const manifests = prefix === 'pnpr@' ? ['pnpr/npm/pnpr/package.json'] : ['pnpm/npm/pnpm/package.json', 'pnpm11/pnpm/package.json']
-  if (!manifests.some(file => JSON.parse(git('show', `${releaseCommit}:${file}`)).version === version)) {
+  // Each release branch holds only its own line's manifest.
+  const manifest = prefix === 'pnpr@' ? 'pnpr/npm/pnpr/package.json' : version.startsWith('11.') ? 'pnpm11/pnpm/package.json' : 'pnpm/npm/pnpm/package.json'
+  if (JSON.parse(git('show', `${releaseCommit}:${manifest}`)).version !== version) {
     throw new Error(`Tag ${tag} does not match a committed product version`)
   }
   const packageName = prefix === 'pnpr@' ? '@pnpm/pnpr' : 'pnpm'

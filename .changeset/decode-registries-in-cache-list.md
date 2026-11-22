@@ -1,6 +1,4 @@
 ---
-"@pnpm/cache.api": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

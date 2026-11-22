@@ -1,8 +1,4 @@
 ---
-"@pnpm/engine.pm.commands": patch
-"@pnpm/cli.default-reporter": patch
-"@pnpm/cli.meta": minor
-"pnpm": patch
 "pacquet": patch
 ---
 

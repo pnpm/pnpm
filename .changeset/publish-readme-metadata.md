@@ -1,7 +1,4 @@
 ---
-"@pnpm/releasing.exportable-manifest": patch
-"@pnpm/releasing.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

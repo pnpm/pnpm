@@ -1,17 +1,18 @@
 # Website documentation
 
-`pnpm/docs/`, `pnpm11/docs/`, and `pnpr/docs/` are the sources for the v12, v11,
-and registry documentation published on [pnpm.io](https://pnpm.io). Change documentation in
+`pnpm/docs/` and `pnpr/docs/` are the sources for the pnpm and registry
+documentation published on [pnpm.io](https://pnpm.io). The v11 documentation
+lives in `pnpm11/docs/` on the `release/11` branch. Change documentation in
 the same pull request as the behavior it describes. The website, blog, v10 and
 archived documentation, translations, and deployment remain in
 [pnpm/pnpm.io](https://github.com/pnpm/pnpm.io).
 
 ## Editing
 
-The Markdown lives directly under `pnpm/docs/` for v12 and `pnpm11/docs/` for
-v11, with registry documentation under `pnpr/docs/`. Each directory includes
-its `sidebars.json` and documentation assets under `static/`. Update both CLI
-trees when a fix affects both versions.
+The Markdown lives directly under `pnpm/docs/` for pnpm and `pnpr/docs/` for
+the registry. Each directory includes its `sidebars.json` and documentation
+assets under `static/`. A fix that is backported to v11 updates `pnpm11/docs/`
+in the `release/11` backport PR.
 
 Use `/img/...` URLs for assets stored under a line's `static/img/` directory.
 The publisher places them under `/docs-assets/<line>/img/` and rewrites the
@@ -21,6 +22,8 @@ Images shared with the blog or website remain available at their original URLs.
 With a sibling checkout of pnpm/pnpm.io containing the sync tooling:
 
 ```sh
+git fetch origin release/11
+git restore --source=FETCH_HEAD --worktree -- pnpm11/docs
 pnpm --dir ../pnpm.io install --frozen-lockfile
 node ../pnpm.io/scripts/sync-docs.mjs . --preview
 pnpm --dir ../pnpm.io build
@@ -28,9 +31,12 @@ pnpm --dir ../pnpm.io check-urls
 ```
 
 Adjust the paths to your checkouts. `--preview` replaces the website's generated
-documentation copies with the local v11, v12, and pnpr sources. Run it again after
+documentation copies with the local sources. The website imports every
+documentation line, so the first two commands place the v11 sources from
+`release/11` in the working tree; do not commit them. Run it again after
 editing sources. It does not publish or advance release state.
-The Documentation workflow performs the same build and URL checks for PRs.
+The Documentation workflow performs the same build and URL checks for PRs,
+with the v11 sources fetched from `release/11`.
 It pins the website revision for reproducibility; update that revision when
 adopting website tooling changes. Release publication uses the website's current
 `main` branch.
@@ -41,8 +47,8 @@ When a maintainer publishes a draft GitHub release, Sync documentation
 dispatches itself from `main` for that tag, so every sync runs the workflow,
 scripts, and trusted keys on `main`. The sync verifies the
 signed tag and npm publication, then imports only that version's documentation
-from the tagged commit. Stable v11 and v12 releases update their
-respective CLI documentation. Pnpr releases, including alpha releases, update
+from the tagged commit. v11 tags point at `release/11` commits. Stable CLI
+releases update their line's documentation. Pnpr releases, including alpha releases, update
 only the registry documentation. Other CLI releases do not trigger a sync.
 
 The sync builds and checks the site without the publication credential. A
@@ -64,14 +70,15 @@ build against the new website commit. The workflow never force-pushes.
 To publish directly from `main` without a release, open **Actions → Sync
 documentation → Run workflow**, select `main`, and leave both inputs empty.
 This builds, checks, and publishes every product's current documentation,
-including docs for unreleased changes. It requires the same `DOCS_SYNC_TOKEN`
+including docs for unreleased changes. The v11 documentation comes from
+`release/11`. It requires the same `DOCS_SYNC_TOKEN`
 setup as automatic publication. The generated website commit records the source
 SHA. This manual override leaves the last-release tracking in `docs-sync.json`
 unchanged; subsequent newer releases resume updating their respective docs.
 
 ### Release pages
 
-Each stable v11 and v12 sync also writes the release's page on the pnpm.io blog,
+Each stable CLI sync also writes the release's page on the pnpm.io blog,
 `blog/releases/<version>.md`. The page is the composed changelog section that
 the release PR curated (see the
 [release-notes skill](.agents/skills/release-notes/SKILL.md)), read at the
@@ -82,10 +89,10 @@ Pnpr releases get no page.
 ### Corrections
 
 For a correction that should ship before the next package release, branch from
-the published release tag, change only the corresponding `pnpm/docs/` or
-`pnpm11/docs/` directory, or `pnpr/docs/` for registry documentation. Make the
+the published release tag, change only the corresponding `pnpm/docs/`,
+`pnpm11/docs/` (v11 tags), or `pnpr/docs/` directory. Make the
 commit available in pnpm/pnpm. Dispatch the sync with that `release_tag` and the
-full `docs_commit` SHA. Also carry the correction into the development branch.
+full `docs_commit` SHA. Also carry the correction into `main`, or `release/11` for v11.
 The workflow rejects corrections containing code changes or changes to another
 version's documentation. This keeps unreleased features off the public site.
 
@@ -95,7 +102,7 @@ Each file kind is rendered by a different tool. Use only what its renderer keeps
 
 | Files | Renderer | Admonitions | Links |
 |---|---|---|---|
-| `pnpm/docs/`, `pnpm11/docs/`, `pnpr/docs/` | Docusaurus on pnpm.io | `:::note`, `:::tip`, `:::warning`, and the other Docusaurus forms | relative `.md` paths between pages; site-rooted `/img/...` and `/blog/...` paths, which the publisher rewrites |
+| `pnpm/docs/`, `pnpr/docs/` | Docusaurus on pnpm.io | `:::note`, `:::tip`, `:::warning`, and the other Docusaurus forms | relative `.md` paths between pages; site-rooted `/img/...` and `/blog/...` paths, which the publisher rewrites |
 | `.changeset/*.md` | GitHub release notes and the release blog | none | absolute URLs |
 | `AGENTS.md`, `CONTRIBUTING.md`, and the other in-repo guides | GitHub, editors, agent tooling | GitHub alerts (`> [!NOTE]`); `WARNING` and `CAUTION` only for a hazard | relative paths |
 | READMEs of published npm packages | npm | none | absolute URLs |
@@ -106,7 +113,7 @@ GitHub alerts render only on GitHub. Docusaurus admonitions render only on pnpm.
 
 ## Reference pages
 
-These tests fail when the v12 reference drifts from the code. Each keeps a
+These tests fail when the pnpm reference drifts from the code. Each keeps a
 list of today's gaps, and fixing a gap means deleting its entry:
 
 - `pnpm/crates/config/src/known_settings/tests/docs_reference.rs`: every

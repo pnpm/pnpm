@@ -23,7 +23,7 @@ const baselineArgs = runner === 'node' ? args : [path.join(runnerRoot, runnerMai
 const baseline = run(baselineArgs, { cwd: path.join(repo, cwd), env })
 console.log(baseline.stdout, baseline.stderr)
 if (baseline.status !== 0) throw new Error('The normal repository baseline failed')
-const prepared = await prepareRepository(repo, { fullRepository: true })
+const prepared = await prepareRepository(repo)
 const { root, manifest } = prepared
 const entry = path.join('repo', cwd, `run-${runner}.mjs`)
 const runnerEntry = path.join(root, entry)

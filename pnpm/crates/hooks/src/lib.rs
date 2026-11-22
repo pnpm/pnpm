@@ -305,7 +305,7 @@ pub trait PnpmfileHooks: Send + Sync {
 ///
 /// The pnpmfile hook is invoked with the same positional arguments as the
 /// TypeScript CLI's `CustomFetcher.fetch(cafs, resolution, opts, fetchers)`
-/// (`pnpm11/hooks/types/src/index.ts`). During installation, built-in tarball
+/// ([`pnpm11/hooks/types/src/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/hooks/types/src/index.ts)). During installation, built-in tarball
 /// fetches cross the worker IPC boundary and finish before the callback returns.
 #[async_trait]
 pub trait CustomFetcher: Send + Sync {

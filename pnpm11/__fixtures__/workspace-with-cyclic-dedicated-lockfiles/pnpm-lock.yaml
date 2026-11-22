@@ -1,9 +1,0 @@
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    dependencies:
-      '@scope/a':
-        specifier: workspace:*
-        version: link:packages/a

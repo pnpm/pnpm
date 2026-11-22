@@ -1,6 +1,4 @@
 ---
-"@pnpm/deps.peer-range": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

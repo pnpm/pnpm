@@ -139,7 +139,7 @@ fn bin_global_errors_when_not_in_path() {
 /// The pm-check warning (`Using --global skips the package manager check for
 /// this project`) goes to stderr so `bin -g` keeps stdout a clean,
 /// machine-readable path. Ports `pnpm bin -g writes warnings to stderr so
-/// stdout stays a clean path` from `pnpm11/pnpm/test/bin.ts`: the impossible
+/// stdout stays a clean path` from [`pnpm11/pnpm/test/bin.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/test/bin.ts): the impossible
 /// pin `pnpm@0.0.0` plus `--pm-on-fail=warn` triggers the warning without any
 /// version resolution. Unix-gated for the same `PATH`-format reason as the
 /// other `-g` cases.

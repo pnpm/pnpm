@@ -1,6 +1,4 @@
 ---
-"@pnpm/resolving.registry.pkg-metadata-filter": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

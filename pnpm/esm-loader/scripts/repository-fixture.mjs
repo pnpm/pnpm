@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 
-export async function prepareRepository (repo, options = {}) {
+import esbuild from 'esbuild'
+
+export async function prepareRepository (repo) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-loader-battle-'))
   const projects = JSON.parse(execFileSync('pnpm', ['-r', 'list', '--depth=-1', '--json'], { cwd: repo, encoding: 'utf8' }))
   const workspacePaths = new Set(projects.map(project => project.path))
@@ -15,16 +16,13 @@ export async function prepareRepository (repo, options = {}) {
     repo, root, workspacePaths, ids: new Map(), missing: [], fileCount: 0, bytes: 0,
     manifest: { version: 1, storeDir: './store', packages: {} },
   }
-  const entries = options.fullRepository ? [...workspacePaths] : [repo, path.join(repo, 'pnpm11/pnpm'), path.join(repo, 'pnpm11/cli/parse-cli-args')]
-  for (const directory of entries) addPackage(state, directory)
+  for (const directory of workspacePaths) addPackage(state, directory)
   inheritWorkspaceDependencies(state.manifest)
-  if (options.fullRepository) copyDirectory(repo, path.join(root, 'repo'))
-  else copyWorkspaces(state)
+  copyDirectory(repo, path.join(root, 'repo'))
   await bundleLoader(root)
   fs.writeFileSync(path.join(root, '.store-manifest.json'), JSON.stringify(state.manifest))
   fs.writeFileSync(path.join(root, 'repository-source.json'), JSON.stringify({ repo, packages: Object.fromEntries([...state.ids].map(([directory, id]) => [id, directory])) }))
   fs.writeFileSync(path.join(root, 'missing-dependencies.json'), JSON.stringify(state.missing, null, 2))
-  fs.writeFileSync(path.join(root, 'repo/run-jest.cjs'), "require('jest').run(process.argv.slice(2))\n")
   assertIsolated(root)
   return state
 }
@@ -91,18 +89,6 @@ export function findDependency (issuer, name) {
   }
 }
 
-function copyWorkspaces ({ repo, root, manifest }) {
-  fs.mkdirSync(path.join(root, 'repo'), { recursive: true })
-  copyDirectory(path.join(repo, 'pnpm11'), path.join(root, 'repo/pnpm11'))
-  for (const entry of Object.values(manifest.packages)) {
-    if (!entry.root || entry.root === 'repo' || entry.root.startsWith(`repo${path.sep}pnpm11`)) continue
-    copyDirectory(path.join(repo, path.relative('repo', entry.root)), path.join(root, entry.root))
-  }
-  for (const name of ['package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml']) {
-    fs.copyFileSync(path.join(repo, name), path.join(root, 'repo', name))
-  }
-}
-
 function copyDirectory (source, target) {
   fs.cpSync(source, target, {
     recursive: true, verbatimSymlinks: true,
@@ -136,8 +122,7 @@ function inheritWorkspaceDependencies (manifest) {
 
 export async function bundleLoader (root) {
   fs.copyFileSync(new URL('./audit-cas.mjs', import.meta.url), path.join(root, 'audit-cas.mjs'))
-  const require = createRequire(new URL('../../../pnpm11/pnpm/package.json', import.meta.url))
-  await require('esbuild').build({
+  await esbuild.build({
     entryPoints: [fileURLToPath(new URL('../register.mjs', import.meta.url))],
     bundle: true, platform: 'node', format: 'esm', outfile: path.join(root, 'loader.mjs'),
     banner: { js: "import { createRequire as bootstrapRequire } from 'node:module'; const require = bootstrapRequire(import.meta.url);" },

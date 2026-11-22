@@ -1,6 +1,4 @@
 ---
-"@pnpm/network.fetch": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

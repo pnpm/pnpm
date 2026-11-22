@@ -1,8 +1,0 @@
-{
-  "name": "is-positive",
-  "version": "1.0.0",
-  "dependencies": {
-    "express": "1.0.0"
-  }
-}
-

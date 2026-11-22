@@ -1,6 +1,4 @@
 ---
-"@pnpm/deps.graph-sequencer": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

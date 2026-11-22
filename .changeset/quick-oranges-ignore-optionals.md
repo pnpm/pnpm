@@ -1,8 +1,4 @@
 ---
-"@pnpm/deps.status": patch
-"@pnpm/installing.deps-installer": patch
-"@pnpm/lockfile.verification": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

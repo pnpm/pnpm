@@ -32,7 +32,7 @@ ts_pid=
 if [ -n "$ts_changed" ]; then
   # Runs alongside the Rust checks; its output is held back until they finish.
   ts_log=$(mktemp)
-  (pnpm run compile-only && pnpm run lint --quiet) >"$ts_log" 2>&1 &
+  pnpm run lint --quiet >"$ts_log" 2>&1 &
   ts_pid=$!
 else
   echo "✓ Only Rust files changed — skipping TypeScript pre-push checks."

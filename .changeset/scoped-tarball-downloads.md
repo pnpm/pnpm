@@ -1,11 +1,4 @@
 ---
-"@pnpm/fetching.tarball-fetcher": patch
-"@pnpm/fetching.types": patch
-"@pnpm/network.fetch": patch
-"@pnpm/resolving.default-resolver": patch
-"@pnpm/resolving.npm-resolver": patch
-"@pnpm/resolving.tarball-resolver": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

@@ -30,7 +30,7 @@ test('selects the crate that owns each changed file', () => {
 })
 
 test('ignores files outside the workspace', () => {
-  assert.deepEqual(selectPackages(['AGENTS.md', 'pnpm11/pnpm/src/main.ts'], manifests), [])
+  assert.deepEqual(selectPackages(['AGENTS.md', 'pnpm/docs/cli/install.md'], manifests), [])
 })
 
 test('selects every pnpr crate when one of them changes', () => {

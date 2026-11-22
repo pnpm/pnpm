@@ -1,7 +1,4 @@
 ---
-"@pnpm/fs.packlist": patch
-"@pnpm/releasing.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

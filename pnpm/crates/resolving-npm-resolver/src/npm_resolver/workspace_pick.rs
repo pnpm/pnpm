@@ -84,7 +84,7 @@ pub(super) fn workspace_shadow_pick(
 ///
 /// A store-manifest peek, once pacquet grows one, has to run before this fast
 /// path, the TypeScript counterpart
-/// (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
+/// ([`pnpm11/resolving/npm-resolver/src/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/resolving/npm-resolver/src/index.ts)) documents why.
 pub(super) fn prefer_workspace_pick(
     workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
     spec: &RegistryPackageSpec,

@@ -29,9 +29,9 @@ If a maintainer has already applied a `state:` label, **do not silently remove i
 
 ### Repository context that affects readiness
 
-- The repo holds three products: the **TypeScript pnpm CLI** (workspaces outside `pnpm/` and `pnpr/`, frozen at v11 and relocating under `pnpm11/`), the **Rust pacquet port** (`pnpm/`, which becomes pnpm v12), and the **Rust pnpr registry** (`pnpr/`). See `AGENTS.md`.
-- **pnpm↔pacquet parity:** any user-visible change to the dependency-management commands (`install`, `add`, `update`, `remove`) must land in both the TypeScript and Rust stacks. An issue that requires parity work across both stacks is broader than a single-stack fix — weigh that when deciding between `Ready to implement` and `Ready to spec`.
-- Changes to published TypeScript packages require a changeset; behavior changes generally require tests. An issue whose fix is bounded but well-understood (clear repro, obvious area, single stack) is a strong `Ready to implement` candidate.
+- `main` holds the **Rust pnpm CLI** (pacquet, `pnpm/`), the **Rust pnpr registry** (`pnpr/`), and the `get-pnpm` installer. pnpm v11, the **TypeScript CLI**, is maintained on the `release/11` branch. See `AGENTS.md` → Release lines and backports.
+- **v11 backports:** a bug present in both v11 and `main` is fixed on `main`, then backported to `release/11` in a separate PR. An issue that needs a backport is broader than a single-line fix — weigh that when deciding between `Ready to implement` and `Ready to spec`. A new feature is not backported.
+- User-visible changes to published packages require a changeset; behavior changes generally require tests. An issue whose fix is bounded but well-understood (clear repro, obvious area, one release line) is a strong `Ready to implement` candidate.
 
 ## Workflow
 
@@ -74,7 +74,7 @@ After fetching context, post a brief progress comment only if triage may take lo
 
 ### 4. Inspect the current codebase
 
-Confirm the current checkout is `pnpm/pnpm`. Search the codebase for the affected feature, behavior, terminology, and likely implementation area. Determine which of the three products (TypeScript CLI, pacquet, pnpr) the issue concerns.
+Confirm the current checkout is `pnpm/pnpm`. Search the codebase for the affected feature, behavior, terminology, and likely implementation area. Determine which product (pnpm, pnpr, get-pnpm) the issue concerns and whether pnpm v11 has the bug too; read v11 source on the `release/11` branch.
 
 Assess:
 
@@ -154,7 +154,7 @@ Keep the final response concise and include:
 - Issue identifier and title
 - Chosen state and the exact pnpm label applied
 - Brief evidence-based rationale from the issue, codebase, and related open issues
-- Which product (TypeScript CLI / pacquet / pnpr) it concerns and whether parity work is implied
+- Which product (pnpm / pnpr / get-pnpm) it concerns and whether a `release/11` backport is implied
 - Key implementation area or remaining questions, when relevant
 - Direct link to the issue
 

@@ -1,11 +1,4 @@
 ---
-"@pnpm/deps.path": patch
-"@pnpm/installing.commands": patch
-"@pnpm/installing.deps-installer": patch
-"@pnpm/installing.deps-resolver": patch
-"@pnpm/releasing.commands": patch
-"@pnpm/workspace.state": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

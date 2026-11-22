@@ -341,8 +341,8 @@ fn ordinary_install_after_virtual_store_only_completes_the_linking() {
 /// cannot reach the private hoist. Scripts must receive `NODE_PATH` plus
 /// the ESM `NODE_PATH` loader flag in `NODE_OPTIONS`, so both CJS and ESM
 /// phantom imports keep resolving. Mirrors the TS coverage in
-/// `pnpm11/config/reader/test/index.ts` and
-/// `pnpm11/exec/esm-node-path-loader/test/index.ts`.
+/// [`pnpm11/config/reader/test/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/config/reader/test/index.ts) and
+/// [`pnpm11/exec/esm-node-path-loader/test/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/exec/esm-node-path-loader/test/index.ts).
 #[test]
 fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -405,7 +405,7 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
 /// run the main entry point through the ESM loader. An entry point that
 /// only a CJS require hook can load, like ts-node's `.ts` entry point,
 /// must still run. Mirrors the TS coverage in
-/// `pnpm11/exec/esm-node-path-loader/test/index.ts`.
+/// [`pnpm11/exec/esm-node-path-loader/test/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/exec/esm-node-path-loader/test/index.ts).
 #[test]
 fn scripts_run_entry_points_loaded_by_commonjs_require_hooks() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

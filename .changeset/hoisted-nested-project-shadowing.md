@@ -1,6 +1,4 @@
 ---
-"@pnpm/installing.linking.real-hoist": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

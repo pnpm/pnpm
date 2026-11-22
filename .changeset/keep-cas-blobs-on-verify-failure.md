@@ -1,6 +1,4 @@
 ---
-"@pnpm/store.cafs": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

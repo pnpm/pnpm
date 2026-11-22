@@ -488,7 +488,7 @@ fn why_is_recursive_by_default_inside_a_workspace() {
 
 // --- ports of the TypeScript why command tests --------------------------------
 //
-// Source: pnpm11/deps/inspection/commands/test/listing/why.ts.
+// Source: https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/inspection/commands/test/listing/why.ts
 
 /// Port of upstream's `"why" should show reverse dependency tree for a
 /// non-direct dependency`.

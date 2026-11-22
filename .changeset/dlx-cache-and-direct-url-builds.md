@@ -1,9 +1,4 @@
 ---
-"@pnpm/config.reader": patch
-"@pnpm/exec.commands": patch
-"@pnpm/global.commands": patch
-"@pnpm/installing.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

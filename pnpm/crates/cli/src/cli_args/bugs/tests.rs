@@ -300,7 +300,7 @@ macro_rules! recording_browser {
 
         // [`OpenUrl`] fake standing in for the user's browser; mirrors the
         // mocked `open` module in the TypeScript tests
-        // (`pnpm11/deps/inspection/commands/test/bugs.ts`).
+        // (https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/inspection/commands/test/bugs.ts).
         struct RecordingBrowser;
 
         impl OpenUrl for RecordingBrowser {

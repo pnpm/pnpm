@@ -1,7 +1,0 @@
-{
-  "name": "circular-fixture",
-  "version": "1.0.0",
-  "dependencies": {
-    "es6-iterator": "^2.0.1"
-  }
-}

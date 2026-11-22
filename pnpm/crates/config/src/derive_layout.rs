@@ -173,7 +173,7 @@ impl Config {
     /// `node_modules`. Expose both through `NODE_PATH` for every child
     /// process pnpm spawns, and register the ESM loader that restores
     /// `NODE_PATH` lookups for ESM imports. Mirrors the pnpm config reader
-    /// (`pnpm11/config/reader/src/index.ts`).
+    /// ([`pnpm11/config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/config/reader/src/index.ts)).
     pub fn apply_global_virtual_store_node_path<Sys>(&mut self)
     where
         Sys: EnvVar,
