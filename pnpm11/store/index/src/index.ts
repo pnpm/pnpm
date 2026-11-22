@@ -423,8 +423,12 @@ export class StoreIndex {
  */
 export class ReadOnlyStoreIndex extends StoreIndex {
   protected override openDatabase (storeDir: string): void {
-    this.db = this.openConnection(storeDir)
-    this.db.prepare('PRAGMA busy_timeout=5000').run()
+    if (fs.existsSync(path.join(storeDir, 'index.fallback'))) {
+      this.db = createFallbackDatabase(storeDir)
+    } else {
+      this.db = adaptStoreDatabase(this.openConnection(storeDir), storeDir)
+      this.db.prepare('PRAGMA busy_timeout=5000').run()
+    }
   }
 
   protected override openConnection (storeDir: string): DatabaseSyncType {

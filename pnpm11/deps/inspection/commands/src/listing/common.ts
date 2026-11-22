@@ -90,9 +90,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export async function resolveInspectionStoreDir (opts: {
   dir: string
   storeDir?: string
+  workspaceDir?: string
   pnpmHomeDir?: string
   findBy?: string[]
 }): Promise<string | undefined> {
   if (!opts.findBy?.length || (!opts.storeDir && !opts.pnpmHomeDir)) return undefined
-  return getStorePath({ pkgRoot: opts.dir, storePath: opts.storeDir, pnpmHomeDir: opts.pnpmHomeDir ?? '' })
+  return getStorePath({ pkgRoot: opts.workspaceDir ?? opts.dir, storePath: opts.storeDir, pnpmHomeDir: opts.pnpmHomeDir ?? '' })
 }

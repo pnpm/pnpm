@@ -242,7 +242,8 @@ async fn group_by_license(
     dependencies: Vec<(usize, LicensedDependency)>,
     config: &Config,
 ) -> LicensesByGroup {
-    let store = StoredPackageReader::open(config.store_dir.root());
+    let store =
+        StoredPackageReader::open(config.store_dir.root().to_path_buf(), config.frozen_store);
     let mut results_by_license = LicensesByGroup::new();
     for (lockfile_index, dependency) in dependencies {
         let dirs = package_dirs[lockfile_index].package_dirs(
@@ -252,9 +253,7 @@ async fn group_by_license(
         );
         let cached = store
             .as_ref()
-            .and_then(|store| {
-                store.package(dependency.integrity.as_deref()?, &dependency.key.pkg_id())
-            });
+            .and_then(|store| Some(store.package(dependency.store_key.clone()?)));
         for pkg_dir in dirs.iter() {
             record_license(&mut results_by_license, &dependency, pkg_dir, cached.as_ref()).await;
         }

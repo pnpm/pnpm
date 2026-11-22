@@ -84,6 +84,7 @@ export async function searchForPackages (
     resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     storeDir?: string
+    getStoreDir?: () => Promise<string | undefined>
     virtualStoreDirMaxLength: number
     finders?: Finder[]
     nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
@@ -108,6 +109,7 @@ export async function searchForPackages (
       showDedupedSearchMatches: true,
       modulesDir: opts.modulesDir,
       storeDir: opts.storeDir,
+      getStoreDir: opts.getStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       nodeLinker: opts.nodeLinker,
     }))
@@ -144,6 +146,7 @@ export async function listForPackages (
     resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     storeDir?: string
+    getStoreDir?: () => Promise<string | undefined>
     virtualStoreDirMaxLength: number
     finders?: Finder[]
     showSummary?: boolean
@@ -183,6 +186,7 @@ export interface ListOptions {
   showExtraneous?: boolean
   modulesDir?: string
   storeDir?: string
+  getStoreDir?: () => Promise<string | undefined>
   virtualStoreDirMaxLength: number
   finders?: Finder[]
   showSummary?: boolean
@@ -234,6 +238,7 @@ export async function getPackagesForListing (
           resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
           modulesDir: opts.modulesDir,
           storeDir: opts.storeDir,
+          getStoreDir: opts.getStoreDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           nodeLinker: opts.nodeLinker,
         })

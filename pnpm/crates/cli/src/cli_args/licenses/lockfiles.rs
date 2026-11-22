@@ -116,7 +116,7 @@ impl LockfileWalk<'_> {
             &self.installability,
             self.config.peer_edge_options(),
         );
-        Ok((package_dirs, sorted_licensed_dependencies(&lockfile, belongs_to)))
+        Ok((package_dirs, sorted_licensed_dependencies(&lockfile, belongs_to, self.config)?))
     }
 }
 
@@ -173,7 +173,7 @@ pub(super) struct LicensedDependency {
     pub name: String,
     pub version: String,
     pub registry_name: Option<String>,
-    pub integrity: Option<String>,
+    pub store_key: Option<String>,
 }
 
 /// The listed packages with their manifest versions, in the order the
@@ -181,7 +181,9 @@ pub(super) struct LicensedDependency {
 fn sorted_licensed_dependencies(
     lockfile: &Lockfile,
     belongs_to: HashMap<PackageKey, BelongsTo>,
-) -> Vec<LicensedDependency> {
+    config: &Config,
+) -> miette::Result<Vec<LicensedDependency>> {
+    let policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
     let pkgs = lockfile.packages.as_ref();
     let mut dependencies = belongs_to
         .into_iter()
@@ -193,15 +195,23 @@ fn sorted_licensed_dependencies(
                 .and_then(|meta| meta.version.clone())
                 .or_else(|| key.suffix.registry_version().map(ToString::to_string))
                 .unwrap_or_else(|| key.suffix.version().to_string());
-            let integrity = pkgs
+            let store_key = pkgs
                 .and_then(|packages| packages.get(&key.without_peer()))
-                .and_then(|meta| meta.resolution.checkable_integrity())
-                .map(ToString::to_string);
-            LicensedDependency { key, belongs_to, name, version, registry_name, integrity }
+                .and_then(|meta| {
+                    pnpm_deps_restorer::store_index_key_for_resolution(
+                        &meta.resolution,
+                        &key.without_peer().pkg_id(),
+                        !config.ignore_scripts
+                            && policy
+                                .check(&key.without_peer().to_string())
+                                .unwrap_or(true),
+                    )
+                });
+            LicensedDependency { key, belongs_to, name, version, registry_name, store_key }
         })
         .collect::<Vec<_>>();
     dependencies.sort_by(compare_licensed_dependencies);
-    dependencies
+    Ok(dependencies)
 }
 
 fn compare_licensed_dependencies(

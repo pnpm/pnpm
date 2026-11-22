@@ -350,7 +350,7 @@ impl ListArgs {
             };
             let finders = resolve_finders(config, finder_dir, &self.find_by).await?;
             let candidates = finder_candidates(env, graph);
-            let results = evaluate_finders(env, &finders, candidates).await?;
+            let results = evaluate_finders(env, config.frozen_store, &finders, candidates).await?;
             searcher.set_finder_results(results);
         }
         Ok(Some(searcher))

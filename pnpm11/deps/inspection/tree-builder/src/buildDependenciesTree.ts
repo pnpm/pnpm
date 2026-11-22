@@ -62,6 +62,7 @@ export interface BuildDependenciesTreeOptions {
   checkWantedLockfileOnly?: boolean
   modulesDir?: string
   storeDir?: string
+  getStoreDir?: () => Promise<string | undefined>
   resolvePeersFromWorkspaceRoot?: boolean
   virtualStoreDirMaxLength: number
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
@@ -104,7 +105,6 @@ async function buildProjectsTrees (
   }
   const modulesDir = await realpathMissing(pathAbsolute(maybeOpts.modulesDir ?? 'node_modules', maybeOpts.lockfileDir))
   const modules = await readModulesManifest(modulesDir)
-  const registriesByScope = normalizeRegistriesByScope(maybeOpts?.registriesByScope)
   const { currentLockfile, wantedLockfile } = await readLockfiles(modulesDir, maybeOpts.lockfileDir)
   const projectDirs = projectPaths ?? getImporterDirs(wantedLockfile, maybeOpts.lockfileDir)
 
@@ -114,15 +114,16 @@ async function buildProjectsTrees (
     return Object.fromEntries(projectDirs.map((projectPath) => [projectPath, {}]))
   }
 
-  const storeIndex = openInspectionStoreIndex(modules?.storeDir || maybeOpts.storeDir)
+  const storeDir = modules?.storeDir || maybeOpts.storeDir || await maybeOpts.getStoreDir?.()
+  const storeIndex = openInspectionStoreIndex(storeDir)
   const ctx = createHierarchyContext({
     lockfile: lockfileToUse,
     wantedLockfile,
     projectDirs,
-    treeOpts: maybeOpts,
+    treeOpts: { ...maybeOpts, storeDir },
     modules,
     modulesDir,
-    registriesByScope,
+    registriesByScope: normalizeRegistriesByScope(maybeOpts.registriesByScope),
     storeIndex,
   })
 

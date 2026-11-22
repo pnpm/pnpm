@@ -176,11 +176,13 @@ fn edge_candidate<'a>(
 /// several finders return one), truthy results a plain match.
 pub(crate) async fn evaluate_finders(
     env: &PkgInfoEnv<'_>,
+    frozen_store: bool,
     finders: &[FinderHandle],
     candidates: Vec<(String, Option<TreeNodeId>, ManifestSource)>,
 ) -> miette::Result<HashMap<(String, Option<TreeNodeId>), SearchMatch>> {
-    let store_index =
-        env.layout.store_dir.as_ref().and_then(|store_dir| StoredPackageReader::open(store_dir));
+    let store_index = env.layout.store_dir
+        .as_ref()
+        .and_then(|store_dir| StoredPackageReader::open(store_dir.clone(), frozen_store));
 
     let mut results = HashMap::new();
     for (alias, node_id, source) in candidates {
@@ -269,5 +271,7 @@ fn read_manifest_from_cafs(
     let store_index = store_index?;
     let integrity = source.integrity.as_deref()?;
     let pkg_id = format!("{}@{}", source.name, source.version);
-    store_index.package(integrity, &pkg_id)?.manifest()
+    store_index
+        .package(pnpm_store_dir::store_index_key(integrity, &pkg_id))
+        .manifest()
 }

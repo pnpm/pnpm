@@ -1,6 +1,7 @@
 ---
 "pacquet": patch
 "pnpm": patch
+"@pnpm/store.index": patch
 "@pnpm/deps.inspection.commands": patch
 "@pnpm/deps.inspection.list": patch
 "@pnpm/deps.inspection.tree-builder": patch

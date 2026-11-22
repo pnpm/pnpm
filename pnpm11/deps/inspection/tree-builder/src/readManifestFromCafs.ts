@@ -32,6 +32,6 @@ export function readManifestFromCafs (storeDir: string, storeIndex: StoreIndex, 
 }
 
 export function openInspectionStoreIndex (storeDir: string | undefined): StoreIndex | undefined {
-  if (!storeDir || !fs.existsSync(path.join(storeDir, 'index.db'))) return undefined
+  if (!storeDir || !['index.db', 'index.fallback'].some(name => fs.existsSync(path.join(storeDir, name)))) return undefined
   return new ReadOnlyStoreIndex(storeDir)
 }

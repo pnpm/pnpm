@@ -114,14 +114,16 @@ export type ListCommandOptions = Pick<Config,
   parseable?: boolean
   onlyProjects?: boolean
   recursive?: boolean
+  getStoreDir?: () => Promise<string | undefined>
   findBy?: string[]
-} & Partial<Pick<Config, 'global' | 'globalPkgDir' | 'packageConfigs' | 'storeDir' | 'pnpmHomeDir'>>
+} & Partial<Pick<Config, 'global' | 'globalPkgDir' | 'packageConfigs' | 'storeDir' | 'pnpmHomeDir' | 'workspaceDir'>>
 
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
-  opts = { ...opts, storeDir: await resolveInspectionStoreDir(opts) }
+  const storeOptions = opts
+  opts = { ...opts, storeDir: undefined, getStoreDir: () => resolveInspectionStoreDir(storeOptions) }
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.global && opts.globalPkgDir) {
@@ -266,6 +268,7 @@ interface RenderOptions {
   parseable?: boolean
   modulesDir?: string
   storeDir?: string
+  getStoreDir?: () => Promise<string | undefined>
   resolvePeersFromWorkspaceRoot?: boolean
   virtualStoreDirMaxLength: number
   finders?: Record<string, Finder>
@@ -291,6 +294,7 @@ function getListOptions (opts: RenderOptions) {
     showSummary: true,
     modulesDir: opts.modulesDir,
     storeDir: opts.storeDir,
+    getStoreDir: opts.getStoreDir,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     finders,

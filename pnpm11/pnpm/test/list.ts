@@ -537,3 +537,22 @@ module.exports = { finders: {
   expect(JSON.parse(stdout.toString())[0].dependencies['@pnpm.e2e/abc'].version).toBe('1.0.0')
   expect(fs.existsSync('node_modules')).toBe(false)
 })
+
+
+test.each([true, false])('child project finder uses the workspace relative store (shared lockfile: %s)', async (sharedWorkspaceLockfile) => {
+  preparePackages([{ location: 'packages/example', package: {
+    name: 'example', version: '1.0.0', dependencies: { '@pnpm.e2e/abc': '1.0.0' },
+  } }])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'], storeDir: '.cache-store', sharedWorkspaceLockfile,
+  })
+  fs.writeFileSync('.pnpmfile.cjs', `module.exports = { finders: {
+    cached: ctx => ctx.readManifest()?.peerDependencies?.['@pnpm.e2e/peer-a'] === '^1.0.0'
+  } }`)
+  fs.copyFileSync('.pnpmfile.cjs', 'packages/example/.pnpmfile.cjs')
+  await execPnpm(['install'])
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  fs.rmSync('packages/example/node_modules', { recursive: true, force: true })
+  const { stdout } = execPnpmSync(['--dir=packages/example', 'list', '--lockfile-only', '--find-by=cached', '--json'], { expectSuccess: true })
+  expect(JSON.parse(stdout.toString())[0].dependencies['@pnpm.e2e/abc'].version).toBe('1.0.0')
+})

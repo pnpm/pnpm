@@ -471,7 +471,7 @@ async fn license_report_keeps_newest_metadata_and_every_installed_version() {
         )
         .unwrap();
         let dependency = LicensedDependency {
-            integrity: None,
+            store_key: None,
             key: format!("alpha@{version}").parse().unwrap(),
             belongs_to: BelongsTo::Prod,
             name: "alpha".to_string(),
@@ -506,7 +506,7 @@ async fn license_report_separates_default_and_named_registry_packages() {
         )
         .unwrap();
         let dependency = LicensedDependency {
-            integrity: None,
+            store_key: None,
             key: key_str.parse().unwrap(),
             belongs_to: BelongsTo::Prod,
             name: "alpha".to_string(),
