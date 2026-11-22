@@ -110,7 +110,7 @@ impl<'a> CreateVirtualStore<'a> {
             ColdBatch {
                 cold: &partition.cold,
                 installer: self.cold_installer(&inputs, &runtime_platform_selector),
-                reuse: self.slot_reuse(inputs.wanted.packages),
+                reuse: self.slot_reuse(inputs.wanted.packages, inputs.links),
                 slot_builds: inputs.slot_builds,
                 removed_aliases_by_key: &inputs.links.removed_aliases_by_key,
                 link_template: &inputs.links.template,

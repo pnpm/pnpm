@@ -168,6 +168,38 @@ fn installs_node_runtime_for_the_requested_target_architecture() {
 }
 
 #[test]
+fn relinks_the_runtime_when_the_selected_archive_changes() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "");
+    let mut server = mockito::Server::new();
+    let mut linux = runtime_fixture(&mut server, "node", "22.0.0", "linux", "x64");
+    let windows = runtime_fixture(&mut server, "node", "22.0.0", "win32", "x64");
+    linux.resolution["variants"]
+        .as_array_mut()
+        .unwrap()
+        .push(windows.resolution["variants"][0].clone());
+    let fixtures = [linux];
+    write_runtime_manifest(&workspace, &fixtures);
+    write_runtime_lockfile(&workspace, &fixtures);
+
+    let runtime = workspace.join("node_modules/node");
+    for (os, expected, stale) in [
+        ("linux", "bin/node", "node.exe"),
+        ("win32", "node.exe", "bin/node"),
+        ("linux", "bin/node", "node.exe"),
+    ] {
+        command(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--os", os, "--cpu", "x64"])
+            .assert()
+            .success();
+        assert!(runtime.join(expected).is_file(), "missing {expected} for {os}");
+        assert!(!runtime.join(stale).exists(), "stale {stale} for {os}");
+    }
+    fixtures[0].archive_mock.assert();
+    windows.archive_mock.assert();
+}
+
+#[test]
 fn installs_node_runtime_from_the_rc_channel() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
