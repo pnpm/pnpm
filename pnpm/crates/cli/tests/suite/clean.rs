@@ -1,6 +1,6 @@
 use assert_cmd::{
+    assert::OutputAssertExt as _,
     cargo::CommandCargoExt,
-    prelude::OutputAssertExt as _,
 };
 use command_extra::CommandExtra;
 use pnpm_store_dir::StoreDir;

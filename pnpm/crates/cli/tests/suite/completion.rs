@@ -737,18 +737,22 @@ fn completion_bash_completes_words_split_at_word_breaks() {
             .output()
             .unwrap(),
     );
-    let cases: [(&str, &str, &[&str]); 3] = [
-        ("(pnpm run test : u)", "pnpm run test:u", &["unit"]),
-        ("(pnpm run test :)", "pnpm run test:", &["e2e", "unit"]),
-        ("(pnpm install --reporter = app)", "pnpm install --reporter=app", &["append-only"]),
+    let cases: [(&str, &str, usize, &[&str]); 4] = [
+        ("(pnpm run test : u)", "pnpm run test:u|", 4, &["unit"]),
+        ("(pnpm run test :)", "pnpm run test:|", 3, &["e2e", "unit"]),
+        ("(pnpm install --reporter = app)", "pnpm install --reporter=app|", 4, &["append-only"]),
+        ("(pnpm completion fishy trailing)", "pnpm completion fish|y trailing", 2, &["fish"]),
     ];
-    for (words, line, expected) in cases {
+    for (words, marked_line, current_word, expected) in cases {
+        let (prefix, suffix) = marked_line.split_once('|').unwrap();
+        let line = format!("{prefix}{suffix}");
+        let point = prefix.chars().count();
         let bash_script = format!(
             r#"{completion_script}
 COMP_WORDS={words}
-COMP_CWORD=$((${{#COMP_WORDS[@]}} - 1))
+COMP_CWORD={current_word}
 COMP_LINE='{line}'
-COMP_POINT=${{#COMP_LINE}}
+COMP_POINT={point}
 _pnpm_completion
 printf '%s\n' "${{COMPREPLY[@]}}"
 "#,

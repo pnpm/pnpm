@@ -31,11 +31,15 @@ impl CompletionShell {
 
 pub(super) const BASH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
 _pnpm_completion() {
-  local line="$COMP_LINE" word completion replaced_prefix=""
+  local line="${COMP_LINE:0:COMP_POINT}" word remaining completion replaced_prefix=""
   local -a words=()
   local i
   for ((i = 0; i <= COMP_CWORD; i++)); do
     word="${COMP_WORDS[i]}"
+    if ((i == COMP_CWORD)); then
+      remaining="${line#"${line%%[![:space:]]*}"}"
+      word="${word:0:${#remaining}}"
+    fi
     if ((${#words[@]} > 0)) && [[ -n "$word" && "$line" != [[:space:]]* ]]; then
       words[${#words[@]}-1]+="$word"
     else

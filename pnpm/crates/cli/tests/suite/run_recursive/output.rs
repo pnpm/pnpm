@@ -645,7 +645,12 @@ fn github_actions_groups_serial_scripts_even_after_failure() {
         {
             assert!(group.starts_with(&format!("{name}@1.0.0 : test {name}")), "{group}");
             let end = group.find("::endgroup::").expect("closed group");
-            assert!(group.find(marker).expect("script output") < end, "{group}");
+            assert!(
+                group[..end]
+                    .lines()
+                    .any(|line| line.ends_with(marker)),
+                "{group}",
+            );
         }
         drop(root);
     }
