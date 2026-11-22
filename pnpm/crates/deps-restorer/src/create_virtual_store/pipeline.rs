@@ -173,7 +173,7 @@ impl<'a> CreateVirtualStore<'a> {
     async fn materialize_plan<Reporter: self::Reporter>(
         &self,
         wanted: WantedEntries<'a>,
-        plan: snapshot_plan::SnapshotPlan<'a>,
+        mut plan: snapshot_plan::SnapshotPlan<'a>,
         prefetched: &PrefetchResult,
         store: CreateVirtualStoreStoreContext<'_>,
         check: &mut Option<ConcurrentCheck<'_>>,
@@ -201,7 +201,7 @@ impl<'a> CreateVirtualStore<'a> {
             self.fetching.custom_fetcher_session.is_some(),
         );
 
-        let links = self.link_plan(&plan);
+        let links = self.link_plan(&plan.survivors, std::mem::take(&mut plan.runtime_archives));
         let mut indexes =
             CasIndexes::warm(links.shared_packages.as_ref(), &partition.warm, self.is_hoisted());
         self.link_warm::<Reporter>(wanted, &partition, &links)?;
@@ -217,6 +217,8 @@ impl<'a> CreateVirtualStore<'a> {
             check,
         )
         .await?;
+
+        links.runtime_archives.record_installed(self.ctx.linker.layout, &fetch_failed)?;
 
         // The writer is owned by the caller now. They drop their
         // sender and await the join handle after the build phase
@@ -240,11 +242,16 @@ impl<'a> CreateVirtualStore<'a> {
         matches!(self.ctx.linker.kind, NodeLinker::Hoisted)
     }
 
-    fn slot_reuse(&self, packages: &'a HashMap<PackageKey, PackageMetadata>) -> SlotReuse<'a> {
+    fn slot_reuse<'i>(
+        &'i self,
+        packages: &'i HashMap<PackageKey, PackageMetadata>,
+        links: &'i LinkPlan<'_>,
+    ) -> SlotReuse<'i> {
         SlotReuse {
             packages,
             current_packages: self.current_entries.packages,
             force: self.ctx.config.force,
+            runtime_archives: &links.runtime_archives,
         }
     }
 
@@ -317,12 +324,17 @@ impl<'a> CreateVirtualStore<'a> {
         })
     }
 
-    fn link_plan(&self, plan: &snapshot_plan::SnapshotPlan<'_>) -> LinkPlan<'a> {
+    fn link_plan(
+        &self,
+        survivors: &[super::SnapshotWithCacheKey<'_>],
+        runtime_archives: super::RuntimeArchives,
+    ) -> LinkPlan<'a> {
         let config = self.ctx.config;
         LinkPlan {
+            runtime_archives,
             removed_aliases_by_key: removed_aliases_by_key(
                 self.current_entries.snapshots,
-                &plan.survivors,
+                survivors,
             ),
             shared_packages: config.remote_side_effects_cache
                 .as_ref()
@@ -365,7 +377,7 @@ impl<'a> CreateVirtualStore<'a> {
         link_warm_batch::<Reporter>(
             &partition.warm,
             &WarmLinkBatch {
-                reuse: self.slot_reuse(wanted.packages),
+                reuse: self.slot_reuse(wanted.packages, links),
                 is_hoisted: self.is_hoisted(),
                 slot_builds: self.slot_builds(),
                 removed_aliases_by_key: &links.removed_aliases_by_key,

@@ -1,5 +1,8 @@
 use super::{
-    super::cache_keys::SlotReuse,
+    super::{
+        RuntimeArchives,
+        cache_keys::SlotReuse,
+    },
     metadata_with_integrity,
     name,
 };
@@ -28,7 +31,12 @@ fn packages(integrity: &str) -> HashMap<PackageKey, PackageMetadata> {
 fn an_unchanged_integrity_keeps_the_slot() {
     let wanted = packages(OLD);
     let current = packages(OLD);
-    let reuse = SlotReuse { packages: &wanted, current_packages: Some(&current), force: false };
+    let reuse = SlotReuse {
+        runtime_archives: &RuntimeArchives::default(),
+        packages: &wanted,
+        current_packages: Some(&current),
+        force: false,
+    };
     assert!(!reuse.must_replace(&key()));
 }
 
@@ -36,7 +44,12 @@ fn an_unchanged_integrity_keeps_the_slot() {
 fn a_changed_integrity_replaces_the_slot() {
     let wanted = packages(NEW);
     let current = packages(OLD);
-    let reuse = SlotReuse { packages: &wanted, current_packages: Some(&current), force: false };
+    let reuse = SlotReuse {
+        runtime_archives: &RuntimeArchives::default(),
+        packages: &wanted,
+        current_packages: Some(&current),
+        force: false,
+    };
     assert!(reuse.must_replace(&key()));
 }
 
@@ -45,7 +58,12 @@ fn force_replaces_the_slot_with_or_without_previous_records() {
     let wanted = packages(OLD);
     let current = packages(OLD);
     for current_packages in [None, Some(&current)] {
-        let reuse = SlotReuse { packages: &wanted, current_packages, force: true };
+        let reuse = SlotReuse {
+            runtime_archives: &RuntimeArchives::default(),
+            packages: &wanted,
+            current_packages,
+            force: true,
+        };
         assert!(reuse.must_replace(&key()), "force must replace even unchanged packages");
     }
 }
@@ -55,6 +73,11 @@ fn force_replaces_the_slot_with_or_without_previous_records() {
 #[test]
 fn a_first_install_without_force_leaves_the_verdict_to_the_import() {
     let wanted = packages(NEW);
-    let reuse = SlotReuse { packages: &wanted, current_packages: None, force: false };
+    let reuse = SlotReuse {
+        runtime_archives: &RuntimeArchives::default(),
+        packages: &wanted,
+        current_packages: None,
+        force: false,
+    };
     assert!(!reuse.must_replace(&key()));
 }

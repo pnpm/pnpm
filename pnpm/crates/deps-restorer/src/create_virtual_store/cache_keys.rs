@@ -1,6 +1,7 @@
 use super::CreateVirtualStoreError;
 use crate::{
     install_package_by_snapshot::{
+        binary_store_index_key,
         runtime_platform_selector,
         unverified_fetch_is_allowed,
     },
@@ -136,28 +137,9 @@ pub(super) fn snapshot_cache_key(
                 is_git_hosted: true,
             })
         }
-        // Runtime artifacts (Node.js / Bun / Deno): the per-archive
-        // integrity is the warm-cache key, same shape as the
-        // registry / tarball arms above. Mirrors the per-snapshot
-        // dispatch in [`InstallPackageBySnapshot::run`]; the cold
-        // path's variant selector + binary fetcher writes the row
-        // under this key when it succeeds, so a re-install hits
-        // here instead of cold-fetching the runtime archive again.
-        LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
-            value: Some(store_index_key(&binary.integrity.to_string(), &pkg_id)),
-            is_git_hosted: false,
-        }),
-        // `Variations` is a meta-shape: its integrity lives on the
-        // *picked* variant, not the wrapper. Run the same host-
-        // matching selector the cold path runs so the warm key
-        // resolves to the variant that would actually be installed.
-        // No variant matched → return `Ok(None)` and let the cold
-        // path surface the typed `NoMatchingPlatformVariant` error
-        // (a warm-key miss is the right shape; the warm prefetch
-        // is best-effort and the cold path is where errors are
-        // raised).
+        LockfileResolution::Binary(binary) => binary_cache_key(&metadata_key, binary),
         LockfileResolution::Variations(variations) => {
-            variant_cache_key(variations, runtime_platform_selector, &pkg_id)
+            variant_cache_key(variations, runtime_platform_selector, &metadata_key)
         }
         // Custom resolutions have no built-in warm-cache key, the
         // cold path consults the pnpmfile custom fetchers, and the
@@ -266,6 +248,7 @@ pub(crate) fn package_content_changed(
 /// fields mean the same thing at the two phases.
 #[derive(Clone, Copy)]
 pub(super) struct SlotReuse<'a> {
+    pub(super) runtime_archives: &'a super::RuntimeArchives,
     pub(super) packages: &'a HashMap<PackageKey, PackageMetadata>,
     pub(super) current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     /// Replace the slot even when its recorded metadata is unchanged.
@@ -277,23 +260,30 @@ impl SlotReuse<'_> {
     /// this install wants, so its completion marker must not be taken
     /// as proof that the slot is already correct.
     pub(super) fn must_replace(&self, snapshot_key: &PackageKey) -> bool {
-        self.force || package_content_changed(self.current_packages, self.packages, snapshot_key)
+        self.force
+            || self.runtime_archives.must_replace(snapshot_key)
+            || package_content_changed(self.current_packages, self.packages, snapshot_key)
     }
+}
+fn binary_cache_key(
+    key: &PackageKey,
+    binary: &pnpm_lockfile::BinaryResolution,
+) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
+    let value = binary_store_index_key(key, binary)
+        .map_err(CreateVirtualStoreError::InstallPackageBySnapshot)?;
+    Ok(SnapshotCacheKey { value: Some(value), is_git_hosted: false })
 }
 pub(super) fn variant_cache_key(
     variations: &pnpm_lockfile::VariationsResolution,
     runtime_platform_selector: &PlatformSelector,
-    pkg_id: &str,
+    package_key: &PackageKey,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     let Some(variant) = select_platform_variant(&variations.variants, runtime_platform_selector)
     else {
         return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
     };
     match &variant.resolution {
-        LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
-            value: Some(store_index_key(&binary.integrity.to_string(), pkg_id)),
-            is_git_hosted: false,
-        }),
+        LockfileResolution::Binary(binary) => binary_cache_key(package_key, binary),
         // Non-`Binary` variant (corrupt lockfile, or a
         // future shape pacquet doesn't recognise). The
         // cold path raises the typed

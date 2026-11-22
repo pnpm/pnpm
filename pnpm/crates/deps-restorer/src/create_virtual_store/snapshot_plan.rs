@@ -66,6 +66,7 @@ pub(super) struct SnapshotPlan<'a> {
     /// store-index rows still feed the build phase's `is_built` gate,
     /// so a warm reinstall does not re-run approved build scripts.
     pub skipped_entries: Vec<SnapshotWithCacheKey<'a>>,
+    pub runtime_archives: super::RuntimeArchives,
     pub has_git_hosted_survivor: bool,
 }
 
@@ -90,33 +91,39 @@ impl SnapshotPlan<'_> {
 pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     inputs: SnapshotPlanInputs<'a, '_>,
 ) -> Result<SnapshotPlan<'a>, CreateVirtualStoreError> {
-    let probe = WarmSlotProbe::of(&inputs);
+    let mut probe = WarmSlotProbe::of(&inputs);
     let SnapshotPlanInputs { snapshots, cache_keys, .. } = inputs;
     let (survivors, has_git_hosted_survivor) =
-        survivors::<Reporter>(snapshots, &probe, cache_keys)?;
+        survivors::<Reporter>(snapshots, &mut probe, cache_keys)?;
     let skipped_entries = skipped_entries(snapshots, &survivors, probe.policy.skipped, cache_keys);
-    Ok(SnapshotPlan { survivors, skipped_entries, has_git_hosted_survivor })
+    Ok(SnapshotPlan {
+        survivors,
+        skipped_entries,
+        runtime_archives: probe.runtime_archives,
+        has_git_hosted_survivor,
+    })
 }
 
 /// The snapshots this install materializes, and whether any of them is
 /// git-hosted.
 fn survivors<'a, Reporter: self::Reporter>(
     snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
-    probe: &WarmSlotProbe<'a, '_>,
+    probe: &mut WarmSlotProbe<'a, '_>,
     cache_keys: &mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
 ) -> Result<(Vec<SnapshotWithCacheKey<'a>>, bool), CreateVirtualStoreError> {
+    let skipped = probe.policy.skipped;
     let mut has_git_hosted_survivor = false;
     let entries = snapshots
         .iter()
         // Reason 1: installability skip. Drop entirely.
-        .filter(|(snapshot_key, _)| !probe.policy.skipped.contains(snapshot_key))
+        .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
         // Reason 2: warm-slot skip. Drop survivors that already match
         // the previous install, or whose content-addressed global-
         // virtual-store slot already exists. This is a fallible fold
         // because a warm-slot lstat error must abort the install rather
         // than quietly converting the slot into a rebuild on every run.
         .try_fold(Vec::new(), |mut entries, (snapshot_key, snapshot)| {
-            if !warm_slot_is_current::<Reporter>(probe, snapshot_key, snapshot)? {
+            if !warm_slot_is_current::<Reporter>(probe, snapshot_key, snapshot, cache_keys)? {
                 let cache_key = cache_keys
                     .remove(snapshot_key)
                     .expect("CasPrefetch::start derived a cache key for every lockfile snapshot")?;
@@ -163,6 +170,7 @@ fn skipped_entries<'a>(
 /// [`plan_snapshots`] reads to decide whether a snapshot's virtual-store
 /// slot may be left alone.
 struct WarmSlotProbe<'a, 'b> {
+    runtime_archives: super::RuntimeArchives,
     pub policy: SnapshotReusePolicy<'b>,
     packages: &'a HashMap<PackageKey, PackageMetadata>,
     current_entries: LockfileEntries<'b>,
@@ -172,6 +180,7 @@ struct WarmSlotProbe<'a, 'b> {
 impl<'a, 'b> WarmSlotProbe<'a, 'b> {
     fn of(inputs: &SnapshotPlanInputs<'a, 'b>) -> Self {
         WarmSlotProbe {
+            runtime_archives: super::RuntimeArchives::default(),
             policy: inputs.policy,
             packages: inputs.packages,
             current_entries: inputs.current_entries,
@@ -183,12 +192,30 @@ impl<'a, 'b> WarmSlotProbe<'a, 'b> {
 /// Whether the snapshot's virtual-store slot already holds what this
 /// install would materialize, so the install may skip it.
 fn warm_slot_is_current<Reporter: self::Reporter>(
-    probe: &WarmSlotProbe<'_, '_>,
+    probe: &mut WarmSlotProbe<'_, '_>,
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,
+    cache_keys: &HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
 ) -> Result<bool, CreateVirtualStoreError> {
-    if !slot_probe_applies(probe, snapshot_key) {
+    if probe.policy.is_hoisted {
         return Ok(false);
+    }
+    match probe.packages
+        .get(&snapshot_key.without_peer())
+        .map(|meta| &meta.resolution)
+    {
+        Some(LockfileResolution::Directory(_)) => return Ok(false),
+        Some(LockfileResolution::Variations(_))
+            if !probe.layout.enable_global_virtual_store()
+                && probe.runtime_archives.schedule_if_stale(
+                    probe.layout,
+                    snapshot_key,
+                    cache_keys.get(snapshot_key),
+                )? =>
+        {
+            return Ok(false);
+        }
+        _ => {}
     }
     let current_entry_unchanged = current_entry_unchanged(probe, snapshot_key, snapshot);
     // A global-virtual-store slot path is content-addressed: the graph
@@ -204,20 +231,6 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
         return Ok(false);
     }
     slot_contents_complete::<Reporter>(probe, snapshot_key, snapshot, current_entry_unchanged)
-}
-
-/// Whether a slot probe can judge this snapshot at all. The hoisted
-/// linker writes no virtual-store slot (pnpm/pnpm#14001), and a `file:`
-/// dependency's source is mutable, so for those neither an unchanged
-/// lockfile nor an existing slot is evidence the copy is current.
-fn slot_probe_applies(probe: &WarmSlotProbe<'_, '_>, snapshot_key: &PackageKey) -> bool {
-    !probe.policy.is_hoisted
-        && !matches!(
-            probe.packages
-                .get(&snapshot_key.without_peer())
-                .map(|meta| &meta.resolution),
-            Some(LockfileResolution::Directory(_)),
-        )
 }
 
 /// Whether the current lockfile records this snapshot with the same

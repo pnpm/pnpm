@@ -31,6 +31,7 @@ mod slot_linking;
 use slot_linking::LinkSlotsParallel;
 
 mod cache_keys;
+mod runtime_archives;
 use cache_keys::{
     SnapshotCacheKey,
     derive_cache_keys,
@@ -38,6 +39,7 @@ use cache_keys::{
     prefetch_keys,
     snapshot_deps_equal,
 };
+use runtime_archives::RuntimeArchives;
 
 use crate::{
     CasPathsByPkgId,
@@ -347,6 +349,14 @@ pub enum CreateVirtualStoreError {
         error: std::io::Error,
     },
 
+    #[display("Failed to record the installed runtime archive at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RECORD_RUNTIME_ARCHIVE))]
+    RecordRuntimeArchive {
+        path: PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
+
     #[display("Failed to inspect the virtual store slot at {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INSPECT_VIRTUAL_STORE_SLOT))]
     InspectVirtualStoreSlot {
@@ -421,6 +431,7 @@ struct WantedEntries<'a> {
 
 /// What the warm and cold link batches share beyond their slots.
 struct LinkPlan<'a> {
+    runtime_archives: RuntimeArchives,
     /// Per-slot obsolete child aliases. Only survivors that already
     /// existed in the current lockfile and dropped a child contribute an
     /// entry; fresh packages and addition-only changes map to the empty
