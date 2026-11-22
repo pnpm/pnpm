@@ -52,3 +52,22 @@ fn dependency_options_to_save_type() {
         Some(Dev),
     );
 }
+
+#[test]
+fn npm_package_urls_remove_by_name_and_preserve_ordinary_patterns() {
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct Cli {
+        #[clap(flatten)]
+        args: super::RemoveArgs,
+    }
+    let mut cli = Cli::parse_from(["pnpm", "pkg:npm/%40scope/example@1.2.3", "foo-*", "!foo-test"]);
+    assert!(
+        cli.args
+            .take_ecosystem_packages(&pnpm_config::Config::default())
+            .unwrap()
+            .is_empty(),
+    );
+    assert_eq!(cli.args.package_names, ["@scope/example", "foo-*", "!foo-test"]);
+}

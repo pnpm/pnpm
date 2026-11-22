@@ -756,3 +756,33 @@ fn remove_aliased_crates_by_name_and_package_url() {
         );
     }
 }
+
+#[test]
+fn remove_crate_prunes_existing_lock_and_preserves_other_locked_packages() {
+    let root = cargo_workspace(
+        "https://registry.example.test/index/",
+        "obsolete = { path = 'obsolete' }\nkept = { path = 'kept' }\n[workspace]\nmembers=['kept']",
+        "",
+    );
+    for name in ["obsolete", "kept"] {
+        let dir = root.path().join(name);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::write(dir.join("src/lib.rs"), "").unwrap();
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            format!("[package]\nname='{name}'\nversion='1.2.3'\nedition='2021'\n"),
+        )
+        .unwrap();
+    }
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["generate-lockfile", "--offline"])
+        .assert()
+        .success();
+    let lock_path = root.path().join("Cargo.lock");
+    assert!(std::fs::read_to_string(&lock_path).unwrap().contains(r#"name = "obsolete""#));
+    install_in(&root, &["remove", "--lockfile-only", "crate:obsolete"]);
+    let lock = std::fs::read_to_string(lock_path).unwrap();
+    assert!(!lock.contains("obsolete"), "{lock}");
+    assert!(lock.contains("name = \"kept\"\nversion = \"1.2.3\""), "{lock}");
+}

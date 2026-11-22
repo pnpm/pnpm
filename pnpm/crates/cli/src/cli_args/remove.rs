@@ -91,7 +91,13 @@ impl RemoveArgs {
             cli_args::{
                 add::AddRequest,
                 ecosystem_deps::{
+                    EcosystemFilterKind,
                     is_ecosystem_prefixed,
+                    patterns_for_ecosystem,
+                    selectors::{
+                        is_cargo_prefixed,
+                        is_python_prefixed,
+                    },
                     validate_ecosystem_selectors,
                 },
             },
@@ -101,20 +107,23 @@ impl RemoveArgs {
             return Ok(Vec::new());
         }
         validate_ecosystem_selectors(&self.package_names, config)?;
+        if self.package_names
+            .iter()
+            .any(|name| is_cargo_prefixed(name) || is_python_prefixed(name))
+            && self.package_names
+                .iter()
+                .any(|name| name.starts_with('!'))
+        {
+            miette::bail!("exclusions cannot be combined with Python or Cargo dependency removal");
+        }
         let packages = PackageSpecifierPlan::parse(
             self.package_names
                 .iter()
                 .map(String::as_str)
                 .map(AddRequest::from),
         )?;
-        self.package_names = pnpm_matcher::prune_orphan_ignores(
-            packages.node_packages
-                .iter()
-                .map(AddRequest::selector)
-                .map(str::to_owned)
-                .collect(),
-            &self.package_names,
-        );
+        self.package_names =
+            patterns_for_ecosystem(&self.package_names, EcosystemFilterKind::Node)?;
         Ok(packages.ecosystem_packages)
     }
 

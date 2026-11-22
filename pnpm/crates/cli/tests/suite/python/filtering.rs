@@ -415,10 +415,18 @@ fn failed_python_remove_restores_the_manifest() {
     project(root.path(), "https://example.invalid", &["Some_Name>=1"]);
     let path = root.path().join("pyproject.toml");
     let original = fs::read(&path).unwrap();
-    pacquet_in(root.path())
-        .with_args(["remove", "--lockfile-only", "pypi:some.name", "pypi:missing-example"])
-        .assert()
-        .failure();
+    for (selectors, message) in [
+        (["pypi:some.name", "pypi:missing-example"], "cannot remove missing-example"),
+        (["pypi:some.name", "!pypi:some-name"], "exclusions"),
+    ] {
+        let failure = pacquet_in(root.path())
+            .with_args(["remove", "--lockfile-only"])
+            .with_args(selectors)
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&failure.get_output().stderr);
+        assert!(stderr.contains(message), "{stderr}");
+    }
     assert_eq!(fs::read(path).unwrap(), original);
     assert!(!root.path().join("pylock.toml").exists());
     assert!(
