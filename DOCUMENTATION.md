@@ -20,18 +20,15 @@ Images shared with the blog or website remain available at their original URLs.
 With a sibling checkout of pnpm/pnpm.io containing the sync tooling:
 
 ```sh
-git fetch origin release/11
-git restore --source=FETCH_HEAD --worktree -- pnpm11/docs
 pnpm --dir ../pnpm.io install --frozen-lockfile
-node ../pnpm.io/scripts/sync-docs.mjs . --preview
+node ../pnpm.io/scripts/sync-docs.mjs . --preview 12.x pnpr
 pnpm --dir ../pnpm.io build
 pnpm --dir ../pnpm.io check-urls
 ```
 
 Adjust the paths to your checkouts. `--preview` replaces the website's generated
-documentation copies with the local sources. The website imports every
-documentation line, so the first two commands fetch `pnpm11/docs`; do not
-commit it. Run it again after editing sources. It does not publish or advance release state.
+copies of the listed documentation lines with the local sources. The other
+lines keep the website's committed copies. Run it again after editing sources. It does not publish or advance release state.
 The Documentation workflow performs the same build and URL checks for PRs.
 It pins the website revision for reproducibility; update that revision when
 adopting website tooling changes. Release publication uses the website's current
