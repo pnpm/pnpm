@@ -1,42 +1,85 @@
 //! Rewriting the POSIX `${...}` parameter expansions and backslash escapes
 //! that the bundled shell parser does not recognize into forms it does.
 
+mod ast;
 mod escape;
+mod mode;
 mod scan;
 
-use escape::DoubleQuoteScope;
+use mode::{
+    Landing,
+    Mode,
+    Quote,
+};
 use scan::TokenPosition;
 use std::{
-    cell::Cell,
-    collections::HashMap,
+    cell::{
+        Cell,
+        RefCell,
+    },
+    collections::HashSet,
     ops::ControlFlow,
 };
 
-/// Rewrite the POSIX `${...}` parameter expansions and backslash escapes (`\\`
-/// and unquoted `\'`) that the bundled shell parser does not recognize into
-/// forms it does.
-///
-/// **A value never reaches the rewritten text.** A parameter that has one
-/// becomes a `$NAME` reference the shell expands after parsing, so shell
-/// punctuation in an environment variable cannot turn into a command, a
-/// redirection, or a substitution. Substituting the value here instead would
-/// read the same and be a command injection.
-///
-/// Which side of a `${NAME:-word}` or `${NAME:+word}` is taken is read from
-/// `env`, the environment the shell starts with, so a parameter that an
-/// earlier command in the same script assigned is not seen. Forms no `$NAME`
-/// reference can stand in for, `${NAME:=word}` and `${#NAME}` among them, are
-/// left verbatim rather than guessed at.
-pub(super) fn expand(script: &str, env: &HashMap<String, String>) -> String {
+/// Parse shell text with runtime parameter expansions. The lexical rewrite
+/// never substitutes environment values into shell source.
+pub(super) fn parse(script: &str) -> Result<deno_task_shell::parser::SequentialList, String> {
+    let prepared = prepare(script);
+    let mut list =
+        deno_task_shell::parser::parse(&prepared.text).map_err(|error| error.to_string())?;
+    if !prepared.parameters.is_empty() {
+        ast::resolve(&mut list, &prepared);
+    }
+    Ok(list)
+}
+
+pub(super) struct PreparedScript {
+    pub(super) text: String,
+    prefix: String,
+    parameters: Vec<Parameter>,
+}
+
+struct Parameter {
+    name: String,
+    empty_is_unset: bool,
+    alternate: bool,
+    word: String,
+    quoted: bool,
+}
+
+pub(super) fn prepare(script: &str) -> PreparedScript {
     let allowance = Cell::new(script.len().saturating_mul(scan::WASTED_SCAN_ALLOWANCE));
-    let mut expanded = String::with_capacity(script.len());
+    let prefix = parameter_prefix(script);
+    let parameters = RefCell::new(Vec::new());
+    let mut text = String::with_capacity(script.len());
     rewrite_into(
-        &mut expanded,
+        &mut text,
         script,
-        Rewrite::of_the_script(env, &allowance),
+        Rewrite {
+            parameters: &parameters,
+            prefix: &prefix,
+            landing: Landing::Script,
+            depth: 0,
+            wasted_scan_allowance: &allowance,
+        },
         StopAt::EndOfInput,
     );
-    expanded
+    PreparedScript { text, prefix, parameters: parameters.into_inner() }
+}
+
+fn parameter_prefix(script: &str) -> String {
+    let occupied: HashSet<&str> = script
+        .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+        .filter_map(|word| {
+            word.strip_prefix("__PNPM_PARAMETER_")?
+                .split_once('_')
+                .map(|(id, _)| id)
+        })
+        .collect();
+    let identifier = (0..=occupied.len())
+        .find(|identifier| !occupied.contains(identifier.to_string().as_str()))
+        .expect("there are more candidates than occupied identifiers");
+    format!("__PNPM_PARAMETER_{identifier}_")
 }
 
 /// A script is free to nest `${NAME:-${NAME:-...}}` or `$(...)` as deeply as it
@@ -69,7 +112,8 @@ fn rewrite_into(
 /// What one piece of text is rewritten against.
 #[derive(Clone, Copy)]
 struct Rewrite<'a> {
-    env: &'a HashMap<String, String>,
+    parameters: &'a RefCell<Vec<Parameter>>,
+    prefix: &'a str,
     landing: Landing,
     /// How many nested expansions or command substitutions enclose this text.
     depth: u8,
@@ -79,11 +123,7 @@ struct Rewrite<'a> {
     wasted_scan_allowance: &'a Cell<usize>,
 }
 
-impl<'a> Rewrite<'a> {
-    fn of_the_script(env: &'a HashMap<String, String>, allowance: &'a Cell<usize>) -> Self {
-        Rewrite { env, landing: Landing::Script, depth: 0, wasted_scan_allowance: allowance }
-    }
-
+impl Rewrite<'_> {
     /// The rewrite of the `word` of an expansion sitting at `mode` in this text.
     fn of_a_word_at(self, mode: Mode) -> Self {
         Rewrite { landing: mode.word_landing(), depth: self.depth.saturating_add(1), ..self }
@@ -93,85 +133,6 @@ impl<'a> Rewrite<'a> {
     /// runs as its own script regardless of surrounding quotes or words.
     fn nested_script(self) -> Self {
         Rewrite { landing: Landing::Script, depth: self.depth.saturating_add(1), ..self }
-    }
-}
-
-/// Where the text being rewritten ends up in the finished script, which is
-/// what decides whether an operator in it is syntax or word text.
-#[derive(Clone, Copy)]
-enum Landing {
-    Script,
-    /// POSIX makes an operator here part of the word, so it is escaped rather
-    /// than spliced in as the command, pipeline, or redirection the parser
-    /// would otherwise read.
-    UnquotedWord,
-    /// The surrounding double quotes already make an operator here literal.
-    QuotedWord,
-}
-
-impl Landing {
-    fn initial_mode(self) -> Mode {
-        match self {
-            Landing::Script => Mode::Script(Quote::Unquoted),
-            Landing::UnquotedWord => Mode::UnquotedWord(Quote::Unquoted),
-            Landing::QuotedWord => Mode::QuotedWord,
-        }
-    }
-
-    fn parameter_quoting(self) -> scan::ParameterQuoting {
-        match self {
-            Landing::QuotedWord => scan::ParameterQuoting::DoubleQuoted,
-            Landing::Script | Landing::UnquotedWord => scan::ParameterQuoting::Unquoted,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum Quote {
-    Unquoted,
-    Single,
-    Double,
-}
-
-/// Active lexical context inside [`Cursor`]. [`Mode::QuotedWord`] stays inside
-/// its enclosing double quotes for the entire `word`, so only [`Mode::Script`]
-/// and [`Mode::UnquotedWord`] transition between quotes.
-#[derive(Clone, Copy)]
-enum Mode {
-    Script(Quote),
-    UnquotedWord(Quote),
-    QuotedWord,
-}
-
-impl Mode {
-    fn word_landing(self) -> Landing {
-        match self {
-            Mode::Script(Quote::Double) | Mode::UnquotedWord(Quote::Double) | Mode::QuotedWord => {
-                Landing::QuotedWord
-            }
-            Mode::Script(Quote::Unquoted | Quote::Single)
-            | Mode::UnquotedWord(Quote::Unquoted | Quote::Single) => Landing::UnquotedWord,
-        }
-    }
-
-    fn with_quote(self, quote: Quote) -> Self {
-        match self {
-            Mode::Script(Quote::Unquoted | Quote::Single | Quote::Double) => Mode::Script(quote),
-            Mode::UnquotedWord(Quote::Unquoted | Quote::Single | Quote::Double) => {
-                Mode::UnquotedWord(quote)
-            }
-            Mode::QuotedWord => Mode::QuotedWord,
-        }
-    }
-
-    fn double_quote_scope(self) -> DoubleQuoteScope {
-        match self {
-            Mode::QuotedWord => DoubleQuoteScope::ParameterWord,
-            Mode::Script(Quote::Unquoted | Quote::Single | Quote::Double)
-            | Mode::UnquotedWord(Quote::Unquoted | Quote::Single | Quote::Double) => {
-                DoubleQuoteScope::Literal
-            }
-        }
     }
 }
 
@@ -413,7 +374,7 @@ fn push_braced_parameter(
         return start + 1;
     };
     let Some(replacement) = expand_parameter(&script[start + 2..close], word) else {
-        expanded.push_str(&script[start..=close]);
+        escape::push_parameter_literal(expanded, &script[start..=close], word.landing);
         return close + 1;
     };
 
@@ -432,8 +393,7 @@ fn push_braced_parameter(
     close + 1
 }
 
-/// The replacement text for the body of a `${...}`, or `None` for a body that
-/// no `$NAME` reference can stand in for.
+/// Register a supported parameter expansion and return its placeholder.
 fn expand_parameter(body: &str, rewrite: Rewrite<'_>) -> Option<String> {
     if rewrite.depth > MAX_EXPANSION_NESTING {
         return None;
@@ -456,18 +416,21 @@ fn expand_parameter(body: &str, rewrite: Rewrite<'_>) -> Option<String> {
         None => (operator, false),
     };
     let word = operator.get(1..)?;
-    let has_value = rewrite.env
-        .get(name)
-        .is_some_and(|value| !empty_counts_as_unset || !value.is_empty());
-
-    match (operator.as_bytes().first()?, has_value) {
-        (b'-', true) => Some(format!("${name}")),
-        (b'-', false) | (b'+', true) => {
-            let mut expanded = String::with_capacity(word.len());
-            rewrite_into(&mut expanded, word, rewrite, StopAt::EndOfInput);
-            Some(expanded)
-        }
-        (b'+', false) => Some(String::new()),
-        _ => None,
-    }
+    let alternate = match operator.as_bytes().first()? {
+        b'-' => false,
+        b'+' => true,
+        _ => return None,
+    };
+    let mut expanded = String::with_capacity(word.len());
+    rewrite_into(&mut expanded, word, rewrite, StopAt::EndOfInput);
+    let mut parameters = rewrite.parameters.borrow_mut();
+    let name_ref = format!("${}{}", rewrite.prefix, parameters.len());
+    parameters.push(Parameter {
+        name: name.to_string(),
+        empty_is_unset: empty_counts_as_unset,
+        alternate,
+        word: expanded,
+        quoted: matches!(rewrite.landing, Landing::QuotedWord),
+    });
+    Some(name_ref)
 }

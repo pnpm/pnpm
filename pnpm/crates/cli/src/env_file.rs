@@ -68,12 +68,13 @@ pub enum EnvFileError {
 fn load<PathItem: AsRef<Path>>(
     paths: &[PathItem],
     mut set: impl FnMut(&str, &str),
-) -> miette::Result<()> {
+) -> miette::Result<HashSet<String>> {
+    let mut names = HashSet::new();
     let mut loaded_keys = HashSet::new();
     for path in paths {
-        load_one(path.as_ref(), &mut loaded_keys, &mut set)?;
+        names.extend(load_one(path.as_ref(), &mut loaded_keys, &mut set)?);
     }
-    Ok(())
+    Ok(names)
 }
 
 /// Scan `argv` for `--env-file` paths and load them.
@@ -87,9 +88,11 @@ pub fn load_from_argv(
     argv: &[OsString],
     single_threaded: &pnpm_ffi_process::SingleThreaded,
 ) -> miette::Result<()> {
-    load(&scan(argv).0, |name: &str, value: &str| {
+    let names = load(&scan(argv).0, |name: &str, value: &str| {
         single_threaded.set_var(name, value);
-    })
+    })?;
+    crate::invocation_environment::record_env_file(names);
+    Ok(())
 }
 
 /// Remove the `--env-file` tokens from an argv that still carries the
@@ -108,7 +111,8 @@ fn load_one(
     path: &Path,
     loaded_keys: &mut HashSet<String>,
     mut set: impl FnMut(&str, &str),
-) -> miette::Result<()> {
+) -> miette::Result<Vec<String>> {
+    let mut names = Vec::new();
     let bytes =
         std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;
     let stripped = bytes.strip_prefix(&UTF8_BOM).unwrap_or(&bytes);
@@ -119,13 +123,14 @@ fn load_one(
         if key.is_empty() {
             continue;
         }
+        names.push(key.to_string());
         let id = env_key_id(key);
         if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
             set(key, value);
         }
     }
-    Ok(())
+    Ok(names)
 }
 
 fn until_nul(text: &str) -> &str {

@@ -140,7 +140,7 @@ pub(super) fn push_bare_word_char(expanded: &mut String, character: char) {
         // it opens a comment at the start of a word, and a carriage return
         // because the parser splits the word on it where POSIX keeps it as the
         // ordinary character it is.
-        ';' | '&' | '|' | '<' | '>' | '(' | ')' | '#' | '\r' => {
+        ';' | '&' | '|' | '<' | '>' | '(' | ')' | '{' | '}' | '#' | '\r' => {
             expanded.push('"');
             expanded.push(character);
             expanded.push('"');
@@ -160,4 +160,17 @@ fn push_single_quoted_char(expanded: &mut String, escaped: char) {
     expanded.push('\'');
     expanded.push(escaped);
     expanded.push('\'');
+}
+
+pub(super) fn push_parameter_literal(expanded: &mut String, text: &str, landing: super::Landing) {
+    let quoted = matches!(landing, super::Landing::QuotedWord);
+    if quoted {
+        expanded.push('"');
+    }
+    for character in text.chars() {
+        push_single_quoted_char(expanded, character);
+    }
+    if quoted {
+        expanded.push('"');
+    }
 }

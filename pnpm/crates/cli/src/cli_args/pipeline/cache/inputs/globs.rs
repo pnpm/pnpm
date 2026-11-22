@@ -1,8 +1,9 @@
 use super::{
+    super::output_globs::strip_cur_dir_prefixes,
     FileIterator,
-    Glob,
     HashedFile,
     IntoDiagnostic,
+    OutputGlobs,
     Path,
     PathBuf,
     Program,
@@ -15,11 +16,14 @@ use super::{
     validate_relative_path,
 };
 use std::path::Component;
-use wax::walk::{
-    Entry,
-    EntryResidue,
-    GlobEntry,
-    WalkError,
+use wax::{
+    Glob,
+    walk::{
+        Entry,
+        EntryResidue,
+        GlobEntry,
+        WalkError,
+    },
 };
 
 pub(super) enum InputSelection<'a> {
@@ -145,13 +149,6 @@ fn rebase_to_ancestor(
     Some(out)
 }
 
-fn strip_cur_dir_prefixes(mut pattern: &str) -> &str {
-    while let Some(tail) = pattern.strip_prefix("./") {
-        pattern = tail;
-    }
-    pattern
-}
-
 fn split_parent_segments(pattern: &str) -> (usize, &str) {
     let mut trimmed = strip_cur_dir_prefixes(pattern);
     let mut parent_depth = 0usize;
@@ -206,14 +203,14 @@ fn literal_directory_prefix(body: &str) -> PathBuf {
 struct AdditiveWalk<'a> {
     cache: &'a TaskCache,
     project: &'a Path,
-    output_globs: &'a [Glob<'a>],
+    output_globs: &'a [OutputGlobs<'a>],
     exclude: &'a [ParentGlob],
 }
 
 pub(super) fn walk_additive_inputs(
     cache: &TaskCache,
     project: &Path,
-    output_globs: &[Glob<'_>],
+    output_globs: &[OutputGlobs<'_>],
     configured: &ConfiguredInputs<'_>,
 ) -> miette::Result<Vec<HashedFile>> {
     let walk = AdditiveWalk { cache, project, output_globs, exclude: &configured.exclude };

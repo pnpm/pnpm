@@ -51,7 +51,7 @@ where
         task_names: options.task_names,
         requested_projects: options.requested_projects,
         tasks: options.tasks,
-        is_selector_task: |_| false,
+        is_selector_task: options.is_selector_task,
     };
     seeded.build()
 }

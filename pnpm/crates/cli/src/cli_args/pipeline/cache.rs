@@ -6,6 +6,8 @@
 //! deliberate `PoC` stand-in for the per-importer dependency-graph hash the
 //! RFC specifies.
 
+pub(super) use output_globs::OutputGlobs;
+
 use super::{
     capture::CapturedScript,
     paths::{
@@ -19,10 +21,7 @@ use fs_ops::{
     remove_output_file,
     replace_output_file,
 };
-use inputs::{
-    HashedFile,
-    compile_globs,
-};
+use inputs::HashedFile;
 use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
 use pnpm_crypto_hash::{
@@ -54,12 +53,9 @@ use std::{
         Mutex,
     },
 };
-use wax::{
-    Glob,
-    walk::{
-        Entry,
-        FileIterator,
-    },
+use wax::walk::{
+    Entry,
+    FileIterator,
 };
 
 /// How a task met the cache, for the run report.
@@ -143,9 +139,16 @@ pub struct TaskKeyInputs<'a> {
     pub lockfile_selection: &'a WantedLockfileSelection,
     /// The cache keys of the tasks this task depends on, sorted.
     pub dependency_keys: &'a [&'a str],
+    pub sibling_outputs: &'a [OutputGlobs<'a>],
+    pub environment: TaskKeyEnvironment<'a>,
     /// `(stage, body)` of every script the task runs, in run order.
-    pub environment: &'a HashMap<String, String>,
     pub script_bodies: &'a [(String, String)],
+}
+
+pub struct TaskKeyEnvironment<'a> {
+    pub variables: &'a HashMap<String, String>,
+    pub shell_emulator: bool,
+    pub script_shell: Option<&'a str>,
 }
 
 impl TaskCache {
@@ -434,13 +437,13 @@ fn copy_cached_outputs(
 }
 
 fn collect_output_files(project_dir: &Path, outputs: &[String]) -> io::Result<Vec<String>> {
-    let globs = compile_globs(outputs)
+    let globs = OutputGlobs::new(outputs)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error.to_string()))?;
-    if globs.is_empty() {
+    if globs.include.is_empty() {
         return Ok(Vec::new());
     }
     let mut files = Vec::new();
-    for glob in globs {
+    for glob in &globs.include {
         for entry in glob
             .walk(project_dir)
             .not(wax::any(["**/node_modules/**", "**/.git/**"]))
@@ -456,6 +459,9 @@ fn collect_output_files(project_dir: &Path, outputs: &[String]) -> io::Result<Ve
                 .map_err(|_| io::Error::other("output glob must stay inside the project"))?
                 .to_string_lossy()
                 .replace(std::path::MAIN_SEPARATOR, "/");
+            if !globs.is_match(&relative) {
+                continue;
+            }
             validate_relative_path(Path::new(&relative))?;
             check_ancestors(project_dir, Path::new(&relative))?;
             files.push(relative);
@@ -493,3 +499,4 @@ fn stage_output_files(
 
 mod fs_ops;
 mod inputs;
+mod output_globs;

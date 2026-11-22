@@ -242,27 +242,7 @@ fn select_changed_projects(
     all_dirs: &[PathBuf],
     merge_base: String,
 ) -> miette::Result<Selection> {
-    let project_dependencies =
-        overridden_project_dependencies(options.graph, options.config, options.workspace_root)?
-            .unwrap_or_else(|| {
-                options.graph
-                    .iter()
-                    .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
-                    .collect()
-            });
-    let changed = get_changed_projects(
-        options.graph.keys().cloned().collect(),
-        &merge_base,
-        &GetChangedProjectsOptions {
-            workspace_dir: options.workspace_root,
-            working_dir: None,
-            test_pattern: &options.config.test_pattern,
-            changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
-            project_dependencies: Some(&project_dependencies),
-            use_glob_dir_filtering: false,
-        },
-    )
-    .map_err(miette::Report::new)?;
+    let changed = read_changed_projects(options, &merge_base)?;
     let changed_count =
         changed.changed_projects.len() + changed.ignore_dependent_for_projects.len();
 
@@ -334,4 +314,32 @@ fn affected_selection(
         merge_base: Some(merge_base),
         changed_count,
     }
+}
+
+fn read_changed_projects(
+    options: &SelectAffectedOptions<'_>,
+    merge_base: &str,
+) -> miette::Result<pnpm_workspace_projects_filter::ChangedProjects> {
+    let project_dependencies =
+        overridden_project_dependencies(options.graph, options.config, options.workspace_root)?
+            .unwrap_or_else(|| {
+                options.graph
+                    .iter()
+                    .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
+                    .collect()
+            });
+    get_changed_projects(
+        options.graph.keys().cloned().collect(),
+        merge_base,
+        &GetChangedProjectsOptions {
+            include_untracked: true,
+            workspace_dir: options.workspace_root,
+            working_dir: None,
+            test_pattern: &options.config.test_pattern,
+            changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
+            project_dependencies: Some(&project_dependencies),
+            use_glob_dir_filtering: false,
+        },
+    )
+    .map_err(miette::Report::new)
 }

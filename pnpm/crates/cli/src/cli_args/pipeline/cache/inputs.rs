@@ -5,10 +5,10 @@ use super::{
     Arc,
     Command,
     FileIterator,
-    Glob,
     InputsUnavailable,
     IntoDiagnostic,
     Lockfile,
+    OutputGlobs,
     Path,
     PathBuf,
     ProjectFiles,
@@ -83,20 +83,6 @@ fn hash_input(path: &Path) -> io::Result<Option<String>> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
     }
-}
-
-pub(super) fn compile_globs(patterns: &[String]) -> miette::Result<Vec<Glob<'_>>> {
-    patterns
-        .iter()
-        .map(|pattern| {
-            let glob = Glob::new(pattern)
-                .map_err(|error| miette::miette!("invalid glob {pattern:?}: {error}"))?;
-            if !matches!(glob.has_root(), wax::query::When::Never) {
-                return Err(miette::miette!("cache glob must be relative: {pattern:?}"));
-            }
-            Ok(glob)
-        })
-        .collect()
 }
 
 fn has_submodule_inputs(project: &Path) -> miette::Result<bool> {
@@ -178,6 +164,10 @@ impl TaskCache {
         let mut components: Vec<String> = vec![
             "pnpm-pipeline-task:v1".to_string(),
             platform_cache_component(),
+            format!(
+                "shell:{:?}:{}",
+                inputs.environment.script_shell, inputs.environment.shell_emulator,
+            ),
             format!("outputs:{:?}", inputs.settings.and_then(|settings| settings.outputs.as_ref())),
             self.project_rel(&inputs.node.project),
             inputs.node.task_name.clone(),
@@ -187,15 +177,11 @@ impl TaskCache {
         for (stage, body) in inputs.script_bodies {
             components.push(format!("script:{stage}={body}"));
         }
-        for name in inputs.settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default()
-        {
-            let value = inputs.environment
-                .get(name)
-                .cloned()
-                .or_else(|| env::var(name).ok());
-            components.push(format!("env:{name}={value:?}"));
-        }
-        let Some(files) = self.input_files(inputs.node, inputs.settings)? else { return Ok(None) };
+        components.extend(environment_components(inputs));
+        let Some(files) = self.input_files(inputs.node, inputs.settings, inputs.sibling_outputs)?
+        else {
+            return Ok(None);
+        };
         for file in files.iter() {
             components.push(format!("file:{}={}", file.rel_path, file.hash));
         }
@@ -258,6 +244,7 @@ impl TaskCache {
         &self,
         node: &TaskNode,
         settings: Option<&TaskSettings>,
+        sibling_outputs: &[OutputGlobs<'_>],
     ) -> miette::Result<ProjectInputHashes> {
         let selection =
             parse_inputs(settings.and_then(|settings| settings.inputs.as_deref()))?;
@@ -265,13 +252,14 @@ impl TaskCache {
             check_ancestors(&node.project, Path::new("")).into_diagnostic()?;
             return Ok(Some(Arc::new(Vec::new())));
         }
-        let output_globs = compile_globs(
+        let output_globs = [OutputGlobs::new(
             settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default(),
-        )?;
+        )?];
         match selection {
             InputSelection::Default => {
                 self.hash_selected_project_files(&node.project, |rel_path| {
                     !matches_project_output(rel_path, &output_globs)
+                        && !matches_project_output(rel_path, sibling_outputs)
                 })
             }
             InputSelection::Empty => Ok(Some(Arc::new(Vec::new()))),
@@ -357,7 +345,7 @@ impl TaskCache {
 fn resolve_configured_inputs(
     cache: &TaskCache,
     project: &Path,
-    output_globs: &[Glob<'_>],
+    output_globs: &[OutputGlobs<'_>],
     configured: &ConfiguredInputs<'_>,
 ) -> miette::Result<ProjectInputHashes> {
     let Some(selected) = cache.hash_selected_project_files(project, |rel_path| {
@@ -380,7 +368,7 @@ fn resolve_configured_inputs(
 fn is_excluded_input(
     project: &Path,
     rel_path: &str,
-    output_globs: &[Glob<'_>],
+    output_globs: &[OutputGlobs<'_>],
     exclude: &[ParentGlob],
 ) -> bool {
     matches_project_output(rel_path, output_globs)
@@ -393,27 +381,35 @@ fn is_outside_project(rel_path: &str) -> bool {
     rel_path == ".." || rel_path.starts_with("../")
 }
 
-fn matches_project_output(rel_path: &str, output_globs: &[Glob<'_>]) -> bool {
+fn matches_project_output(rel_path: &str, output_globs: &[OutputGlobs<'_>]) -> bool {
     !is_outside_project(rel_path)
         && output_globs
             .iter()
             .any(|glob| glob.is_match(rel_path))
 }
 
-fn output_residue(rel_path: &str, output_globs: &[Glob<'_>]) -> Option<EntryResidue> {
+fn output_residue(rel_path: &str, output_globs: &[OutputGlobs<'_>]) -> Option<EntryResidue> {
     if is_outside_project(rel_path) {
         return None;
     }
-    let mut matched_file = false;
-    for glob in output_globs {
-        if glob.is_match(rel_path) {
-            if matches!(glob.is_exhaustive(), wax::query::When::Always) {
-                return Some(EntryResidue::Tree);
-            }
-            matched_file = true;
+    let mut matched = false;
+    for globs in output_globs {
+        if !globs.is_match(rel_path) {
+            continue;
         }
+        if globs.exclude.is_empty()
+            && globs.include
+                .iter()
+                .any(|glob| {
+                    glob.is_match(rel_path)
+                        && matches!(glob.is_exhaustive(), wax::query::When::Always)
+                })
+        {
+            return Some(EntryResidue::Tree);
+        }
+        matched = true;
     }
-    matched_file.then_some(EntryResidue::File)
+    matched.then_some(EntryResidue::File)
 }
 
 /// A project's tracked-file path list, or why it has none.
@@ -462,4 +458,21 @@ fn platform_cache_component() -> String {
         };
         format!("platform:{os}:{}", pnpm_detect_libc::host_target_arch())
     }
+}
+
+fn environment_components(inputs: &TaskKeyInputs<'_>) -> Vec<String> {
+    let mut components = Vec::new();
+    let mut environment: Vec<_> = inputs.environment.variables.iter().collect();
+    environment.sort_unstable_by_key(|(name, _)| *name);
+    for (name, value) in environment {
+        components.push(format!("configured-env:{name}={value:?}"));
+    }
+    for name in inputs.settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default() {
+        let value = inputs.environment.variables
+            .get(name)
+            .cloned()
+            .or_else(|| env::var(name).ok());
+        components.push(format!("env:{name}={value:?}"));
+    }
+    components
 }

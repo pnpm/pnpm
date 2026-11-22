@@ -36,6 +36,7 @@ mod flag_relocation;
 mod github_actions;
 mod help_all;
 mod install_as_add;
+mod invocation_environment;
 mod leading_separator;
 mod package_specifier;
 mod parse_boundary;

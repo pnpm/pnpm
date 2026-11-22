@@ -52,7 +52,9 @@ pnpm pipeline release  # build only
 4. Restores each cacheable task whose key it has seen before, and runs the rest.
 5. Keeps going after a task fails, so one run reports every failure rather than the first.
 
-The workspace root is left out of the selection unless [`includeWorkspaceRoot`](../workspaces.md#includeworkspaceroot) is `true`, or `packages` is omitted or lists only the root.
+The workspace root is left out of the selection unless [`includeWorkspaceRoot`](../workspaces.md#includeworkspaceroot) is `true`, or `packages` is omitted or lists only the root. An explicit filter can also select the root.
+
+`--filter` and `--filter-prod` narrow the projects requested by the pipeline, including with `--full`. With `--base`, the pipeline intersects that selection with the affected projects. Tasks required through `dependsOn` still run, even when their projects are outside the filter. Affected-project selection includes untracked files unless git ignores them.
 
 Use `--dry-run` to see the graph without installing configuration dependencies, running workspace hooks, or executing anything. Add `--json` for the nodes and edges.
 
@@ -71,12 +73,12 @@ tasks:
 
 | Key | Meaning |
 | --- | --- |
-| `outputs` | Globs, relative to the project directory, naming the files the task produces. Their presence makes the task cacheable. |
-| `inputs` | Globs narrowing what goes into the cache key. Without it, every tracked file of the project counts; `[]` includes no files. An entry prefixed with `+` includes matching files on disk, such as gitignored files or workspace paths outside the project, in addition to the base set. An entry prefixed with `!` excludes matching files. |
+| `outputs` | Globs, relative to the project directory, naming the files the task produces. Prefix a glob with `!` to exclude matching files. Their presence makes the task cacheable. |
+| `inputs` | Globs narrowing what goes into the cache key. Without it, tracked and untracked files count, excluding gitignored files and the outputs declared by tasks in the project; `[]` includes no files. An entry prefixed with `+` includes matching files on disk, such as gitignored files or workspace paths outside the project, in addition to the base set. An entry prefixed with `!` excludes matching files. |
 | `env` | Environment variable names whose values take part in the key. The values are hashed, never stored. |
 | `cache` | `false` opts a task with declared `outputs` back out of the cache. |
 
-Besides the declared inputs, a task's key covers the script text, the keys of the tasks it depends on, the lockfile, and the runtime. When a task depends on an uncacheable task, it also runs without restoring from the cache. A cache hit restores the output files and replays the recorded log, so the run reads the same either way.
+Besides the declared inputs, a task's key covers the script text, the keys of the tasks it depends on, the lockfile, and the runtime. It also covers values supplied through `--env-file` and `extraEnv`, `NODE_OPTIONS`, `shellEmulator`, and `scriptShell`. When a task depends on an uncacheable task, it also runs without restoring from the cache. A cache hit restores the output files and replays the recorded log, so the run reads the same either way.
 
 `--no-cache` runs everything and neither reads nor writes cache entries.
 

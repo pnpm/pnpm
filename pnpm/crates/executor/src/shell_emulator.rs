@@ -10,7 +10,6 @@ use deno_task_shell::{
     ShellState,
     SignalKind,
     execute_with_pipes,
-    parser,
     parser::SequentialList,
     pipe,
 };
@@ -53,11 +52,10 @@ pub fn execute_emulated(
     output: EmulatedOutput<'_>,
     process_tracker: Option<&ProcessTracker>,
 ) -> Result<i32, ShellEmulatorError> {
-    let expanded_script = braced_parameters::expand(script, env);
-    let list = parser::parse(&expanded_script)
+    let list = braced_parameters::parse(script)
         .map_err(|error| ShellEmulatorError::Parse {
             script: script.to_string(),
-            message: error.to_string(),
+            message: error,
         })?;
     // `ShellState` requires an absolute cwd. Every production caller
     // already passes one; resolving here keeps a relative path from

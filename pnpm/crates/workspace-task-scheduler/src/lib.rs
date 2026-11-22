@@ -166,6 +166,7 @@ where
     /// rest of the map participates only through `dependsOn` edges, the
     /// way an upstream build is pulled in without its lint or tests.
     pub requested_projects: Option<&'a [PathBuf]>,
+    pub is_selector_task: fn(&str) -> bool,
     pub tasks: Option<&'a IndexMap<String, Declaration>>,
 }
 

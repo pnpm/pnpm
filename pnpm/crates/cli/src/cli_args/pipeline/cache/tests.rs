@@ -2,6 +2,7 @@ use super::{
     InputsUnavailable,
     RecordedFile,
     TaskCache,
+    TaskKeyEnvironment,
     TaskKeyInputs,
     collect_output_files,
     fs_ops::replace_output_file,
@@ -109,6 +110,21 @@ fn output_globs_select_only_declared_files_and_deduplicate() {
             .unwrap(),
         ["out/result"],
     );
+}
+
+#[test]
+fn output_globs_accept_current_directory_prefixes() {
+    let (project, _storage, cache) = setup();
+    fs::write(project.path().join("out/result.map"), "map").unwrap();
+    let outputs = ["././out/**".to_string(), "!./out/**/*.map".to_string()];
+    assert_eq!(collect_output_files(project.path(), &outputs).unwrap(), ["out/result"]);
+    cache
+        .store("prefixed", project.path(), "build", &outputs, Vec::new())
+        .unwrap();
+    fs::remove_file(project.path().join("out/result")).unwrap();
+    let stored = cache.lookup("prefixed").unwrap();
+    cache.restore(&stored, project.path(), "build").unwrap();
+    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "built");
 }
 
 #[test]
@@ -532,7 +548,12 @@ fn key_for_inputs_with_selection(
             lockfile_dir,
             lockfile_selection,
             dependency_keys: &[],
-            environment: &environment,
+            sibling_outputs: &[],
+            environment: TaskKeyEnvironment {
+                shell_emulator: false,
+                script_shell: None,
+                variables: &environment,
+            },
             script_bodies: &script_bodies,
         })?
         .expect("cache key is available"))
@@ -813,7 +834,12 @@ fn excluded_or_unselected_unreadable_inputs_do_not_abort_other_tasks() {
                 lockfile_dir: &project,
                 lockfile_selection: &selection,
                 dependency_keys: &[],
-                environment: &environment,
+                sibling_outputs: &[],
+                environment: TaskKeyEnvironment {
+                    shell_emulator: false,
+                    script_shell: None,
+                    variables: &environment,
+                },
                 script_bodies: &script_bodies,
             })
             .unwrap();
@@ -829,7 +855,12 @@ fn excluded_or_unselected_unreadable_inputs_do_not_abort_other_tasks() {
             lockfile_dir: &project,
             lockfile_selection: &selection,
             dependency_keys: &[],
-            environment: &environment,
+            sibling_outputs: &[],
+            environment: TaskKeyEnvironment {
+                shell_emulator: false,
+                script_shell: None,
+                variables: &environment,
+            },
             script_bodies: &script_bodies,
         })
         .unwrap_err()
@@ -955,7 +986,12 @@ fn broad_output_glob_does_not_prune_parent_additive_walk() {
                 lockfile_dir: &workspace,
                 lockfile_selection: &WantedLockfileSelection::default(),
                 dependency_keys: &[],
-                environment: &environment,
+                sibling_outputs: &[],
+                environment: TaskKeyEnvironment {
+                    shell_emulator: false,
+                    script_shell: None,
+                    variables: &environment,
+                },
                 script_bodies: &script_bodies,
             })
             .unwrap()
@@ -966,4 +1002,73 @@ fn broad_output_glob_does_not_prune_parent_additive_walk() {
     fs::write(workspace.join("shared.txt"), "v2").unwrap();
     let after = compute();
     assert_ne!(before, after, "sibling file change must invalidate key under outputs: ['**']");
+}
+
+#[test]
+fn shell_settings_change_task_keys() {
+    let (root, _repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    let node = task_node_at(&project);
+    let mut settings = TaskSettings::default();
+    settings.inputs = Some(Vec::new());
+    let environment = HashMap::new();
+    let lockfile_selection = WantedLockfileSelection::default();
+    let key = |shell_emulator, script_shell| {
+        cache
+            .compute_task_key(&TaskKeyInputs {
+                node: &node,
+                settings: Some(&settings),
+                lockfile_dir: &project,
+                lockfile_selection: &lockfile_selection,
+                dependency_keys: &[],
+                sibling_outputs: &[],
+                environment: TaskKeyEnvironment {
+                    shell_emulator,
+                    script_shell,
+                    variables: &environment,
+                },
+                script_bodies: &[],
+            })
+            .unwrap()
+            .unwrap()
+    };
+    let default_key = key(false, None);
+    assert_ne!(default_key, key(true, None));
+    assert_ne!(default_key, key(false, Some("custom-shell")));
+    assert_eq!(key(true, Some("custom-shell")), key(true, Some("custom-shell")));
+}
+
+#[test]
+fn explicit_inputs_can_read_sibling_outputs() {
+    let (root, repo, _cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    let storage = tempfile::tempdir().unwrap();
+    let key = |inputs| {
+        let cache = TaskCache::open(storage.path(), &project).unwrap();
+        let node = task_node_at(&project);
+        let mut settings = TaskSettings::default();
+        settings.inputs = inputs;
+        cache
+            .compute_task_key(&TaskKeyInputs {
+                node: &node,
+                settings: Some(&settings),
+                lockfile_dir: &project,
+                lockfile_selection: &WantedLockfileSelection::default(),
+                dependency_keys: &[],
+                sibling_outputs: &[super::OutputGlobs::new(&["input".to_string()]).unwrap()],
+                environment: TaskKeyEnvironment {
+                    shell_emulator: false,
+                    script_shell: None,
+                    variables: &HashMap::new(),
+                },
+                script_bodies: &[],
+            })
+            .unwrap()
+            .unwrap()
+    };
+    let default_before = key(None);
+    let explicit_before = key(Some(vec!["input".to_string()]));
+    repo.write_file("input", "changed output");
+    assert_eq!(default_before, key(None));
+    assert_ne!(explicit_before, key(Some(vec!["input".to_string()])));
 }

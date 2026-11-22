@@ -235,3 +235,104 @@ fn affected_selection_follows_overrides_to_a_changed_catalog_entry() {
         .collect();
     assert_eq!(projects, ["app"], "{document}");
 }
+
+#[test]
+fn filters_narrow_requested_tasks_but_keep_their_prerequisites() {
+    let root = tempfile::tempdir().unwrap();
+    let fixture = GitRepoFixture::init(root.path(), "filtered");
+    fixture.write_file("package.json", r#"{"name":"root","private":true}"#);
+    fixture.write_file("pnpm-workspace.yaml", "packages: [packages/*]\npipelines:\n  default: [build, lint]\ntasks:\n  build:\n    dependsOn: ['^build']\n  lint:\n    dependsOn: []\n");
+    for name in ["app", "dep", "dev", "other"] {
+        let dependencies = if name == "app" {
+            serde_json::json!({"dep": "workspace:*"})
+        } else {
+            serde_json::json!({})
+        };
+        let dev_dependencies = if name == "app" {
+            serde_json::json!({"dev": "workspace:*"})
+        } else {
+            serde_json::json!({})
+        };
+        fixture.write_file(
+            &format!("packages/{name}/package.json"),
+            &serde_json::json!({
+                "name": name, "version": "1.0.0", "dependencies": dependencies,
+                "devDependencies": dev_dependencies,
+                "scripts": {"build": "echo build", "lint": "echo lint"}
+            })
+            .to_string(),
+        );
+    }
+    let base = fixture.commit("initial");
+    fixture.write_file("packages/dep/new-source", "untracked");
+    for (flag, selector, expected_lint) in [
+        ("--filter", "app", vec!["packages/app"]),
+        ("--filter-prod", "app...", vec!["packages/app", "packages/dep"]),
+        ("--filter", "missing", vec![]),
+    ] {
+        for mode in [vec!["--full"], vec!["--base", &base]] {
+            let mut args = vec![flag, selector, "--dry-run", "--json"];
+            args.extend(mode);
+            let result =
+                pipeline(&root.path().join("filtered-src"), &root.path().join("config"), &args);
+            let document: serde_json::Value =
+                serde_json::from_slice(&result.get_output().stdout).unwrap();
+            assert_filtered_tasks(&document, &expected_lint);
+        }
+    }
+}
+
+fn assert_filtered_tasks(document: &serde_json::Value, expected_lint: &[&str]) {
+    let tasks = document["tasks"].as_array().unwrap();
+    let mut lint: Vec<_> = tasks
+        .iter()
+        .filter(|task| task["script"] == "lint")
+        .map(|task| task["project"].as_str().unwrap())
+        .collect();
+    lint.sort_unstable();
+    assert_eq!(lint, expected_lint, "{document}");
+    assert!(
+        tasks
+            .iter()
+            .all(|task| task["project"] != "packages/other"),
+        "{document}",
+    );
+    if expected_lint.is_empty() {
+        assert!(tasks.is_empty(), "{document}");
+    } else {
+        assert!(
+            tasks
+                .iter()
+                .any(|task| task["project"] == "packages/dep" && task["script"] == "build"),
+            "{document}",
+        );
+    }
+}
+
+#[test]
+fn regex_pipeline_tasks_use_the_matched_tasks_dependencies() {
+    let project = tempfile::tempdir().unwrap();
+    fs::write(
+        project.path().join("package.json"),
+        r#"{"name":"regex-probe","scripts":{"prepare":"echo prepare","build:js":"echo build"}}"#,
+    )
+    .unwrap();
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: ['/^build:/']\ntasks:\n  build:js:\n    dependsOn: [prepare]\n  prepare:\n    dependsOn: []\n").unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let result = pipeline(project.path(), storage.path(), &["--full", "--dry-run", "--json"]);
+    let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
+    let tasks = document["tasks"].as_array().unwrap();
+    assert!(
+        tasks
+            .iter()
+            .any(|task| task["script"] == "prepare"),
+        "{document}",
+    );
+    assert!(
+        tasks
+            .iter()
+            .any(|task| task["script"] == "build:js"),
+        "{document}",
+    );
+    assert_eq!(tasks.len(), 2, "{document}");
+}
