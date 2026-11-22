@@ -29,7 +29,7 @@ Unpublish a range of versions using a semver specifier:
 pnpm unpublish "foo@<2"
 ```
 
-When some versions remain, pnpm drops the dist-tags that pointed at the removed versions and moves `latest` to the highest remaining version.
+If a removed version held the `latest` tag, pnpm moves the tag to the highest remaining stable version. If only prereleases remain, it selects the highest prerelease.
 
 Unpublish an entire package (all versions). Requires `--force`:
 

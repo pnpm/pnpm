@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
-import { preparePackages } from '@pnpm/prepare'
+import { preparePackages, tempDir } from '@pnpm/prepare'
 import { createExportableManifest, getReadmeRank, isPreferredReadme, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
@@ -41,6 +41,26 @@ test('prepublish scripts and packageManager are removed', async () => {
       postinstall: 'echo hello',
     },
   })
+})
+
+test.each(['stale', undefined])('workspace dependency ranges ignore a conflicting installed name (%s)', async (name) => {
+  const dir = tempDir()
+  const installed = path.join(dir, 'node_modules/alias')
+  fs.mkdirSync(installed, { recursive: true })
+  fs.writeFileSync(path.join(installed, 'package.json'), JSON.stringify({
+    name, version: '8.0.0', publishConfig: { name: 'wrong' },
+  }))
+  const manifest = await createExportableManifest(dir, {
+    name: 'consumer',
+    version: '1.0.0',
+    dependencies: { 'local-name': 'workspace:^', 'published-name': 'workspace:local-name@~', alias: 'workspace:local-name@2' },
+    peerDependencies: { 'published-name': 'workspace:local-name@^', alias: 'workspace:other@^1' },
+  }, {
+    catalogs: {},
+    workspacePackages: [{ manifest: { name: 'local-name', version: '2.0.0', publishConfig: { name: 'published-name' } } }],
+  })
+  expect(manifest.dependencies).toEqual({ 'local-name': 'npm:published-name@^2.0.0', 'published-name': '~2.0.0', alias: 'npm:published-name@2' })
+  expect(manifest.peerDependencies).toEqual({ 'published-name': '*', alias: 'npm:other@^1' })
 })
 
 test('the packageManager field is removed', async () => {

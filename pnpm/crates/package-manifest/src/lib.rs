@@ -61,6 +61,7 @@ pub use project::{
     PROJECT_MANIFEST_BASENAMES,
     find_parent_publish_manifest,
     project_manifest_path,
+    published_name,
     publishes_from_directory,
     safe_read_project_manifest_from_dir,
 };

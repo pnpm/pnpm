@@ -48,9 +48,10 @@ fn highest_version_picks_the_new_latest() {
         highest_version(&versions(&["1.0.0", "10.0.0", "9.0.0"])).as_deref(),
         Some("10.0.0"),
     );
+    assert_eq!(highest_version(&versions(&["1.0.0", "1.0.1-beta.1"])).as_deref(), Some("1.0.0"));
     assert_eq!(
-        highest_version(&versions(&["1.0.0", "1.0.1-beta.1"])).as_deref(),
-        Some("1.0.1-beta.1"),
+        highest_version(&versions(&["2.0.0-beta.2", "2.0.0-beta.10"])).as_deref(),
+        Some("2.0.0-beta.10"),
     );
     assert_eq!(highest_version(&versions(&[])), None);
 }

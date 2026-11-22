@@ -94,6 +94,7 @@ fn falls_back_to_the_workspace_packages_when_not_installed() {
         "secret".to_string(),
         WorkspacePackageManifest {
             name: "secret".to_string(),
+            publish_name: None,
             version: "1.0.0".to_string(),
             private: true,
         },
@@ -171,6 +172,7 @@ fn follows_the_rewrite_to_the_workspace_packages() {
         "secret".to_string(),
         WorkspacePackageManifest {
             name: "secret".to_string(),
+            publish_name: None,
             version: "1.0.0".to_string(),
             private: true,
         },
@@ -196,6 +198,7 @@ fn rejects_a_private_workspace_package_without_a_version() {
         "secret".to_string(),
         WorkspacePackageManifest {
             name: "secret".to_string(),
+            publish_name: None,
             version: String::new(),
             private: true,
         },
@@ -276,6 +279,7 @@ fn allows_an_untouched_registry_dependency_on_a_private_package_name() {
         "secret".to_string(),
         WorkspacePackageManifest {
             name: "secret".to_string(),
+            publish_name: None,
             version: "1.0.0".to_string(),
             private: true,
         },

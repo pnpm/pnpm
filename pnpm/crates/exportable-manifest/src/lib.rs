@@ -11,6 +11,8 @@ pub use create::{
     CreateExportableManifestError,
     CreateExportableManifestOptions,
     create_exportable_manifest,
+    finalize_exportable_manifest,
+    prepare_exportable_manifest,
     read_readme_file,
 };
 pub use private_dependency::{

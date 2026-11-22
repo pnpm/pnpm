@@ -4,6 +4,8 @@
 //! already builds a registry client for publish. Mirrors the TypeScript
 //! `releasing/commands/src/publish/previousChangelog.ts`.
 
+pub use pnpm_package_manifest::published_name;
+
 use crate::cli_args::{
     registry_client::{
         apply_auth_and_otp,
@@ -80,17 +82,26 @@ pub async fn compose_registry_changelog(
     let Some(workspace_dir) = config.workspace_dir.as_deref() else {
         return Ok(None);
     };
-    let Some((name, published, version)) = read_name_version(project_dir) else {
+    let Some(manifest) =
+        pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir).ok().flatten()
+    else {
         return Ok(None);
     };
-    if notes_registry_of_dir(config, project_dir).is_some() {
+    let Some(name) = manifest.get("name").and_then(serde_json::Value::as_str) else {
+        return Ok(None);
+    };
+    let Some(version) = manifest.get("version").and_then(serde_json::Value::as_str) else {
+        return Ok(None);
+    };
+    let published = published_name(&manifest).unwrap_or(name);
+    if notes_registry_of_manifest(config, &manifest).is_some() {
         return Ok(None);
     }
-    let Some(section) = read_pending_changelog(workspace_dir, &name, &version)? else {
+    let Some(section) = read_pending_changelog(workspace_dir, name, version)? else {
         return Ok(None);
     };
-    let previous = fetch_changelog(config, &published, VersionPick::PreviousTo(&version)).await;
-    Ok(Some(render_changelog(previous.as_deref(), &published, &section).into_bytes()))
+    let previous = fetch_changelog(config, published, VersionPick::PreviousTo(version)).await;
+    Ok(Some(render_changelog(previous.as_deref(), published, &section).into_bytes()))
 }
 
 /// The set of `package@version` keys the registry confirms are published with
@@ -456,32 +467,4 @@ pub(crate) fn extract_entry(tarball: &[u8], entry_name: &str) -> Option<String> 
         }
     }
     None
-}
-
-/// `(manifest name, published name, version)` of the project at
-/// `project_dir`. The two names differ when the manifest sets
-/// `publishConfig.name`: the workspace (and so the parked section, the
-/// ledger, and every intent) keys on the manifest name, while the registry
-/// only ever sees the published one.
-fn read_name_version(project_dir: &Path) -> Option<(String, String, String)> {
-    let manifest =
-        pnpm_package_manifest::PackageManifest::from_path(project_dir.join("package.json")).ok()?;
-    let value = manifest.value();
-    let name = value.get("name")?.as_str()?.to_string();
-    let published = published_name(value).map(ToString::to_string).unwrap_or_else(|| name.clone());
-    let version = value
-        .get("version")?
-        .as_str()?
-        .to_string();
-    Some((name, published, version))
-}
-
-/// The name a manifest publishes under, when it renames itself via
-/// `publishConfig.name`. An empty rename is no rename.
-pub fn published_name(manifest: &serde_json::Value) -> Option<&str> {
-    manifest
-        .get("publishConfig")?
-        .get("name")?
-        .as_str()
-        .filter(|name| !name.is_empty())
 }

@@ -4,7 +4,7 @@ import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolve
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
-import type { Dependencies, ProjectManifest } from '@pnpm/types'
+import type { BaseManifest, Dependencies, ProjectManifest } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 import { clone, omit } from 'ramda'
@@ -24,6 +24,12 @@ import {
   type WorkspacePackageContainer,
   type WorkspacePackageLookup,
 } from './workspaceLookup.js'
+
+/** Registry name of a workspace project. */
+export function publishedName (manifest: Pick<BaseManifest, 'name' | 'publishConfig'>): string | undefined {
+  const renamed = manifest.publishConfig?.name
+  return typeof renamed === 'string' && renamed !== '' ? renamed : manifest.name
+}
 
 export { type ExportedManifest }
 
@@ -195,28 +201,26 @@ async function readAndCheckManifest (
   getWorkspaceManifest?: (depName: string) => ProjectManifest | undefined,
   targetPkgName?: string
 ): Promise<ProjectManifest> {
-  const { manifest: dirManifest } = await tryReadProjectManifest(dependencyDir)
-  if (dirManifest?.name && dirManifest?.version) {
-    return dirManifest
-  }
-  const lookupName = targetPkgName ?? depName
-  const workspaceManifest = getWorkspaceManifest?.(lookupName)
-  if (workspaceManifest?.name && workspaceManifest?.version) {
-    return workspaceManifest
-  }
-  return handleMissingOrInvalidManifest(depName, dirManifest ?? undefined, workspaceManifest)
+  const manifest = await resolveWorkspaceManifest(dependencyDir, { depName, target: targetPkgName, getWorkspaceManifest })
+  if (manifest?.name && manifest.version) return manifest
+  return handleMissingOrInvalidManifest(depName, manifest)
 }
 
-function handleMissingOrInvalidManifest (
-  depName: string,
-  dirManifest?: ProjectManifest,
-  workspaceManifest?: ProjectManifest
-): never {
-  const found = dirManifest?.name || dirManifest?.version
-    ? dirManifest
-    : workspaceManifest?.name || workspaceManifest?.version
-      ? workspaceManifest
-      : dirManifest ?? workspaceManifest
+async function resolveWorkspaceManifest (
+  dependencyDir: string,
+  { depName, target, getWorkspaceManifest }: { depName: string, target?: string, getWorkspaceManifest?: (depName: string) => ProjectManifest | undefined }
+): Promise<ProjectManifest | undefined> {
+  const { manifest } = await tryReadProjectManifest(dependencyDir)
+  const installed = target && manifest?.name && manifest.name !== target ? undefined : manifest
+  if (installed?.name && installed.version) return installed
+  const workspace = getWorkspaceManifest?.(target ?? depName)
+  if (workspace?.name && workspace.version) return workspace
+  if (installed?.name || installed?.version) return installed
+  if (workspace?.name || workspace?.version) return workspace
+  return installed ?? workspace
+}
+
+function handleMissingOrInvalidManifest (depName: string, found?: ProjectManifest): never {
   if (found?.name && !found.version) {
     throw new PnpmError(
       'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
@@ -266,6 +270,11 @@ async function replaceWorkspaceProtocol (
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
     return resolveRelativeWorkspaceSpec(depName, depSpec.slice(10), context)
   }
+  const workspace = WorkspaceSpec.parse(depSpec)
+  if (workspace) {
+    const renamed = await renamedRange(depName, workspace.alias ?? depName, workspace.version, context)
+    if (renamed != null) return renamed
+  }
   const spec = depSpec.slice(10)
   return spec.includes('@') ? `npm:${spec}` : spec
 }
@@ -281,10 +290,7 @@ async function resolveVersionAliasWorkspaceSpec (
 
   const specifierSuffix: string | undefined = parts[2]
   const semverRangeToken = specifierSuffix === '^' || specifierSuffix === '~' ? specifierSuffix : ''
-  if (depName !== manifest.name) {
-    return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
-  }
-  return `${semverRangeToken}${manifest.version}`
+  return publishedSpec(depName, manifest, semverRangeToken)
 }
 
 async function resolveRelativeWorkspaceSpec (
@@ -293,8 +299,25 @@ async function resolveRelativeWorkspaceSpec (
   context: PublishDependencyConverterContext
 ): Promise<string> {
   const manifest = await readAndCheckManifest(depName, path.join(context.dir, relPath), context.workspacePackages)
-  if (manifest.name === depName) return `${manifest.version}`
-  return `npm:${manifest.name}@${manifest.version}`
+  return publishedSpec(depName, manifest, '')
+}
+
+function publishedSpec (depName: string, manifest: ProjectManifest, token: string): string {
+  const name = publishedName(manifest)
+  const range = `${token}${manifest.version}`
+  return registrySpec(depName, name, range)
+}
+
+function registrySpec (depName: string, name: string | undefined, range: string): string {
+  return name === depName ? range : `npm:${name}@${range}`
+}
+
+async function renamedRange (depName: string, target: string, range: string, context: PublishDependencyConverterContext): Promise<string | undefined> {
+  const modules = context.modulesDir ?? path.join(context.dir, 'node_modules')
+  const manifest = await resolveWorkspaceManifest(path.join(modules, depName), { depName, target, getWorkspaceManifest: context.workspacePackages })
+  if (manifest?.name !== target) return undefined
+  const name = publishedName(manifest)
+  return name && name !== target ? registrySpec(depName, name, range) : undefined
 }
 
 async function replaceWorkspaceProtocolPeerDependency (
@@ -311,7 +334,7 @@ async function replaceWorkspaceProtocolPeerDependency (
     const version = workspaceSpec.version === '^' || workspaceSpec.version === '~' || workspaceSpec.version === ''
       ? '*'
       : workspaceSpec.version
-    return `npm:${workspaceSpec.alias}@${version}`
+    return await renamedRange(depName, workspaceSpec.alias, version, context) ?? `npm:${workspaceSpec.alias}@${version}`
   }
   if (workspaceSpec?.version.startsWith('./') || workspaceSpec?.version.startsWith('../')) {
     return replaceWorkspaceProtocol(depName, depSpec, context)
@@ -334,12 +357,15 @@ async function resolvePeerWorkspaceSemver (
 
   const [, semverRangeGroup = '', version] = versionAliasSpecParts
   if (version) {
-    return depSpec.replace('workspace:', '')
+    const range = depSpec.replace('workspace:', '')
+    return await renamedRange(depName, depName, range, context) ?? range
   }
 
   const modulesDir = context.modulesDir ?? path.join(context.dir, 'node_modules')
   const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName), context.workspacePackages)
   const semverRangeToken = semverRangeGroup !== '*' ? semverRangeGroup : ''
 
-  return depSpec.replace(WORKSPACE_SEMVER_REGEX, `${semverRangeToken}${manifest.version}`)
+  const range = depSpec.replace(WORKSPACE_SEMVER_REGEX, `${semverRangeToken}${manifest.version}`)
+  const name = publishedName(manifest)
+  return name === manifest.name ? range : registrySpec(depName, name, range)
 }

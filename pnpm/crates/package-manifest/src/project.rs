@@ -74,3 +74,14 @@ pub fn find_parent_publish_manifest(target: &Path) -> Result<Option<Value>, Pack
     }
     Ok(None)
 }
+
+/// The name a manifest publishes under, when it renames itself via
+/// `publishConfig.name`. An empty rename is no rename.
+#[must_use]
+pub fn published_name(manifest: &Value) -> Option<&str> {
+    manifest
+        .get("publishConfig")?
+        .get("name")?
+        .as_str()
+        .filter(|name| !name.is_empty())
+}

@@ -69,6 +69,79 @@ fn rewrite_peer(dep_name: &str, dep_spec: &str, dir: &Path) -> String {
 }
 
 #[test]
+fn relative_dependency_uses_the_published_name_from_a_yaml_manifest() {
+    let fixture = TempDir::new().unwrap();
+    let target = fixture.path().join("target");
+    fs::create_dir(&target).unwrap();
+    fs::write(
+        target.join("package.yaml"),
+        "name: local-name\nversion: 2.0.0\npublishConfig:\n  name: published-name\n",
+    )
+    .unwrap();
+    assert_eq!(
+        rewrite("local-name", "workspace:./target", fixture.path()),
+        "npm:published-name@2.0.0",
+    );
+    assert_eq!(rewrite("published-name", "workspace:./target", fixture.path()), "2.0.0");
+}
+
+#[test]
+fn workspace_lookup_uses_the_published_target_for_shorthand_and_explicit_ranges() {
+    let dir = TempDir::new().unwrap();
+    let packages = std::collections::HashMap::from([(
+        "internal".to_owned(),
+        WorkspacePackageManifest::from_manifest(&serde_json::json!({
+            "name": "internal", "version": "2.0.0", "publishConfig": { "name": "published" }
+        })),
+    )]);
+    let installed = dir.path().join("node_modules/alias");
+    fs::create_dir_all(&installed).unwrap();
+    fs::write(
+        installed.join("package.json"),
+        r#"{"name":"stale","version":"8.0.0","publishConfig":{"name":"wrong"}}"#,
+    )
+    .unwrap();
+    let lookup = Some(&packages).into();
+    for (name, spec, expected) in [
+        ("published", "workspace:internal@^", "^2.0.0"),
+        ("internal", "workspace:~", "npm:published@~2.0.0"),
+        ("alias", "workspace:internal@2", "npm:published@2"),
+        ("alias", "workspace:internal@^", "npm:published@^2.0.0"),
+        ("alias", "workspace:absent@3", "npm:absent@3"),
+    ] {
+        assert_eq!(
+            replace_workspace_protocol(name, spec, dir.path(), None, lookup).unwrap(),
+            expected,
+        );
+    }
+    fs::write(
+        installed.join("package.json"),
+        r#"{"version":"8.0.0","publishConfig":{"name":"wrong"}}"#,
+    )
+    .unwrap();
+    let peer = replace_workspace_protocol_peer_dependency(
+        "alias",
+        "workspace:other@^1",
+        dir.path(),
+        None,
+        lookup,
+    )
+    .unwrap();
+    assert_eq!(peer, "npm:other@^1");
+    assert_eq!(
+        replace_workspace_protocol_peer_dependency(
+            "published",
+            "workspace:internal@^",
+            dir.path(),
+            None,
+            lookup
+        )
+        .unwrap(),
+        "*",
+    );
+}
+
+#[test]
 fn passes_through_non_workspace_specs() {
     let dir = TempDir::new().unwrap();
     assert_eq!(rewrite("foo", "^1.0.0", dir.path()), "^1.0.0");
@@ -200,6 +273,7 @@ fn scoped_peer_workspace_spec_resolves_from_workspace_packages() {
         "@scope/prettier-config".to_string(),
         WorkspacePackageManifest {
             name: "@scope/prettier-config".to_string(),
+            publish_name: None,
             version: "2.0.0".to_string(),
             private: false,
         },
@@ -224,6 +298,7 @@ fn workspace_package_without_version_reports_missing_version() {
         "@scope/eslint-config".to_string(),
         WorkspacePackageManifest {
             name: "@scope/eslint-config".to_string(),
+            publish_name: None,
             version: String::new(),
             private: false,
         },
@@ -269,6 +344,7 @@ fn missing_version_help_uses_the_workspace_package_name() {
         "pkg-b".to_string(),
         WorkspacePackageManifest {
             name: "pkg-b".to_string(),
+            publish_name: None,
             version: String::new(),
             private: false,
         },
@@ -305,6 +381,7 @@ fn installed_manifest_without_name_keeps_the_missing_name_reason() {
         "pkg-b".to_string(),
         WorkspacePackageManifest {
             name: "pkg-b".to_string(),
+            publish_name: None,
             version: String::new(),
             private: false,
         },
@@ -392,6 +469,7 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
         "dep-a".to_string(),
         WorkspacePackageManifest {
             name: "dep-a".to_string(),
+            publish_name: None,
             version: "1.2.3".to_string(),
             private: false,
         },
@@ -400,6 +478,7 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
         "dep-b".to_string(),
         WorkspacePackageManifest {
             name: "dep-b".to_string(),
+            publish_name: None,
             version: "2.3.4".to_string(),
             private: false,
         },
@@ -454,6 +533,7 @@ fn prefer_workspace_resolves_from_the_workspace_manifest_first() {
         "dep-a".to_string(),
         WorkspacePackageManifest {
             name: "dep-a".to_string(),
+            publish_name: None,
             version: "3.0.0".to_string(),
             private: false,
         },
@@ -491,6 +571,7 @@ fn prefer_workspace_does_not_override_relative_path_specs() {
         "foo".to_string(),
         WorkspacePackageManifest {
             name: "foo".to_string(),
+            publish_name: None,
             version: "9.9.9".to_string(),
             private: false,
         },
