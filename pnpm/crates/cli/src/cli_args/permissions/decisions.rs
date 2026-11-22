@@ -3,6 +3,7 @@ use super::{
     Capabilities,
     IgnoredBuildsScan,
     PermissionCapability,
+    disambiguated_labels,
     emit_global_warning,
     partition_params,
 };
@@ -47,6 +48,19 @@ pub(crate) struct PackageDecisions {
 }
 
 pub(crate) type Decisions = BTreeMap<String, PackageDecisions>;
+
+pub(crate) fn confirmation(
+    approved: &BTreeSet<String>,
+    pending: &BTreeMap<String, Capabilities>,
+) -> String {
+    let labels = disambiguated_labels(pending.keys().map(String::as_str));
+    let packages = approved
+        .iter()
+        .map(|pkg| format!("{} ({})", labels[pkg.as_str()], capability_list(&pending[pkg])))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("Approve {packages}?")
+}
 
 /// The decisions of one approval run, plus the `skills.dirs` answer that
 /// goes with them. Recording nothing keeps the detected directories.

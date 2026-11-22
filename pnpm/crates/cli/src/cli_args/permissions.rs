@@ -1,5 +1,7 @@
 pub(crate) mod decisions;
+mod global_approvals;
 pub(crate) mod render;
+mod skills_review;
 
 pub(crate) use decisions::Approval;
 pub(crate) use render::render_permissions;
@@ -17,15 +19,6 @@ use crate::{
             partition_params,
             prompt_for_choices,
             retain_undecided_builds,
-        },
-        global::{
-            GlobalError,
-            apply_global_build_policy,
-            global_approval_store,
-            global_group_config,
-            is_subdir,
-            scan_global_packages,
-            warn_about_legacy_global_settings,
         },
         ignored_builds::{
             IgnoredBuildsScan,
@@ -45,23 +38,16 @@ use clap::{
 use miette::{
     Context,
     IntoDiagnostic,
-    Report,
 };
 use pnpm_config::{
     Config,
-    GetHomeDir,
     PermissionCapability,
-    SkillsPermission,
 };
 use pnpm_package_manager::{
     resync_installed_agent_skills,
     skill_approval_key,
-    skill_approval_options,
 };
-use pnpm_reporter::{
-    Reporter,
-    emit_global_warning,
-};
+use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::set_skills_dirs;
 use std::{
     collections::{
@@ -165,6 +151,7 @@ pub(crate) fn pending_permissions(config: &Config) -> miette::Result<PendingPerm
     Ok(PendingPermissions { by_package, scan })
 }
 
+use self::skills_review::review_skills;
 use decisions::{
     capability_list,
     clear_decided,
@@ -225,76 +212,6 @@ impl ApproveArgs {
         let selection =
             RebuildSelection { snapshots: None, names: Some(build_packages), projects: Vec::new() };
         Box::pin(run_rebuild::<Reporter>(&rebuild_state, selection, None)).await
-    }
-
-    async fn run_global<Reporter: self::Reporter + 'static>(
-        self,
-        base_config: &'static Config,
-    ) -> miette::Result<()> {
-        let global_pkg_dir =
-            base_config.global_pkg_dir.as_ref().ok_or(GlobalError::NoGlobalBinDir)?;
-        warn_about_legacy_global_settings::<Reporter>(base_config, global_pkg_dir)?;
-        let (groups, pending) = scan_global_pending_permissions(base_config, global_pkg_dir)?;
-        if pending.by_package.is_empty() && self.packages.is_empty() {
-            pnpm_diagnostics::println!("There are no packages awaiting approval");
-            return Ok(());
-        }
-        let home_dir = pnpm_config::Host::home_dir()
-            .ok_or_else(|| miette::miette!("unable to determine home directory"))?;
-        let mut approval_config = base_config.clone();
-        approval_config.agent_skills_target_root = Some(home_dir.clone());
-        apply_global_build_policy(&mut approval_config, global_pkg_dir)?;
-        let approval_config = Config::leak(approval_config);
-        let skill_options =
-            global_skill_approval_options(base_config, &groups, global_pkg_dir, &home_dir)?;
-        let Some(approval) =
-            self.decide_global::<Reporter>(&pending.by_package, approval_config, &skill_options)?
-        else {
-            return Ok(());
-        };
-        let store = global_approval_store(base_config, global_pkg_dir)?;
-        store.write_permission_decisions(&approval.decisions)?;
-        if !approval.skills_dirs.is_empty() {
-            store.write_skills_dirs(&approval.skills_dirs)?;
-        }
-        let mut rebuild_groups = Vec::new();
-        for (install_dir, scan) in groups {
-            let config = global_group_config(
-                base_config,
-                &install_dir,
-                global_pkg_dir,
-                base_config.supported_architectures.clone(),
-            )?;
-            let group_pending = pending_permissions(&config)?;
-            let build_packages =
-                pending_builds_approved(&approval.decisions, &group_pending.by_package);
-            clear_decided(scan, &approval.decisions)?;
-            if approval.decisions.values().any(|decided| decided.skills.is_some()) {
-                let approved_config = store.config_with_approvals(&config)?;
-                resync_installed_agent_skills(approved_config, &install_dir)?;
-            }
-            if !build_packages.is_empty() {
-                rebuild_groups.push((install_dir, build_packages));
-            }
-        }
-        for (install_dir, build_packages) in rebuild_groups {
-            let group_config = global_group_config(
-                base_config,
-                &install_dir,
-                global_pkg_dir,
-                base_config.supported_architectures.clone(),
-            )?;
-            let config = store.config_with_approvals(&group_config)?;
-            let state = State::init(install_dir.join("package.json"), config, true)
-                .wrap_err("initialize the global approve state")?;
-            let selection = RebuildSelection {
-                names: Some(build_packages),
-                projects: Vec::new(),
-                snapshots: None,
-            };
-            Box::pin(run_rebuild::<Reporter>(&state, selection, None)).await?;
-        }
-        Ok(())
     }
 
     /// The decisions of this run. When packages are named, every capability
@@ -363,306 +280,10 @@ pub(crate) fn package_choices(pending: &BTreeMap<String, Capabilities>) -> Vec<(
         .collect()
 }
 
-/// The interactive skills review of an approval: the first-run
-/// `skills.dirs` prompt, and one skill checkbox per approved package.
-#[derive(Default)]
-struct SkillsReview {
-    /// The `skills` decision per package, overriding the all-or-nothing one
-    /// the package selection would write.
-    skills_by_package: BTreeMap<String, SkillsPermission>,
-    /// The `skills.dirs` answer, or empty when the user picked none,
-    /// recording nothing keeps the detected directories.
-    dirs: Vec<String>,
-}
-
-fn review_skills(
-    config: &'static Config,
-    manifest_dir: &Path,
-    approved: &BTreeSet<String>,
+fn prompt_for_packages(
     pending: &BTreeMap<String, Capabilities>,
-) -> miette::Result<Option<SkillsReview>> {
-    let skills_pending: Vec<&String> = approved
-        .iter()
-        .filter(|pkg| {
-            pending
-                .get(*pkg)
-                .is_some_and(|capabilities| capabilities.contains(&PermissionCapability::Skills))
-        })
-        .collect();
-    if skills_pending.is_empty() {
-        return Ok(Some(SkillsReview::default()));
-    }
-
-    let options = skill_approval_options(config, manifest_dir)
-        .map_err(Report::new)
-        .wrap_err("find the skills of the packages awaiting approval")?;
-
-    let labels = disambiguated_labels(pending.keys().map(String::as_str));
-    let skills_by_key = repository_scope::group_requests(options.skills_by_key, approved);
-    let Some(skills_by_package) =
-        collect_package_skill_decisions(&skills_pending, &labels, &skills_by_key)?
-    else {
-        return Ok(None);
-    };
-
-    let Some(dirs) = resolve_skills_dirs(config, &skills_by_package, &options.detected_dirs)?
-    else {
-        return Ok(None);
-    };
-
-    Ok(Some(SkillsReview { skills_by_package, dirs }))
-}
-
-fn collect_package_skill_decisions(
-    skills_pending: &[&String],
-    labels: &BTreeMap<&str, String>,
-    skills_by_key: &BTreeMap<String, BTreeSet<String>>,
-) -> miette::Result<Option<BTreeMap<String, SkillsPermission>>> {
-    let mut skills_by_package = BTreeMap::new();
-    for &pkg in skills_pending {
-        let skills = skills_by_key
-            .get(pkg.as_str())
-            .into_iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
-        match prompt_for_package_skills(&labels[pkg.as_str()], &skills)? {
-            SkillPromptOutcome::Cancelled => return Ok(None),
-            SkillPromptOutcome::Undiscovered => {}
-            SkillPromptOutcome::Decided(decision) => {
-                skills_by_package.insert(pkg.clone(), decision);
-            }
-        }
-    }
-    Ok(Some(skills_by_package))
-}
-
-fn resolve_skills_dirs(
-    config: &Config,
-    skills_by_package: &BTreeMap<String, SkillsPermission>,
-    detected_dirs: &[String],
 ) -> miette::Result<Option<Vec<String>>> {
-    if config.skills_dirs.is_none()
-        && skills_by_package.values().any(SkillsPermission::links_any)
-        && !detected_dirs.is_empty()
-        && PromptAvailability::detect(config.ci).is_available()
-    {
-        return prompt_for_skills_dirs(detected_dirs);
-    }
-    Ok(Some(Vec::new()))
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) enum SkillPromptOutcome {
-    /// The user selected skills or unselected all of them, or the package
-    /// ships one skill, which approving the package approves.
-    Decided(SkillsPermission),
-    /// No skills were discovered for this package, so it cannot be reviewed.
-    Undiscovered,
-    /// The user cancelled the prompt.
-    Cancelled,
-}
-
-pub(crate) fn prompt_for_package_skills(
-    label: &str,
-    skills: &[String],
-) -> miette::Result<SkillPromptOutcome> {
-    match skills.len() {
-        0 => return Ok(SkillPromptOutcome::Undiscovered),
-        1 => return Ok(SkillPromptOutcome::Decided(SkillsPermission::All(true))),
-        _ => {}
-    }
-    let choices: Vec<(String, String)> = skills
-        .iter()
-        .map(|skill| (skill.clone(), skill.clone()))
-        .collect();
-    let prompt = format!("Choose which of {label}'s agent skills to link");
-    let Some(selected) = prompt_for_choices(&prompt, &choices)? else {
-        return Ok(SkillPromptOutcome::Cancelled);
-    };
-    let decision = if selected.is_empty() {
-        SkillsPermission::All(false)
-    } else {
-        SkillsPermission::Chosen(selected)
-    };
-    Ok(SkillPromptOutcome::Decided(decision))
-}
-
-fn prompt_for_skills_dirs(detected_dirs: &[String]) -> miette::Result<Option<Vec<String>>> {
-    let choices: Vec<(String, String)> = detected_dirs
-        .iter()
-        .map(|dir| (dir.clone(), dir.clone()))
-        .collect();
-    prompt_for_choices("Choose where the approved agent skills are linked", &choices)
-}
-
-struct GlobalPendingPermissions {
-    by_package: BTreeMap<String, Capabilities>,
-}
-
-fn scan_global_pending_permissions(
-    base_config: &Config,
-    global_pkg_dir: &Path,
-) -> miette::Result<(Vec<(std::path::PathBuf, IgnoredBuildsScan)>, GlobalPendingPermissions)> {
-    let packages =
-        scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
-    let mut groups = Vec::new();
-    let mut by_package: BTreeMap<String, Capabilities> = BTreeMap::new();
-    let canonical_global_pkg_dir = (!packages.is_empty())
-        .then(|| dunce::canonicalize(global_pkg_dir))
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("resolve the global packages directory")?;
-    for package in packages
-        .into_iter()
-        .filter(|package| {
-            canonical_global_pkg_dir
-                .as_ref()
-                .is_none_or(|root| is_subdir(root, &package.install_dir))
-        })
-    {
-        let config = global_group_config(
-            base_config,
-            &package.install_dir,
-            global_pkg_dir,
-            base_config.supported_architectures.clone(),
-        )?;
-        let pending = pending_permissions(&config)?;
-        for (pkg, caps) in &pending.by_package {
-            by_package
-                .entry(pkg.clone())
-                .or_default()
-                .extend(caps.iter().copied());
-        }
-        groups.push((package.install_dir, pending.scan));
-    }
-    Ok((groups, GlobalPendingPermissions { by_package }))
-}
-
-fn global_skill_approval_options(
-    base_config: &Config,
-    groups: &[(std::path::PathBuf, IgnoredBuildsScan)],
-    global_pkg_dir: &Path,
-    home_dir: &Path,
-) -> miette::Result<pnpm_package_manager::SkillApprovalOptions> {
-    let mut skills_by_key: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for (install_dir, _) in groups {
-        let Some(options) =
-            group_skill_approval_options(base_config, install_dir, global_pkg_dir, home_dir)
-        else {
-            continue;
-        };
-        for (key, skills) in options.skills_by_key {
-            skills_by_key
-                .entry(key)
-                .or_default()
-                .extend(skills);
-        }
-    }
-    for skills in skills_by_key.values_mut() {
-        skills.sort();
-        skills.dedup();
-    }
-    Ok(pnpm_package_manager::SkillApprovalOptions {
-        skills_by_key,
-        detected_dirs: pnpm_package_manager::detected_agent_dirs(home_dir),
-    })
-}
-
-/// The skill approvals one group's installed packages are waiting for. A
-/// group whose configuration or installed state cannot be read has none.
-fn group_skill_approval_options(
-    base_config: &Config,
-    install_dir: &Path,
-    global_pkg_dir: &Path,
-    home_dir: &Path,
-) -> Option<pnpm_package_manager::SkillApprovalOptions> {
-    let mut config = global_group_config(
-        base_config,
-        install_dir,
-        global_pkg_dir,
-        base_config.supported_architectures.clone(),
-    )
-    .ok()?;
-    config.agent_skills_target_root = Some(home_dir.to_path_buf());
-    skill_approval_options(&config, install_dir).ok()
-}
-
-impl ApproveArgs {
-    fn decide_global<Reporter: self::Reporter>(
-        &self,
-        pending: &BTreeMap<String, Capabilities>,
-        config: &'static Config,
-        skill_options: &pnpm_package_manager::SkillApprovalOptions,
-    ) -> miette::Result<Option<Approval>> {
-        if !self.packages.is_empty() {
-            return Ok(Some(Approval {
-                decisions: named_decisions::<Reporter>(&self.packages, pending)?,
-                skills_dirs: Vec::new(),
-            }));
-        }
-        if self.all {
-            return Ok(Some(Approval {
-                decisions: decisions_for_all(pending),
-                skills_dirs: Vec::new(),
-            }));
-        }
-        if pending.is_empty() {
-            return Ok(None);
-        }
-        if !PromptAvailability::detect(config.ci).is_available() {
-            return Err(ApproveNonInteractive.into());
-        }
-        let Some(selected) = prompt_for_packages(pending)? else {
-            return Ok(None);
-        };
-        let approved: BTreeSet<String> = pending
-            .keys()
-            .filter(|pkg| selected.contains(pkg))
-            .cloned()
-            .collect();
-        let Some(review) = review_skills_with_options(config, &approved, pending, skill_options)?
-        else {
-            return Ok(None);
-        };
-        if !approved.is_empty() && !confirm(&confirmation(&approved, pending))? {
-            return Ok(None);
-        }
-        Ok(Some(Approval {
-            decisions: decisions_by_approval(&approved, pending, &review.skills_by_package),
-            skills_dirs: review.dirs,
-        }))
-    }
-}
-
-fn review_skills_with_options(
-    config: &'static Config,
-    approved: &BTreeSet<String>,
-    pending: &BTreeMap<String, Capabilities>,
-    options: &pnpm_package_manager::SkillApprovalOptions,
-) -> miette::Result<Option<SkillsReview>> {
-    let skills_pending: Vec<&String> = approved
-        .iter()
-        .filter(|pkg| {
-            pending
-                .get(*pkg)
-                .is_some_and(|capabilities| capabilities.contains(&PermissionCapability::Skills))
-        })
-        .collect();
-    if skills_pending.is_empty() {
-        return Ok(Some(SkillsReview::default()));
-    }
-    let labels = disambiguated_labels(pending.keys().map(String::as_str));
-    let Some(skills_by_package) =
-        collect_package_skill_decisions(&skills_pending, &labels, &options.skills_by_key)?
-    else {
-        return Ok(None);
-    };
-    let Some(dirs) = resolve_skills_dirs(config, &skills_by_package, &options.detected_dirs)?
-    else {
-        return Ok(None);
-    };
-    Ok(Some(SkillsReview { skills_by_package, dirs }))
+    prompt_for_choices("Choose which packages to approve", &package_choices(pending))
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
@@ -673,7 +294,7 @@ fn review_skills_with_options(
         r#"Run "pnpm approve" in an interactive terminal outside CI, pass --all, or pass the package names to approve (<pkg>) or deny (!<pkg>)."#
     )
 )]
-struct ApproveNonInteractive;
+pub(super) struct ApproveNonInteractive;
 
 #[cfg(test)]
 mod tests;

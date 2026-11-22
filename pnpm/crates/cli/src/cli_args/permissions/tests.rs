@@ -417,24 +417,32 @@ fn pending_builds_approved_filters_only_approved_build_requests() {
 
 #[test]
 fn prompt_for_package_skills_with_empty_skills_is_undiscovered() {
-    let outcome = super::prompt_for_package_skills("foo", &[]).unwrap();
-    assert_eq!(outcome, super::SkillPromptOutcome::Undiscovered);
+    let outcome = super::skills_review::prompt_for_package_skills("foo", &[]).unwrap();
+    assert_eq!(outcome, super::skills_review::SkillPromptOutcome::Undiscovered);
 }
 
 #[test]
 fn a_single_skill_is_approved_with_its_package_without_a_prompt() {
-    let outcome = super::prompt_for_package_skills("foo", &["guide".to_string()]).unwrap();
-    assert_eq!(outcome, super::SkillPromptOutcome::Decided(SkillsPermission::All(true)));
+    let outcome =
+        super::skills_review::prompt_for_package_skills("foo", &["guide".to_string()]).unwrap();
+    assert_eq!(
+        outcome,
+        super::skills_review::SkillPromptOutcome::Decided(SkillsPermission::All(true))
+    );
 }
 
 #[test]
 fn review_skills_with_undiscovered_skills_leaves_package_out_of_review() {
     let approved = std::collections::BTreeSet::from(["foo".to_string()]);
     let pending = pending(&[("foo", &[Skills])]);
-    let review =
-        super::review_skills(decide_config(), Path::new("/workspace"), &approved, &pending)
-            .unwrap()
-            .unwrap();
+    let review = super::skills_review::review_skills(
+        decide_config(),
+        Path::new("/workspace"),
+        &approved,
+        &pending,
+    )
+    .unwrap()
+    .unwrap();
     assert!(review.skills_by_package.is_empty());
 }
 
@@ -480,10 +488,14 @@ fn package_choices_distinguishes_colliding_labels() {
 fn review_skills_with_no_pending_skills_returns_empty_review() {
     let approved = std::collections::BTreeSet::from(["esbuild".to_string()]);
     let pending = pending(&[("esbuild", &[Build])]);
-    let review =
-        super::review_skills(decide_config(), Path::new("/workspace"), &approved, &pending)
-            .unwrap()
-            .unwrap();
+    let review = super::skills_review::review_skills(
+        decide_config(),
+        Path::new("/workspace"),
+        &approved,
+        &pending,
+    )
+    .unwrap()
+    .unwrap();
     assert!(review.skills_by_package.is_empty());
     assert!(review.dirs.is_empty());
 }
