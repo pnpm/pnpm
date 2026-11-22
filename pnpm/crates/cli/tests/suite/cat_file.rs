@@ -47,7 +47,7 @@ fn cat_file_works_with_binary() {
 
     let cafs_dir = files_dir.join(&hex[..2]);
     fs::create_dir_all(&cafs_dir).unwrap();
-    let file_path = cafs_dir.join(&hex[2..]);
+    let file_path = cafs_dir.join(format!("{}-exec", &hex[2..]));
     fs::write(&file_path, binary_content).unwrap();
 
     let output = pacquet

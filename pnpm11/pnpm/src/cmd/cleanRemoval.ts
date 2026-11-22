@@ -168,11 +168,11 @@ async function removableModulesEntries (modulesDir: string, mode: ModulesCleanMo
     .map((item) => path.join(modulesDir, item))
 }
 
-export async function removeLockfilePath (cwd: string, lockfilePath: string): Promise<void> {
-  const stat = await lstatIfExists(lockfilePath)
+export async function removeProjectFile (cwd: string, filePath: string): Promise<void> {
+  const stat = await lstatIfExists(filePath)
   if (stat == null || (!stat.isSymbolicLink() && stat.isDirectory())) return
-  printRemoving(cwd, lockfilePath)
-  await rimraf(lockfilePath)
+  printRemoving(cwd, filePath)
+  await rimraf(filePath)
 }
 
 export async function invalidateWorkspaceState (realRootDir: string, sharedModulesDir: string): Promise<void> {
@@ -196,7 +196,9 @@ export async function resolveExternalVirtualStoreTarget (
     return undefined
   }
   const rootModulesDir = await resolveInside(opts.rootDir, opts.modulesDir)
-  if (rootModulesDir != null && isSubdir(rootModulesDir, virtualStoreInProject)) return undefined
+  if (rootModulesDir === virtualStoreInProject) return undefined
+  if (rootModulesDir != null && isSubdir(rootModulesDir, virtualStoreInProject) &&
+    !isCleanableModulesDir(rootModulesDir, new Set(), { ownerDir: await tryRealpath(opts.rootDir), protectedMemberDirs: opts.protectedMemberDirs })) return undefined
   return virtualStoreInProject
 }
 

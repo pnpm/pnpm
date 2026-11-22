@@ -1,9 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { decodeRegistry, encodeRegistry, loadMeta, type PackageMeta } from '@pnpm/resolving.npm-resolver'
+import { decodeRegistry, loadMeta, type PackageMeta } from '@pnpm/resolving.npm-resolver'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
-import { glob } from 'tinyglobby'
+
+import { findMetadataFiles } from './cacheList.js'
 
 interface CachedVersions {
   cachedVersions: string[]
@@ -18,11 +19,7 @@ interface CachedMetaFile {
 }
 
 export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
-  const prefix = opts.registry ? encodeRegistry(opts.registry) : '*'
-  const metaFilePaths = (await glob(`${prefix}/${packageName}.jsonl`, {
-    cwd: opts.cacheDir,
-    expandDirectories: false,
-  })).sort()
+  const metaFilePaths = (await findMetadataFiles(opts, [packageName])).sort()
   const metaFilesByPath: Record<string, CachedVersions> = {}
   const storeIndex = new StoreIndex(opts.storeDir)
   try {

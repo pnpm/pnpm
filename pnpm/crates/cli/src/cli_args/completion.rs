@@ -106,7 +106,20 @@ impl CompletionArgs {
 impl CompletionServerArgs {
     pub fn run(&self) -> miette::Result<()> {
         let is_zsh = std::env::var_os("SHELL").is_some_and(|shell| shell == "zsh");
-        for completion in complete_words(&self.words)? {
+        let fallback;
+        let words = if self.words.is_empty()
+            && let Ok(line) = env::var("COMP_LINE")
+        {
+            let cursor = env::var("COMP_POINT")
+                .ok()
+                .map(|point| point.parse())
+                .and_then(Result::ok);
+            fallback = words_at_cursor(&line, cursor);
+            &fallback
+        } else {
+            &self.words
+        };
+        for completion in complete_words(words)? {
             if sanitize_inline(&completion) != completion {
                 continue;
             }
@@ -119,6 +132,25 @@ impl CompletionServerArgs {
         }
         Ok(())
     }
+}
+
+fn words_at_cursor(line: &str, cursor: Option<usize>) -> Vec<String> {
+    let end = cursor
+        .and_then(|point| line.char_indices().nth(point))
+        .map(|(offset, _)| offset)
+        .unwrap_or(line.len());
+    let prefix = &line[..end];
+    // A sentinel keeps an empty current argument after whitespace and a space
+    // escaped or quoted within an argument distinct.
+    for suffix in ["", "'", r#"""#] {
+        if let Ok(mut words) = shell_words::split(&format!("{prefix}x{suffix}")) {
+            if let Some(last) = words.last_mut() {
+                last.pop();
+            }
+            return words;
+        }
+    }
+    Vec::new()
 }
 
 pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> std::io::Result<()> {

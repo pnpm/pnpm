@@ -18,6 +18,17 @@ fn stderr(output: std::process::Output) -> String {
 }
 
 #[test]
+fn completion_server_uses_the_line_prefix_without_words() {
+    let output = pacquet()
+        .with_args(["completion-server"])
+        .with_env("COMP_LINE", "pnpm completion bash trailing")
+        .with_env("COMP_POINT", "18")
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "bash\n");
+}
+
+#[test]
 fn completion_scripts_are_lightweight_shims_for_pnpm_supported_shells() {
     let cases = [
         ("bash", "_pnpm_completion"),

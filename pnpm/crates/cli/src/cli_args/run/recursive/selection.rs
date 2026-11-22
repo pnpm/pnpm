@@ -302,13 +302,7 @@ pub(super) fn run_tasks<'a>(
 /// one at a time, and the default follows the workspace concurrency
 /// setting.
 pub(super) fn run_concurrency(args: &RunArgs, config: &Config, task_count: usize) -> usize {
-    if args.workspace.parallel {
-        return task_count;
-    }
-    if args.sequential {
-        return 1;
-    }
-    usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
+    super::script_concurrency(config, task_count, args.workspace.parallel, args.sequential)
 }
 
 /// What the run reports once every task has settled.

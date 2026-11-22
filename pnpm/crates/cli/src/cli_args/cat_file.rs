@@ -69,23 +69,28 @@ impl CatFileArgs {
     ) -> miette::Result<()> {
         let hex = decode_hex_digest(&self.hash)?;
         let config = config()?;
-        let file_path = config.store_dir
-            .cas_file_path_by_mode(&hex, 0)
-            .ok_or(CatFileError::InvalidHashFormat { hash: self.hash })?;
-
-        let file = match File::open(&file_path) {
-            Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                return Err(CatFileError::NotFound { path: file_path, source: error }.into());
-            }
-            Err(error) => {
-                return Err(error)
-                    .into_diagnostic()
-                    .wrap_err_with(|| format!("Failed to read {}", file_path.display()));
-            }
+        let path_for_mode = |mode| {
+            config.store_dir
+                .cas_file_path_by_mode(&hex, mode)
+                .ok_or_else(|| CatFileError::InvalidHashFormat { hash: self.hash.clone() })
         };
-
-        copy_to_stdout(file, &file_path)
+        let mut path = path_for_mode(0)?;
+        let file = match File::open(&path) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                path = path_for_mode(0o755)?;
+                File::open(&path)
+            }
+            result => result,
+        };
+        match file {
+            Ok(file) => copy_to_stdout(file, &path),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                Err(CatFileError::NotFound { path, source: error }.into())
+            }
+            Err(error) => Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("Failed to read {}", path.display())),
+        }
     }
 }
 

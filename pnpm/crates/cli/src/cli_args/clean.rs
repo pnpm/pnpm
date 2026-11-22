@@ -34,6 +34,8 @@ pub struct CleanArgs {
     pub lockfile: bool,
     #[clap(flatten)]
     pub lockfile_dir: LockfileDirArg,
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+    pub script_args: Vec<String>,
 }
 
 #[derive(Clone, Copy)]

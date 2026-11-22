@@ -71,12 +71,16 @@ pub(in super::super) fn bin<'a>(
 
 pub(in super::super) fn clean<'a>(
     ctx: &RunCtx<'a>,
-    CleanArgs { lockfile, lockfile_dir }: CleanArgs,
+    CleanArgs { lockfile, lockfile_dir, script_args }: CleanArgs,
     command_name: &'a str,
 ) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
-    if let Some(run_args) = script_override::resolve(ctx, config, command_name, Vec::new())? {
+    let first_arg = script_args.first().cloned();
+    if let Some(run_args) = script_override::resolve(ctx, config, command_name, script_args)? {
         return dispatch_script::run(ctx, run_args);
+    }
+    if let Some(arg) = first_arg {
+        return Err(miette::miette!("unexpected argument {arg:?} for pnpm {command_name}"));
     }
     lockfile_dir.apply_to(config, ctx.locations.dir);
     let removal = if lockfile { LockfileRemoval::Remove } else { LockfileRemoval::Keep };

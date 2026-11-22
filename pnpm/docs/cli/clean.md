@@ -9,9 +9,11 @@ Safely remove `node_modules` contents from all workspace projects. Removes direc
 
 In a workspace, `pnpm clean` removes `node_modules` in the root and every workspace package by default, even when the workspace root has no `package.json`. Passing [`--filter`](../filtering.md), `--filter-prod`, `--workspace-root`, or `--no-recursive` cleans only the selected projects and preserves the shared virtual store (`node_modules/.pnpm`) when the workspace uses a shared lockfile. `pnpm clean` preserves non-pnpm hidden entries (e.g., `.cache`) inside `node_modules` and cleans a custom [`modulesDir`](../settings/node-modules.md#modulesdir) when set.
 
-A `clean` or `purge` script in `package.json` overrides the built-in command. `pnpm pm clean` and `pnpm pm purge` run the built-in command regardless.
+A `clean` or `purge` script in `package.json` overrides the built-in command and receives positional arguments such as `dist` in `pnpm clean dist`. `pnpm pm clean` and `pnpm pm purge` run the built-in command regardless.
 
-If a custom [`virtualStoreDir`](../settings/node-modules.md#virtualstoredir) or `globalVirtualStoreDir` resides inside the project root (but outside `node_modules`), an unfiltered `pnpm clean` removes it too.
+If a custom [`virtualStoreDir`](../settings/node-modules.md#virtualstoredir) or `globalVirtualStoreDir` resides inside the project root, an unfiltered `pnpm clean` removes it too.
+
+With `nodeLinker: pnp`, a full clean also removes the generated `.pnp.cjs` loader. A filtered clean preserves a loader shared by workspace projects.
 
 ## Options
 

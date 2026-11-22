@@ -126,7 +126,7 @@ struct DiffFilterContext<'a> {
     workspace_manifests: &'a [PathBuf],
     working_dir: &'a Path,
     workspace_dir: &'a Path,
-    ignore_globs: &'a [Glob<'a>],
+    ignore_globs: &'a IgnoreGlobs<'a>,
     test_globs: &'a [Glob<'a>],
 }
 
@@ -161,10 +161,7 @@ fn process_diff_path(
             return;
         }
     }
-    if ctx.ignore_globs
-        .iter()
-        .any(|glob| glob.is_match(file))
-    {
+    if ctx.ignore_globs.matches(file) {
         return;
     }
     let (dir, change_type) = classify_changed_path(file, ctx.test_globs);
@@ -192,7 +189,7 @@ fn get_changed_dirs_since_commit(
         });
     }
 
-    let ignore_globs = compile_globs(opts.changed_files_ignore_pattern)?;
+    let ignore_globs = IgnoreGlobs::new(opts.changed_files_ignore_pattern)?;
     let test_globs = compile_globs(opts.test_pattern)?;
     let ctx = DiffFilterContext {
         repo_root,
@@ -414,17 +411,50 @@ pub(crate) fn strip_final_newline(text: &str) -> &str {
     text.strip_suffix('\r').unwrap_or(text)
 }
 
+struct IgnoreGlobs<'a> {
+    patterns: Vec<(Glob<'a>, bool)>,
+    only_negations: bool,
+}
+
+impl<'a> IgnoreGlobs<'a> {
+    fn new(patterns: &'a [String]) -> Result<Self, FilterError> {
+        let mut compiled = Vec::new();
+        let mut any_positive = false;
+        for pattern in patterns
+            .iter()
+            .filter(|pattern| !pattern.is_empty())
+        {
+            let body = pattern.trim_start_matches('!');
+            let positive = (pattern.len() - body.len()).is_multiple_of(2);
+            any_positive |= positive;
+            compiled.push((compile_glob(body)?, positive));
+        }
+        Ok(Self { only_negations: !compiled.is_empty() && !any_positive, patterns: compiled })
+    }
+
+    fn matches(&self, path: &str) -> bool {
+        self.patterns
+            .iter()
+            .rev()
+            .find(|(glob, _)| glob.is_match(path))
+            .map(|(_, positive)| *positive)
+            .unwrap_or(self.only_negations)
+    }
+}
+
+fn compile_glob(pattern: &str) -> Result<Glob<'_>, FilterError> {
+    Glob::new(pattern)
+        .map_err(|err| FilterError::InvalidPattern {
+            pattern: pattern.to_owned(),
+            message: err.to_string(),
+        })
+}
+
 fn compile_globs(patterns: &[String]) -> Result<Vec<Glob<'_>>, FilterError> {
     patterns
         .iter()
         .filter(|pattern| !pattern.is_empty())
-        .map(|pattern| {
-            Glob::new(pattern)
-                .map_err(|err| FilterError::InvalidPattern {
-                    pattern: pattern.clone(),
-                    message: err.to_string(),
-                })
-        })
+        .map(|pattern| compile_glob(pattern))
         .collect()
 }
 

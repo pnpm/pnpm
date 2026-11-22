@@ -1,9 +1,6 @@
 use crate::cli_args::{
     cli_command::CliArgs,
-    dispatch::routing::{
-        json_error_message,
-        prints_json_errors,
-    },
+    dispatch::routing::json_error_message,
     pack::PACK_ERROR_CONTEXT,
 };
 use clap::Parser;
@@ -150,7 +147,7 @@ fn structured_stdout_commands_route_reporter_to_stderr() {
 }
 
 #[test]
-fn stage_json_prints_structured_json_errors() {
+fn json_error_routing() {
     for (argv, expected) in [
         (["pacquet", "stage", "publish", "--json"].as_slice(), true),
         (["pacquet", "stage", "list", "--json"].as_slice(), true),
@@ -159,9 +156,16 @@ fn stage_json_prints_structured_json_errors() {
         (["pacquet", "pack", "--json"].as_slice(), true),
         (["pacquet", "stage", "publish"].as_slice(), false),
         (["pacquet", "pipeline", "--dry-run", "--json"].as_slice(), false),
-        (["pacquet", "outdated", "--json"].as_slice(), false),
+        (["pacquet", "outdated", "--json"].as_slice(), true),
+        (["pacquet", "audit", "--json"].as_slice(), true),
+        (["pacquet", "list", "--json"].as_slice(), true),
+        (["pacquet", "list", "--parseable"].as_slice(), false),
+        (["pacquet", "why", "foo", "--json"].as_slice(), true),
+        (["pacquet", "licenses", "list", "--json"].as_slice(), true),
+        (["pacquet", "peers", "--json"].as_slice(), true),
+        (["pacquet", "doctor", "--json"].as_slice(), true),
     ] {
         let parsed = CliArgs::try_parse_from(argv).unwrap_or_else(|err| panic!("{argv:?}: {err}"));
-        assert_eq!(prints_json_errors(&parsed.command), expected, "{argv:?}");
+        assert_eq!(parsed.command.prints_json_errors(), expected, "{argv:?}");
     }
 }

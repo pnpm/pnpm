@@ -235,17 +235,9 @@ fn node_version() -> Option<String> {
     )
 }
 
-/// Check the global executables directory, where the CLI links binaries and
-/// which must be on `PATH` for them to run. The layout moved between majors
-/// (v10 links into `PNPM_HOME` directly, v11 into `PNPM_HOME/bin`), so accept
-/// whichever candidate `PATH` actually contains.
 fn check_global_bin_dir(config: &Config) -> CheckResult {
     let title = "Global bin directory";
-    let candidates: Vec<PathBuf> = [config.global_bin_dir.clone(), config.global_dir.clone()]
-        .into_iter()
-        .flatten()
-        .collect();
-    let Some(first) = candidates.first() else {
+    let Some(bin_dir) = config.global_bin.as_deref() else {
         return CheckResult::pass(title.to_owned(), "not configured");
     };
 
@@ -258,13 +250,13 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
     };
     let path_dirs: Vec<PathBuf> = pnpm_fs::split_paths(&path_var).collect();
 
-    let Some(bin_dir) = candidates.iter().find(|dir| dir_is_in_path(dir, &path_dirs)) else {
+    if !dir_is_in_path(bin_dir, &path_dirs) {
         return CheckResult::warn(
             title.to_owned(),
-            format!("{} is not in PATH", first.display()),
+            format!("{} is not in PATH", bin_dir.display()),
             r#"Run "pnpm setup" to add it to your shell configuration."#,
         );
-    };
+    }
     if !can_write_to_dir(bin_dir) {
         return CheckResult::fail(
             title.to_owned(),

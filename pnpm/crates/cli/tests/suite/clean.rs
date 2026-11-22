@@ -354,17 +354,36 @@ fn clean_works_in_a_workspace() {
     drop(root);
 }
 
+#[test]
+fn full_clean_removes_the_project_pnp_loader() {
+    let CommandTempCwd { pacquet, root: _root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "nodeLinker: pnp").unwrap();
+    let loader = workspace.join(".pnp.cjs");
+    fs::write(&loader, "").unwrap();
+    assert!(
+        pacquet
+            .with_arg("clean")
+            .status()
+            .unwrap()
+            .success(),
+    );
+    assert!(!loader.exists());
+}
+
 /// Under a global virtual store the custom directory is the shared store's
 /// root, and `clean` removes it too.
 #[test]
 fn clean_removes_custom_virtual_store_dir_inside_the_project() {
-    for global_virtual_store in [false, true] {
+    for (global_virtual_store, directory) in
+        [(false, ".pnpm-store"), (true, ".pnpm-store"), (false, "node_modules/.custom")]
+    {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
         fs::write(
             workspace.join("pnpm-workspace.yaml"),
             format!(
-                "enableGlobalVirtualStore: {global_virtual_store}\nvirtualStoreDir: .pnpm-store\npackages:\n  - .\n",
+                "enableGlobalVirtualStore: {global_virtual_store}\nvirtualStoreDir: {directory}\npackages:\n  - .\n",
             ),
         )
         .expect("write pnpm-workspace.yaml");
@@ -372,7 +391,7 @@ fn clean_removes_custom_virtual_store_dir_inside_the_project() {
         let node_modules = workspace.join("node_modules");
         fs::create_dir_all(&node_modules).expect("create node_modules");
         seed_package(&node_modules, "lodash");
-        let virtual_store = workspace.join(".pnpm-store");
+        let virtual_store = workspace.join(directory);
         fs::create_dir_all(&virtual_store).expect("create custom virtual store");
 
         let output = pacquet
@@ -383,7 +402,12 @@ fn clean_removes_custom_virtual_store_dir_inside_the_project() {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-            stdout.contains("Removing .pnpm-store"),
+            stdout.contains(
+                &format!("Removing {}", std::path::PathBuf::from(directory).display()).replace(
+                    '/',
+                    std::path::MAIN_SEPARATOR_STR
+                )
+            ),
             "expected custom store removal (global virtual store: {global_virtual_store}): {stdout}",
         );
         assert!(!virtual_store.exists(), "custom virtual store should be removed");
@@ -576,13 +600,18 @@ mod scripts {
         seed_package(&node_modules, "lodash");
 
         let output = pacquet
-            .with_args(["clean"])
+            .with_args(["clean", "dist"])
             .output()
             .expect("run pacquet clean");
         assert!(output.status.success(), "pacquet clean should succeed");
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("script-clean-ran"), "clean script should run: {stdout}");
+        assert!(
+            stdout
+                .lines()
+                .any(|line| line == "script-clean-ran dist"),
+            "clean script should run: {stdout}",
+        );
         // The built-in clean is overridden, so node_modules is untouched.
         assert!(
             node_modules.join("lodash").exists(),

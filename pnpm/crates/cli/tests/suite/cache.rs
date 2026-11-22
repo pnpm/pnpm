@@ -132,6 +132,30 @@ fn should_list_only_files_not_directories() {
 }
 
 #[test]
+fn explicit_registry_limits_cache_deletion() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+    let cache = cwd.npmrc_info.cache_dir.join("v12/metadata");
+    let selected = "https://selected.example/";
+    let file = |registry| {
+        cache
+            .join(pnpm_resolving_npm_resolver::mirror::get_registry_name(registry).unwrap())
+            .join("sample.jsonl")
+    };
+    let removed = file(selected);
+    let kept = file("https://other.example/");
+    for path in [&removed, &kept] {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "{}").unwrap();
+    }
+    cwd.pacquet
+        .with_args(["--registry", selected, "cache", "delete", "sample"])
+        .assert()
+        .success();
+    assert!(!removed.exists());
+    assert!(kept.exists());
+}
+
+#[test]
 fn should_delete_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
@@ -571,16 +595,16 @@ fn should_prune_nothing_when_every_registry_is_readable() {
 fn should_view_package_cache() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
     let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
-    let url_str = cwd.npmrc_info.mock_instance.url();
+    let url_str = "https://mirror.example/";
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
 
     let package_jsonl = "{}\n{\
-        \"name\":\"is-positive\",\
+        \"name\":\"MixedExample\",\
         \"dist-tags\":{\"latest\":\"1.0.0\"},\
         \"versions\":{\
             \"1.0.0\":{\
-                \"name\":\"is-positive\",\
+                \"name\":\"MixedExample\",\
                 \"version\":\"1.0.0\",\
                 \"dist\":{\
                     \"integrity\":\"sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==\"\
@@ -588,10 +612,19 @@ fn should_view_package_cache() {
             }\
         }\
     }";
-    fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), package_jsonl).unwrap();
+    fs::write(
+        cache_dir
+            .join(&registry_name)
+            .join(format!(
+                "{}.jsonl",
+                pnpm_resolving_npm_resolver::mirror::encode_pkg_name("MixedExample"),
+            )),
+        package_jsonl,
+    )
+    .unwrap();
 
     let output = cwd.pacquet
-        .with_args(["cache", "view", "is-positive"])
+        .with_args(["cache", "view", "MixedExample"])
         .assert()
         .success()
         .get_output()

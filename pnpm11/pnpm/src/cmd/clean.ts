@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
-import { anchorRawLockfileDir, types as allTypes } from '@pnpm/config.reader'
+import { anchorRawLockfileDir, type Config, types as allTypes } from '@pnpm/config.reader'
 import type { ProjectsGraph } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { pick } from 'ramda'
@@ -13,8 +13,10 @@ import {
   collectNonRootRealDirs,
   dirsIncludeRoot,
   type PlannedModulesTarget,
+  removeProjectFile,
   resolveConfiguredLockfileDir,
   resolveExternalVirtualStoreTarget,
+  resolveInside,
   resolveProjectModulesDir,
   resolveSharedAnchorDir,
   resolveSharedVirtualStoreDir,
@@ -30,6 +32,7 @@ export const rcOptionsTypes = (): Record<string, unknown> =>
     'enable-global-virtual-store',
     'lockfile-dir',
     'modules-dir',
+    'node-linker',
     'shared-workspace-lockfile',
     'virtual-store-dir',
   ], allTypes)
@@ -83,6 +86,7 @@ export interface CleanOptions {
   filterProd?: string[]
   lockfileDir?: string
   modulesDir?: string
+  nodeLinker?: Config['nodeLinker']
   modulesDirsByProjectName?: Record<string, string>
   rawLockfileDir?: string
   selectedProjectsGraph?: ProjectsGraph
@@ -130,6 +134,15 @@ export async function cleanProjects (opts: CleanOptions & { removeLockfile: bool
     resolvePlannedExternalVirtualStore(opts, scope),
   ])
   await executePlannedClean({ externalVirtualStoreDir, modulesTargets, removeLockfile: opts.removeLockfile, scope })
+  if (opts.nodeLinker === 'pnp') {
+    const anchors = opts.sharedWorkspaceLockfile === false && !opts.lockfileDir
+      ? scope.dirs
+      : scope.narrowed ? [] : [opts.lockfileDir ?? scope.rootDir]
+    await Promise.all(anchors.map(async (dir) => {
+      const loader = await resolveInside(scope.realRootDir, path.join(dir, '.pnp.cjs'))
+      if (loader != null) await removeProjectFile(scope.cwd, loader)
+    }))
+  }
 }
 
 export async function prepareCiCleanPlan (opts: CleanOptions): Promise<CiCleanPlan> {

@@ -114,6 +114,9 @@ impl FindHashArgs {
 fn open_store_index(config: &Config) -> miette::Result<StoreIndex> {
     let store_dir = &config.store_dir;
 
+    if !StoreIndex::exists(store_dir.root()) {
+        return Err(FindHashError::InvalidFileHash.into());
+    }
     if config.frozen_store {
         StoreIndex::open_immutable(store_dir.root())
             .into_diagnostic()

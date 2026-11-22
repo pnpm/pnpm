@@ -131,22 +131,30 @@ test('pnpm clean works in a workspace', () => {
   }
 })
 
-test('pnpm clean removes custom virtual-store-dir inside the project', () => {
+test.each(['.pnpm-store', 'node_modules/.custom'])('pnpm clean removes custom virtual store %s', (virtualStoreDir) => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
 
-  // Custom virtual store outside node_modules but inside the project
-  fs.mkdirSync('.pnpm-store/v3', { recursive: true })
-  fs.writeFileSync('.pnpm-store/v3/some-pkg.tgz', '')
+  fs.mkdirSync(path.join(virtualStoreDir, 'v3'), { recursive: true })
+  fs.writeFileSync(path.join(virtualStoreDir, 'v3/some-pkg.tgz'), '')
   fs.mkdirSync('node_modules/lodash', { recursive: true })
 
   const result = execPnpmSync(['clean'], {
-    env: { pnpm_config_virtual_store_dir: '.pnpm-store' },
+    env: { pnpm_config_virtual_store_dir: virtualStoreDir },
   })
   expect(result.status).toBe(0)
 
-  expect(fs.existsSync('.pnpm-store')).toBe(false)
+  expect(fs.existsSync(virtualStoreDir)).toBe(false)
   expect(fs.existsSync('node_modules/lodash')).toBe(false)
+})
+
+test('a full clean removes the project PnP loader', () => {
+  tempDir()
+  writeJsonFile('package.json', {})
+  writeYamlFileSync('pnpm-workspace.yaml', { nodeLinker: 'pnp' })
+  fs.writeFileSync('.pnp.cjs', '')
+  expect(execPnpmSync(['clean']).status).toBe(0)
+  expect(fs.existsSync('.pnp.cjs')).toBe(false)
 })
 
 test('pnpm clean does not remove virtual-store-dir outside the project root', () => {

@@ -58,7 +58,7 @@ export {
 export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
 export { decodeRegistry, encodeRegistry } from './encodeRegistry.js'
 export { formatTimeAgo } from './formatTimeAgo.js'
-export { loadMeta, type LoadMetaOptions } from './metaMirror.js'
+export { encodePkgName, loadMeta, type LoadMetaOptions } from './metaMirror.js'
 export { NoMatchingVersionError, type NoMatchingVersionErrorOptions } from './NoMatchingVersionError.js'
 export { detectMinReleaseAgeViolation } from './releaseAgePolicy.js'
 export type {

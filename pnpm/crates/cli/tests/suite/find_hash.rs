@@ -66,6 +66,19 @@ fn find_hash_works() {
 }
 
 #[test]
+fn empty_store_reports_an_unknown_hash() {
+    let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init();
+    let output = pacquet
+        .with_arg("find-hash")
+        .with_arg("f".repeat(128))
+        .assert()
+        .failure();
+    assert!(
+        String::from_utf8_lossy(&output.get_output().stderr).contains("ERR_PNPM_INVALID_FILE_HASH"),
+    );
+}
+
+#[test]
 fn should_fail_on_missing_hash() {
     let CommandTempCwd { pacquet, workspace, root: _root, .. } =
         CommandTempCwd::init().add_mocked_registry();

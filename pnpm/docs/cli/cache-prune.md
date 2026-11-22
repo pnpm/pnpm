@@ -22,7 +22,7 @@ pnpm keeps registry metadata in the roots `v12/metadata`, `v12/metadata-full`, `
 - every directory under `v11/metadata`, `v11/metadata-full`, `v11/metadata-full-filtered` and `v11/metadata-private`, which older pnpm versions use;
 - the directories under the `v12/` roots that are named after the registry's host alone, which this version cannot read.
 
-No other subcommand removes these directories, because [`cache list`](./cache-list.md), [`cache view`](./cache-view.md) and [`cache delete`](./cache-delete.md) all search under the configured registry's current directory name.
+[`cache delete`](./cache-delete.md) removes matching files. Use `cache prune` to remove the legacy directories themselves.
 
 Each removed directory is printed as the metadata root followed by the directory name:
 
