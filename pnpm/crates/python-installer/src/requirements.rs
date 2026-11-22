@@ -76,9 +76,6 @@ impl Parser {
     fn read_entries(&mut self, path: &Path, contents: &str) -> Result<()> {
         let mut logical = String::new();
         for (index, line) in contents.lines().enumerate() {
-            if line.trim_start().starts_with('#') {
-                continue;
-            }
             let line = strip_comment(line);
             if let Some(line) = line.strip_suffix('\\') {
                 logical.push_str(line);

@@ -259,14 +259,9 @@ impl Patterns {
     }
 }
 
-/// The directory whose environment a command run in `dir` uses: the root
-/// of the workspace the project containing `dir` shares an environment
-/// with, else that project's own directory. Read from the manifests
-/// between `dir` and `workspace`, the way an install reads them: the
-/// project is the nearest directory with a manifest, and the workspace it
-/// belongs to is the nearest one declared at or above it. A command reads
-/// this without an install's discovery, so a manifest that does not
-/// parse counts for nothing here and is reported by the next install.
+/// Find the environment for the nearest project or requirements file between
+/// `dir` and `workspace`. A member of a shared environment uses the declaring
+/// workspace root. A tool-only pyproject does not identify a project.
 pub(crate) fn environment_root_of(workspace: Option<&Path>, dir: &Path) -> PathBuf {
     let Some(stop) = workspace else { return dir.to_path_buf() };
     // The workspace may be configured by a path that reaches it through

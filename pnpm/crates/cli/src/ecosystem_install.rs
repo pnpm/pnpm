@@ -32,15 +32,14 @@ pub(crate) fn is_enabled(config: &Config) -> bool {
     config.cargo.enabled || config.python.enabled
 }
 
-/// The directories a script or command run for the project in `dir` finds
-/// executables in before `PATH`: the toolchains pnpm installed for it, then
-/// `extraBinPaths`.
+/// The installed toolchains and configured bin paths for a command.
 pub(crate) fn execution_paths<'a>(
     config: &'a Config,
     project: &Path,
     run_dir: &Path,
 ) -> Cow<'a, [PathBuf]> {
-    let paths = pnpm_python_installer::execution_paths(config, run_dir);
+    let python_dir = if config.workspace_dir.is_some() { run_dir } else { project };
+    let paths = pnpm_python_installer::execution_paths(config, python_dir);
     match rust_bin_dir(config, project) {
         Some(rust) => Cow::Owned(
             std::iter::once(rust)

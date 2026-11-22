@@ -39,8 +39,9 @@ fn invalid_requirements_report_the_file_and_line() {
 fn a_backslash_in_a_comment_does_not_continue_the_requirement() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("requirements.txt");
-    fs::write(&path, "  # notes\\\nalpha # comment\\\nbeta\\\n==1\n").unwrap();
-    assert_eq!(read(&path, root.path()).unwrap(), ["alpha", "beta==1"]);
+    fs::write(&path, "  # notes\\\nalpha # comment\\\nbeta\\\n==1\ngamma\\\n# note\ndelta\n")
+        .unwrap();
+    assert_eq!(read(&path, root.path()).unwrap(), ["alpha", "beta==1", "delta", "gamma"]);
 }
 
 #[test]
