@@ -199,7 +199,7 @@ Bug fixes for features that have not yet been released do not need a changeset. 
 
 Except for the unreleased-feature bug fixes described above, if your changes affect published packages, you MUST create a changeset file in the `.changeset` directory (`pnpm change` records one interactively; `pnpm change status` shows the pending release plan). The file describes the change and specifies the affected packages with their pending version bump types: patch, minor, or major. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The bare `pnpm version -r` consumes the pending changesets at release time; there is no separate `@changesets/cli` dependency.
 
-**IMPORTANT: Always explicitly include `"pnpm"` in the changeset with a patch bump.** The changeset description will appear on the release notes page.
+**IMPORTANT: For changes that ship in the pnpm CLI, always explicitly include `"pnpm"` in the changeset with a patch bump.** The changeset description will appear on the release notes page.
 
 Example:
 
