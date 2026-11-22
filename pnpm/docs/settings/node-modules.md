@@ -61,6 +61,8 @@ your linker.
 
 * **loaded** - experimental loading directly from the content-addressable store. pnpm preloads its Node.js loader for scripts and commands. Selected compatibility packages and their dependency trees use the global virtual store. See [Experimental store loader](../store-loader.md).
 
+With `nodeLinker: pnp`, pnpm writes `.pnp.cjs` beside the lockfile, including when [`lockfileDir`](./store.md#lockfiledir) is configured. `pnpm run` and `pnpm exec` load it automatically. `pnpm install` recreates a missing loader. CommonJS resolution respects package `exports` and `require.resolve()` lookup paths.
+
 [pnp]: https://yarnpkg.com/features/pnp
 [--preserve-symlinks]: https://nodejs.org/api/cli.html#cli_preserve_symlinks
 [`"bundledDependencies"`]: https://docs.npmjs.com/cli/v8/configuring-npm/package-json#bundleddependencies

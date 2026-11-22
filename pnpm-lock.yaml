@@ -416,6 +416,7 @@ snapshots:
 					"specifier": "^1.0.0",
 					"version": "1.0.0",
 				},
+				"arg": "5.0.2",
 				"better-path-resolve": "2.0.0",
 				"bin-links": {
 					"specifier": "^6.0.2",
@@ -1042,6 +1043,7 @@ snapshots:
 		},
 		"patchedDependencies": {
 			"@tybys/wasm-util@0.10.5": "b4720f25df1fb0342d181651d5be567d5239215aaca02dd8bbedf8d541d5bb4e",
+			"@yarnpkg/pnp@4.1.7": "5679b75f737d6a035d80ca67056cd14f6c4e45a200f902fe8a992128702605a2",
 			"deepmerge@4.3.1": "6241e75cd0ebdeefbe93564d0f9a0da153bc6608add12970bd3c390910e7e4f4",
 			"glob@11.1.0": "aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3",
 			"glob@13.0.7": "4180fd60a9de76af2ee45420e5bb63a5917c0dd37d298b0845c74707b83c8455",
@@ -4649,6 +4651,8 @@ snapshots:
 				"@pnpm/logger": "workspace:*",
 				"@types/normalize-path": "catalog:",
 				"@types/ramda": "catalog:",
+				"arg": "catalog:",
+				"esbuild": "catalog:",
 			},
 		},
 
@@ -12764,6 +12768,10 @@ snapshots:
 
 		"archy@1.0.0": {
 			"integrity": "sha512-Xg+9RwCg/0p32teKdGMPTPnVXKD0w3DfHnFTficozsAgsvq2XenPJq/MYpzzQ/v8zrOyJn6Ds39VA4JIDwFfqw==",
+		},
+
+		"arg@5.0.2": {
+			"integrity": "sha512-PYjyFOLKQ9y57JvQ6QLo8dAgNqswh8M1RMJYdQduT6xbWSgK36P/Z/v+p888pM69jMMfS8Xd8F6I1kQ/I9HUGg==",
 		},
 
 		"argparse@1.0.10": {

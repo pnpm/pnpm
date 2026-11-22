@@ -1,4 +1,5 @@
 // cspell:ignore haspeer
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
@@ -860,3 +861,87 @@ test('dependenciesGraphToPackageMap locates a link:<root> dependency inside the 
   const childId = packageMap.packages.parent.dependencies.child
   expect(packageMap.packages[childId].url).toBe('./parent/child')
 })
+
+test.each([true, false])('writePnpFile retains root, local directory identities, and duplicate workspace names (named root: %s)', async (namedRoot) => {
+  const lockfileDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'to-pnp-')))
+  const first = 'exported@file:../first' as DepPath
+  const second = 'exported@file:../second' as DepPath
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: { specifiers: {}, dependencies: { alias: first } },
+      ['packages/a' as ProjectId]: { specifiers: {}, dependencies: { alias: first } },
+      ['packages/b' as ProjectId]: { specifiers: {}, dependencies: { alias: second } },
+    },
+    packages: {
+      [first]: { resolution: { type: 'directory', directory: '../first' } },
+      [second]: { version: '1.0.0', resolution: { type: 'directory', directory: '../second' } },
+    },
+  }
+  const importerNames: Record<string, string> = { 'packages/a': 'duplicate', 'packages/b': 'duplicate' }
+  if (namedRoot) importerNames['.'] = 'root'
+  const opts = {
+    importerNames,
+    lockfileDir,
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    virtualStoreDir: path.join(lockfileDir, 'node_modules/.pnpm'),
+    virtualStoreDirMaxLength: 120,
+  }
+  try {
+    const registry = lockfileToPackageRegistry(lockfile, opts)
+    expect(registry.get(null)!.get(null)!.packageLocation).toBe('./')
+    expect(registry.get('duplicate')!.size).toBe(2)
+    expect(registry.get('exported')!.size).toBe(2)
+    for (const [name, store] of registry) {
+      if (name === null) continue
+      for (const [reference, entry] of store) {
+        const location = path.resolve(lockfileDir, entry.packageLocation)
+        fs.mkdirSync(location, { recursive: true })
+        fs.writeFileSync(path.join(location, 'package.json'), JSON.stringify({
+          name,
+          exports: {
+            '.': './entry.cjs',
+            './sub': './sub.cjs',
+            './env': { 'from-env': './sub.cjs', default: './entry.cjs' },
+            './cli': { 'from-cli': './sub.cjs', default: './entry.cjs' },
+            './addons': { 'node-addons': './sub.cjs', default: './entry.cjs' },
+            './sync': { 'module-sync': './sub.cjs', default: './entry.cjs' },
+          },
+        }))
+        fs.writeFileSync(path.join(location, 'entry.cjs'), `module.exports = ${JSON.stringify(reference)}`)
+        fs.writeFileSync(path.join(location, 'sub.cjs'), 'module.exports = "sub"')
+        fs.writeFileSync(path.join(location, 'private.cjs'), '')
+      }
+    }
+    await writePnpFile(lockfile, opts)
+    const pnpPath = path.join(lockfileDir, '.pnp.cjs')
+    expectExportConditions(pnpPath, lockfileDir)
+    const pnpApi = createRequire(pnpPath)(pnpPath) as { resolveRequest: (request: string, issuer: string) => string }
+    const rootRequire = createRequire(path.join(lockfileDir, 'entry.cjs'))
+    for (const [importer, reference] of [['.', 'file:../first'], ['packages/a', 'file:../first'], ['packages/b', 'file:../second']]) {
+      const issuer = path.join(lockfileDir, importer, 'entry.cjs')
+      expect(rootRequire(pnpApi.resolveRequest('alias', issuer))).toBe(reference)
+      expect(rootRequire(pnpApi.resolveRequest('alias/sub', issuer))).toBe('sub')
+      expect(() => pnpApi.resolveRequest('alias/private.cjs', issuer))
+        .toThrow(expect.objectContaining({ code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' }))
+    }
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})
+
+function expectExportConditions (pnpPath: string, lockfileDir: string): void {
+  for (const flags of [[], ['--no-addons', '--no-experimental-require-module'], ['--addons']]) {
+    const script = `
+      const assert = require('node:assert/strict');
+      assert.equal(require('alias/env'), 'sub');
+      assert.equal(require('alias/cli'), 'sub');
+      assert.equal(require('alias/addons'), ${JSON.stringify(flags.includes('--no-addons') ? 'file:../first' : 'sub')});
+      assert.equal(require('alias/sync'), process.features.require_module ? 'sub' : 'file:../first');
+    `
+    execFileSync(process.execPath, [...flags, '--conditions=from-cli', '--require', pnpPath, '-e', script], {
+      cwd: lockfileDir,
+      env: { ...process.env, NODE_OPTIONS: `--conditions=from-env${flags.includes('--addons') ? ' --no-addons' : ''}` },
+    })
+  }
+}

@@ -1,5 +1,6 @@
 use crate::package_map::{
     PackageMapOptions,
+    find_execution_file,
     lockfile_to_package_map,
 };
 use derive_more::{
@@ -14,6 +15,7 @@ use std::path::{
 };
 
 pub const PNP_FILENAME: &str = ".pnp.cjs";
+const PNP_EXPORTS_RESOLVER: &str = include_str!("pnp_exports.cjs.inc");
 const PNP_LOADER_TEMPLATE: &str = include_str!("pnp_loader.cjs.inc");
 const PACKAGE_REGISTRY_PLACEHOLDER: &str = "__PNPM_PACKAGE_REGISTRY__";
 const MODULES_DIR_PLACEHOLDER: &str = "__PNPM_MODULES_DIR__";
@@ -60,8 +62,10 @@ fn render_pnp_loader(registry: &str, modules_dir: &str) -> String {
     let (between_values, after_modules_dir) = after_registry
         .split_once(MODULES_DIR_PLACEHOLDER)
         .expect("embedded PnP loader has a modules directory placeholder");
-    let mut loader =
-        String::with_capacity(PNP_LOADER_TEMPLATE.len() + registry.len() + modules_dir.len());
+    let mut loader = String::with_capacity(
+        PNP_EXPORTS_RESOLVER.len() + PNP_LOADER_TEMPLATE.len() + registry.len() + modules_dir.len(),
+    );
+    loader.push_str(PNP_EXPORTS_RESOLVER);
     loader.push_str(before_registry);
     loader.push_str(registry);
     loader.push_str(between_values);
@@ -72,16 +76,7 @@ fn render_pnp_loader(registry: &str, modules_dir: &str) -> String {
 
 #[must_use]
 pub fn pnp_path_for_execution(config: &pnpm_config::Config, dir: &Path) -> Option<PathBuf> {
-    let workspace_path = config.workspace_dir
-        .as_ref()
-        .map(|dir| dir.join(PNP_FILENAME));
-    if let Some(path) = workspace_path
-        && path.exists()
-    {
-        return Some(path);
-    }
-    let path = dir.join(PNP_FILENAME);
-    path.exists().then_some(path)
+    find_execution_file(config, dir, Path::new(PNP_FILENAME))
 }
 
 #[cfg(test)]

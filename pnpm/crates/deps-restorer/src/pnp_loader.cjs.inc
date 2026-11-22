@@ -157,7 +157,18 @@ function resolveRequest(request, issuer, options = {}) {
   if (request.startsWith('#')) return nativeResolve(request, issuer, options)
   const unqualified = resolveToUnqualified(request, issuer, options)
   if (unqualified === null) return null
-  return resolveUnqualified(unqualified, options)
+  const name = packageName(request)
+  const ownerId = name === null ? undefined : packageIdForLocation(issuer)
+  const dependencyId = ownerId === undefined ? undefined : registry[ownerId].dependencies[name]
+  if (dependencyId === undefined) return resolveUnqualified(unqualified, options)
+  const location = packageLocation(registry[dependencyId])
+  const resolved = pnpmPnpExports.resolvePackageExports({
+    packageLocation: location,
+    packageSubpath: `.${request.slice(name.length)}`,
+    issuer,
+    conditions: options.conditions,
+  })
+  return resolveUnqualified(resolved ?? unqualified, options)
 }
 
 function getAllLocators() {
@@ -175,8 +186,20 @@ function setup() {
       return originalResolveFilename.call(this, request, parent, isMain, options)
     }
     const issuer = parent?.filename ?? __filename
-    const unqualified = resolveToUnqualified(request, issuer)
-    return originalResolveFilename.call(this, unqualified, parent, isMain, options)
+    if (options?.paths === undefined) return resolveRequest(request, issuer)
+    if (!Array.isArray(options.paths)) {
+      return originalResolveFilename.call(this, request, parent, isMain, options)
+    }
+    for (const lookupPath of options.paths) {
+      try {
+        return resolveRequest(request, path.join(lookupPath, '__pnp_resolve__.cjs'))
+      } catch (error) {
+        if (error.code !== 'MODULE_NOT_FOUND') throw error
+      }
+    }
+    const error = new Error(`Cannot find module '${request}'`)
+    error.code = 'MODULE_NOT_FOUND'
+    throw error
   }
   hooked.__pnpmPnp = true
   Module._resolveFilename = hooked

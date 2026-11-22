@@ -10,7 +10,7 @@ import {
 import type { ProjectManifest } from '@pnpm/types'
 import { realpathMissing } from 'realpath-missing'
 
-import { existsInDir } from './existsInDir.js'
+import { getNodeLoaderPaths } from './nodeLoaderPaths.js'
 import type { RunOpts } from './run.js'
 
 export async function createLifecycleOpts (
@@ -44,17 +44,16 @@ function addNodeLoaderOptions (
   dir: string,
   extraEnv: RunLifecycleHookOptions['extraEnv']
 ): RunLifecycleHookOptions['extraEnv'] {
-  const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)
+  const { existsPnp, workspacePnpPath, existsPackageMap, workspacePackageMapPath } = getNodeLoaderPaths(opts)
+  const pnpPath = workspacePnpPath ?? existsPnp(dir)
   if (pnpPath) {
     extraEnv = {
       ...extraEnv,
       ...makeNodeRequireOption(pnpPath, extraEnv),
     }
   }
-  const existsPackageMap = existsInDir.bind(null, path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'))
   const packageMapPath = opts.nodeExperimentalPackageMap
-    ? (opts.workspaceDir && existsPackageMap(opts.workspaceDir)) ?? existsPackageMap(dir)
+    ? workspacePackageMapPath ?? existsPackageMap(dir)
     : undefined
   if (packageMapPath) {
     extraEnv = {

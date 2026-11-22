@@ -18,8 +18,8 @@ import type { LimitFunction } from 'p-limit'
 
 import type { ExecOpts } from './exec.js'
 import { type CommandError, createExecCommandNotFoundHint, isErrorCommandNotFound } from './execCommandNotFound.js'
-import { existsInDir } from './existsInDir.js'
 import { makeEnv } from './makeEnv.js'
+import { getNodeLoaderPaths } from './nodeLoaderPaths.js'
 import { getExecutionDuration, writeRecursiveSummary } from './recursiveSummary.js'
 import type { TaskRunState } from './taskRunState.js'
 import { signalReaching, trackedExeca, waitForTracked } from './trackedExeca.js'
@@ -86,10 +86,7 @@ function createExecRunContext (runOpts: RunExecTaskGraphOptions): ExecRunContext
   for (const node of taskGraph.values()) {
     result[node.project] = { status: 'queued' }
   }
-  const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
-  const existsPackageMap = existsInDir.bind(null, path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'))
-  const workspacePackageMapPath = opts.nodeExperimentalPackageMap && opts.workspaceDir && existsPackageMap(opts.workspaceDir)
+  const { existsPnp, workspacePnpPath, existsPackageMap, workspacePackageMapPath } = getNodeLoaderPaths(opts)
   return {
     opts,
     params: runOpts.params,
