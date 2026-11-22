@@ -493,12 +493,17 @@ async function findUnplannedDirsIn (modulesDir: string, isUnplanned: (dir: strin
   return checked.filter((candidate) => candidate != null)
 }
 
-function holdsAnyOf (importerDirs: string[]): (dir: string) => boolean {
-  const resolvedImporterDirs = importerDirs.map((importerDir) => path.resolve(importerDir))
-  return (dir) => {
-    const resolvedDir = path.resolve(dir)
-    return resolvedImporterDirs.some((importerDir) => importerDir === resolvedDir || isStrictlyInside(importerDir, resolvedDir))
+export function holdsAnyOf (importerDirs: string[]): (dir: string) => boolean {
+  const key = (dir: string) => process.platform === 'win32' ? path.resolve(dir).toLowerCase() : path.resolve(dir)
+  const ancestors = new Set<string>()
+  for (const importerDir of importerDirs) {
+    let dir = key(importerDir)
+    while (!ancestors.has(dir)) {
+      ancestors.add(dir)
+      dir = path.dirname(dir)
+    }
   }
+  return dir => ancestors.has(key(dir))
 }
 
 /**

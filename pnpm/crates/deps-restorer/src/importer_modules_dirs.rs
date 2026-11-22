@@ -1,6 +1,7 @@
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use std::{
+    collections::BTreeSet,
     ffi::OsString,
     path::{
         Path,
@@ -17,7 +18,7 @@ pub struct ImporterModulesDirs {
     lockfile_dir: PathBuf,
     root: PathBuf,
     project_relative: OsString,
-    importer_dirs: Vec<PathBuf>,
+    importer_dirs: BTreeSet<PathBuf>,
 }
 
 impl ImporterModulesDirs {
@@ -29,7 +30,7 @@ impl ImporterModulesDirs {
             lockfile_dir: lockfile_dir.to_path_buf(),
             root: lexical_normalize(&lockfile_dir.join(root)),
             project_relative,
-            importer_dirs: vec![lexical_normalize(lockfile_dir)],
+            importer_dirs: BTreeSet::from([lexical_normalize(lockfile_dir)]),
         }
     }
 
@@ -64,8 +65,9 @@ impl ImporterModulesDirs {
     pub fn holds_importer(&self, dir: &Path) -> bool {
         let dir = lexical_normalize(dir);
         self.importer_dirs
-            .iter()
-            .any(|importer_dir| importer_dir.starts_with(&dir))
+            .range(dir.clone()..)
+            .next()
+            .is_some_and(|importer_dir| importer_dir.starts_with(&dir))
     }
 
     /// The modules directory of the importer whose directory is

@@ -76,6 +76,45 @@ export interface DeployFiles {
   workspaceManifest: DeployWorkspaceManifest
 }
 
+export function hasExternalLink (opts: CreateDeployFilesOptions): boolean {
+  let projectsByDir: Map<string, ProjectId> | undefined
+  const pending = new Set([opts.projectId])
+  for (const id of pending) {
+    for (const target of localDependencies(opts, id)) {
+      projectsByDir ??= indexImporterDirs(opts)
+      const linkedId = projectsByDir.get(target.resolvedPath)
+      if (linkedId != null) pending.add(linkedId)
+      else if (target.scheme === 'link:') return true
+    }
+  }
+  return false
+}
+
+function * localDependencies (opts: CreateDeployFilesOptions, id: ProjectId) {
+  const snapshot = opts.lockfile.importers[id]
+  if (snapshot == null) return
+  const include = id === opts.projectId ? opts.include : { ...opts.include, dependencies: true, devDependencies: false }
+  const fields = DEPENDENCIES_FIELD.filter(field => include[field])
+  const bases = { lockfileDir: opts.lockfileDir, projectRootDirRealPath: path.resolve(opts.lockfileDir, id) }
+  for (const ref of fields.flatMap(field => Object.values(snapshot[field] ?? {}))) {
+    if (!ref.includes('file:') && !ref.startsWith('link:')) continue
+    const target = resolveLinkOrFile(ref, bases)
+    if (target) yield target
+  }
+}
+
+function indexImporterDirs (opts: CreateDeployFilesOptions): Map<string, ProjectId> {
+  const publishing = indexProjects(opts.allProjects, manifest => manifest.publishConfig?.directory != null)
+  const dirs = new Map<string, ProjectId>()
+  for (const id of Object.keys(opts.lockfile.importers) as ProjectId[]) {
+    const projectRootDir = path.resolve(opts.lockfileDir, id)
+    dirs.set(projectRootDir, id)
+    const publishDir = getImporterLinkedPublishDir(opts.lockfile.importers[id], { manifest: publishing.get(projectRootDir), projectRootDir })
+    if (publishDir != null) dirs.set(publishDir, id)
+  }
+  return dirs
+}
+
 export function createDeployFiles (opts: CreateDeployFilesOptions): DeployFiles {
   const deployedProjectRealPath = path.resolve(opts.lockfileDir, opts.projectId)
   const { peerSatisfactionEdges, targetPackageSnapshots } = convertLockfilePackages(opts, deployedProjectRealPath)

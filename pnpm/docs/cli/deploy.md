@@ -5,6 +5,8 @@ title: "pnpm deploy"
 
 Deploy a package from a workspace. During deployment, the files of the deployed package are copied to the target directory. All dependencies of the deployed package, including dependencies from the workspace, are installed inside an isolated `node_modules` directory at the target directory. The target directory will contain a portable package that can be copied to a server and executed without additional steps.
 
+When the selected project declares a `link:` dependency on a directory outside the workspace projects, pnpm resolves its dependencies and includes the package in the deployment.
+
 :::note
 
 Since v12.2.0, `pnpm deploy` no longer requires [`injectWorkspacePackages`](../workspaces.md#injectworkspacepackages). A linked workspace dependency is rewritten to a `file:` dependency in the dedicated deploy lockfile. The peer dependencies it declares are bound the way an injected install binds them: to the version its parent provides. If the parent does not depend on the peer, pnpm looks further up, to the deployed project. A peer that no ancestor provides is bound to the deployed graph's own resolution. This includes optional peers declared only in [`peerDependenciesMeta`](../package_json.md#peerdependenciesmeta).

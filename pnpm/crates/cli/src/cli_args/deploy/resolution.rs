@@ -32,8 +32,8 @@ pub(super) struct ResolveBases<'a> {
     pub(super) link_base: &'a Path,
 }
 
-struct LocalResolve {
-    resolved_path: PathBuf,
+pub(super) struct LocalResolve {
+    pub(super) resolved_path: PathBuf,
     suffix: String,
 }
 
@@ -218,7 +218,7 @@ pub(super) fn convert_snapshot_dep_ref(
     Ok(dep_ref.clone())
 }
 
-fn resolve_importer_dep_version(
+pub(super) fn resolve_importer_dep_version(
     version: &ImporterDepVersion,
     bases: &ResolveBases,
 ) -> Option<LocalResolve> {

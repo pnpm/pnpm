@@ -7,9 +7,9 @@ import gracefulFs from 'graceful-fs'
 
 const readdir = util.promisify(gracefulFs.readdir)
 
-export async function readModulesDir (modulesDir: string): Promise<string[] | null> {
+export async function readModulesDir (modulesDir: string, opts?: { symlinksOnly?: boolean }): Promise<string[] | null> {
   try {
-    return await _readModulesDir(modulesDir)
+    return await _readModulesDir(modulesDir, opts?.symlinksOnly === true)
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
@@ -18,13 +18,14 @@ export async function readModulesDir (modulesDir: string): Promise<string[] | nu
 
 async function _readModulesDir (
   modulesDir: string,
+  symlinksOnly: boolean,
   scope?: string
 ): Promise<string[]> {
   const pkgNames: string[] = []
   const parentDir = scope ? path.join(modulesDir, scope) : modulesDir
   const entries = await readdir(parentDir, { withFileTypes: true })
   await Promise.all(entries.map(async (entry) => {
-    const names = await readDirEntry(entry, modulesDir, scope)
+    const names = await readDirEntry(entry, modulesDir, symlinksOnly, scope)
     if (names.length > 0) pkgNames.push(...names)
   }))
   return pkgNames
@@ -33,6 +34,7 @@ async function _readModulesDir (
 async function readDirEntry (
   entry: Dirent,
   modulesDir: string,
+  symlinksOnly: boolean,
   scope?: string
 ): Promise<string[]> {
   if (entry.isFile() || entry.name[0] === '.') return []
@@ -43,9 +45,10 @@ async function readDirEntry (
     // follows it out of `modulesDir`. pnpm only ever symlinks the packages
     // inside a scope, never the scope itself, so skipping costs nothing.
     if (entry.isSymbolicLink()) return []
-    return _readModulesDir(modulesDir, entry.name)
+    return _readModulesDir(modulesDir, symlinksOnly, entry.name)
   }
 
+  if (symlinksOnly && !entry.isSymbolicLink()) return []
   const pkgName = scope ? `${scope}/${entry.name}` : entry.name
   return [pkgName]
 }

@@ -71,17 +71,20 @@ test('recursive unlink removes the dependency that link added to the workspace r
   await link.handler(workspaceOpts, ['../linked-foo'])
   expect(fs.existsSync('node_modules/linked-foo')).toBe(true)
 
+  writePackageSync('packages/app', { name: 'app', version: '1.0.0', dependencies: { 'linked-foo': 'link:../../../linked-foo' } })
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await unlink.handler({
     ...workspaceOpts,
     overrides: { 'linked-foo': 'link:../linked-foo' },
     allProjects,
     allProjectsGraph,
+    ci: true,
     recursive: true,
     selectedProjectsGraph,
   }, [])
 
   expect(loadJsonFileSync('package.json')).toStrictEqual({ name: 'root', version: '1.0.0' })
+  expect(loadJsonFileSync('packages/app/package.json')).toStrictEqual({ name: 'app', version: '1.0.0' })
   expect(fs.existsSync('node_modules/linked-foo')).toBe(false)
 })
 

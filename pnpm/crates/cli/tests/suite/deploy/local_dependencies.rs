@@ -15,6 +15,20 @@ use super::{
 /// links it, so deploy copies it too.
 #[test]
 fn deploy_copies_file_dependency_outside_the_lockfile_dir() {
+    deploy_copies_external_dependency("file:", None);
+}
+
+#[test]
+fn deploy_copies_link_dependency_outside_the_lockfile_dir() {
+    deploy_copies_external_dependency("link:", None);
+}
+
+#[test]
+fn deploy_copies_link_override_outside_the_lockfile_dir() {
+    deploy_copies_external_dependency("link:", Some("\n  '@example/client': link:../client"));
+}
+
+fn deploy_copies_external_dependency(protocol: &str, overrides: Option<&str>) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -27,18 +41,25 @@ fn deploy_copies_file_dependency_outside_the_lockfile_dir() {
     fs::create_dir(&client).unwrap();
     fs::write(
         client.join("package.json"),
-        r#"{"name":"@example/client","version":"1.0.0","main":"index.js"}"#,
+        r#"{"name":"@example/client","version":"1.0.0","main":"index.js","dependencies":{"is-positive":"1.0.0"}}"#,
     )
     .unwrap();
-    fs::write(client.join("index.js"), "module.exports = 42").unwrap();
+    fs::write(
+        client.join("index.js"),
+        "module.exports = require('is-positive/package.json').version",
+    )
+    .unwrap();
     fs::write(
         workspace.join("package.json"),
-        r#"{"name":"app","version":"1.0.0","dependencies":{"@example/client":"file:../client"}}"#,
+        serde_json::json!({"name":"app","version":"1.0.0","dependencies":{"@example/client":format!("{protocol}../client")}}).to_string(),
     )
     .unwrap();
     append_workspace_yaml_key(&workspace, "packages", "[]");
     append_workspace_yaml_key(&workspace, "injectWorkspacePackages", "true");
 
+    if let Some(overrides) = overrides {
+        append_workspace_yaml_key(&workspace, "overrides", overrides);
+    }
     pacquet
         .with_arg("install")
         .assert()
@@ -48,8 +69,13 @@ fn deploy_copies_file_dependency_outside_the_lockfile_dir() {
         .assert()
         .success();
 
-    let deployed_file = workspace.join("deploy/node_modules/@example/client/index.js");
-    assert_eq!(fs::read_to_string(deployed_file).unwrap(), "module.exports = 42");
+    fs::rename(&client, root.path().join("moved")).unwrap();
+    Command::new("node")
+        .with_current_dir(workspace.join("deploy"))
+        .with_args(["-p", "require('@example/client')"])
+        .assert()
+        .success()
+        .stdout("1.0.0\n");
 
     drop((root, mock_instance));
 }

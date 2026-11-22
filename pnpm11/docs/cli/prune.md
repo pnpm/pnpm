@@ -5,6 +5,8 @@ title: pnpm prune
 
 Removes unnecessary packages.
 
+With `nodeLinker: hoisted`, pnpm removes extraneous package links from the selected projects' `node_modules` directories. The link targets stay on disk.
+
 ## Options
 
 ### --prod

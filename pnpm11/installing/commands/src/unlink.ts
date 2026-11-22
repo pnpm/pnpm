@@ -4,7 +4,6 @@ import { UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, tryReadProjectManifest } from '@pnpm/cli.utils'
 import { writeSettings } from '@pnpm/config.writer'
 import type { ProjectManifest } from '@pnpm/types'
-import type { WriteProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { isEmpty } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -53,13 +52,23 @@ export async function handler (
   const removedLinks = removeLinkOverrides(opts.overrides, params)
   let rootProjectManifest = opts.rootProjectManifest
   if (!isEmpty(removedLinks)) {
-    const unlinked = await removeLinkedDependencies(opts, removedLinks)
+    const selected = new Map(Object.values(opts.selectedProjectsGraph ?? {}).map(({ package: project }) => [path.resolve(project.rootDir), project.manifest]))
+    const loaded = new Map(opts.allProjects?.map(project => [path.resolve(project.rootDir), project.manifest]))
+    const selectedDirs = opts.selectedProjectsGraph == null ? [opts.dir] : [...selected.keys()]
+    const manifests = await Promise.all(selectedDirs.map(async dir =>
+      unlinkProject(opts, { dir, manifests: [selected.get(dir), loaded.get(dir)] }, removedLinks)
+    ))
+    rootProjectManifest = manifests.find(project => project?.dir === opts.rootProjectManifestDir)?.manifest ?? rootProjectManifest
     if (!opts.dryRun) {
-      await saveUnlinkedSettings(opts, unlinked)
+      await Promise.all(manifests.map(async project => project?.writeProjectManifest(project.manifest)))
+      await writeSettings({
+        workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+        rootProjectManifestDir: opts.rootProjectManifestDir,
+        updatedSettings: { overrides: isEmpty(opts.overrides) ? undefined : opts.overrides },
+      })
     }
-    rootProjectManifest = unlinked?.manifest ?? rootProjectManifest
   }
-  await install.handler({ ...opts, rootProjectManifest })
+  await install.handler({ ...opts, rootProjectManifest, frozenLockfileIfExists: isEmpty(removedLinks) ? opts.frozenLockfileIfExists : false })
   return undefined
 }
 
@@ -79,62 +88,28 @@ function removeLinkOverrides (overrides: Record<string, string>, params: string[
   return removedLinks
 }
 
-async function saveUnlinkedSettings (
+async function unlinkProject (
   opts: install.InstallCommandOptions,
-  unlinked: RemovedLinkedDependencies | undefined
-): Promise<void> {
-  await writeSettings({
-    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-    rootProjectManifestDir: opts.rootProjectManifestDir,
-    updatedSettings: {
-      overrides: isEmpty(opts.overrides) ? undefined : opts.overrides,
-    },
-  })
-  if (unlinked?.changed) {
-    await unlinked.writeProjectManifest(unlinked.manifest)
-  }
-}
-
-interface RemovedLinkedDependencies {
-  manifest: ProjectManifest
-  changed: boolean
-  writeProjectManifest: WriteProjectManifest
-}
-
-/**
- * Removes the dependencies that `pnpm link` added to the root project manifest
- * for the given `link:` overrides, in the manifest read from disk and in the
- * workspace projects the install reads. The caller writes the manifest back.
- * `pnpm link` only writes `dependencies`, and a dependency is removed only when
- * it is a `link:` to the same directory as the override, so a `link:`
- * dependency the user declared elsewhere is kept.
- */
-async function removeLinkedDependencies (
-  opts: install.InstallCommandOptions,
+  { dir, manifests }: { dir: string, manifests: Array<ProjectManifest | undefined> },
   removedLinks: Record<string, string>
-): Promise<RemovedLinkedDependencies | undefined> {
-  const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir, opts)
-  if (manifest == null) return undefined
-  const rootDir = path.resolve(opts.rootProjectManifestDir)
-  const loadedRootManifests = [
-    ...(opts.allProjects ?? []).filter(({ rootDir: dir }) => path.resolve(dir) === rootDir),
-    ...Object.values(opts.selectedProjectsGraph ?? {}).map(({ package: project }) => project).filter(({ rootDir: dir }) => path.resolve(dir) === rootDir),
-  ].map(({ manifest }) => manifest)
-  for (const loadedManifest of loadedRootManifests) {
-    dropLinkedDependencies(loadedManifest, removedLinks, rootDir)
+) {
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir, opts)
+  const dirs = { manifestDir: dir, overrideDir: opts.workspaceDir ?? opts.rootProjectManifestDir }
+  if (manifest == null || !dropLinkedDependencies(manifest, removedLinks, dirs)) return undefined
+  for (const loaded of manifests) {
+    if (loaded) dropLinkedDependencies(loaded, removedLinks, dirs)
   }
-  const changed = dropLinkedDependencies(manifest, removedLinks, rootDir)
-  return { manifest, changed, writeProjectManifest }
+  return { dir, manifest, writeProjectManifest }
 }
 
-function dropLinkedDependencies (manifest: ProjectManifest, removedLinks: Record<string, string>, manifestDir: string): boolean {
+function dropLinkedDependencies (manifest: ProjectManifest, removedLinks: Record<string, string>, { manifestDir, overrideDir }: { manifestDir: string, overrideDir: string }): boolean {
   const deps = manifest.dependencies
   if (deps == null) return false
-  const resolveLinkTarget = (specifier: string) => path.resolve(manifestDir, specifier.slice('link:'.length))
+  const resolveLinkTarget = (dir: string, specifier: string) => path.resolve(dir, specifier.slice('link:'.length))
   let changed = false
   for (const [name, overrideSpecifier] of Object.entries(removedLinks)) {
     const specifier = deps[name]
-    if (specifier?.startsWith('link:') && resolveLinkTarget(specifier) === resolveLinkTarget(overrideSpecifier)) {
+    if (specifier?.startsWith('link:') && resolveLinkTarget(manifestDir, specifier) === resolveLinkTarget(overrideDir, overrideSpecifier)) {
       delete deps[name]
       changed = true
     }

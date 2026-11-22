@@ -16,7 +16,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { writeYamlFile } from 'write-yaml-file'
 
-import { createDeployFiles, type DeployFiles } from './createDeployFiles.js'
+import { createDeployFiles, type DeployFiles, hasExternalLink } from './createDeployFiles.js'
 import { deployHook } from './deployHook.js'
 import { prepareDeployDir, validateDeployTarget } from './deployTarget.js'
 import { approveLegacyWorkspaceProjectBuilds, deployedWorkspaceProjectDirs } from './workspaceProjectBuilds.js'
@@ -204,6 +204,9 @@ async function deployWithoutSharedLockfile (
     // virtual store would create symlinks outside of the deploy directory.
     enableGlobalVirtualStore: false,
     depth: Infinity,
+    overrides: opts.overrides && Object.fromEntries(Object.entries(opts.overrides).map(([selector, spec]) =>
+      [selector, spec.startsWith('link:') ? `file:${spec.slice(5)}` : spec]
+    )),
     hooks: buildDeployHooks(opts.hooks, { convertLinksToFileProtocol: true }),
     frozenLockfile: false,
     preferFrozenLockfile: false,
@@ -228,13 +231,9 @@ async function copyProject (src: string, dest: string, opts: { includeOnlyPackag
 }
 
 
-type DeployedProject = Pick<Project, 'rootDir'> & {
-  manifest: Pick<Project['manifest'], 'name' | 'version'>
-}
-
 async function deployFromSharedLockfile (
   opts: DeployOptions,
-  selectedProject: DeployedProject,
+  selectedProject: Project,
   deployDir: string
 ): Promise<string | undefined> {
   const {
@@ -253,14 +252,15 @@ async function deployFromSharedLockfile (
     return 'Shared lockfile not found. Falling back to installing without a lockfile.'
   }
 
-  const deployFiles = createDeployFiles({
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
+  const options = {
     allProjects,
     deployDir,
-    include: {
-      dependencies: opts.production !== false,
-      devDependencies: opts.dev !== false,
-      optionalDependencies: opts.optional !== false,
-    },
+    include,
     lockfile,
     lockfileDir,
     patchedDependencies: opts.patchedDependencies,
@@ -269,7 +269,9 @@ async function deployFromSharedLockfile (
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     rootProjectManifestDir: opts.rootProjectManifestDir,
     allowBuilds: opts.allowBuilds,
-  })
+  }
+  if (hasExternalLink(options)) return 'Resolving dependencies for a linked package outside the workspace.'
+  const deployFiles = createDeployFiles(options)
 
   const virtualStoreDir = getConfiguredVirtualStoreDir(opts)
   if (virtualStoreDir != null) {

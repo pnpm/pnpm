@@ -49,12 +49,21 @@ use std::{
     },
 };
 
+pub(crate) enum PruneLayout<'a> {
+    Hoisted {
+        prior: Option<&'a HoistedDependencies>,
+    },
+    VirtualStore {
+        hoisted: Option<&'a HoistedDependencies>,
+        public_targets: Option<&'a BTreeMap<String, PathBuf>>,
+    },
+}
+
 pub(crate) struct PruneExtraneousDirectDeps<'a> {
     pub config: &'a Config,
     pub workspace_root: &'a Path,
     pub wanted_lockfile: &'a Lockfile,
-    pub wanted_hoisted_dependencies: Option<&'a HoistedDependencies>,
-    pub public_hoist_targets: Option<&'a BTreeMap<String, PathBuf>>,
+    pub layout: PruneLayout<'a>,
     pub manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub included_groups: &'a [DependencyGroup],
     pub selected_importer_ids: Option<&'a HashSet<String>>,
@@ -66,6 +75,12 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
         let manifests_by_dir = self.manifests_by_dir();
         let modules_dirs =
             crate::ImporterModulesDirs::from_config(self.config, self.workspace_root);
+        let modules_dirs = match self.layout {
+            PruneLayout::Hoisted { .. } => modules_dirs.with_importers(
+                self.wanted_lockfile.importers.keys().map(String::as_str),
+            ),
+            PruneLayout::VirtualStore { .. } => modules_dirs,
+        };
         let mut importers: Vec<_> = self.wanted_lockfile.importers.iter().collect();
         importers.sort_by_key(|(id, _)| *id);
         for (importer_id, wanted_snapshot) in importers {
@@ -95,11 +110,7 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
             return Ok(());
         }
         let importer_dir = importer_root_dir(self.workspace_root, importer_id);
-        let raw_modules_dir = modules_dirs.of(&importer_dir);
-        if !is_real_dir(&importer_dir) || !is_real_dir(&raw_modules_dir) {
-            return Ok(());
-        }
-        let Some(modules_dir) = modules_dirs.confined(&raw_modules_dir) else {
+        let Some(modules_dir) = self.modules_dir_to_prune(modules_dirs, &importer_dir) else {
             return Ok(());
         };
         let mut pkg_names = pnpm_fs::read_modules_dir(&modules_dir)
@@ -119,7 +130,37 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
             dedupe_against_root,
             manifests_by_dir,
         );
-        remove_unwanted_entries::<Reporter>(&modules_dir, &importer_dir, pkg_names, &wanted)
+        remove_unwanted_entries::<Reporter>(
+            &modules_dir,
+            &importer_dir,
+            pkg_names,
+            &wanted,
+            &self.layout,
+        )
+    }
+
+    fn modules_dir_to_prune(
+        &self,
+        modules_dirs: &crate::ImporterModulesDirs,
+        importer_dir: &Path,
+    ) -> Option<PathBuf> {
+        let raw_modules_dir = modules_dirs.of(importer_dir);
+        if !is_real_dir(importer_dir) || !is_real_dir(&raw_modules_dir) {
+            return None;
+        }
+        match self.layout {
+            PruneLayout::Hoisted { .. }
+                if modules_dirs.holds_importer(&raw_modules_dir)
+                    || !raw_modules_dir.starts_with(importer_dir) =>
+            {
+                None
+            }
+            PruneLayout::Hoisted { .. } => {
+                crate::confined_modules_dir(&raw_modules_dir, importer_dir)
+                    .and_then(|dir| crate::confined_modules_dir(&dir, self.workspace_root))
+            }
+            PruneLayout::VirtualStore { .. } => modules_dirs.confined(&raw_modules_dir),
+        }
     }
 
     fn wanted_direct_names(
@@ -143,7 +184,7 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
             .collect();
         self.add_excluded_manifest_links(importer_dir, manifests_by_dir, &mut wanted);
         if importer_id == "." {
-            self.add_root_public_hoists(&mut wanted);
+            self.add_root_hoists(&mut wanted);
         }
         wanted
     }
@@ -169,11 +210,25 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
         );
     }
 
-    fn add_root_public_hoists(&self, wanted: &mut HashSet<String>) {
-        if let Some(targets) = self.public_hoist_targets {
+    fn add_root_hoists(&self, wanted: &mut HashSet<String>) {
+        let (hoisted, public_targets) = match self.layout {
+            PruneLayout::Hoisted { prior } => {
+                if let Some(prior) = prior {
+                    wanted.extend(
+                        prior
+                            .values()
+                            .flat_map(|aliases| aliases.keys())
+                            .cloned(),
+                    );
+                }
+                return;
+            }
+            PruneLayout::VirtualStore { hoisted, public_targets } => (hoisted, public_targets),
+        };
+        if let Some(targets) = public_targets {
             wanted.extend(targets.keys().cloned());
         }
-        let Some(hoisted) = self.wanted_hoisted_dependencies else {
+        let Some(hoisted) = hoisted else {
             return;
         };
         wanted.extend(
@@ -212,15 +267,24 @@ fn remove_unwanted_entries<Reporter: self::Reporter>(
     importer_dir: &Path,
     pkg_names: Vec<String>,
     wanted: &HashSet<String>,
+    layout: &PruneLayout<'_>,
 ) -> Result<(), PruneDirectDepsError> {
     let prefix = importer_dir.display().to_string();
     for pkg_name in pkg_names {
-        if wanted.contains(&pkg_name) {
+        if wanted.contains(&pkg_name) || !pnpm_package_name::is_valid_dependency_alias(&pkg_name) {
             continue;
         }
-        let removed = remove_extraneous_direct_dep(modules_dir, &pkg_name)?;
-        remove_emptied_scope_dir(modules_dir, &pkg_name);
+        let removed = match layout {
+            PruneLayout::Hoisted { .. } => {
+                crate::prune_direct_deps::remove_direct_dep_link(modules_dir, &pkg_name)?
+                    .map(|link| link.version)
+            }
+            PruneLayout::VirtualStore { .. } => {
+                remove_extraneous_direct_dep(modules_dir, &pkg_name)?
+            }
+        };
         if let Some(version) = removed {
+            remove_emptied_scope_dir(modules_dir, &pkg_name);
             Reporter::emit(&LogEvent::Root(RootLog {
                 level: LogLevel::Debug,
                 message: RootMessage::Removed {
