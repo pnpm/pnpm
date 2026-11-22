@@ -534,6 +534,7 @@ fn finds_a_dependency_recorded_under_another_peer_variant() {
     let state = sync_agent_skills(&SyncAgentSkills {
         config: &config,
         workspace_root: root.path(),
+        target_root: root.path(),
         lockfile: &lockfile,
         included: ALL_GROUPS,
         linked: &[],
@@ -558,6 +559,7 @@ fn pending_for(version: &str, recorded: &str) -> Vec<String> {
     sync_agent_skills(&SyncAgentSkills {
         config: &config,
         workspace_root: root.path(),
+        target_root: root.path(),
         lockfile: &lockfile,
         included: ALL_GROUPS,
         linked: &[],
