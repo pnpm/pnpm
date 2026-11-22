@@ -732,7 +732,7 @@ jobs:
       # filter does not narrow the Cargo half of the install, which is why the
       # step above provisions Rust.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --filter "pacquet..."
+        run: pnpm install --frozen-lockfile --filter "pnpm..."
 
       # Builds get-pnpm before running its tests, and leaves the build output
       # the wrapper's tests bundle.
