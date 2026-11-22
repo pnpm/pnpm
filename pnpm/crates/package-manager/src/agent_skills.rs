@@ -248,7 +248,7 @@ pub fn sync_agent_skills(
     let entries =
         if dirs.is_empty() { BTreeMap::new() } else { link_entries(input, &dirs, &approved)? };
     let desired = desired_entries(target_root, &dirs, &entries);
-    ensure_unoccupied(target_root, input.linked, &desired)?;
+    ensure_unoccupied(target_root, input.linked, &desired, input.config.virtual_store_dir())?;
     prune(target_root, input.linked, &desired.keys().cloned().collect())?;
     materialize(target_root, &desired)?;
     update_gitignores(target_root, &dirs, input.linked, &desired)?;
@@ -401,7 +401,7 @@ fn bare_name_free(
             let path = dir.join(name);
             let recorded = recorded_path(input.target_root, &path)
                 .is_some_and(|entry| input.linked.contains(&entry));
-            is_occupied(&path, target, recorded)
+            is_occupied(&path, target, recorded, input.config.virtual_store_dir())
         })
 }
 

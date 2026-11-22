@@ -167,50 +167,15 @@ impl GlobalPackagesStore<'_> {
     ) -> miette::Result<()> {
         let movable = self.movable_legacy_settings()?;
         let recorded = self.load_global_packages()?;
-        let mut decisions: BTreeMap<String, pnpm_config::PackagePermissions> = movable
-            .as_ref()
-            .and_then(|settings| settings.permissions.clone())
-            .map(|m| m.into_iter().collect())
-            .unwrap_or_default();
-        if let Some(recorded_permissions) =
-            recorded.as_ref().and_then(|settings| settings.permissions.as_ref())
-        {
-            for (pkg, perms) in recorded_permissions {
-                let entry = decisions.entry(pkg.clone()).or_default();
-                if entry.build.is_none() {
-                    entry.build = perms.build.clone();
-                }
-                if entry.skills.is_none() {
-                    entry.skills = perms.skills.clone();
-                }
-            }
-        }
-        for (pkg, value) in entries {
-            let entry = decisions.entry(pkg).or_default();
-            match value {
-                PermissionValue::Build(allowed) => {
-                    entry.build = Some(pnpm_config::AllowBuild::Decided(allowed));
-                }
-                PermissionValue::Skills(skills) => {
-                    entry.skills = Some(skills);
-                }
-            }
-        }
+        let mut decisions = legacy_permission_decisions(movable.as_ref());
+        apply_recorded_permissions(&mut decisions, recorded.as_ref());
+        apply_permission_entries(&mut decisions, entries);
         set_global_packages_permissions(
             &self.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME),
             &decisions,
         )
         .into_diagnostic()?;
-        let Some(settings) = movable else { return Ok(()) };
-        let moved = [
-            ("allowBuilds", settings.allow_builds.is_some()),
-            ("permissions", settings.permissions.is_some()),
-        ];
-        for (key, _) in moved.into_iter().filter(|(_, set)| *set) {
-            update_workspace_setting(self.global_pkg_dir, key, &serde_json::Value::Null)
-                .into_diagnostic()?;
-        }
-        Ok(())
+        remove_moved_legacy_settings(self.global_pkg_dir, movable.as_ref())
     }
 
     /// Write permission decisions from `pnpm approve`/`pnpm permissions approve`.
@@ -285,4 +250,79 @@ pub(crate) fn load_legacy_global_settings(
         .map_err(miette::Report::new)
         .wrap_err("load the build decisions of the global packages directory")?
         .map(|settings| (global_pkg_dir.join(WORKSPACE_MANIFEST_FILENAME), settings)))
+}
+
+/// The decisions the global packages directory's `pnpm-workspace.yaml`
+/// still holds, keyed by package. Its `permissions` outranks its
+/// `allowBuilds` for the same package.
+fn legacy_permission_decisions(
+    movable: Option<&WorkspaceSettings>,
+) -> BTreeMap<String, pnpm_config::PackagePermissions> {
+    let Some(settings) = movable else { return BTreeMap::new() };
+    let mut decisions = settings.permissions
+        .clone()
+        .map(BTreeMap::from_iter)
+        .unwrap_or_default();
+    for (pkg, allowed) in settings.decided_build_approvals().unwrap_or_default() {
+        decisions
+            .entry(pkg)
+            .or_default()
+            .build
+            .get_or_insert(pnpm_config::AllowBuild::Decided(allowed));
+    }
+    decisions
+}
+
+/// Lay the decisions `globalPackagesConfig` already holds under the legacy
+/// ones: a recorded capability wins over the one it would replace.
+fn apply_recorded_permissions(
+    decisions: &mut BTreeMap<String, pnpm_config::PackagePermissions>,
+    recorded: Option<&WorkspaceSettings>,
+) {
+    let Some(recorded) = recorded.and_then(|settings| settings.permissions.as_ref()) else {
+        return;
+    };
+    for (pkg, recorded) in recorded {
+        let entry = decisions.entry(pkg.clone()).or_default();
+        if entry.build.is_none() {
+            entry.build.clone_from(&recorded.build);
+        }
+        if entry.skills.is_none() {
+            entry.skills.clone_from(&recorded.skills);
+        }
+    }
+}
+
+/// Overlay the decisions being written on `decisions`.
+fn apply_permission_entries(
+    decisions: &mut BTreeMap<String, pnpm_config::PackagePermissions>,
+    entries: BTreeMap<String, PermissionValue>,
+) {
+    for (pkg, value) in entries {
+        let entry = decisions.entry(pkg).or_default();
+        match value {
+            PermissionValue::Build(allowed) => {
+                entry.build = Some(pnpm_config::AllowBuild::Decided(allowed));
+            }
+            PermissionValue::Skills(skills) => {
+                entry.skills = Some(skills);
+            }
+        }
+    }
+}
+
+/// Delete the legacy settings that moved into `globalPackagesConfig`.
+fn remove_moved_legacy_settings(
+    global_pkg_dir: &std::path::Path,
+    movable: Option<&WorkspaceSettings>,
+) -> miette::Result<()> {
+    let Some(settings) = movable else { return Ok(()) };
+    let moved = [
+        ("allowBuilds", settings.allow_builds.is_some()),
+        ("permissions", settings.permissions.is_some()),
+    ];
+    for (key, _) in moved.into_iter().filter(|(_, set)| *set) {
+        update_workspace_setting(global_pkg_dir, key, &serde_json::Value::Null).into_diagnostic()?;
+    }
+    Ok(())
 }

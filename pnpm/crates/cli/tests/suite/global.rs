@@ -118,7 +118,7 @@ fn global_install_links_approved_agent_skill_into_home() {
     let target = fs::canonicalize(&link).expect("resolve skill link");
     assert!(
         target.ends_with(Path::new("skills").join("guide")),
-        "skill link should target package skills dir: {target:?}"
+        "skill link should target package skills dir: {target:?}",
     );
     assert!(
         !workspace
@@ -126,7 +126,7 @@ fn global_install_links_approved_agent_skill_into_home() {
             .join("skills")
             .join("guide")
             .exists(),
-        "global install should not pollute project state"
+        "global install should not pollute project state",
     );
 
     drop(npmrc_info);
@@ -153,7 +153,7 @@ fn global_permissions_approve_records_and_links_skill() {
             .join(".claude")
             .join("skills")
             .join("guide")
-            .exists()
+            .exists(),
     );
 
     global_command(&workspace, &pnpm_home)
@@ -164,14 +164,14 @@ fn global_permissions_approve_records_and_links_skill() {
     let config = fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read global config");
     assert!(
         config.contains("'@pnpm.e2e/with-agent-skills':") && config.contains("skills: true"),
-        "global skill decision should be recorded: {config}"
+        "global skill decision should be recorded: {config}",
     );
     assert!(
         pnpm_home
             .join(".claude")
             .join("skills")
             .join("guide")
-            .exists()
+            .exists(),
     );
 
     drop(npmrc_info);
@@ -202,7 +202,7 @@ fn global_approve_denies_and_prunes_skill() {
             .join(".claude")
             .join("skills")
             .join("guide")
-            .exists()
+            .exists(),
     );
 
     global_command(&workspace, &pnpm_home)
@@ -218,7 +218,7 @@ fn global_approve_denies_and_prunes_skill() {
             .join("skills")
             .join("guide")
             .exists(),
-        "denied global skill should be pruned"
+        "denied global skill should be pruned",
     );
 
     drop(npmrc_info);

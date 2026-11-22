@@ -198,7 +198,7 @@ fn sync_does_not_escape_skills_dir_on_backslash_traversal_dep_path() {
         },
         linked: &[],
         agent_dir: None,
-        target_root: root.path(),
+        target_root: &root,
         hoisted_locations: None,
     })
     .unwrap();
@@ -354,7 +354,7 @@ fn unsafe_importer_ids_are_ignored_during_discovery() {
         },
         linked: &[],
         agent_dir: None,
-        target_root: root.path(),
+        target_root: &root,
         hoisted_locations: None,
     })
     .unwrap();

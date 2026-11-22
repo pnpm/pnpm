@@ -268,11 +268,6 @@ impl ApproveArgs {
             let group_pending = pending_permissions(&config)?;
             let build_packages =
                 pending_builds_approved(&approval.decisions, &group_pending.by_package);
-            let scan = IgnoredBuildsScan {
-                modules_manifest: scan.modules_manifest,
-                modules_dir: scan.modules_dir,
-                names: scan.names,
-            };
             clear_decided(scan, &approval.decisions)?;
             if approval.decisions.values().any(|decided| decided.skills.is_some()) {
                 let approved_config = store.config_with_approvals(&config)?;
@@ -552,24 +547,16 @@ fn global_skill_approval_options(
 ) -> miette::Result<pnpm_package_manager::SkillApprovalOptions> {
     let mut skills_by_key: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for (install_dir, _) in groups {
-        let Ok(mut group_config) = global_group_config(
-            base_config,
-            install_dir,
-            global_pkg_dir,
-            base_config.supported_architectures.clone(),
-        ) else {
+        let Some(options) =
+            group_skill_approval_options(base_config, install_dir, global_pkg_dir, home_dir)
+        else {
             continue;
         };
-        group_config.agent_skills_target_root = Some(home_dir.to_path_buf());
-        if let Ok(options) = skill_approval_options(&group_config, install_dir) {
-            for (key, skills) in options.skills_by_key {
-                let entry = skills_by_key.entry(key).or_default();
-                for skill in skills {
-                    if !entry.contains(&skill) {
-                        entry.push(skill);
-                    }
-                }
-            }
+        for (key, skills) in options.skills_by_key {
+            skills_by_key
+                .entry(key)
+                .or_default()
+                .extend(skills);
         }
     }
     for skills in skills_by_key.values_mut() {
@@ -580,6 +567,25 @@ fn global_skill_approval_options(
         skills_by_key,
         detected_dirs: pnpm_package_manager::detected_agent_dirs(home_dir),
     })
+}
+
+/// The skill approvals one group's installed packages are waiting for. A
+/// group whose configuration or installed state cannot be read has none.
+fn group_skill_approval_options(
+    base_config: &Config,
+    install_dir: &Path,
+    global_pkg_dir: &Path,
+    home_dir: &Path,
+) -> Option<pnpm_package_manager::SkillApprovalOptions> {
+    let mut config = global_group_config(
+        base_config,
+        install_dir,
+        global_pkg_dir,
+        base_config.supported_architectures.clone(),
+    )
+    .ok()?;
+    config.agent_skills_target_root = Some(home_dir.to_path_buf());
+    skill_approval_options(&config, install_dir).ok()
 }
 
 impl ApproveArgs {

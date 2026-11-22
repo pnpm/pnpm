@@ -165,7 +165,10 @@ fn insert_nested_block(source: &str, parent: &[&str], block: &str) -> String {
     let Some(mapping) = locate(source, parent) else {
         return source.to_string();
     };
-    let insert_at = mapping.entries.last().map_or(mapping.body_start, |e| e.block_end);
+    let insert_at = mapping.entries
+        .last()
+        .map(|entry| entry.block_end)
+        .unwrap_or(mapping.body_start);
     let mut out = source.to_string();
     out.insert_str(insert_at, block);
     out
@@ -175,7 +178,7 @@ fn upsert_nested_dirs(source: &str, dirs: &[String]) -> String {
     if let Some(skills) = locate(source, &["globalPackagesConfig", "skills"]) {
         if let Some(entry) = skills.entries
             .iter()
-            .find(|e| e.key == DIRS)
+            .find(|entry| entry.key == DIRS)
         {
             let mut replacement = String::from("    dirs:\n");
             for dir in dirs {
@@ -193,7 +196,10 @@ fn upsert_nested_dirs(source: &str, dirs: &[String]) -> String {
             block.push_str(&render::render_value(dir));
             block.push('\n');
         }
-        let insert_at = skills.entries.last().map_or(skills.body_start, |e| e.block_end);
+        let insert_at = skills.entries
+            .last()
+            .map(|entry| entry.block_end)
+            .unwrap_or(skills.body_start);
         let mut out = source.to_string();
         out.insert_str(insert_at, &block);
         return out;

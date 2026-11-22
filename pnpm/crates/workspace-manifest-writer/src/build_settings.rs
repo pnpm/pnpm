@@ -92,35 +92,63 @@ pub fn set_global_packages_permissions(
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let target = ManifestTarget::root_manifest(path);
     let mut manifest = read_manifest_at(path)?;
-    let mut blocks =
-        vec![vec!["globalPackagesConfig"], vec!["globalPackagesConfig", "permissions"]];
-    for (name, entry) in permissions {
-        blocks.push(vec!["globalPackagesConfig", "permissions", name.as_str()]);
-        if entry.build.is_some() {
-            blocks.push(vec!["globalPackagesConfig", "permissions", name.as_str(), "build"]);
-        }
-        if entry.skills.is_some() {
-            blocks.push(vec!["globalPackagesConfig", "permissions", name.as_str(), "skills"]);
-        }
+    reject_unsupported_permission_blocks(path, &manifest, permissions)?;
+    validate_global_permission_entries_impl(path, permissions)?;
+    if !record_permission_decisions(&mut manifest, permissions) {
+        return Ok(());
     }
-    let blocks: Vec<&[&str]> = blocks
+    write_permission_manifest(&target, path, manifest)
+}
+
+fn reject_unsupported_permission_blocks(
+    path: &Path,
+    manifest: &Manifest,
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let blocks = permission_block_paths(permissions);
+    let paths = blocks
         .iter()
         .map(Vec::as_slice)
-        .collect();
-    if let Some(key) = unsupported_inline_key(manifest.document.text(), &blocks) {
+        .collect::<Vec<_>>();
+    if let Some(key) = unsupported_inline_key(manifest.document.text(), &paths) {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
             path: path.to_path_buf(),
             key,
         });
     }
+    Ok(())
+}
+
+fn permission_block_paths(
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> Vec<Vec<&str>> {
+    let mut blocks =
+        vec![vec!["globalPackagesConfig"], vec!["globalPackagesConfig", "permissions"]];
+    for name in permissions.keys() {
+        blocks.push(vec!["globalPackagesConfig", "permissions", name.as_str()]);
+    }
+    blocks
+}
+
+fn validate_global_permission_entries_impl(
+    path: &Path,
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> Result<(), UpdateWorkspaceManifestError> {
     for (name, entry) in permissions {
         validate_global_permission_entry(path, name, entry)?;
     }
+    Ok(())
+}
+
+fn record_permission_decisions(
+    manifest: &mut Manifest,
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> bool {
     let mut changed = false;
     for (name, entry) in permissions {
         if let Some(allowed) = entry.build.as_ref().and_then(AllowBuild::decided) {
             changed |= edit::set_global_packages_permission(
-                &mut manifest,
+                manifest,
                 name,
                 "build",
                 &PermissionValue::Build(allowed),
@@ -128,16 +156,21 @@ pub fn set_global_packages_permissions(
         }
         if let Some(skills) = entry.skills.as_ref() {
             changed |= edit::set_global_packages_permission(
-                &mut manifest,
+                manifest,
                 name,
                 "skills",
                 &PermissionValue::Skills(skills.clone()),
             );
         }
     }
-    if !changed {
-        return Ok(());
-    }
+    changed
+}
+
+fn write_permission_manifest(
+    target: &ManifestTarget,
+    path: &Path,
+    manifest: Manifest,
+) -> Result<(), UpdateWorkspaceManifestError> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)
             .map_err(|source| UpdateWorkspaceManifestError::Write {
@@ -145,7 +178,7 @@ pub fn set_global_packages_permissions(
                 source,
             })?;
     }
-    write_or_remove_manifest(&target, manifest)
+    write_or_remove_manifest(target, manifest)
 }
 
 fn validate_global_permission_entry(

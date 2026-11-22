@@ -8,7 +8,13 @@
 
 pub mod rust;
 
+pub(crate) use build_policy::{
+    apply_global_build_policy,
+    global_approval_store,
+    warn_about_legacy_global_settings,
+};
 pub use builds::approve_global_builds;
+pub(crate) use install::global_group_config;
 pub use legacy::migrate_legacy_global_packages;
 pub(crate) use pnpm_fs::is_subdir;
 pub(crate) use pnpm_global::scan_global_packages;
@@ -77,17 +83,11 @@ use crate::{
     },
 };
 
-pub(crate) use build_policy::{
-    apply_global_build_policy,
-    global_approval_store,
-    warn_about_legacy_global_settings,
-};
 use cleanup::discard_install_dir_on_error;
 use derive_more::{
     Display,
     Error,
 };
-pub(crate) use install::global_group_config;
 use install::{
     GlobalInstallTarget,
     GroupActivation,

@@ -147,7 +147,7 @@ fn fill_build_policy(cfg: &mut Config, settings: &WorkspaceSettings) {
 fn resolve_global_skills_dirs(config: &Config, dirs: &[String]) -> Option<Vec<String>> {
     let home = config.agent_skills_target_root
         .as_deref()
-        .or(config.dir.as_path().parent())?;
+        .or_else(|| config.dir.as_path().parent())?;
     let home = dunce::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
     Some(
         dirs.iter()
@@ -155,18 +155,15 @@ fn resolve_global_skills_dirs(config: &Config, dirs: &[String]) -> Option<Vec<St
                 let path = std::path::Path::new(dir);
                 let joined =
                     if path.is_absolute() { path.to_path_buf() } else { home.join(path) };
-                let resolved = match pnpm_fs::realpath_missing(&joined) {
-                    Ok(resolved) => resolved,
-                    Err(_) => {
-                        emit_global_warning::<crate::cli_args::reporter::CliReporter>(&format!(
-                            "Ignoring globalPackagesConfig.skills.dirs entry {dir:?}: path could not be resolved"
-                        ));
-                        return None;
-                    }
+                let Ok(resolved) = pnpm_fs::realpath_missing(&joined) else {
+                    emit_global_warning::<crate::cli_args::reporter::CliReporter>(&format!(
+                        "Ignoring globalPackagesConfig.skills.dirs entry {dir:?}: path could not be resolved",
+                    ));
+                    return None;
                 };
                 if !pnpm_fs::is_subdir(&home, &resolved) {
                     emit_global_warning::<crate::cli_args::reporter::CliReporter>(&format!(
-                        "Ignoring globalPackagesConfig.skills.dirs entry {dir:?}: path must be inside the home directory"
+                        "Ignoring globalPackagesConfig.skills.dirs entry {dir:?}: path must be inside the home directory",
                     ));
                     return None;
                 }

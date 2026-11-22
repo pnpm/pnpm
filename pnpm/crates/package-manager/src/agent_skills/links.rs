@@ -167,10 +167,11 @@ pub(super) fn ensure_unoccupied(
     target_root: &Path,
     linked: &[String],
     desired: &BTreeMap<String, PathBuf>,
+    virtual_store_dir: &Path,
 ) -> Result<(), AgentSkillsError> {
     for (entry, target) in desired {
         let path = target_root.join(entry);
-        if is_occupied(&path, target, linked.contains(entry)) {
+        if is_occupied(&path, target, linked.contains(entry), virtual_store_dir) {
             return Err(AgentSkillsError::Occupied { path });
         }
     }
@@ -189,14 +190,24 @@ pub(super) fn materialize(
 }
 
 /// Whether `path` holds something pnpm must not replace. pnpm replaces only
-/// a link: one it recorded, one that already resolves to `target`, or one
-/// that resolves to nothing, as a link into a removed `node_modules` does.
-pub(super) fn is_occupied(path: &Path, target: &Path, recorded: bool) -> bool {
+/// a link: one it recorded, one that already resolves to `target`, one that
+/// resolves to nothing, as a link into a removed `node_modules` does, or one
+/// that resolves to the same skill of another copy of the package in
+/// `virtual_store_dir`, such as a peer variant that has left the lockfile.
+pub(super) fn is_occupied(
+    path: &Path,
+    target: &Path,
+    recorded: bool,
+    virtual_store_dir: &Path,
+) -> bool {
     if fs::symlink_metadata(path).is_err() {
         return false;
     }
     let replaceable = pnpm_fs::is_symlink_or_junction(path).unwrap_or(false)
-        && (recorded || links_to(path, target) || fs::metadata(path).is_err());
+        && (recorded
+            || links_to(path, target)
+            || fs::metadata(path).is_err()
+            || links_to_same_skill_in(path, target, virtual_store_dir));
     !replaceable
 }
 
@@ -211,6 +222,29 @@ fn create_link(target: &Path, path: &Path) -> io::Result<()> {
 }
 
 /// Whether `path` resolves inside `virtual_store_dir` to a path ending in
+/// the `node_modules/<name>/skills/<skill>` of `target`.
+fn links_to_same_skill_in(path: &Path, target: &Path, virtual_store_dir: &Path) -> bool {
+    let Some(skill_path) = skill_path_from_modules_dir(target) else { return false };
+    matches!(
+        (fs::canonicalize(path), fs::canonicalize(virtual_store_dir)),
+        (Ok(resolved), Ok(store)) if resolved.starts_with(&store) && resolved.ends_with(skill_path),
+    )
+}
+
+/// `node_modules/<name>/skills/<skill>` of `<dir>/node_modules/<name>/skills/<skill>`,
+/// nested categories included: the canonical form of every copy of the skill
+/// in the virtual store ends with it.
+fn skill_path_from_modules_dir(target: &Path) -> Option<&Path> {
+    let modules_dir = target
+        .ancestors()
+        .find(|dir| {
+            dir.file_name()
+                .is_some_and(|name| name == "node_modules")
+        })?;
+    target
+        .strip_prefix(modules_dir.parent()?)
+        .ok()
+}
 
 fn links_to(path: &Path, target: &Path) -> bool {
     matches!(

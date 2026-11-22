@@ -61,6 +61,7 @@ fn create_config(
 ) -> Config {
     Config {
         dir: Default::default(),
+        agent_skills_target_root: None,
         node_linker_excluded: Vec::new(),
         prune_direct_dependencies: false,
         tools: std::collections::BTreeMap::new(),

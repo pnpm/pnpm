@@ -79,6 +79,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("add_missing_peer_types", Recorded { key: "addMissingPeerTypes", change: |config| config.add_missing_peer_types = !config.add_missing_peer_types }),
     ("aggregate_output", NotAnInput(CLI_ONLY)),
     ("agent_skills_disabled", Through("the agent skill targets, compared after the fast path")),
+    ("agent_skills_target_root", Through("where agent skill links are written, compared after the fast path")),
     ("allow_builds", Recorded { key: "allowBuilds", change: |config| { config.allow_builds.insert("foo".into(), true); } }),
     ("allow_skills", Recorded { key: "allowSkills", change: |config| { config.allow_skills.insert("foo".into(), pnpm_config::SkillsPermission::All(true)); } }),
     ("allow_unused_patches", NotAnInput("whether an unused patch fails the install")),
