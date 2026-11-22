@@ -1,5 +1,3 @@
-//! Scalars a write adds take the quote style the manifest already uses.
-
 use serde_json::json;
 
 use super::{
