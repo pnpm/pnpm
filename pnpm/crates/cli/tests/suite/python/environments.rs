@@ -133,7 +133,7 @@ async fn store_prune_keeps_the_wheels_of_an_installed_project() {
     assert!(output.status.success());
     assert!(stderr.contains("Removed 0 files"), "{stderr}");
 
-    fs::remove_file(app.join(".venv")).unwrap();
+    pnpm_fs::remove_symlink_dir(&app.join(".venv")).unwrap();
     pacquet_in(&app)
         .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
