@@ -475,6 +475,15 @@ jobs:
             type: native
     runs-on: ${{ matrix.os }}
     steps:
+      # pnpm/setup reads the pnpm version from packageManager. This runs before
+      # the download because checkout cleans the workspace.
+      - name: Check out package.json
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: package.json
+          sparse-checkout-cone-mode: false
+
       - name: Download TypeScript executable artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
