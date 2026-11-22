@@ -128,8 +128,9 @@ fn package_yaml(rng: &mut Rng, package: u64, version: u64) -> (String, String) {
 
 /// A workspace of [`PROJECTS`] projects over [`PACKAGES`] packages in two
 /// versions each, with shared dependencies, version conflicts and peers.
-fn lockfile_yaml() -> String {
-    let mut rng = Rng(18_303);
+/// Each `seed` gives another workspace.
+pub(super) fn lockfile_yaml(seed: u64) -> String {
+    let mut rng = Rng(seed);
     let mut yaml = String::from("lockfileVersion: '9.0'\nimporters:\n");
     for project in 0..PROJECTS {
         yaml.push_str(&importer_yaml(&mut rng, project));
@@ -180,7 +181,7 @@ fn hoisted_layout(yaml: &str) -> String {
 
 #[test]
 fn the_same_lockfile_gives_the_same_layout_every_time() {
-    let yaml = lockfile_yaml();
+    let yaml = lockfile_yaml(18_303);
     let first = hoisted_layout(&yaml);
     let nested = first
         .lines()

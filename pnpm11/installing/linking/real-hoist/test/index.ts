@@ -1,6 +1,7 @@
 // cspell:ignore Ffoo -- `%2F` percent-encoding of `packages/foo` in the hoisting-limits locator keys
 import { expect, test } from '@jest/globals'
-import { getHoistingLimits, hoist } from '@pnpm/installing.linking.real-hoist'
+import * as dp from '@pnpm/deps.path'
+import { getHoistingLimits, hoist, type HoisterResult } from '@pnpm/installing.linking.real-hoist'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.utils'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -11,6 +12,18 @@ const testFixtures = fixtures(import.meta.dirname)
 test('hoist', async () => {
   const lockfile = await readWantedLockfile(testFixtures.find('fixture'), { ignoreIncompatible: true })
   expect(hoist(lockfile!)).toBeTruthy()
+})
+
+test.each([
+  ['a package waiting on its peer provider', 'dependency-of-peer-dependent', 'package10', 'package02'],
+  ['a package that nests the dependent', 'dependency-of-nested-package', 'package32', 'package20'],
+])('hoist keeps %s below the dependency hoisted to its parent', async (_, fixture, name, parentName) => {
+  const lockfile = await readWantedLockfile(testFixtures.find(fixture), { ignoreIncompatible: true })
+
+  const result = hoist(lockfile!, { autoInstallPeers: false })
+
+  expect(dependenciesResolvedToAnotherVersion(lockfile!, result)).toStrictEqual([])
+  expect(parentsOf(result, name)).toContain(parentName)
 })
 
 test.each([
@@ -178,3 +191,56 @@ test('getHoistingLimits preserves synthetic root border when root importer is om
   expect([...limits!.keys()]).toStrictEqual(['.@'])
   expect(limits!.get('.@')).toStrictEqual(new Set(['packages%2Ffoo']))
 })
+
+/**
+ * Every dependency a hoisted package finds, walking up from its directory,
+ * at another version than its snapshot records.
+ */
+function dependenciesResolvedToAnotherVersion (lockfile: LockfileObject, result: HoisterResult): string[] {
+  return lookupPaths(result).flatMap((lookupPath) => mismatchesOf(lockfile, lookupPath))
+}
+
+/** Every hoisted directory, each followed by the directories above it, nearest first. */
+function lookupPaths (result: HoisterResult): HoisterResult[][] {
+  const paths: HoisterResult[][] = []
+  const pending: HoisterResult[][] = [[result]]
+  while (pending.length > 0) {
+    const ancestors = pending.pop()!
+    const children = [...ancestors[0].dependencies].map((directory) => [directory, ...ancestors])
+    paths.push(...children)
+    pending.push(...children)
+  }
+  return paths
+}
+
+function mismatchesOf (lockfile: LockfileObject, lookupPath: HoisterResult[]): string[] {
+  const [directory] = lookupPath
+  const snapshot = lockfile.packages?.[[...directory.references][0] as DepPath]
+  return Object.entries({ ...snapshot?.dependencies, ...snapshot?.optionalDependencies })
+    .filter(([alias]) => snapshot?.peerDependencies?.[alias] == null)
+    .map(([alias, ref]) => ({ alias, expected: dp.refToRelative(ref, alias), found: resolvedPkgId(lookupPath, alias) }))
+    .filter(({ expected, found }) => expected != null && dp.removeSuffix(expected) !== found)
+    .map(({ alias, expected, found }) => `${directory.name} > ${alias}: expected ${expected}, found ${found}`)
+}
+
+function resolvedPkgId (lookupPath: HoisterResult[], alias: string): string | undefined {
+  for (const level of lookupPath) {
+    const found = [...level.dependencies].find((dependency) => dependency.name === alias)
+    if (found != null) return dp.removeSuffix([...found.references][0])
+  }
+  return undefined
+}
+
+/** The names of the directories that hold a directory called `name`. */
+function parentsOf (result: HoisterResult, name: string): string[] {
+  const parents: string[] = []
+  const pending = [result]
+  while (pending.length > 0) {
+    const current = pending.pop()!
+    for (const dependency of current.dependencies) {
+      if (dependency.name === name) parents.push(current.name)
+      pending.push(dependency)
+    }
+  }
+  return parents
+}

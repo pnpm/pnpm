@@ -51,22 +51,44 @@ struct Position {
     ancestors: Vec<Rc<HoisterResult>>,
 }
 
+/// What the directory an edge resolves to has to be.
+#[derive(Clone, Copy)]
+enum Accept {
+    /// A directory that behaves like the declared target.
+    DeclaredTarget,
+    /// A directory that holds the target's package, whichever of its peer
+    /// variants it serves. Upstream's `selfCheck` compares idents this way.
+    SamePackage,
+}
+
 struct Checker<'decl> {
     declared: &'decl Declared,
     /// `(directory, locator)` pairs already proven, or being proven up the
     /// current recursion.
     assumed: HashSet<(*const HoisterResult, String)>,
+    accept: Accept,
 }
 
 /// Panics listing every edge the hoisted layout resolves to a directory
 /// that does not behave like the target `tree` declares.
 pub(crate) fn assert_resolves_as_declared(tree: &HoisterTree, result: &HoisterResult) {
+    let errors = rejected_edges(tree, result, Accept::DeclaredTarget);
+    assert!(errors.is_empty(), "the hoisted layout breaks resolution:\n{}", errors.join("\n"));
+}
+
+/// Every edge the hoisted layout resolves to no directory, or to one that
+/// holds another package than the target `tree` declares.
+pub(crate) fn edges_to_another_package(tree: &HoisterTree, result: &HoisterResult) -> Vec<String> {
+    rejected_edges(tree, result, Accept::SamePackage)
+}
+
+fn rejected_edges(tree: &HoisterTree, result: &HoisterResult, accept: Accept) -> Vec<String> {
     let mut declared = Declared::new();
     collect_declared(tree, &mut declared, &mut HashSet::new());
-    let mut checker = Checker { declared: &declared, assumed: HashSet::new() };
+    let mut checker = Checker { declared: &declared, assumed: HashSet::new(), accept };
     let mut errors = Vec::new();
     check_node(&Rc::new(result.clone()), &mut Vec::new(), &mut checker, &mut errors);
-    assert!(errors.is_empty(), "the hoisted layout breaks resolution:\n{}", errors.join("\n"));
+    errors
 }
 
 fn collect_declared(
@@ -186,8 +208,10 @@ impl Checker<'_> {
                     .get(locator)
                     .is_some_and(|node| node.ident == target.ident)
             });
-        if !same_package {
-            return false;
+        match (same_package, self.accept) {
+            (false, _) => return false,
+            (true, Accept::SamePackage) => return true,
+            (true, Accept::DeclaredTarget) => {}
         }
         if !self.assumed.insert((Rc::as_ptr(&found.node), expected.to_string())) {
             return true;
