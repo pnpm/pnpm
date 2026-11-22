@@ -9,11 +9,11 @@ use pnpm_config::Config;
 use pnpm_engine_runtime_node_resolver::normalize_node_runtime_version_specifier;
 use pnpm_lockfile::EnvLockfile;
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
+use pnpm_package_manager::updated_node_runtime_specifier;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_resolving_resolver_base::VersionSelectorType;
-use pnpm_tool_protocol::RUNTIME_PROTOCOL;
 use serde_json::Value;
 
 use super::{
@@ -117,21 +117,17 @@ fn compute_node_runtime_spec(
     if save_exact {
         return resolved_version.to_string();
     }
-    let selector = match requested {
-        Some(req)
-            if Version::parse(req).is_err()
-                && get_version_selector_type(req) != Some(VersionSelectorType::Tag) =>
-        {
-            req
-        }
-        _ => dep.raw_specifier.as_str(),
+    let Some(requested) = requested else {
+        return updated_node_runtime_specifier(&dep.raw_specifier, resolved_version);
     };
-    let prev_runtime = format!("{RUNTIME_PROTOCOL}{selector}");
-    normalize_node_runtime_version_specifier(
-        selector,
-        &resolved_version.to_string(),
-        Some(&prev_runtime),
-    )
+    let selector = if Version::parse(requested).is_err()
+        && get_version_selector_type(requested) != Some(VersionSelectorType::Tag)
+    {
+        requested
+    } else {
+        dep.raw_specifier.as_str()
+    };
+    normalize_node_runtime_version_specifier(selector, &resolved_version.to_string(), None)
 }
 
 pub(super) fn persist_manifest_engine_updates(

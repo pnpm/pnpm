@@ -360,6 +360,37 @@ fn update_moves_a_devengines_runtime_range_onto_a_stable_pick() {
     );
 }
 
+#[test]
+fn update_preserves_compound_node_ranges_in_engine_declarations() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let index = server
+        .mock("GET", "/index.json")
+        .with_body(r#"[{"version":"v22.11.0","lts":false},{"version":"v24.0.0","lts":false}]"#)
+        .expect_at_least(1)
+        .create();
+    let workspace = prepare_workspace(
+        &root,
+        &format!("nodeDownloadMirrors:\n  release: '{}/'\n", server.url()),
+    );
+    let manifest = serde_json::json!({
+        "name": "runtime-ranges",
+        "version": "1.0.0",
+        "engines": { "runtime": { "name": "node", "version": ">= 20 <23", "onFail": "warn" } },
+        "devEngines": { "runtime": { "name": "node", "version": ">20 <24", "onFail": "warn" } },
+    });
+    let path = workspace.join("package.json");
+    fs::write(&path, manifest.to_string()).unwrap();
+
+    command(&workspace)
+        .with_arg("update")
+        .assert()
+        .success();
+
+    index.assert();
+    assert_eq!(serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(), manifest);
+}
+
 /// The pick is a prerelease, which the runtime resolver pins exactly so the rc
 /// channel survives in the version.
 #[test]

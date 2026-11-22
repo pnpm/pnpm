@@ -1,10 +1,31 @@
 //! Who owns the text a `tool:` / `runtime:` runtime declaration saves.
 
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_engine_runtime_node_resolver::normalize_node_runtime_version_specifier;
 use pnpm_package_manifest::is_runtime_alias;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_resolving_npm_resolver::infer_range_spec_style;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_resolving_resolver_base::parse_strict_semver_range;
 use pnpm_tool_protocol::{
     RUNTIME_PROTOCOL,
     strip_tool_protocol,
 };
+
+/// The range a compatible update saves for a declared Node.js runtime.
+#[cfg(feature = "runtime-provisioning")]
+#[must_use]
+pub fn updated_node_runtime_specifier(selector: &str, resolved: &node_semver::Version) -> String {
+    let range = selector.split_once('/').map_or(selector, |(_, range)| range);
+    if resolved.pre_release.is_empty()
+        && infer_range_spec_style(range).is_none()
+        && !range.is_empty()
+        && parse_strict_semver_range(range).is_some_and(|range| range.satisfies(resolved))
+    {
+        return range.to_string();
+    }
+    normalize_node_runtime_version_specifier(selector, &resolved.to_string(), None)
+}
 
 /// The version selector behind `tool:` / `runtime:` in a declaration or
 /// request for `package_name`, when the node resolver owns the text it saves.

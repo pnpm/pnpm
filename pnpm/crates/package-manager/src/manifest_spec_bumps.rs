@@ -1,17 +1,17 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
 #[cfg(feature = "runtime-provisioning")]
-use crate::runtime_specifier::node_runtime_version_spec;
+use crate::runtime_specifier::{
+    node_runtime_version_spec,
+    updated_node_runtime_specifier,
+};
 use crate::{
     OverriddenDependencyMatcher,
     VersionsOverrider,
 };
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 #[cfg(feature = "runtime-provisioning")]
-use pnpm_engine_runtime_node_resolver::{
-    normalize_node_runtime_version_specifier,
-    parse_node_specifier,
-};
+use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_lockfile::{
     ImporterDepVersion,
     Lockfile,
@@ -360,11 +360,6 @@ fn render_aliases<Bumped, Rendered>(
 
 /// The range that pins `version` for the dependency `alias` currently declares
 /// as `declared`, or `None` when the declaration is not a range this may move.
-///
-/// The range text is [`calc_version_range`]'s decision, the same one the
-/// npm resolver's `calc_specifier` makes for a version it has just picked. A
-/// node `runtime:` declaration is [`normalize_node_runtime_version_specifier`]'s
-/// instead, the rule the node resolver saves its own picks through.
 fn bumped_range(
     alias: &str,
     declared: &str,
@@ -417,11 +412,7 @@ fn bumped_runtime_range(
             }
             let bumped = format!(
                 "{RUNTIME_PROTOCOL}{}",
-                normalize_node_runtime_version_specifier(
-                    selector,
-                    &resolved.to_string(),
-                    Some(declared),
-                ),
+                updated_node_runtime_specifier(selector, resolved),
             );
             return Some((bumped != declared).then_some(bumped));
         }
