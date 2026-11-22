@@ -80,25 +80,26 @@ export function hasExternalLink (opts: CreateDeployFilesOptions): boolean {
   let projectsByDir: Map<string, ProjectId> | undefined
   const pending = new Set([opts.projectId])
   for (const id of pending) {
-    for (const target of linkedDirectories(opts, id)) {
+    for (const target of localDependencies(opts, id)) {
       projectsByDir ??= indexImporterDirs(opts)
-      const linkedId = projectsByDir.get(target)
-      if (linkedId == null) return true
-      pending.add(linkedId)
+      const linkedId = projectsByDir.get(target.resolvedPath)
+      if (linkedId != null) pending.add(linkedId)
+      else if (target.scheme === 'link:') return true
     }
   }
   return false
 }
 
-function * linkedDirectories (opts: CreateDeployFilesOptions, id: ProjectId): Iterable<string> {
+function * localDependencies (opts: CreateDeployFilesOptions, id: ProjectId) {
   const snapshot = opts.lockfile.importers[id]
   if (snapshot == null) return
   const include = id === opts.projectId ? opts.include : { ...opts.include, dependencies: true, devDependencies: false }
   const fields = DEPENDENCIES_FIELD.filter(field => include[field])
-  for (const field of fields) {
-    for (const ref of Object.values(snapshot[field] ?? {})) {
-      if (ref.startsWith('link:')) yield path.resolve(opts.lockfileDir, id, ref.slice('link:'.length))
-    }
+  const bases = { lockfileDir: opts.lockfileDir, projectRootDirRealPath: path.resolve(opts.lockfileDir, id) }
+  for (const ref of fields.flatMap(field => Object.values(snapshot[field] ?? {}))) {
+    if (!ref.includes('file:') && !ref.startsWith('link:')) continue
+    const target = resolveLinkOrFile(ref, bases)
+    if (target) yield target
   }
 }
 

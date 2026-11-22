@@ -63,7 +63,7 @@ pub(super) fn prune_extraneous_entries<Reporter: self::Reporter>(
             workspace_root: inputs.ctx.workspace_root,
             wanted_lockfile: inputs.graph.lockfile,
             layout: if inputs.ctx.is_hoisted() {
-                PruneLayout::Hoisted
+                PruneLayout::Hoisted { prior: inputs.prior.hoisted_dependencies }
             } else {
                 PruneLayout::VirtualStore {
                     hoisted: hoist.plan.as_ref().map(|plan| &plan.result.hoisted_dependencies),

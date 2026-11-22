@@ -5,12 +5,14 @@ use super::{
     Lockfile,
     Path,
     ProjectPathKey,
+    ResolveBases,
     SelectedProject,
     lockfile::importer_package_dirs,
+    resolution::resolve_importer_dep_version,
 };
 
-/// Linked projects have importer records rather than package snapshots. Walk
-/// their included links to find a directory that needs fresh resolution.
+/// Follow linked and injected workspace projects to find a linked directory
+/// whose dependencies need fresh resolution.
 pub(super) fn has_external_link(
     lockfile: &Lockfile,
     selected: &SelectedProject,
@@ -21,39 +23,49 @@ pub(super) fn has_external_link(
     let projects = std::cell::OnceCell::new();
     let mut pending = indexmap::IndexSet::from([project_id]);
     let mut index = 0;
-    let runtime_groups: &[DependencyGroup] = if groups.contains(&DependencyGroup::Optional) {
-        &[DependencyGroup::Prod, DependencyGroup::Optional]
-    } else {
-        &[DependencyGroup::Prod]
-    };
     while let Some(&id) = pending.get_index(index) {
         index += 1;
         let root = lockfile_dir.join(id);
-        let included = if id == project_id { groups } else { runtime_groups };
-        for target in linked_directories(lockfile, id, included) {
-            let by_dir =
-                projects.get_or_init(|| importer_ids_by_dir(lockfile, selected, lockfile_dir));
-            let Some(linked) = by_dir.get(&ProjectPathKey::new(&root.join(target))) else {
-                return true;
-            };
-            pending.insert(*linked);
+        let included = if id == project_id { groups } else { runtime_groups(groups) };
+        let bases = ResolveBases { link_base: &root, file_base: lockfile_dir };
+        let external = local_dependencies(lockfile, id, included, &bases)
+            .any(|(target, is_link)| {
+                let by_dir =
+                    projects.get_or_init(|| importer_ids_by_dir(lockfile, selected, lockfile_dir));
+                if let Some(id) = by_dir.get(&ProjectPathKey::new(&target)) {
+                    pending.insert(*id);
+                    return false;
+                }
+                is_link
+            });
+        if external {
+            return true;
         }
     }
     false
 }
 
-fn linked_directories<'a>(
+fn runtime_groups(included: &[DependencyGroup]) -> &'static [DependencyGroup] {
+    if included.contains(&DependencyGroup::Optional) {
+        &[DependencyGroup::Prod, DependencyGroup::Optional]
+    } else {
+        &[DependencyGroup::Prod]
+    }
+}
+
+fn local_dependencies<'a>(
     lockfile: &'a Lockfile,
     id: &str,
     groups: &'a [DependencyGroup],
-) -> impl Iterator<Item = &'a str> {
+    bases: &'a ResolveBases<'a>,
+) -> impl Iterator<Item = (std::path::PathBuf, bool)> + 'a {
     lockfile.importers
         .get(id)
         .into_iter()
         .flat_map(move |snapshot| snapshot.dependencies_by_groups(groups.iter().copied()))
-        .filter_map(|(_, dependency)| match &dependency.version {
-            ImporterDepVersion::Link(target) => Some(target.as_str()),
-            _ => None,
+        .filter_map(move |(_, dependency)| {
+            let local = resolve_importer_dep_version(&dependency.version, bases)?;
+            Some((local.resolved_path, matches!(dependency.version, ImporterDepVersion::Link(_))))
         })
 }
 

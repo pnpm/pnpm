@@ -204,6 +204,9 @@ async function deployWithoutSharedLockfile (
     // virtual store would create symlinks outside of the deploy directory.
     enableGlobalVirtualStore: false,
     depth: Infinity,
+    overrides: opts.overrides && Object.fromEntries(Object.entries(opts.overrides).map(([selector, spec]) =>
+      [selector, spec.startsWith('link:') ? `file:${spec.slice(5)}` : spec]
+    )),
     hooks: buildDeployHooks(opts.hooks, { convertLinksToFileProtocol: true }),
     frozenLockfile: false,
     preferFrozenLockfile: false,

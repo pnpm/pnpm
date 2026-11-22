@@ -109,6 +109,15 @@ pub(super) fn configured_virtual_store_dir(config: &Config) -> Option<&str> {
         .filter(|raw| !config.enable_global_virtual_store && !Path::new(raw).is_absolute())
 }
 
+fn copy_link_overrides(config: &mut Config) {
+    let Some(overrides) = &mut config.overrides else { return };
+    for spec in overrides.values_mut() {
+        if let Some(directory) = spec.strip_prefix("link:") {
+            *spec = format!("file:{directory}");
+        }
+    }
+}
+
 fn deploy_virtual_store_dir(base_config: &Config, deploy_dir: &Path) -> PathBuf {
     match configured_virtual_store_dir(base_config) {
         Some(raw) => pnpm_fs::lexical_normalize(&deploy_dir.join(raw)),
@@ -362,6 +371,7 @@ impl DeployArgs {
         } = &mode
         {
             deploy_config.inject_workspace_packages = true;
+            copy_link_overrides(&mut deploy_config);
             let lockfile_dir = deploy_config.lockfile_dir_for(deploy_dir).to_path_buf();
             approve_legacy_workspace_project_builds(
                 &mut deploy_config.allow_builds,

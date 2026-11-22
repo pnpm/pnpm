@@ -50,7 +50,9 @@ use std::{
 };
 
 pub(crate) enum PruneLayout<'a> {
-    Hoisted,
+    Hoisted {
+        prior: Option<&'a HoistedDependencies>,
+    },
     VirtualStore {
         hoisted: Option<&'a HoistedDependencies>,
         public_targets: Option<&'a BTreeMap<String, PathBuf>>,
@@ -74,7 +76,7 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
         let modules_dirs =
             crate::ImporterModulesDirs::from_config(self.config, self.workspace_root);
         let modules_dirs = match self.layout {
-            PruneLayout::Hoisted => modules_dirs.with_importers(
+            PruneLayout::Hoisted { .. } => modules_dirs.with_importers(
                 self.wanted_lockfile.importers.keys().map(String::as_str),
             ),
             PruneLayout::VirtualStore { .. } => modules_dirs,
@@ -147,14 +149,16 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
             return None;
         }
         match self.layout {
-            PruneLayout::Hoisted
+            PruneLayout::Hoisted { .. }
                 if modules_dirs.holds_importer(&raw_modules_dir)
                     || !raw_modules_dir.starts_with(importer_dir) =>
             {
                 None
             }
-            PruneLayout::Hoisted => crate::confined_modules_dir(&raw_modules_dir, importer_dir)
-                .and_then(|dir| crate::confined_modules_dir(&dir, self.workspace_root)),
+            PruneLayout::Hoisted { .. } => {
+                crate::confined_modules_dir(&raw_modules_dir, importer_dir)
+                    .and_then(|dir| crate::confined_modules_dir(&dir, self.workspace_root))
+            }
             PruneLayout::VirtualStore { .. } => modules_dirs.confined(&raw_modules_dir),
         }
     }
@@ -180,7 +184,7 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
             .collect();
         self.add_excluded_manifest_links(importer_dir, manifests_by_dir, &mut wanted);
         if importer_id == "." {
-            self.add_root_public_hoists(&mut wanted);
+            self.add_root_hoists(&mut wanted);
         }
         wanted
     }
@@ -206,8 +210,21 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
         );
     }
 
-    fn add_root_public_hoists(&self, wanted: &mut HashSet<String>) {
-        let PruneLayout::VirtualStore { hoisted, public_targets } = self.layout else { return };
+    fn add_root_hoists(&self, wanted: &mut HashSet<String>) {
+        let (hoisted, public_targets) = match self.layout {
+            PruneLayout::Hoisted { prior } => {
+                if let Some(prior) = prior {
+                    wanted.extend(
+                        prior
+                            .values()
+                            .flat_map(|aliases| aliases.keys())
+                            .cloned(),
+                    );
+                }
+                return;
+            }
+            PruneLayout::VirtualStore { hoisted, public_targets } => (hoisted, public_targets),
+        };
         if let Some(targets) = public_targets {
             wanted.extend(targets.keys().cloned());
         }
@@ -258,7 +275,7 @@ fn remove_unwanted_entries<Reporter: self::Reporter>(
             continue;
         }
         let removed = match layout {
-            PruneLayout::Hoisted => {
+            PruneLayout::Hoisted { .. } => {
                 crate::prune_direct_deps::remove_direct_dep_link(modules_dir, &pkg_name)?
                     .map(|link| link.version)
             }

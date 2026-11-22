@@ -263,7 +263,7 @@ fn link_expands_home_and_uses_directory_name_for_unnamed_package() {
     pacquet
         .with_env("HOME", &home)
         .with_env("USERPROFILE", &home)
-        .with_args(["link", "~/target-project-no-name"])
+        .with_args(["link", "~/target-project-no-name/child/.."])
         .assert()
         .success();
     let manifest =

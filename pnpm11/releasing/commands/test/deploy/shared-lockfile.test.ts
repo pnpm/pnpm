@@ -148,21 +148,26 @@ test.each([
   expect(fs.readFileSync(path.join(deployedFooDir, 'index.js'), 'utf-8')).toBe('module.exports = 1')
 })
 
-test('deploy copies a linked package outside the workspace', async () => {
+test.each(['direct', 'override', 'injected'])('deploy copies a linked package outside the workspace (%s)', async (kind) => {
+  const overrides = kind === 'override' ? { external: 'link:../external' } : undefined
+  const injected = kind === 'injected'
+  const externalLink = { external: 'link:../../../external' }
   preparePackages([
     { location: '.', package: { name: 'root', private: true } },
-    { location: 'packages/app', package: { name: 'app', dependencies: { external: 'link:../../../external' } } },
+    { location: 'packages/app', package: { name: 'app', dependencies: injected ? { lib: 'workspace:*' } : externalLink } },
+    { location: 'packages/lib', package: { name: 'lib', version: '1.0.0', dependencies: externalLink } },
   ])
+  fs.writeFileSync('packages/lib/index.js', "module.exports = require('external')")
   const external = path.resolve('../external')
   fs.mkdirSync(external)
   fs.writeFileSync(path.join(external, 'package.json'), JSON.stringify({ name: 'external', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } }))
   fs.writeFileSync(path.join(external, 'index.js'), "module.exports = require('is-positive/package.json').version")
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
-  const opts = { ...DEFAULT_OPTS, allProjects, allProjectsGraph, dir: process.cwd(), recursive: true, lockfileDir: process.cwd(), workspaceDir: process.cwd(), sharedWorkspaceLockfile: true }
+  const opts = { ...DEFAULT_OPTS, injectWorkspacePackages: injected, overrides, allProjects, allProjectsGraph, dir: process.cwd(), recursive: true, lockfileDir: process.cwd(), workspaceDir: process.cwd(), sharedWorkspaceLockfile: true }
   await install.handler({ ...opts, selectedProjectsGraph: allProjectsGraph })
   await deploy.handler({ ...opts, selectedProjectsGraph }, [path.resolve('deploy')])
-  fs.renameSync(external, external + '-moved')
-  expect(createRequire(path.resolve('deploy/package.json'))('external')).toBe('1.0.0')
+  fs.renameSync(external, path.resolve('moved'))
+  expect(createRequire(path.resolve('deploy/package.json'))(injected ? 'lib' : 'external')).toBe('1.0.0')
 })
 
 test('deploy with a shared lockfile after full install', async () => {

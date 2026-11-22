@@ -15,15 +15,20 @@ use super::{
 /// links it, so deploy copies it too.
 #[test]
 fn deploy_copies_file_dependency_outside_the_lockfile_dir() {
-    deploy_copies_external_dependency("file:");
+    deploy_copies_external_dependency("file:", false);
 }
 
 #[test]
 fn deploy_copies_link_dependency_outside_the_lockfile_dir() {
-    deploy_copies_external_dependency("link:");
+    deploy_copies_external_dependency("link:", false);
 }
 
-fn deploy_copies_external_dependency(protocol: &str) {
+#[test]
+fn deploy_copies_link_override_outside_the_lockfile_dir() {
+    deploy_copies_external_dependency("link:", true);
+}
+
+fn deploy_copies_external_dependency(protocol: &str, link_override: bool) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -52,6 +57,9 @@ fn deploy_copies_external_dependency(protocol: &str) {
     append_workspace_yaml_key(&workspace, "packages", "[]");
     append_workspace_yaml_key(&workspace, "injectWorkspacePackages", "true");
 
+    if link_override {
+        append_workspace_yaml_key(&workspace, "overrides", "\n  '@example/client': link:../client");
+    }
     pacquet
         .with_arg("install")
         .assert()

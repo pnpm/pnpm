@@ -257,7 +257,7 @@ fn link_target(
             error => miette::Report::new(error),
         })?;
     let package_name = match &target_manifest.value()["name"] {
-        serde_json::Value::Null => Path::new(path_str).file_name().and_then(|name| name.to_str()),
+        serde_json::Value::Null => target_dir.file_name().and_then(|name| name.to_str()),
         name => name.as_str(),
     }
     .ok_or_else(|| miette::miette!("Cannot determine a package name for {dir_display}"))?

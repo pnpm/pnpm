@@ -94,15 +94,15 @@ async function unlinkProject (
   removedLinks: Record<string, string>
 ) {
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir, opts)
-  const overrideDir = opts.workspaceDir ?? opts.rootProjectManifestDir
-  if (manifest == null || !dropLinkedDependencies(manifest, removedLinks, dir, overrideDir)) return undefined
+  const dirs = { manifestDir: dir, overrideDir: opts.workspaceDir ?? opts.rootProjectManifestDir }
+  if (manifest == null || !dropLinkedDependencies(manifest, removedLinks, dirs)) return undefined
   for (const loaded of manifests) {
-    if (loaded) dropLinkedDependencies(loaded, removedLinks, dir, overrideDir)
+    if (loaded) dropLinkedDependencies(loaded, removedLinks, dirs)
   }
   return { dir, manifest, writeProjectManifest }
 }
 
-function dropLinkedDependencies (manifest: ProjectManifest, removedLinks: Record<string, string>, manifestDir: string, overrideDir: string): boolean {
+function dropLinkedDependencies (manifest: ProjectManifest, removedLinks: Record<string, string>, { manifestDir, overrideDir }: { manifestDir: string, overrideDir: string }): boolean {
   const deps = manifest.dependencies
   if (deps == null) return false
   const resolveLinkTarget = (dir: string, specifier: string) => path.resolve(dir, specifier.slice('link:'.length))
