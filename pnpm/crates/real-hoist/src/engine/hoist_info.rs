@@ -323,3 +323,6 @@ fn add_after_peers(
     }
     sorted.insert(RcByPtr(Rc::clone(dep)));
 }
+
+#[cfg(test)]
+mod tests;
