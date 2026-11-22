@@ -315,8 +315,9 @@ function registrySpec (depName: string, name: string | undefined, range: string)
 async function renamedRange (depName: string, target: string, range: string, context: PublishDependencyConverterContext): Promise<string | undefined> {
   const modules = context.modulesDir ?? path.join(context.dir, 'node_modules')
   const manifest = await resolveWorkspaceManifest(path.join(modules, depName), { depName, target, getWorkspaceManifest: context.workspacePackages })
-  const name = manifest && publishedName(manifest)
-  return name && name !== manifest?.name ? registrySpec(depName, name, range) : undefined
+  if (manifest?.name !== target) return undefined
+  const name = publishedName(manifest)
+  return name && name !== target ? registrySpec(depName, name, range) : undefined
 }
 
 async function replaceWorkspaceProtocolPeerDependency (

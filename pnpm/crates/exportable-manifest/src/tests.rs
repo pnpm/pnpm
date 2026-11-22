@@ -114,6 +114,11 @@ fn workspace_lookup_uses_the_published_target_for_shorthand_and_explicit_ranges(
             expected,
         );
     }
+    fs::write(
+        installed.join("package.json"),
+        r#"{"version":"8.0.0","publishConfig":{"name":"wrong"}}"#,
+    )
+    .unwrap();
     let peer = replace_workspace_protocol_peer_dependency(
         "alias",
         "workspace:other@^1",

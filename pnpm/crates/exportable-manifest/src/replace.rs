@@ -394,6 +394,7 @@ impl WorkspacePackageLookup<'_> {
     ) -> Result<Option<String>, ReplaceWorkspaceProtocolError> {
         let manifest = self.resolve_manifest(dep_name, Some(target), &modules_dir.join(dep_name))?;
         Ok(manifest
+            .filter(|manifest| manifest.name == target)
             .and_then(|manifest| manifest.publish_name)
             .map(|name| registry_spec(dep_name, &name, range)))
     }

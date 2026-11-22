@@ -43,12 +43,12 @@ test('prepublish scripts and packageManager are removed', async () => {
   })
 })
 
-test('workspace dependency ranges use the published name of a renamed target', async () => {
+test.each(['stale', undefined])('workspace dependency ranges ignore a conflicting installed name (%s)', async (name) => {
   const dir = tempDir()
   const installed = path.join(dir, 'node_modules/alias')
   fs.mkdirSync(installed, { recursive: true })
   fs.writeFileSync(path.join(installed, 'package.json'), JSON.stringify({
-    name: 'stale', version: '8.0.0', publishConfig: { name: 'wrong' },
+    name, version: '8.0.0', publishConfig: { name: 'wrong' },
   }))
   const manifest = await createExportableManifest(dir, {
     name: 'consumer',
