@@ -32,10 +32,10 @@ use super::{
 pub(super) fn seed_reachable_policy_closures(
     scan: &mut ScopedScan<'_>,
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
-    reachable_snapshots: &HashSet<PkgNameVerPeer>,
+    relevant_snapshots: &HashSet<PkgNameVerPeer>,
 ) {
     let packages = scan.lockfile.packages.as_ref();
-    for snap_key in reachable_snapshots {
+    for snap_key in relevant_snapshots {
         let Some(snapshot) = snapshots.get(snap_key) else {
             continue;
         };
@@ -48,7 +48,7 @@ pub(super) fn seed_reachable_policy_closures(
             for (alias, dep_ref) in deps.iter().flatten() {
                 seed_policy_package_child(
                     scan,
-                    reachable_snapshots,
+                    relevant_snapshots,
                     (snap_key, snap_meta),
                     (field, alias, dep_ref),
                 );
@@ -59,7 +59,7 @@ pub(super) fn seed_reachable_policy_closures(
 
 fn seed_policy_package_child(
     scan: &mut ScopedScan<'_>,
-    reachable_snapshots: &HashSet<PkgNameVerPeer>,
+    relevant_snapshots: &HashSet<PkgNameVerPeer>,
     (parent_key, parent_meta): (&PkgNameVerPeer, Option<&PackageMetadata>),
     (field, alias, dep_ref): (LocalDepField, &PkgName, &SnapshotDepRef),
 ) {
@@ -83,12 +83,12 @@ fn seed_policy_package_child(
     {
         return;
     }
-    record_policy_package_closure(scan, reachable_snapshots, &base_key, is_local_fs);
+    record_policy_package_closure(scan, relevant_snapshots, &base_key, is_local_fs);
 }
 
 fn record_policy_package_closure(
     scan: &mut ScopedScan<'_>,
-    reachable_snapshots: &HashSet<PkgNameVerPeer>,
+    relevant_snapshots: &HashSet<PkgNameVerPeer>,
     root_key: &PkgNameVerPeer,
     is_local_fs: bool,
 ) {
@@ -104,17 +104,17 @@ fn record_policy_package_closure(
     while let Some(local_key) = local_queue.pop() {
         enqueue_matching_base_snapshots(
             scan,
-            reachable_snapshots,
+            relevant_snapshots,
             &local_key,
             (&mut local_queue, &mut git_queue),
         );
     }
-    expand_policy_git_snapshots(scan, reachable_snapshots, git_queue);
+    expand_policy_git_snapshots(scan, relevant_snapshots, git_queue);
 }
 
 fn enqueue_matching_base_snapshots(
     scan: &mut ScopedScan<'_>,
-    reachable_snapshots: &HashSet<PkgNameVerPeer>,
+    relevant_snapshots: &HashSet<PkgNameVerPeer>,
     local_key: &PkgNameVerPeer,
     (local_queue, git_queue): (&mut Vec<PkgNameVerPeer>, &mut Vec<PkgNameVerPeer>),
 ) {
@@ -123,11 +123,11 @@ fn enqueue_matching_base_snapshots(
     };
     let packages = scan.lockfile.packages.as_ref();
     for (snap_key, snapshot) in entries {
-        if reachable_snapshots.contains(*snap_key) {
+        if relevant_snapshots.contains(*snap_key) {
             enqueue_reachable_local_children(
                 packages,
                 snapshot,
-                reachable_snapshots,
+                relevant_snapshots,
                 &mut scan.closure,
                 (local_queue, git_queue),
             );
@@ -138,7 +138,7 @@ fn enqueue_matching_base_snapshots(
 fn enqueue_reachable_local_children(
     packages: Option<&HashMap<PkgNameVerPeer, PackageMetadata>>,
     snapshot: &SnapshotEntry,
-    reachable_snapshots: &HashSet<PkgNameVerPeer>,
+    relevant_snapshots: &HashSet<PkgNameVerPeer>,
     closure: &mut PolicyClosure,
     (local_queue, git_queue): (&mut Vec<PkgNameVerPeer>, &mut Vec<PkgNameVerPeer>),
 ) {
@@ -150,7 +150,7 @@ fn enqueue_reachable_local_children(
         enqueue_reachable_local_dep_ref(
             packages,
             (alias, dep_ref),
-            reachable_snapshots,
+            relevant_snapshots,
             closure,
             (local_queue, git_queue),
         );
@@ -160,7 +160,7 @@ fn enqueue_reachable_local_children(
 fn enqueue_reachable_local_dep_ref(
     packages: Option<&HashMap<PkgNameVerPeer, PackageMetadata>>,
     (alias, dep_ref): (&PkgName, &SnapshotDepRef),
-    reachable_snapshots: &HashSet<PkgNameVerPeer>,
+    relevant_snapshots: &HashSet<PkgNameVerPeer>,
     closure: &mut PolicyClosure,
     (local_queue, git_queue): (&mut Vec<PkgNameVerPeer>, &mut Vec<PkgNameVerPeer>),
 ) {
@@ -170,7 +170,7 @@ fn enqueue_reachable_local_dep_ref(
     }
     let Some(child_key) = dep_ref
         .resolve(alias)
-        .filter(|key| reachable_snapshots.contains(key))
+        .filter(|key| relevant_snapshots.contains(key))
     else {
         return;
     };
@@ -188,7 +188,7 @@ fn enqueue_reachable_local_dep_ref(
 
 fn expand_policy_git_snapshots(
     scan: &mut ScopedScan<'_>,
-    reachable_snapshots: &HashSet<PkgNameVerPeer>,
+    relevant_snapshots: &HashSet<PkgNameVerPeer>,
     mut git_queue: Vec<PkgNameVerPeer>,
 ) {
     let packages = scan.lockfile.packages.as_ref();
@@ -197,11 +197,11 @@ fn expand_policy_git_snapshots(
             continue;
         };
         for (snap_key, snapshot) in entries {
-            if reachable_snapshots.contains(*snap_key) {
+            if relevant_snapshots.contains(*snap_key) {
                 enqueue_reachable_git_children(
                     packages,
                     snapshot,
-                    reachable_snapshots,
+                    relevant_snapshots,
                     &mut scan.closure.git_packages,
                     &mut git_queue,
                 );
@@ -213,7 +213,7 @@ fn expand_policy_git_snapshots(
 fn enqueue_reachable_git_children(
     packages: Option<&HashMap<PkgNameVerPeer, PackageMetadata>>,
     snapshot: &SnapshotEntry,
-    reachable_snapshots: &HashSet<PkgNameVerPeer>,
+    relevant_snapshots: &HashSet<PkgNameVerPeer>,
     policy_git_packages: &mut HashSet<PkgNameVerPeer>,
     git_queue: &mut Vec<PkgNameVerPeer>,
 ) {
@@ -224,7 +224,7 @@ fn enqueue_reachable_git_children(
     for (alias, dep_ref) in all_deps {
         let Some(child_key) = dep_ref
             .resolve(alias)
-            .filter(|key| reachable_snapshots.contains(key))
+            .filter(|key| relevant_snapshots.contains(key))
         else {
             continue;
         };

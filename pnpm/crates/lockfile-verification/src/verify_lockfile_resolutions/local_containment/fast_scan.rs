@@ -58,6 +58,18 @@ fn packages_have_local_surface(lockfile: &Lockfile) -> bool {
         .any(|(key, meta)| package_entry_is_local(key, meta))
 }
 
+/// Whether the package `key` is local or declares a local peer, with or
+/// without a `packages` entry.
+pub(super) fn package_has_local_surface(
+    key: &PkgNameVerPeer,
+    meta: Option<&PackageMetadata>,
+) -> bool {
+    match meta {
+        Some(meta) => package_entry_is_local(key, meta),
+        None => key_is_local(key),
+    }
+}
+
 fn package_entry_is_local(key: &PkgNameVerPeer, meta: &PackageMetadata) -> bool {
     key_is_local(key)
         || has_local_filesystem_resolution(&meta.resolution)

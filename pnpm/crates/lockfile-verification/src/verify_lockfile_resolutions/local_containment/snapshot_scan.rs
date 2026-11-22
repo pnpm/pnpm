@@ -64,8 +64,7 @@ pub(super) fn scan_importer_scope(
     policy: &LocalResolutionPolicy,
     roots: &AuthorizedLocalRoots<'_>,
     imp: &ImporterScope,
-    (visited_snapshots, authorized_packages, authorized_git_packages, violations): (
-        &mut HashSet<PkgNameVerPeer>,
+    (authorized_packages, authorized_git_packages, violations): (
         &mut HashSet<PkgNameVerPeer>,
         &mut HashSet<PkgNameVerPeer>,
         &mut Vec<ResolutionPolicyViolation>,
@@ -87,12 +86,11 @@ pub(super) fn scan_importer_scope(
         },
     };
     if policy.has_authorization_source() {
-        seed_reachable_policy_closures(&mut scan, snapshots, &imp.reachable_snapshots);
+        seed_reachable_policy_closures(&mut scan, snapshots, &imp.relevant_snapshots);
         authorized_packages.extend(scan.closure.packages.iter().cloned());
         authorized_git_packages.extend(scan.closure.git_packages.iter().cloned());
     }
-    for snap_key in &imp.reachable_snapshots {
-        visited_snapshots.insert(snap_key.clone());
+    for snap_key in &imp.relevant_snapshots {
         if let Some(snapshot) = snapshots.get(snap_key) {
             inspect_snapshot_entry(&scan, snap_key, snapshot, violations);
         }
@@ -103,7 +101,6 @@ pub(super) fn scan_unreachable_snapshots(
     lockfile: &Lockfile,
     policy: &LocalResolutionPolicy,
     roots: &AuthorizedLocalRoots<'_>,
-    visited_snapshots: &HashSet<PkgNameVerPeer>,
     violations: &mut Vec<ResolutionPolicyViolation>,
 ) {
     let Some(snapshots) = lockfile.snapshots.as_ref() else {
@@ -120,7 +117,7 @@ pub(super) fn scan_unreachable_snapshots(
         closure: PolicyClosure::default(),
     };
     for (snap_key, snapshot) in snapshots {
-        if !visited_snapshots.contains(snap_key) {
+        if !roots.reached.snapshots.contains(snap_key) {
             inspect_snapshot_entry(&scan, snap_key, snapshot, violations);
         }
     }

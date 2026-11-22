@@ -6035,6 +6035,7 @@ dependencies = [
  "pnpm-time",
  "pnpm-wasm-host",
  "pretty_assertions",
+ "rustc-hash 2.1.3",
  "serde",
  "serde-saphyr",
  "serde_json",

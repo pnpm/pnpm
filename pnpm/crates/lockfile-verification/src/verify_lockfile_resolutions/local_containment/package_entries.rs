@@ -302,7 +302,7 @@ fn importer_vouches_for_peer(
         .iter()
         .zip(scan.importers)
         .any(|(declared, importer)| {
-            importer.reachable_snapshots.contains(snap_key) && declared.contains(&(alias, spec))
+            importer.relevant_snapshots.contains(snap_key) && declared.contains(&(alias, spec))
         })
 }
 
@@ -315,7 +315,7 @@ fn index_authorized_peer_declarations<'a>(
     scan.importers
         .iter()
         .map(|importer| {
-            importer.reachable_packages
+            importer.relevant_packages
                 .iter()
                 .filter(|key| scan.authorized_packages.contains(*key))
                 .filter_map(|key| packages?.get(key)?.peer_dependencies.as_ref())
