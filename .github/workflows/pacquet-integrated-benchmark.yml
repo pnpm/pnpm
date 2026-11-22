@@ -347,11 +347,10 @@ jobs:
       # the realistic CI case. Running both tools in one hyperfine
       # invocation also yields the pnpr-vs-direct ratio per scenario.
       BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main' }}
-      # The peer-heavy resolver case compares the PR against both main and the
-      # TypeScript CLI. It does not include pnpr because the timed offline
-      # command exercises client-side peer resolution rather than server or
-      # tarball performance.
-      PEER_HEAVY_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpm@HEAD' || 'pacquet@HEAD pacquet@main pnpm@HEAD' }}
+      # The peer-heavy resolver case does not include pnpr because the timed
+      # offline command exercises client-side peer resolution rather than
+      # server or tarball performance.
+      PEER_HEAVY_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD' || 'pacquet@HEAD pacquet@main' }}
       # The workspace fixtures use only local packages, and the store-only
       # scenario measures the client's own resolution and store check, which
       # a pnpr server would take over, so these compare the PR against main
@@ -477,22 +476,8 @@ jobs:
       - name: Prepare benchmark targets
         shell: bash
         timeout-minutes: 50
-        env:
-          SCENARIO: ${{ matrix.scenario }}
-          HEAD_SHA: ${{ needs.revisions.outputs.head_sha }}
         run: |
-          pnpm_repository_args=()
-          if [ "$SCENARIO" = isolated-linker.peer-heavy-resolve.hot-cache.offline ]; then
-            BENCHMARK_BUILD_TARGETS="$BENCHMARK_BUILD_TARGETS pnpm@HEAD"
-            # pnpm@HEAD builds the HEAD of the repository it is given. The
-            # checkout holds the tools revision, which a head_ref dispatch
-            # sets apart from the measured HEAD.
-            if [ "$HEAD_SHA" != "$(git rev-parse HEAD)" ]; then
-              git worktree add --detach "$RUNNER_TEMP/pnpm-head" "$HEAD_SHA"
-              pnpm_repository_args=(--pnpm-repository "$RUNNER_TEMP/pnpm-head")
-            fi
-          fi
-          target/debug/integrated-benchmark --reuse-prebuilt-binaries --build-only --registry=npm "${pnpm_repository_args[@]}" $BENCHMARK_BUILD_TARGETS
+          target/debug/integrated-benchmark --reuse-prebuilt-binaries --build-only --registry=npm $BENCHMARK_BUILD_TARGETS
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         if: matrix.scenario == 'isolated-linker.fresh-restore.cold-cache.cold-store'
@@ -879,7 +864,7 @@ jobs:
               echo "**Compared against main at:** [\`${MAIN_SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$MAIN_SHA)"
               echo
             fi
-            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm; the linked, injected, and Cargo workspace scenarios compare current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
+            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver and the linked, injected, and Cargo workspace scenarios compare current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
             echo 'The tables below show mean ± σ. Bencher tracks absolute minimum latency; PR regression checks compare HEAD and main samples from the same runner. Historical timing alerts do not gate PRs.'
             echo
