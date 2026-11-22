@@ -301,6 +301,7 @@ pub(crate) struct OutdatedDisplayVersions {
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct OutdatedMetadata {
+    pub update_prefix: &'static str,
     /// Deprecation reason of the `target` version, when the registry
     /// marked it deprecated.
     pub deprecated: Option<String>,
@@ -340,6 +341,7 @@ impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
             wanted: action.wanted,
             github_action: true,
             metadata: OutdatedMetadata {
+                update_prefix: "",
                 deprecated: None,
                 homepage: Some(action.homepage),
                 repository: None,

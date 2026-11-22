@@ -159,6 +159,7 @@ fn unique_choices(
     for choices in choices {
         for choice in choices? {
             let key = (
+                choice.metadata.update_prefix,
                 choice.alias.clone(),
                 choice.package_name.clone(),
                 choice.current.to_string(),

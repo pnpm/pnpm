@@ -102,6 +102,7 @@ pub(crate) fn update_choices(
         // package (`"a": "npm:foo@1"`, `"b": "npm:foo@1"`) are separate
         // dependencies and both have to be offered.
         let key = (
+            package.metadata.update_prefix,
             package.alias.as_str(),
             package.package_name.as_str(),
             &package.current,
@@ -163,7 +164,7 @@ struct Choice<'a> {
     workspaces: Vec<String>,
 }
 
-type ChoiceKey<'a> = (&'a str, &'a str, &'a Version, &'a Version, bool);
+type ChoiceKey<'a> = (&'static str, &'a str, &'a str, &'a Version, &'a Version, bool);
 
 /// The optional columns every group of one prompt shows.
 #[derive(Clone, Copy)]
@@ -212,7 +213,10 @@ fn render_rows(choices: &[&Choice<'_>], columns: ChoiceColumns) -> Vec<ChoiceRow
         .chain(
             rows.zip(choices)
                 .map(|(row, choice)| ChoiceRow {
-                    value: Some(choice.package.alias.clone()),
+                    value: Some(format!(
+                        "{}{}",
+                        choice.package.metadata.update_prefix, choice.package.alias,
+                    )),
                     notes_key: Some(super::notes::notes_key(choice.package)),
                     ..row
                 }),
@@ -301,7 +305,7 @@ fn choice_cells(choice: &Choice<'_>, columns: ChoiceColumns) -> Vec<String> {
     // would corrupt the prompt's redraw, and a newline would break
     // the row apart.
     let mut row = vec![
-        sanitize_inline(&package.package_name).into_owned(),
+        format!("{}{}", package.metadata.update_prefix, sanitize_inline(&package.package_name)),
         package.current_str().into_owned(),
         "❯".to_string(),
         colorize_target(package),

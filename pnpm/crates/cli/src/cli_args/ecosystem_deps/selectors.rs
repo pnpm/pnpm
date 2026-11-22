@@ -248,6 +248,14 @@ pub(crate) fn parse_update_selectors(
     packages: &[String],
     config: &Config,
 ) -> Result<ParsedUpdateSelectors> {
+    parse_update_selection(packages, config, false)
+}
+
+pub(crate) fn parse_update_selection(
+    packages: &[String],
+    config: &Config,
+    interactive: bool,
+) -> Result<ParsedUpdateSelectors> {
     validate_ecosystem_selectors(packages, config)?;
     let mut parsed = ParsedUpdateSelectors::default();
     for raw in packages {
@@ -257,6 +265,8 @@ pub(crate) fn parse_update_selectors(
         };
         if is_cargo_prefixed(selector) || is_python_prefixed(selector) || is_purl(selector) {
             parse_prefixed_update_selector(selector, mode, &mut parsed)?;
+        } else if interactive {
+            parsed.node_selectors.push(raw.clone());
         } else {
             parse_bare_update_selector(raw, &mut parsed);
         }

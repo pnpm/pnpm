@@ -586,3 +586,15 @@ fn long_uses_repository_when_homepage_is_missing_and_sanitizes_urls() {
     let groups = update_choices(&[&package], false, UpdateDetails::Long);
     assert_eq!(groups[0].rows[1].label.split_whitespace().last(), Some("2.0.0"));
 }
+
+#[test]
+fn choices_for_matching_names_select_only_their_ecosystem() {
+    let packages = ["", "pypi:", "crate:"].map(|prefix| {
+        let mut dep = pkg("example", "example", "1.0.0", "2.0.0", DependencyGroup::Prod);
+        dep.metadata.update_prefix = prefix;
+        dep
+    });
+    let groups =
+        update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Compact);
+    assert_eq!(values(&groups[0]), ["example", "pypi:example", "crate:example"]);
+}

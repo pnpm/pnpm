@@ -273,6 +273,7 @@ impl UpdateArgs {
             selection,
             &inputs.standalone_dirs,
             EcosystemUpdateStepOptions {
+                interactive: self.selection.display.interactive,
                 requests_validated: self.dependency_options.ecosystem_requests_validated,
                 selectors,
                 include_groups: &inputs.include_direct,
