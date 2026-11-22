@@ -72,16 +72,8 @@ pub fn local_resolution_candidate_parents_for_policy(
     let reachability = policy.scope.selected_importer_ids
         .as_ref()
         .map(|_| {
-            let roots = AuthorizedLocalRoots::collect(lockfile, policy);
-            let snaps: HashSet<PkgNameVerPeer> = roots.importers
-                .iter()
-                .flat_map(|imp| imp.reachable_snapshots.iter().cloned())
-                .collect();
-            let pkgs: HashSet<PkgNameVerPeer> = roots.importers
-                .iter()
-                .flat_map(|imp| imp.reachable_packages.iter().cloned())
-                .collect();
-            (snaps, pkgs)
+            let reached = AuthorizedLocalRoots::collect(lockfile, policy).reached;
+            (reached.snapshots, reached.packages)
         });
     let mut grouped: BTreeMap<String, CandidateAccumulator> = BTreeMap::new();
     collect_snapshot_probe_candidates(

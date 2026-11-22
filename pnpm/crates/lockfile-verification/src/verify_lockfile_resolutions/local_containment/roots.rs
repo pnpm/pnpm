@@ -1,11 +1,14 @@
+pub(super) use reach::Reached;
 use std::collections::{
     HashMap,
     HashSet,
 };
 
 use importer_seed::{
+    ImporterSeedBuffers,
     ImporterSeedCtx,
-    build_importer_scope,
+    finish_importer_scope,
+    seed_importer,
 };
 use pnpm_lockfile::{
     Lockfile,
@@ -21,6 +24,10 @@ use pnpm_lockfile::{
     is_tarball_filename,
 };
 use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
+use reach::{
+    SnapshotGraph,
+    Stamps,
+};
 
 use super::{
     super::{
@@ -32,10 +39,13 @@ use super::{
 };
 
 mod importer_seed;
+mod reach;
 
 pub(super) struct ImporterScope {
-    pub(super) reachable_snapshots: HashSet<PkgNameVerPeer>,
-    pub(super) reachable_packages: HashSet<PkgNameVerPeer>,
+    /// The [relevant](SnapshotGraph) snapshots the importer reaches.
+    pub(super) relevant_snapshots: HashSet<PkgNameVerPeer>,
+    /// The packages of [`Self::relevant_snapshots`].
+    pub(super) relevant_packages: HashSet<PkgNameVerPeer>,
     pub(super) local_packages: HashSet<PkgNameVerPeer>,
     pub(super) local_git_packages: HashSet<PkgNameVerPeer>,
     pub(super) links_by_alias: HashSet<(String, String)>,
@@ -45,6 +55,8 @@ pub(super) struct ImporterScope {
 pub(super) struct AuthorizedLocalRoots<'a> {
     pub(super) workspace_dirs: HashSet<String>,
     pub(super) importers: Vec<ImporterScope>,
+    /// Everything the active importers reach together.
+    pub(super) reached: Reached,
     pub(super) snapshots_by_base:
         HashMap<PkgNameVerPeer, Vec<(&'a PkgNameVerPeer, &'a SnapshotEntry)>>,
 }
@@ -52,23 +64,42 @@ pub(super) struct AuthorizedLocalRoots<'a> {
 impl<'a> AuthorizedLocalRoots<'a> {
     pub(super) fn collect(lockfile: &'a Lockfile, policy: &LocalResolutionPolicy) -> Self {
         let workspace_dirs = collect_workspace_importer_dirs(lockfile, policy);
-        let lockfile_importer_dirs = collect_lockfile_importer_dirs(lockfile);
-        let snapshots_by_base = index_local_snapshots(lockfile);
-        let importers = active_importers(lockfile, policy, &workspace_dirs)
+        let seeds = seed_active_importers(lockfile, policy, &workspace_dirs);
+        let all_seeds = || seeds.iter().flat_map(|bufs| &bufs.all_seed);
+        let graph = SnapshotGraph::build(lockfile, all_seeds());
+        let reached = graph.reach_all(all_seeds());
+        let mut stamps = Stamps::default();
+        let importers = seeds
             .into_iter()
-            .map(|(imp_id, imp_snap)| {
-                let seed_ctx = ImporterSeedCtx {
-                    lockfile,
-                    policy,
-                    workspace_dirs: &workspace_dirs,
-                    lockfile_importer_dirs: &lockfile_importer_dirs,
-                    importer_id: &imp_id,
-                };
-                build_importer_scope(&seed_ctx, imp_snap)
+            .map(|bufs| {
+                let relevant = graph.reach_relevant(&bufs.all_seed, &mut stamps);
+                finish_importer_scope(lockfile, bufs, relevant)
             })
             .collect();
-        Self { workspace_dirs, importers, snapshots_by_base }
+        let snapshots_by_base = index_local_snapshots(lockfile);
+        Self { workspace_dirs, importers, reached, snapshots_by_base }
     }
+}
+
+fn seed_active_importers(
+    lockfile: &Lockfile,
+    policy: &LocalResolutionPolicy,
+    workspace_dirs: &HashSet<String>,
+) -> Vec<ImporterSeedBuffers> {
+    let lockfile_importer_dirs = collect_lockfile_importer_dirs(lockfile);
+    active_importers(lockfile, policy, workspace_dirs)
+        .into_iter()
+        .map(|(imp_id, imp_snap)| {
+            let seed_ctx = ImporterSeedCtx {
+                lockfile,
+                policy,
+                workspace_dirs,
+                lockfile_importer_dirs: &lockfile_importer_dirs,
+                importer_id: &imp_id,
+            };
+            seed_importer(&seed_ctx, imp_snap)
+        })
+        .collect()
 }
 
 pub(super) fn is_snapshot_backed_by_local_resolution(
@@ -171,46 +202,6 @@ fn active_importers<'a>(
         }
     }
     out
-}
-
-pub(super) fn walk_full_snapshot_closure(
-    lockfile: &Lockfile,
-    seed: Vec<PkgNameVerPeer>,
-    reachable_packages: &mut HashSet<PkgNameVerPeer>,
-) -> HashSet<PkgNameVerPeer> {
-    let mut visited: HashSet<PkgNameVerPeer> = seed.iter().cloned().collect();
-    let Some(snapshots) = lockfile.snapshots.as_ref() else {
-        return visited;
-    };
-    let mut queue = seed;
-    while let Some(snap_key) = queue.pop() {
-        let Some(snapshot) = snapshots.get(&snap_key) else {
-            continue;
-        };
-        enqueue_snapshot_children(snapshot, reachable_packages, &mut visited, &mut queue);
-    }
-    visited
-}
-
-fn enqueue_snapshot_children(
-    snapshot: &SnapshotEntry,
-    reachable_packages: &mut HashSet<PkgNameVerPeer>,
-    visited: &mut HashSet<PkgNameVerPeer>,
-    queue: &mut Vec<PkgNameVerPeer>,
-) {
-    let all_deps = snapshot.dependencies
-        .iter()
-        .flatten()
-        .chain(snapshot.optional_dependencies.iter().flatten());
-    for (alias, dep_ref) in all_deps {
-        let Some(child_key) = dep_ref.resolve(alias) else {
-            continue;
-        };
-        reachable_packages.insert(child_key.without_peer());
-        if visited.insert(child_key.clone()) {
-            queue.push(child_key);
-        }
-    }
 }
 
 pub(super) fn expand_local_snapshot_closure(

@@ -753,3 +753,16 @@ fn a_local_peer_declaration_authorizes_only_within_its_importer() {
         assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{app_b}: {err:?}");
     }
 }
+
+#[test]
+fn a_local_child_deep_under_registry_packages_is_checked_for_each_importer() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\nimporters:\n  app:\n    dependencies:\n      top:\n        specifier: 1.0.0\n        version: 1.0.0\n  owner:\n    dependencies:\n      helper:\n        specifier: file:../outside\n        version: file:../outside\npackages:\n  top@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n  mid@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n  helper@file:../outside:\n    resolution: {type: directory, directory: ../outside}\nsnapshots:\n  top@1.0.0:\n    dependencies:\n      mid: 1.0.0\n  mid@1.0.0:\n    dependencies:\n      helper: file:../outside\n  helper@file:../outside: {}\n",
+    );
+    let both = ["app".to_string(), "owner".to_string()];
+    for policy in [None, Some(LocalResolutionPolicy::default().with_selected_importer_ids(both))] {
+        let err = crate::verify_lockfile_local_resolutions(&lockfile, policy)
+            .expect_err("a registry package two levels below an importer reaches a local package");
+        assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{err:?}");
+    }
+}

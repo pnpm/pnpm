@@ -96,17 +96,12 @@ fn collect_local_resolution_violations(
     }
     let roots = AuthorizedLocalRoots::collect(lockfile, policy);
     let mut raw_violations = Vec::new();
-    let (reachable_packages, authorized_packages, authorized_git_packages) =
+    let (authorized_packages, authorized_git_packages) =
         scan_all_scopes(lockfile, policy, &roots, &mut raw_violations);
     let selected_snapshots: Option<HashSet<&PkgNameVerPeer>> = policy.scope
         .selected_importer_ids
         .as_ref()
-        .map(|_| {
-            roots.importers
-                .iter()
-                .flat_map(|imp| imp.reachable_snapshots.iter())
-                .collect()
-        });
+        .map(|_| roots.reached.snapshots.iter().collect());
     let pkg_scan = PackageEntryScan {
         lockfile,
         policy,
@@ -115,7 +110,7 @@ fn collect_local_resolution_violations(
         authorized_git_packages: &authorized_git_packages,
         selection: selected_snapshots
             .as_ref()
-            .map(|snapshots| ImporterSelection { packages: &reachable_packages, snapshots }),
+            .map(|snapshots| ImporterSelection { packages: &roots.reached.packages, snapshots }),
         importers: &roots.importers,
         peer_indexes: PeerIndexes::default(),
     };
@@ -128,14 +123,11 @@ fn scan_all_scopes(
     policy: &LocalResolutionPolicy,
     roots: &AuthorizedLocalRoots<'_>,
     raw_violations: &mut Vec<ResolutionPolicyViolation>,
-) -> (HashSet<PkgNameVerPeer>, HashSet<PkgNameVerPeer>, HashSet<PkgNameVerPeer>) {
-    let mut visited_snapshots = HashSet::new();
-    let mut reachable_packages = HashSet::new();
+) -> (HashSet<PkgNameVerPeer>, HashSet<PkgNameVerPeer>) {
     let mut authorized_packages = HashSet::new();
     let mut authorized_git_packages = HashSet::new();
     for imp in &roots.importers {
         raw_violations.extend(imp.violations.iter().cloned());
-        reachable_packages.extend(imp.reachable_packages.iter().cloned());
         authorized_packages.extend(imp.local_packages.iter().cloned());
         authorized_git_packages.extend(imp.local_git_packages.iter().cloned());
         scan_importer_scope(
@@ -143,18 +135,13 @@ fn scan_all_scopes(
             policy,
             roots,
             imp,
-            (
-                &mut visited_snapshots,
-                &mut authorized_packages,
-                &mut authorized_git_packages,
-                raw_violations,
-            ),
+            (&mut authorized_packages, &mut authorized_git_packages, raw_violations),
         );
     }
     if policy.scope.selected_importer_ids.is_none() {
-        scan_unreachable_snapshots(lockfile, policy, roots, &visited_snapshots, raw_violations);
+        scan_unreachable_snapshots(lockfile, policy, roots, raw_violations);
     }
-    (reachable_packages, authorized_packages, authorized_git_packages)
+    (authorized_packages, authorized_git_packages)
 }
 
 pub(super) fn escapes_above_depth(rel_path: &str, workspace_depth: usize) -> bool {

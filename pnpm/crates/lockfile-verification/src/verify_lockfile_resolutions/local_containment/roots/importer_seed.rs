@@ -35,7 +35,7 @@ use super::{
     anchor_importer_link,
     expand_local_snapshot_closure,
     is_snapshot_backed_by_local_resolution,
-    walk_full_snapshot_closure,
+    reach::Reached,
 };
 
 pub(super) struct ImporterSeedCtx<'a> {
@@ -50,22 +50,23 @@ pub(super) struct ImporterSeedCtx<'a> {
     pub(super) importer_id: &'a str,
 }
 
+/// What an importer's own dependencies contribute, before its snapshot
+/// closure is walked.
 #[derive(Default)]
-struct ImporterSeedBuffers {
-    all_seed: Vec<PkgNameVerPeer>,
+pub(super) struct ImporterSeedBuffers {
+    pub(super) all_seed: Vec<PkgNameVerPeer>,
     local_seed: Vec<PkgNameVerPeer>,
     local_git_seed: Vec<PkgNameVerPeer>,
-    reachable_packages: HashSet<PkgNameVerPeer>,
     local_packages: HashSet<PkgNameVerPeer>,
     local_git_packages: HashSet<PkgNameVerPeer>,
     links_by_alias: HashSet<(String, String)>,
     violations: Vec<ResolutionPolicyViolation>,
 }
 
-pub(super) fn build_importer_scope(
+pub(super) fn seed_importer(
     ctx: &ImporterSeedCtx<'_>,
     importer: &ProjectSnapshot,
-) -> ImporterScope {
+) -> ImporterSeedBuffers {
     let mut bufs = ImporterSeedBuffers::default();
     let all_deps = importer.dependencies
         .iter()
@@ -75,17 +76,23 @@ pub(super) fn build_importer_scope(
     for (alias, dep_spec) in all_deps {
         seed_single_importer_dep(ctx, alias, dep_spec, &mut bufs);
     }
-    let reachable_snapshots =
-        walk_full_snapshot_closure(ctx.lockfile, bufs.all_seed, &mut bufs.reachable_packages);
+    bufs
+}
+
+pub(super) fn finish_importer_scope(
+    lockfile: &Lockfile,
+    mut bufs: ImporterSeedBuffers,
+    relevant: Reached,
+) -> ImporterScope {
     expand_local_snapshot_closure(
-        ctx.lockfile,
+        lockfile,
         bufs.local_seed,
         bufs.local_git_seed,
         (&mut bufs.local_packages, &mut bufs.local_git_packages, &mut bufs.links_by_alias),
     );
     ImporterScope {
-        reachable_snapshots,
-        reachable_packages: bufs.reachable_packages,
+        relevant_snapshots: relevant.snapshots,
+        relevant_packages: relevant.packages,
         local_packages: bufs.local_packages,
         local_git_packages: bufs.local_git_packages,
         links_by_alias: bufs.links_by_alias,
@@ -119,7 +126,6 @@ fn seed_single_importer_dep(
         return;
     };
     let base_key = full_key.without_peer();
-    bufs.reachable_packages.insert(base_key.clone());
     bufs.all_seed.push(full_key.clone());
     classify_importer_resolved_package(
         ctx,
