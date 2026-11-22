@@ -23,10 +23,10 @@ use miette::{
 };
 use std::str::FromStr;
 
-/// Check that `lockfile` locks every [local package](local_packages) with an
-/// edge for each dependency Cargo records for it, to a version the
-/// requirement accepts, and with no edge that none of those dependencies
-/// accounts for.
+/// Check that `lockfile` locks every workspace member and every path
+/// dependency they reach, with an edge for each dependency Cargo records for
+/// it, to a version the requirement accepts, and with no edge that none of
+/// those dependencies accounts for.
 ///
 /// `metadata` is the output of `cargo metadata --no-deps`, with the packages
 /// of path dependencies outside the workspace appended. A path dependency
