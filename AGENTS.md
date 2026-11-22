@@ -6,7 +6,7 @@ The repository contains these products:
 
 - The **Rust pnpm CLI (pacquet)** — `pnpm/`, the newest pnpm major. See [`pnpm/AGENTS.md`](./pnpm/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
 - The **Rust pnpr registry server** — `pnpr/`. See [`pnpr/AGENTS.md`](./pnpr/AGENTS.md) for pnpr-specific rules; it adds to (and never contradicts) the conventions below.
-- The **get-pnpm installer** — `pnpm/npm/get-pnpm`, the `get-pnpm` npm package. The pnpm v12 npm package bundles it to download its native binary. It is released apart from the CLIs.
+- The **get-pnpm installer** — `pnpm/npm/get-pnpm`, the `get-pnpm` npm package. The pnpm npm package bundles it to download its native binary. It is released apart from the CLIs.
 
 Sections below marked "(TypeScript only)" apply to the TypeScript and JavaScript code, such as get-pnpm and the scripts under `.github/scripts/`; they do not apply to Rust code in `pnpm/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.
 
@@ -237,7 +237,7 @@ The npm wrapper packages of the Rust products are workspace packages with commit
 - `pacquet` — the Rust pnpm CLI (published to npm as `pnpm` and `@pnpm/exe`; named `pacquet` in-repo). `@pnpm/napi` is a `versioning.fixed` group with it and bumps with it automatically.
 - `@pnpm/napi` — the Node.js addon bindings for the Rust engine.
 - `@pnpm/pnpr` — the pnpr registry server (published as `@pnpm/pnpr` and its platform packages, plus the `ghcr.io/pnpm/pnpr` Docker image).
-- `get-pnpm` — the installer package. A change to it that the pnpm v12 npm package ships needs a `pacquet` entry as well, since the wrapper bundles get-pnpm's source.
+- `get-pnpm` — the installer package. A change to it that the pnpm npm package ships needs a `pacquet` entry as well, since the wrapper bundles get-pnpm's source.
 
 pnpm and its NAPI addon release as stable versions on the main lane. pnpr releases on the `alpha` prerelease lane configured in `pnpm-workspace.yaml`; `pnpm lane main --filter …` graduates it to a stable version.
 
