@@ -24,6 +24,7 @@ use std::{
             Ordering,
         },
     },
+    time::Duration,
 };
 
 /// Cached choice of writer. `UNDECIDED` until the first successful
@@ -161,6 +162,39 @@ pub(super) fn is_link_kind_usable(link: &Path, target: &Path) -> bool {
         Ok(Some(ShareLinks::Unusable(_))) => open_through(link).is_ok(),
         Err(_) => false,
     }
+}
+
+/// How long [`read_settled_link`] waits for an empty directory to become a
+/// link. An empty directory that is still not a link afterwards is replaced.
+const HALF_CREATED_LINK_BUDGET: Duration = Duration::from_secs(1);
+
+/// [`super::read_symlink_dir`], waiting out a symlink another process is
+/// still creating.
+///
+/// `CreateSymbolicLinkW` creates an empty directory and then makes it a
+/// reparse point, so for a moment a concurrent reader finds an empty
+/// directory that is not a link. Moving that aside as an occupant leaves the
+/// link the other process completes behind as `.ignored_<name>`.
+pub(super) fn read_settled_link(link: &Path) -> io::Result<PathBuf> {
+    const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
+    crate::retry::retry_fs_operation_for(
+        || super::read_symlink_dir(link),
+        |error| error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT) && may_become_link(link),
+        HALF_CREATED_LINK_BUDGET,
+    )
+}
+
+/// Whether `path` may be a link that is still being created: an empty
+/// directory, one its creator holds open so it cannot be listed, or one that
+/// has become a link since a read found it was not one. A link lists its
+/// target's entries, so the tag is read after the listing.
+fn may_become_link(path: &Path) -> bool {
+    let may_be_half_created = fs::read_dir(path)
+        .map_or_else(
+            |error| crate::retry::is_transient_file_lock_error(&error),
+            |mut entries| entries.next().is_none(),
+        );
+    may_be_half_created || reparse_tag(path).is_some()
 }
 
 pub(super) const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
