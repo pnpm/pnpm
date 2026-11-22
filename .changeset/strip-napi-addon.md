@@ -2,4 +2,4 @@
 "@pnpm/napi": patch
 ---
 
-The `@pnpm/napi` addon no longer includes a symbol table. It is 9 to 12 MB smaller on Linux and macOS.
+The `@pnpm/napi` addon is 9 to 12 MB smaller on Linux and macOS. It no longer includes the symbol names that only debuggers use.
