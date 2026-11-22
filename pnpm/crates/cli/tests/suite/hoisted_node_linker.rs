@@ -1289,6 +1289,8 @@ mod local_symlinks;
 
 mod modules_dir;
 
+mod nested_projects;
+
 mod peer_bindings;
 
 mod repeat_install;

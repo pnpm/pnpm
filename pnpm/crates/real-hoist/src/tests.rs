@@ -194,6 +194,8 @@ mod peer_bindings;
 
 mod peer_layout;
 
+mod nested_projects;
+
 mod generated;
 
 mod determinism;

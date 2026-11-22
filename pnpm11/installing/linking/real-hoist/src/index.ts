@@ -152,9 +152,16 @@ export function hoist (
   }
   const externalDependencies = toExternalDependencySet(opts?.externalDependencies)
   const rootNode = buildRootHoisterTree(lockfile, ctx, externalDependencies)
+  const projects = new Map<string, HoisterTree>()
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
     if (importerId === '.') continue
-    rootNode.dependencies.add(buildImporterHoisterTree(importerId, importer, ctx))
+    projects.set(importerId, buildImporterHoisterTree(importerId, importer, ctx))
+  }
+  // A project is a child of the project whose directory holds it: Node.js
+  // walks up through the enclosing project's node_modules before the root's.
+  for (const [importerId, project] of projects) {
+    const enclosingProject = findEnclosingProject(importerId, projects) ?? rootNode
+    enclosingProject.dependencies.add(project)
   }
 
   const hoistingLimits = getHoistingLimits(lockfile, opts?.hoistingLimits)
@@ -162,7 +169,44 @@ export function hoist (
   if (externalDependencies) {
     filterExternalDependencies(hoisterResult, externalDependencies)
   }
+  liftNestedProjects(hoisterResult)
   return hoisterResult
+}
+
+/** The nearest project whose directory holds the directory of `importerId`. */
+function findEnclosingProject (importerId: string, projects: Map<string, HoisterTree>): HoisterTree | undefined {
+  let separator = importerId.lastIndexOf('/')
+  while (separator !== -1) {
+    const enclosingProject = projects.get(importerId.slice(0, separator))
+    if (enclosingProject != null) return enclosingProject
+    separator = importerId.lastIndexOf('/', separator - 1)
+  }
+  return undefined
+}
+
+/**
+ * Makes every project a child of the root, which is where the callers of
+ * `hoist` look for them. The hoister leaves a project under the project
+ * whose directory holds it.
+ */
+function liftNestedProjects (root: HoisterResult): void {
+  const pending = projectChildren(root)
+  while (pending.length > 0) {
+    const project = pending.pop()!
+    for (const nestedProject of projectChildren(project)) {
+      project.dependencies.delete(nestedProject)
+      root.dependencies.add(nestedProject)
+      pending.push(nestedProject)
+    }
+  }
+}
+
+function projectChildren (node: HoisterResult): HoisterResult[] {
+  return [...node.dependencies].filter(isProject)
+}
+
+function isProject (node: HoisterResult): boolean {
+  return [...node.references].some((reference) => reference.startsWith('workspace:'))
 }
 
 function toExternalDependencySet (

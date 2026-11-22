@@ -368,6 +368,40 @@ test('bins of a nested package are removed when the package is deduped into the 
   expect(readBinEntries('.')).not.toHaveLength(0)
 })
 
+test('a project nested in another project keeps the dependency that the enclosing project shadows', async () => {
+  const dependOn = (name: string, version: string) => ({
+    name,
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/hello-world-js-bin': version },
+  })
+  const projects = [
+    { location: 'enclosing', package: dependOn('enclosing', '0.0.0') },
+    { location: 'enclosing/nested', package: dependOn('nested', '1.0.0') },
+    { location: 'other-1', package: dependOn('other-1', '1.0.0') },
+    { location: 'other-2', package: dependOn('other-2', '1.0.0') },
+  ]
+  preparePackages(projects)
+  await mutateModules(projects.map(({ location }) => ({
+    mutation: 'install' as const,
+    rootDir: path.resolve(location) as ProjectRootDir,
+  })), testDefaults({
+    allProjects: projects.map(({ location, package: manifest }) => ({
+      buildIndex: 0,
+      manifest,
+      rootDir: path.resolve(location) as ProjectRootDir,
+    })),
+    nodeLinker: 'hoisted',
+  }))
+
+  const installedVersion = (modulesDir: string) =>
+    loadJsonFileSync<{ version: string }>(path.join(modulesDir, '@pnpm.e2e/hello-world-js-bin/package.json')).version
+  expect(installedVersion('node_modules')).toBe('1.0.0')
+  expect(installedVersion('enclosing/node_modules')).toBe('0.0.0')
+  // Node.js finds enclosing/node_modules before the root's from the nested project.
+  expect(installedVersion('enclosing/nested/node_modules')).toBe('1.0.0')
+  expect(fs.readdirSync('enclosing/nested/node_modules/.bin')).toContain('hello-world-js-bin')
+})
+
 test('a project dependency that is not hoisted goes in the project modules directory set by modulesDir', async () => {
   const project1Manifest = {
     name: 'project-1',

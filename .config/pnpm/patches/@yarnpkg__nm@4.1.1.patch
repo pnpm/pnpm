@@ -1,5 +1,5 @@
 diff --git a/lib/hoist.js b/lib/hoist.js
-index 3546ae66deafeca55614dc19a22a61a1cf860af8..a59f882bbba4f8a8de6b072129db26f62a7f3cb9 100644
+index 3546ae66deafeca55614dc19a22a61a1cf860af8..b4469ec7297674ff82468c62e890700c46eb8682 100644
 --- a/lib/hoist.js
 +++ b/lib/hoist.js
 @@ -327,6 +327,59 @@ const hasUnhoistedDependencies = (node) => {
@@ -80,3 +80,32 @@ index 3546ae66deafeca55614dc19a22a61a1cf860af8..a59f882bbba4f8a8de6b072129db26f6
          return { isHoistable: Hoistable.DEPENDS, dependsOn, reason };
      }
      else {
+@@ -452,6 +505,10 @@ const hoistGraph = (tree, rootNodePath, rootNodePathLocators, usedDependencies,
+     const seenNodes = new Set();
+     let anotherRoundNeeded = false;
+     let isGraphChanged = false;
++    // Only the top root takes what a project nested in another project depends on:
++    // the enclosing project's node_modules is not on the path of the nested project's scripts
++    const isTopRoot = rootNodePath.length === 1;
++    const isClosed = (node) => node.isHoistBorder || (!isTopRoot && node.dependencyKind === HoisterDependencyKind.WORKSPACE);
+     const hoistNodeDependencies = (nodePath, locatorPath, aliasedLocatorPath, parentNode, newNodes) => {
+         if (seenNodes.has(parentNode))
+             return;
+@@ -535,7 +592,7 @@ const hoistGraph = (tree, rootNodePath, rootNodePathLocators, usedDependencies,
+                 const hoistableIdent = hoistIdents.get(node.name);
+                 if ((hoistableIdent === node.ident || !parentNode.reasons.has(node.name)) && hoistInfo.isHoistable !== Hoistable.YES)
+                     parentNode.reasons.set(node.name, hoistInfo.reason);
+-                if (!node.isHoistBorder && nextAliasedLocatorPath.indexOf(getAliasedLocator(node)) < 0) {
++                if (!isClosed(node) && nextAliasedLocatorPath.indexOf(getAliasedLocator(node)) < 0) {
+                     seenNodes.add(parentNode);
+                     const decoupledNode = decoupleGraphNode(parentNode, node);
+                     hoistNodeDependencies([...nodePath, parentNode], nextLocatorPath, nextAliasedLocatorPath, decoupledNode, nextNewNodes);
+@@ -551,7 +608,7 @@ const hoistGraph = (tree, rootNodePath, rootNodePathLocators, usedDependencies,
+         newNodes = nextNewNodes;
+         nextNewNodes = new Set();
+         for (const dep of newNodes) {
+-            if (dep.locator === rootNode.locator || dep.isHoistBorder)
++            if (dep.locator === rootNode.locator || isClosed(dep))
+                 continue;
+             const decoupledDependency = decoupleGraphNode(rootNode, dep);
+             hoistNodeDependencies([], Array.from(rootNodePathLocators), aliasedRootNodePathLocators, decoupledDependency, nextNewNodes);

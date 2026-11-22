@@ -300,7 +300,46 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
             .retain(|dep| !opts.external_dependencies.contains(&dep.name));
     }
 
+    lift_nested_projects(&result);
     Ok(result)
+}
+
+/// Make every project a child of the root, which is where the callers of
+/// [`hoist`] look for them. The hoister leaves a project under the project
+/// whose directory holds it (see [`build_tree`]).
+fn lift_nested_projects(root: &HoisterResult) {
+    let mut pending: Vec<Rc<HoisterResult>> = project_children(root);
+    while let Some(project) = pending.pop() {
+        let nested = project_children(&project);
+        project.dependencies
+            .borrow_mut()
+            .retain(|dep| !is_project(dep));
+        root.dependencies
+            .borrow_mut()
+            .extend(
+                nested
+                    .iter()
+                    .map(Rc::clone)
+                    .map(RcByPtr),
+            );
+        pending.extend(nested);
+    }
+}
+
+fn project_children(node: &HoisterResult) -> Vec<Rc<HoisterResult>> {
+    node.dependencies
+        .borrow()
+        .iter()
+        .filter(|dep| is_project(dep))
+        .map(|dep| Rc::clone(&dep.0))
+        .collect()
+}
+
+fn is_project(node: &HoisterResult) -> bool {
+    node.references
+        .borrow()
+        .iter()
+        .any(|reference| reference.starts_with("workspace:"))
 }
 
 /// The layout, and the input tree of the pass that gave it. See [`repair`]:
@@ -352,22 +391,34 @@ fn build_tree(
         root_children.insert(RcByPtr(external_placeholder(dep)));
     }
 
-    // Non-root importers (workspace projects) become children of
-    // the virtual `.` root, unconditionally, matching pnpm v11's
-    // `hoist()`, which attaches every importer regardless of any
-    // knob. The hoister sees the whole workspace as one tree, which
-    // is what enables cross-project dedupe of conflicting versions
-    // and gives the layout `node_modules/<dep>` →
-    // `<lockfile_dir>/<importer>/node_modules/<dep>` shape the
-    // hoisted linker expects. In pnpm, `hoist-workspace-packages`
-    // only controls whether the workspace *packages themselves* get
-    // name-links in the root's hoisted modules dir (v11's
-    // `hoistedWorkspacePackages` in the headless linker); it never
-    // decides tree membership.
+    // Non-root importers (workspace projects) join the tree
+    // unconditionally, matching pnpm v11's `hoist()`, which attaches
+    // every importer regardless of any knob. The hoister sees the whole
+    // workspace as one tree, which is what enables cross-project dedupe
+    // of conflicting versions and gives the layout `node_modules/<dep>` →
+    // `<lockfile_dir>/<importer>/node_modules/<dep>` shape the hoisted
+    // linker expects. In pnpm, `hoist-workspace-packages` only controls
+    // whether the workspace *packages themselves* get name-links in the
+    // root's hoisted modules dir (v11's `hoistedWorkspacePackages` in the
+    // headless linker); it never decides tree membership.
+    //
+    // A project is a child of the project whose directory holds it, and
+    // of the `.` root otherwise: Node.js walks up through the enclosing
+    // project's `node_modules` before it reaches the root's. The ids come
+    // sorted, so an enclosing project is in `projects` before the ones
+    // it holds.
+    let mut projects: HashMap<&str, Rc<HoisterTree>> = HashMap::new();
     for (importer_id, importer) in sorted_non_root_importers(lockfile) {
         let mut importer_children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
         collect_importer_deps(importer, lockfile, opts, &mut cache, &mut importer_children)?;
-        root_children.insert(RcByPtr(importer_node(importer_id, importer_children)));
+        let node = importer_node(importer_id, importer_children);
+        match enclosing_project(importer_id, &projects) {
+            Some(enclosing) => enclosing.dependencies
+                .borrow_mut()
+                .insert(RcByPtr(Rc::clone(&node))),
+            None => root_children.insert(RcByPtr(Rc::clone(&node))),
+        };
+        projects.insert(importer_id, node);
     }
 
     let root_node = Rc::new(HoisterTree {
@@ -396,6 +447,7 @@ use tree::{
     RegularPeers,
     TreeCache,
     collect_importer_deps,
+    enclosing_project,
     external_placeholder,
     importer_node,
     peers::BoundPeersByKey,
