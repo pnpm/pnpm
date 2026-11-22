@@ -61,6 +61,50 @@ fn private_hoist_default_pattern_hoists_transitives() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn root_direct_dependency_replaces_private_hoist() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let alias = "@pnpm.e2e/hello-world-js-bin";
+    let hidden = workspace.join("node_modules/.pnpm/node_modules").join(alias);
+    assert!(is_symlink_or_junction(&hidden).unwrap());
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+            (alias): "1.0.0",
+        }),
+    );
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(alias)
+            .join("package.json")
+            .is_file(),
+    );
+    assert_eq!(fs::symlink_metadata(hidden).unwrap_err().kind(), std::io::ErrorKind::NotFound);
+    drop((root, mock_instance));
+}
+
 /// Both patterns empty → no hoist symlinks anywhere. An empty pattern
 /// list compiles to a never-matches matcher, so the hoist pass still
 /// runs (the `is_some()` guard sees `Some([])`); it just produces no

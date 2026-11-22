@@ -18,19 +18,28 @@ pub(super) fn unlink_prior_workspace_hoists(
     inputs: &HoistedLinkerInputs<'_>,
 ) -> Result<(), HoistedLinkerError> {
     let modules_dir = &inputs.config.modules_dir;
-    crate::prune_stale_modules::prune_workspace_hoists(
-        &crate::prune_stale_modules::WorkspaceHoistDirs {
-            modules_dirs: &crate::ImporterModulesDirs::from_config(
-                inputs.config,
-                inputs.projects.walker_lockfile_dir,
-            ),
-            private: modules_dir,
-            public: modules_dir,
-        },
-        inputs.prior.current_lockfile.unwrap_or(inputs.graph.lockfile),
-        inputs.prior.hoisted_dependencies,
-        None,
-    )
+    let current = inputs.prior.current_lockfile.unwrap_or(inputs.graph.lockfile);
+    let workspace_hoists = inputs.prior.hoisted_dependencies
+        .into_iter()
+        .flatten()
+        .filter(|(owner, _)| {
+            !owner
+                .parse()
+                .is_ok_and(|key| {
+                    current.packages
+                        .as_ref()
+                        .is_some_and(|packages| packages.contains_key(&key))
+                })
+        });
+    crate::prune_stale_modules::HoistDirs {
+        modules_dirs: &crate::ImporterModulesDirs::from_config(
+            inputs.config,
+            inputs.projects.walker_lockfile_dir,
+        ),
+        private: modules_dir,
+        public: modules_dir,
+    }
+    .prune_stale_aliases(workspace_hoists, None)
     .map_err(HoistedLinkerError::PruneStaleLinks)
 }
 

@@ -2,8 +2,8 @@
 //! linking: the port of the removal half of pnpm's `modules-cleaner`
 //! `prune`. Removes direct-dependency links (and their bin shims) the
 //! wanted lockfile no longer records (or, under `dedupeDirectDeps`, that
-//! the workspace root now provides) unlinks hoisted aliases whose
-//! owner snapshot disappeared, and emits the `pnpm:root` `removed` and
+//! the workspace root now provides) unlinks hoisted aliases absent
+//! from the wanted hoist plan, and emits the `pnpm:root` `removed` and
 //! `pnpm:stats` `removed` events pnpm emits from the same spot. Runs
 //! before the link passes so a follow-up hoist can claim the vacated
 //! slots; over-removal of a still-wanted entry is self-healing because
@@ -118,27 +118,19 @@ impl PruneStaleModules<'_> {
     }
 
     fn prune_orphan_entries(&self) -> Result<u64, PruneDirectDepsError> {
-        let removed = prune_orphan_snapshots(
-            self.config,
-            self.workspace_root,
-            self.wanted_lockfile,
-            self.current_lockfile,
-            self.prior_hoisted_dependencies,
-        )?;
-        prune_workspace_hoists(
-            &WorkspaceHoistDirs {
-                modules_dirs: &crate::ImporterModulesDirs::from_config(
-                    self.config,
-                    self.workspace_root,
-                ),
-                private: &self.config.install_state_dir.join("node_modules"),
-                public: &self.config.modules_dir,
-            },
-            self.current_lockfile,
-            self.prior_hoisted_dependencies,
+        let dirs = HoistDirs {
+            modules_dirs: &crate::ImporterModulesDirs::from_config(
+                self.config,
+                self.workspace_root,
+            ),
+            private: &self.config.install_state_dir.join("node_modules"),
+            public: &self.config.modules_dir,
+        };
+        dirs.prune_stale_aliases(
+            self.prior_hoisted_dependencies.into_iter().flatten(),
             self.wanted_hoisted_dependencies,
         )?;
-        Ok(removed)
+        Ok(orphan_package_count(self.wanted_lockfile, self.current_lockfile))
     }
 }
 
@@ -287,48 +279,34 @@ impl<'a> LinkedDirectDeps<'a> {
     }
 }
 
-/// Where [`prune_workspace_hoists`] looks for each kind of workspace
-/// hoist link. Both are confined by [`crate::ImporterModulesDirs::confined`].
-pub(crate) struct WorkspaceHoistDirs<'a> {
+/// The directories that hold an install's private and public hoist links.
+pub(crate) struct HoistDirs<'a> {
     pub modules_dirs: &'a crate::ImporterModulesDirs,
     pub private: &'a Path,
     pub public: &'a Path,
 }
 
-/// Unlink the workspace-project hoists `prior_hoisted_dependencies`
-/// records that `wanted_hoisted_dependencies` does not. Entries keyed by
-/// a package of `current_lockfile` are regular hoists and stay.
-pub(crate) fn prune_workspace_hoists(
-    dirs: &WorkspaceHoistDirs<'_>,
-    current_lockfile: &Lockfile,
-    prior_hoisted_dependencies: Option<&HoistedDependencies>,
-    wanted_hoisted_dependencies: Option<&HoistedDependencies>,
-) -> Result<(), PruneDirectDepsError> {
-    let Some(prior) = prior_hoisted_dependencies else { return Ok(()) };
-    let private_dir = dirs.modules_dirs.confined(dirs.private);
-    let public_dir = dirs.modules_dirs.confined(dirs.public);
-    for (project_id, aliases) in prior {
-        if project_id
-            .parse()
-            .is_ok_and(|key| {
-                current_lockfile.packages
-                    .as_ref()
-                    .is_some_and(|packages| packages.contains_key(&key))
-            })
-        {
-            continue;
+impl HoistDirs<'_> {
+    pub(crate) fn prune_stale_aliases<'a>(
+        &self,
+        prior: impl Iterator<Item = (&'a String, &'a indexmap::IndexMap<String, HoistKind>)>,
+        wanted: Option<&HoistedDependencies>,
+    ) -> Result<(), PruneDirectDepsError> {
+        let private_dir = self.modules_dirs.confined(self.private);
+        let public_dir = self.modules_dirs.confined(self.public);
+        for (owner, aliases) in prior {
+            prune_owner_aliases(
+                aliases,
+                wanted.and_then(|deps| deps.get(owner)),
+                private_dir.as_deref(),
+                public_dir.as_deref(),
+            )?;
         }
-        prune_workspace_project_hoists(
-            aliases,
-            wanted_hoisted_dependencies.and_then(|wanted| wanted.get(project_id)),
-            private_dir.as_deref(),
-            public_dir.as_deref(),
-        )?;
+        Ok(())
     }
-    Ok(())
 }
 
-fn prune_workspace_project_hoists(
+fn prune_owner_aliases(
     prior: &indexmap::IndexMap<String, HoistKind>,
     wanted: Option<&indexmap::IndexMap<String, HoistKind>>,
     private_dir: Option<&Path>,
@@ -409,64 +387,16 @@ fn is_still_wanted(
         .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version)
 }
 
-/// Diff the snapshot key sets, unlink the hoisted aliases the orphans
-/// owned, and return the unique orphan-package count.
-fn prune_orphan_snapshots(
-    config: &Config,
-    workspace_root: &Path,
-    wanted_lockfile: &Lockfile,
-    current_lockfile: &Lockfile,
-    prior_hoisted_dependencies: Option<&HoistedDependencies>,
-) -> Result<u64, PruneDirectDepsError> {
+fn orphan_package_count(wanted_lockfile: &Lockfile, current_lockfile: &Lockfile) -> u64 {
     let empty = HashMap::new();
     let current_snapshots = current_lockfile.snapshots.as_ref().unwrap_or(&empty);
     let wanted_snapshots = wanted_lockfile.snapshots.as_ref().unwrap_or(&empty);
-    let orphan_keys: Vec<_> = current_snapshots
+    current_snapshots
         .keys()
         .filter(|key| !wanted_snapshots.contains_key(*key))
-        .collect();
-
-    let orphan_pkg_ids: HashSet<String> = orphan_keys
-        .iter()
-        .map(|key| format!("{}@{}", key.name, key.suffix.version()))
-        .collect();
-    let removed = orphan_pkg_ids.len() as u64;
-
-    let Some(prior_hoisted) = prior_hoisted_dependencies else {
-        return Ok(removed);
-    };
-    // Hoist links live in exactly two dirs; resolve + confine each once.
-    let private_dir = config.install_state_dir.join("node_modules");
-    let modules_dirs = crate::ImporterModulesDirs::from_config(config, workspace_root);
-    let private_dir = modules_dirs.confined(&private_dir);
-    let public_dir = modules_dirs.confined(&config.modules_dir);
-    for key in orphan_keys {
-        let Some(aliases) = prior_hoisted.get(&key.to_string()) else {
-            continue;
-        };
-        unlink_hoisted_aliases(aliases, private_dir.as_deref(), public_dir.as_deref())?;
-    }
-    Ok(removed)
-}
-
-/// Unlink one orphan's hoisted aliases from whichever of the two hoist
-/// dirs owns them. No `pnpm:root` event for hoist unlinks, pnpm
-/// removes these with `muteLogs: true`.
-fn unlink_hoisted_aliases(
-    aliases: &indexmap::IndexMap<String, HoistKind>,
-    private_dir: Option<&Path>,
-    public_dir: Option<&Path>,
-) -> Result<(), PruneDirectDepsError> {
-    for (alias, kind) in aliases {
-        let target_dir = match kind {
-            HoistKind::Private => private_dir,
-            HoistKind::Public => public_dir,
-        };
-        if let Some(target_dir) = target_dir {
-            remove_direct_dep_link(target_dir, alias)?;
-        }
-    }
-    Ok(())
+        .map(|key| (&key.name, key.suffix.version()))
+        .collect::<HashSet<_>>()
+        .len() as u64
 }
 
 /// The `(alias, spec, group)` view of an importer snapshot, in the
