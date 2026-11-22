@@ -433,3 +433,15 @@ fn rejects_an_edge_to_an_older_version_of_a_path_dependency() {
         "Cargo.lock locks foo 1.0.0 for app, which no dependency of app accounts for",
     );
 }
+
+#[test]
+fn rejects_a_path_package_outside_the_declared_requirement() {
+    let metadata = TWO_LOCAL_FOO_METADATA.replace(
+        r#""req": "*", "rename": "foo2""#,
+        r#""req": "^1", "rename": "foo2""#,
+    );
+
+    let error = resolve_lockfile(&metadata, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap_err();
+
+    assert_eq!(error.to_string(), "path dependency foo ^1 does not match the package at its path");
+}

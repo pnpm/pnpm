@@ -324,13 +324,23 @@ fn path_target<'a>(
 
 /// The requirement Cargo locks a dependency by: for a path dependency, the
 /// version of the package it points to, which is the only one it accepts.
-fn locked_requirement(metadata: &CargoMetadata, dependency: &MetadataDependency) -> VersionReq {
-    match dependency.origin.source {
-        None => path_target(metadata, dependency)
-            .map(|package| exact_requirement(&package.version))
-            .unwrap_or_else(|| dependency.req.clone()),
-        Some(_) => dependency.req.clone(),
+/// Fails when that package's version is one the declared requirement
+/// rejects, as Cargo does.
+fn locked_requirement(
+    metadata: &CargoMetadata,
+    dependency: &MetadataDependency,
+) -> Result<VersionReq> {
+    let (None, Some(package)) = (&dependency.origin.source, path_target(metadata, dependency))
+    else {
+        return Ok(dependency.req.clone());
+    };
+    if !accepts_declared_version(&dependency.req, None, &package.version) {
+        let (name, requirement) = (&dependency.name, &dependency.req);
+        return Err(miette::miette!(
+            "path dependency {name} {requirement} does not match the package at its path"
+        ));
     }
+    Ok(exact_requirement(&package.version))
 }
 
 fn exact_requirement(version: &Version) -> VersionReq {
@@ -353,19 +363,23 @@ fn activated_dependencies(
 ) -> Result<Vec<RegistryDependency>> {
     let dependencies = package.dependencies
         .iter()
-        .map(|dependency| RegistryDependency {
-            alias: dependency.rename.clone().unwrap_or_else(|| dependency.name.clone()),
-            name: dependency.name.clone(),
-            requirement: locked_requirement(metadata, dependency),
-            kind: dependency.kind,
-            registry: dependency.origin.source.clone(),
-            optional: dependency.optional,
-            default_features: dependency.uses_default_features,
-            features: dependency.features
-                .iter()
-                .cloned()
-                .collect(),
+        .map(|dependency| {
+            Ok(RegistryDependency {
+                alias: dependency.rename
+                    .clone()
+                    .unwrap_or_else(|| dependency.name.clone()),
+                name: dependency.name.clone(),
+                requirement: locked_requirement(metadata, dependency)?,
+                kind: dependency.kind,
+                registry: dependency.origin.source.clone(),
+                optional: dependency.optional,
+                default_features: dependency.uses_default_features,
+                features: dependency.features
+                    .iter()
+                    .cloned()
+                    .collect(),
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>>>()?;
     dependencies_from_parts(&dependencies, &package.features, selection, options)
 }
