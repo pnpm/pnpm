@@ -170,12 +170,11 @@ const HALF_CREATED_LINK_BUDGET: Duration = Duration::from_secs(1);
 
 /// [`super::read_symlink_dir`], waiting out a symlink another process is
 /// still creating.
-///
-/// `CreateSymbolicLinkW` creates an empty directory and then makes it a
-/// reparse point, so for a moment a concurrent reader finds an empty
-/// directory that is not a link. Moving that aside as an occupant leaves the
-/// link the other process completes behind as `.ignored_<name>`.
 pub(super) fn read_settled_link(link: &Path) -> io::Result<PathBuf> {
+    // `CreateSymbolicLinkW` creates an empty directory and then makes it a
+    // reparse point, so for a moment a concurrent reader finds an empty
+    // directory that is not a link. Moving that aside as an occupant leaves
+    // the link the other process completes behind as `.ignored_<name>`.
     const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
     crate::retry::retry_fs_operation_for(
         || super::read_symlink_dir(link),

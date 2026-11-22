@@ -461,7 +461,9 @@ fn windows_concurrent_symlink_creation_leaves_no_ignored_entry() {
     let target = root.path().join("target");
     fs::create_dir_all(&target).expect("create target");
     let probe = root.path().join("probe");
-    if std::os::windows::fs::symlink_dir(&target, &probe).is_err() {
+    if let Err(error) = std::os::windows::fs::symlink_dir(&target, &probe) {
+        const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+        assert_eq!(error.raw_os_error(), Some(ERROR_PRIVILEGE_NOT_HELD), "probe symlink: {error}");
         eprintln!("skipping: this process may not create symlinks");
         return;
     }
@@ -483,7 +485,6 @@ fn windows_concurrent_symlink_creation_leaves_no_ignored_entry() {
     assert!(ignored.is_empty(), "links moved aside: {ignored:?}");
 }
 
-/// Have several threads create a true symlink at `link` at once.
 #[cfg(windows)]
 fn race_to_create_symlink(
     target: &std::path::Path,
