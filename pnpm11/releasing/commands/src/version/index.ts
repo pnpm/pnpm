@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { readProjectManifest as readInstallableProjectManifest } from '@pnpm/cli.utils'
+import { readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, createProjectModulesDirResolver, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
@@ -18,7 +18,7 @@ import {
   toProjectDir,
 } from '@pnpm/releasing.versioning'
 import type { Project, ProjectsGraph } from '@pnpm/types'
-import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { readExactProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { inc, valid } from 'semver'
@@ -323,7 +323,7 @@ interface BumpPackageVersionOptions {
 }
 
 async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: BumpPackageVersionOptions): Promise<VersionChange | null> {
-  const project = await readInstallableProjectManifest(pkgDir)
+  const project = await readProjectManifest(pkgDir)
   const { manifest, fileName } = project
 
   if (!manifest.name || !manifest.version) {
@@ -356,18 +356,12 @@ async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: B
   }
 
   if (!opts.dryRun) {
-    const current = !opts.ignoreScripts && manifest.scripts?.preversion ? await readProjectManifest(pkgDir) : project
+    const current = opts.ignoreScripts ? project : await readExactProjectManifest(preVersionChange.manifestPath)
     current.manifest.version = newVersion
     await current.writeProjectManifest(current.manifest)
   }
 
-  const change = {
-    name: manifest.name,
-    currentVersion,
-    newVersion,
-    path: pkgDir,
-    manifestPath: path.join(pkgDir, fileName),
-  }
+  const change = { ...preVersionChange, newVersion }
   await runVersionLifecycleHook('version', change, opts)
 
   return change

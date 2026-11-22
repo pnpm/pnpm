@@ -284,6 +284,21 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
     )
   })
 
+  it('aborts if preversion moves the manifest to another filename', async () => {
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-pkg',
+      version: '1.0.0',
+      scripts: { preversion: 'node -e "require(\'fs\').renameSync(\'package.json\', \'package.json5\')"' },
+    }))
+    await expect(handler({
+      dir: tempDir,
+      workspaceDir: tempDir,
+      gitChecks: false,
+      gitTagVersion: false,
+    } as unknown as Parameters<typeof handler>[0], ['patch'])).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json5'), 'utf8')).version).toBe('1.0.0')
+  })
+
   it('should run version lifecycle scripts with the commands of a custom modules directory', async () => {
     const binDir = path.join(tempDir, 'vendor', '.bin')
     fs.mkdirSync(binDir, { recursive: true })
