@@ -610,3 +610,20 @@ test('ReadOnlyStoreIndex reads an existing fallback store without writing', () =
   expect(fs.readFileSync(path.join(storeDir, 'index.fallback'))).toEqual(before)
   expect(fs.existsSync(path.join(storeDir, 'index.db'))).toBe(false)
 })
+
+
+test('ReadOnlyStoreIndex prefers an active SQLite index over an older fallback', () => {
+  const storeDir = temporaryDirectory()
+  const fallback = new IncompleteSqliteStoreIndex(storeDir)
+  fallback.set('example', { value: 'old' })
+  fallback.close()
+  const writer = new StoreIndex(storeDir)
+  writer.set('example', { value: 'current' })
+  writer.close()
+  const reader = new ReadOnlyStoreIndex(storeDir)
+  try {
+    expect(reader.get('example')).toEqual({ value: 'current' })
+  } finally {
+    reader.close()
+  }
+})

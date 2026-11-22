@@ -423,7 +423,9 @@ export class StoreIndex {
  */
 export class ReadOnlyStoreIndex extends StoreIndex {
   protected override openDatabase (storeDir: string): void {
-    if (fs.existsSync(path.join(storeDir, 'index.fallback'))) {
+    const sqlitePath = path.join(storeDir, 'index.db')
+    const hasSqliteDatabase = fs.existsSync(sqlitePath) && fs.statSync(sqlitePath).size > 0
+    if (!hasSqliteDatabase && fs.existsSync(path.join(storeDir, 'index.fallback'))) {
       this.db = createFallbackDatabase(storeDir)
     } else {
       this.db = adaptStoreDatabase(this.openConnection(storeDir), storeDir)
