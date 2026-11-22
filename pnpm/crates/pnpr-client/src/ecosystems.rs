@@ -232,7 +232,7 @@ impl PnprClient {
         request: &serde_json::Value,
         authorization: Option<&str>,
     ) -> Result<Vec<u8>, PnprClientError> {
-        let post = self.resolution_post("-/pnpr/v0/resolve", authorization)?.json(request);
+        let post = self.resolution_post("-/pnpr/v0/resolve", authorization).await?.json(request);
         let response = post.send().await?;
         let response = super::check_status(response, "/-/pnpr/v0/resolve").await?;
         let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE).await?;
@@ -264,7 +264,8 @@ impl PnprClient {
     ) -> Result<reqwest::Response, PnprClientError> {
         let request = serde_json::to_value(opts).expect("verification request serializes to JSON");
         let post = self
-            .resolution_post("-/pnpr/v0/verify-lockfile", opts.routing.authorization.as_deref())?
+            .resolution_post("-/pnpr/v0/verify-lockfile", opts.routing.authorization.as_deref())
+            .await?
             .json(&request);
         let response = post.send().await?;
         super::check_status(response, "/-/pnpr/v0/verify-lockfile").await

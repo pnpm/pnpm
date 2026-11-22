@@ -140,6 +140,7 @@ pub type DepMap = BTreeMap<String, String>;
 #[must_use]
 pub struct PnprClient {
     http: Client,
+    authenticated_http: tokio::sync::OnceCell<Client>,
     base_url: String,
     artifact_request_timeout: Duration,
     capability: tokio::sync::OnceCell<HandshakeCapability>,
@@ -560,6 +561,7 @@ impl PnprClient {
         }
         PnprClient {
             http: Client::new(),
+            authenticated_http: tokio::sync::OnceCell::new(),
             base_url,
             artifact_request_timeout: ARTIFACT_REQUEST_TIMEOUT,
             capability: tokio::sync::OnceCell::new(),

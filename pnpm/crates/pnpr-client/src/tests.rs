@@ -559,17 +559,18 @@ fn an_untyped_frame_is_a_protocol_error() {
     };
 }
 
-#[test]
-fn resolution_credentials_require_secure_transport() {
+#[tokio::test]
+async fn resolution_credentials_require_secure_transport() {
     let remote = PnprClient::new("http://registry.example");
     assert!(matches!(
-        remote.resolution_post("resolve", Some("Bearer fixture")),
+        remote.resolution_post("resolve", Some("Bearer fixture")).await,
         Err(PnprClientError::Protocol(_))
     ));
-    assert!(remote.resolution_post("resolve", None).is_ok());
+    assert!(remote.resolution_post("resolve", None).await.is_ok());
     for url in ["https://registry.example", "http://127.0.0.1"] {
         let request = PnprClient::new(url)
             .resolution_post("resolve", Some("Bearer fixture"))
+            .await
             .unwrap()
             .build()
             .unwrap();

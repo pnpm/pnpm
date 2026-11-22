@@ -457,7 +457,8 @@ impl PnprClient {
         let permitted_importers = permitted_importers(&opts);
         self.handshake_project_transforms(&opts).await?;
         let post = self
-            .resolution_post("-/pnpr/v0/resolve", opts.routing.authorization.as_deref())?
+            .resolution_post("-/pnpr/v0/resolve", opts.routing.authorization.as_deref())
+            .await?
             .json(&resolve_request_body(&opts));
         let response = post.send().await?;
         let response = super::check_status(response, "/-/pnpr/v0/resolve").await?;
