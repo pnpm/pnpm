@@ -33,9 +33,7 @@ const WORKSPACE_WIDE = [
 const EXTERNAL_TEST_INPUTS = [
   { prefix: 'fixtures/gvs-link-hash-parity.json', packages: ['pnpm-deps-restorer'] },
   { prefix: 'fixtures/pin-decision.json', packages: ['pnpm-cli', 'pnpm-config'] },
-  { prefix: 'pnpm11/config/reader/src/', packages: ['pnpm-config'] },
-  { prefix: 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/', packages: ['pnpm-cli'] },
-  { prefix: 'pnpm11/deps/compliance/commands/test/sbom/fixtures/', packages: ['pnpm-cli'] },
+  { prefix: 'pnpm/test-oracles/', packages: ['pnpm-cli', 'pnpm-config', 'pnpm-fs-packlist'] },
 ]
 
 export function workspaceWideChanges (files) {

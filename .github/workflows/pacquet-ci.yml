@@ -102,8 +102,6 @@ jobs:
               - '.cargo/**'
               - '.config/nextest.toml'
               - 'fixtures/**'
-              - 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/**'
-              - 'pnpm11/deps/compliance/commands/test/sbom/fixtures/**'
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
               - '.github/actions/install-crates/**'
@@ -149,15 +147,7 @@ jobs:
               - 'pnpm/crates/cli/tests/suite/version.rs'
               - 'pnpm/crates/testing-utils/**'
               - 'pnpm/crates/config/**'
-              - 'pnpm11/deps/status/**'
-              - 'pnpm11/exec/commands/**'
-              - 'pnpm11/installing/**'
-              - 'pnpm11/config/reader/**'
-              - 'pnpm11/pnpm/src/**'
-              - 'pnpm11/lockfile/**'
-              - 'pnpm11/resolving/**'
-              - 'pnpm11/releasing/commands/src/deploy/**'
-              - 'pnpm11/workspace/state/**'
+              - 'pnpm/test-oracles/**'
               - 'pnpr/.fixtures/**'
               - '.config/nextest.toml'
               - '.github/workflows/pacquet-ci.yml'
@@ -591,16 +581,11 @@ jobs:
           unset XDG_DATA_HOME
           just install
 
-      - name: Bundle pnpm v11
-        run: |
-          pnpm --filter pnpm exec tsc --build
-          pnpm --filter pnpm run bundle
-
       - name: Run the convergence harnesses through v11 and v12
         run: |
           unset PNPM_HOME
           unset XDG_DATA_HOME
-          PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
+          PNPM_V11_BUNDLE="$PWD/pnpm/test-oracles/node_modules/pnpm-v11/dist/pnpm.mjs" \
             pnpm test:rust -p pnpm-cli --run-ignored all -E 'test(/^peer_convergence::/) or test(/^repeat_install_oracle::/) or test(/^repeat_install_read_set::/) or test(/^pnpm_compatibility::/) or test(/^injected_freshness_matrix::/) or test(/^version::switches_up_to_a_newer_pnpm/) or test(/^version::v11_switches_up/)'
 
   clippy:

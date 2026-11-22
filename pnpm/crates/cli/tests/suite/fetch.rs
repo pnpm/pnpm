@@ -336,9 +336,7 @@ fn fetch_runs_a_build_script_that_calls_a_sibling_dependency_bin() {
 #[test]
 fn fetch_fails_with_patch_not_found_when_a_patch_file_is_missing() {
     const PATCHED_DEP: &str = "@pnpm.e2e/console-log";
-    const PATCH: &str = include_str!(
-        "../../../../../pnpm11/installing/commands/test/__fixtures__/patchedDependencies/console-log-replace-1st-line.patch"
-    );
+    const PATCH: &str = include_str!("../fixtures/patches/console-log-replace-1st-line.patch");
 
     for node_linker in ["isolated", "hoisted"] {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -396,9 +394,7 @@ fn fetch_fails_with_patch_not_found_when_a_patch_file_is_missing() {
 fn fetch_under_hoisted_defers_patches_and_builds_until_offline_install() {
     const PATCHED_DEP: &str = "@pnpm.e2e/console-log";
     const BUILT_DEP: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
-    const PATCH: &str = include_str!(
-        "../../../../../pnpm11/installing/commands/test/__fixtures__/patchedDependencies/console-log-replace-1st-line.patch"
-    );
+    const PATCH: &str = include_str!("../fixtures/patches/console-log-replace-1st-line.patch");
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

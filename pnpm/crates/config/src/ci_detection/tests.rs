@@ -59,14 +59,14 @@ fn heroku_is_detected_by_its_node_path() {
     assert!(!detect_ci_with(&[("NODE", "/usr/bin/node")]));
 }
 
-/// Every vendor in the `ci-info` release pnpm 11 depends on must be
-/// detected, so a `ci-info` upgrade that adds a vendor fails here until
-/// the Rust list catches up.
+/// Every vendor in the cataloged `ci-info` release must be detected, so a
+/// `ci-info` upgrade that adds a vendor fails here until the Rust list
+/// catches up.
 #[test]
 fn every_ci_info_vendor_is_detected() {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../pnpm11/config/reader/node_modules/ci-info/vendors.json",
+        "/../../test-oracles/node_modules/ci-info/vendors.json",
     );
     let vendors = std::fs::read_to_string(path)
         .unwrap_or_else(|error| panic!("read {path} (run `pnpm install`): {error}"));

@@ -101,7 +101,7 @@ test('Rust gate configuration keeps exclusions limited to approved documentation
   // Markdown under pnpr/.fixtures ships inside registry fixtures.
   const recursiveDocs = new Set(['!pnpm/docs/**', '!pnpr/docs/**'])
   assert.ok(!patterns.some(pattern => pattern.startsWith('!') && pattern.includes('**') && !recursiveDocs.has(pattern)), 'recursive exclusions only cover product documentation')
-  for (const pattern of ['pnpm/**', 'pnpr/**', '.config/nextest.toml', 'fixtures/**', 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/**', 'pnpm11/deps/compliance/commands/test/sbom/fixtures/**']) {
+  for (const pattern of ['pnpm/**', 'pnpr/**', '.config/nextest.toml', 'fixtures/**']) {
     assert.ok(patterns.includes(pattern), `required test input: ${pattern}`)
   }
   assert.deepEqual(docs, patterns.filter(pattern => pattern.startsWith('!')).map(pattern => pattern.slice(1)), 'docs covers every exclusion, so the spell check still runs')

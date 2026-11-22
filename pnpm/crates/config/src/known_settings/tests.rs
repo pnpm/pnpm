@@ -70,7 +70,7 @@ fn annotates_an_unmatchable_key_bare() {
 }
 
 fn read_reader_source(file: &str) -> String {
-    let path = format!("{}/../../../pnpm11/config/reader/src/{file}", env!("CARGO_MANIFEST_DIR"));
+    let path = format!("{}/tests/fixtures/pnpm11-config-reader/{file}", env!("CARGO_MANIFEST_DIR"));
     std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed to read {path}: {err}"))
 }
 

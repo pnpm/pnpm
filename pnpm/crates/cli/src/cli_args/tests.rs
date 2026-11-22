@@ -16,7 +16,6 @@ use super::{
     },
     list::RecursionLimit,
     package_manager::{
-        current_source_pnpm_version,
         package_manager_to_sync_for_version,
         parse_package_manager,
         read_manifest_json,
@@ -47,10 +46,9 @@ use tempfile::TempDir;
 
 fn package_manager_to_sync(
     manifest: &serde_json::Value,
-    root_dir: &Path,
     on_fail: Option<PmOnFail>,
 ) -> Option<super::package_manager::PackageManagerToSync> {
-    package_manager_to_sync_for_version(manifest, root_dir, on_fail, PNPM_VERSION)
+    package_manager_to_sync_for_version(manifest, on_fail, PNPM_VERSION)
 }
 
 fn install_args(argv: &[&str]) -> InstallArgs {
@@ -351,18 +349,12 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
     .expect("write manifest");
 
     let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
-    let package_manager =
-        package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
+    let package_manager = package_manager_to_sync(&manifest, None).expect("sync package manager");
 
     assert_eq!(package_manager.specifier, ">=0.0.0");
-    assert_eq!(
-        package_manager.version,
-        current_source_pnpm_version().expect("source pnpm version"),
-    );
+    assert_eq!(package_manager.version, pnpm_config::PNPM_VERSION);
 }
 
-/// The range is built from `PNPM_VERSION` so the source checkout's version
-/// (a different major) can never satisfy it and answer first.
 #[test]
 fn package_manager_to_sync_records_the_running_version_for_a_satisfied_range_pin() {
     let root = TempDir::new().expect("tmp dir");
@@ -377,8 +369,7 @@ fn package_manager_to_sync_records_the_running_version_for_a_satisfied_range_pin
     .expect("write manifest");
 
     let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
-    let package_manager =
-        package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
+    let package_manager = package_manager_to_sync(&manifest, None).expect("sync package manager");
 
     assert_eq!(package_manager.specifier, range);
     assert_eq!(package_manager.version, pnpm_config::PNPM_VERSION);
@@ -395,7 +386,7 @@ fn package_manager_to_sync_records_nothing_for_a_pin_nothing_satisfies() {
     .expect("write manifest");
 
     let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
-    assert_eq!(package_manager_to_sync(&manifest, root.path(), None), None);
+    assert_eq!(package_manager_to_sync(&manifest, None), None);
 }
 
 #[test]

@@ -18,7 +18,7 @@
 //! Every violation of a fixture is collected before the test fails, so one
 //! run reports the whole matrix.
 //!
-//! With `PNPM_V11_BUNDLE` naming the pnpm v11 bundle (`pnpm11/pnpm/dist/pnpm.mjs`),
+//! With `PNPM_V11_BUNDLE` naming the pnpm v11 bundle (`pnpm/test-oracles/node_modules/pnpm-v11/dist/pnpm.mjs`),
 //! every fixture also runs through v11, apart from the rows that set the
 //! v12-only `autoDedupe`, and each row's fresh v11 lockfile has to equal the
 //! v12 one.

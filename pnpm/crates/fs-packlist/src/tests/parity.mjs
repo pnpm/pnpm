@@ -6,49 +6,10 @@ import readline from 'node:readline'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(__dirname, '../../../../..')
-const packlistPkgDir = path.join(repoRoot, 'pnpm11/fs/packlist')
-const requireFromPacklist = module.createRequire(path.join(packlistPkgDir, 'package.json'))
-const npmPacklist = requireFromPacklist('npm-packlist')
-
-function findWorkspaceTsEntry (specifier, parentURL) {
-  let dir = parentURL?.startsWith('file:')
-    ? path.dirname(fileURLToPath(parentURL))
-    : packlistPkgDir
-  while (true) {
-    const candidate = path.join(dir, 'node_modules', specifier, 'src/index.ts')
-    if (fs.existsSync(candidate)) {
-      return fs.realpathSync(candidate)
-    }
-    const parent = path.dirname(dir)
-    if (parent === dir) return null
-    dir = parent
-  }
-}
-
-async function loadPnpmPacklist () {
-  module.registerHooks({
-    resolve (specifier, context, nextResolve) {
-      if (specifier.startsWith('.') && specifier.endsWith('.js') && context.parentURL?.startsWith('file:')) {
-        const candidate = path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier.slice(0, -3) + '.ts')
-        if (fs.existsSync(candidate)) {
-          return { url: pathToFileURL(fs.realpathSync(candidate)).href, shortCircuit: true }
-        }
-      }
-      if (specifier.startsWith('@pnpm/')) {
-        const candidate = findWorkspaceTsEntry(specifier, context.parentURL)
-        if (candidate != null) {
-          return { url: pathToFileURL(candidate).href, shortCircuit: true }
-        }
-      }
-      return nextResolve(specifier, context)
-    },
-  })
-  const mod = await import(pathToFileURL(path.join(packlistPkgDir, 'src/index.ts')).href)
-  return mod.packlist
-}
-
-const packlist = await loadPnpmPacklist()
+const oraclesDir = path.resolve(__dirname, '../../../../test-oracles')
+const requireFromOracles = module.createRequire(path.join(oraclesDir, 'package.json'))
+const npmPacklist = requireFromOracles('npm-packlist')
+const { packlist } = await import(pathToFileURL(requireFromOracles.resolve('@pnpm/fs.packlist')).href)
 const normalize = (list) => list.map((entry) => entry.replaceAll('\\', '/').replace(/^\.\//, '')).sort()
 
 function normalizeNpmTreePackage (manifest) {

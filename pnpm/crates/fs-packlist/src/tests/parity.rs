@@ -928,9 +928,9 @@ fn pack_matches_npm_pack_dry_run() {
     }
 
     // 2. A slice of real packages (from node_modules and workspace packages)
-    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let pnpm_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let npm_packlist_dir =
-        fs::canonicalize(repo_root.join("pnpm11/fs/packlist/node_modules/npm-packlist"))
+        fs::canonicalize(pnpm_root.join("test-oracles/node_modules/npm-packlist"))
             .expect("canonicalize npm-packlist");
     let npm_packlist_nm = npm_packlist_dir.parent().expect("npm-packlist node_modules");
     let ignore_walk_dir =
@@ -945,9 +945,9 @@ fn pack_matches_npm_pack_dry_run() {
         ignore_walk_dir,
         proc_log_dir,
         minimatch_dir,
-        repo_root.join("pnpm11/fs/packlist"),
-        repo_root.join("pnpm11/crypto/hash"),
-        repo_root.join("pnpm11/text/comments-parser"),
+        pnpm_root.join("npm/get-pnpm"),
+        pnpm_root.join("npm/napi"),
+        pnpm_root.join("esm-loader"),
     ];
 
     for (idx, candidate) in real_candidates.iter().enumerate() {

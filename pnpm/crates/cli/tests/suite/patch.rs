@@ -26,26 +26,21 @@ use std::{
 };
 use tempfile::TempDir;
 
-const IS_POSITIVE_PATCH: &str = include_str!(
-    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
-);
+const IS_POSITIVE_PATCH: &str = include_str!("../fixtures/patches/is-positive@1.0.0.patch");
 
 /// Adds a `postinstall` script the published package does not declare,
 /// plus the script it runs.
-const IS_POSITIVE_POSTINSTALL_PATCH: &str = include_str!(
-    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0-postinstall.patch"
-);
+const IS_POSITIVE_POSTINSTALL_PATCH: &str =
+    include_str!("../fixtures/patches/is-positive@1.0.0-postinstall.patch");
 
 /// Creates a `binding.gyp`, which the lifecycle runner turns into an
 /// implicit `node-gyp rebuild`.
-const IS_POSITIVE_BINDING_GYP_PATCH: &str = include_str!(
-    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0-binding-gyp.patch"
-);
+const IS_POSITIVE_BINDING_GYP_PATCH: &str =
+    include_str!("../fixtures/patches/is-positive@1.0.0-binding-gyp.patch");
 
 /// Creates a plain file named `.hooks`, which is not a hook directory.
-const IS_POSITIVE_HOOKS_FILE_PATCH: &str = include_str!(
-    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0-hooks-file.patch"
-);
+const IS_POSITIVE_HOOKS_FILE_PATCH: &str =
+    include_str!("../fixtures/patches/is-positive@1.0.0-hooks-file.patch");
 
 /// Drops the `gypfile: false` from `@pnpm.e2e/gypfile-false`, which puts the
 /// `binding.gyp` the package already ships back in scope for the implicit

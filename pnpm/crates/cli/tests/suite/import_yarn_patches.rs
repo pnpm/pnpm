@@ -21,9 +21,7 @@ use std::{
     process::Command,
 };
 
-const IS_POSITIVE_PATCH: &str = include_str!(
-    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
-);
+const IS_POSITIVE_PATCH: &str = include_str!("../fixtures/patches/is-positive@1.0.0.patch");
 
 const ROOT_PATCH_PATH: &str = ".yarn/patches/is-positive-npm-1.0.0-0a1b2c3d4e.patch";
 

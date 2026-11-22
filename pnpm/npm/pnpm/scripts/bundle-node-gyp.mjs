@@ -23,9 +23,8 @@
 // depends on it as `workspace:~`, not `workspace:*`: an exact range would make
 // every get-pnpm release force a pnpm release too.
 //
-// The TypeScript CLI builds the same payload for its own package in
-// pnpm11/pnpm/bundle-deps.ts, and both read the node-gyp version from the
-// `node-gyp` catalog entry, so the two stacks ship the same node-gyp.
+// The TypeScript CLI builds the same payload for its own package, and both
+// read the node-gyp version from the `node-gyp` catalog entry.
 
 import { execFileSync } from 'node:child_process'
 import console from 'node:console'
@@ -39,9 +38,7 @@ const REPO_ROOT = path.resolve(PNPM_ROOT, '../../..')
 const DEPLOY_DIR = path.join(PNPM_ROOT, 'temp-deploy')
 const DIST_DIR = path.join(PNPM_ROOT, 'dist')
 
-// The wrappers are shared with the TypeScript CLI rather than copied, so the
-// two stacks cannot drift on how a script's `node-gyp` is dispatched.
-const NODE_GYP_BIN_SRC = path.join(REPO_ROOT, 'pnpm11', 'pnpm', 'node-gyp-bin')
+const NODE_GYP_BIN_SRC = path.join(PNPM_ROOT, 'node-gyp-bin')
 
 function deployNodeGyp () {
   fs.rmSync(DEPLOY_DIR, { recursive: true, force: true })

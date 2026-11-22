@@ -23,9 +23,7 @@ use std::{
     process::Command,
 };
 
-const IS_POSITIVE_PATCH: &str = include_str!(
-    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
-);
+const IS_POSITIVE_PATCH: &str = include_str!("../fixtures/patches/is-positive@1.0.0.patch");
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)

@@ -201,7 +201,6 @@ fn decide_record(
         match env_lockfile_sync_from_loaded(
             settings,
             root_manifest,
-            pin.roots,
             on_fail,
             pin.locked_env.as_ref(),
             pin.running_version,
