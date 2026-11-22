@@ -462,3 +462,32 @@ fn ignores_the_version_of_a_dev_dependency_outside_the_workspace() {
 
     verify_lockfile(&metadata, &lockfile).unwrap();
 }
+
+/// Two target tables declare the alias `foo` for different path packages.
+fn target_specific_aliases(first_requirement: &str) -> String {
+    TWO_LOCAL_FOO_METADATA
+        .replace(
+            r#""req": "*", "rename": "foo1", "path": "/libs/foo1""#,
+            &format!(r#""req": "{first_requirement}", "rename": "foo", "path": "/libs/foo1""#),
+        )
+        .replace(r#""rename": "foo2", "path""#, r#""rename": "foo", "path""#)
+}
+
+#[test]
+fn pins_each_target_specific_declaration_to_its_own_path_package() {
+    let metadata = target_specific_aliases("*");
+
+    let lockfile = resolve_lockfile(&metadata, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap();
+
+    assert!(lockfile.contains("\"foo 1.0.0\",\n \"foo 2.0.0\","), "{lockfile}");
+    verify_lockfile(&metadata, &lockfile).unwrap();
+}
+
+#[test]
+fn checks_each_target_specific_declaration_against_its_own_requirement() {
+    let metadata = target_specific_aliases("^2");
+
+    let error = resolve_lockfile(&metadata, &BTreeMap::new(), CRATES_IO_SOURCE).unwrap_err();
+
+    assert_eq!(error.to_string(), "path dependency foo ^2 does not match the package at its path");
+}

@@ -1,7 +1,7 @@
 use crate::{
     features::{
         DependencyOptions,
-        dependencies_from_parts,
+        indexed_dependencies_from_parts,
         widen_selection,
     },
     model::{
@@ -380,26 +380,14 @@ fn activated_dependencies(
                 .collect(),
         })
         .collect::<Vec<_>>();
-    dependencies_from_parts(&declared, &package.features, selection, options)?
+    indexed_dependencies_from_parts(&declared, &package.features, selection, options)
         .into_iter()
-        .map(|dependency| pin_path_dependency(metadata, package, dependency))
+        .map(|(position, mut dependency)| {
+            let declaration = &package.dependencies[position];
+            if declaration.origin.source.is_none() {
+                dependency.requirement = locked_requirement(metadata, declaration)?;
+            }
+            Ok(dependency)
+        })
         .collect()
-}
-
-fn pin_path_dependency(
-    metadata: &CargoMetadata,
-    package: &MetadataPackage,
-    mut dependency: RegistryDependency,
-) -> Result<RegistryDependency> {
-    let declaration = package.dependencies
-        .iter()
-        .find(|declaration| {
-            declaration.origin.source.is_none()
-                && declaration.kind == dependency.kind
-                && declaration.rename.as_deref().unwrap_or(&declaration.name) == dependency.alias
-        });
-    if let (None, Some(declaration)) = (&dependency.registry, declaration) {
-        dependency.requirement = locked_requirement(metadata, declaration)?;
-    }
-    Ok(dependency)
 }

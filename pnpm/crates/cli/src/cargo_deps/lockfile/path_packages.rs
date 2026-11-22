@@ -115,7 +115,7 @@ fn package_manifest_path(package: &serde_json::Value) -> Option<PathBuf> {
 
 /// Whether a package's path dev-dependencies are followed: Cargo locks them
 /// for a workspace member only.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum DevDependencies {
     Followed,
     Skipped,
@@ -130,9 +130,11 @@ fn path_dependency_manifests(
         .and_then(serde_json::Value::as_array)
         .into_iter()
         .flatten()
-        .filter(move |dependency| {
-            dev_dependencies == DevDependencies::Followed
-                || dependency.get("kind").and_then(serde_json::Value::as_str) != Some("dev")
+        .filter(move |dependency| match dev_dependencies {
+            DevDependencies::Followed => true,
+            DevDependencies::Skipped => {
+                dependency.get("kind").and_then(serde_json::Value::as_str) != Some("dev")
+            }
         })
         .filter_map(|dependency| dependency.get("path"))
         .filter_map(serde_json::Value::as_str)
