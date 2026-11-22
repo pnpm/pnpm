@@ -1,0 +1,83 @@
+{
+  "description": "Three installs that resolve the same project against an unchanged fixture registry, sharing one metadata cache. Each install's metadata requests, sorted, as `METHOD path document [etag] [since] status`: `etag` when the request sends the ETag the registry gave the same document, `since` when it sends If-Modified-Since. Asserted by pnpm/crates/cli/tests/suite/metadata_request_log.rs and pnpm11/pnpm/test/install/metadataRequestLog.ts.",
+  "dependencies": {
+    "@pnpm.e2e/pkg-with-1-dep": "^100.0.0"
+  },
+  "cases": [
+    {
+      "name": "abbreviated metadata is revalidated with its ETag",
+      "settings": {
+        "minimumReleaseAge": 0
+      },
+      "args": [],
+      "installs": [
+        [
+          "GET /@pnpm.e2e%2Fdep-of-pkg-with-1-dep abbreviated 200",
+          "GET /@pnpm.e2e%2Fpkg-with-1-dep abbreviated 200"
+        ],
+        [
+          "GET /@pnpm.e2e%2Fdep-of-pkg-with-1-dep abbreviated etag since 304",
+          "GET /@pnpm.e2e%2Fpkg-with-1-dep abbreviated etag since 304"
+        ],
+        [
+          "GET /@pnpm.e2e%2Fdep-of-pkg-with-1-dep abbreviated etag since 304",
+          "GET /@pnpm.e2e%2Fpkg-with-1-dep abbreviated etag since 304"
+        ]
+      ]
+    },
+    {
+      "name": "full metadata is revalidated with its ETag",
+      "settings": {
+        "minimumReleaseAge": 0,
+        "trustPolicy": "no-downgrade"
+      },
+      "args": [],
+      "installs": [
+        [
+          "GET /@pnpm.e2e%2Fdep-of-pkg-with-1-dep full 200",
+          "GET /@pnpm.e2e%2Fpkg-with-1-dep full 200"
+        ],
+        [
+          "GET /@pnpm.e2e%2Fdep-of-pkg-with-1-dep full etag since 304",
+          "GET /@pnpm.e2e%2Fpkg-with-1-dep full etag since 304"
+        ],
+        [
+          "GET /@pnpm.e2e%2Fdep-of-pkg-with-1-dep full etag since 304",
+          "GET /@pnpm.e2e%2Fpkg-with-1-dep full etag since 304"
+        ]
+      ]
+    },
+    {
+      "name": "a mirror written after the release age cutoff answers without a request",
+      "settings": {
+        "minimumReleaseAge": 1440
+      },
+      "args": [],
+      "installs": [
+        [
+          "GET /@pnpm.e2e%2Fdep-of-pkg-with-1-dep abbreviated 200",
+          "GET /@pnpm.e2e%2Fpkg-with-1-dep abbreviated 200"
+        ],
+        [],
+        []
+      ]
+    },
+    {
+      "name": "prefer-offline answers from the mirror without a request",
+      "settings": {
+        "minimumReleaseAge": 0
+      },
+      "args": [
+        "--prefer-offline"
+      ],
+      "installs": [
+        [
+          "GET /@pnpm.e2e%2Fdep-of-pkg-with-1-dep abbreviated 200",
+          "GET /@pnpm.e2e%2Fpkg-with-1-dep abbreviated 200"
+        ],
+        [],
+        []
+      ]
+    }
+  ]
+}
