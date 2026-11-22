@@ -22,9 +22,7 @@ pub(super) fn drop_cli_linker_aliases(config: &Config, delta: &mut Map<String, V
     if !config.cli_settings.contains("nodeLinker") {
         return;
     }
-    let Some(cli_linker) = config.explicit_settings.get("nodeLinker") else {
-        return;
-    };
+    let Some(cli_linker) = config.explicit_settings.get("nodeLinker") else { return };
     for option in options_set(cli_linker) {
         for key in flat_aliases(option) {
             delta.remove(*key);

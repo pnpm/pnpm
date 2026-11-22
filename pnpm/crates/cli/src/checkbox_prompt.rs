@@ -166,9 +166,9 @@ impl<Value> CheckboxPrompt<Value> {
                 )
             })?;
         if self.viewport.page_size == 0 {
-            let has_descriptions = self.items.iter().any(
-                |item| matches!(item, CheckboxItem::Choice(choice) if choice.description.is_some()),
-            );
+            let has_descriptions = self.items
+                .iter()
+                .any(|item| matches!(item, CheckboxItem::Choice(choice) if choice.description.is_some()));
             let rows = term.size_checked().map(|(rows, _)| usize::from(rows));
             (self.viewport.page_size, self.viewport.description_lines) =
                 layout_for(rows, has_descriptions);
