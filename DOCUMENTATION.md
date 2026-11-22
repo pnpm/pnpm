@@ -17,7 +17,7 @@ The publisher places them under `/docs-assets/<line>/img/` and rewrites the
 published Markdown, so different releases cannot overwrite each other's images.
 Images shared with the blog or website remain available at their original URLs.
 
-With a sibling checkout of pnpm/pnpm.io containing the sync tooling:
+With a sibling checkout of pnpm/pnpm.io at its current `main`:
 
 ```sh
 pnpm --dir ../pnpm.io install --frozen-lockfile
@@ -27,8 +27,8 @@ pnpm --dir ../pnpm.io check-urls
 ```
 
 Adjust the paths to your checkouts. `--preview` replaces the website's generated
-copies of the listed documentation lines with the local sources. The other
-lines keep the website's committed copies. Run it again after editing sources. It does not publish or advance release state.
+copies of the listed documentation lines with the local sources and leaves the
+other lines as they are. Run it again after editing sources. It does not publish or advance release state.
 The Documentation workflow performs the same build and URL checks for PRs.
 It pins the website revision for reproducibility; update that revision when
 adopting website tooling changes. Release publication uses the website's current
