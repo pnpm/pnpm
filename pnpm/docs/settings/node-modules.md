@@ -417,7 +417,7 @@ default, all packages are hoisted - however, if you know that only some flawed
 packages have phantom dependencies, you can use this option to exclusively hoist
 the phantom dependencies (recommended).
 
-When the workspace root adds a direct dependency, pnpm removes any hidden hoist link for that name on the next full install.
+With the default virtual store, adding a direct dependency to the workspace root removes its hidden hoist link on the next full install. An external virtual store can keep the link to resolve that dependency.
 
 For instance:
 
