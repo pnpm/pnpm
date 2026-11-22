@@ -475,6 +475,10 @@ fn windows_concurrent_symlink_creation_leaves_no_ignored_entry() {
         for outcome in race_to_create_symlink(&target, &link) {
             assert_eq!(outcome.warning, None, "no worker may move a link aside");
         }
+        assert_eq!(
+            fs::canonicalize(&link).expect("resolve the link"),
+            fs::canonicalize(&target).expect("resolve the target"),
+        );
     }
     let ignored: Vec<_> = fs::read_dir(root.path())
         .expect("read the temp dir")
