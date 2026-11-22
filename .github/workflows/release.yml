@@ -419,7 +419,10 @@ jobs:
 
       - name: Archive TypeScript executable artifacts
         run: |
-          tar czf ts-executable-artifacts.tar.gz \
+          # Each platform package links itself into its own node_modules
+          # (node_modules/@pnpm/<name> -> ../..), and Git Bash's tar on Windows
+          # cannot recreate that loop.
+          tar --exclude=node_modules -czf ts-executable-artifacts.tar.gz \
             pnpm11/pnpm/artifacts/darwin-arm64 \
             pnpm11/pnpm/artifacts/linux-x64 \
             pnpm11/pnpm/artifacts/linux-arm64 \
@@ -510,7 +513,7 @@ jobs:
       - name: Verify executable in Alpine container (musl)
         if: matrix.type == 'alpine'
         run: |
-          docker run --rm -v "$PWD:/work" -w /work/pnpm11/pnpm/artifacts/${{ matrix.target }} alpine:latest sh -c "apk add --no-cache nodejs && node ../verify-binary.mjs ${{ matrix.target-args }}"
+          docker run --rm -v "$PWD:/work" -w /work/pnpm11/pnpm/artifacts/${{ matrix.target }} alpine:latest sh -c "apk add --no-cache nodejs libatomic && node ../verify-binary.mjs ${{ matrix.target-args }}"
 
   release:
     name: Release the TypeScript pnpm CLI
