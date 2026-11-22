@@ -15,20 +15,20 @@ use super::{
 /// links it, so deploy copies it too.
 #[test]
 fn deploy_copies_file_dependency_outside_the_lockfile_dir() {
-    deploy_copies_external_dependency("file:", false);
+    deploy_copies_external_dependency("file:", None);
 }
 
 #[test]
 fn deploy_copies_link_dependency_outside_the_lockfile_dir() {
-    deploy_copies_external_dependency("link:", false);
+    deploy_copies_external_dependency("link:", None);
 }
 
 #[test]
 fn deploy_copies_link_override_outside_the_lockfile_dir() {
-    deploy_copies_external_dependency("link:", true);
+    deploy_copies_external_dependency("link:", Some("\n  '@example/client': link:../client"));
 }
 
-fn deploy_copies_external_dependency(protocol: &str, link_override: bool) {
+fn deploy_copies_external_dependency(protocol: &str, overrides: Option<&str>) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -57,8 +57,8 @@ fn deploy_copies_external_dependency(protocol: &str, link_override: bool) {
     append_workspace_yaml_key(&workspace, "packages", "[]");
     append_workspace_yaml_key(&workspace, "injectWorkspacePackages", "true");
 
-    if link_override {
-        append_workspace_yaml_key(&workspace, "overrides", "\n  '@example/client': link:../client");
+    if let Some(overrides) = overrides {
+        append_workspace_yaml_key(&workspace, "overrides", overrides);
     }
     pacquet
         .with_arg("install")
