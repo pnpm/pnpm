@@ -109,10 +109,22 @@ fn manifest_version(root_dir: &Path) -> String {
 
 #[test]
 fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consumed_intents() {
-    let workspace =
-        make_workspace(&[("lib", "1.0.0", &[]), ("cli", "2.0.0", &[("lib", "workspace:*")])]);
-    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
-    write_change_intent(workspace.dir.path(), &releases, "Added a feature.")
+    let workspace = make_workspace(&[
+        ("lib", "1.0.0", &[]),
+        (
+            "cli",
+            "2.0.0",
+            &[
+                ("lib", "workspace:^1.0.0"),
+                ("pinned", "workspace:lib@1.0.0"),
+                ("compatible", "workspace:lib@>=1.0.0"),
+                ("automatic", "workspace:lib@*"),
+                ("limited", "workspace:lib@>=1 <2"),
+            ],
+        ),
+    ]);
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Major)]);
+    write_change_intent(workspace.dir.path(), &releases, "Removed a feature.")
         .expect("intent writes");
     let intents = read_change_intents(workspace.dir.path()).expect("intents read");
     let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
@@ -141,32 +153,79 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
         .map(|release| format!("{}@{}", release.name, release.new_version))
         .collect();
     applied_names.sort();
-    assert_eq!(applied_names, ["cli@2.0.1", "lib@1.1.0"]);
+    assert_eq!(applied_names, ["cli@2.0.1", "lib@2.0.0"]);
 
     let lib_dir = &workspace.projects[0].root_dir;
     let cli_dir = &workspace.projects[1].root_dir;
-    assert_eq!(manifest_version(lib_dir), "1.1.0");
+    assert_eq!(manifest_version(lib_dir), "2.0.0");
     assert_eq!(manifest_version(cli_dir), "2.0.1");
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(cli_dir.join("package.json")).unwrap()).unwrap();
+    assert_eq!(
+        manifest["dependencies"],
+        serde_json::json!({
+            "lib": "workspace:^2.0.0", "pinned": "workspace:lib@2.0.0",
+            "compatible": "workspace:lib@>=1.0.0", "automatic": "workspace:lib@*",
+            "limited": "workspace:lib@>=1 <2 || 2.0.0",
+        }),
+    );
 
     let lib_changelog = fs::read_to_string(lib_dir.join("CHANGELOG.md")).expect("read changelog");
     assert!(lib_changelog.contains("# lib"));
-    assert!(lib_changelog.contains("## 1.1.0"));
-    assert!(lib_changelog.contains("### Minor Changes"));
-    assert!(lib_changelog.contains("- Added a feature."));
+    assert!(lib_changelog.contains("## 2.0.0"));
+    assert!(lib_changelog.contains("### Major Changes"));
+    assert!(lib_changelog.contains("- Removed a feature."));
 
     let cli_changelog = fs::read_to_string(cli_dir.join("CHANGELOG.md")).expect("read changelog");
     assert!(cli_changelog.contains("## 2.0.1"));
     assert!(cli_changelog.contains("- Updated dependencies:"));
-    assert!(cli_changelog.contains("  - lib@1.1.0"));
+    assert!(cli_changelog.contains("  - lib@2.0.0"));
 
     let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
     let keys: Vec<&str> = ledger
         .keys()
         .map(String::as_str)
         .collect();
-    assert_eq!(keys, ["lib@1.1.0"]);
+    assert_eq!(keys, ["lib@2.0.0"]);
 
     assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
+}
+
+#[test]
+fn apply_writes_explicit_workspace_ranges_against_snapshot_versions() {
+    let workspace =
+        make_workspace(&[("lib", "1.0.0", &[]), ("cli", "1.0.0", &[("lib", "workspace:^1.0.0")])]);
+    let dir = workspace.dir.path();
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Major)]);
+    write_change_intent(dir, &releases, "Removed an export.").unwrap();
+    let intents = read_change_intents(dir).unwrap();
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        dir,
+        &intents,
+        &read_ledger(dir).unwrap(),
+        None,
+        &AssembleReleasePlanOptions {
+            snapshot_suffix: Some("preview".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    apply_release_plan(
+        &plan,
+        dir,
+        &workspace.projects,
+        &intents,
+        Some(&repository()),
+        &HashSet::new(),
+        &ReleaseNotesOptions::default(),
+    )
+    .unwrap();
+    let manifest: serde_json::Value = serde_json::from_slice(
+        &fs::read(workspace.projects[1].root_dir.join("package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(manifest["dependencies"]["lib"], "workspace:^0.0.0-preview");
 }
 
 #[test]

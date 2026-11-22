@@ -6,6 +6,7 @@ pub use project_refs::{
     to_project_dir,
 };
 pub use versions::materialize_workspace_range;
+pub(crate) use versions::updated_workspace_spec;
 
 use std::{
     collections::{

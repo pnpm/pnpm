@@ -132,6 +132,20 @@ describe('version command', () => {
     expect(result).toContain('1.0.0 → 1.0.1-alpha.0')
   })
 
+  it('rejects an invalid prerelease identifier before writing the version', async () => {
+    const file = path.join(tempDir, 'package.json')
+    const original = JSON.stringify({ name: 'test-pkg', version: '1.0.0' })
+    fs.writeFileSync(file, original)
+    await expect(handler({
+      dir: tempDir,
+      workspaceDir: tempDir,
+      gitChecks: false,
+      gitTagVersion: false,
+      preid: 'foo/bar',
+    } as unknown as Parameters<typeof handler>[0], ['prerelease'])).rejects.toMatchObject({ code: 'ERR_PNPM_VERSION_BUMP_FAILED' })
+    expect(fs.readFileSync(file, 'utf8')).toBe(original)
+  })
+
   it('should return JSON output when --json is set', async () => {
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: '1.0.0' }))
 
@@ -240,6 +254,9 @@ describe('version command', () => {
     fs.writeFileSync(logLifecycleScript, `const fs = require('fs')
 const path = require('path')
 const manifest = require(path.join(process.cwd(), 'package.json'))
+if (process.argv[3] === 'preversion') {
+  fs.writeFileSync('package.json', JSON.stringify({ ...manifest, engines: { pnpm: '<1' } }))
+}
 fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\\n')
 `)
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
@@ -259,11 +276,27 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
       gitTagVersion: false,
     } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
+    expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf8')).engines).toStrictEqual({ pnpm: '<1' })
     expect(fs.readFileSync(lifecycleLog, 'utf-8')).toBe(
       'preversion:1.0.0\n' +
       'version:1.0.1\n' +
       'postversion:1.0.1\n'
     )
+  })
+
+  it('aborts if preversion moves the manifest to another filename', async () => {
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-pkg',
+      version: '1.0.0',
+      scripts: { preversion: 'node -e "require(\'fs\').renameSync(\'package.json\', \'package.json5\')"' },
+    }))
+    await expect(handler({
+      dir: tempDir,
+      workspaceDir: tempDir,
+      gitChecks: false,
+      gitTagVersion: false,
+    } as unknown as Parameters<typeof handler>[0], ['patch'])).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json5'), 'utf8')).version).toBe('1.0.0')
   })
 
   it('should run version lifecycle scripts with the commands of a custom modules directory', async () => {

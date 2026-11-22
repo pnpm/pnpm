@@ -357,17 +357,43 @@ pub(super) fn enforce_epic_bands(
 /// new version falls outside this range.
 #[must_use]
 pub fn materialize_workspace_range(spec: &str, dep_current_version: &str) -> Option<String> {
-    let rest = spec.strip_prefix("workspace:")?;
-    let range = match parse_workspace_spec_alias(rest) {
-        Some(alias) => &rest[alias.len() + 1..],
-        None => rest,
-    };
+    let (_, range) = split_workspace_spec(spec)?;
     Some(match range {
         "^" => format!("^{dep_current_version}"),
         "~" => format!("~{dep_current_version}"),
         "*" | "" => dep_current_version.to_string(),
         explicit => explicit.to_string(),
     })
+}
+
+fn split_workspace_spec(spec: &str) -> Option<(Option<&str>, &str)> {
+    let rest = spec.strip_prefix("workspace:")?;
+    let alias = parse_workspace_spec_alias(rest);
+    Some((alias, alias.map_or(rest, |name| &rest[name.len() + 1..])))
+}
+
+pub(crate) fn updated_workspace_spec(
+    alias: &str,
+    spec: &str,
+    updates: &std::collections::HashMap<&str, &str>,
+) -> Option<String> {
+    let (target, range) = split_workspace_spec(spec)?;
+    let next = updates.get(target.unwrap_or(alias))?;
+    if matches!(range, "" | "*" | "^" | "~") {
+        return None;
+    }
+    let parsed = parse_strict_semver_range(range)?;
+    if Version::parse(next).ok()?.satisfies(&parsed) {
+        return None;
+    }
+    let version = range
+        .strip_prefix(['^', '~'])
+        .unwrap_or(range);
+    if Version::parse(version.trim()).is_ok() {
+        Some(format!("{}{next}", spec.strip_suffix(version)?))
+    } else {
+        Some(format!("{spec} || {next}"))
+    }
 }
 
 pub(super) fn range_accepts(range: &str, version: &str) -> bool {

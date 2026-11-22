@@ -226,12 +226,17 @@ fn collect_parked_publications(
 
 /// Stamp every released manifest with its new version.
 fn write_new_versions(plan: &ReleasePlan) -> Result<Vec<AppliedRelease>, VersioningError> {
+    let versions = plan.releases
+        .iter()
+        .map(|release| (release.name.as_str(), release.version.next.as_str()))
+        .collect();
     let mut applied = Vec::with_capacity(plan.releases.len());
     for release in &plan.releases {
         let manifest_path = pnpm_package_manifest::project_manifest_path(&release.root_dir);
         let mut manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path)
             .map_err(VersioningError::Manifest)?;
         manifest.value_mut()["version"] = serde_json::Value::String(release.version.next.clone());
+        update_dependency_ranges(manifest.value_mut(), &versions);
         manifest.save().map_err(VersioningError::Manifest)?;
         applied.push(AppliedRelease {
             name: release.name.clone(),
@@ -240,6 +245,23 @@ fn write_new_versions(plan: &ReleasePlan) -> Result<Vec<AppliedRelease>, Version
         });
     }
     Ok(applied)
+}
+
+fn update_dependency_ranges(manifest: &mut serde_json::Value, versions: &HashMap<&str, &str>) {
+    for field in ["dependencies", "optionalDependencies", "peerDependencies"] {
+        let Some(entries) = manifest.get_mut(field).and_then(serde_json::Value::as_object_mut)
+        else {
+            continue;
+        };
+        for (alias, value) in entries {
+            if let Some(updated) = value
+                .as_str()
+                .and_then(|spec| crate::plan::updated_workspace_spec(alias, spec, versions))
+            {
+                *value = updated.into();
+            }
+        }
+    }
 }
 
 /// In `repository` storage the section is committed to CHANGELOG.md now. In

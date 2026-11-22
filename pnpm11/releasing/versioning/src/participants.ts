@@ -5,7 +5,7 @@ import { valid, validRange } from 'semver'
 
 import { type ProjectRefIndex, resolveConfigRef, toProjectDir, type WorkspaceProject } from './projectRefs.js'
 
-const PROPAGATED_DEP_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
+export const PROPAGATED_DEP_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
 
 type PropagatedDepField = typeof PROPAGATED_DEP_FIELDS[number]
 
@@ -139,7 +139,7 @@ export function assertInternalDepsUseWorkspaceProtocol (participants: Map<string
         throw new PnpmError(
           'VERSIONING_INTERNAL_RANGE',
           `Package ${participant.name} declares the internal dependency ${dep.alias} in ${dep.fieldName} as "${dep.spec}". ` +
-          'Internal dependencies must use the workspace: protocol so that dependency ranges never need rewriting at release time.'
+          'Internal dependencies must use the workspace: protocol.'
         )
       }
     }

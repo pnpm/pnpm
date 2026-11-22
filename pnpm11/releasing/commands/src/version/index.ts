@@ -18,6 +18,7 @@ import {
   toProjectDir,
 } from '@pnpm/releasing.versioning'
 import type { Project, ProjectsGraph } from '@pnpm/types'
+import { readExactProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { inc, valid } from 'semver'
@@ -322,7 +323,8 @@ interface BumpPackageVersionOptions {
 }
 
 async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: BumpPackageVersionOptions): Promise<VersionChange | null> {
-  const { manifest, writeProjectManifest, fileName } = await readProjectManifest(pkgDir)
+  const project = await readProjectManifest(pkgDir)
+  const { manifest, fileName } = project
 
   if (!manifest.name || !manifest.version) {
     return null
@@ -353,18 +355,13 @@ async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: B
     throw new PnpmError('VERSION_NOT_CHANGED', `Version was not changed: ${currentVersion}`)
   }
 
-  manifest.version = newVersion
   if (!opts.dryRun) {
-    await writeProjectManifest(manifest)
+    const current = opts.ignoreScripts ? project : await readExactProjectManifest(preVersionChange.manifestPath)
+    current.manifest.version = newVersion
+    await current.writeProjectManifest(current.manifest)
   }
 
-  const change = {
-    name: manifest.name,
-    currentVersion,
-    newVersion,
-    path: pkgDir,
-    manifestPath: path.join(pkgDir, fileName),
-  }
+  const change = { ...preVersionChange, newVersion }
   await runVersionLifecycleHook('version', change, opts)
 
   return change

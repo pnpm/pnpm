@@ -30,6 +30,10 @@ pub(super) enum VersionError {
     #[diagnostic(code(ERR_PNPM_INVALID_VERSION))]
     InvalidVersion { dir: String, version: String },
 
+    #[display("Failed to bump version from {current} using {bump}")]
+    #[diagnostic(code(ERR_PNPM_VERSION_BUMP_FAILED))]
+    BumpFailed { current: String, bump: String },
+
     #[display("Version was not changed: {version}")]
     #[diagnostic(code(ERR_PNPM_VERSION_NOT_CHANGED))]
     VersionNotChanged { version: String },
