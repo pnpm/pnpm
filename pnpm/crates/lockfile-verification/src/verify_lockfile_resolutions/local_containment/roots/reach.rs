@@ -30,11 +30,9 @@ pub(super) struct SnapshotGraph {
     children: Vec<Vec<u32>>,
     relevant: Vec<bool>,
     leads_to_relevant: Vec<bool>,
-    /// The children of each node that lead to a relevant node.
     pruned_children: Vec<Vec<u32>>,
 }
 
-/// What a set of importers reaches, as keys.
 #[derive(Default)]
 pub(in super::super) struct Reached {
     pub(in super::super) snapshots: HashSet<PkgNameVerPeer>,
