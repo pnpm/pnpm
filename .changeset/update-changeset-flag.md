@@ -1,6 +1,5 @@
 ---
 "@pnpm/installing.commands": minor
-"pacquet": minor
 "pnpm": minor
 ---
 

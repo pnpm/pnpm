@@ -115,7 +115,7 @@ test('packages with independent tsconfigs are left unchanged', async t => {
   await mkdir(path.join(dir, 'test'), { recursive: true })
   await writeJson(workspaceDir, 'packages/consumer/tsconfig.json', {})
   const { files } = await updater(workspaceDir)
-  for (const name of ['@pnpm/tsconfig', '@pnpm-private/typecheck', 'get-pnpm', 'pacquet', '@pnpm/napi']) {
+  for (const name of ['@pnpm/tsconfig', '@pnpm-private/typecheck']) {
     for (const file of ['tsconfig.json', 'tsconfig.lint.json [generated-json]', 'test/tsconfig.json [generated-json]']) {
       const config = { references: [{ path: 'preserved' }] }
       assert.equal(await files[file](config, { dir, manifest: { name } }), config)
@@ -127,7 +127,7 @@ async function createWorkspace (t, format) {
   const workspaceDir = await mkdtemp(path.join(os.tmpdir(), 'meta-updater-'))
   t.after(() => rm(workspaceDir, { recursive: true, force: true }))
   await writeJson(workspaceDir, 'package.json', { name: 'fixture', private: true })
-  for (const file of ['pnpm11/pnpm/package.json', 'pnpm/npm/pnpm/package.json', 'pnpr/npm/pnpr/package.json']) {
+  for (const file of ['pnpm11/pnpm/package.json']) {
     await writeJson(workspaceDir, file, { version: '1.0.0' })
   }
   await writeJson(workspaceDir, '.config/npm-signing-keys.json', [])

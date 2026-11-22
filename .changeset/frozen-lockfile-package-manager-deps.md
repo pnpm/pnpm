@@ -1,6 +1,5 @@
 ---
 "@pnpm/installing.env-installer": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

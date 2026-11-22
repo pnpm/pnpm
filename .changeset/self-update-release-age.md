@@ -2,7 +2,6 @@
 "@pnpm/config.reader": minor
 "@pnpm/engine.pm.commands": minor
 "@pnpm/installing.client": minor
-"pacquet": minor
 "pnpm": minor
 ---
 

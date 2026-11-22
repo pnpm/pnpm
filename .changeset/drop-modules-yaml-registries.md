@@ -7,7 +7,6 @@
 "@pnpm/installing.deps-restorer": major
 "@pnpm/installing.modules-yaml": major
 "@pnpm/installing.read-projects-context": major
-"pacquet": minor
 "pnpm": minor
 ---
 

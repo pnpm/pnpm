@@ -33,29 +33,3 @@ export const NPM_SIGNING_KEYS = ${JSON.stringify(embedded, TS_KEY_FIELDS, 2)} as
 }>
 `
 }
-
-const RUST_KEYS_START = 'pub(super) const NPM_SIGNING_KEYS: &[NpmSigningKey] = &[\n'
-
-/** `content` with the entries of its `NPM_SIGNING_KEYS` slice replaced by every key in `keys`. */
-export function replaceRustNpmSigningKeys (content: string | null, keys: NpmSigningKey[]): string | null {
-  if (content == null) return content
-  const start = content.indexOf(RUST_KEYS_START)
-  const end = content.indexOf('\n];\n', start)
-  if (start === -1 || end === -1) {
-    throw new Error('The NPM_SIGNING_KEYS slice was not found')
-  }
-  const entries = keys.map((key) => `    NpmSigningKey {
-        keyid: ${rustString(key.keyid)},
-        key: ${rustString(key.key)},
-        expires: ${key.expires == null ? 'None' : `Some(${rustString(key.expires)})`},
-    },`).join('\n')
-  return `${content.slice(0, start + RUST_KEYS_START.length)}${entries}${content.slice(end)}`
-}
-
-/** A Rust string literal. Key IDs, keys, and dates need no escaping, so anything else is refused. */
-function rustString (value: string): string {
-  if (!/^[\w+/=:.-]*$/.test(value)) {
-    throw new Error(`Unexpected character in an npm signing key field: ${value}`)
-  }
-  return `"${value}"`
-}

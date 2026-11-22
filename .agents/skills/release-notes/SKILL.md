@@ -20,11 +20,11 @@ grouped, what order they appear in, and how the page reads end to end.
 2. `pnpm run bump` on the release branch consumes the pending intents, **deletes
    them**, and composes them into `.changeset/changelogs/<package>@<version>.md`,
    one section per released package, grouped into Major, Minor, and Patch changes.
-3. That file is the release page. The Rust CLI's GitHub release body is literally
-   `tail -n +2 .changeset/changelogs/pacquet@<version>.md` plus the sponsors
-   fragment (`.github/workflows/release.yml`), and the same section is composed into
-   the published `CHANGELOG.md`. For a stable v11 or v12 release, it also becomes the pnpm.io release page
-   ([DOCUMENTATION.md](../../../DOCUMENTATION.md#release-pages)).
+3. That file is the release page. The GitHub release body is the `## <version>`
+   section of `.changeset/changelogs/pnpm@<version>.md` plus the sponsors fragment
+   (`pnpm make-release-description`), and the same section is composed into the
+   published `CHANGELOG.md`. For a stable release, it also becomes the pnpm.io
+   release page ([DOCUMENTATION.md](../../../DOCUMENTATION.md#release-pages)).
 
 So curate `.changeset/changelogs/<package>@<version>.md` directly, on the release PR
 branch, after the bump has written it. The intents are gone by then, so the composed
@@ -85,8 +85,7 @@ ships with stabilized npm modules, auto-discovered lockfile, a new subprocess AP
 and more." A reader decides from that line whether to read on.
 
 Write that line as a paragraph directly under the `## <version>` heading, before the
-first `###` section. `tail -n +2` keeps it, so it becomes the opening line of the
-GitHub release body, and it sits under the version heading in `CHANGELOG.md`. Name
+first `###` section. It becomes the opening line of the GitHub release body, and it sits under the version heading in `CHANGELOG.md`. Name
 three or four things at most, in the words the entries below use.
 
 ## Ordering
@@ -135,9 +134,8 @@ they hit the bug (Installing packages, Running scripts and tasks, Windows), not 
 the subsystem that changed. Leave a section of a dozen or fewer flat - the headings
 cost more than they save.
 
-Both consumers tolerate the extra level: `release.yml` writes the Rust release body
-with `tail -n +2`, and `getChangelogEntry` (`pnpm11/__utils__/get-release-text`)
-slices between headings of the *same* depth as `## <version>`, so a `####` heading
+The release body tolerates the extra level: `getChangelogEntry`
+(`pnpm11/__utils__/get-release-text`) slices between headings of the *same* depth as `## <version>`, so a `####` heading
 neither ends the slice nor is dropped. It does scan every heading for
 `major|minor|patch`, so avoid a group literally named "Patching" - call it "Patched
 dependencies".
@@ -188,13 +186,10 @@ style identical across every entry in a release.
 
 `pnpm change status` prints the planned version for every package before anything is
 written. Read the line for each released package and ask whether it matches the
-entries you are about to curate. Read the packages that carry no intent of their own
-too: `@pnpm/napi` rides pacquet's `versioning.fixed` group, and `release.yml` fails
-the build if the two versions have drifted apart.
+entries you are about to curate.
 
 The release engine applies plain semver: a `major` intent on a `0.x` package moves it
-to `1.0.0`, and on a prerelease lane that resets the counter (`0.1.0-alpha.10` to
-`1.0.0-alpha.0`). There is no "0.x majors are minors" rule. Before accepting a major
+to `1.0.0`. There is no "0.x majors are minors" rule. Before accepting a major
 bump, check that the breaking change breaks something a published version could do. A
 new URL layout for a capability that ships in the same release breaks nothing.
 
@@ -206,6 +201,3 @@ Read the curated section top to bottom, as a user would. It is done when:
 - Every entry's first line tells you whether it applies to you.
 - The order stops surprising you: you can tell where the important part ended.
 - Nothing describes a bug that no published version ever had.
-- An empty `## <version>` section is not being shipped for a package that only bumped
-  because it rides a fixed group. Give it an entry or accept the blank heading
-  knowingly.

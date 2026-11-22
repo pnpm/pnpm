@@ -1,6 +1,5 @@
 ---
 "@pnpm/installing.deps-installer": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

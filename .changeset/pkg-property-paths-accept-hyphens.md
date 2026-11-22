@@ -1,6 +1,5 @@
 ---
 "@pnpm/object.property-path": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

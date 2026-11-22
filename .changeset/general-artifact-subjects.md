@@ -1,7 +1,5 @@
 ---
 "@pnpm/pnpr.client": major
-"@pnpm/pnpr": minor
-"pacquet": minor
 "pnpm": minor
 ---
 

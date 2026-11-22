@@ -10,9 +10,7 @@
 "@pnpm/store.controller": minor
 "@pnpm/worker": minor
 "@pnpm/pnpr.client": minor
-"@pnpm/pnpr": minor
 "pnpm": minor
-"pacquet": minor
 ---
 
 Added an opt-in proof of concept that lets installs reuse a dependency's build output across machines, by publishing and restoring signed, organization-scoped artifacts through pnpr instead of running the lifecycle scripts locally.

@@ -1,7 +1,0 @@
-/target
-.pacquet
-node_modules
-.npmrc
-/bench-work-env
-*.tmp
-.claude

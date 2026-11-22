@@ -2,7 +2,6 @@
 "@pnpm/config.reader": minor
 "@pnpm/installing.commands": minor
 "@pnpm/workspace.workspace-manifest-writer": minor
-"pacquet": minor
 "pnpm": minor
 ---
 

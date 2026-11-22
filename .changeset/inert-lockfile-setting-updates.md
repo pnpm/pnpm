@@ -2,7 +2,6 @@
 "@pnpm/lockfile.settings-checker": minor
 "@pnpm/installing.deps-installer": patch
 "@pnpm/lockfile.fs": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

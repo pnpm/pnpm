@@ -5,7 +5,6 @@
 "@pnpm/installing.deps-installer": minor
 "@pnpm/lockfile.utils": minor
 "@pnpm/workspace.workspace-manifest-writer": minor
-"pacquet": minor
 "pnpm": minor
 ---
 

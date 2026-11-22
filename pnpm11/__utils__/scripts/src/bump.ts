@@ -1,129 +1,17 @@
-// Applies the pending release plan, then runs the meta-updater to mirror the
-// bumped Rust wrapper versions into the Rust sources the release builds from.
-//
-// `pnpm version -r` bumps only the npm wrapper manifests, so the
-// meta-updater then copies those versions into the Rust sources that embed
-// them (see the Rust-source handlers in `.meta-updater/src/index.ts`);
-// `meta-updater --test` in pre-push and CI enforces the same sync.
-//
-// `--release <product>` (repeatable) restricts the run to a subset of the
-// releasable products. With no `--release` flag every pending intent
-// is consumed, so a bare `pnpm bump` still cuts a full release.
+// Applies the pending release plan, then runs the meta-updater to sync the
+// manifests it derives.
 
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
 
-// The workspace package selectors for each product released apart from
-// pnpm11, keyed by the product's release token. The `pnpm` product is the Rust
-// CLI (published to npm as `pnpm`, named `pacquet` in-repo, carrying its
-// versioning.fixed `@pnpm/napi` sibling). The `pnpm11` product (the
-// TypeScript CLI and the rest of the default lane) has no single positive
-// selector, so it is expressed as the complement of these (see
-// releaseFilterArgs).
-const SEPARATE_PRODUCT_PACKAGES = {
-  pnpm: ['pacquet', '@pnpm/napi'],
-  pnpr: ['@pnpm/pnpr'],
-  'get-pnpm': ['get-pnpm'],
-} as const
-
-type SeparateProduct = keyof typeof SEPARATE_PRODUCT_PACKAGES
-type Product = 'pnpm11' | SeparateProduct
-
-const PRODUCTS: readonly Product[] = ['pnpm11', 'pnpm', 'pnpr', 'get-pnpm']
-
-// The Rust products' npm wrappers are `"private": true` in-repo so that a
-// workspace-wide `pnpm publish` never ships them; their generate-packages
-// scripts drop the flag when they are really published. `pnpm version -r`
-// commits a private project's changelog to its CHANGELOG.md, but release.yml
-// and the publish-time changelog composer read the parked section in
-// `.changeset/changelogs/`, so parkPublishedPrivateChangelogs moves it there.
-const PUBLISHED_PRIVATE_PROJECT_DIRS = [
-  'pnpm/npm/pnpm',
-  'pnpm/npm/napi',
-  'pnpr/npm/pnpr',
-] as const
-
-// The module-level consts are still in their temporal dead zone while this
-// file's statements run, so the actual `main()` call sits at the bottom.
 function main (): void {
   const repoRoot = findRepoRoot(import.meta.dirname)
-  const filterArgs = releaseFilterArgs(parseSelectedProducts(process.argv.slice(2)))
   // The release PR branch is dirty here (refreshed trust roots, synthesized
-  // changesets), so skip the clean-tree check. Pass the arguments as an argv
-  // array (no shell) so a filter value is never interpreted by a shell.
-  execFileSync('pnpm', ['version', '-r', '--no-git-checks', ...filterArgs], { cwd: repoRoot, stdio: 'inherit' })
-  parkPublishedPrivateChangelogs(repoRoot, PUBLISHED_PRIVATE_PROJECT_DIRS)
+  // changesets), so skip the clean-tree check.
+  execFileSync('pnpm', ['version', '-r', '--no-git-checks'], { cwd: repoRoot, stdio: 'inherit' })
   execFileSync('pnpm', ['update-manifests'], { cwd: repoRoot, stdio: 'inherit' })
-}
-
-export function parseSelectedProducts (argv: readonly string[]): Set<Product> {
-  const selected = new Set<Product>()
-  // `pnpm run bump -- --release ...` forwards the `--` separator to the script,
-  // so a single leading `--` is part of the normal calling convention.
-  const start = argv[0] === '--' ? 1 : 0
-  for (let argIndex = start; argIndex < argv.length; argIndex++) {
-    // Fail closed: an unrecognized token (e.g. a `--releases` typo) must not be
-    // silently skipped, which would leave the selection empty and release
-    // every product. Only "--release <product>" is accepted; no args at all
-    // still means a full release (see releaseFilterArgs).
-    if (argv[argIndex] !== '--release') {
-      throw new Error(`Unexpected bump argument: ${String(argv[argIndex])}. Only "--release <product>" is supported.`)
-    }
-    const product = argv[++argIndex]
-    if (product === undefined || !(PRODUCTS as readonly string[]).includes(product)) {
-      throw new Error(`Unknown --release product: ${String(product)}. Expected one of ${PRODUCTS.join(', ')}.`)
-    }
-    selected.add(product as Product)
-  }
-  return selected
-}
-
-// Turns the selected products into `--filter` arguments for `pnpm version -r`.
-// An empty selection releases everything (no filter). When `pnpm11` is selected
-// the run starts from the whole workspace and excludes only the separate
-// products left unselected (an exclude-only filter selects "every project
-// minus these").
-export function releaseFilterArgs (selected: ReadonlySet<Product>): string[] {
-  if (selected.size === 0) return []
-  const separateProducts = Object.keys(SEPARATE_PRODUCT_PACKAGES) as SeparateProduct[]
-  if (selected.has('pnpm11')) {
-    return separateProducts
-      .filter((product) => !selected.has(product))
-      .flatMap((product) => SEPARATE_PRODUCT_PACKAGES[product])
-      .map((pkg) => `--filter=!${pkg}`)
-  }
-  return separateProducts
-    .filter((product) => selected.has(product))
-    .flatMap((product) => SEPARATE_PRODUCT_PACKAGES[product])
-    .map((pkg) => `--filter=${pkg}`)
-}
-
-/**
- * Moves the CHANGELOG.md that `pnpm version -r` wrote for each project in
- * `projectDirs` to the project's parked section,
- * `.changeset/changelogs/<name>@<version>.md` (the path `pendingChangelogPath`
- * of `@pnpm/releasing.versioning` computes; this script runs before the
- * workspace is installed, so it cannot import it). A project the run did not
- * release has no CHANGELOG.md and is skipped.
- */
-export function parkPublishedPrivateChangelogs (repoRoot: string, projectDirs: readonly string[]): void {
-  for (const projectDir of projectDirs) {
-    const changelogPath = path.join(repoRoot, projectDir, 'CHANGELOG.md')
-    if (!fs.existsSync(changelogPath)) continue
-    const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, projectDir, 'package.json'), 'utf8')) as { name: string, version: string }
-    const changelog = fs.readFileSync(changelogPath, 'utf8')
-    const versionHeadings = changelog.split('\n').filter((line) => line.startsWith('## '))
-    const sectionStart = changelog.indexOf(`\n## ${manifest.version}\n`) + 1
-    if (sectionStart === 0 || versionHeadings.length !== 1) {
-      throw new Error(`${changelogPath} must hold exactly one section, for ${manifest.name}@${manifest.version}`)
-    }
-    const parkedPath = path.join(repoRoot, '.changeset', 'changelogs', `${manifest.name}@${manifest.version}`.replaceAll('/', '!') + '.md')
-    fs.mkdirSync(path.dirname(parkedPath), { recursive: true })
-    fs.writeFileSync(parkedPath, changelog.slice(sectionStart))
-    fs.rmSync(changelogPath)
-  }
 }
 
 export function findRepoRoot (startDir: string): string {

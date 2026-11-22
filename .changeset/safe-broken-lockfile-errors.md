@@ -1,6 +1,5 @@
 ---
 "@pnpm/lockfile.fs": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

@@ -2,7 +2,6 @@
 "@pnpm/network.web-auth": minor
 "@pnpm/registry-access.client": patch
 "@pnpm/registry-access.commands": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

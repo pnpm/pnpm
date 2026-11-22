@@ -64,10 +64,6 @@ jobs:
       uses: garnet-org/action@673a06d87748bec49e4d8df22d371b2a3420aba4 # v2.5.2
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
-    - name: Initialize Rust before dependency installation
-      uses: $/.github/actions/rustup
-      with:
-        restore-cache: false
     # `pnpm pipeline` installs before it runs anything, but the install has to
     # happen here: the test step is wrapped in a timing wrapper whose result
     # feeds Bencher, and a dependency install inside it would report registry
@@ -104,17 +100,15 @@ jobs:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
-    # The test harness serves package fixtures through the in-repo `pnpr`
-    # server; `pnpr-prepare` turns the raw fixtures under
-    # `pnpr/.fixtures/packages` into the storage the server reads. Both are
-    # built from source (so the tests exercise the current server, not a
-    # published `@pnpm/pnpr` that may predate it) once per OS by the
-    # `build-pnpr` reusable workflow, then shared with every test job/shard
-    # here as an artifact instead of rebuilt per job.
-    # With wait_for_pnpr the caller starts this job before its pnpr build
+    # The test harness serves package fixtures through the published
+    # `@pnpm/pnpr` server; `pnpr-prepare` turns the raw fixtures under
+    # `pnpr/.fixtures/packages` into the storage the server reads. The
+    # `build-pnpr` reusable workflow builds it once per OS and shares it here
+    # as an artifact.
+    # With wait_for_pnpr the caller starts this job before that build
     # finishes, so runner startup and installs overlap the build. A finished
     # build job has uploaded its artifact.
-    - name: Wait for prebuilt pnpr binaries
+    - name: Wait for prebuilt pnpr-prepare
       if: ${{ inputs.wait_for_pnpr }}
       timeout-minutes: 45
       shell: bash
@@ -136,20 +130,15 @@ jobs:
             *) echo "::error::The $RUNNER_OS_NAME pnpr build ended with $conclusion"; exit 1 ;;
           esac
         done
-    - name: Download prebuilt pnpr binaries
+    - name: Download prebuilt pnpr-prepare
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
       with:
         name: pnpr-bins-${{ runner.os }}
-        path: .pnpr-bin
-    - name: Export pnpr binary paths
-      shell: bash
-      run: |
-        ext=""
-        [ -f "$PWD/.pnpr-bin/pnpr.exe" ] && ext=".exe"
-        # Artifacts don't preserve the executable bit; restore it on POSIX.
-        [ -z "$ext" ] && chmod +x "$PWD/.pnpr-bin/pnpr" "$PWD/.pnpr-bin/pnpr-prepare"
-        echo "PNPR_BIN=$PWD/.pnpr-bin/pnpr$ext" >> "$GITHUB_ENV"
-        echo "PNPR_PREPARE_BIN=$PWD/.pnpr-bin/pnpr-prepare$ext" >> "$GITHUB_ENV"
+        path: .pnpr-prepare
+    - name: Restore the pnpr-prepare executable bit
+      if: runner.os != 'Windows'
+      # Artifacts don't preserve the executable bit.
+      run: chmod +x .pnpr-prepare/*/bin/pnpr-prepare
     - name: Determine test scope
       id: test-scope
       shell: bash

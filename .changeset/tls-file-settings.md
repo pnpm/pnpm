@@ -3,7 +3,6 @@
 "@pnpm/config.reader": patch
 "@pnpm/error": patch
 "pnpm": patch
-"pacquet": patch
 ---
 
 TLS file paths in `.npmrc` and `auth.ini` resolve relative to the file that declares them. Project `.npmrc` files skip TLS file paths containing environment variables.

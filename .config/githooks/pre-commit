@@ -7,4 +7,3 @@ if [ -n "$CLAUDECODE" ] && [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; th
 fi
 
 node .config/githooks/reject-worktree-rebind.mjs --bind-only || exit 1
-node pnpm/scripts/format-staged-rust.mjs

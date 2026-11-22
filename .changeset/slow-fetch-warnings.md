@@ -1,6 +1,4 @@
 ---
-"pacquet": minor
-"@pnpm/napi": minor
 "@pnpm/error": patch
 "@pnpm/resolving.npm-resolver": patch
 "@pnpm/fetching.tarball-fetcher": patch

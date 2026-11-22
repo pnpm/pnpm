@@ -1,7 +1,6 @@
 ---
 "@pnpm/workspace.injected-deps-syncer": patch
 "@pnpm/exec.commands": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

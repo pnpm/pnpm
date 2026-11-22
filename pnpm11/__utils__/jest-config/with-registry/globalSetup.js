@@ -8,6 +8,7 @@ import { promisify } from 'node:util'
 import getPort from 'get-port'
 import treeKill from 'tree-kill'
 
+import { pnprPrepareBinPath } from './pnprPrepare.js'
 import { STORAGE_PREFIX } from './storagePrefix.js'
 
 const kill = promisify(treeKill)
@@ -41,7 +42,7 @@ export default async () => {
   global.registryMockCurrentVersionStorage = currentVersionStorage
   const currentVersionConfig = buildCurrentVersionStorage(currentVersionStorage, pnpmVersion)
 
-  const bin = resolvePnprBin()
+  const bin = await resolvePnprBin()
 
   const server = spawn(
     bin,
@@ -173,57 +174,23 @@ function buildStorage (out, pnpmVersion, { packages = FIXTURE_PACKAGES, registri
 }
 
 /**
- * Locate the `pnpr-prepare` binary. Lookup order:
- *
- * 1. `PNPR_PREPARE_BIN` env var (set by CI, which builds it from source).
- * 2. A locally-built `target/{release,debug}/pnpr-prepare`.
+ * Locate the `pnpr-prepare` binary: `PNPR_PREPARE_BIN`, else the one
+ * `pnpm run install:pnpr-prepare` built for the installed `@pnpm/pnpr`.
  */
 function resolvePnprPrepareBin () {
-  return resolveRustBin('pnpr-prepare', 'PNPR_PREPARE_BIN')
+  if (process.env.PNPR_PREPARE_BIN) return process.env.PNPR_PREPARE_BIN
+  const bin = pnprPrepareBinPath()
+  if (existsSync(bin)) return bin
+  throw new Error('pnpr-prepare not found. Build it with `pnpm run install:pnpr-prepare` or set PNPR_PREPARE_BIN to an absolute path.')
 }
 
-/**
- * Locate the `pnpr` server binary. Lookup order:
- *
- * 1. `PNPR_BIN` env var override.
- * 2. A locally-built `target/{release,debug}/pnpr`.
- *
- * There is no published-binary fallback on purpose: running these tests
- * already requires building `pnpr-prepare` from source (it has no npm
- * fallback either), so the toolchain to build `pnpr` is always present,
- * and a published `@pnpm/pnpr` could predate the server protocol the
- * tests exercise.
- */
-function resolvePnprBin () {
-  if (process.env.PNPR_BIN) {
-    return process.env.PNPR_BIN
-  }
-  const localBin = findRustTargetBin('pnpr')
-  if (localBin) return localBin
-  throw new Error(
-    'pnpr binary not found. Build it with `cargo build -p pnpr` or set PNPR_BIN to an absolute path.'
-  )
-}
-
-function resolveRustBin (name, envVar) {
-  if (process.env[envVar]) {
-    return process.env[envVar]
-  }
-  const localBin = findRustTargetBin(name)
-  if (localBin) return localBin
-  throw new Error(
-    `${name} binary not found. Build it with \`cargo build -p pnpr-fixtures --bin ${name}\` ` +
-    `or set ${envVar} to an absolute path.`
-  )
-}
-
-function findRustTargetBin (name) {
-  const ext = process.platform === 'win32' ? '.exe' : ''
-  for (const profile of ['release', 'debug']) {
-    const candidate = path.join(REPO_ROOT, 'target', profile, `${name}${ext}`)
-    if (existsSync(candidate)) return candidate
-  }
-  return undefined
+/** Locate the `pnpr` server binary: `PNPR_BIN`, else the native binary of the installed `@pnpm/pnpr`. */
+async function resolvePnprBin () {
+  if (process.env.PNPR_BIN) return process.env.PNPR_BIN
+  const { resolveInstalledBinary } = await import('@pnpm/pnpr/install.js')
+  const bin = resolveInstalledBinary()
+  if (bin == null) throw new Error('@pnpm/pnpr has no native binary for this platform. Set PNPR_BIN to an absolute path.')
+  return bin
 }
 
 const UNUSUAL_REGISTRY_STARTUP_THRESHOLD = 15 // seconds

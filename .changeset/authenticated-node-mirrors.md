@@ -7,7 +7,6 @@
 "@pnpm/installing.client": patch
 "@pnpm/network.fetch": patch
 "@pnpm/resolving.default-resolver": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

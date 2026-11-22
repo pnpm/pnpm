@@ -2,7 +2,6 @@
 "@pnpm/config.reader": minor
 "@pnpm/types": minor
 "pnpm": minor
-"pacquet": patch
 ---
 
 Added `update` and `audit` settings sections to `pnpm-workspace.yaml`, superseding the awkwardly named `updateConfig`, `auditConfig`, and top-level `auditLevel` settings:

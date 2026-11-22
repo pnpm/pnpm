@@ -1,6 +1,5 @@
 ---
 "pnpm": patch
-"pacquet": patch
 "@pnpm/cache.api": patch
 "@pnpm/resolving.npm-resolver": patch
 "@pnpm/store.commands": patch

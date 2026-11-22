@@ -1,5 +1,4 @@
 ---
-"pacquet": patch
 "pnpm": patch
 ---
 
