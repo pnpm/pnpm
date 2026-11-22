@@ -126,7 +126,7 @@ fn prune_index(
         };
         // A row missing any of its files cannot be imported, and a row of
         // an archive that is not an npm package has no `package.json`.
-        if package.files.values().any(|file| removed_files.contains(file)) {
+        if package.all_files().any(|file| removed_files.contains(file)) {
             rows_to_delete.push(key);
         }
         Ok::<_, PruneCasError>(())

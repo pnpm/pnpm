@@ -28,7 +28,6 @@ use pnpm_lockfile::{
 use pnpm_modules_yaml::read_modules_layout;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_store_dir::{
-    CafsFileInfo,
     InUse,
     PackageFilesIndex,
     PruneError,
@@ -102,7 +101,7 @@ fn in_use_files(
         read_rows(store_dir, &keys).map_err(io::Error::other).map_err(PruneError::InUseFiles)?;
     Ok(rows
         .iter()
-        .flat_map(row_files)
+        .flat_map(PackageFilesIndex::all_files)
         .filter_map(|file| store_dir.cas_file_path_by_mode(&file.digest, file.mode))
         .collect())
 }
@@ -304,13 +303,4 @@ fn add_resolution_index_keys(
         keys.push(binary_store_index_key(key, binary).map_err(io::Error::other)?);
     }
     Ok(())
-}
-
-fn row_files(row: &PackageFilesIndex) -> impl Iterator<Item = &CafsFileInfo> {
-    let side_effects_files = row.side_effects
-        .iter()
-        .flat_map(|side_effects| side_effects.values())
-        .filter_map(|diff| diff.added.as_ref())
-        .flat_map(|added| added.values());
-    row.files.values().chain(side_effects_files)
 }

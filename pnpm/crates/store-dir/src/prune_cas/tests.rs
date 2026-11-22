@@ -6,6 +6,7 @@ use super::{
 use crate::{
     CafsFileInfo,
     PackageFilesIndex,
+    SideEffectsDiff,
     StoreDir,
     StoreIndex,
     StoreIndexFormat,
@@ -270,6 +271,48 @@ fn removes_a_row_without_package_json_that_lost_any_file() {
     assert_eq!((stats.files, stats.packages), (1, 1));
     assert!(linked.exists());
     assert!(!orphan.exists());
+    assert!(
+        StoreIndex::open_in(&store)
+            .unwrap()
+            .keys()
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+#[test]
+fn removes_a_row_whose_side_effects_overlay_lost_a_file() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let base_digest = format!("08{}", "b".repeat(126));
+    let overlay_digest = format!("09{}", "c".repeat(126));
+    let base = store.file_path_by_hex_str(&base_digest, "");
+    let overlay = store.file_path_by_hex_str(&overlay_digest, "");
+    for path in [&base, &overlay] {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "{}").unwrap();
+    }
+    fs::hard_link(&base, root.path().join("installed-package.json")).unwrap();
+    let mut row = package_index(&base_digest);
+    row.side_effects = Some(HashMap::from([(
+        "linux-x64-node22".to_string(),
+        SideEffectsDiff {
+            added: Some(HashMap::from([(
+                "build/addon.node".to_string(),
+                CafsFileInfo { digest: overlay_digest, mode: 0o644, size: 2, checked_at: None },
+            )])),
+            deleted: None,
+            remote_origin: None,
+        },
+    )]));
+    let index = StoreIndex::open_in(&store).unwrap();
+    index.set("built", &row).unwrap();
+    drop(index);
+
+    let stats = prune_cas(&store).unwrap();
+
+    assert_eq!((stats.files, stats.packages), (1, 1));
+    assert!(base.exists());
     assert!(
         StoreIndex::open_in(&store)
             .unwrap()
