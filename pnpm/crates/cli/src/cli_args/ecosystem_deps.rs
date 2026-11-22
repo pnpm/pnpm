@@ -66,7 +66,7 @@ use std::{
 pub(crate) struct EcosystemUpdateStepOptions<'a> {
     pub(crate) selectors: &'a [String],
     pub(crate) requests_validated: bool,
-    pub(crate) interactive: bool,
+    pub(crate) bare_names: selectors::BareUpdateNames,
     pub(crate) include_groups: &'a [DependencyGroup],
     pub(crate) ignore_matcher: Option<&'a Matcher>,
     pub(crate) latest: bool,
@@ -131,7 +131,7 @@ async fn run_ecosystem_updates_on_targets<Reporter: self::Reporter + 'static>(
     http_client: &Arc<ThrottledClient>,
     options: EcosystemUpdateStepOptions<'_>,
 ) -> Result<EcosystemUpdateOutcome> {
-    let parsed = selectors::parse_update_selection(options.selectors, config, options.interactive)?;
+    let parsed = selectors::parse_update_selection(options.selectors, config, options.bare_names)?;
     if !config.cargo.enabled && !config.python.enabled {
         return Ok(EcosystemUpdateOutcome {
             updated_any: false,

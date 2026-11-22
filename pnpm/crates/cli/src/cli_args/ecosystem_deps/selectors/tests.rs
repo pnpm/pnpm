@@ -230,7 +230,9 @@ fn interactive_choices_route_exact_names_to_the_selected_ecosystem() {
     config.python.enabled = true;
     let selectors =
         ["node-example", "crate:cargo-example", "pypi:python-example"].map(String::from);
-    let parsed = super::parse_update_selection(&selectors, &config, true).unwrap();
+    let parsed =
+        super::parse_update_selection(&selectors, &config, super::BareUpdateNames::NodeOnly)
+            .unwrap();
     assert_eq!(parsed.node_selectors, ["node-example"]);
     assert_eq!(parsed.cargo_requests.len(), 1);
     assert_eq!(parsed.cargo_requests[0].name, "cargo-example");

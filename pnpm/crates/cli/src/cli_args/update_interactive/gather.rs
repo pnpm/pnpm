@@ -15,9 +15,17 @@ use super::{
     UpdateDetails,
     ignored_dependencies_matcher,
 };
-use crate::cli_args::outdated::{
-    OutdatedRun,
-    collect_outdated_for_importer_in_run,
+use crate::cli_args::{
+    ecosystem_deps::validate_ecosystem_selectors,
+    outdated::{
+        OutdatedRun,
+        collect_outdated_for_importer_in_run,
+    },
+};
+use futures_util::{
+    StreamExt,
+    future,
+    stream,
 };
 use pnpm_github_actions as github_actions;
 
@@ -96,10 +104,7 @@ pub(super) async fn collect_filtered_choices(
     http_client: &Arc<ThrottledClient>,
     filter: ChoiceFilter<'_>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
-    crate::cli_args::ecosystem_deps::validate_ecosystem_selectors(
-        filter.package_selectors,
-        config,
-    )?;
+    validate_ecosystem_selectors(filter.package_selectors, config)?;
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
         target_version: filter.target_version,
@@ -113,7 +118,7 @@ pub(super) async fn collect_filtered_choices(
     };
     let run = OutdatedRun::new(config, Arc::clone(http_client), &query)?
         .with_raw_packages(normalize_choice_selectors(filter.package_selectors));
-    let mut choices = futures_util::future::join_all(
+    let node = future::join_all(
         projects
             .iter()
             .map(|project| {
@@ -125,13 +130,17 @@ pub(super) async fn collect_filtered_choices(
                     &run,
                 )
             }),
-    )
-    .await;
-    for dir in standalone_dirs {
-        let (_, outdated) =
-            crate::cli_args::outdated::standalone_project_outdated(dir, &query, &run).await?;
-        choices.push(Ok(outdated));
-    }
+    );
+    let queries: Vec<_> = standalone_dirs
+        .iter()
+        .map(|dir| crate::cli_args::outdated::standalone_project_outdated(dir, &query, &run))
+        .collect();
+    let standalone = stream::iter(queries)
+        .buffered(config.network_concurrency.max(1))
+        .map(|result| result.map(|(_, packages)| packages))
+        .collect::<Vec<_>>();
+    let (mut choices, standalone) = future::join(node, standalone).await;
+    choices.extend(standalone);
     unique_choices(choices)
 }
 

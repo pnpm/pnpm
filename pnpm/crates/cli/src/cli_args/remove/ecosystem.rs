@@ -122,11 +122,12 @@ async fn cargo_task<Rep: Reporter + 'static>(
         bail!("no Cargo.toml in the selected projects");
     }
     let checkout = cargo_deps::checkout(workspace);
-    cargo_deps::provision_toolchain::<Rep>(
+    cargo_deps::toolchain::provision_for_command::<Rep>(
         context.config,
         &context.http_client,
         &manifests,
         checkout.as_deref(),
+        cargo_deps::toolchain::ToolchainLink::Preserve,
     )
     .await?;
     let mut roots = BTreeSet::new();

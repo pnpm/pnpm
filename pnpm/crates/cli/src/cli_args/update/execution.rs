@@ -273,7 +273,11 @@ impl UpdateArgs {
             selection,
             &inputs.standalone_dirs,
             EcosystemUpdateStepOptions {
-                interactive: self.selection.display.interactive,
+                bare_names: if self.selection.display.interactive {
+                    crate::cli_args::ecosystem_deps::selectors::BareUpdateNames::NodeOnly
+                } else {
+                    crate::cli_args::ecosystem_deps::selectors::BareUpdateNames::AllEcosystems
+                },
                 requests_validated: self.dependency_options.ecosystem_requests_validated,
                 selectors,
                 include_groups: &inputs.include_direct,
