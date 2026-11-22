@@ -22,7 +22,7 @@
 
 ## Setting Up the Environment
 
-The repository holds the Rust pnpm CLI (`pacquet`), the Rust `pnpr` registry server, and a few TypeScript and JavaScript packages and scripts, such as the `get-pnpm` installer. pnpm v11, the TypeScript CLI, is maintained on the `release/11` branch.
+The repository holds the Rust pnpm CLI (`pacquet`), the Rust `pnpr` registry server, and a few TypeScript and JavaScript packages and scripts, such as the `get-pnpm` installer.
 
 ### pnpm and Node.js tooling
 
@@ -289,7 +289,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   git push origin my-fix-branch
   ```
 
-- In GitHub, send a pull request to `pnpm:main`. A fix for a bug that only pnpm v11 has targets `pnpm:release/11`; see [Release lines and backports](AGENTS.md#release-lines-and-backports).
+- In GitHub, send a pull request to `pnpm:main`.
 - Wait for the automated reviewers. A human reviewer will only start the review
   process once CodeRabbit has approved the PR and CI is green, so address its
   findings first.

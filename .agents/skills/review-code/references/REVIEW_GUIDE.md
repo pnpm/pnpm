@@ -263,8 +263,7 @@ Tests must prove the changed behavior, not just execute nearby code.
 - **User-visible change to a published package → changeset required.**
 - **Test-only or internal change (not visible to CLI users) → none.**
 - **Behavior/setting users should know about → changeset and usually docs.**
-- **For a pnpm CLI change, target `pacquet`** and any affected supporting packages. The v11
-  changeset belongs in the `release/11` backport PR.
+- **For a pnpm CLI change, target `pacquet`** and any affected supporting packages.
 - **One changeset per logical change.** The text is a user-facing release note — accurate and
   concise, no implementation rationale — and it must match what the code actually does.
 - **Package targets determine the release page.** Do not name pnpm release lines or `pacquet` in
@@ -276,23 +275,7 @@ Tests must prove the changed behavior, not just execute nearby code.
 
 ---
 
-## 9. pnpm v11 coverage
-
-This section applies to the pnpm CLI, not to the pnpr registry server. pnpm v11, the TypeScript
-CLI, is maintained on the `release/11` branch. The policy is in `AGENTS.md` → Release lines and
-backports.
-
-- **Reject new features in a `release/11` PR.** A feature missing from v11 is not a parity failure.
-- For a bug fix, establish whether v11 has the bug too. If it does, the `main` PR description
-  names the `release/11` backport.
-- For a backport, compare flags, defaults, env handling, error codes/messages, lockfile shape,
-  store layout, build policy, lifecycle behavior, config handling, and output with the `main` fix.
-- When a bot says a symbol is "not referenced," it may be searching only one major's branch;
-  check the other branch.
-
----
-
-## 10. Dependencies and external packages
+## 9. Dependencies and external packages
 
 Before adding a dependency or writing custom logic: check for an existing repo utility; compare
 maintained packages that already solve it; add it at the narrowest package that needs it; avoid
@@ -301,7 +284,7 @@ escaping when a proven library or local helper exists.
 
 ---
 
-## 11. PR hygiene
+## 10. PR hygiene
 
 - One logical change per PR.
 - Don't open a duplicate PR for the same change; update the existing one.
@@ -316,7 +299,7 @@ escaping when a proven library or local helper exists.
 
 ---
 
-## 12. How feedback is written
+## 11. How feedback is written
 
 The voice is short, direct, and specific.
 
@@ -331,7 +314,7 @@ The voice is short, direct, and specific.
 
 ---
 
-## 13. Reviewer's checklist
+## 12. Reviewer's checklist
 
 For each PR, in order:
 
@@ -345,11 +328,8 @@ For each PR, in order:
 7. **Tests.** Right level, meaningful, regression-proving, cross-platform where relevant. (§7)
 8. **Changeset.** Present iff user-visible; targets every affected package (`pacquet` for the
    pnpm CLI); one per change; accurate; styled per `AGENTS.md`. (§8)
-9. **CLI version coverage.** New pnpm CLI features land on `main` only; a bug v11 also has
-   names its `release/11` backport. This rule does not apply to pnpr. (§9)
-10. **Conventions.** No swallowed errors, good names, reused libraries, correct dependency
-    placement. (`AGENTS.md` → Conventions)
+9. **Conventions.** No swallowed errors, good names, reused libraries, correct dependency
+   placement. (`AGENTS.md` → Conventions)
 
 A change is mergeable when it is the **smallest correct, secure, in-scope version of a thing
-pnpm should do**, in the right layer, proven by a meaningful test, documented if user-visible,
-and implemented in every affected pnpm CLI version when the change is to the CLI.
+pnpm should do**, in the right layer, proven by a meaningful test, and documented if user-visible.

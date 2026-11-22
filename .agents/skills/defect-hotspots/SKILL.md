@@ -55,7 +55,6 @@ For each cluster, read every fix's message and diff (`git show <sha>`) and its i
 - **A shortcut without an oracle.** A fast path, cache, or "nothing changed" check approximates a slow path, and nothing defines or tests that they agree.
 - **State written by one command, read by another.** A file under `node_modules/`, the store, or the state dir has no single owner and no stated contract for what it records.
 - **A settings matrix without a test matrix.** Behavior depends on a combination (linker, injected, filtered, frozen, workspace lockfile shared or not), and tests cover one row at a time.
-- **Parity kept by hand.** pnpm v11 (on `release/11`) and `main` implement the behavior separately and drift. Check whether the cluster's fixes were backported to `release/11`.
 - **Order-dependent setup.** A value is read before the layer that can change it ran (pnpmfile hooks, pinned-version switch, workspace settings).
 
 Name the flaw by where it lives, with file paths. "The verify-deps gate and the install's own up-to-date check each decide freshness" is a finding. "This area is complex" is not.
@@ -68,10 +67,9 @@ For each cluster:
 - **Tests that would have caught the loop.** Name each test and what it asserts. Prefer tests that cover the property over another example of it:
   - equivalence tests that run the fast path and the full path on the same input and compare results;
   - a parameterized test over the settings matrix the cluster touches;
-  - a convergence test against the pinned `pnpm-v11` in `pnpm/test-oracles` when parity drifted;
   - a sequence test (install, change X, run Y) when state passes between commands.
 
-  Search the test suites first (`pnpm/crates/*/tests`, and `pnpm11/**/test` on `release/11`) and say which of these exist, and why they did not catch the cluster's bugs.
+  Search the test suites first (`pnpm/crates/*/tests`) and say which of these exist, and why they did not catch the cluster's bugs.
 - **Fixes to revisit.** Earlier fixes in the cluster that the design change makes redundant.
 
 ## 6. Report

@@ -1,8 +1,7 @@
 # Website documentation
 
 `pnpm/docs/` and `pnpr/docs/` are the sources for the pnpm and registry
-documentation published on [pnpm.io](https://pnpm.io). The v11 documentation
-lives in `pnpm11/docs/` on the `release/11` branch. Change documentation in
+documentation published on [pnpm.io](https://pnpm.io). Change documentation in
 the same pull request as the behavior it describes. The website, blog, v10 and
 archived documentation, translations, and deployment remain in
 [pnpm/pnpm.io](https://github.com/pnpm/pnpm.io).
@@ -11,8 +10,7 @@ archived documentation, translations, and deployment remain in
 
 The Markdown lives directly under `pnpm/docs/` for pnpm and `pnpr/docs/` for
 the registry. Each directory includes its `sidebars.json` and documentation
-assets under `static/`. A fix that is backported to v11 updates `pnpm11/docs/`
-in the `release/11` backport PR.
+assets under `static/`.
 
 Use `/img/...` URLs for assets stored under a line's `static/img/` directory.
 The publisher places them under `/docs-assets/<line>/img/` and rewrites the
@@ -32,11 +30,9 @@ pnpm --dir ../pnpm.io check-urls
 
 Adjust the paths to your checkouts. `--preview` replaces the website's generated
 documentation copies with the local sources. The website imports every
-documentation line, so the first two commands place the v11 sources from
-`release/11` in the working tree; do not commit them. Run it again after
-editing sources. It does not publish or advance release state.
-The Documentation workflow performs the same build and URL checks for PRs,
-with the v11 sources fetched from `release/11`.
+documentation line, so the first two commands fetch `pnpm11/docs`; do not
+commit it. Run it again after editing sources. It does not publish or advance release state.
+The Documentation workflow performs the same build and URL checks for PRs.
 It pins the website revision for reproducibility; update that revision when
 adopting website tooling changes. Release publication uses the website's current
 `main` branch.
@@ -47,7 +43,7 @@ When a maintainer publishes a draft GitHub release, Sync documentation
 dispatches itself from `main` for that tag, so every sync runs the workflow,
 scripts, and trusted keys on `main`. The sync verifies the
 signed tag and npm publication, then imports only that version's documentation
-from the tagged commit. v11 tags point at `release/11` commits. Stable CLI
+from the tagged commit. Stable CLI
 releases update their line's documentation. Pnpr releases, including alpha releases, update
 only the registry documentation. Other CLI releases do not trigger a sync.
 
@@ -70,8 +66,7 @@ build against the new website commit. The workflow never force-pushes.
 To publish directly from `main` without a release, open **Actions → Sync
 documentation → Run workflow**, select `main`, and leave both inputs empty.
 This builds, checks, and publishes every product's current documentation,
-including docs for unreleased changes. The v11 documentation comes from
-`release/11`. It requires the same `DOCS_SYNC_TOKEN`
+including docs for unreleased changes. It requires the same `DOCS_SYNC_TOKEN`
 setup as automatic publication. The generated website commit records the source
 SHA. This manual override leaves the last-release tracking in `docs-sync.json`
 unchanged; subsequent newer releases resume updating their respective docs.
@@ -89,10 +84,10 @@ Pnpr releases get no page.
 ### Corrections
 
 For a correction that should ship before the next package release, branch from
-the published release tag, change only the corresponding `pnpm/docs/`,
-`pnpm11/docs/` (v11 tags), or `pnpr/docs/` directory. Make the
+the published release tag, change only the corresponding `pnpm/docs/`
+or `pnpr/docs/` directory. Make the
 commit available in pnpm/pnpm. Dispatch the sync with that `release_tag` and the
-full `docs_commit` SHA. Also carry the correction into `main`, or `release/11` for v11.
+full `docs_commit` SHA. Also carry the correction into `main`.
 The workflow rejects corrections containing code changes or changes to another
 version's documentation. This keeps unreleased features off the public site.
 

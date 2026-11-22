@@ -58,6 +58,11 @@ jobs:
           clean: false
           persist-credentials: false
 
+      # The pull request's install settings can differ from main's, and pnpm
+      # refuses to reuse a modules directory created with other settings.
+      - name: Remove main's node_modules
+        run: find . -path ./target -prune -o -type d -name node_modules -prune -exec rm -rf {} +
+
       - name: Install pull request crates
         run: pnpm install --frozen-lockfile --filter pacquet --filter @pnpm/esm-loader
 

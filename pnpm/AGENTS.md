@@ -6,41 +6,17 @@ Guidance for AI coding agents working in `pnpm/`.
 
 ## What this project is
 
-`pacquet` is the newest pnpm major, implemented in Rust. pnpm v11, the
-TypeScript CLI, is maintained on the `release/11` branch.
+`pacquet` is the newest pnpm major, implemented in Rust.
 
+## Working rules
 
-## Version policy
-
-The repo-wide policy lives in
-[`../AGENTS.md`](../AGENTS.md#release-lines-and-backports); this section is
-the pacquet-side detail. A new command, flag, behavior, or format introduced
-in pacquet does not need a TypeScript implementation.
-
-Working rules:
-
-1. **Classify the change.** Determine whether the bug is also present in v11.
-   New features and bugs absent from v11 need no backport.
-2. **Backport shared fixes.** For a bug present in both releases, the
-   `release/11` backport makes the TypeScript counterpart agree with pacquet
-   on logic, edge cases, config resolution, error messages, and file/lockfile
-   formats affected by the fix.
-3. **Match observable behavior, not structure.** Structural similarity (similar
-   function decomposition and names) is a convenience for cross-referencing, not
-   a requirement. What must match is what a user or a downstream tool can
-   observe for the shared bug fix.
-4. **Keep version-specific behavior deliberate.** A new feature is an
-   intentional difference, not something to backport to v11. Do not introduce
-   unrelated differences while implementing a shared bug fix.
-5. **Log emissions are part of shared bug-fix behavior.** When a shared fix
-   changes a function that fires `pnpm:<channel>` events through the reporter,
-   keep the call site, payload, and ordering consistent with v11 so
-   `@pnpm/cli.default-reporter` parses pacquet's NDJSON the same way it parses
-   v11's. See
+1. **Log emissions are observable behavior.** When a change touches a
+   function that fires `pnpm:<channel>` events through the reporter, keep the
+   payload and ordering in the format `@pnpm/cli.default-reporter` parses. See
    [Reporter / log events](./CODE_STYLE_GUIDE.md#reporter--log-events)
    in the style guide for the convention (channel mapping, threading
    `R: Reporter`, emit-site placement, recording-fake tests).
-6. **Prefer real fixtures; reach for the dependency-injection seam
+2. **Prefer real fixtures; reach for the dependency-injection seam
    only when they can't cover the branch.** Most happy paths and
    error paths should be tested with a `tempfile::TempDir`, the
    mocked registry, or an integration test that spawns the actual
@@ -216,10 +192,6 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
 - Tests that need the mocked registry start `pnpr` through
   `pnpm-testing-utils`; `cargo test` / `cargo nextest run` should not
   require a separate `just registry-mock launch` step.
-- When a bug fix spans both versions, keep their tests in sync — the
-  `release/11` backport tests the same scenario as the Rust test whenever it
-  translates. Matching test coverage is the easiest
-  way to prove the shared bug is fixed consistently.
 - The active test-porting plan lives in
   [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It enumerates the
   upstream TypeScript tests scheduled to be ported (with file paths and line
@@ -444,8 +416,6 @@ are part of the public contract, not implementation detail. See
 
 - Keep commits focused. A bug fix commit should not also refactor or
   reformat unrelated code.
-- When a bug fix also applies to pnpm v11, name the `release/11` backport PR
-  in the PR description.
 - Before pushing, run `typos`, the formatter, `pnpm check:rust`,
   `pnpm lint:rust`, and the tests for the crates you touched. Keep `check` and
   `lint` workspace-wide; scope the tests. Reach for the full `pnpm ready:rust`
@@ -480,8 +450,6 @@ perf(store-dir): share one read-only StoreIndex across cache lookups
 
 ## Things not to do
 
-- Do not leave a bug present in both pnpm v11 and pacquet without a
-  `release/11` backport.
 - A dependency that is already declared in `[workspace.dependencies]` in the
   root `Cargo.toml` may be added to any crate that needs it.
 - Do not add a dependency that is not already declared in the workspace

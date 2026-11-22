@@ -136,11 +136,7 @@ the subsystem that changed. Leave a section of a dozen or fewer flat - the headi
 cost more than they save.
 
 `release.yml` tolerates the extra level: it writes the Rust release body with
-`tail -n +2`. On `release/11`, `getChangelogEntry` (`pnpm11/__utils__/get-release-text`)
-slices between headings of the *same* depth as `## <version>`, so a `####` heading
-neither ends the slice nor is dropped. It does scan every heading for
-`major|minor|patch`, so in a v11 release avoid a group literally named "Patching" -
-call it "Patched dependencies".
+`tail -n +2`.
 
 In the Minor section of a feature release, lead with the three to five entries that
 change how people work, the way Playwright leads with a handful of highlights before

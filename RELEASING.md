@@ -93,17 +93,6 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    while the version is still staged on npm. So publish a draft only after its
    packages are approved.
 
-## pnpm v11
-
-pnpm v11 releases from the `release/11` branch, which has its own copy of
-`release.yml`. Follow the steps above with these differences:
-
-- Dispatch **Create release PR** from `release/11` with `target` set to
-  `release/11`.
-- Tag the merge commit on `release/11` as `v<version>`, reading the version
-  from `pnpm11/pnpm/package.json` at that commit.
-- The release stages `@pnpm/exe` and then `pnpm`.
-
 ## Reruns and partial releases
 
 `release.yml`'s plan job asks npm whether each product's *gate* package is

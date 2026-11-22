@@ -40,10 +40,6 @@ pnpm --filter get-pnpm test                  # builds with tsc, then runs node:t
 node --test .github/scripts/bump.test.mjs   # a script's sibling test
 ```
 
-## Fixes shared with pnpm v11
-
-A bug present in both pnpm v11 and `main` is tested on both lines: the Rust test here, and the same scenario's TypeScript test in the `release/11` backport.
-
 ## Reporting
 
 Name what you ran. "Ran `pnpm-lockfile` plus the `catalog` e2e module; did not run the full workspace suite" is an honest report. "Tests pass" after a single-crate run is not.

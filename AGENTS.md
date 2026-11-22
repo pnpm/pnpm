@@ -28,27 +28,11 @@ abstracts a foreign or raw-pointer API, or holds no `unsafe` at all. A new
 call goes into the `pnpm-ffi-*` crate that owns the surface, not into the
 crate that needs the result.
 
-## Release lines and backports
-
-`main` holds the newest pnpm major. pnpm v11, the TypeScript CLI, is maintained on the `release/11` branch.
-
-- **New features** land on `main` only. A feature missing from v11 is not a parity gap.
-- **A bug present in both v11 and `main`** is fixed on `main` first, then backported to `release/11` in a separate PR, adapted to TypeScript. The `main` PR description names the backport.
-- **A bug present only in v11** is fixed directly on `release/11`.
-
-A shared fix keeps both lines' observable behavior aligned: command-line flags and defaults, environment-variable handling, lockfile/manifest/state-file formats, error codes and messages, log emissions parsed by `@pnpm/cli.default-reporter`, store layout, and hook semantics.
-
-Parity tests on `main` compare pnpm against the published pnpm v11 pinned as `pnpm-v11` in [`pnpm/test-oracles/package.json`](./pnpm/test-oracles/package.json). Bump that pin once the backport is released; until then a parity test for the fix may fail.
-
-To cite v11 source from `main`, use a GitHub permalink pinned to a commit, for example `https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/<path>`.
-
-The pacquet-side version policy is in [`pnpm/AGENTS.md`](./pnpm/AGENTS.md#version-policy).
-
 ## Website documentation
 
 User documentation lives in `pnpm/docs/` for pnpm and `pnpr/docs/` for the
-registry. The v11 documentation lives in `pnpm11/docs/` on `release/11`. Update
-the affected version's docs and sidebar in the same PR as a behavior change.
+registry. Update the affected product's docs and sidebar in the same PR as a
+behavior change.
 See [DOCUMENTATION.md](./DOCUMENTATION.md) for local previews and release publishing.
 The blog and website application remain in pnpm/pnpm.io.
 
@@ -183,8 +167,6 @@ The package targets already place each changeset on the correct release page.
 Do not name a pnpm release line or implementation in the release-note text,
 such as "pnpm v12" or "pacquet", merely to distinguish its targets. Describe
 the behavior of the published `pnpm` command.
-
-A v11 changeset goes in the backport PR on `release/11`, which has its own changeset rules.
 
 ### Changeset style
 
@@ -395,7 +377,7 @@ checks, and working the review rounds. These rules hold whether or not it is loa
 -   **File tasks in [pnpm/tasks](https://github.com/pnpm/tasks), not in pnpm/pnpm.**
     An issue in pnpm/pnpm is a bug report against released pnpm behavior.
     Planned work goes to pnpm/tasks (`gh issue create -R pnpm/tasks`): follow-ups
-    left by a PR, refactors, performance work, backports to `release/11`, CI, benchmark
+    left by a PR, refactors, performance work, CI, benchmark
     and test-harness work, and docs to update after a release. Feature ideas go to
     [Discussions](https://github.com/pnpm/pnpm/discussions/new?category=ideas).
     Report a security vulnerability the way [SECURITY.md](./SECURITY.md)

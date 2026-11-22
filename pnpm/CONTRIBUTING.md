@@ -4,7 +4,7 @@ See also [`CODE_STYLE_GUIDE.md`](./CODE_STYLE_GUIDE.md) for the code style guide
 
 ## Scope and Version Policy
 
-pacquet is the newest pnpm major. New features are implemented here only. A bug also present in pnpm v11 is fixed here first, then backported to the `release/11` branch in a separate PR. See [`../AGENTS.md`](../AGENTS.md#release-lines-and-backports) for the full policy.
+pacquet is the newest pnpm major.
 
 Opening an issue first is optional for a clearly scoped change. Open one when the intended user-visible behavior or design is not obvious, or when coordination is needed for work already in progress.
 
