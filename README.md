@@ -20,7 +20,6 @@ Fast, disk space efficient package manager:
 * **Works as a Node.js version manager.** See [pnpm runtime](https://pnpm.io/11.x/cli/runtime).
 * **Works everywhere.** Supports Windows, Linux, and macOS.
 * **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/workspaces#usage-examples) since 2016.
-* **Experimental Rust port.** Includes [pacquet](./pnpm), an experimental port of the CLI written in Rust.
 * [See the full feature comparison with npm and Yarn](https://pnpm.io/feature-comparison).
 
 To quote the [Rush](https://rushjs.io/) team:
@@ -302,5 +301,5 @@ Benchmarks on an app with lots of dependencies:
 
 ## License
 
-[MIT](https://github.com/pnpm/pnpm/blob/main/LICENSE), except the [`pnpr/`](https://github.com/pnpm/pnpm/tree/main/pnpr) directory, which is source-available under the [PolyForm Shield License 1.0.0](https://github.com/pnpm/pnpm/blob/main/pnpr/LICENSE.md).
+[MIT](https://github.com/pnpm/pnpm/blob/main/LICENSE)
 

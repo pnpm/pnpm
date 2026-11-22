@@ -4,7 +4,7 @@
 // `--minAlertLevel=warning` also shows the rules that do not fail the run.
 //
 // Released changesets stay in .changeset/ and are not rewritten, so only the
-// changesets added since PROSE_BASE (default: origin/main) are linted.
+// changesets added since PROSE_BASE (default: origin/release/11) are linted.
 import { spawnSync } from 'node:child_process'
 import console from 'node:console'
 import process from 'node:process'
@@ -14,7 +14,7 @@ const EXCLUDED = /(^|\/)(node_modules|vendor|fixtures|__fixtures__|\.fixtures|te
 // Stays under the Windows command-line limit.
 const FILES_PER_RUN = 200
 
-const base = process.env.PROSE_BASE ?? 'origin/main'
+const base = process.env.PROSE_BASE ?? 'origin/release/11'
 const files = [
   ...git(['ls-files', '-z', '--', ...PATTERNS]).filter((file) => !EXCLUDED.test(file)),
   ...listAddedChangesets(base),

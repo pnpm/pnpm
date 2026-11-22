@@ -6,7 +6,6 @@
 "@pnpm/installing.deps-installer": minor
 "@pnpm/config.reader": minor
 "@pnpm/types": minor
-"pacquet": minor
 "pnpm": minor
 ---
 

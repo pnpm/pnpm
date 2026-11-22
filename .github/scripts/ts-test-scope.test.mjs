@@ -26,12 +26,6 @@ test('PR scope stays pinned when main advances; global changes and missing bases
     const base = commit(origin, 'global-test-config.json', 'original config')
     git(dir, 'clone', origin, checkout)
     git(checkout, 'switch', '-c', 'pr')
-    commit(checkout, 'pnpr/crates/example/src/lib.rs', 'registry change')
-    assert.equal(determineTestScope({ event: 'pull_request', base, cwd: checkout }).full_tests, 'true', 'registry-only PRs run all TS tests')
-    git(checkout, 'reset', '--hard', 'HEAD^')
-    commit(checkout, 'pnpr/docs/introduction.md', 'registry docs')
-    assert.equal(determineTestScope({ event: 'pull_request', base, cwd: checkout }).full_tests, 'false', 'registry docs alone do not require all TS tests')
-    git(checkout, 'reset', '--hard', 'HEAD^')
     commit(checkout, 'pnpm11/example/src/index.ts', 'pr')
     commit(origin, 'pnpm11/unrelated/src/index.ts', 'new main')
     const scope = () => determineTestScope({ event: 'pull_request', base, cwd: checkout })
@@ -40,9 +34,7 @@ test('PR scope stays pinned when main advances; global changes and missing bases
     assert.equal(git(checkout, 'diff', '--name-only', 'origin/main', 'HEAD'), 'pnpm11/example/src/index.ts')
     commit(checkout, '.changeset/fix-example.md', 'Release note')
     assert.equal(scope().full_tests, 'false', 'TS code plus release notes remain affected')
-    commit(checkout, 'pnpm/crates/example/src/lib.rs', 'rust')
-    assert.equal(scope().full_tests, 'false', 'TS code plus pacquet sources remain affected')
-    for (const file of ['package.json', 'pnpm-lock.yaml', '.config/pnpm/pnpmfile.cjs', 'pnpm-workspace.yaml', '.config/pnpm/patches/dependency.patch', '.github/scripts/new-helper.mjs', '.changeset/config.json', 'pnpr/crates/example/src/lib.rs', 'pnpr/.fixtures/packages/example/package.json', 'Cargo.lock']) {
+    for (const file of ['package.json', 'pnpm-lock.yaml', '.config/pnpm/pnpmfile.cjs', 'pnpm-workspace.yaml', '.config/pnpm/patches/dependency.patch', '.github/scripts/new-helper.mjs', '.changeset/config.json', 'pnpr/client/src/index.ts', 'pnpr/.fixtures/packages/example/package.json']) {
       commit(checkout, file, 'global input')
       assert.equal(scope().full_tests, 'true', file)
       git(checkout, 'reset', '--hard', 'HEAD^')
@@ -73,37 +65,7 @@ test('TS gate includes the registry sources and fixtures used by the v11 tests',
   const workflow = readFileSync(new URL('../workflows/ci.yml', import.meta.url), 'utf8')
   const filters = workflow.split('            ts:\n')[1].split('            changesets:\n')[0]
   const patterns = filters.split('\n').map(line => line.match(/- '([^']+)'/)?.[1]).filter(Boolean)
-  assert.ok(workflow.includes('predicate-quantifier: some-with-excludes'), 'the pnpr/docs exclusion needs some-with-excludes')
-  for (const pattern of ['!pnpr/docs/**', 'pnpm11/**', 'pnpr/**', '.github/workflows/build-pnpr.yml']) {
+  for (const pattern of ['pnpm11/**', 'pnpr/**', '.github/workflows/build-pnpr.yml']) {
     assert.ok(patterns.includes(pattern), `required TS test input: ${pattern}`)
   }
-})
-
-test('Rust gate configuration keeps exclusions limited to approved documentation', () => {
-  const workflow = readFileSync(new URL('../workflows/pacquet-ci.yml', import.meta.url), 'utf8')
-  const filters = workflow.slice(workflow.indexOf('          predicate-quantifier:'), workflow.indexOf('\n  test:'))
-  assert.match(filters, /predicate-quantifier: some-with-excludes/)
-  const patterns = filters.split('            rust:\n')[1].split('\n').map(line => line.match(/- '([^']+)'/)?.[1]).filter(Boolean)
-  const docs = filters.split('            docs:\n')[1].split('            rust:\n')[0].split('\n').map(line => line.match(/- '([^']+)'/)?.[1]).filter(Boolean)
-  assert.deepEqual(patterns.filter(pattern => pattern.startsWith('!')), [
-    '!pnpm/docs/**',
-    '!pnpr/docs/**',
-    '!pnpm/*.md',
-    '!pnpm/plans/*.md',
-    '!pnpm/scripts/*.md',
-    '!pnpm/crates/*/*.md',
-    '!pnpm/tasks/*/*.md',
-    '!pnpr/*.md',
-    '!pnpr/crates/*/*.md',
-    '!pnpr/docker/*.md',
-    '!pnpr/client/*.md',
-  ])
-  // Markdown under pnpr/.fixtures ships inside registry fixtures.
-  const recursiveDocs = new Set(['!pnpm/docs/**', '!pnpr/docs/**'])
-  assert.ok(!patterns.some(pattern => pattern.startsWith('!') && pattern.includes('**') && !recursiveDocs.has(pattern)), 'recursive exclusions only cover product documentation')
-  for (const pattern of ['pnpm/**', 'pnpr/**', '.config/nextest.toml', 'fixtures/**']) {
-    assert.ok(patterns.includes(pattern), `required test input: ${pattern}`)
-  }
-  assert.deepEqual(docs, patterns.filter(pattern => pattern.startsWith('!')).map(pattern => pattern.slice(1)), 'docs covers every exclusion, so the spell check still runs')
-  assert.match(workflow.slice(workflow.indexOf('\n  typos:'), workflow.indexOf('\n  deny:')), /needs.changes.outputs.docs == 'true'/)
 })

@@ -1955,8 +1955,9 @@ describe('linkExePlatformBinary', () => {
     fs.mkdirSync(wrapperDir, { recursive: true })
     fs.mkdirSync(platformDir, { recursive: true })
 
+    // A copy of the launcher the pnpm v12 npm package ships.
     fs.copyFileSync(
-      path.resolve(import.meta.dirname, '../../../../../..', 'pnpm/npm/pnpm/pnpm'),
+      path.join(import.meta.dirname, 'fixtures/pnpm-v12-wrapper/pnpm'),
       path.join(wrapperDir, 'pnpm')
     )
     fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({

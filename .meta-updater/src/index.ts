@@ -12,7 +12,7 @@ import { loadJsonFileSync } from 'load-json-file'
 import normalizePath from 'normalize-path'
 import { writeJsonFile } from 'write-json-file'
 
-import { NPM_SIGNING_KEYS_FILE, type NpmSigningKey, renderNpmSigningKeysModule, replaceRustNpmSigningKeys } from './npmSigningKeys.js'
+import { NPM_SIGNING_KEYS_FILE, type NpmSigningKey, renderNpmSigningKeysModule } from './npmSigningKeys.js'
 import { PUBLISH_EXECUTABLE_FILES, sortKeysInManifest, updateManifest } from './updateManifest.js'
 
 const CLI_PKG_NAME = 'pnpm'
@@ -22,21 +22,6 @@ interface TypeScriptReferencesContext {
   workspacePackageDirs: Map<string, string>
 }
 
-// These packages have their own release metadata and build pipelines;
-// the TypeScript package entry points, engine range, and Jest scripts do not apply.
-const NON_TYPESCRIPT_PKGS = new Set([
-  // A TypeScript package, but released on its own and built with its own
-  // tsconfig rather than the pnpm v11 conventions.
-  'get-pnpm',
-  'pacquet',
-  '@pnpm/napi',
-  '@pnpm/pnpr',
-  '@pnpm/pnpr-ui',
-  '@pnpm/esm-loader',
-  // Pins published releases, which workspace: and catalog: would replace.
-  '@pnpm-private/test-oracles',
-])
-
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
 // `@pnpm/exe` ships the same `dist/` tree as `pnpm`, so the two manifests'
 // `publishConfig.executableFiles` lists must stay identical. Otherwise the
@@ -45,13 +30,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
   const pnpmManifest = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm11/pnpm/package.json'))
   const pnpmVersion = pnpmManifest!.version!
-  // The Rust products embed the versions their release builds report and
-  // verify. `pnpm version -r` bumps only the npm wrapper manifests, so those
-  // are the source of truth; the Rust-source handlers below mirror them, and
-  // `meta-updater --test` (run in pre-push and CI) fails a missed sync before
-  // it can reach the release workflow.
-  const rustCliVersion = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm/npm/pnpm/package.json'))!.version!
-  const pnprVersion = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpr/npm/pnpr/package.json'))!.version!
   const npmSigningKeys = loadJsonFileSync<NpmSigningKey[]>(path.join(workspaceDir, NPM_SIGNING_KEYS_FILE))
   const pnpmMajorNumber = pnpmVersion.split('.')[0]
   const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`
@@ -65,18 +43,12 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   return createUpdateOptions({
     formats: {
       '.yml': textFormat,
-      '.rs': textFormat,
-      '.toml': textFormat,
-      '.lock': textFormat,
       '.ts': textFormat,
       [GENERATED_JSON]: generatedJsonFormat,
     },
     files: {
       'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {
         if (!manifest) {
-          return manifest
-        }
-        if (manifest.name && NON_TYPESCRIPT_PKGS.has(manifest.name)) {
           return manifest
         }
         if (manifest.name === 'monorepo-root') {
@@ -187,23 +159,10 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       // The standalone `@pnpm/exe` artifacts embed this Node.js version.
       'scripts/build-artifacts.ts': (content: string | null) =>
         nodeRuntimeVersion ? replaceVersionLiteral(content, /(const EMBEDDED_RUNTIME = )'node@[^']*'/, `$1'node@${nodeRuntimeVersion}'`) : content,
-      // Mirror the bumped npm wrapper versions into the Rust sources their
-      // release builds report and verify (see rustCliVersion / pnprVersion).
-      'pnpm/crates/config/src/defaults.rs': (content: string | null) =>
-        replaceVersionLiteral(content, /(pub const PNPM_VERSION: &str = )"[^"]*"/, `$1"${rustCliVersion}"`),
-      'pnpr/crates/pnpr/Cargo.toml': (content: string | null) =>
-        replaceVersionLiteral(content, /^(version\s*=\s*)"[^"]*"/m, `$1"${pnprVersion}"`),
-      'Cargo.lock': (content: string | null) =>
-        replaceVersionLiteral(content, /(\[\[package\]\]\nname = "pnpr"\nversion = )"[^"]*"/, `$1"${pnprVersion}"`),
-      // The npm signing keys each product pins, from the one committed list.
-      // pnpm keeps trusting the keys npm withdrew; get-pnpm, an installer of
-      // current releases only, does not.
+      // The npm signing keys pnpm pins, from the committed list. pnpm keeps
+      // trusting the keys npm withdrew.
       'pnpm11/deps/security/signatures/src/npmSigningKeys.ts': (content: string | null) =>
         content == null ? content : renderNpmSigningKeysModule(npmSigningKeys, { currentOnly: false }),
-      'pnpm/npm/get-pnpm/src/npmSigningKeys.ts': (content: string | null) =>
-        content == null ? content : renderNpmSigningKeysModule(npmSigningKeys, { currentOnly: true }),
-      'pnpm/crates/cli/src/cli_args/self_update/verify_engine/signatures.rs': (content: string | null) =>
-        replaceRustNpmSigningKeys(content, npmSigningKeys),
     },
   })
 }
@@ -273,8 +232,7 @@ function readGeneratedTSConfig (dir: string, projectName: string | undefined): o
 }
 
 function shouldKeepTSConfig (name: string | undefined): boolean {
-  return name === '@pnpm/tsconfig' || name === '@pnpm-private/typecheck' ||
-    (name != null && NON_TYPESCRIPT_PKGS.has(name))
+  return name === '@pnpm/tsconfig' || name === '@pnpm-private/typecheck'
 }
 
 function getCompilerOptions (tsConfig: object): (Record<string, unknown> & { composite?: boolean }) | undefined {

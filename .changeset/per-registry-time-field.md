@@ -4,7 +4,6 @@
 "@pnpm/resolving.npm-resolver": minor
 "@pnpm/config.reader": minor
 "@pnpm/types": minor
-"pacquet": minor
 "pnpm": minor
 ---
 

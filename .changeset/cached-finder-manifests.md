@@ -1,5 +1,4 @@
 ---
-"pacquet": patch
 "pnpm": patch
 "@pnpm/store.index": patch
 "@pnpm/deps.inspection.commands": patch

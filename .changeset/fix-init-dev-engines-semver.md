@@ -1,6 +1,5 @@
 ---
 "@pnpm/workspace.commands": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

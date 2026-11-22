@@ -1,6 +1,5 @@
 ---
 "@pnpm/installing.deps-resolver": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

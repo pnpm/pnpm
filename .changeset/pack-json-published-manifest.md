@@ -1,6 +1,5 @@
 ---
 "@pnpm/releasing.commands": patch
-"pacquet": minor
 "pnpm": patch
 ---
 

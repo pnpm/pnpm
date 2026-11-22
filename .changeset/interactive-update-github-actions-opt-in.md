@@ -3,7 +3,6 @@
 "@pnpm/deps.inspection.commands": patch
 "@pnpm/installing.commands": patch
 "@pnpm/types": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

@@ -3,20 +3,16 @@ name: Documentation
 on:
   pull_request:
     paths:
-      - 'pnpm/docs/**'
       - 'pnpm11/docs/**'
-      - 'pnpr/docs/**'
       - 'DOCUMENTATION.md'
       - '.github/workflows/docs.yml'
       - '.github/workflows/sync-docs.yml'
       - '.github/scripts/prepare-docs-sync*.mjs'
       - '.github/scripts/copy-docs-artifact*.mjs'
   push:
-    branches: [main]
+    branches: [release/11]
     paths:
-      - 'pnpm/docs/**'
       - 'pnpm11/docs/**'
-      - 'pnpr/docs/**'
       - 'DOCUMENTATION.md'
       - '.github/workflows/docs.yml'
       - '.github/workflows/sync-docs.yml'
@@ -49,6 +45,12 @@ jobs:
           install: false
       - name: Test release source validation
         run: node --test .github/scripts/prepare-docs-sync.test.mjs .github/scripts/copy-docs-artifact.test.mjs
+      # The website's preview imports every documentation line, and the other
+      # lines live on main.
+      - name: Add the documentation of main
+        run: |
+          git fetch --no-tags --depth=1 origin main
+          git restore --source=FETCH_HEAD --worktree -- pnpm/docs pnpr/docs
       - name: Build the website with this PR's documentation
         working-directory: website
         run: |

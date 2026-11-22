@@ -4,7 +4,6 @@
 "@pnpm/global.commands": major
 "@pnpm/installing.commands": patch
 "pnpm": patch
-"pacquet": patch
 ---
 
 Build scripts can now be rejected before the package is installed [#14067](https://github.com/pnpm/pnpm/issues/14067):

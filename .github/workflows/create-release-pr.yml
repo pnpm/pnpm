@@ -4,33 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: Branch to release (the PR base; e.g. main or release/11.1).
-        default: main
+        description: Branch to release (the PR base). Run the workflow from the same branch.
+        default: release/11
         required: true
-      # Each product is a separate checkbox, so a release can cover any
-      # combination. Only the checked products' pending changesets are consumed;
-      # the rest stay in the ledger for a later release. This lets a rapid v12
-      # (Rust) cadence release without dragging the TypeScript CLI (v11) along —
-      # and with it the near-daily "Update available!" notification. Checking
-      # every box releases everything pending.
-      pnpm11:
-        description: Release pnpm v11 (the TypeScript CLI) and the rest of the default lane.
-        type: boolean
-        default: true
-      pnpm:
-        description: Release pnpm (the Rust CLI, v12 alpha prerelease) and its @pnpm/napi addon.
-        type: boolean
-        default: true
-      pnpr:
-        description: Release pnpr (the registry server).
-        type: boolean
-        default: true
-      # Off by default: get-pnpm releases on its own cadence, and the pnpm
-      # releases bundle its workspace source whether or not it is published.
-      get_pnpm:
-        description: Release get-pnpm (the installer package).
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -46,6 +22,16 @@ jobs:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
+    # Each release branch carries its own copy of this workflow, which knows
+    # that branch's products.
+    - name: Require the workflow from the target branch
+      env:
+        TARGET: ${{ github.event.inputs.target }}
+      run: |
+        if [ "$TARGET" != "$GITHUB_REF_NAME" ]; then
+          echo "::error::Run this workflow from the $TARGET branch to release $TARGET."
+          exit 1
+        fi
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -68,18 +54,14 @@ jobs:
         git fetch origin "$TARGET"
         git checkout -B "release-pr/$TARGET" FETCH_HEAD
 
-    - name: Initialize Rust before dependency installation
-      uses: $/.github/actions/rustup
-      with:
-        restore-cache: false
 
     - name: Install pnpm and Node
       uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         runtime: node@26.3.0
 
-    # Refresh .config/npm-signing-keys.json from what npm advertises. pnpm v11,
-    # pnpm v12, and get-pnpm verify package-manager binaries against these keys,
+    # Refresh .config/npm-signing-keys.json from what npm advertises. pnpm
+    # verifies package-manager binaries against these keys,
     # so a stale set could break verification after a key rotation. The bump
     # step's update-manifests renders the file into each product's copy, and any
     # drift is committed below along with the version bumps, so the new trust
@@ -92,7 +74,6 @@ jobs:
     # nodejs/release-keys list, so a new release signer cannot break Node.js
     # runtime verification. Reviewed in the release PR diff like the npm keys.
     - name: Update embedded Node.js release keys
-      if: github.event.inputs.pnpm11 == 'true'
       run: node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs --update
 
     # A refreshed trust root must show up in the changelogs, so synthesize a
@@ -111,8 +92,6 @@ jobs:
         ---
         "@pnpm/deps.security.signatures": patch
         "pnpm": patch
-        "pacquet": patch
-        "get-pnpm": patch
         ---
 
         Updated the embedded npm registry signing keys to the set currently advertised by npm.
@@ -132,26 +111,10 @@ jobs:
         echo "drifted=$drifted" >> "$GITHUB_OUTPUT"
 
     # Consumes the pending changesets: bumps versions, writes changelogs, updates
-    # the ledger, and syncs manifests. Only the checked products' intents are
-    # consumed; the rest stay in the ledger for a later release. A no-op (nothing
-    # pending in scope) leaves the tree clean and the steps below skip.
+    # the ledger, and syncs manifests. A no-op (nothing pending) leaves the tree
+    # clean and the steps below skip.
     - name: Bump versions
-      env:
-        RELEASE_PNPM11: ${{ github.event.inputs.pnpm11 }}
-        RELEASE_PNPM: ${{ github.event.inputs.pnpm }}
-        RELEASE_PNPR: ${{ github.event.inputs.pnpr }}
-        RELEASE_GET_PNPM: ${{ github.event.inputs.get_pnpm }}
-      run: |
-        args=()
-        [ "$RELEASE_PNPM11" = "true" ] && args+=(--release pnpm11)
-        [ "$RELEASE_PNPM" = "true" ] && args+=(--release pnpm)
-        [ "$RELEASE_PNPR" = "true" ] && args+=(--release pnpr)
-        [ "$RELEASE_GET_PNPM" = "true" ] && args+=(--release get-pnpm)
-        if [ ${#args[@]} -eq 0 ]; then
-          echo "Select at least one product to release." >&2
-          exit 1
-        fi
-        pnpm run bump -- "${args[@]}"
+      run: pnpm run bump
 
     - name: Check for changes
       id: changes
@@ -162,35 +125,10 @@ jobs:
           echo "changed=true" >> "$GITHUB_OUTPUT"
         fi
 
-    # One release PR covers every product; the commit subject lists the ones
-    # whose version actually changed against the target branch, e.g.
-    # "chore(release): 11.13.0, pacquet 12.0.0-alpha.9, pnpr 0.2.0". When only
-    # the TypeScript CLI bumped, the subject stays the historical bare version.
-    # `@pnpm/napi` is not listed separately: it is a versioning.fixed group with
-    # pacquet, so it always carries pacquet's version.
     - name: Compose release summary
       id: version
       if: steps.changes.outputs.changed == 'true'
-      run: |
-        summary=""
-        add() {
-          local label="$1" manifest="$2" new old
-          new=$(jq -r .version "$manifest")
-          old=$(git show "FETCH_HEAD:$manifest" 2>/dev/null | jq -r .version || echo "")
-          if [ "$new" != "$old" ]; then
-            summary="${summary:+$summary, }${label:+$label }$new"
-          fi
-        }
-        add "" pnpm11/pnpm/package.json
-        add "pacquet" pnpm/npm/pnpm/package.json
-        add "pnpr" pnpr/npm/pnpr/package.json
-        add "get-pnpm" pnpm/npm/get-pnpm/package.json
-        # Changes without a version bump (e.g. refreshed trust-root changesets
-        # consumed into changelogs only) still need a commit subject.
-        if [ -z "$summary" ]; then
-          summary=$(jq -r .version pnpm11/pnpm/package.json)
-        fi
-        echo "version=$summary" >> "$GITHUB_OUTPUT"
+      run: echo "version=$(jq -r .version pnpm11/pnpm/package.json)" >> "$GITHUB_OUTPUT"
 
     - name: Commit and push
       if: steps.changes.outputs.changed == 'true'

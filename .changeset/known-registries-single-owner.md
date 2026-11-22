@@ -8,7 +8,6 @@
 "@pnpm/installing.deps-resolver": patch
 "@pnpm/lockfile.utils": patch
 "@pnpm/resolving.npm-resolver": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

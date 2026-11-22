@@ -1,7 +1,6 @@
 ---
 "@pnpm/deps.compliance.sbom": patch
 "@pnpm/deps.compliance.commands": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

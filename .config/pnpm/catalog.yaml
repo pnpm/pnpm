@@ -5,7 +5,6 @@ catalog:
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
   '@cyclonedx/cyclonedx-library': 10.5.1
-  '@emnapi/wasi-threads': 2.2.0
   '@eslint/js': ^10.0.1
   # @inquirer/prompts 8.8.0 (and its @inquirer/* dependencies) require Node.js
   # ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's supported floor of Node.js >=22.13.
@@ -18,6 +17,7 @@ catalog:
   '@pnpm/colorize-semver-diff': ^2.0.0
   '@pnpm/exec': ^4.0.0
   '@pnpm/logger': '^1100.0.0'
+  '@pnpm/pnpr': 0.1.0-alpha.22
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/nopt': ^0.3.1
   '@pnpm/npm-package-arg': ^2.0.0
@@ -27,7 +27,6 @@ catalog:
   '@reflink/reflink': 0.1.19
   '@rushstack/worker-pool': 0.7.32
   '@stylistic/eslint-plugin': ^6.0.1
-  '@tybys/wasm-util': 0.10.5
   '@types/adm-zip': ^0.6.0
   '@types/archy': 0.0.36
   '@types/cross-spawn': ^6.0.6
@@ -70,7 +69,6 @@ catalog:
   '@types/zkochan__table': npm:@types/table@6.3.2
   '@typescript-eslint/utils': ^8.73.0
   '@typescript/native': npm:typescript@7.0.2
-  '@webcontainer/api': ^1.6.4
   # @yarnpkg/core 4.9.2 was published with a Yarn `patch:` specifier for its
   # `got` dependency, which pnpm resolves to a nonexistent local path. The
   # `@yarnpkg/nm` override keeps its transitive copy on this version too.
@@ -79,7 +77,6 @@ catalog:
   '@yarnpkg/fslib': ^3.1.5
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.1.1
-  '@yarnpkg/parsers': 3.1.0
   '@yarnpkg/pnp': ^4.1.7
   '@yarnpkg/shell': 4.1.3
   '@zkochan/retry': ^0.2.0
@@ -211,7 +208,6 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^3.0.0
   pidtree: ^1.0.0
-  playwright-core: ^1.65.1
   preferred-pm: ^5.0.1
   pretty-bytes: ^7.2.0
   pretty-ms: ^10.0.0
@@ -296,17 +292,6 @@ catalog:
   yaml: ^2.9.1
   yaml-tag: 1.1.0
   yauzl: ^3.4.0
-  enhanced-resolve: 5.27.0
-  arg: 5.0.2
-
-catalogs:
-  # The runtime dependencies of get-pnpm, which npx and pnpm/setup install from
-  # its published manifest. Exact, so an installer that verifies what it
-  # downloads does not take a new release of its own dependencies unreviewed.
-  get-pnpm:
-    confbox: 0.3.2
-    picomatch: 4.0.7
-    semver: 7.8.6
 
 catalogMode: strict
 

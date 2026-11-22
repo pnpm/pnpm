@@ -1,6 +1,5 @@
 ---
 "@pnpm/resolving.tarball-url": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

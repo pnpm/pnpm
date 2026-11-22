@@ -1,7 +1,6 @@
 ---
 "@pnpm/resolving.default-resolver": minor
 "@pnpm/resolving.npm-resolver": minor
-"pacquet": patch
 "pnpm": patch
 ---
 

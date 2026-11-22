@@ -34,6 +34,7 @@
     "@stylistic/eslint-plugin": "catalog:",
     "eslint": "catalog:",
     "eslint-plugin-import-x": "catalog:",
+    "eslint-plugin-jest": "catalog:",
     "eslint-plugin-n": "catalog:",
     "eslint-plugin-promise": "catalog:",
     "eslint-plugin-simple-import-sort": "catalog:",
@@ -42,7 +43,6 @@
   },
   "devDependencies": {
     "@pnpm/eslint-config": "workspace:*",
-    "@typescript-eslint/utils": "catalog:",
-    "eslint-plugin-jest": "catalog:"
+    "@typescript-eslint/utils": "catalog:"
   }
 }

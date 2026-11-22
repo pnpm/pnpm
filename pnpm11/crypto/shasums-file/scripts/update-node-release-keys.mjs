@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Mirrors the Node.js release team's OpenPGP public keys (used to verify the
 // signature of SHASUMS256.txt) from the canonical nodejs/release-keys repo into
-// src/nodeReleaseKeys.ts and pacquet's matching Rust key module.
+// src/nodeReleaseKeys.ts.
 //
 //   node update-node-release-keys.mjs            # check
 //   node update-node-release-keys.mjs --update   # rewrite the embedded keys
@@ -15,11 +15,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const RAW = 'https://raw.githubusercontent.com/nodejs/release-keys/main'
-// The TypeScript pnpm CLI lives under pnpm11/, while pacquet stays at the repo root.
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const REPO_ROOT = path.join(ROOT, '..')
 const TS_KEYS_FILE = path.join(ROOT, 'crypto', 'shasums-file', 'src', 'nodeReleaseKeys.ts')
-const RUST_KEYS_FILE = path.join(REPO_ROOT, 'pnpm', 'crates', 'crypto-shasums-file', 'src', 'node_release_keys.rs')
 
 async function main () {
   const update = process.argv.includes('--update')
@@ -28,7 +26,6 @@ async function main () {
 
   const embedded = [
     readEmbeddedFingerprints(TS_KEYS_FILE, /fingerprint: '([0-9A-F]+)'/g),
-    readEmbeddedFingerprints(RUST_KEYS_FILE, /fingerprint: "([0-9A-F]+)"/g),
   ]
   const missing = embedded.flatMap(({ label, fingerprints: embeddedFingerprints }) =>
     fingerprints.filter((fp) => !embeddedFingerprints.includes(fp)).map((fp) => ({ label, fp }))
@@ -57,8 +54,6 @@ async function main () {
     keys.push({ fingerprint: fp, armored })
   }
   fs.writeFileSync(TS_KEYS_FILE, renderTypeScript(keys))
-  writeRustKeyAssets(keys)
-  fs.writeFileSync(RUST_KEYS_FILE, renderRust(keys))
   console.log(`✓ Wrote ${keys.length} Node.js release key(s).`)
 }
 
@@ -95,37 +90,6 @@ function renderTypeScript (keys) {
 export const NODE_RELEASE_KEYS = [
 ${entries}
 ] as const satisfies ReadonlyArray<{ fingerprint: string, armoredKey: string }>
-`
-}
-
-function writeRustKeyAssets (keys) {
-  const directory = path.join(path.dirname(RUST_KEYS_FILE), 'node_release_keys')
-  fs.mkdirSync(directory, { recursive: true })
-  const files = new Set(keys.map(({ fingerprint }) => `${fingerprint}.asc`))
-  for (const name of fs.readdirSync(directory)) {
-    if (/^[0-9A-F]+\.asc$/.test(name) && !files.has(name)) {
-      fs.unlinkSync(path.join(directory, name))
-    }
-  }
-  for (const { fingerprint, armored } of keys) {
-    fs.writeFileSync(path.join(directory, `${fingerprint}.asc`), `${armored}\n`)
-  }
-}
-
-function renderRust (keys) {
-  const entries = keys.map(({ fingerprint }) =>
-    `    TrustedReleaseKey {\n        fingerprint: "${fingerprint}",\n        armored_key: include_str!("node_release_keys/${fingerprint}.asc"),\n    },`).join('\n')
-  return `// GENERATED: the Node.js release team's OpenPGP public keys, mirrored from
-// <https://github.com/nodejs/release-keys> (keys.list + keys/<fingerprint>.asc).
-//
-// Used to verify the signature of a Node.js release's SHASUMS256.txt before
-// trusting its hashes. Refresh with:
-//   node crypto/shasums-file/scripts/update-node-release-keys.mjs --update
-use crate::TrustedReleaseKey;
-
-pub(crate) const NODE_RELEASE_KEYS: &[TrustedReleaseKey] = &[
-${entries}
-];
 `
 }
 

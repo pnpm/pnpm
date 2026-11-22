@@ -1,6 +1,5 @@
 ---
 "@pnpm/deps.graph-hasher": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

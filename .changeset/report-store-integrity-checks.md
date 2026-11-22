@@ -2,7 +2,6 @@
 "@pnpm/installing.deps-installer": minor
 "@pnpm/store.cafs": minor
 "@pnpm/worker": minor
-"pacquet": patch
 "pnpm": minor
 ---
 

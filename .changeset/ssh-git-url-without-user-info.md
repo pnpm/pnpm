@@ -1,7 +1,6 @@
 ---
 "@pnpm/resolving.git-resolver": patch
 "pnpm": patch
-"pacquet": patch
 ---
 
 An `ssh://` git dependency pointing at a bracketed IPv6 host, such as `ssh://[::1]/repo.git`, is resolved now. Its colons were read as an SCP-style path separator, which turned the address into `[:/1]` and left the specifier unresolvable.

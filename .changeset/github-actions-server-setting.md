@@ -7,7 +7,6 @@
 "@pnpm/installing.commands": minor
 "@pnpm/resolving.git-resolver": patch
 "pnpm": minor
-"pacquet": minor
 ---
 
 Added a new setting, `update.githubActionsServer`, for specifying the base URL of the GitHub server that hosts the repositories of the GitHub Actions referenced by the workflow files (for example, a GitHub Enterprise Server). When the setting is not defined, the URL is read from the `GITHUB_SERVER_URL` environment variable, falling back to `https://github.com`. The URL must use the `https://` or `http://` protocol [#13220](https://github.com/pnpm/pnpm/issues/13220).

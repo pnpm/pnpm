@@ -1,7 +1,6 @@
 ---
 "@pnpm/fs.indexed-pkg-importer": patch
 "@pnpm/store.controller-types": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

@@ -1,5 +1,4 @@
 ---
-"pacquet": patch
 "@pnpm/exec.commands": patch
 "pnpm": patch
 ---

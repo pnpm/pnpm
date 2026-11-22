@@ -4,7 +4,6 @@
 "@pnpm/global.commands": patch
 "@pnpm/installing.commands": patch
 "pnpm": patch
-"pacquet": patch
 ---
 
 `pnpm dlx`, `pnx`, and `pnpm create` now handle local isolation, script skipping, and non-registry package specifiers consistently:

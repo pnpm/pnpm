@@ -2,7 +2,6 @@
 "@pnpm/types": minor
 "@pnpm/config.reader": minor
 "pnpm": minor
-"pacquet": minor
 ---
 
 Added `virtualStoreType`, which names where the virtual store lives — one store per machine, or one per project:

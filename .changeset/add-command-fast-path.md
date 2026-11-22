@@ -2,7 +2,6 @@
 "@pnpm/pkg-manifest.utils": minor
 "@pnpm/installing.deps-installer": patch
 "@pnpm/resolving.npm-resolver": patch
-"pacquet": patch
 "pnpm": patch
 ---
 

@@ -7,7 +7,6 @@
 '@pnpm/store.cafs': patch
 '@pnpm/store.cafs-types': patch
 '@pnpm/worker': patch
-'pacquet': patch
 'pnpm': patch
 ---
 

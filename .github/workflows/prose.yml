@@ -11,7 +11,7 @@ on:
       - '.github/scripts/lint-prose.mjs'
       - '.github/workflows/prose.yml'
   push:
-    branches: [main]
+    branches: [release/11]
 
 permissions:
   contents: read

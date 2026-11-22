@@ -22,7 +22,7 @@ architectural changes, compatibility, and tradeoffs.
 
 1. **Security first** (§1).
 2. **Performance second** (§2) — `install`, `add`, `update`, `remove`, resolution, fetching,
-   linking, lockfile handling, store access, and pnpr request paths are hot paths.
+   linking, lockfile handling, and store access are hot paths.
 3. **Product fit** — add surface (commands, settings, output) only when the benefit is clear
    and the result is maintainable.
 4. **Maintainability always** — prefer the right abstraction and package boundary over a
@@ -58,12 +58,6 @@ Look especially for:
   resolution, script-execution policy, and privilege-boundary mistakes;
 - registry/network/auth mistakes: token leakage, proxy handling, redirect behavior, TLS
   assumptions, cache poisoning, integrity/hash verification, and downgrade/confusion attacks;
-- Rust memory, concurrency, and unsafe-FFI issues in pacquet, including panic-on-untrusted-input
-  denial of service. [UNSAFE_POLICY.md](../../../../UNSAFE_POLICY.md) is the standard. An
-  `unsafe` outside the crates it names is a finding on its own. So is a `// SAFETY:`
-  comment that does not name every precondition the callee states, and what establishes it.
-  `cargo test -p pnpm-unsafe-audit` checks the mechanical half, so what review adds is
-  whether each safety argument holds and whether a safe alternative was looked for.
 
 Advisory regression themes — recurring classes from past pnpm advisories:
 
@@ -204,10 +198,6 @@ actual semantics. Check whether existing pnpm capabilities already solve the pro
 
 Breaking changes to stable behavior require a major version bump. Experimental areas can
 change sooner. An opt-in setting can expose a new behavior without breaking the stable default.
-`pnpr` is pre-1.0 on the `alpha` prerelease lane (experimental per `PHILOSOPHY.md` and
-`pnpr/AGENTS.md`), so its storage layouts, internal record formats, configuration keys, and CLI
-flags change in place without backward-compatibility fallbacks or migration paths between alpha
-builds.
 
 ### Avoid user-visible noise
 
@@ -264,38 +254,22 @@ Tests must prove the changed behavior, not just execute nearby code.
 - **User-visible change to a published package → changeset required.**
 - **Test-only or internal change (not visible to CLI users) → none.**
 - **Behavior/setting users should know about → changeset and usually docs.**
-- **For a pnpm v11 fix, include `"pnpm"` explicitly with a patch bump.**
-- **For a pnpm v12 change, target `pacquet`.** A shared bug fix targets both CLI packages and
-  any affected supporting packages.
+- **Include `"pnpm"` explicitly with a patch bump.**
 - **One changeset per logical change.** The text is a user-facing release note — accurate and
   concise, no implementation rationale — and it must match what the code actually does.
-- **Package targets determine the release page.** Do not name pnpm release lines or `pacquet` in
-  the prose merely to distinguish targets. If release lines have different user-visible behavior,
-  use separate changesets with the matching targets and text.
+- **Do not name a pnpm release line in the prose.**
 - **The text follows the changeset style rules** (`AGENTS.md` → Changeset style): the user-visible
   effect first, no list of internals, no em dashes, no "instead of" tail on every sentence.
-- **A user-visible pacquet change needs a changeset.** Test-only and internal changes do not.
 
 ---
 
-## 9. pnpm v12 and v11 coverage
+## 9. Version scope
 
-This section applies to the pnpm CLI implementations under `pnpm/` and `pnpm11/`, not to the
-pnpr registry server.
+This branch holds pnpm v11 and receives bug fixes and security fixes only. **Reject new
+features.**
 
-pnpm v12 is the target for new features. It is implemented in Rust under `pnpm/`. pnpm v11 is
-the TypeScript implementation under `pnpm11/` and receives bug fixes only. **Reject new-feature
-implementations in v11; a v12-only feature is an intentional version difference, not a parity
-failure.**
-
-- For a bug fix, establish whether the bug is present in v11, v12, or both.
-- If both versions are affected, fix and test both implementations. Do both sides in one PR
-  when practical; otherwise state in the description what is still missing.
-- If only one version is affected, change only that version and make the scope clear in the PR.
-- Compare flags, defaults, env handling, error codes/messages, lockfile shape, store layout,
-  build policy, lifecycle behavior, config handling, and output when reviewing shared bug fixes.
-- When a bot says a symbol is "not referenced," it may be searching only one major's branch;
-  check the other branch.
+When a bot says a symbol is "not referenced," it may be searching only one major's branch;
+check the other branch.
 
 ---
 
@@ -350,13 +324,12 @@ For each PR, in order:
 6. **Product/contract.** npm-recognized semantics; defaults preserved or properly gated;
    no log noise. (§5)
 7. **Tests.** Right level, meaningful, regression-proving, cross-platform where relevant. (§7)
-8. **Changeset.** Present iff user-visible; targets every affected package (`pacquet` for v12,
-   `"pnpm"` for v11); one per change; accurate; styled per `AGENTS.md`. (§8)
-9. **CLI version coverage.** New pnpm CLI features target v12 only; CLI bug fixes cover every
-   affected version. This rule does not apply to pnpr. (§9)
+8. **Changeset.** Present iff user-visible; targets every affected package and `"pnpm"`; one
+   per change; accurate; styled per `AGENTS.md`. (§8)
+9. **Version scope.** A bug fix or security fix, not a new feature. (§9)
 10. **Conventions.** `PnpmError`, no swallowed errors, good names, reused libraries, correct
     dependency placement, config through options. (`AGENTS.md` → Conventions)
 
 A change is mergeable when it is the **smallest correct, secure, in-scope version of a thing
 pnpm should do**, in the right layer, proven by a meaningful test, documented if user-visible,
-and implemented in every affected pnpm CLI version when the change is to the CLI.
+and a bug fix or security fix.

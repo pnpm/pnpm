@@ -2,8 +2,6 @@
 "@pnpm/config.normalize-registries": minor
 "@pnpm/installing.deps-installer": minor
 "@pnpm/pnpr.client": major
-"@pnpm/pnpr": minor
-"pacquet": minor
 "pnpm": minor
 ---
 

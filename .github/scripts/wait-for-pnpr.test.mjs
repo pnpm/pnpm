@@ -6,7 +6,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 
 const workflow = readFileSync(new URL('../workflows/test.yml', import.meta.url), 'utf8')
-const step = workflow.split('    - name: Wait for prebuilt pnpr binaries\n')[1]?.split('    - name: ')[0]
+const step = workflow.split('    - name: Wait for prebuilt pnpr-prepare\n')[1]?.split('    - name: ')[0]
 const run = step?.split('      run: |\n')[1]
 assert.ok(run, 'The pnpr polling step must exist')
 const script = run.split('\n').map(line => line.slice(8)).join('\n')

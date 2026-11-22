@@ -1,6 +1,5 @@
 ---
 "@pnpm/deps.inspection.outdated": patch
-"pacquet": patch
 "pnpm": patch
 ---
 
