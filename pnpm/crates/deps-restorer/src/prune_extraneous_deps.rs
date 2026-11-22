@@ -271,7 +271,7 @@ fn remove_unwanted_entries<Reporter: self::Reporter>(
 ) -> Result<(), PruneDirectDepsError> {
     let prefix = importer_dir.display().to_string();
     for pkg_name in pkg_names {
-        if wanted.contains(&pkg_name) {
+        if wanted.contains(&pkg_name) || !pnpm_package_name::is_valid_dependency_alias(&pkg_name) {
             continue;
         }
         let removed = match layout {

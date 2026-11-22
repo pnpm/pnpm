@@ -94,11 +94,13 @@ test('hoisted prune removes extraneous symlinks and keeps their targets', async 
   await execPnpm(['install'])
   fs.mkdirSync('node_modules/backup old')
   fs.mkdirSync('extra')
+  fs.symlinkSync(path.resolve('extra'), 'node_modules/_tmp', 'junction')
   fs.symlinkSync(path.resolve('extra'), 'node_modules/extra', 'junction')
   await execPnpm(['prune'])
   expect(fs.lstatSync('node_modules/extra', { throwIfNoEntry: false })).toBeUndefined()
   expect(fs.statSync('extra').isDirectory()).toBe(true)
   expect(fs.statSync('node_modules/backup old').isDirectory()).toBe(true)
+  expect(fs.lstatSync('node_modules/_tmp').isSymbolicLink()).toBe(true)
   project.has('is-positive')
 })
 

@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { removeBinsOfDependency, safeReadDependencyManifest } from '@pnpm/bins.remover'
 import { rootLogger } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { isProvidedByRoot } from '@pnpm/installing.linking.modules-cleaner'
@@ -89,9 +90,14 @@ async function unlinkExtraneousLinks (
   const declared = new Set(DEPENDENCIES_FIELDS.flatMap(field => Object.keys(manifest[field] ?? {})))
   const extra = (await readModulesDir(dir, { symlinksOnly: true }) ?? []).filter(alias => !Object.hasOwn(wantedDeps, alias) && !declared.has(alias))
   await Promise.all(extra.map(name => limitLinking(async () => {
-    const unlinked = await unlinkDirectLink(dir, name, binsDir)
+    const unlinked = await unlinkDirectLink(dir, name, binsDir).catch(ignoreInvalidAlias)
     if (unlinked) rootLogger.debug({ prefix: rootDir, removed: { name, version: unlinked.version } })
   })))
+}
+
+function ignoreInvalidAlias (error: unknown): undefined {
+  if (isError(error) && 'code' in error && error.code === 'ERR_PNPM_INVALID_DEPENDENCY_NAME') return undefined
+  throw error
 }
 
 function dependencyType (snapshot: ProjectSnapshot | undefined, alias: string): 'dev' | 'optional' | 'prod' {

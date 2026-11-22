@@ -331,6 +331,8 @@ fn warm_hoisted_install_and_prune_remove_extraneous_links() {
         .assert()
         .success();
     let modules = workspace.join("node_modules");
+    let unmanaged = modules.join("_tmp");
+    fs::create_dir(&unmanaged).unwrap();
     let link = modules.join("extra");
     let target = workspace.join("extra");
     fs::create_dir(&target).unwrap();
@@ -343,6 +345,7 @@ fn warm_hoisted_install_and_prune_remove_extraneous_links() {
         cmd.assert().success();
         assert!(fs::symlink_metadata(&link).is_err());
         assert!(target.is_dir());
+        assert!(unmanaged.is_dir());
         assert!(modules.join("is-positive/package.json").is_file());
     }
 }
