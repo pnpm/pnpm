@@ -4,10 +4,16 @@
 //! quotes while plain-safe values stay unquoted (`zoo: 4.0.0`,
 //! `newPkg: ^2.0.0`). [`yaml_serde`] implements that exact policy
 //! (`>=2.0.0` → `'>=2.0.0'`, `@scope/x` → `'@scope/x'`, otherwise plain), so
-//! value text is delegated to it rather than re-derived. Key ordering is
-//! handled by [`detect_key_layout`] and [`sort_keys`].
+//! value text is delegated to it rather than re-derived. A document that
+//! prefers double quotes gets them through [`AddedQuotes`] when it is written.
+//! Key ordering is handled by [`detect_key_layout`] and [`sort_keys`].
 
-use std::cmp::Ordering;
+use std::{
+    borrow::Cow,
+    cmp::Ordering,
+    collections::HashMap,
+    ops::Range,
+};
 
 use serde_saphyr::granit_parser::{
     ScalarStyle,
@@ -122,22 +128,82 @@ pub(crate) fn render_value(value: &str) -> String {
         .to_string()
 }
 
-/// Render a scalar string value using the specified [`QuoteStyle`].
+/// How a write quotes the scalars that edits added to a document.
 ///
-/// Plain-safe values stay unquoted. Values that require quoting use double
-/// quotes when `quote_style` is [`QuoteStyle::Double`], and single quotes
-/// when [`QuoteStyle::Single`].
-pub(crate) fn render_value_with_quotes(value: &str, quote_style: QuoteStyle) -> String {
-    let rendered = render_value(value);
-    match quote_style {
-        QuoteStyle::Single => rendered,
-        QuoteStyle::Double => {
-            if rendered.starts_with('\'') && rendered.ends_with('\'') && rendered.len() >= 2 {
-                serde_json::to_string(value)
-                    .expect("serializing a string scalar to JSON never fails")
-            } else {
-                rendered
-            }
+/// Edits render a scalar that needs quoting with single quotes. When the
+/// original document prefers double quotes (see [`detect_quote_style`]), the
+/// written text has every single-quoted scalar the original did not already
+/// hold rewritten with double quotes, so additions match the file while
+/// single-quoted scalars a user wrote stay as written.
+#[derive(Debug, Default)]
+pub(crate) enum AddedQuotes {
+    /// Keep the single quotes edits render, for a document that does not
+    /// mostly use double quotes: a new, unquoted, or single-quoted one, or
+    /// one evenly split between the two.
+    #[default]
+    Single,
+    /// Use double quotes, except for the single-quoted scalars the original
+    /// document held, counted by their source text.
+    Double { existing_single: HashMap<String, usize> },
+}
+
+impl AddedQuotes {
+    /// Judge the style from the document `original`, before any edit.
+    pub(crate) fn detect(original: &str) -> Self {
+        if detect_quote_style(original) == QuoteStyle::Single {
+            return Self::Single;
         }
+        let mut existing_single = HashMap::new();
+        for (range, _) in single_quoted_scalars(original) {
+            let source = original[range].to_string();
+            *existing_single.entry(source).or_default() += 1;
+        }
+        Self::Double { existing_single }
     }
+
+    /// The edited document `text`, with added scalars in the detected style.
+    pub(crate) fn apply(self, text: String) -> String {
+        let Self::Double { mut existing_single } = self else {
+            return text;
+        };
+        let mut out = String::with_capacity(text.len());
+        let mut copied = 0;
+        for (range, value) in single_quoted_scalars(&text) {
+            if let Some(count) = existing_single.get_mut(&text[range.clone()])
+                && *count > 0
+            {
+                *count -= 1;
+                continue;
+            }
+            // Double quotes would need escapes here, so the scalar keeps its
+            // single quotes.
+            if value.contains(['"', '\\']) || value.chars().any(char::is_control) {
+                continue;
+            }
+            out.push_str(&text[copied..range.start]);
+            out.push('"');
+            out.push_str(&value);
+            out.push('"');
+            copied = range.end;
+        }
+        out.push_str(&text[copied..]);
+        out
+    }
+}
+
+/// The byte range and decoded value of each single-quoted scalar in `text`,
+/// keys included.
+fn single_quoted_scalars(text: &str) -> Vec<(Range<usize>, Cow<'_, str>)> {
+    Scanner::new(StrInput::new(text))
+        .map_while(Result::ok)
+        .filter_map(|token| {
+            let (span, token) = token.into_parts();
+            match token {
+                TokenType::Scalar(ScalarStyle::SingleQuoted, value) => {
+                    Some((span.start.byte_offset()?..span.end.byte_offset()?, value))
+                }
+                _ => None,
+            }
+        })
+        .collect()
 }

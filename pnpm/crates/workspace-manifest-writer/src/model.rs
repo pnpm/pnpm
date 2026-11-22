@@ -51,6 +51,9 @@ pub(crate) struct ManifestDocument {
     /// as judged by [`crate::edit::uses_blank_line_style`] on the original
     /// text. New blocks are inserted in the same style.
     pub(crate) blank_lines: bool,
+    /// How [`Self::into_text`] quotes the scalars edits added, as judged on
+    /// the original text.
+    quotes: crate::render::AddedQuotes,
 }
 
 #[derive(Default)]
@@ -177,6 +180,7 @@ impl Manifest {
             .map_err(Box::new)?
             .unwrap_or_default();
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
+        let quotes = crate::render::AddedQuotes::detect(&text);
         let (text, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
             .map_err(<serde_saphyr::Error as serde::de::Error>::custom)
             .map_err(Box::new)?;
@@ -192,6 +196,7 @@ impl Manifest {
                 aliases,
                 keys: top_level_keys,
                 blank_lines: blank_line_style,
+                quotes,
             },
             catalogs: crate::model::CatalogEntries { default: data.catalog, named: data.catalogs },
             exceptions: crate::model::SecurityExceptions {
@@ -278,6 +283,7 @@ impl ManifestDocument {
     }
 
     pub(crate) fn into_text(self) -> Result<String, Box<yamlpatch::Error>> {
-        self.aliases.restore(&self.text)
+        let text = self.aliases.restore(&self.text)?;
+        Ok(self.quotes.apply(text))
     }
 }

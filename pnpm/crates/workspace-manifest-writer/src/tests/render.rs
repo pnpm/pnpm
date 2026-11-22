@@ -1,7 +1,7 @@
 use crate::render::{
+    AddedQuotes,
     QuoteStyle,
     detect_quote_style,
-    render_value_with_quotes,
 };
 
 #[test]
@@ -39,17 +39,36 @@ fn detect_quote_style_ignores_comments() {
 }
 
 #[test]
-fn render_value_with_quotes_formats_correctly() {
-    assert_eq!(render_value_with_quotes("foo@1.0.0", QuoteStyle::Single), "foo@1.0.0");
-    assert_eq!(render_value_with_quotes("foo@1.0.0", QuoteStyle::Double), "foo@1.0.0");
+fn added_quotes_double_quote_added_scalars_in_a_double_quoted_document() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  '@scope/kept': true\n";
+    let edited = format!("{original}  '@scope/added': true\n  '*': true\n");
     assert_eq!(
-        render_value_with_quotes("@better-auth/core@1.7.3", QuoteStyle::Single),
-        "'@better-auth/core@1.7.3'",
+        AddedQuotes::detect(original).apply(edited),
+        "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  '@scope/kept': true\n  \"@scope/added\": true\n  \"*\": true\n",
     );
+}
+
+#[test]
+fn added_quotes_count_existing_single_quoted_scalars() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\n  - '@x'\n";
+    let edited = format!("{original}  - '@x'\n");
     assert_eq!(
-        render_value_with_quotes("@better-auth/core@1.7.3", QuoteStyle::Double),
-        r#""@better-auth/core@1.7.3""#,
+        AddedQuotes::detect(original).apply(edited),
+        "packages:\n  - \"a\"\n  - \"b\"\n  - '@x'\n  - \"@x\"\n",
     );
-    assert_eq!(render_value_with_quotes("*", QuoteStyle::Single), "'*'");
-    assert_eq!(render_value_with_quotes("*", QuoteStyle::Double), r#""*""#);
+}
+
+#[test]
+fn added_quotes_keep_single_quotes_where_double_quotes_need_escapes() {
+    let original = "packages:\n  - \"a\"\n";
+    let edited = format!("{original}  - '@x \"y\"'\n  - '@x\\y'\n");
+    assert_eq!(AddedQuotes::detect(original).apply(edited.clone()), edited);
+}
+
+#[test]
+fn added_quotes_leave_other_documents_unchanged() {
+    for original in ["", "packages:\n  - a\n", "packages:\n  - 'a'\n", "a: \"x\"\nb: 'y'\n"] {
+        let edited = format!("{original}c: '@x'\n");
+        assert_eq!(AddedQuotes::detect(original).apply(edited.clone()), edited);
+    }
 }
