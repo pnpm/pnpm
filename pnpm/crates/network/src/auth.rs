@@ -29,6 +29,7 @@ pub use url::{
     base64_encode_bytes,
     is_url_secure_for_credentials,
     nerf_dart,
+    strip_insecure_url_credentials,
 };
 
 use crate::{

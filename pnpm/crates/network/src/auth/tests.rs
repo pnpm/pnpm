@@ -782,3 +782,17 @@ fn package_request_auth_respects_path_and_origin() {
     assert_eq!(authorize("http://registry.example/team/archive"), None);
     assert_eq!(authorize("https://registry.example:8080/team/archive"), None);
 }
+
+#[test]
+fn insecure_userinfo_is_removed_before_building_requests() {
+    for (input, expected) in [
+        ("http://user:fixture@registry.example/pkg?x=1", "http://registry.example/pkg?x=1"),
+        ("https://user:fixture@registry.example/pkg", "https://user:fixture@registry.example/pkg"),
+        ("http://user:fixture@localhost/pkg", "http://user:fixture@localhost/pkg"),
+        ("http://registry.example/@scope/pkg", "http://registry.example/@scope/pkg"),
+    ] {
+        let mut url = input.to_string();
+        super::strip_insecure_url_credentials(&mut url);
+        assert_eq!(url, expected);
+    }
+}

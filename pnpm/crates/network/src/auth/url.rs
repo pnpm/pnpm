@@ -120,12 +120,29 @@ fn is_loopback_host(host: &str) -> bool {
 /// network link. HTTPS and loopback HTTP endpoints are accepted.
 #[must_use]
 pub fn is_url_secure_for_credentials(url: &str) -> bool {
-    reqwest::Url::parse(url)
-        .is_ok_and(|url| match url.scheme() {
-            "https" => true,
-            "http" => url.host_str().is_some_and(is_loopback_host),
-            _ => false,
-        })
+    reqwest::Url::parse(url).is_ok_and(|url| secure_transport(&url))
+}
+
+fn secure_transport(url: &reqwest::Url) -> bool {
+    match url.scheme() {
+        "https" => true,
+        "http" => url.host_str().is_some_and(is_loopback_host),
+        _ => false,
+    }
+}
+
+/// Remove userinfo that the HTTP client would send as Basic authentication.
+pub fn strip_insecure_url_credentials(url: &mut String) {
+    if !url.contains('@') {
+        return;
+    }
+    let Ok(mut parsed) = reqwest::Url::parse(url) else { return };
+    if !secure_transport(&parsed) && (!parsed.username().is_empty() || parsed.password().is_some())
+    {
+        let _ = parsed.set_password(None);
+        let _ = parsed.set_username("");
+        *url = parsed.into();
+    }
 }
 
 /// Local base64 encode so this crate doesn't pull in `base64` just for

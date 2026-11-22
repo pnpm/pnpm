@@ -275,6 +275,7 @@ impl ThrottledClient {
         let mut current_url = url.to_string();
         let mut head_budget = head_timeout;
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
+            crate::strip_insecure_url_credentials(&mut current_url);
             ensure_hop_url_allowed(&current_url, guard)?;
             let client = self.acquire_with_client(&current_url, options.priority, |clients| {
                 clients.select(false, options.decode_content)

@@ -27,6 +27,7 @@ pub use auth::{
     redact_npm_auth_key,
     redact_url_credentials,
     redact_url_for_display,
+    strip_insecure_url_credentials,
 };
 pub use certificates::bundled_root_certs;
 pub use client_builder::{

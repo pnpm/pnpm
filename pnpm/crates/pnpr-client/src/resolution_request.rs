@@ -17,15 +17,18 @@ impl PnprClient {
             ));
         }
         let http = self.authenticated_http.get_or_try_init(|| async {
-            let mut builder =
-                reqwest::Client::builder().redirect(reqwest::redirect::Policy::none());
-            if reqwest::Url::parse(&self.base_url).is_ok_and(|url| url.scheme() == "http") {
-                // Loopback HTTP must reach the local server directly. With redirects
-                // disabled, this connection never uses TLS.
-                builder = builder
-                    .no_proxy()
-                    .tls_certs_only(std::iter::empty());
-            }
+            let builder = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none());
+            #[cfg(not(target_family = "wasm"))]
+            let builder =
+                if reqwest::Url::parse(&self.base_url).is_ok_and(|url| url.scheme() == "http") {
+                    // Loopback HTTP must reach the local server directly. With redirects
+                    // disabled, this connection never uses TLS.
+                    builder
+                        .no_proxy()
+                        .tls_certs_only(std::iter::empty())
+                } else {
+                    builder
+                };
             builder.build()
         })
         .await?;

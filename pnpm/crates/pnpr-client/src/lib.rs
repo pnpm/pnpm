@@ -556,6 +556,7 @@ pub struct CargoResolveOptions {
 impl PnprClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         let mut base_url = base_url.into();
+        pnpm_network::strip_insecure_url_credentials(&mut base_url);
         if !base_url.ends_with('/') {
             base_url.push('/');
         }
