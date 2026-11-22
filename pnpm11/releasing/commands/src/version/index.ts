@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { readProjectManifest } from '@pnpm/cli.utils'
+import { readProjectManifest as readInstallableProjectManifest } from '@pnpm/cli.utils'
 import { type Config, createProjectModulesDirResolver, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
@@ -18,6 +18,7 @@ import {
   toProjectDir,
 } from '@pnpm/releasing.versioning'
 import type { Project, ProjectsGraph } from '@pnpm/types'
+import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { inc, valid } from 'semver'
@@ -322,7 +323,7 @@ interface BumpPackageVersionOptions {
 }
 
 async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: BumpPackageVersionOptions): Promise<VersionChange | null> {
-  const project = await readProjectManifest(pkgDir)
+  const project = await readInstallableProjectManifest(pkgDir)
   const { manifest, fileName } = project
 
   if (!manifest.name || !manifest.version) {

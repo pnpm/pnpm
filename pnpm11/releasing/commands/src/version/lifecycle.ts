@@ -1,10 +1,11 @@
 import path from 'node:path'
 
-import { readProjectManifest } from '@pnpm/cli.utils'
+import { readProjectManifestOnly as readInstallableManifest } from '@pnpm/cli.utils'
 import { binDirOf, type Config, type createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { makeProjectNodePathOption, runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { type LogBase, streamParser } from '@pnpm/logger'
 import type { ProjectManifest } from '@pnpm/types'
+import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 export interface VersionChange {
   name: string
@@ -78,7 +79,7 @@ export async function runVersionLifecycleHook (
 ): Promise<void> {
   if (opts.ignoreScripts === true || opts.dryRun) return
 
-  const { manifest } = await readProjectManifest(change.path)
+  const manifest = await (stage === 'preversion' ? readInstallableManifest : readProjectManifestOnly)(change.path)
   const wdBinDir = binDirOf(change.path, opts.modulesDirFor(manifest.name))
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: change.name,

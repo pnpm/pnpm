@@ -255,7 +255,7 @@ describe('version command', () => {
 const path = require('path')
 const manifest = require(path.join(process.cwd(), 'package.json'))
 if (process.argv[3] === 'preversion') {
-  fs.writeFileSync('package.json', JSON.stringify({ ...manifest, description: 'from hook' }))
+  fs.writeFileSync('package.json', JSON.stringify({ ...manifest, engines: { pnpm: '<1' } }))
 }
 fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\\n')
 `)
@@ -276,7 +276,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
       gitTagVersion: false,
     } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
-    expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf8')).description).toBe('from hook')
+    expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf8')).engines).toStrictEqual({ pnpm: '<1' })
     expect(fs.readFileSync(lifecycleLog, 'utf-8')).toBe(
       'preversion:1.0.0\n' +
       'version:1.0.1\n' +
