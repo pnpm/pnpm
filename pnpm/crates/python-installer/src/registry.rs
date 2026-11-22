@@ -329,7 +329,7 @@ impl<'a> Registry<'a> {
         buffer: Option<Vec<u8>>,
     ) -> Result<pnpm_fs::CasPaths> {
         let integrity = wheel.integrity()?;
-        let package_id = format!("python:{}", wheel.name);
+        let package_id = crate::store_keys::archive_package_id(&wheel.name);
         let ingestion = IngestZipArchiveToStore {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.client,

@@ -80,7 +80,6 @@ export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registri
 }
 
 export async function handler (opts: StoreCommandOptions, params: string[]): Promise<string | undefined> {
-  let store
   switch (params[0]) {
     case 'status':
       return statusCmd(opts) as Promise<undefined>
@@ -90,35 +89,46 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
         storePath: opts.storeDir,
         pnpmHomeDir: opts.pnpmHomeDir,
       })
-    case 'prune': {
-      const pruneProtectedDirs = [opts.globalDir, opts.globalPkgDir, opts.globalBinDir, opts.pnpmHomeDir, opts.stateDir]
-        .filter((dir): dir is string => dir != null)
-      store = await createStoreController({ ...opts, pruneProtectedDirs })
-      const storePruneOptions = Object.assign(opts, {
-        storeController: store.ctrl,
-        storeDir: store.dir,
-        removeAlienFiles: opts.force,
-        cacheDir: opts.cacheDir,
-        dlxCacheMaxAge: opts.dlxCacheMaxAge,
-      })
-      return storePrune(storePruneOptions) as Promise<undefined>
-    }
+    case 'prune':
+      return pruneCmd(opts) as Promise<undefined>
     case 'add':
-      if (opts.frozenStore) {
-        throw new PnpmError('FROZEN_STORE_WRITE', 'Cannot add packages to the store because frozenStore is enabled (the store is opened read-only)', {
-          hint: 'Turn off frozenStore to add packages to the store.',
-        })
-      }
-      store = await createStoreController(opts)
-      return storeAdd(params.slice(1), {
-        prefix: opts.dir,
-        reporter: opts.reporter,
-        storeController: store.ctrl,
-        tag: opts.tag,
-      }) as Promise<undefined>
+      return addCmd(opts, params.slice(1)) as Promise<undefined>
     default:
       return help()
   }
+}
+
+async function pruneCmd (opts: StoreCommandOptions): Promise<void> {
+  if (opts.frozenStore) {
+    throw new PnpmError('FROZEN_STORE_WRITE', 'Cannot prune the store because frozenStore is enabled (the store is opened read-only)', {
+      hint: 'Turn off frozenStore to prune the store.',
+    })
+  }
+  const pruneProtectedDirs = [opts.globalDir, opts.globalPkgDir, opts.globalBinDir, opts.pnpmHomeDir, opts.stateDir]
+    .filter((dir): dir is string => dir != null)
+  const store = await createStoreController({ ...opts, pruneProtectedDirs })
+  return storePrune(Object.assign(opts, {
+    storeController: store.ctrl,
+    storeDir: store.dir,
+    removeAlienFiles: opts.force,
+    cacheDir: opts.cacheDir,
+    dlxCacheMaxAge: opts.dlxCacheMaxAge,
+  }))
+}
+
+async function addCmd (opts: StoreCommandOptions, packages: string[]): Promise<void> {
+  if (opts.frozenStore) {
+    throw new PnpmError('FROZEN_STORE_WRITE', 'Cannot add packages to the store because frozenStore is enabled (the store is opened read-only)', {
+      hint: 'Turn off frozenStore to add packages to the store.',
+    })
+  }
+  const store = await createStoreController(opts)
+  return storeAdd(packages, {
+    prefix: opts.dir,
+    reporter: opts.reporter,
+    storeController: store.ctrl,
+    tag: opts.tag,
+  })
 }
 
 async function statusCmd (opts: StoreCommandOptions): Promise<void> {

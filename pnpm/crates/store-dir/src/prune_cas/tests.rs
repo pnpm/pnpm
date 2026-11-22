@@ -6,6 +6,7 @@ use super::{
 use crate::{
     CafsFileInfo,
     PackageFilesIndex,
+    SideEffectsDiff,
     StoreDir,
     StoreIndex,
     StoreIndexFormat,
@@ -16,11 +17,15 @@ use std::{
 };
 
 fn package_index(digest: &str) -> PackageFilesIndex {
+    index_with_mode(digest, 0o644)
+}
+
+fn index_with_mode(digest: &str, mode: u32) -> PackageFilesIndex {
     PackageFilesIndex {
         algo: "sha512".to_string(),
         files: HashMap::from([(
             "package.json".to_string(),
-            CafsFileInfo { digest: digest.to_string(), mode: 0o644, size: 2, checked_at: None },
+            CafsFileInfo { digest: digest.to_string(), mode, size: 2, checked_at: None },
         )]),
         ..PackageFilesIndex::default()
     }
@@ -140,7 +145,7 @@ fn unlinks_a_linked_tmp_without_following_it() {
 }
 
 #[test]
-fn removes_executable_cas_suffix_from_the_index_digest() {
+fn removes_the_row_of_a_removed_executable_file() {
     let root = tempfile::tempdir().unwrap();
     let store = StoreDir::new(root.path().join("store"));
     let digest = format!("03{}", "c".repeat(126));
@@ -149,7 +154,7 @@ fn removes_executable_cas_suffix_from_the_index_digest() {
     fs::write(&executable, "{}").unwrap();
     let index = StoreIndex::open_in(&store).unwrap();
     index
-        .set("executable", &package_index(&digest))
+        .set("executable", &index_with_mode(&digest, 0o755))
         .unwrap();
     drop(index);
 
@@ -162,6 +167,40 @@ fn removes_executable_cas_suffix_from_the_index_digest() {
             .keys()
             .unwrap()
             .is_empty(),
+    );
+}
+
+#[test]
+fn keeps_the_row_of_a_file_whose_executable_copy_was_removed() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let digest = format!("07{}", "a".repeat(126));
+    let regular = store.file_path_by_hex_str(&digest, "");
+    let executable = store.file_path_by_hex_str(&digest, "-exec");
+    fs::create_dir_all(regular.parent().unwrap()).unwrap();
+    fs::write(&regular, "{}").unwrap();
+    fs::write(&executable, "{}").unwrap();
+    fs::hard_link(&regular, root.path().join("installed-package.json")).unwrap();
+    let index = StoreIndex::open_in(&store).unwrap();
+    index
+        .set("regular", &index_with_mode(&digest, 0o644))
+        .unwrap();
+    index
+        .set("executable", &index_with_mode(&digest, 0o755))
+        .unwrap();
+    drop(index);
+
+    let stats = prune_cas(&store).unwrap();
+
+    assert_eq!((stats.files, stats.packages), (1, 1));
+    assert!(regular.exists());
+    assert!(!executable.exists());
+    assert_eq!(
+        StoreIndex::open_in(&store)
+            .unwrap()
+            .keys()
+            .unwrap(),
+        ["regular"],
     );
 }
 
@@ -194,6 +233,97 @@ fn keeps_undecodable_rows_and_prunes_the_rest() {
             .unwrap(),
         ["a-unreadable"],
     );
+}
+
+#[test]
+fn removes_a_row_without_package_json_that_lost_any_file() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let linked_digest = format!("05{}", "e".repeat(126));
+    let orphan_digest = format!("06{}", "f".repeat(126));
+    let linked = store.file_path_by_hex_str(&linked_digest, "");
+    let orphan = store.file_path_by_hex_str(&orphan_digest, "");
+    for path in [&linked, &orphan] {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "{}").unwrap();
+    }
+    fs::hard_link(&linked, root.path().join("installed-module.py")).unwrap();
+    let file = |digest: &str| CafsFileInfo {
+        digest: digest.to_string(),
+        mode: 0o644,
+        size: 2,
+        checked_at: None,
+    };
+    let wheel = PackageFilesIndex {
+        algo: "sha512".to_string(),
+        files: HashMap::from([
+            ("demo/__init__.py".to_string(), file(&linked_digest)),
+            ("demo-1.0.0.dist-info/RECORD".to_string(), file(&orphan_digest)),
+        ]),
+        ..PackageFilesIndex::default()
+    };
+    let index = StoreIndex::open_in(&store).unwrap();
+    index.set("wheel", &wheel).unwrap();
+    drop(index);
+
+    let stats = prune_cas(&store).unwrap();
+
+    assert_eq!((stats.files, stats.packages), (1, 1));
+    assert!(linked.exists());
+    assert!(!orphan.exists());
+    assert!(
+        StoreIndex::open_in(&store)
+            .unwrap()
+            .keys()
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+#[test]
+fn removes_only_the_cached_build_that_lost_a_file() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let base_digest = format!("08{}", "b".repeat(126));
+    let kept_build_digest = format!("09{}", "c".repeat(126));
+    let lost_build_digest = format!("0a{}", "d".repeat(126));
+    let base = store.file_path_by_hex_str(&base_digest, "");
+    let kept_build = store.file_path_by_hex_str(&kept_build_digest, "");
+    let lost_build = store.file_path_by_hex_str(&lost_build_digest, "");
+    for path in [&base, &kept_build, &lost_build] {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "{}").unwrap();
+    }
+    fs::hard_link(&base, root.path().join("installed-package.json")).unwrap();
+    fs::hard_link(&kept_build, root.path().join("installed-addon.node")).unwrap();
+    let build = |digest: &str| SideEffectsDiff {
+        added: Some(HashMap::from([(
+            "build/addon.node".to_string(),
+            CafsFileInfo { digest: digest.to_string(), mode: 0o644, size: 2, checked_at: None },
+        )])),
+        deleted: None,
+        remote_origin: None,
+    };
+    let mut row = package_index(&base_digest);
+    row.side_effects = Some(HashMap::from([
+        ("linux-x64-node22".to_string(), build(&kept_build_digest)),
+        ("linux-x64-node20".to_string(), build(&lost_build_digest)),
+    ]));
+    let index = StoreIndex::open_in(&store).unwrap();
+    index.set("built", &row).unwrap();
+    drop(index);
+
+    let stats = prune_cas(&store).unwrap();
+
+    assert_eq!((stats.files, stats.packages), (1, 0));
+    assert!(!lost_build.exists());
+    let row = StoreIndex::open_in(&store)
+        .unwrap()
+        .get("built")
+        .unwrap()
+        .unwrap();
+    let builds = row.side_effects.unwrap();
+    assert_eq!(builds.keys().collect::<Vec<_>>(), ["linux-x64-node22"]);
 }
 
 fn prune_cas(store: &StoreDir) -> Result<PruneCasStats, PruneCasError> {

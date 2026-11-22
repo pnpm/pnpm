@@ -1095,3 +1095,24 @@ describe('prune keeps the packages that a registered project still uses', () => 
     ])
   })
 })
+
+test('pnpm store prune fails without touching the store when frozenStore is enabled', async () => {
+  prepareEmpty()
+  const storeDir = path.resolve('store')
+  const unreferencedFile = path.join(storeDir, STORE_VERSION, 'files/00/unreferenced')
+  fs.mkdirSync(path.dirname(unreferencedFile), { recursive: true })
+  fs.writeFileSync(unreferencedFile, '')
+
+  await expect(store.handler({
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    configByUri: {},
+    registriesByScope: { default: REGISTRY },
+    storeDir,
+    frozenStore: true,
+    dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['prune'])).rejects.toMatchObject({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' })
+  expect(fs.existsSync(unreferencedFile)).toBe(true)
+})

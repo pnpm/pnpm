@@ -55,6 +55,9 @@ modified for more than 24 hours. More recent directories are kept.
 
 After pruning, pnpm displays the total size of removed files.
 
+`pnpm store prune` fails with `ERR_PNPM_FROZEN_STORE_WRITE` when
+[`frozenStore`](../settings/store.md#frozenstore) is enabled.
+
 When the [global virtual store] is enabled, `pnpm store prune` also performs mark-and-sweep garbage collection on the global virtual store's `links/` directory. Projects using the store are registered via symlinks in `{storeDir}/v11/projects/`, allowing pnpm to track active usage and safely remove unused packages from the global virtual store.
 
 Pruning stops if a dependency link cannot be read.

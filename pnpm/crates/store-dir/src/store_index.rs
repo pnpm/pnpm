@@ -388,6 +388,19 @@ pub struct PackageFilesIndex {
     pub tar_integrity: Option<String>,
 }
 
+impl PackageFilesIndex {
+    /// Every store file the row names: its own files and the files each
+    /// side-effects overlay adds.
+    pub fn all_files(&self) -> impl Iterator<Item = &CafsFileInfo> {
+        let side_effects_files = self.side_effects
+            .iter()
+            .flat_map(|side_effects| side_effects.values())
+            .filter_map(|diff| diff.added.as_ref())
+            .flat_map(|added| added.values());
+        self.files.values().chain(side_effects_files)
+    }
+}
+
 /// Value of [`PackageFilesIndex::files`]. Matches pnpm v11's per-file
 /// metadata field-for-field so that the msgpack payload interops.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

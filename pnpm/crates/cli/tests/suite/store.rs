@@ -559,6 +559,26 @@ fn store_add_fails_without_touching_a_frozen_store() {
     assert!(!npmrc_info.store_dir.exists(), "a frozen store must stay untouched");
 }
 
+#[test]
+fn store_prune_fails_without_touching_a_frozen_store() {
+    let CommandTempCwd {
+        pacquet, root: _root, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let unreferenced = npmrc_info.store_dir.join(STORE_VERSION).join("files/00/unreferenced");
+    fs::create_dir_all(unreferenced.parent().unwrap()).unwrap();
+    fs::write(&unreferenced, "").unwrap();
+
+    let output = pacquet
+        .with_args(["store", "prune", "--frozen-store"])
+        .output()
+        .expect("run store prune");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_FROZEN_STORE_WRITE"));
+    assert!(unreferenced.exists(), "a frozen store must stay untouched");
+}
+
 /// The hash a lockfile entry pins a registry package's tarball by.
 #[derive(Clone, Copy, PartialEq)]
 enum PinnedHash {

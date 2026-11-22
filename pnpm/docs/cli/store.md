@@ -95,6 +95,18 @@ number of undecodable entries in the summary. Pruning continues for other entrie
 Keeping an index entry does not preserve its unreferenced files. A later install
 downloads the package again if it cannot reuse the stored files.
 
+`pnpm store prune` keeps the wheels and source distributions that the
+`pylock.toml` of each registered Python project pins, so a later
+`pnpm install --offline` can recreate its environment. Unless `frozenStore`
+is enabled, an install tries to register each Python project that has an
+environment, even one whose store is inside it. A failed registration does
+not fail the install. A project installed by an earlier pnpm version is not
+registered until it is installed again. Pruning stops if a registered
+project's `pylock.toml` cannot be parsed.
+
+`pnpm store prune` fails with `ERR_PNPM_FROZEN_STORE_WRITE` when
+[`frozenStore`](../settings/store.md#frozenstore) is enabled.
+
 Since v12.7.0, `pnpm store prune` also removes private copies of pnpm or a
 runtime that a killed pnpm process left behind. pnpm makes such a copy when a
 project pins a version that another pnpm process is installing at that moment.

@@ -96,6 +96,65 @@ async fn generations_live_in_the_store_and_the_project_holds_only_its_link() {
     assert_eq!(generations(root.path()), expected);
 }
 
+/// An environment rewrites each wheel's `RECORD`, so the store copy has no
+/// hard link while the environment still uses the wheel. The store is
+/// inside the project, which an npm project would not register.
+#[tokio::test]
+async fn store_prune_keeps_the_wheels_of_an_installed_project() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    pacquet_in(root.path())
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet_in(root.path())
+        .with_args(["store", "prune"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(output.status.success());
+    assert!(stderr.contains("Removed 0 files"), "{stderr}");
+
+    pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
+    pacquet_in(root.path())
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    python(root.path())
+        .with_args(["-c", "import alpha"])
+        .assert()
+        .success();
+}
+
+#[tokio::test]
+async fn store_prune_stops_on_a_malformed_lockfile_without_quoting_it() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    pacquet_in(root.path())
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::write(root.path().join("pylock.toml"), "//registry.test/:_authToken=secret-token\n")
+        .unwrap();
+
+    let output = pacquet_in(root.path())
+        .with_args(["store", "prune"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("not a valid pylock.toml"), "{stderr}");
+    assert!(!stderr.contains("secret-token"), "{stderr}");
+    assert!(!stderr.contains("Removed"), "{stderr}");
+}
+
 #[tokio::test]
 async fn sibling_projects_keep_their_generations_apart() {
     let root = tempfile::tempdir().unwrap();
