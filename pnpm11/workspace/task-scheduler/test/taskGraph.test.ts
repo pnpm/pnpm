@@ -227,7 +227,7 @@ test('reverseTaskGraph runs dependents before dependencies', () => {
   expect(reversed.get(taskKey(dir('b'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
 })
 
-test('resumeTaskGraphFrom drops only the anchor\'s transitive dependencies', () => {
+test.each([undefined, new Set<ReturnType<typeof taskKey>>()])('resumeTaskGraphFrom with %p drops only the anchor\'s transitive dependencies', (completedTasks) => {
   const graph = buildGraph({
     a: { scripts: ['build'] },
     b: { dependencies: ['a'], scripts: ['build'] },
@@ -236,6 +236,7 @@ test('resumeTaskGraphFrom drops only the anchor\'s transitive dependencies', () 
   }, 'build')
 
   const resumed = resumeTaskGraphFrom(graph, {
+    completedTasks,
     resumeFrom: 'b',
     selectedProjectsGraph: Object.fromEntries(['a', 'b', 'c', 'unrelated'].map((name) => [
       dir(name),

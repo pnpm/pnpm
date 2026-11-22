@@ -148,11 +148,16 @@ test.each(['.pnpm-store', 'node_modules/.custom'])('pnpm clean removes custom vi
   expect(fs.existsSync('node_modules/lodash')).toBe(false)
 })
 
-test('a full clean removes the project PnP loader', () => {
+test.each([true, false])('clean respects PnP loaders with sharedWorkspaceLockfile=%s', (sharedWorkspaceLockfile) => {
   tempDir()
   writeJsonFile('package.json', {})
-  writeYamlFileSync('pnpm-workspace.yaml', { nodeLinker: 'pnp' })
+  writeJsonFile('pkg1/package.json', { name: 'pkg1' })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['pkg1'], nodeLinker: 'pnp', sharedWorkspaceLockfile })
   fs.writeFileSync('.pnp.cjs', '')
+  if (!sharedWorkspaceLockfile) fs.writeFileSync('pkg1/.pnp.cjs', '')
+  expect(execPnpmSync(['--filter', './pkg1', 'clean']).status).toBe(0)
+  expect(fs.existsSync('.pnp.cjs')).toBe(true)
+  expect(fs.existsSync('pkg1/.pnp.cjs')).toBe(false)
   expect(execPnpmSync(['clean']).status).toBe(0)
   expect(fs.existsSync('.pnp.cjs')).toBe(false)
 })

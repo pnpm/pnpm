@@ -276,7 +276,7 @@ export function resumeTaskGraphFrom (graph: TaskGraph, opts: ResumeTaskGraphOpti
     // non-recursive invocation): there is nothing to skip.
     return graph
   }
-  const dropped = opts.completedTasks == null
+  const dropped = opts.completedTasks == null || opts.completedTasks.size === 0
     ? transitiveDependencies(graph, anchorKeys)
     : new Set([...opts.completedTasks].filter((key) => !anchorKeys.has(key) && graph.has(key)))
   const resumed: TaskGraph = new Map()

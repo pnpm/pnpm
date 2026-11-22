@@ -105,7 +105,10 @@ impl CompletionArgs {
 
 impl CompletionServerArgs {
     pub fn run(&self) -> miette::Result<()> {
-        let is_zsh = std::env::var_os("SHELL").is_some_and(|shell| shell == "zsh");
+        let shell = env::var("SHELL")
+            .ok()
+            .as_deref()
+            .and_then(CompletionShell::from_name);
         let fallback;
         let words = if self.words.is_empty()
             && let Ok(line) = env::var("COMP_LINE")
@@ -114,7 +117,7 @@ impl CompletionServerArgs {
                 .ok()
                 .map(|point| point.parse())
                 .and_then(Result::ok);
-            fallback = words_at_cursor(&line, cursor);
+            fallback = words_at_cursor(&line, cursor, shell);
             &fallback
         } else {
             &self.words
@@ -123,7 +126,7 @@ impl CompletionServerArgs {
             if sanitize_inline(&completion) != completion {
                 continue;
             }
-            let completion = if is_zsh {
+            let completion = if shell == Some(CompletionShell::Zsh) {
                 completion.replace('\\', r"\\").replace(':', r"\:")
             } else {
                 completion
@@ -134,11 +137,12 @@ impl CompletionServerArgs {
     }
 }
 
-fn words_at_cursor(line: &str, cursor: Option<usize>) -> Vec<String> {
-    let end = cursor
-        .and_then(|point| line.char_indices().nth(point))
-        .map(|(offset, _)| offset)
-        .unwrap_or(line.len());
+fn words_at_cursor(
+    line: &str,
+    cursor: Option<usize>,
+    shell: Option<CompletionShell>,
+) -> Vec<String> {
+    let end = cursor.map(|point| cursor_byte_offset(line, point, shell)).unwrap_or(line.len());
     let prefix = &line[..end];
     // A sentinel keeps an empty current argument after whitespace and a space
     // escaped or quoted within an argument distinct.
@@ -151,6 +155,15 @@ fn words_at_cursor(line: &str, cursor: Option<usize>) -> Vec<String> {
         }
     }
     Vec::new()
+}
+
+fn cursor_byte_offset(line: &str, mut remaining: usize, shell: Option<CompletionShell>) -> usize {
+    for (offset, character) in line.char_indices() {
+        let width = if shell == Some(CompletionShell::Pwsh) { character.len_utf16() } else { 1 };
+        let Some(rest) = remaining.checked_sub(width) else { return offset };
+        remaining = rest;
+    }
+    line.len()
 }
 
 pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> std::io::Result<()> {

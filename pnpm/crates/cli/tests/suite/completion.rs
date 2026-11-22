@@ -19,13 +19,18 @@ fn stderr(output: std::process::Output) -> String {
 
 #[test]
 fn completion_server_uses_the_line_prefix_without_words() {
-    let output = pacquet()
-        .with_args(["completion-server"])
-        .with_env("COMP_LINE", "pnpm completion bash trailing")
-        .with_env("COMP_POINT", "18")
-        .output()
-        .unwrap();
-    assert_eq!(stdout(output), "bash\n");
+    let project = project_with_scripts(&["build🚀test", "build🚦test"]);
+    for (shell, cursor) in [("bash", "15"), ("pwsh", "16")] {
+        let output = pacquet()
+            .with_current_dir(project.path())
+            .with_arg("completion-server")
+            .with_env("SHELL", shell)
+            .with_env("COMP_LINE", "pnpm run build🚀 trailing")
+            .with_env("COMP_POINT", cursor)
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "build🚀test\n");
+    }
 }
 
 #[test]

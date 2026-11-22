@@ -1,4 +1,7 @@
-use assert_cmd::cargo::CommandCargoExt;
+use assert_cmd::{
+    cargo::CommandCargoExt,
+    prelude::OutputAssertExt as _,
+};
 use command_extra::CommandExtra;
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::{
@@ -355,20 +358,28 @@ fn clean_works_in_a_workspace() {
 }
 
 #[test]
-fn full_clean_removes_the_project_pnp_loader() {
-    let CommandTempCwd { pacquet, root: _root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("package.json"), "{}").unwrap();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "nodeLinker: pnp").unwrap();
-    let loader = workspace.join(".pnp.cjs");
-    fs::write(&loader, "").unwrap();
-    assert!(
-        pacquet
+fn clean_respects_the_scope_of_pnp_loaders() {
+    for shared in [true, false] {
+        let CommandTempCwd { root: _root, workspace, .. } = CommandTempCwd::init();
+        write_workspace(&workspace, &format!("nodeLinker: pnp\nsharedWorkspaceLockfile: {shared}"));
+        let root_loader = workspace.join(".pnp.cjs");
+        let member_loader = workspace.join("pkg1/.pnp.cjs");
+        fs::write(&root_loader, "").unwrap();
+        if !shared {
+            fs::write(&member_loader, "").unwrap();
+        }
+        crate::_utils::pacquet_in(&workspace)
+            .with_args(["--filter", "./pkg1", "clean"])
+            .assert()
+            .success();
+        assert!(root_loader.is_file());
+        assert!(!member_loader.exists());
+        crate::_utils::pacquet_in(&workspace)
             .with_arg("clean")
-            .status()
-            .unwrap()
-            .success(),
-    );
-    assert!(!loader.exists());
+            .assert()
+            .success();
+        assert!(!root_loader.exists());
+    }
 }
 
 /// Under a global virtual store the custom directory is the shared store's

@@ -411,8 +411,13 @@ pub(crate) fn strip_final_newline(text: &str) -> &str {
     text.strip_suffix('\r').unwrap_or(text)
 }
 
+enum FilePattern<'a> {
+    Ignore(Glob<'a>),
+    Keep(Glob<'a>),
+}
+
 struct IgnoreGlobs<'a> {
-    patterns: Vec<(Glob<'a>, bool)>,
+    patterns: Vec<FilePattern<'a>>,
     only_negations: bool,
 }
 
@@ -425,9 +430,13 @@ impl<'a> IgnoreGlobs<'a> {
             .filter(|pattern| !pattern.is_empty())
         {
             let body = pattern.trim_start_matches('!');
-            let positive = (pattern.len() - body.len()).is_multiple_of(2);
-            any_positive |= positive;
-            compiled.push((compile_glob(body)?, positive));
+            let glob = compile_glob(body)?;
+            compiled.push(if (pattern.len() - body.len()).is_multiple_of(2) {
+                any_positive = true;
+                FilePattern::Ignore(glob)
+            } else {
+                FilePattern::Keep(glob)
+            });
         }
         Ok(Self { only_negations: !compiled.is_empty() && !any_positive, patterns: compiled })
     }
@@ -436,8 +445,11 @@ impl<'a> IgnoreGlobs<'a> {
         self.patterns
             .iter()
             .rev()
-            .find(|(glob, _)| glob.is_match(path))
-            .map(|(_, positive)| *positive)
+            .find_map(|pattern| match pattern {
+                FilePattern::Ignore(glob) if glob.is_match(path) => Some(true),
+                FilePattern::Keep(glob) if glob.is_match(path) => Some(false),
+                _ => None,
+            })
             .unwrap_or(self.only_negations)
     }
 }
