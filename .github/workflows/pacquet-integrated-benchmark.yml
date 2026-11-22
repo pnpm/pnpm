@@ -215,9 +215,10 @@ jobs:
 
       # No other pull request job builds with the release profile, so this is
       # where a profile change that keeps the symbol table fails before a
-      # release does.
+      # release does. A `head_ref` dispatch builds another revision, which may
+      # predate the script.
       - name: Reject a symbol table in the release binaries
-        if: matrix.revision == 'HEAD'
+        if: matrix.revision == 'HEAD' && !inputs.head_ref
         run: node .github/scripts/assert-stripped.mjs .bench-cache/release/pnpm .bench-cache/release/pnpr
 
       # Tar preserves executable permissions when artifacts cross runners.
