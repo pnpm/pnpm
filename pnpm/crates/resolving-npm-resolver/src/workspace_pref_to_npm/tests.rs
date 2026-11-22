@@ -11,6 +11,17 @@ fn resolves_workspace_only_version_aliases() {
 }
 
 #[test]
+fn resolves_unions_with_a_workspace_only_version_alias() {
+    assert_eq!(workspace_pref_to_npm("workspace:^ || ^2.0.0").unwrap(), "*");
+    assert_eq!(workspace_pref_to_npm("workspace:^1.0.0 || ~").unwrap(), "*");
+    assert_eq!(
+        workspace_pref_to_npm("workspace:is-positive@^ || ^2.0.0").unwrap(),
+        "npm:is-positive@*",
+    );
+    assert_eq!(workspace_pref_to_npm("workspace:^1.0.0 || ^2.0.0").unwrap(), "^1.0.0 || ^2.0.0");
+}
+
+#[test]
 fn resolves_package_name_aliases() {
     assert_eq!(
         workspace_pref_to_npm("workspace:is-positive@3.0.0").unwrap(),

@@ -14,6 +14,7 @@ use pnpm_reporter::{
 
 use super::{
     PeerReportWorkspace,
+    SiblingLockfile,
     report_peer_dependency_issues,
 };
 use crate::InstallError;
@@ -55,6 +56,7 @@ fn linked_non_json_manifests_are_checked_during_install() {
                 lockfile_dir: temp.path(),
                 catalogs: None,
                 project_manifests: &manifests,
+                sibling_lockfile: SiblingLockfile::Installed,
             },
             &config,
         )
@@ -107,6 +109,7 @@ snapshots:
         lockfile_dir: lockfile_dir.path(),
         catalogs: Some(&catalogs),
         project_manifests: &[],
+        sibling_lockfile: SiblingLockfile::Installed,
     };
 
     report_peer_dependency_issues::<RecordingReporter>(

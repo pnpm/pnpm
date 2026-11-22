@@ -233,3 +233,200 @@ fn dedicated_lockfiles_satisfy_linked_sibling_peers_from_the_siblings_own_lockfi
 
     drop(root);
 }
+
+#[test]
+fn install_fails_on_a_missing_peer_of_a_linked_sibling_under_dedicated_lockfiles() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nautoInstallPeers: false\nstrictPeerDependencies: true\n",
+    )
+    .expect("write workspace manifest");
+    for (dir, manifest) in [
+        (
+            "lib",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "missing-peer": "^1.0.0" },
+            }),
+        ),
+        (
+            "app",
+            serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "lib": "workspace:*" },
+            }),
+        ),
+    ] {
+        let dir = workspace.join("packages").join(dir);
+        fs::create_dir_all(&dir).expect("create project dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    }
+
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
+    assert!(!output.status.success(), "the missing peer must fail the install: {output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PEER_DEP_ISSUES"), "{stderr}");
+    assert!(stderr.contains("missing-peer"), "{stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn install_accepts_a_peer_the_linked_sibling_provides_from_its_own_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nautoInstallPeers: false\nstrictPeerDependencies: true\n",
+    )
+    .expect("write workspace manifest");
+    let provider = workspace.join("provider");
+    fs::create_dir_all(&provider).expect("create provider dir");
+    fs::write(provider.join("package.json"), r#"{"name":"provider","version":"1.0.0"}"#)
+        .expect("write provider manifest");
+    for (dir, manifest) in [
+        (
+            "lib",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "provider": "^1.0.0" },
+                "devDependencies": { "provider": "link:../../provider" },
+            }),
+        ),
+        (
+            "app",
+            serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "lib": "workspace:*" },
+            }),
+        ),
+    ] {
+        let dir = workspace.join("packages").join(dir);
+        fs::create_dir_all(&dir).expect("create project dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    }
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    drop(root);
+}
+
+#[test]
+fn install_ignores_an_unreadable_sibling_lockfile_when_the_consumer_provides_the_peer() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nautoInstallPeers: false\nstrictPeerDependencies: true\n",
+    )
+    .expect("write workspace manifest");
+    let provider = workspace.join("provider");
+    fs::create_dir_all(&provider).expect("create provider dir");
+    fs::write(provider.join("package.json"), r#"{"name":"provider","version":"1.0.0"}"#)
+        .expect("write provider manifest");
+    for (dir, manifest) in [
+        (
+            "lib",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "provider": "^1.0.0" },
+            }),
+        ),
+        (
+            "app",
+            serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "lib": "workspace:*", "provider": "link:../../provider" },
+            }),
+        ),
+    ] {
+        let dir = workspace.join("packages").join(dir);
+        fs::create_dir_all(&dir).expect("create project dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    }
+    fs::write(workspace.join("packages/lib/pnpm-lock.yaml"), "lockfileVersion: [\n")
+        .expect("write an unreadable sibling lockfile");
+
+    pacquet
+        .with_args(["--filter", "app", "install"])
+        .assert()
+        .success();
+
+    drop(root);
+}
+
+#[test]
+fn lockfile_only_install_reads_the_wanted_lockfile_of_a_linked_sibling() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nautoInstallPeers: false\nstrictPeerDependencies: true\n",
+    )
+    .expect("write workspace manifest");
+    for version in ["1.0.0", "2.0.0"] {
+        let provider = workspace.join(format!("provider-{version}"));
+        fs::create_dir_all(&provider).expect("create provider dir");
+        fs::write(
+            provider.join("package.json"),
+            serde_json::json!({ "name": "provider", "version": version }).to_string(),
+        )
+        .expect("write provider manifest");
+    }
+    let lib = workspace.join("packages/lib");
+    let write_lib = |peer_range: &str, provider_dir: &str| {
+        fs::write(
+            lib.join("package.json"),
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "provider": peer_range },
+                "devDependencies": { "provider": format!("link:../../{provider_dir}") },
+            })
+            .to_string(),
+        )
+        .expect("write lib manifest");
+    };
+    fs::create_dir_all(&lib).expect("create lib dir");
+    write_lib("^1.0.0", "provider-1.0.0");
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create app dir");
+    fs::write(
+        app.join("package.json"),
+        r#"{"name":"app","version":"1.0.0","dependencies":{"lib":"workspace:*"}}"#,
+    )
+    .expect("write app manifest");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    write_lib("^2.0.0", "provider-2.0.0");
+    // A changed manifest makes the run re-resolve `app`, which is what
+    // reports its peer issues.
+    let other = workspace.join("other");
+    fs::create_dir_all(&other).expect("create other dir");
+    fs::write(other.join("package.json"), r#"{"name":"other","version":"1.0.0"}"#)
+        .expect("write other manifest");
+    fs::write(
+        app.join("package.json"),
+        r#"{"name":"app","version":"1.0.0","dependencies":{"lib":"workspace:*","other":"link:../../other"}}"#,
+    )
+    .expect("rewrite app manifest");
+    pnpm(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    drop(root);
+}

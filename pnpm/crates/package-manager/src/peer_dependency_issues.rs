@@ -11,10 +11,16 @@
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::{
+    ImporterPeerCheck,
+    LinkedLockfileLoader,
+    PeerIssuesReport,
     ProjectManifests,
     peer_issues_for_lockfile,
 };
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{
+    LoadLockfileError,
+    Lockfile,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{
     LogEvent,
@@ -27,6 +33,7 @@ use std::{
         Path,
         PathBuf,
     },
+    sync::Arc,
 };
 
 use crate::InstallError;
@@ -65,17 +72,17 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         return Ok(());
     }
     importer_ids.sort();
-    let Some(report) = peer_issues_for_lockfile(
+    let project_manifests = workspace.manifests();
+    let check = ImporterPeerCheck {
         lockfile,
-        workspace.lockfile_dir,
-        &importer_ids,
-        &config.peer_dependency_rules,
-        workspace.catalogs,
-        config.resolve_peers_from_workspace_root,
-        &workspace.manifests(),
-    )
-    .map_err(InstallError::CatalogResolution)?
-    else {
+        lockfile_dir: workspace.lockfile_dir,
+        workspace_dir: config.workspace_dir.as_deref(),
+        importer_ids: &importer_ids,
+        catalogs: workspace.catalogs,
+        resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+        project_manifests: &project_manifests,
+    };
+    let Some(report) = peer_issues(check, workspace.sibling_lockfile, config)? else {
         return Ok(());
     };
     if config.strict_peer_dependencies {
@@ -90,6 +97,68 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
     Ok(())
 }
 
+/// [`peer_issues_for_lockfile`], with a linked sibling's own lockfile
+/// loaded where the workspace gives each project one.
+fn peer_issues(
+    check: ImporterPeerCheck<'_>,
+    sibling_lockfile: SiblingLockfile,
+    config: &Config,
+) -> Result<Option<PeerIssuesReport>, InstallError> {
+    let mut sibling_err = None;
+    let mut load_sibling =
+        |sibling_dir: &Path, sibling_name: Option<&str>| match load_sibling_lockfile(
+            config,
+            sibling_lockfile,
+            sibling_dir,
+            sibling_name,
+        ) {
+            Ok(lockfile) => lockfile,
+            Err(err) => {
+                sibling_err.get_or_insert(err);
+                None
+            }
+        };
+    let linked_lockfiles: Option<&mut LinkedLockfileLoader<'_>> =
+        has_dedicated_lockfiles(config).then_some(&mut load_sibling);
+    let report = peer_issues_for_lockfile(check, &config.peer_dependency_rules, linked_lockfiles)
+        .map_err(InstallError::CatalogResolution)?;
+    // An unreadable sibling lockfile only matters when it could have
+    // answered an issue that fails the install.
+    match sibling_err {
+        Some(err) if report.is_some() && config.strict_peer_dependencies => {
+            Err(InstallError::LoadWantedLockfile(err))
+        }
+        _ => Ok(report),
+    }
+}
+
+/// Every workspace project with its own lockfile, so a linked sibling's
+/// peers resolve against that sibling's lockfile.
+fn has_dedicated_lockfiles(config: &Config) -> bool {
+    config.workspace_dir.is_some() && !config.shares_one_lockfile()
+}
+
+fn load_sibling_lockfile(
+    config: &Config,
+    sibling_lockfile: SiblingLockfile,
+    sibling_dir: &Path,
+    sibling_name: Option<&str>,
+) -> Result<Option<Arc<Lockfile>>, LoadLockfileError> {
+    let mut sibling_config = config.clone();
+    sibling_config.anchor_dedicated_project(sibling_dir, sibling_name);
+    let current = match sibling_lockfile {
+        SiblingLockfile::Installed => {
+            Lockfile::load_current_from_install_state_dir(&sibling_config.install_state_dir)?
+        }
+        SiblingLockfile::Wanted => None,
+    };
+    let lockfile = match current {
+        Some(lockfile) => Some(lockfile),
+        None => Lockfile::load_wanted(sibling_dir, &sibling_config.wanted_lockfile_selection())?,
+    };
+    Ok(lockfile.map(Arc::new))
+}
+
 /// The workspace an install's peer report is checked against.
 #[derive(Clone, Copy)]
 pub(crate) struct PeerReportWorkspace<'a> {
@@ -102,6 +171,19 @@ pub(crate) struct PeerReportWorkspace<'a> {
     /// `readPackage`. A `link:` to one of these projects is checked without
     /// reading its manifest again.
     pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) sibling_lockfile: SiblingLockfile,
+}
+
+/// Which lockfile of a linked sibling with its own lockfile answers for
+/// its dependencies, matching what `pnpm peers check` reads.
+#[derive(Clone, Copy)]
+pub(crate) enum SiblingLockfile {
+    /// The current lockfile, which records what is installed, or the
+    /// wanted one before the sibling's first install.
+    Installed,
+    /// The wanted lockfile, for a run that installs nothing, such as
+    /// `--lockfile-only`.
+    Wanted,
 }
 
 impl<'a> PeerReportWorkspace<'a> {

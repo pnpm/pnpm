@@ -64,6 +64,7 @@ use pnpm_config::PeerDependencyRules;
 use pnpm_lockfile::{
     Lockfile,
     LockfileResolution,
+    PackageMetadata,
     PkgName,
     PkgNameVerPeer,
     ProjectSnapshot,
@@ -160,30 +161,33 @@ impl PeerIssuesReport {
     }
 }
 
+/// Inputs for [`peer_issues_for_lockfile`] and
+/// [`check_peer_dependencies_of_importers`].
+#[derive(Clone, Copy)]
+pub struct ImporterPeerCheck<'a> {
+    pub lockfile: &'a Lockfile,
+    pub lockfile_dir: &'a Path,
+    /// Where a `link:` target outside `lockfile_dir` may still be read, so
+    /// a project with its own lockfile checks the peers of its linked
+    /// workspace siblings.
+    pub workspace_dir: Option<&'a Path>,
+    pub importer_ids: &'a [String],
+    pub catalogs: Option<&'a Catalogs>,
+    pub resolve_peers_from_workspace_root: bool,
+    pub project_manifests: &'a ProjectManifests<'a>,
+}
+
 /// The same issue set `pnpm peers check` reports, filtered by
 /// `peerDependencyRules`, for the given importers.
 ///
 /// Returns `None` when there is nothing worth acting on.
 pub fn peer_issues_for_lockfile(
-    lockfile: &Lockfile,
-    lockfile_dir: &Path,
-    importer_ids: &[String],
+    check: ImporterPeerCheck<'_>,
     rules: &PeerDependencyRules,
-    catalogs: Option<&Catalogs>,
-    resolve_peers_from_workspace_root: bool,
-    project_manifests: &ProjectManifests<'_>,
+    linked_lockfiles: Option<&mut LinkedLockfileLoader<'_>>,
 ) -> Result<Option<PeerIssuesReport>, CatalogResolutionError> {
-    let issues = filter_peer_issues(
-        check_peer_dependencies_of_importers(
-            lockfile,
-            lockfile_dir,
-            importer_ids,
-            catalogs,
-            resolve_peers_from_workspace_root,
-            project_manifests,
-        )?,
-        rules,
-    );
+    let issues =
+        filter_peer_issues(check_peer_dependencies_of_importers(check, linked_lockfiles)?, rules);
     let has_missing_peer = issues
         .values()
         .any(|project_issues| {
@@ -230,22 +234,18 @@ pub fn check_peer_dependencies_from_lockfile(
 /// but the recorded graph does not satisfy. Unfiltered, the caller
 /// applies [`filter_peer_issues`].
 pub fn check_peer_dependencies_of_importers(
-    lockfile: &Lockfile,
-    lockfile_dir: &Path,
-    importer_ids: &[String],
-    catalogs: Option<&Catalogs>,
-    resolve_peers_from_workspace_root: bool,
-    project_manifests: &ProjectManifests<'_>,
+    check: ImporterPeerCheck<'_>,
+    linked_lockfiles: Option<&mut LinkedLockfileLoader<'_>>,
 ) -> Result<IssuesByProjects, CatalogResolutionError> {
-    let roots = LinkRoots::same(lockfile_dir);
+    let roots = LinkRoots::new(check.lockfile_dir, check.workspace_dir);
     let context = PeerWalkContext {
-        lockfile,
+        lockfile: check.lockfile,
         roots: &roots,
-        catalogs,
-        resolve_peers_from_workspace_root,
-        project_manifests,
+        catalogs: check.catalogs,
+        resolve_peers_from_workspace_root: check.resolve_peers_from_workspace_root,
+        project_manifests: check.project_manifests,
     };
-    check_peer_dependencies_with_context(&context, importer_ids, None)
+    check_peer_dependencies_with_context(&context, check.importer_ids, linked_lockfiles)
 }
 
 fn check_peer_dependencies_with_context(

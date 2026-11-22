@@ -5274,6 +5274,7 @@ dependencies = [
  "pnpm-catalogs-resolver",
  "pnpm-catalogs-types",
  "pnpm-config",
+ "pnpm-config-parse-overrides",
  "pnpm-lockfile",
  "pnpm-matcher",
  "pnpm-package-manifest",

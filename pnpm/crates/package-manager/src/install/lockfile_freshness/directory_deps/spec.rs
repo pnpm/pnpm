@@ -220,14 +220,16 @@ fn workspace_range_spec_satisfies(
 }
 
 /// The aliased package name and the version range of the post-`workspace:`
-/// part of a specifier, with every pick-the-highest token (`*`, `^`, `~`, or
-/// nothing) as `*`.
+/// part of a specifier, as `*` when it
+/// [admits every workspace version](pnpm_workspace_range_resolver::matches_any_workspace_version).
 fn parse_workspace_range(workspace_spec: &str) -> (Option<&str>, &str) {
     let (target, range_str) = pnpm_workspace_spec::split_alias_version(workspace_spec);
-    let parsed_range_str = match range_str {
-        "*" | "^" | "~" | "" => "*",
-        other => other,
-    };
+    let parsed_range_str =
+        if pnpm_workspace_range_resolver::matches_any_workspace_version(range_str) {
+            "*"
+        } else {
+            range_str
+        };
     (target, parsed_range_str)
 }
 

@@ -39,13 +39,17 @@ fn tarball_peer_versions_use_metadata_through_aliases_and_peer_suffixes() {
             }))
             .expect("parse lockfile");
             let report = super::peer_issues_for_lockfile(
-                &lockfile,
-                std::path::Path::new("."),
-                &[".".to_string()],
+                super::ImporterPeerCheck {
+                    lockfile: &lockfile,
+                    lockfile_dir: std::path::Path::new("."),
+                    workspace_dir: None,
+                    importer_ids: &[".".to_string()],
+                    catalogs: None,
+                    resolve_peers_from_workspace_root: true,
+                    project_manifests: &super::ProjectManifests::new(),
+                },
                 &PeerDependencyRules::default(),
                 None,
-                true,
-                &super::ProjectManifests::new(),
             )
             .expect("inspect peers");
             if version == "1.0.0" {
@@ -99,13 +103,17 @@ fn remote_tarball_peer_versions_of_linked_packages_use_metadata() {
         }))
         .expect("parse lockfile");
         let report = super::peer_issues_for_lockfile(
-            &lockfile,
-            temp.path(),
-            &["packages/app".to_string()],
+            super::ImporterPeerCheck {
+                lockfile: &lockfile,
+                lockfile_dir: temp.path(),
+                workspace_dir: None,
+                importer_ids: &["packages/app".to_string()],
+                catalogs: None,
+                resolve_peers_from_workspace_root: true,
+                project_manifests: &super::ProjectManifests::new(),
+            },
             &PeerDependencyRules::default(),
             None,
-            true,
-            &super::ProjectManifests::new(),
         )
         .expect("inspect peers");
         if version == "1.0.0" {
@@ -507,6 +515,18 @@ fn test_parse_allowed_versions_by_parent() {
     assert!(match_all.is_empty());
     assert_eq!(by_parent.len(), 1);
     assert_eq!(by_parent["@foo/bar"][0].peer_rules["react"], vec!["^18.0.0"]);
+}
+
+#[test]
+fn parse_allowed_versions_keeps_parent_range_with_greater_than() {
+    let mut allowed = BTreeMap::new();
+    allowed.insert("mypkg@>=1.0.0>pos".to_string(), "1".to_string());
+    let (match_all, by_parent) = parse_allowed_versions(&allowed);
+    assert!(match_all.is_empty());
+    let rules = &by_parent["mypkg"];
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0].parent_range.as_deref(), Some(">=1.0.0"));
+    assert_eq!(rules[0].peer_rules["pos"], vec!["1"]);
 }
 
 #[test]

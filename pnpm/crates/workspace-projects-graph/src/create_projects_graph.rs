@@ -18,7 +18,10 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_fs::lexical_normalize;
 use pnpm_semver_include_prerelease::is_valid_semver_range;
-use pnpm_workspace_range_resolver::resolve_workspace_range;
+use pnpm_workspace_range_resolver::{
+    matches_any_workspace_version,
+    resolve_workspace_range,
+};
 use pnpm_workspace_spec::WorkspaceSpec;
 use rayon::prelude::*;
 use std::{
@@ -293,7 +296,9 @@ fn resolve_edge(
         if let SpecKind::Directory(path) = classify(&spec.version) {
             return resolve_directory(importer, path, lookups);
         }
-        return resolve_by_name_version(name, &spec.version, true, lookups, unmatched);
+        let range =
+            if matches_any_workspace_version(&spec.version) { "*" } else { spec.version.as_str() };
+        return resolve_by_name_version(name, range, true, lookups, unmatched);
     }
 
     if let Some((name, selector)) = npm_alias_target(dep_name, raw_spec) {

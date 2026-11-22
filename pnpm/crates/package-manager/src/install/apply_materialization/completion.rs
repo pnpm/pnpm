@@ -168,6 +168,7 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
             lockfile_dir: inputs.workspace.workspace_root,
             catalogs: inputs.workspace.catalogs,
             project_manifests: inputs.workspace.project_manifests,
+            sibling_lockfile: crate::peer_dependency_issues::SiblingLockfile::Installed,
         },
         inputs.workspace.config,
     )?;

@@ -511,6 +511,38 @@ fn fresh_resolve_walks_every_workspace_importer() {
     drop((root, mock_instance));
 }
 
+/// A `workspace:^` branch admits every workspace version, so a union with
+/// it links the sibling whatever the other branches say.
+#[test]
+fn workspace_caret_union_links_the_sibling() {
+    for field in ["dependencies", "peerDependencies"] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+            &serde_json::json!({ "name": "pkg-a", "version": "1.2.3" }),
+            &serde_json::json!({
+                "name": "pkg-b",
+                "version": "1.0.0",
+                field: { "pkg-a": "workspace:^ || ^2.0.0" },
+            }),
+        );
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        pacquet_at(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert!(
+            is_symlink_or_junction(&workspace.join("pkg-b/node_modules/pkg-a")).unwrap(),
+            "{field}: pkg-a is not linked",
+        );
+        pacquet_at(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
+
+        drop((root, mock_instance));
+    }
+}
+
 /// A workspace member that declares a `peerDependencies` entry gets
 /// that peer auto-installed (pnpm's default) and materialized into its
 /// lockfile importer `dependencies`. A subsequent `--frozen-lockfile`

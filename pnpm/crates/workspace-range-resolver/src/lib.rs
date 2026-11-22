@@ -49,6 +49,18 @@ fn is_wildcard(range: &str) -> bool {
     matches!(range, "*" | "^" | "~" | "")
 }
 
+/// Whether the version part of a `workspace:` specifier admits every
+/// workspace version: a sentinel token, or a `||` union with one as a
+/// branch, such as `^ || ^2.0.0`. A plain semver range is not a
+/// `workspace:` specifier, so it keeps `*`'s prerelease exclusion.
+#[must_use]
+pub fn matches_any_workspace_version(range: &str) -> bool {
+    range
+        .split("||")
+        .map(str::trim)
+        .any(is_wildcard)
+}
+
 /// Highest version overall, including prereleases. Since `*` matches
 /// everything when prereleases are allowed, this collapses to a direct
 /// max over all parseable versions.

@@ -1,3 +1,5 @@
+use pnpm_config_parse_overrides::split_parent_selector;
+
 use super::{
     BTreeMap,
     BadPeerIssue,
@@ -148,7 +150,7 @@ type AllowAllMatcher = HashMap<String, Vec<String>>;
 type AllowByParentMatcher = HashMap<String, Vec<ParentRule>>;
 
 pub(super) struct ParentRule {
-    parent_range: Option<String>,
+    pub(super) parent_range: Option<String>,
     pub(super) peer_rules: HashMap<String, Vec<String>>,
 }
 
@@ -159,7 +161,7 @@ pub(super) fn parse_allowed_versions(
     let mut by_parent: AllowByParentMatcher = HashMap::new();
 
     for (selector, spec) in allowed {
-        if let Some((parent, target)) = selector.split_once('>') {
+        if let Some((parent, target)) = split_parent_selector(selector) {
             add_parent_rule(&mut by_parent, parent, target, spec);
         } else {
             let parsed = parse_wanted_dependency(selector);
