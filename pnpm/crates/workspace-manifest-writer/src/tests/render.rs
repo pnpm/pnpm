@@ -42,33 +42,47 @@ fn detect_quote_style_ignores_comments() {
 fn added_quotes_double_quote_added_scalars_in_a_double_quoted_document() {
     let original = "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  '@scope/kept': true\n";
     let edited = format!("{original}  '@scope/added': true\n  '*': true\n");
+    let out = AddedQuotes::detect(original).apply(edited);
+    eprintln!("OUTPUT:\n{out}\n");
     assert_eq!(
-        AddedQuotes::detect(original).apply(edited),
+        out,
         "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  '@scope/kept': true\n  \"@scope/added\": true\n  \"*\": true\n",
     );
 }
 
 #[test]
-fn added_quotes_count_existing_single_quoted_scalars() {
+fn added_quotes_tell_an_added_scalar_after_an_equal_existing_one() {
     let original = "packages:\n  - \"a\"\n  - \"b\"\n  - '@x'\n";
     let edited = format!("{original}  - '@x'\n");
-    assert_eq!(
-        AddedQuotes::detect(original).apply(edited),
-        "packages:\n  - \"a\"\n  - \"b\"\n  - '@x'\n  - \"@x\"\n",
-    );
+    let out = AddedQuotes::detect(original).apply(edited);
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, "packages:\n  - \"a\"\n  - \"b\"\n  - '@x'\n  - \"@x\"\n");
+}
+
+#[test]
+fn added_quotes_tell_an_added_scalar_before_an_equal_existing_one() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\nexisting: '@x'\n";
+    let edited = "packages:\n  - \"a\"\n  - \"b\"\nadded: '@x'\nexisting: '@x'\n".to_string();
+    let out = AddedQuotes::detect(original).apply(edited);
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, "packages:\n  - \"a\"\n  - \"b\"\nadded: \"@x\"\nexisting: '@x'\n");
 }
 
 #[test]
 fn added_quotes_keep_single_quotes_where_double_quotes_need_escapes() {
     let original = "packages:\n  - \"a\"\n";
     let edited = format!("{original}  - '@x \"y\"'\n  - '@x\\y'\n");
-    assert_eq!(AddedQuotes::detect(original).apply(edited.clone()), edited);
+    let out = AddedQuotes::detect(original).apply(edited.clone());
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, edited);
 }
 
 #[test]
 fn added_quotes_leave_other_documents_unchanged() {
     for original in ["", "packages:\n  - a\n", "packages:\n  - 'a'\n", "a: \"x\"\nb: 'y'\n"] {
         let edited = format!("{original}c: '@x'\n");
-        assert_eq!(AddedQuotes::detect(original).apply(edited.clone()), edited);
+        let out = AddedQuotes::detect(original).apply(edited.clone());
+        eprintln!("OUTPUT:\n{out}\n");
+        assert_eq!(out, edited);
     }
 }

@@ -11,7 +11,6 @@
 use std::{
     borrow::Cow,
     cmp::Ordering,
-    collections::HashMap,
     ops::Range,
 };
 
@@ -132,8 +131,8 @@ pub(crate) fn render_value(value: &str) -> String {
 ///
 /// Edits render a scalar that needs quoting with single quotes. When the
 /// original document prefers double quotes (see [`detect_quote_style`]), the
-/// written text has every single-quoted scalar the original did not already
-/// hold rewritten with double quotes, so additions match the file while
+/// written text has every single-quoted scalar the edits did not leave in
+/// place rewritten with double quotes, so additions match the file while
 /// single-quoted scalars a user wrote stay as written.
 #[derive(Debug, Default)]
 pub(crate) enum AddedQuotes {
@@ -142,9 +141,10 @@ pub(crate) enum AddedQuotes {
     /// one evenly split between the two.
     #[default]
     Single,
-    /// Use double quotes, except for the single-quoted scalars the original
-    /// document held, counted by their source text.
-    Double { existing_single: HashMap<String, usize> },
+    /// Use double quotes, except for the single-quoted scalars the edits left
+    /// in place. Holds the original document's scalars by source text, in
+    /// document order, to tell those apart from added ones.
+    Double { original: Vec<String> },
 }
 
 impl AddedQuotes {
@@ -153,57 +153,121 @@ impl AddedQuotes {
         if detect_quote_style(original) == QuoteStyle::Single {
             return Self::Single;
         }
-        let mut existing_single = HashMap::new();
-        for (range, _) in single_quoted_scalars(original) {
-            let source = original[range].to_string();
-            *existing_single.entry(source).or_default() += 1;
-        }
-        Self::Double { existing_single }
+        let original = scalars(original)
+            .into_iter()
+            .map(|scalar| scalar.source.to_string())
+            .collect();
+        Self::Double { original }
     }
 
     /// The edited document `text`, with added scalars in the detected style.
     pub(crate) fn apply(self, text: String) -> String {
-        let Self::Double { mut existing_single } = self else {
+        let Self::Double { original } = self else {
             return text;
         };
+        let original: Vec<&str> = original
+            .iter()
+            .map(String::as_str)
+            .collect();
+        let edited = scalars(&text);
+        let sources: Vec<&str> = edited
+            .iter()
+            .map(|scalar| scalar.source)
+            .collect();
+        let kept = kept_from(&original, &sources);
         let mut out = String::with_capacity(text.len());
         let mut copied = 0;
-        for (range, value) in single_quoted_scalars(&text) {
-            if let Some(count) = existing_single.get_mut(&text[range.clone()])
-                && *count > 0
-            {
-                *count -= 1;
+        for (scalar, kept) in edited.iter().zip(kept) {
+            let Some(value) = scalar.single_quoted.as_deref().filter(|_| !kept) else {
                 continue;
-            }
+            };
             // Double quotes would need escapes here, so the scalar keeps its
             // single quotes.
             if value.contains(['"', '\\']) || value.chars().any(char::is_control) {
                 continue;
             }
-            out.push_str(&text[copied..range.start]);
+            out.push_str(&text[copied..scalar.range.start]);
             out.push('"');
-            out.push_str(&value);
+            out.push_str(value);
             out.push('"');
-            copied = range.end;
+            copied = scalar.range.end;
         }
         out.push_str(&text[copied..]);
         out
     }
 }
 
-/// The byte range and decoded value of each single-quoted scalar in `text`,
-/// keys included.
-fn single_quoted_scalars(text: &str) -> Vec<(Range<usize>, Cow<'_, str>)> {
+/// A scalar token as written in a document.
+struct Scalar<'text> {
+    range: Range<usize>,
+    /// The token's source text, quotes included.
+    source: &'text str,
+    /// The decoded value, for a single-quoted scalar.
+    single_quoted: Option<Cow<'text, str>>,
+}
+
+/// Every scalar in `text`, keys included, in document order.
+fn scalars(text: &str) -> Vec<Scalar<'_>> {
     Scanner::new(StrInput::new(text))
         .map_while(Result::ok)
         .filter_map(|token| {
             let (span, token) = token.into_parts();
-            match token {
-                TokenType::Scalar(ScalarStyle::SingleQuoted, value) => {
-                    Some((span.start.byte_offset()?..span.end.byte_offset()?, value))
-                }
-                _ => None,
-            }
+            let TokenType::Scalar(style, value) = token else {
+                return None;
+            };
+            let range = span.start.byte_offset()?..span.end.byte_offset()?;
+            let single_quoted = matches!(style, ScalarStyle::SingleQuoted).then_some(value);
+            Some(Scalar { source: &text[range.clone()], range, single_quoted })
         })
         .collect()
+}
+
+/// Which items of `edited` a longest common subsequence with `original`
+/// matches: the scalars an edit left in place, told apart by position rather
+/// than by text alone. Edits are local, so the common prefix and suffix are
+/// matched first and the quadratic search only covers what lies between.
+fn kept_from(original: &[&str], edited: &[&str]) -> Vec<bool> {
+    let prefix = original
+        .iter()
+        .zip(edited)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let suffix = original[prefix..]
+        .iter()
+        .rev()
+        .zip(edited[prefix..].iter().rev())
+        .take_while(|(left, right)| left == right)
+        .count();
+    let old = &original[prefix..original.len() - suffix];
+    let new = &edited[prefix..edited.len() - suffix];
+
+    // `lengths[i * width + j]` is the length of the longest common
+    // subsequence of `old[i..]` and `new[j..]`.
+    let width = new.len() + 1;
+    let mut lengths = vec![0u32; (old.len() + 1) * width];
+    for i in (0..old.len()).rev() {
+        for j in (0..new.len()).rev() {
+            lengths[i * width + j] = if old[i] == new[j] {
+                lengths[(i + 1) * width + j + 1] + 1
+            } else {
+                lengths[(i + 1) * width + j].max(lengths[i * width + j + 1])
+            };
+        }
+    }
+
+    let mut kept = vec![true; edited.len()];
+    kept[prefix..edited.len() - suffix].fill(false);
+    let (mut i, mut j) = (0, 0);
+    while i < old.len() && j < new.len() {
+        if old[i] == new[j] {
+            kept[prefix + j] = true;
+            i += 1;
+            j += 1;
+        } else if lengths[(i + 1) * width + j] >= lengths[i * width + j + 1] {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    kept
 }
