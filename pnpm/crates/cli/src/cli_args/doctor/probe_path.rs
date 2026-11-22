@@ -64,8 +64,7 @@ pub(super) fn prefetch_candidate_paths(candidates: &[&Path]) {
 
 pub(super) fn prefetch_config_paths(config: &Config) {
     let candidates: Vec<&Path> = [
-        config.global_bin_dir.as_deref(),
-        config.global_dir.as_deref(),
+        config.global_bin.as_deref(),
         Some(config.cache_dir.as_path()),
         Some(config.store_dir.root()),
         Some(config.virtual_store_dir()),

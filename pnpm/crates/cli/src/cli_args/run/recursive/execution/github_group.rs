@@ -9,7 +9,7 @@ pub(super) struct GithubGroup;
 pub(super) fn start(run: &ProjectScripts<'_, '_, '_>, selected: &str) -> Option<GithubGroup> {
     let options = run.options;
     if options.output.silent
-        || options.args.workspace.parallel
+        || (options.args.workspace.parallel && !options.args.sequential)
         || script_concurrency(
             options.config,
             options.node.scripts.len(),

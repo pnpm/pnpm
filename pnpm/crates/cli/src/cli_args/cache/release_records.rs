@@ -28,7 +28,7 @@ pub(super) fn delete(
         packages
             .iter()
             .map(|pkg| {
-                CacheCommand::reject_path_traversal(pkg)?;
+                let pkg = CacheCommand::package_pattern(pkg)?;
                 Ok(format!("{registry_prefix}/{pkg}/*.json"))
             })
             .collect::<miette::Result<Vec<_>>>()?

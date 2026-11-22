@@ -16,7 +16,6 @@ use super::{
     default_pnpm_home_dir,
     now_millis,
     prepare_config,
-    prints_json_errors,
     seed_config,
     warn_shared_workspace_lockfile_outside_workspace,
 };
@@ -115,7 +114,7 @@ impl RunSetup {
                     | CliCommand::PatchCommit(_)
                     | CliCommand::PatchRemove(_),
             ),
-            print_json_errors: prints_json_errors(&args.command),
+            print_json_errors: args.command.prints_json_errors(),
             recursive_by_default: args.command.recursive_by_default(),
             summary_scope: args.command.default_reporter_summary_scope(),
             reports_scope: args.command.reports_scope(args.workspace.recursive),

@@ -15,6 +15,7 @@ use pnpm_resolving_npm_resolver::mirror::{
     PNPR_META_DIR,
     RELEASE_RECORDS_DIR,
     decode_registry_name,
+    encode_pkg_name,
     get_registry_name,
     is_unreadable_registry_key,
     load_meta,
@@ -95,25 +96,25 @@ impl CacheCommand {
         lexical_normalize(&config.cache_dir)
     }
 
-    /// Filesystem-safe slug of the configured registry, used as the top-level
-    /// directory under the metadata cache root. A malformed registry URL is a
-    /// configuration error, so we surface it rather than broadening the glob
-    /// scope to every registry, important because `delete` is destructive.
     fn registry_prefix(config: &Config) -> miette::Result<String> {
-        get_registry_name(&config.registry).into_diagnostic()
+        if config.cli_settings.contains("registry") {
+            get_registry_name(&config.registry).into_diagnostic()
+        } else {
+            Ok("*".to_owned())
+        }
     }
 
-    /// Reject names whose glob would escape the cache root. pnpm passes filter
-    /// arguments straight into a glob; pacquet additionally guards against `..`
-    /// segments so a crafted name can't match files outside the cache tree,
-    /// `delete` removes whatever the glob resolves to.
-    pub(super) fn reject_path_traversal(name: &str) -> miette::Result<()> {
+    fn package_pattern(name: &str) -> miette::Result<String> {
         if name.contains("..") {
             return Err(miette::miette!(
                 "Invalid package name '{name}': path traversal sequences are not allowed"
             ));
         }
-        Ok(())
+        if name.chars().any(wax::is_meta_character) || name.contains('\\') {
+            return Ok(name.to_owned());
+        }
+        let encoded = encode_pkg_name(name);
+        if name == encoded { Ok(encoded) } else { Ok(format!("{{{name},{encoded}}}")) }
     }
 
     fn find_metadata_files(
@@ -129,9 +130,7 @@ impl CacheCommand {
             packages
                 .iter()
                 .map(|pkg| {
-                    Self::reject_path_traversal(pkg)?;
-                    // Filters are matched literally, as in pnpm; they are glob
-                    // segments, not package names, so they are not re-encoded.
+                    let pkg = Self::package_pattern(pkg)?;
                     Ok(format!("{registry_prefix}/{pkg}.jsonl"))
                 })
                 .collect::<miette::Result<Vec<_>>>()?
@@ -190,9 +189,8 @@ impl CacheCommand {
             pnpm_diagnostics::println!("{{}}");
             return Ok(());
         }
-        Self::reject_path_traversal(package)?;
+        let package = Self::package_pattern(package)?;
         let registry_prefix = Self::registry_prefix(config)?;
-        // pnpm matches the package name literally as a glob segment.
         let mut meta_file_paths =
             walk_metadata_files(cache_dir, &format!("{registry_prefix}/{package}.jsonl"))?;
         meta_file_paths.sort();

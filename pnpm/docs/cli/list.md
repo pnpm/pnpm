@@ -26,7 +26,7 @@ package, when executed inside a workspace.
 Workspace projects are listed in dependency order: a project appears after the
 workspace projects it depends on. Pass [`--no-sort`](./recursive.md#--no-sort) to
 keep workspace order, or [`--reverse`](./recursive.md#--reverse) to list
-dependents first.
+dependents first. Combine `--no-sort` with `--reverse` to list projects in reverse workspace order.
 
 ### --json
 

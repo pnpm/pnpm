@@ -83,7 +83,6 @@ use routing::{
     emit_execution_time,
     exit_on_json_error,
     now_millis,
-    prints_json_errors,
     run_routed_command,
 };
 use std::{

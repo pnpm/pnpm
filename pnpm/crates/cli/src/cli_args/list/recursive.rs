@@ -115,7 +115,7 @@ fn ordered_project_dirs(selection: &RecursiveSelection<'_>, config: &Config) -> 
             .cloned()
             .collect()
     };
-    if config.sort && config.reverse {
+    if config.reverse {
         project_dirs.reverse();
     }
     project_dirs

@@ -503,7 +503,10 @@ fn resume_drops_only_the_anchors_transitive_dependencies() {
         None,
     );
 
+    let from_empty_record =
+        resume_task_graph_from(graph.clone(), &dir("b"), "build".to_owned(), Some(&HashSet::new()));
     let resumed = resume_task_graph_from(graph, &dir("b"), "build".to_owned(), None);
+    assert_eq!(from_empty_record.keys().collect::<Vec<_>>(), resumed.keys().collect::<Vec<_>>());
 
     assert_eq!(resumed.len(), 3);
     assert!(!resumed.contains_key(&key("a", "build")));

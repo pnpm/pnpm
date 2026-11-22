@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -71,6 +72,19 @@ describe('cache view', () => {
       },
     })
   })
+  test('list, view and delete find a mixed-case package by name', async () => {
+    const name = 'MixedExample'
+    const filename = `${name}_${createHash('sha256').update(name).digest('hex')}.jsonl`
+    const registry = 'https%3A+registry.npmjs.org'
+    const dir = path.join(cacheDir, ABBREVIATED_META_DIR, registry)
+    fs.copyFileSync(path.join(dir, 'is-negative.jsonl'), path.join(dir, filename))
+    const opts = { cacheDir, cliOptions: {}, pnpmHomeDir: process.cwd(), storeDir }
+    expect(await cache.handler(opts, ['list', name])).toBe(`${registry}/${filename}`)
+    expect(JSON.parse((await cache.handler(opts, ['view', name]))!)).toHaveProperty(['https://registry.npmjs.org/'])
+    expect(await cache.handler(opts, ['delete', name])).toBe(`${registry}/${filename}`)
+    expect(fs.existsSync(path.join(dir, filename))).toBe(false)
+  })
+
   test('lists metadata for requested package from specified registry', async () => {
     const result = await cache.handler({
       cacheDir,

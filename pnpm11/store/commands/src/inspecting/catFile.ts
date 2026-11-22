@@ -37,9 +37,27 @@ export async function handler (opts: CatFileCommandOptions, params: string[]): P
     })
   }
 
-  const match = INTEGRITY_REGEX.exec(params[0])
+  const toHex = decodeHash(params[0])
+  const storeDir = await getStorePath({
+    pkgRoot: process.cwd(),
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
+  for (const mode of [0, 0o755]) {
+    const filePath = path.resolve(getFilePathByModeInCafs(storeDir, toHex, mode))
+    try {
+      return gfs.readFileSync(filePath, 'utf8')
+    } catch (err: unknown) {
+      if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    }
+  }
+  throw new PnpmError('INVALID_HASH', 'Corresponding hash file not found')
+}
+
+function decodeHash (hash: string): string {
+  const match = INTEGRITY_REGEX.exec(hash)
   if (!match) {
-    throw new PnpmError('INVALID_HASH', `Invalid hash format. Expected something like sha512-..., got ${params[0]}`)
+    throw new PnpmError('INVALID_HASH', `Invalid hash format. Expected something like sha512-..., got ${hash}`)
   }
 
   const encoded = match[1]
@@ -50,22 +68,7 @@ export async function handler (opts: CatFileCommandOptions, params: string[]): P
     : canonical.replace(/=+$/, '') === encoded
   const toHex = decoded.toString('hex')
   if (!isValidBase64 || toHex.length <= 2) {
-    throw new PnpmError('INVALID_HASH', `Invalid hash format. Expected something like sha512-..., got ${params[0]}`)
+    throw new PnpmError('INVALID_HASH', `Invalid hash format. Expected something like sha512-..., got ${hash}`)
   }
-
-  const storeDir = await getStorePath({
-    pkgRoot: process.cwd(),
-    storePath: opts.storeDir,
-    pnpmHomeDir: opts.pnpmHomeDir,
-  })
-  const filePath = path.resolve(getFilePathByModeInCafs(storeDir, toHex, 0))
-
-  try {
-    return gfs.readFileSync(filePath, 'utf8')
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
-      throw new PnpmError('INVALID_HASH', 'Corresponding hash file not found')
-    }
-    throw err
-  }
+  return toHex
 }

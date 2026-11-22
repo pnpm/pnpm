@@ -157,6 +157,12 @@ fn assert_literal_filename_patterns(filename: &str) {
             (Vec::new(), Vec::new(), vec![path_of(&leaf), path_of(&consumer)]),
             (vec![pattern.clone()], Vec::new(), vec![path_of(&leaf)]),
             (Vec::new(), vec![pattern.clone()], Vec::new()),
+            (Vec::new(), vec!["!**/source.js".to_string()], Vec::new()),
+            (
+                Vec::new(),
+                vec!["**".to_string(), format!("!{pattern}")],
+                vec![path_of(&leaf), path_of(&consumer)],
+            ),
         ] {
             let options = FilterWorkspaceProjectsOptions {
                 test_pattern,

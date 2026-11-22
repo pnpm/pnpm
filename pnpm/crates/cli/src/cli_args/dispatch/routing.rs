@@ -172,16 +172,6 @@ pub(super) fn exit_on_json_error(
     result
 }
 
-pub(super) fn prints_json_errors(command: &CliCommand) -> bool {
-    match command {
-        CliCommand::Publish(args) => args.flags.output.json,
-        CliCommand::Stage(args) => args.flags.output.json,
-        CliCommand::View(args) => args.json,
-        CliCommand::Pack(args) => args.json,
-        _ => false,
-    }
-}
-
 pub(super) fn print_json_error(error: &miette::Report) {
     let code = error
         .code()

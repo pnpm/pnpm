@@ -603,7 +603,11 @@ fn use_stderr_diverts_reporter_output() {
 
 #[test]
 fn github_actions_groups_serial_scripts_even_after_failure() {
-    for flags in [vec!["--sequential"], vec!["--workspace-concurrency=1"]] {
+    for flags in [
+        vec!["--sequential"],
+        vec!["--workspace-concurrency=1"],
+        vec!["--parallel", "--sequential"],
+    ] {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         write_workspace(
             &workspace,
@@ -642,10 +646,9 @@ fn github_actions_groups_serial_scripts_even_after_failure() {
             assert!(group.starts_with(&format!("{name}@1.0.0 : test {name}")), "{group}");
             let end = group.find("::endgroup::").expect("closed group");
             assert!(
-                group
-                    .find(&format!("\n{marker}"))
-                    .expect("script output")
-                    < end,
+                group[..end]
+                    .lines()
+                    .any(|line| line.ends_with(marker)),
                 "{group}",
             );
         }

@@ -222,7 +222,7 @@ test('reject malformed or short hash inputs with ERR_PNPM_INVALID_HASH', async (
     pnpmHomeDir: config.pnpmHomeDir,
   })
   fs.mkdirSync(path.join(storeDir, 'files', '61'), { recursive: true })
-  fs.writeFileSync(path.join(storeDir, 'files', '61', '6263'), 'abc')
+  fs.writeFileSync(path.join(storeDir, 'files', '61', '6263-exec'), 'abc')
   fs.writeFileSync(path.join(storeDir, 'files', '61', '62'), 'ab')
 
   expect(await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-YWJj'])).toBe('abc')

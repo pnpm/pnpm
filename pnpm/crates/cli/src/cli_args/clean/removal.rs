@@ -90,6 +90,7 @@ impl CleanRun<'_> {
         let cwd = std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_default();
         let planned = self.plan(dirs);
         planned.execute_modules(&cwd, self.real_root_dir)?;
+        self.remove_pnp_loaders(&cwd, dirs)?;
         if matches!(self.lockfile_removal, LockfileRemoval::Remove) {
             let resolved_lockfile_dir = self.raw_lockfile_dir.and_then(|lockfile_dir| {
                 resolve_configured_lockfile_dir(self.real_root_dir, lockfile_dir)
@@ -104,6 +105,31 @@ impl CleanRun<'_> {
             )?;
         }
         planned.execute_external_virtual_store(&cwd)
+    }
+
+    fn remove_pnp_loaders(&self, cwd: &Path, dirs: &[PathBuf]) -> miette::Result<()> {
+        if self.config.node_linker != pnpm_config::NodeLinker::Pnp {
+            return Ok(());
+        }
+        let mut removed = HashSet::new();
+        let mut remove_loader = |dir: &Path| {
+            remove_project_file_at(
+                cwd,
+                self.real_root_dir,
+                &dir.join(pnpm_deps_restorer::pnp::PNP_FILENAME),
+                &mut removed,
+            )
+        };
+        if self.config.shares_one_lockfile() {
+            if matches!(self.scope, CleanScope::WholeWorkspace) {
+                remove_loader(self.raw_lockfile_dir.unwrap_or(self.root_dir))?;
+            }
+        } else {
+            for dir in dirs {
+                remove_loader(dir)?;
+            }
+        }
+        Ok(())
     }
 
     fn cleans_root(&self, dirs: &[PathBuf]) -> bool {
@@ -229,7 +255,15 @@ impl CleanRun<'_> {
         let virtual_store_in_project =
             resolve_inside(self.real_root_dir, &resolved_virtual_store_dir)?;
         if resolve_inside(self.real_root_dir, &root_dir.join(modules_leaf))
-            .is_some_and(|root_modules_dir| is_subdir(&root_modules_dir, &virtual_store_in_project))
+            .is_some_and(|modules| {
+                modules == virtual_store_in_project
+                    || (is_subdir(&modules, &virtual_store_in_project)
+                        && !self.is_cleanable_modules_dir(
+                            &modules,
+                            Some(self.real_root_dir),
+                            &HashSet::new(),
+                        ))
+            })
             || !self.is_cleanable_modules_dir(&virtual_store_in_project, None, &HashSet::new())
         {
             return None;
@@ -293,12 +327,12 @@ fn remove_lockfiles(
 ) -> miette::Result<()> {
     let mut removed = HashSet::new();
     for dir in dirs {
-        remove_lockfile_at(cwd, real_root_dir, &dir.join("pnpm-lock.yaml"), &mut removed)?;
+        remove_project_file_at(cwd, real_root_dir, &dir.join("pnpm-lock.yaml"), &mut removed)?;
     }
     if cleans_root {
-        remove_lockfile_at(cwd, real_root_dir, &root_dir.join("pnpm-lock.yaml"), &mut removed)?;
+        remove_project_file_at(cwd, real_root_dir, &root_dir.join("pnpm-lock.yaml"), &mut removed)?;
         if let Some(lockfile_dir) = resolved_lockfile_dir {
-            remove_lockfile_at(
+            remove_project_file_at(
                 cwd,
                 real_root_dir,
                 &lockfile_dir.join("pnpm-lock.yaml"),
@@ -309,26 +343,26 @@ fn remove_lockfiles(
     Ok(())
 }
 
-fn remove_lockfile_at(
+fn remove_project_file_at(
     cwd: &Path,
     real_root_dir: &Path,
     candidate: &Path,
     removed: &mut HashSet<PathBuf>,
 ) -> miette::Result<()> {
-    let Some(lockfile_path) = resolve_inside(real_root_dir, candidate) else {
+    let Some(file_path) = resolve_inside(real_root_dir, candidate) else {
         return Ok(());
     };
-    if !removed.insert(lockfile_path.clone()) {
+    if !removed.insert(file_path.clone()) {
         return Ok(());
     }
-    let Some(metadata) = inspect_existing_path(&lockfile_path)? else {
+    let Some(metadata) = inspect_existing_path(&file_path)? else {
         return Ok(());
     };
     if !is_symlink_metadata(&metadata) && metadata.is_dir() {
         return Ok(());
     }
-    print_removing(cwd, &lockfile_path);
-    remove_path(&lockfile_path)
+    print_removing(cwd, &file_path);
+    remove_path(&file_path)
 }
 
 pub(super) fn configured_virtual_store_dir(root_dir: &Path, config: &Config) -> PathBuf {

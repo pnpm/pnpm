@@ -247,11 +247,11 @@ pub(super) fn script_concurrency(
     parallel: bool,
     sequential: bool,
 ) -> usize {
-    if parallel {
-        return script_count;
-    }
     if sequential {
         return 1;
+    }
+    if parallel {
+        return script_count;
     }
     usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
 }

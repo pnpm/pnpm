@@ -145,6 +145,7 @@ pub fn resume_task_graph_from(
         return graph;
     }
     let dropped = completed_tasks
+        .filter(|tasks| !tasks.is_empty())
         .map(|completed| {
             completed
                 .iter()

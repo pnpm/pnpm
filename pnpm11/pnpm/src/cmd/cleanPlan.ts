@@ -9,7 +9,7 @@ import {
   type PlannedModulesTarget,
   preservedEntryForTarget,
   removeExternalVirtualStore,
-  removeLockfilePath,
+  removeProjectFile,
   removesEntryInModulesDir,
   resolveInside,
 } from './cleanRemoval.js'
@@ -38,7 +38,7 @@ export async function executePlannedClean (
   }
   if (removeLockfile) {
     const lockfileTargets = await collectLockfileTargets(scope)
-    await Promise.all(lockfileTargets.map(async (lockfilePath) => removeLockfilePath(scope.cwd, lockfilePath)))
+    await Promise.all(lockfileTargets.map(async (lockfilePath) => removeProjectFile(scope.cwd, lockfilePath)))
   }
   await removeExternalVirtualStore({ cwd: scope.cwd, externalVirtualStoreDir })
 }

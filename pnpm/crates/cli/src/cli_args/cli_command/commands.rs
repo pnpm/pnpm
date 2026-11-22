@@ -508,32 +508,39 @@ impl CliCommand {
     }
 
     fn prints_structured_stdout(&self) -> bool {
-        match self {
-            CliCommand::Access(args) => args.json,
-            CliCommand::Audit(args) => args.json,
-            CliCommand::Cache(command) => cache_prints_structured_stdout(command),
-            CliCommand::CatIndex(_) => true,
-            CliCommand::Doctor(args) => args.json,
-            CliCommand::Fund(args) => args.json,
-            CliCommand::Licenses(args) => args.json,
-            CliCommand::List(args) | CliCommand::Ll(args) => {
-                args.output.json || args.output.parseable
+        self.prints_json_errors()
+            || match self {
+                CliCommand::Access(args) => args.json,
+                CliCommand::Cache(command) => cache_prints_structured_stdout(command),
+                CliCommand::CatIndex(_) => true,
+                CliCommand::Fund(args) => args.json,
+                CliCommand::List(args) | CliCommand::Ll(args) => args.output.parseable,
+                CliCommand::Pipeline(args) => args.prints_json_plan(),
+                CliCommand::Pkg(args) => pkg_prints_structured_stdout(args),
+                CliCommand::Profile(args) => args.json || args.parseable,
+                CliCommand::Run(args) => args.dry_run && args.json,
+                CliCommand::Search(args) => args.json,
+                CliCommand::Team(args) => args.json || args.parseable,
+                CliCommand::Token(args) => args.json || args.parseable,
+                CliCommand::Version(args) => args.json,
+                CliCommand::Why(args) => args.output.parseable,
+                _ => false,
             }
-            CliCommand::Outdated(args) => args.uses_json_output(),
-            CliCommand::Pack(args) => args.json,
-            CliCommand::Peers(args) => args.json,
-            CliCommand::Pipeline(args) => args.prints_json_plan(),
-            CliCommand::Pkg(args) => pkg_prints_structured_stdout(args),
-            CliCommand::Profile(args) => args.json || args.parseable,
+    }
+
+    pub(crate) fn prints_json_errors(&self) -> bool {
+        match self {
             CliCommand::Publish(args) => args.flags.output.json,
-            CliCommand::Run(args) => args.dry_run && args.json,
-            CliCommand::Search(args) => args.json,
             CliCommand::Stage(args) => args.flags.output.json,
-            CliCommand::Team(args) => args.json || args.parseable,
-            CliCommand::Token(args) => args.json || args.parseable,
-            CliCommand::Version(args) => args.json,
             CliCommand::View(args) => args.json,
-            CliCommand::Why(args) => args.output.json || args.output.parseable,
+            CliCommand::Pack(args) => args.json,
+            CliCommand::Audit(args) => args.json,
+            CliCommand::Doctor(args) => args.json,
+            CliCommand::Licenses(args) => args.json,
+            CliCommand::List(args) | CliCommand::Ll(args) => args.output.json,
+            CliCommand::Outdated(args) => args.uses_json_output(),
+            CliCommand::Peers(args) => args.json,
+            CliCommand::Why(args) => args.output.json,
             _ => false,
         }
     }

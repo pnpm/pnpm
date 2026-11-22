@@ -243,6 +243,8 @@ To set it for every command, use the `testPattern` setting in
 
 ## --changed-files-ignore-pattern &lt;glob>
 
+Prefix a pattern with `!` to keep matching files. A later pattern can override an earlier match.
+
 Allows to ignore changed files by glob patterns when filtering for changed projects since the specified commit/branch.
 
 Usage example:

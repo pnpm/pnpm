@@ -66,7 +66,7 @@ fn succeeds_on_a_fresh_environment_before_cache_or_store_dirs_exist() {
         .with_env("XDG_STATE_HOME", &state_home)
         .with_env("XDG_CONFIG_HOME", &config_home)
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("PATH", prepend_to_path(&pnpm_home))
+        .with_env("PATH", prepend_to_path(&pnpm_home.join("bin")))
         .without_env("COREPACK_ROOT")
         .without_env("PNPM_CONFIG_STORE_DIR")
         .without_env("PNPM_CONFIG_CACHE_DIR")

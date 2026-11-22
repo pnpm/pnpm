@@ -36,4 +36,8 @@ foreach ($prefix in $prefixes) {
     throw "Completion does not match a literal prefix: $($prefix.Line)"
   }
 }
+$midline = (TabExpansion2 'pnpm run pipe tail' 13).CompletionMatches
+if ($midline.Count -ne 1 -or $midline[0].ListItemText -ne 'pipe|name') {
+  throw 'Expected completion at the cursor before the trailing argument'
+}
 $results.ListItemText | Sort-Object
