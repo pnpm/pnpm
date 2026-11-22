@@ -95,7 +95,7 @@ fn import_converts_yarn_patches_into_patched_dependencies() {
         "pnpm-workspace.yaml:\n{workspace_yaml}",
     );
     assert!(
-        workspace_yaml.contains("'@pnpm.e2e/foo@1.0.0': patches/foo.patch"),
+        workspace_yaml.contains(r#""@pnpm.e2e/foo@1.0.0": patches/foo.patch"#),
         "pnpm-workspace.yaml:\n{workspace_yaml}",
     );
     let lockfile = read_text(&workspace.join("pnpm-lock.yaml"));
