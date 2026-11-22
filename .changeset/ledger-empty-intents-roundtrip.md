@@ -1,6 +1,4 @@
 ---
-"@pnpm/releasing.versioning": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

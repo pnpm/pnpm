@@ -1,7 +1,4 @@
 ---
-"@pnpm/fetching.pick-fetcher": patch
-"@pnpm/hooks.types": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

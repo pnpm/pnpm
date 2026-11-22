@@ -23,7 +23,7 @@
 //! before searching.
 //!
 //! The hook sources are identical copies of the ones the TypeScript CLI
-//! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`), the two must
+//! embeds ([`pnpm11/exec/esm-node-path-loader/src/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/exec/esm-node-path-loader/src/index.ts)), the two must
 //! stay in sync so both CLIs inject the same `NODE_OPTIONS` value.
 
 use std::{

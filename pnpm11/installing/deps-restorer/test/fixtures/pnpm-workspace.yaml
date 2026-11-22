@@ -1,6 +1,0 @@
-packages:
-  - "**"
-  - "!workspace/**"
-  - "!workspace2/**"
-linkWorkspacePackages: false
-sharedWorkspaceLockfile: false

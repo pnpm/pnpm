@@ -49,6 +49,16 @@ test('selects only the signed and published release snapshot', t => {
   assert.throws(() => prepareDocsSync({ ...f.options, git: (...args) => args[0] === 'verify-tag' ? f.git(...args) : f.options.git(...args) }))
 })
 
+test('reads only the manifest of the tagged release line', t => {
+  for (const [tag, otherLine] of [['v11.28.3', 'pnpm/npm/pnpm'], ['v12.8.2', 'pnpm11/pnpm']]) {
+    const f = fixture(t, tag)
+    f.git('rm', '--quiet', '-r', otherLine)
+    f.git('commit', '--quiet', '-m', 'chore: drop the other release line')
+    f.git('update-ref', `refs/tags/${tag}`, 'HEAD')
+    assert.equal(prepareDocsSync(f.options).version, tag.slice(1))
+  }
+})
+
 test('ignores prereleases and rejects releases outside stable v11 and v12', () => {
   assert.throws(() => prepareDocsSync({ releaseTag: 'pnpm-wasm-v1.0.0' }), /Expected a pnpm or pnpr release tag/)
   assert.equal(prepareDocsSync({ releaseTag: 'v12.9.0-beta.1' }), undefined)

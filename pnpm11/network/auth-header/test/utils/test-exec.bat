@@ -1,1 +1,0 @@
-@echo Bearer token-from-spawn

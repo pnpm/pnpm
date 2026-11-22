@@ -1,5 +1,5 @@
 //! Recursive `pacquet update` integration tests, ported from
-//! `pnpm11/installing/commands/test/update/recursive.ts`.
+//! [`pnpm11/installing/commands/test/update/recursive.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/installing/commands/test/update/recursive.ts).
 //!
 //! The cases that drive `latest` around mid-test run against a registry
 //! of their own (see [`setup_with_own_registry`]) because moving a

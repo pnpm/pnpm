@@ -42,8 +42,6 @@ reviews:
   auto_apply_labels: true
   # Custom labels assigned based on which product the diff touches. More than one may apply to a single PR.
   labeling_instructions:
-    - label: "product: pnpm@11"
-      instructions: "Apply only when changes are in the pnpm11/ directory (the TypeScript pnpm CLI, frozen at v11)."
     - label: "product: pacquet"
       instructions: "Apply when changes affect pacquet, the Rust port of the pnpm CLI (the pnpm/ directory)."
     - label: "product: pnpr"

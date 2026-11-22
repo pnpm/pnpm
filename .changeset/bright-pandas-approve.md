@@ -1,6 +1,4 @@
 ---
-"@pnpm/building.commands": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

@@ -1,7 +1,4 @@
 ---
-"@pnpm/hooks.read-package-hook": patch
-"@pnpm/resolving.local-resolver": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

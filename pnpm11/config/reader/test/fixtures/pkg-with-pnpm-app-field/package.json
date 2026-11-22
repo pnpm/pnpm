@@ -1,7 +1,0 @@
-{
-  "pnpm": {
-    "app": {
-      "entry": "dist/index.js"
-    }
-  }
-}

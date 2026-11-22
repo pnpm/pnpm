@@ -1,9 +1,5 @@
 ---
-"@pnpm/config.reader": minor
-"@pnpm/engine.pm.commands": minor
-"@pnpm/installing.client": minor
 "pacquet": minor
-"pnpm": minor
 ---
 
 `pnpm self-update` no longer takes any instruction from the project it is run in:

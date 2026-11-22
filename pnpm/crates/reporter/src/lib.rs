@@ -621,7 +621,7 @@ pub struct ExecutionTimeLog {
 }
 
 /// `pnpm:deprecation` payload. Field names match the `DeprecationMessage`
-/// wire shape in `pnpm11/core/core-loggers/src/deprecationLogger.ts` so
+/// wire shape in [`pnpm11/core/core-loggers/src/deprecationLogger.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/core/core-loggers/src/deprecationLogger.ts) so
 /// `@pnpm/cli.default-reporter` dispatches on them unchanged.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -640,10 +640,7 @@ pub struct DeprecationLog {
     pub already_installed: bool,
 }
 
-/// `pnpm:unused-override` payload. Field names match the
-/// `UnusedOverrideMessage` wire shape in
-/// `pnpm11/core/core-loggers/src/unusedOverrideLogger.ts`. `prefix` is the
-/// workspace root (`lockfileDir`); `selector` is the raw override key
+/// `pnpm:unused-override` payload. `prefix` is the workspace root (`lockfileDir`); `selector` is the raw override key
 /// (`foo`, `parent>child`, `foo@^1`).
 #[derive(Debug, Clone, Serialize)]
 pub struct UnusedOverrideLog {

@@ -1,7 +1,4 @@
 ---
-"@pnpm/bins.linker": patch
-"@pnpm/workspace.injected-deps-syncer": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

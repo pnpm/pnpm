@@ -1,7 +1,4 @@
 ---
-"@pnpm/releasing.commands": patch
-"@pnpm/network.git-utils": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

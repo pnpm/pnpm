@@ -1,8 +1,4 @@
 ---
-"@pnpm/crypto.shasums-file": minor
-"@pnpm/engine.runtime.node-resolver": minor
-"@pnpm/resolving.default-resolver": patch
-"pnpm": minor
 "pacquet": minor
 ---
 

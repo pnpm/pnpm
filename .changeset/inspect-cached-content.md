@@ -1,9 +1,5 @@
 ---
-"pnpm": patch
 "pacquet": patch
-"@pnpm/cache.api": patch
-"@pnpm/resolving.npm-resolver": patch
-"@pnpm/store.commands": patch
 ---
 
 `pnpm cat-file` can read executable files from the store. `pnpm cache list`, `view`, and `delete` recognize mixed-case package names.

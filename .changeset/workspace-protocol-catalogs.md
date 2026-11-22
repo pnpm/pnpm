@@ -1,7 +1,4 @@
 ---
-"@pnpm/catalogs.resolver": minor
-"@pnpm/releasing.exportable-manifest": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

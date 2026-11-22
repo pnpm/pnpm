@@ -1,8 +1,4 @@
 ---
-"@pnpm/pkg-manifest.utils": minor
-"@pnpm/installing.commands": patch
-"@pnpm/global.commands": patch
-"pnpm": minor
 "pacquet": minor
 ---
 

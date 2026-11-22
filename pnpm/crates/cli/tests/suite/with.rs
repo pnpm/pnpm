@@ -1,4 +1,4 @@
-//! Ports `pnpm11/pnpm/test/withCommand.test.ts`.
+//! Ports [`pnpm11/pnpm/test/withCommand.test.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/test/withCommand.test.ts).
 
 use crate::_utils::{
     append_workspace_yaml_key,

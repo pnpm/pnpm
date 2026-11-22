@@ -1,8 +1,4 @@
 ---
-"@pnpm/deps.inspection.outdated": patch
-"@pnpm/resolving.npm-resolver": patch
-"@pnpm/resolving.resolver-base": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

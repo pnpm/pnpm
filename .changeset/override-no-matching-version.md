@@ -1,8 +1,4 @@
 ---
-"@pnpm/installing.deps-resolver": minor
-"@pnpm/installing.deps-installer": patch
-"@pnpm/cli.default-reporter": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

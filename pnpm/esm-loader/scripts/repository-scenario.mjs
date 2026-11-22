@@ -1,34 +1,6 @@
-import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import process from 'node:process'
 import { pathToFileURL } from 'node:url'
-
-export function runSuite (root, manifestPath, scenario) {
-  const auditPath = path.join(root, 'suite-cas-loads.jsonl')
-  const result = spawnSync(process.execPath, [
-    '--import', pathToFileURL(path.join(root, 'loader.mjs')).href, '--experimental-vm-modules',
-    ...(scenario.nodeArgs ?? [path.join(root, scenario.entry), ...scenario.args]),
-  ], {
-    cwd: path.join(root, scenario.cwd), encoding: 'utf8', timeout: 120000,
-    env: { ...process.env, NODE_PATH: '', ...auditEnvironment(root, auditPath), PNPM_LOADER_MANIFEST: manifestPath, UNRS_RESOLVER_NODE_RESOLUTION: '1' },
-  })
-  if (result.error && result.error.code !== 'ETIMEDOUT') throw result.error
-  return { ...result, ...readAudit(auditPath) }
-}
-
-export function readScenario (root) {
-  const report = path.join(root, 'ecosystem-results.json')
-  if (fs.existsSync(report)) {
-    const { runner = 'vitest', cwd = '.', entry = `repo/run-${runner}.mjs`, args } = JSON.parse(fs.readFileSync(report, 'utf8'))
-    const scenario = { cwd: path.join('repo', cwd) }
-    return runner === 'node' ? { ...scenario, nodeArgs: args } : { ...scenario, entry, args }
-  }
-  return {
-    entry: 'repo/run-jest.cjs', cwd: 'repo/pnpm11/cli/parse-cli-args',
-    args: ['--runInBand', '--no-cache', '--coverage=false', '--runTestsByPath', 'test/index.ts'],
-  }
-}
 
 export function auditEnvironment (root, filename) {
   fs.writeFileSync(filename, '')

@@ -1,6 +1,0 @@
-packages:
-  - "packages/**"
-  - "types"
-
-catalog:
-  - test

@@ -3,7 +3,7 @@
 //! through `sudo`. Those commands would target root's home directory,
 //! which is never what a user coming from `sudo npm install -g` wants.
 //!
-//! `checkSudo` in pnpm v11's `pnpm11/pnpm/src/checkSudo.ts` detects the
+//! `checkSudo` in pnpm v11's [`pnpm11/pnpm/src/checkSudo.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/src/checkSudo.ts) detects the
 //! same commands under the same condition, but only warns there:
 //! refusing them is a breaking change, so it lands in v12 while v11
 //! gives users a release to migrate.

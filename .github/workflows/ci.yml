@@ -52,26 +52,23 @@ jobs:
         id: filter
         with:
           predicate-quantifier: some-with-excludes
-          # The TypeScript pnpm stack lives under pnpm11/, plus the
-          # pnpr registry its tests use and workspace-root build/lint/test tooling.
+          # The workspace-root lint, the CI and release scripts, and the
+          # TypeScript packages that remain on this branch.
           filters: |
             ts:
-              # Matches the pnpr/docs/ exemption in ts-test-scope.mjs.
-              - '!pnpr/docs/**'
-              - 'pnpm11/**'
-              - 'pnpr/**'
               - '.meta-updater/**'
               - '.config/pnpm/**'
               - 'package.json'
               - 'pnpm-workspace.yaml'
               - 'pnpm-lock.yaml'
-              - '.config/pnpm/pnpmfile.cjs'
               - 'eslint.config.mjs'
               - 'tsconfig.lint.json'
               - '.config/cspell.json'
+              - 'pnpm/npm/get-pnpm/**'
+              - 'pnpm/crates/deps-restorer/pnp-runtime/**'
+              - 'pnpm/crates/deps-restorer/src/pnp_exports.cjs.inc'
+              - 'pnpr/examples/**'
               - '.github/workflows/ci.yml'
-              - '.github/workflows/test.yml'
-              - '.github/workflows/build-pnpr.yml'
               - '.github/scripts/**'
             # Skill scripts under .agents/ ship their own *.test.sh, run by the
             # Compile & Lint job next to the publication scripts above.
@@ -90,11 +87,9 @@ jobs:
 
   compile-and-lint:
     needs: changes
-    # Run when TypeScript-relevant files changed, or when the PR only touches
+    # Run when lint-relevant files changed, or when the PR only touches
     # .changeset/ — `pn lint` validates the pending change intents and their
-    # spelling, and a changeset-only PR skips every other job below. Every PR
-    # (same-repo or fork) is covered by its pull_request run, and push only
-    # fires on main, so there are no duplicate build jobs to guard against here.
+    # spelling.
     if: ${{ !cancelled() && (needs.changes.outputs.ts == 'true' || needs.changes.outputs.changesets == 'true') }}
 
     name: TS CI / Compile & Lint
@@ -120,23 +115,13 @@ jobs:
         .github/scripts/issue-fix-intent.test.sh
         .github/scripts/docker-image-tags.test.sh
         .agents/skills/pull-requests/scripts/resolve-pr-conflicts.test.sh
-        node --test .github/scripts/ts-test-scope.test.mjs .github/scripts/ts-test-chunks.test.mjs .github/scripts/assert-windows-crt-static.test.mjs .github/scripts/wait-for-pnpr.test.mjs .github/scripts/update-npm-signing-keys.test.mjs
+        node --test .github/scripts/bump.test.mjs .github/scripts/assert-windows-crt-static.test.mjs .github/scripts/update-npm-signing-keys.test.mjs
     - name: Test Cloudflare cache policy example
       run: node --test pnpr/examples/cloudflare/*.test.mjs
-    - name: Compile and lint TypeScript
-      run: pn pipeline ts-check --include-workspace-root --full --no-cache
-    - name: Package compiled artifacts
-      shell: bash
-      run: |
-        mapfile -d '' -t lib_dirs < <(find . -type d -name lib -not -path '*/node_modules/*' -print0)
-        mapfile -d '' -t tsbuildinfo_files < <(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*' -print0)
-        tar -czf compiled.tar.gz --exclude='node_modules' "${lib_dirs[@]}" "${tsbuildinfo_files[@]}" pnpm11/pnpm/dist
-    - name: Upload compiled artifacts
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      with:
-        name: compiled-packages
-        path: compiled.tar.gz
-        retention-days: 1
+    - name: Lint
+      run: pn pipeline lint --include-workspace-root --full --no-cache
+    - name: Check the embedded PnP resolver
+      run: pn --filter @pnpm-private/pnp-runtime check
 
   test-git-hooks:
     needs: changes
@@ -156,89 +141,6 @@ jobs:
     - name: Test git hook scripts
       run: node --test .config/githooks/*.test.mjs
 
-  # Build the pnpr binaries once per OS via a per-OS reusable workflow (not a
-  # single matrix job) so each platform's test jobs gate only on their own
-  # build. `needs` can only target a whole job, never an individual matrix
-  # leg, so a matrix build would make the ubuntu tests wait for the slower
-  # windows build and vice versa.
-  # Every push to main builds them, including Rust-only pushes that skip the
-  # tests, so pull requests merged with the latest main find them cached.
-  build-pnpr-linux:
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.outputs.ts == 'true' || github.event_name == 'push') }}
-    name: TS CI / Build pnpr
-    uses: $/.github/workflows/build-pnpr.yml
-    with:
-      os: blacksmith-16vcpu-ubuntu-2404
-
-  build-pnpr-windows:
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.outputs.ts == 'true' || github.event_name == 'push') }}
-    name: TS CI / Build pnpr
-    uses: $/.github/workflows/build-pnpr.yml
-    with:
-      os: blacksmith-16vcpu-windows-2025
-
-  # Like the Windows chunks, the Linux chunks start while the Linux pnpr
-  # build runs and wait for it inside the job (wait_for_pnpr).
-  test:
-    name: TS CI / Test / ubuntu
-    needs: [changes, compile-and-lint]
-    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && needs.compile-and-lint.result == 'success' }}
-    permissions:
-      actions: read
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ['22.13.0', '24.0.0', '26.13.1']
-        test_chunk: ['1', '2', '3']
-        include:
-          - node: '22.13.0'
-            node_major: '22'
-          - node: '24.0.0'
-            node_major: '24'
-          # Garnet's post step costs about 100 s, so it runs on one chunk:
-          # the one whose tests finish first.
-          - node: '24.0.0'
-            test_chunk: '2'
-            garnet: true
-          - node: '26.13.1'
-            node_major: '26'
-    uses: $/.github/workflows/test.yml
-    with:
-      node: ${{ matrix.node }}
-      node_major: ${{ matrix.node_major }}
-      platform: blacksmith-8vcpu-ubuntu-2404
-      test_chunk: ${{ matrix.test_chunk }}
-      test_chunk_total: '3'
-      garnet: ${{ matrix.garnet == true }}
-      wait_for_pnpr: true
-    secrets:
-      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
-
-  # Windows chunks start while the Windows pnpr build runs and wait for it
-  # inside the job (wait_for_pnpr), so runner startup and installs overlap it.
-  test-windows:
-    name: TS CI / Test / windows ${{ matrix.test_chunk }}/5
-    needs: [changes, compile-and-lint]
-    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && needs.compile-and-lint.result == 'success' }}
-    permissions:
-      actions: read
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        test_chunk: ['1', '2', '3', '4', '5']
-    uses: $/.github/workflows/test.yml
-    with:
-      node: '22.13.0'
-      node_major: '22'
-      platform: blacksmith-8vcpu-windows-2025
-      test_chunk: ${{ matrix.test_chunk }}
-      test_chunk_total: '5'
-      wait_for_pnpr: true
-
   # Single aggregate gate — the only TS CI context branch protection needs
   # to require. Listing the individual jobs as required checks does not
   # work: they skip on non-TypeScript PRs, and a matrix job skipped at the
@@ -254,10 +156,6 @@ jobs:
       - changes
       - compile-and-lint
       - test-git-hooks
-      - build-pnpr-linux
-      - build-pnpr-windows
-      - test
-      - test-windows
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Fail if any dependency failed or was cancelled

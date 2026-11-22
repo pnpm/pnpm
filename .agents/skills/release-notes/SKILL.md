@@ -23,7 +23,7 @@ grouped, what order they appear in, and how the page reads end to end.
 3. That file is the release page. The Rust CLI's GitHub release body is literally
    `tail -n +2 .changeset/changelogs/pacquet@<version>.md` plus the sponsors
    fragment (`.github/workflows/release.yml`), and the same section is composed into
-   the published `CHANGELOG.md`. For a stable v11 or v12 release, it also becomes the pnpm.io release page
+   the published `CHANGELOG.md`. For a stable pnpm release, it also becomes the pnpm.io release page
    ([DOCUMENTATION.md](../../../DOCUMENTATION.md#release-pages)).
 
 So curate `.changeset/changelogs/<package>@<version>.md` directly, on the release PR
@@ -135,12 +135,8 @@ they hit the bug (Installing packages, Running scripts and tasks, Windows), not 
 the subsystem that changed. Leave a section of a dozen or fewer flat - the headings
 cost more than they save.
 
-Both consumers tolerate the extra level: `release.yml` writes the Rust release body
-with `tail -n +2`, and `getChangelogEntry` (`pnpm11/__utils__/get-release-text`)
-slices between headings of the *same* depth as `## <version>`, so a `####` heading
-neither ends the slice nor is dropped. It does scan every heading for
-`major|minor|patch`, so avoid a group literally named "Patching" - call it "Patched
-dependencies".
+`release.yml` tolerates the extra level: it writes the Rust release body with
+`tail -n +2`.
 
 In the Minor section of a feature release, lead with the three to five entries that
 change how people work, the way Playwright leads with a handful of highlights before

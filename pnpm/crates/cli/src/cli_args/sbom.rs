@@ -1,7 +1,7 @@
 //! `pacquet sbom`: generate a Software Bill of Materials.
 //!
 //! Ports pnpm's `sbom` command
-//! (`pnpm11/deps/compliance/commands/src/sbom/sbom.ts`).
+//! ([`pnpm11/deps/compliance/commands/src/sbom/sbom.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/compliance/commands/src/sbom/sbom.ts)).
 
 use crate::{
     State,

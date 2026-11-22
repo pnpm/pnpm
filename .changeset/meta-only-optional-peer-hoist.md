@@ -1,6 +1,4 @@
 ---
-"@pnpm/installing.deps-resolver": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

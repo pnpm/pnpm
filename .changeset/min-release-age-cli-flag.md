@@ -1,10 +1,4 @@
 ---
-"@pnpm/cli.common-cli-options-help": patch
-"@pnpm/config.reader": patch
-"@pnpm/config.version-policy": patch
-"@pnpm/exec.commands": patch
-"@pnpm/installing.commands": patch
-"pnpm": patch
 "pacquet": minor
 ---
 

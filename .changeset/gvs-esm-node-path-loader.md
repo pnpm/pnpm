@@ -1,8 +1,4 @@
 ---
-"@pnpm/exec.esm-node-path-loader": minor
-"@pnpm/config.reader": minor
-"@pnpm/exec.commands": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

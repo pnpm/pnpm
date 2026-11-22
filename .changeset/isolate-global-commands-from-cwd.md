@@ -1,8 +1,4 @@
 ---
-"@pnpm/cli.parse-cli-args": patch
-"@pnpm/config.reader": patch
-"@pnpm/deps.inspection.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

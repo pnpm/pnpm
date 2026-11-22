@@ -113,7 +113,7 @@ fn root_global_prints_the_global_packages_dir() {
 /// The pm-check warning (`Using --global skips the package manager check for
 /// this project`) goes to stderr so `root -g` keeps stdout a clean,
 /// machine-readable path. Ports `pnpm root -g writes warnings to stderr so
-/// stdout stays a clean path` from `pnpm11/pnpm/test/root.ts`: the impossible
+/// stdout stays a clean path` from [`pnpm11/pnpm/test/root.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/test/root.ts): the impossible
 /// pin `pnpm@0.0.0` plus `COREPACK_ROOT` triggers the warning without any
 /// version resolution.
 #[cfg(unix)]

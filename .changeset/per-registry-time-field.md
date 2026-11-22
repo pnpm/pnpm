@@ -1,11 +1,5 @@
 ---
-"@pnpm/config.normalize-registries": minor
-"@pnpm/store.connection-manager": minor
-"@pnpm/resolving.npm-resolver": minor
-"@pnpm/config.reader": minor
-"@pnpm/types": minor
 "pacquet": minor
-"pnpm": minor
 ---
 
 A registry can now declare that its abbreviated metadata carries the `time` field, so `resolutionMode: time-based` reads the full metadata document only from the registries that need it:

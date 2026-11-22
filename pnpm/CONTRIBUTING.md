@@ -4,9 +4,7 @@ See also [`CODE_STYLE_GUIDE.md`](./CODE_STYLE_GUIDE.md) for the code style guide
 
 ## Scope and Version Policy
 
-pacquet is pnpm v12 and the target for new feature development. New commands, settings, and other user-visible features are implemented here and are not backported to the TypeScript pnpm v11 CLI under `../pnpm11/`.
-
-For bug fixes, determine which supported versions contain the bug. A bug present in both v11 and v12 must be fixed and tested in both implementations. A bug present in only one version is fixed only in that version. See [`AGENTS.md`](./AGENTS.md) for the full version policy.
+pacquet is the newest pnpm major.
 
 Opening an issue first is optional for a clearly scoped change. Open one when the intended user-visible behavior or design is not obvious, or when coordination is needed for work already in progress.
 
@@ -76,7 +74,7 @@ Install the project's task tools and the git pre-push hook:
 just init
 ```
 
-`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`, then installs `cargo-fixit@0.1.15` from source with `cargo install ... --locked` (it has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. It also installs the [pinned formatter](../CONTRIBUTING.md#rust-formatting). The repo-wide `pnpm install` wires up the git hooks in `.config/githooks/` (via `core.hooksPath`): the `pre-commit` hook formats the Rust files being committed and the `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint checks.
+`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`, then installs `cargo-fixit@0.1.15` from source with `cargo install ... --locked` (it has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. It also installs the [pinned formatter](../CONTRIBUTING.md#rust-formatting). The repo-wide `pnpm install` wires up the git hooks in `.config/githooks/` (via `core.hooksPath`): the `pre-commit` hook formats the Rust files being committed and the `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript checks.
 
 `just init` does not install the dylint tools. To run the `Dylint` job's checks locally, install `cargo-dylint` and `dylint-link` as described under [Rust toolchain and git hooks](../CONTRIBUTING.md#rust-toolchain-and-git-hooks) in the root guide.
 

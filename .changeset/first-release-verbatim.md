@@ -1,7 +1,4 @@
 ---
-"@pnpm/releasing.versioning": minor
-"@pnpm/releasing.commands": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

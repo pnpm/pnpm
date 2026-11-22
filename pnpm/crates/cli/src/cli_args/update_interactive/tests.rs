@@ -793,7 +793,7 @@ mod selection {
 }
 
 // The scripted prompt behind [`UpdatePrompt::Scripted`], and the ports of
-// `pnpm11/installing/commands/test/update/interactive.ts` it carries.
+// <https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/installing/commands/test/update/interactive.ts> it carries.
 
 /// What one prompt put in front of the user.
 struct SeenPrompt {

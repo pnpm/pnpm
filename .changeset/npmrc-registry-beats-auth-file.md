@@ -1,6 +1,4 @@
 ---
-"@pnpm/config.reader": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

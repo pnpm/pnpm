@@ -1,8 +1,4 @@
 ---
-"@pnpm/deps.peer-range": minor
-"@pnpm/installing.deps-resolver": patch
-"@pnpm/deps.inspection.peers-checker": patch
-"pnpm": minor
 "pacquet": minor
 ---
 

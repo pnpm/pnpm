@@ -1,0 +1,6 @@
+{
+  // Compiles exports.mjs as strict code. It does not apply to the bundled packages.
+  "compilerOptions": {
+    "alwaysStrict": true
+  }
+}

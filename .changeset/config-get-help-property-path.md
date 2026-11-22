@@ -1,6 +1,4 @@
 ---
-"@pnpm/config.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

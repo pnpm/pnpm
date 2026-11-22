@@ -1,5 +1,5 @@
 //! Ports `getUpdateChoices()` from
-//! `pnpm11/installing/commands/test/update/getUpdateChoices.test.ts`.
+//! [`pnpm11/installing/commands/test/update/getUpdateChoices.test.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/installing/commands/test/update/getUpdateChoices.test.ts).
 //!
 //! The layout follows the column widths pnpm gives `@zkochan/table`, so
 //! these assert the shape the user sees: which groups appear, in what

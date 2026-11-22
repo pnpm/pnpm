@@ -1,7 +1,0 @@
-{
-  "name": "example",
-  "version": "1.0.0",
-  "dependencies": {
-    "write-pkg": "^3.1.0"
-  }
-}

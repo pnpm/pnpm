@@ -1,4 +1,0 @@
-packages:
-  - 'packages/*'
-modulesDir: fake_modules
-virtualStoreDir: fake_modules/.fake_store

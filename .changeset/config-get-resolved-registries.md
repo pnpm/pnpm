@@ -1,8 +1,4 @@
 ---
-"@pnpm/config.normalize-registries": minor
-"@pnpm/config.reader": minor
-"@pnpm/config.commands": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

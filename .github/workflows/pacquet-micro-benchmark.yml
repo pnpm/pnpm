@@ -70,6 +70,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
+      # The PR's install settings can differ from main's, and pnpm refuses to
+      # reuse a modules directory created with other settings.
+      - name: Remove main's node_modules
+        run: find . -path ./target -prune -o -type d -name node_modules -prune -exec rm -rf {} +
+
       - name: Install crates
         uses: $/.github/actions/install-crates
 

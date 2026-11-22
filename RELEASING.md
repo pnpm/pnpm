@@ -8,19 +8,19 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 
 ## Steps
 
-1. Run the **Create release PR** workflow (`create-release-pr.yml`) for the
-   target branch. It bumps versions, consumes the pending changesets, and opens
-   a `release-pr/<base>` PR.
+1. Run the **Create release PR** workflow (`create-release-pr.yml`) from the
+   target branch, with the same branch as its `target` input. It bumps
+   versions, consumes the pending changesets, and opens a `release-pr/<base>`
+   PR.
 
 2. Review and merge that PR.
 
 3. Fetch the merge commit and tag each product whose version changed. Tag names
-   must match what `release.yml` expects — `v<version>` for the pnpm CLIs,
+   must match what `release.yml` expects — `v<version>` for pnpm,
    `pnpr@<version>` for pnpr, `get-pnpm@<version>` for get-pnpm:
 
    | Product           | Manifest                         | Tag prefix  |
    | ----------------- | -------------------------------- | ----------- |
-   | pnpm (TypeScript) | `pnpm11/pnpm/package.json`       | `v`         |
    | pacquet (Rust)    | `pnpm/npm/pnpm/package.json`     | `v`         |
    | pnpr              | `pnpr/npm/pnpr/package.json`     | `pnpr@`     |
    | get-pnpm          | `pnpm/npm/get-pnpm/package.json` | `get-pnpm@` |
@@ -35,7 +35,6 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    # signs whatever HEAD happens to be, which is how a version tag ends up
    # naming code that was never reviewed as part of this release.
    tags=(
-     "v$(git show "$SHA:pnpm11/pnpm/package.json" | jq -r .version)"
      "v$(git show "$SHA:pnpm/npm/pnpm/package.json" | jq -r .version)"
      "pnpr@$(git show "$SHA:pnpr/npm/pnpr/package.json" | jq -r .version)"
      "get-pnpm@$(git show "$SHA:pnpm/npm/get-pnpm/package.json" | jq -r .version)"
@@ -68,9 +67,8 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    git push origin "${tags[@]}"
    ```
 
-6. After the workflow finishes, approve the staged npm packages. The TypeScript
-   pnpm release stages `@pnpm/exe` and then `pnpm`. The Rust pnpm release
-   stages its native packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
+6. After the workflow finishes, approve the staged npm packages. The pnpm
+   release stages its native packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
    `pnpm`. Approve them from a maintainer's machine:
 
    ```bash
@@ -99,7 +97,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 
 `release.yml`'s plan job asks npm whether each product's *gate* package is
 already published — the one that product's publish job publishes last (`pnpm`
-for both CLIs, `@pnpm/pnpr` for pnpr, `get-pnpm` for get-pnpm) — and skips the product entirely if it
+for pnpm, `@pnpm/pnpr` for pnpr, `get-pnpm` for get-pnpm) — and skips the product entirely if it
 is. A release that ran to completion is therefore a no-op on rerun.
 
 When a run fails and the fix is a code change, commit the fix, move the tag to
@@ -196,7 +194,7 @@ yet maintainer-signed end to end.
 ## Website documentation
 
 Publishing a GitHub release starts the separate Sync documentation
-workflow, which copies the tagged pnpm v11, v12, or pnpr documentation to pnpm/pnpm.io, plus the release page for a stable v11 or v12 release, and checks the
+workflow, which copies the tagged pnpm or pnpr documentation to pnpm/pnpm.io, plus the release page for a stable pnpm release, and checks the
 website build before pushing it. Check that workflow as part of finishing a
 release. A failed docs sync can be retried independently of package publication.
 See [DOCUMENTATION.md](DOCUMENTATION.md#publication) for retries, documentation-only

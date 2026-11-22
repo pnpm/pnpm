@@ -1,6 +1,4 @@
 ---
-"@pnpm/exec.commands": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

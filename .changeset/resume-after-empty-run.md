@@ -1,6 +1,4 @@
 ---
-"@pnpm/workspace.task-scheduler": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

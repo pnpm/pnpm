@@ -1,7 +1,5 @@
 {
   "ignorePaths": [
-    "**/nodeReleaseKeys.ts",
-    "**/nodeReleaseKeys.d.ts",
     "**/node_release_keys.rs",
     "bench-work-env/**",
     "target/**",

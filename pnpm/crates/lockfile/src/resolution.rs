@@ -283,7 +283,7 @@ pub struct VariationsResolution {
 /// The `type` tag of a [`CustomResolution`]. Any tag other than the
 /// built-in kinds (`directory`, `git`, `binary`, `variations`) is
 /// custom, matching `classifyResolution` in
-/// `pnpm11/resolving/resolver-base/src/index.ts`, which routes every
+/// [`pnpm11/resolving/resolver-base/src/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/resolving/resolver-base/src/index.ts), which routes every
 /// unrecognized `type` to the custom fetch path. Rejecting the built-in
 /// tags here keeps a malformed built-in resolution (e.g. a `git` entry
 /// missing `commit`) a hard parse error instead of silently
@@ -325,7 +325,7 @@ impl From<CustomResolutionType> for String {
 /// fetcher sees exactly what its resolver wrote to the lockfile.
 ///
 /// Mirrors the TypeScript interface of the same name in
-/// `pnpm11/resolving/resolver-base/src/index.ts`.
+/// [`pnpm11/resolving/resolver-base/src/index.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/resolving/resolver-base/src/index.ts).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CustomResolution {
     #[serde(rename = "type")]

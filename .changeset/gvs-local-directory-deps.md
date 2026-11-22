@@ -1,10 +1,4 @@
 ---
-"@pnpm/deps.graph-hasher": patch
-"@pnpm/deps.graph-builder": patch
-"@pnpm/installing.deps-resolver": patch
-"@pnpm/building.after-install": patch
-"@pnpm/engine.pm.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

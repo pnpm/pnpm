@@ -1,13 +1,5 @@
 ---
-"@pnpm/config.normalize-registries": minor
-"@pnpm/lockfile.utils": major
-"@pnpm/resolving.tarball-url": major
-"@pnpm/installing.deps-resolver": minor
-"@pnpm/installing.deps-installer": minor
-"@pnpm/config.reader": minor
-"@pnpm/types": minor
 "pacquet": minor
-"pnpm": minor
 ---
 
 The `registries` setting now declares a registry once, keyed by its URL, with everything about that registry in the entry: how it lays out tarball URLs, the scopes routed to it, and the bare-specifier prefix it answers to.

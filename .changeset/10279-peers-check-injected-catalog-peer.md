@@ -1,7 +1,4 @@
 ---
-"@pnpm/deps.inspection.peers-checker": patch
-"@pnpm/deps.inspection.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

@@ -1,8 +1,4 @@
 ---
-"@pnpm/types": minor
-"@pnpm/releasing.versioning": minor
-"@pnpm/workspace.workspace-manifest-reader": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

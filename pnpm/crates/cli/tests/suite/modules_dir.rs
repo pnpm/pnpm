@@ -2,7 +2,7 @@
 //! directories only, so it cannot find the ones installed into
 //! `<project>/vendor`. The command shims put that directory on `NODE_PATH`,
 //! so tools the project installs can load its plugins. Mirrors
-//! `pnpm11/installing/deps-installer/test/install/modulesDir.ts`.
+//! [`pnpm11/installing/deps-installer/test/install/modulesDir.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/installing/deps-installer/test/install/modulesDir.ts).
 
 use crate::_utils::{
     append_workspace_yaml_key,

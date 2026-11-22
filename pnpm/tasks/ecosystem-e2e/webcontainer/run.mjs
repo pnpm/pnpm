@@ -3,8 +3,8 @@
 // non-zero. WebContainers run Node.js in the browser with their own `fs` and
 // `node:sqlite`, which differ from Node.js in ways no local test reproduces.
 //
-// Usage: node run.mjs [--pnpm-dir <dir>]
-// <dir> is the pnpm package with a built dist/, pnpm11/pnpm by default.
+// Usage: node run.mjs --pnpm-dir <dir>
+// <dir> is a pnpm v11 package with a built dist/, such as an installed `pnpm@11`.
 // --wasm-probe <file> runs the Rust WASI capability probe instead of pnpm.
 
 import fs from 'node:fs'
@@ -56,7 +56,7 @@ const APP_MANIFEST = {
 
 const { values: opts } = parseArgs({
   options: {
-    'pnpm-dir': { type: 'string', default: fileURLToPath(new URL('../../../../pnpm11/pnpm', import.meta.url)) },
+    'pnpm-dir': { type: 'string' },
     'wasm-probe': { type: 'string' },
     'wasm-runtime': { type: 'string' },
     'wasm-cli': { type: 'string' },
@@ -71,7 +71,6 @@ const { values: opts } = parseArgs({
     'host-probe': { type: 'string' },
   },
 })
-const pnpmDir = path.resolve(opts['pnpm-dir'])
 if (Object.values(opts).some(value => value === '')) throw new Error('Probe artifact paths cannot be empty')
 if ([opts['wasm-probe'], opts['wasm-runtime'], opts['wasm-cli'], opts['wasm-inspection'], opts['wasm-hoisted'], opts['wasm-registry'], opts['wasm-network'], opts['wasm-global'], opts['wasm-package'], opts['wasm-package-registry'], opts['wasm-package-frontend'], opts['host-probe']].filter(Boolean).length > 1) throw new Error('Select one probe mode')
 const wasmCliArtifact = opts['wasm-cli'] ?? opts['wasm-inspection'] ?? opts['wasm-hoisted'] ?? opts['wasm-registry'] ?? opts['wasm-network'] ?? opts['wasm-global']
@@ -81,7 +80,7 @@ const servedFiles = packageArtifact ? new Map([['pnpm-wasm.tgz', path.resolve(pa
     ['probe.wasm', path.resolve(opts['wasm-probe'])],
     ['probe.mjs', fileURLToPath(new URL('wasm-probe.mjs', import.meta.url))],
   ])
-  : new Map(listPnpmPackageFiles(pnpmDir).map(file => [file, path.join(pnpmDir, file)]))
+  : pnpmPackageFiles(opts['pnpm-dir'])
 if (opts['wasm-registry'] || opts['wasm-network'] || opts['wasm-cli'] || opts['wasm-inspection'] || opts['wasm-hoisted'] || packageArtifact) servedFiles.set('cli-fixture.mjs', fileURLToPath(new URL('./cli-fixture.mjs', import.meta.url)))
 if (opts['wasm-network'] || opts['wasm-cli'] || packageArtifact) {
   const fixtures = fileURLToPath(new URL('../../../../pnpm/crates/network/tests/fixtures/', import.meta.url))
@@ -333,13 +332,19 @@ function addDependencies (files, directory, packages) {
   }
 }
 
+function pnpmPackageFiles (pnpmDirOption) {
+  if (pnpmDirOption == null) throw new Error('Pass --pnpm-dir or a probe mode')
+  const pnpmDir = path.resolve(pnpmDirOption)
+  return new Map(listPnpmPackageFiles(pnpmDir).map(file => [file, path.join(pnpmDir, file)]))
+}
+
 /**
  * The files the published pnpm package contains: package.json, bin/, and
- * dist/ without source maps, as the `files` field of pnpm11/pnpm selects.
+ * dist/ without source maps, as the `files` field of the pnpm v11 package selects.
  */
 function listPnpmPackageFiles (dir) {
   if (!fs.existsSync(path.join(dir, 'dist/pnpm.mjs'))) {
-    throw new Error(`${dir}/dist/pnpm.mjs is missing. Build the bundle with: pnpm --filter pnpm run compile`)
+    throw new Error(`${dir}/dist/pnpm.mjs is missing`)
   }
   const files = ['package.json']
   for (const root of ['bin', 'dist']) {

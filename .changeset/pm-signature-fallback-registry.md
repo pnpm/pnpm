@@ -1,7 +1,4 @@
 ---
-"@pnpm/deps.security.signatures": minor
-"@pnpm/engine.pm.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

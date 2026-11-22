@@ -1,7 +1,0 @@
-{
-  "name": "has-incompatible-optional-subdep",
-  "version": "1.0.0",
-  "dependencies": {
-    "@pnpm.e2e/pkg-with-optional": "1.0.0"
-  }
-}

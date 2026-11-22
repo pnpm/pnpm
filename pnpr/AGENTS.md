@@ -21,8 +21,8 @@ the `Cargo.lock` stays unified.
 
 ## Relationship to pacquet and pre-1.0 policy
 
-- **`pnpm/`** is pnpm v12 and the target for new feature development. See
-  [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md) for its version policy.
+- **`pnpm/`** is the pnpm CLI. See
+  [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md) for its rules.
 - **`pnpr/`** has no pnpm-CLI counterpart to mirror. It is a new
   server. Behavior here is designed, not ported.
 - **`pnpr/` is pre-1.0 (`0.1.0-alpha.x`, experimental per [`../PHILOSOPHY.md`](../PHILOSOPHY.md)).**
@@ -30,8 +30,7 @@ the `Cargo.lock` stays unified.
   CLI flags in place. Do not add backward-compatibility fallbacks, serde aliases
   for old field names, or migration commands between alpha builds.
 
-The pnpm v12 and v11 coverage policy governs the CLI implementations, not
-pnpr. The registry can pick its own architecture, flags, and config format. It
+The pnpm CLI's compatibility rules do not govern pnpr. The registry can pick its own architecture, flags, and config format. It
 must still be compatible with the npm registry protocol that pnpm (and npm,
 yarn, etc.) clients speak.
 

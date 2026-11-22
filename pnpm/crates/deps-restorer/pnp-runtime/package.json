@@ -1,0 +1,16 @@
+{
+  "name": "@pnpm-private/pnp-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Builds the Yarn PnP resolver script that the deps-restorer crate embeds",
+  "type": "module",
+  "scripts": {
+    "build": "node bundle.mjs",
+    "check": "node bundle.mjs --check"
+  },
+  "devDependencies": {
+    "@yarnpkg/pnp": "catalog:",
+    "arg": "catalog:",
+    "esbuild": "catalog:"
+  }
+}

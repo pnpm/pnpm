@@ -1,10 +1,4 @@
 ---
-"@pnpm/exec.prepare-package": patch
-"@pnpm/fetching.fetcher-base": patch
-"@pnpm/fetching.git-fetcher": patch
-"@pnpm/fetching.tarball-fetcher": patch
-"@pnpm/installing.package-requester": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

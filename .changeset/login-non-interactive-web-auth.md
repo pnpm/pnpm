@@ -1,7 +1,4 @@
 ---
-"@pnpm/network.web-auth": minor
-"@pnpm/auth.commands": minor
-"pnpm": minor
 "pacquet": minor
 ---
 

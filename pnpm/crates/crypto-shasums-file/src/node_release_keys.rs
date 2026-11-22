@@ -3,7 +3,7 @@
 //
 // Used to verify the signature of a Node.js release's SHASUMS256.txt before
 // trusting its hashes. Refresh with:
-//   node crypto/shasums-file/scripts/update-node-release-keys.mjs --update
+//   node .github/scripts/update-node-release-keys.mjs --update
 use crate::TrustedReleaseKey;
 
 pub(crate) const NODE_RELEASE_KEYS: &[TrustedReleaseKey] = &[

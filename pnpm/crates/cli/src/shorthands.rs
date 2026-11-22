@@ -1,7 +1,7 @@
 //! Universal CLI shorthands.
 //!
 //! pnpm expands a table of universal shorthands over argv before parsing
-//! (`pnpm11/pnpm/src/shorthands.ts`): `--silent` and `-s` both mean
+//! ([`pnpm11/pnpm/src/shorthands.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/src/shorthands.ts)): `--silent` and `-s` both mean
 //! `--reporter=silent` for every command. A command's own shorthand table
 //! overrides the universal one (`run` redefines `s` as `--sequential`)
 //! so `-s` is left untouched when the effective command is `run`,

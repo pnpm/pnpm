@@ -1,6 +1,4 @@
 ---
-"@pnpm/deps.security.signatures": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

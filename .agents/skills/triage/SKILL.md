@@ -29,9 +29,8 @@ If a maintainer has already applied a `state:` label, **do not silently remove i
 
 ### Repository context that affects readiness
 
-- The repo holds three products: the **TypeScript pnpm CLI** (workspaces outside `pnpm/` and `pnpr/`, frozen at v11 and relocating under `pnpm11/`), the **Rust pacquet port** (`pnpm/`, which becomes pnpm v12), and the **Rust pnpr registry** (`pnpr/`). See `AGENTS.md`.
-- **pnpm↔pacquet parity:** any user-visible change to the dependency-management commands (`install`, `add`, `update`, `remove`) must land in both the TypeScript and Rust stacks. An issue that requires parity work across both stacks is broader than a single-stack fix — weigh that when deciding between `Ready to implement` and `Ready to spec`.
-- Changes to published TypeScript packages require a changeset; behavior changes generally require tests. An issue whose fix is bounded but well-understood (clear repro, obvious area, single stack) is a strong `Ready to implement` candidate.
+- `main` holds the **Rust pnpm CLI** (pacquet, `pnpm/`), the **Rust pnpr registry** (`pnpr/`), and the `get-pnpm` installer.
+- User-visible changes to published packages require a changeset; behavior changes generally require tests. An issue whose fix is bounded but well-understood (clear repro, obvious area) is a strong `Ready to implement` candidate.
 
 ## Workflow
 
@@ -74,14 +73,13 @@ After fetching context, post a brief progress comment only if triage may take lo
 
 ### 4. Inspect the current codebase
 
-Confirm the current checkout is `pnpm/pnpm`. Search the codebase for the affected feature, behavior, terminology, and likely implementation area. Determine which of the three products (TypeScript CLI, pacquet, pnpr) the issue concerns.
+Confirm the current checkout is `pnpm/pnpm`. Search the codebase for the affected feature, behavior, terminology, and likely implementation area. Determine which product (pnpm, pnpr, get-pnpm) the issue concerns.
 
 Assess:
 
 - Whether the described behavior exists today
 - Likely files, packages, and systems involved
 - Whether the issue has a bounded implementation path
-- Whether it touches `install`/`add`/`update`/`remove` and therefore requires pnpm↔pacquet parity work
 - Dependencies, migrations, platform differences, and testing requirements
 - Existing abstractions that make the change cohesive or indicate it does not fit
 - Whether related open issues or active work change the recommendation
@@ -104,7 +102,7 @@ Choose when:
 - Complexity and risk are low enough that a coding agent has a good chance of completing it correctly in one pass
 - No unresolved product decision or major dependency blocks implementation
 
-Small bugs with clear reproduction steps and straightforward improvements usually belong here. A change requiring coordinated pnpm↔pacquet parity is usually broader than one pass — lean toward `Ready to spec`.
+Small bugs with clear reproduction steps and straightforward improvements usually belong here.
 
 #### Ready to spec → `state: needs design`
 
@@ -113,7 +111,7 @@ Choose when:
 - The product goal is clear and appears worthwhile
 - The work fits the product
 - Material product or technical decisions remain
-- Multiple valid designs, broad surface-area changes, migrations, cross-stack parity work, or non-trivial dependencies make one-shot implementation risky
+- Multiple valid designs, broad surface-area changes, migrations, or non-trivial dependencies make one-shot implementation risky
 
 The issue should be clear enough to begin product or technical specification work without first asking the reporter basic questions.
 
@@ -154,7 +152,7 @@ Keep the final response concise and include:
 - Issue identifier and title
 - Chosen state and the exact pnpm label applied
 - Brief evidence-based rationale from the issue, codebase, and related open issues
-- Which product (TypeScript CLI / pacquet / pnpr) it concerns and whether parity work is implied
+- Which product (pnpm / pnpr / get-pnpm) it concerns
 - Key implementation area or remaining questions, when relevant
 - Direct link to the issue
 
@@ -164,7 +162,7 @@ Use this format:
 - **Issue:** [identifier and title](URL)
 - **State:** `chosen state`
 - **Applied label:** `exact pnpm label`, or `none — posted clarifying questions` for non-bug `Needs info`
-- **Product / parity:** which stacks are affected
+- **Product:** which product is affected
 - **Rationale:** 2-4 concise sentences
 - **Next step:** One concrete action
 

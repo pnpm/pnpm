@@ -1,10 +1,4 @@
 ---
-"@pnpm/installing.deps-installer": patch
-"@pnpm/installing.deps-resolver": patch
-"@pnpm/lockfile.fs": patch
-"@pnpm/lockfile.types": patch
-"@pnpm/lockfile.verification": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

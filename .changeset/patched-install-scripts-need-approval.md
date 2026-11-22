@@ -1,7 +1,4 @@
 ---
-"@pnpm/building.during-install": patch
-"@pnpm/building.pkg-requires-build": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

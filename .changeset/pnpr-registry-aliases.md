@@ -1,7 +1,4 @@
 ---
-"@pnpm/config.normalize-registries": patch
-"@pnpm/types": patch
-"pnpm": patch
 "pacquet": patch
 "@pnpm/pnpr": patch
 ---

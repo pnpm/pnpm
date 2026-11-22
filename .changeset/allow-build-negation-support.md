@@ -1,9 +1,4 @@
 ---
-"@pnpm/building.commands": patch
-"@pnpm/building.policy": minor
-"@pnpm/global.commands": major
-"@pnpm/installing.commands": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

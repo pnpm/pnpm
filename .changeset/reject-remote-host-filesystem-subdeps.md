@@ -1,11 +1,4 @@
 ---
-"@pnpm/installing.deps-installer": patch
-"@pnpm/installing.deps-resolver": patch
-"@pnpm/installing.package-requester": patch
-"@pnpm/releasing.commands": patch
-"@pnpm/resolving.local-resolver": patch
-"@pnpm/store.controller-types": patch
-"pnpm": patch
 "pacquet": patch
 ---
 

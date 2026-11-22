@@ -1,7 +1,7 @@
 //! `pnpm help --all` (`-a`).
 //!
 //! pnpm's `help` lists only its common commands unless `--all` is given
-//! (`pnpm11/pnpm/src/cmd/help.ts`). Clap's help subcommand already lists
+//! ([`pnpm11/pnpm/src/cmd/help.ts`](https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/pnpm/src/cmd/help.ts)). Clap's help subcommand already lists
 //! every command and declares no options, so the flag is dropped before
 //! clap parses argv.
 

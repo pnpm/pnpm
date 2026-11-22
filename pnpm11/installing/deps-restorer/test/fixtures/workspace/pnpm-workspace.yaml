@@ -1,4 +1,0 @@
-packages:
-  - "*"
-linkWorkspacePackages: true
-sharedWorkspaceLockfile: true

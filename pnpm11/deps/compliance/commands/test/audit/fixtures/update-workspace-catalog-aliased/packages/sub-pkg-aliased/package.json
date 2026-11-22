@@ -1,7 +1,0 @@
-{
-  "name": "sub-pkg-aliased",
-  "version": "1.0.0",
-  "dependencies": {
-    "aliased-pkg": "catalog:"
-  }
-}

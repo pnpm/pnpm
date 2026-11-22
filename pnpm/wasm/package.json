@@ -16,8 +16,7 @@
     "@pnpm-private/wasm-runtime": "workspace:*"
   },
   "keywords": [
-    "pnpm",
-    "pnpm11"
+    "pnpm"
   ],
   "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/wasm"
 }
