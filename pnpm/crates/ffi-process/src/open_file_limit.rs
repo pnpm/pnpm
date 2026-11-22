@@ -16,6 +16,8 @@ pub fn soft_open_file_limit() -> Option<usize> {
 /// error, since every caller's fallback is to run under the limit it has.
 pub fn raise_open_file_limit(ceiling: u64) {
     let Some(limit) = current_limit() else { return };
+    // `rlim_t` is signed on FreeBSD.
+    let ceiling = libc::rlim_t::try_from(ceiling).unwrap_or(libc::rlim_t::MAX);
     let target = limit.rlim_max.min(ceiling);
     if target <= limit.rlim_cur || set_soft_limit(target, limit.rlim_max) {
         return;

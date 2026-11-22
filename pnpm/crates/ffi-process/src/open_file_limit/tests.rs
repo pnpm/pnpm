@@ -27,7 +27,7 @@ fn raising_reaches_the_hard_limit() {
     // Lower the soft limit first, so the raise has somewhere to go. On a
     // host whose soft limit already equals its hard one, every assertion
     // below holds before the raise runs at all.
-    let floor = u64::try_from(hard).unwrap_or(u64::MAX).min(256);
+    let floor = libc::rlim_t::try_from(hard).unwrap_or(libc::rlim_t::MAX).min(256);
     assert!(
         super::set_soft_limit(floor, super::current_limit().expect("readable").rlim_max),
         "lower the soft limit to {floor}",
