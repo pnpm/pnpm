@@ -47,8 +47,9 @@ test('prefers the closest crate for a nested manifest', () => {
 test('selects the crates that read a fixture stored outside them', () => {
   assert.deepEqual(selectPackages(['fixtures/gvs-link-hash-parity.json'], manifests), ['pnpm-deps-restorer'])
   assert.deepEqual(selectPackages(['fixtures/pin-decision.json'], manifests), ['pnpm-cli', 'pnpm-config'])
-  assert.deepEqual(selectPackages(['pnpm/test-oracles/package.json'], manifests),
-    ['pnpm-cli', 'pnpm-config', 'pnpm-fs-packlist'])
+  for (const oracleInput of ['pnpm/test-oracles/package.json', '.config/pnpm/catalog.yaml', 'pnpm-lock.yaml']) {
+    assert.deepEqual(selectPackages([oracleInput], manifests), ['pnpm-cli', 'pnpm-config', 'pnpm-fs-packlist'])
+  }
 })
 
 test('refuses to scope a change to the mocked registry packages', () => {
