@@ -1,8 +1,0 @@
-## 1100.4.14
-
-### Patch Changes
-
-- Updated dependencies:
-  - @pnpm/core-loggers@1101.0.6
-  - @pnpm/error@1100.2.3
-  - @pnpm/types@1102.1.5
