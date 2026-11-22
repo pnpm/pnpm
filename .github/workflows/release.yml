@@ -720,6 +720,17 @@ jobs:
           fi
           node .github/scripts/assert-windows-crt-static.mjs "${exes[@]}"
 
+      - name: Reject a symbol table in ELF and Mach-O binaries
+        # An extracted CLI binary is the only `pnpm-*` file without an
+        # extension. The Windows binaries keep their symbols in a separate PDB.
+        run: |
+          mapfile -t binaries < <(find . -maxdepth 1 -type f \( -name 'pnpm-*' ! -name '*.*' -o -name 'pnpm-napi.*.node' \) ! -name '*win32*' | sort)
+          if [ ${#binaries[@]} -eq 0 ]; then
+            echo "::error::no ELF or Mach-O pnpm binaries to check"
+            exit 1
+          fi
+          node .github/scripts/assert-stripped.mjs "${binaries[@]}"
+
       - name: Restore node-gyp payload
         # The dist/ payload both wrappers ship, so install scripts that shell
         # out to node-gyp build out of the box. Taken from the artifact rather
@@ -1481,6 +1492,17 @@ jobs:
           for archive in ./*.gz; do
             tar xf "$archive"
           done
+
+      - name: Reject a symbol table in ELF and Mach-O binaries
+        # Every other `pnpr-*` file here has an extension: the archives, the
+        # checksums, and the Windows binaries, whose symbols are in a PDB.
+        run: |
+          mapfile -t binaries < <(find . -maxdepth 1 -type f -name 'pnpr-*' ! -name '*.*' | sort)
+          if [ ${#binaries[@]} -eq 0 ]; then
+            echo "::error::no ELF or Mach-O pnpr binaries to check"
+            exit 1
+          fi
+          node .github/scripts/assert-stripped.mjs "${binaries[@]}"
 
       - name: Generate npm packages
         run: |

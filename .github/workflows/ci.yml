@@ -115,7 +115,7 @@ jobs:
         .github/scripts/issue-fix-intent.test.sh
         .github/scripts/docker-image-tags.test.sh
         .agents/skills/pull-requests/scripts/resolve-pr-conflicts.test.sh
-        node --test .github/scripts/bump.test.mjs .github/scripts/assert-windows-crt-static.test.mjs .github/scripts/update-npm-signing-keys.test.mjs
+        node --test .github/scripts/bump.test.mjs .github/scripts/assert-stripped.test.mjs .github/scripts/assert-windows-crt-static.test.mjs .github/scripts/update-npm-signing-keys.test.mjs
     - name: Test Cloudflare cache policy example
       run: node --test pnpr/examples/cloudflare/*.test.mjs
     - name: Lint

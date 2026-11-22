@@ -456,14 +456,21 @@ panic = "abort" # Let it crash and force ourselves to write safe Rust.
 # Each binary's root crate. These are not hot paths themselves, but fat LTO
 # reoptimizes the whole program at the root crate's level, which would undo the
 # overrides below.
+#
+# Each repeats `strip`: a package override resets it to Cargo's default, and
+# the root crate's value is the one the linker gets.
 [profile.release.package.pnpm-cli]
 opt-level = 3
+strip = "symbols"
 [profile.release.package.pnpm-micro-benchmark]
 opt-level = 3
+strip = "symbols"
 [profile.release.package.pnpm-napi]
 opt-level = 3
+strip = "symbols"
 [profile.release.package.pnpr]
 opt-level = 3
+strip = "symbols"
 
 # The crates behind manifest and lockfile parsing, version picking and
 # resolution keep full optimization. At "s" those paths run 10-45% slower.
@@ -510,6 +517,15 @@ opt-level = 3
 inherits = "release"
 strip = false
 debug = true
+# The root crates' overrides are inherited with their own `strip`.
+[profile.release-debug.package.pnpm-cli]
+strip = false
+[profile.release-debug.package.pnpm-micro-benchmark]
+strip = false
+[profile.release-debug.package.pnpm-napi]
+strip = false
+[profile.release-debug.package.pnpr]
+strip = false
 
 # Profile for the Node.js NAPI addon (`pacquet-node-api`, a cdylib loaded
 # into a host `node` process). The `release` profile above uses
