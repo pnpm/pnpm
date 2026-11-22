@@ -15,25 +15,18 @@ The publisher places them under `/docs-assets/<line>/img/` and rewrites the
 published Markdown, so different releases cannot overwrite each other's images.
 Images shared with the blog or website remain available at their original URLs.
 
-With a sibling checkout of pnpm/pnpm.io containing the sync tooling:
+With a sibling checkout of pnpm/pnpm.io at its current `main`:
 
 ```sh
 pnpm --dir ../pnpm.io install --frozen-lockfile
-node ../pnpm.io/scripts/sync-docs.mjs . --preview
+node ../pnpm.io/scripts/sync-docs.mjs . --preview 11.x
 pnpm --dir ../pnpm.io build
 pnpm --dir ../pnpm.io check-urls
 ```
 
-Adjust the paths to your checkouts. `--preview` imports every documentation
-line, so restore `pnpm/docs` and `pnpr/docs` from `main` first:
-
-```sh
-git fetch --no-tags --depth=1 origin main
-git restore --source=FETCH_HEAD --worktree -- pnpm/docs pnpr/docs
-```
-
-Discard those files before committing. Run the preview again after editing
-sources. It does not publish or advance release state.
+Adjust the paths to your checkouts. `--preview 11.x` replaces the website's
+generated 11.x documentation with the local sources and leaves the other lines
+as they are. Run the preview again after editing sources. It does not publish or advance release state.
 The Documentation workflow performs the same build and URL checks for PRs.
 It pins the website revision for reproducibility.
 
