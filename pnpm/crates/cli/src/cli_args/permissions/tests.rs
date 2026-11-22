@@ -427,7 +427,7 @@ fn a_single_skill_is_approved_with_its_package_without_a_prompt() {
         super::skills_review::prompt_for_package_skills("foo", &["guide".to_string()]).unwrap();
     assert_eq!(
         outcome,
-        super::skills_review::SkillPromptOutcome::Decided(SkillsPermission::All(true))
+        super::skills_review::SkillPromptOutcome::Decided(SkillsPermission::All(true)),
     );
 }
 

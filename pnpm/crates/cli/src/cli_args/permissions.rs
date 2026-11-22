@@ -1,12 +1,12 @@
 pub(crate) mod decisions;
-mod global_approvals;
 pub(crate) mod render;
-mod skills_review;
 
 pub(crate) use decisions::Approval;
 pub(crate) use render::render_permissions;
 
 mod repository_scope;
+mod global_approvals;
+mod skills_review;
 
 use crate::{
     State,

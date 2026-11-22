@@ -78,7 +78,8 @@ impl ApproveArgs {
             return Ok(());
         }
         let home_dir = home_dir()?;
-        let approval_config = global_approval_config(base_config, global_pkg_dir, &home_dir)?;
+        let approval_config =
+            global_approval_config(base_config, global_pkg_dir, home_dir.clone())?;
         let skill_options =
             global_skill_approval_options(base_config, &groups, global_pkg_dir, &home_dir)?;
         let Some(approval) =
@@ -112,10 +113,10 @@ fn home_dir() -> miette::Result<PathBuf> {
 fn global_approval_config(
     base_config: &Config,
     global_pkg_dir: &Path,
-    home_dir: &Path,
+    home_dir: PathBuf,
 ) -> miette::Result<&'static Config> {
     let mut config = base_config.clone();
-    config.agent_skills_target_root = Some(home_dir.to_path_buf());
+    config.agent_skills_target_root = Some(home_dir);
     apply_global_build_policy(&mut config, global_pkg_dir)?;
     Ok(Config::leak(config))
 }
