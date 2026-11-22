@@ -1,5 +1,6 @@
 use crate::{
     CafsFileInfo,
+    PackageFilesIndex,
     StoreDir,
     StoreIndex,
     StoreIndexError,
@@ -112,11 +113,12 @@ fn prune_index(
 ) -> Result<(), PruneCasError> {
     let mut index = StoreIndex::open_in(store_dir).map_err(PruneCasError::StoreIndex)?;
     let mut rows_to_delete = Vec::new();
+    let mut rows_to_rewrite = Vec::new();
     index.for_each_raw(|key, data| {
         // A row another pnpm version wrote in a shape this one can't read
         // stays: without its file list there is no telling whether it
         // references a removed file.
-        let package = match decode_package_files_index(&data) {
+        let mut package = match decode_package_files_index(&data) {
             Ok(package) => package,
             Err(error) => {
                 tracing::debug!(target: "pacquet::store", ?key, ?error, "keeping an undecodable package_index row");
@@ -124,16 +126,42 @@ fn prune_index(
                 return Ok(());
             }
         };
-        // A row missing any of its files cannot be imported, and a row of
-        // an archive that is not an npm package has no `package.json`.
-        if package.all_files().any(|file| removed_files.contains(file)) {
+        // A row missing any of its own files cannot be imported, and a row
+        // of an archive that is not an npm package has no `package.json`.
+        if package.files.values().any(|file| removed_files.contains(file)) {
             rows_to_delete.push(key);
+        } else if remove_broken_side_effects(&mut package, removed_files) {
+            rows_to_rewrite.push((key, package));
         }
         Ok::<_, PruneCasError>(())
     })?;
     stats.packages = rows_to_delete.len();
     index.delete_many(&rows_to_delete).map_err(PruneCasError::StoreIndex)?;
+    index.set_many(rows_to_rewrite).map_err(PruneCasError::StoreIndex)?;
     Ok(())
+}
+
+/// Removes each cached build that adds a removed file, keeping the
+/// package's other builds. Returns whether it removed any.
+fn remove_broken_side_effects(
+    package: &mut PackageFilesIndex,
+    removed_files: &RemovedFiles,
+) -> bool {
+    let Some(side_effects) = package.side_effects.as_mut() else {
+        return false;
+    };
+    let before = side_effects.len();
+    side_effects.retain(|_, diff| {
+        !diff.added
+            .iter()
+            .flat_map(|added| added.values())
+            .any(|file| removed_files.contains(file))
+    });
+    let removed_any = side_effects.len() != before;
+    if side_effects.is_empty() {
+        package.side_effects = None;
+    }
+    removed_any
 }
 
 fn prune_shard(
