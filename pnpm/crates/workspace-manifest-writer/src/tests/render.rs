@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use crate::render::{
     AddedQuotes,
     QuoteStyle,
@@ -85,4 +87,57 @@ fn added_quotes_leave_other_documents_unchanged() {
         eprintln!("OUTPUT:\n{out}\n");
         assert_eq!(out, edited);
     }
+}
+
+/// A catalog of `count` double-quoted entries under a double-quoted
+/// `packages` list.
+fn large_catalog(count: usize) -> String {
+    let mut entries = String::new();
+    for index in 0..count {
+        writeln!(entries, "  pkg{index:05}: \"1.0.0\"").expect("writing to a String never fails");
+    }
+    format!("packages:\n  - \"a\"\ncatalog:\n{entries}")
+}
+
+#[test]
+fn added_quotes_align_edits_at_both_ends_of_a_large_document() {
+    let original = large_catalog(5000);
+    let edited = format!("{original}  '@scope/last': ^1.0.0\n").replacen(
+        "catalog:\n",
+        "catalog:\n  '@scope/first': ^1.0.0\n",
+        1,
+    );
+    let expected = format!("{original}  \"@scope/last\": ^1.0.0\n").replacen(
+        "catalog:\n",
+        "catalog:\n  \"@scope/first\": ^1.0.0\n",
+        1,
+    );
+    let out = AddedQuotes::detect(&original).apply(edited);
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, expected);
+}
+
+#[test]
+fn added_quotes_leave_an_edit_too_large_to_align_unchanged() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\n  - \"c\"\n";
+    let mut added = String::new();
+    for index in 0..1200 {
+        writeln!(added, "  - '@scope/pkg{index}'").expect("writing to a String never fails");
+    }
+    let edited = original.replace("  - \"c\"\n", &format!("{added}  - \"d\"\n"));
+    let out = AddedQuotes::detect(original).apply(edited.clone());
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, edited);
+}
+
+#[test]
+fn added_quotes_tell_an_added_scalar_before_an_equal_existing_one_inside_a_wider_edit() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\ncatalog:\n  '@x': ^1.0.0\nlast: \"1.0.0\"\n";
+    let edited = "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  '@x': true\ncatalog:\n  '@x': ^1.0.0\nlast: \"2.0.0\"\n";
+    let out = AddedQuotes::detect(original).apply(edited.to_string());
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(
+        out,
+        "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  \"@x\": true\ncatalog:\n  '@x': ^1.0.0\nlast: \"2.0.0\"\n",
+    );
 }

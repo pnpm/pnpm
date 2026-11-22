@@ -11,6 +11,7 @@
 use std::{
     borrow::Cow,
     cmp::Ordering,
+    collections::HashMap,
     ops::Range,
 };
 
@@ -170,31 +171,65 @@ impl AddedQuotes {
             .map(String::as_str)
             .collect();
         let edited = scalars(&text);
+        if !adds_single_quoted(&original, &edited) {
+            return text;
+        }
         let sources: Vec<&str> = edited
             .iter()
             .map(|scalar| scalar.source)
             .collect();
-        let kept = kept_from(&original, &sources);
-        let mut out = String::with_capacity(text.len());
-        let mut copied = 0;
-        for (scalar, kept) in edited.iter().zip(kept) {
-            let Some(value) = scalar.single_quoted.as_deref().filter(|_| !kept) else {
-                continue;
-            };
-            // Double quotes would need escapes here, so the scalar keeps its
-            // single quotes.
-            if value.contains(['"', '\\']) || value.chars().any(char::is_control) {
-                continue;
-            }
-            out.push_str(&text[copied..scalar.range.start]);
-            out.push('"');
-            out.push_str(value);
-            out.push('"');
-            copied = scalar.range.end;
-        }
-        out.push_str(&text[copied..]);
-        out
+        // An edit too large to align keeps the quotes edits rendered.
+        let Some(kept) = kept_from(&original, &sources) else {
+            return text;
+        };
+        double_quote_added(&text, &edited, &kept)
     }
+}
+
+/// Whether `edited` holds more single-quoted copies of some scalar than
+/// `original` does, the only case where a scalar may need new quotes.
+fn adds_single_quoted(original: &[&str], edited: &[Scalar<'_>]) -> bool {
+    let mut unclaimed: HashMap<&str, usize> = HashMap::new();
+    for source in original
+        .iter()
+        .filter(|source| source.starts_with('\''))
+    {
+        *unclaimed.entry(source).or_default() += 1;
+    }
+    edited
+        .iter()
+        .filter(|scalar| scalar.single_quoted.is_some())
+        .any(|scalar| match unclaimed.get_mut(scalar.source) {
+            Some(count) if *count > 0 => {
+                *count -= 1;
+                false
+            }
+            _ => true,
+        })
+}
+
+/// `text` with every single-quoted scalar of `edited` that `kept` does not
+/// mark rewritten with double quotes.
+fn double_quote_added(text: &str, edited: &[Scalar<'_>], kept: &[bool]) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut copied = 0;
+    for (scalar, &kept) in edited.iter().zip(kept) {
+        let Some(value) = scalar.single_quoted.as_deref().filter(|_| !kept) else {
+            continue;
+        };
+        // Double quotes would need escapes here, so the scalar keeps its
+        // single quotes.
+        if value.contains(['"', '\\']) || value.chars().any(char::is_control) {
+            continue;
+        }
+        out.push_str(&text[copied..scalar.range.start]);
+        out.push('"');
+        out.push_str(value);
+        out.push('"');
+        copied = scalar.range.end;
+    }
+    out.push_str(&text[copied..]);
+    out
 }
 
 /// A scalar token as written in a document.
@@ -222,18 +257,26 @@ fn scalars(text: &str) -> Vec<Scalar<'_>> {
         .collect()
 }
 
-/// Which items of `edited` a longest common subsequence with `original`
-/// matches: the scalars an edit left in place, told apart by position rather
-/// than by text alone. Edits are local, so the common prefix and suffix are
-/// matched first and the quadratic search only covers what lies between.
-fn kept_from(original: &[&str], edited: &[&str]) -> Vec<bool> {
+/// Which items of `edited` a shortest edit script from `original` keeps:
+/// the scalars an edit left in place, told apart by position rather than by
+/// text alone. The common prefix and suffix are matched first, so only the
+/// scalars between the first and last change are aligned. `None` when that
+/// alignment needs more than [`MAX_ALIGNED_EDITS`] edits.
+fn kept_from(original: &[&str], edited: &[&str]) -> Option<Vec<bool>> {
     let prefix = common_len(original.iter(), edited.iter());
     let suffix = common_len(original[prefix..].iter().rev(), edited[prefix..].iter().rev());
-    let mut kept = vec![true; edited.len()];
+    let old = &original[prefix..original.len() - suffix];
     let changed = prefix..edited.len() - suffix;
-    let matched = lcs_matches(&original[prefix..original.len() - suffix], &edited[changed.clone()]);
+    let new = &edited[changed.clone()];
+    // With nothing on one side, everything on the other was added or removed.
+    let matched = if old.is_empty() || new.is_empty() {
+        vec![false; new.len()]
+    } else {
+        myers_matches(old, new)?
+    };
+    let mut kept = vec![true; edited.len()];
     kept[changed].copy_from_slice(&matched);
-    kept
+    Some(kept)
 }
 
 /// How many leading items `left` and `right` share.
@@ -246,39 +289,96 @@ fn common_len<'item>(
         .count()
 }
 
-/// Which items of `new` a longest common subsequence with `old` matches.
-fn lcs_matches(old: &[&str], new: &[&str]) -> Vec<bool> {
-    let width = new.len() + 1;
-    let lengths = lcs_lengths(old, new);
-    let mut matched = vec![false; new.len()];
-    let (mut i, mut j) = (0, 0);
-    while i < old.len() && j < new.len() {
-        if old[i] == new[j] {
-            matched[j] = true;
-            i += 1;
-            j += 1;
-        } else if lengths[(i + 1) * width + j] >= lengths[i * width + j + 1] {
-            i += 1;
-        } else {
-            j += 1;
-        }
-    }
-    matched
+/// The most scalars an alignment may add or remove. Its trace holds one row
+/// of `2 * MAX_ALIGNED_EDITS + 3` offsets per edit, so this bounds its memory
+/// to about 16 MB.
+const MAX_ALIGNED_EDITS: usize = 1000;
+
+/// Which items of `new` Myers' shortest edit script from `old` keeps, or
+/// `None` when the script needs more than [`MAX_ALIGNED_EDITS`] edits.
+fn myers_matches(old: &[&str], new: &[&str]) -> Option<Vec<bool>> {
+    let trace = myers_trace(old, new)?;
+    Some(myers_backtrack(old, new, &trace))
 }
 
-/// The table where `lengths[i * (new.len() + 1) + j]` is the length of the
-/// longest common subsequence of `old[i..]` and `new[j..]`.
-fn lcs_lengths(old: &[&str], new: &[&str]) -> Vec<u32> {
-    let width = new.len() + 1;
-    let mut lengths = vec![0u32; (old.len() + 1) * width];
-    for i in (0..old.len()).rev() {
-        for j in (0..new.len()).rev() {
-            lengths[i * width + j] = if old[i] == new[j] {
-                lengths[(i + 1) * width + j + 1] + 1
-            } else {
-                lengths[(i + 1) * width + j].max(lengths[i * width + j + 1])
-            };
+/// The furthest-reaching offsets into `old` on each diagonal, recorded before
+/// each round of Myers' greedy search, up to the round that reaches the end of
+/// both sequences. Diagonal `k` (offset into `old` minus offset into `new`)
+/// sits at index `k + center`, where `center` is half the row length.
+fn myers_trace(old: &[&str], new: &[&str]) -> Option<Vec<Vec<usize>>> {
+    let limit = (old.len() + new.len()).min(MAX_ALIGNED_EDITS) as isize;
+    let center = limit + 1;
+    let mut furthest = vec![0usize; (2 * center + 1) as usize];
+    let mut trace = Vec::new();
+    for edits in 0..=limit {
+        trace.push(furthest.clone());
+        for diagonal in (-edits..=edits).step_by(2) {
+            let end = myers_step(old, new, &furthest, center, diagonal, edits);
+            furthest[(center + diagonal) as usize] = end;
+            if end >= old.len() && (end as isize - diagonal) as usize >= new.len() {
+                return Some(trace);
+            }
         }
     }
-    lengths
+    None
+}
+
+/// The furthest offset into `old` that round `edits` reaches on `diagonal`:
+/// one edit from a neighboring diagonal, then the run of matches after it.
+fn myers_step(
+    old: &[&str],
+    new: &[&str],
+    furthest: &[usize],
+    center: isize,
+    diagonal: isize,
+    edits: isize,
+) -> usize {
+    let start = if comes_from_above(furthest, center, diagonal, edits) {
+        furthest[(center + diagonal + 1) as usize]
+    } else {
+        furthest[(center + diagonal - 1) as usize] + 1
+    };
+    start + matching_run(old, new, start, (start as isize - diagonal) as usize)
+}
+
+/// Whether the best path to `diagonal` after `edits` edits ends with an
+/// insertion from the diagonal above rather than a deletion from the one
+/// below.
+fn comes_from_above(furthest: &[usize], center: isize, diagonal: isize, edits: isize) -> bool {
+    diagonal == -edits
+        || (diagonal != edits
+            && furthest[(center + diagonal - 1) as usize]
+                < furthest[(center + diagonal + 1) as usize])
+}
+
+/// How many items `old` from `old_at` and `new` from `new_at` share.
+fn matching_run(old: &[&str], new: &[&str], old_at: usize, new_at: usize) -> usize {
+    let old = old.get(old_at..).unwrap_or_default();
+    let new = new.get(new_at..).unwrap_or_default();
+    common_len(old.iter(), new.iter())
+}
+
+/// Walk `trace` back from the end of both sequences, marking each item of
+/// `new` a diagonal run matched.
+fn myers_backtrack(old: &[&str], new: &[&str], trace: &[Vec<usize>]) -> Vec<bool> {
+    let center = (trace[0].len() as isize - 1) / 2;
+    let mut matched = vec![false; new.len()];
+    let (mut old_at, mut new_at) = (old.len(), new.len());
+    for (edits, furthest) in trace.iter().enumerate().skip(1).rev() {
+        let edits = edits as isize;
+        let diagonal = old_at as isize - new_at as isize;
+        let previous = if comes_from_above(furthest, center, diagonal, edits) {
+            diagonal + 1
+        } else {
+            diagonal - 1
+        };
+        let previous_old = furthest[(center + previous) as usize];
+        let previous_new = (previous_old as isize - previous) as usize;
+        let run = (old_at - previous_old).min(new_at - previous_new);
+        matched[new_at - run..new_at].fill(true);
+        (old_at, new_at) = (previous_old, previous_new);
+    }
+    // What is left before the first edit is a run both sequences share.
+    matched[..new_at].fill(true);
+    matched
 }
