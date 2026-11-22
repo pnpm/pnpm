@@ -16,11 +16,15 @@ use std::{
 };
 
 fn package_index(digest: &str) -> PackageFilesIndex {
+    index_with_mode(digest, 0o644)
+}
+
+fn index_with_mode(digest: &str, mode: u32) -> PackageFilesIndex {
     PackageFilesIndex {
         algo: "sha512".to_string(),
         files: HashMap::from([(
             "package.json".to_string(),
-            CafsFileInfo { digest: digest.to_string(), mode: 0o644, size: 2, checked_at: None },
+            CafsFileInfo { digest: digest.to_string(), mode, size: 2, checked_at: None },
         )]),
         ..PackageFilesIndex::default()
     }
@@ -140,7 +144,7 @@ fn unlinks_a_linked_tmp_without_following_it() {
 }
 
 #[test]
-fn removes_executable_cas_suffix_from_the_index_digest() {
+fn removes_the_row_of_a_removed_executable_file() {
     let root = tempfile::tempdir().unwrap();
     let store = StoreDir::new(root.path().join("store"));
     let digest = format!("03{}", "c".repeat(126));
@@ -149,7 +153,7 @@ fn removes_executable_cas_suffix_from_the_index_digest() {
     fs::write(&executable, "{}").unwrap();
     let index = StoreIndex::open_in(&store).unwrap();
     index
-        .set("executable", &package_index(&digest))
+        .set("executable", &index_with_mode(&digest, 0o755))
         .unwrap();
     drop(index);
 
@@ -162,6 +166,40 @@ fn removes_executable_cas_suffix_from_the_index_digest() {
             .keys()
             .unwrap()
             .is_empty(),
+    );
+}
+
+#[test]
+fn keeps_the_row_of_a_file_whose_executable_copy_was_removed() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let digest = format!("07{}", "a".repeat(126));
+    let regular = store.file_path_by_hex_str(&digest, "");
+    let executable = store.file_path_by_hex_str(&digest, "-exec");
+    fs::create_dir_all(regular.parent().unwrap()).unwrap();
+    fs::write(&regular, "{}").unwrap();
+    fs::write(&executable, "{}").unwrap();
+    fs::hard_link(&regular, root.path().join("installed-package.json")).unwrap();
+    let index = StoreIndex::open_in(&store).unwrap();
+    index
+        .set("regular", &index_with_mode(&digest, 0o644))
+        .unwrap();
+    index
+        .set("executable", &index_with_mode(&digest, 0o755))
+        .unwrap();
+    drop(index);
+
+    let stats = prune_cas(&store).unwrap();
+
+    assert_eq!((stats.files, stats.packages), (1, 1));
+    assert!(regular.exists());
+    assert!(!executable.exists());
+    assert_eq!(
+        StoreIndex::open_in(&store)
+            .unwrap()
+            .keys()
+            .unwrap(),
+        ["regular"],
     );
 }
 

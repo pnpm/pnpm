@@ -12,7 +12,6 @@ use derive_more::{
 use miette::Diagnostic;
 use std::{
     collections::HashSet,
-    ffi::OsStr,
     fs,
     io::{
         self,
@@ -84,7 +83,7 @@ pub(crate) fn prune_cas_with_references(
     remove_tmp(store_dir)?;
 
     let mut stats = PruneCasStats::default();
-    let mut removed_hashes = HashSet::new();
+    let mut removed_files = HashSet::new();
     for shard in read_entries(store_dir.files_dir())? {
         if !shard
             .file_type()
@@ -93,22 +92,16 @@ pub(crate) fn prune_cas_with_references(
         {
             continue;
         }
-        prune_shard(
-            &shard.path(),
-            &shard.file_name(),
-            &mut removed_hashes,
-            &mut stats,
-            referenced,
-        )?;
+        prune_shard(&shard.path(), &mut removed_files, &mut stats, referenced)?;
     }
 
-    prune_index(store_dir, &removed_hashes, &mut stats)?;
+    prune_index(store_dir, &removed_files, &mut stats)?;
     Ok(stats)
 }
 
 fn prune_index(
     store_dir: &StoreDir,
-    removed_hashes: &HashSet<String>,
+    removed_files: &HashSet<PathBuf>,
     stats: &mut PruneCasStats,
 ) -> Result<(), PruneCasError> {
     let mut index = StoreIndex::open_in(store_dir).map_err(PruneCasError::StoreIndex)?;
@@ -129,7 +122,8 @@ fn prune_index(
         // an archive that is not an npm package has no `package.json`.
         if package.files
             .values()
-            .any(|file| removed_hashes.contains(&file.digest))
+            .filter_map(|file| store_dir.cas_file_path_by_mode(&file.digest, file.mode))
+            .any(|path| removed_files.contains(&path))
         {
             rows_to_delete.push(key);
         }
@@ -142,8 +136,7 @@ fn prune_index(
 
 fn prune_shard(
     shard_dir: &Path,
-    shard_name: &OsStr,
-    removed_hashes: &mut HashSet<String>,
+    removed_files: &mut HashSet<PathBuf>,
     stats: &mut PruneCasStats,
     referenced: &HashSet<PathBuf>,
 ) -> Result<(), PruneCasError> {
@@ -155,10 +148,7 @@ fn prune_shard(
         let Some(bytes) = remove_unlinked_file(&path)? else { continue };
         stats.files += 1;
         stats.bytes += bytes;
-        let shard = shard_name.to_string_lossy();
-        let file = entry.file_name();
-        let file = file.to_string_lossy();
-        removed_hashes.insert(format!("{shard}{}", file.strip_suffix("-exec").unwrap_or(&file)));
+        removed_files.insert(path);
     }
     Ok(())
 }
