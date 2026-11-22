@@ -94,7 +94,7 @@ fn added_quotes_leave_other_documents_unchanged() {
 fn large_catalog(count: usize) -> String {
     let mut entries = String::new();
     for index in 0..count {
-        writeln!(entries, "  pkg{index:05}: \"1.0.0\"").expect("writing to a String never fails");
+        writeln!(entries, r#"  pkg{index:05}: "1.0.0""#).expect("writing to a String never fails");
     }
     format!("packages:\n  - \"a\"\ncatalog:\n{entries}")
 }
