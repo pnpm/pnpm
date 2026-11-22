@@ -334,17 +334,14 @@ impl FetchTarballForResolution<'_> {
         mem_cache: Option<&MemCache>,
         if_none_match: Option<&str>,
     ) -> Result<TarballResolutionFetch, TarballError> {
-        let prepared = mem_cache
-            .filter(|_| {
-                self.package.integrity.is_none()
-                    && if_none_match.is_none()
-                    && !self.revision_addressed
-                    && self.manifest_subdir.is_none()
-                    && self.package.id == self.package.url
-            })
-            .and_then(|cache| cache.add_archives.get()?.remove(self.package.url));
+        let prepared = match mem_cache {
+            Some(cache) if if_none_match.is_none() && self.can_reuse_add_archive() => {
+                cache.take_add_archive(self.package.url).await
+            }
+            _ => None,
+        };
         let fetched = match prepared {
-            Some((_, archive)) => {
+            Some(archive) => {
                 self.check_add_archive_access()?;
                 FetchedBody::Extracted(Box::new(self.process_extracted(*archive).await?))
             }
@@ -374,6 +371,13 @@ impl FetchTarballForResolution<'_> {
         }
     }
 
+    fn can_reuse_add_archive(&self) -> bool {
+        self.package.integrity.is_none()
+            && !self.revision_addressed
+            && self.manifest_subdir.is_none()
+            && self.package.id == self.package.url
+    }
+
     fn kind(&self) -> IntegrityKind {
         if self.revision_addressed { IntegrityKind::Tar } else { self.package.integrity_kind }
     }
@@ -386,12 +390,19 @@ impl FetchTarballForResolution<'_> {
     ) -> Result<Option<serde_json::Value>, TarballError> {
         self.check_add_archive_access()?;
         let archives = cache.add_archives.get_or_init(Default::default);
-        if let Some(entry) = archives.get(self.package.url) {
+        let slot = Arc::clone(
+            archives
+                .entry(self.package.url.to_owned())
+                .or_default()
+                .value(),
+        );
+        let mut prepared = slot.lock().await;
+        if let Some(entry) = prepared.as_ref() {
             return Ok(entry.index.manifest.clone());
         }
         match self.fetch_archive::<pnpm_reporter::SilentReporter>(None).await? {
             AttemptedFetch::Extracted(archive) => {
-                let entry = archives.entry(self.package.url.to_owned()).or_insert(archive);
+                let entry = prepared.insert(archive);
                 Ok(entry.index.manifest.clone())
             }
             AttemptedFetch::NotModified(_) => {

@@ -10,6 +10,7 @@ use dashmap::DashMap;
 use pipe_trait::Pipe;
 use pnpm_package_manifest::PackageBin;
 use tokio::sync::{
+    Mutex,
     Notify,
     RwLock,
 };
@@ -73,6 +74,8 @@ pub enum CacheValue {
     Failed(Arc<str>),
 }
 
+type AddArchive = Arc<Mutex<Option<Box<crate::download::ExtractedArchive>>>>;
+
 /// Internal in-memory cache of tarballs.
 ///
 /// Ordinary package entries retain their tarball URL key. Revision-addressed
@@ -82,13 +85,21 @@ pub enum CacheValue {
 pub struct MemCache {
     #[deref]
     entries: DashMap<String, Arc<RwLock<CacheValue>>>,
-    pub(crate) add_archives: OnceLock<DashMap<String, Box<crate::download::ExtractedArchive>>>,
+    pub(crate) add_archives: OnceLock<DashMap<String, AddArchive>>,
 }
 
 impl MemCache {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub(crate) async fn take_add_archive(
+        &self,
+        url: &str,
+    ) -> Option<Box<crate::download::ExtractedArchive>> {
+        let (_, slot) = self.add_archives.get()?.remove(url)?;
+        slot.lock().await.take()
     }
 
     #[must_use]

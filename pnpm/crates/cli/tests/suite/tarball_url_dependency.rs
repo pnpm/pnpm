@@ -463,6 +463,9 @@ fn remote_tarball_behind_an_immutable_redirect_reuses_the_warm_store() {
             )
         });
 
+    head_mock.assert();
+    redirect_mock.assert();
+    get_mock.assert();
     drop((redirect_mock, head_mock, get_mock, tarball_server));
 
     pacquet_at(&workspace)
@@ -964,7 +967,7 @@ fn remote_tarball_resolves_an_immutable_redirect_with_one_download() {
     let requested_url = format!("{}{requested_path}", tarball_server.url());
 
     pacquet_at(&workspace)
-        .with_args(["add", &requested_url])
+        .with_args(["add", &requested_url, &requested_url])
         .assert()
         .success();
 
