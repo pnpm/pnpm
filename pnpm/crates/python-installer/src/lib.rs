@@ -257,7 +257,11 @@ fn register_in_store(context: &InstallOptions, prepared: &[Prepared]) {
         return;
     }
     for project in prepared.iter().filter(|project| project.environment.is_some()) {
-        if let Err(error) = pnpm_store_dir::register_project(&config.store_dir, &project.root) {
+        // Unlike an npm project, one whose store is inside it is registered
+        // too: its `RECORD` files have no hard link to keep them.
+        if let Err(error) =
+            pnpm_store_dir::register_loaded_project(&config.store_dir, &project.root)
+        {
             tracing::warn!(
                 target: "pnpm::python",
                 ?error,

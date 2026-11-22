@@ -106,9 +106,10 @@ pub fn register_project(
     register_loaded_project(store_dir, project_dir)
 }
 
-/// Register a loader's ownership even when its store is inside the project.
-/// Pruning reads the store manifest in the registered directory without
-/// recursively walking the registry link.
+/// [`register_project`], even when the store is inside `project_dir`: a
+/// loader directory, or a project whose store files have no hard link to
+/// keep them. Pruning reads what the registered directory holds without
+/// recursively walking the registry link, and its walk skips the store.
 pub fn register_loaded_project(
     store_dir: &StoreDir,
     project_dir: &Path,

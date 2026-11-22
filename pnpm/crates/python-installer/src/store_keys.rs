@@ -19,8 +19,9 @@ pub(crate) fn archive_package_id(filename: &str) -> String {
 /// `pylock.toml` at `path` pins, or `None` when there is no such file.
 ///
 /// Only the file names and digests are read, so a lockfile another tool
-/// wrote counts too. An archive without a SHA-256 digest was never stored
-/// and adds no key.
+/// wrote counts too. pnpm stores only archives that its lockfile names and
+/// pins by SHA-256, so an archive without a `name` or that digest adds no
+/// key.
 ///
 /// # Errors
 ///
@@ -57,17 +58,17 @@ struct PinnedPackage {
 
 #[derive(Deserialize)]
 struct PinnedArchive {
-    name: String,
+    name: Option<String>,
     #[serde(default)]
     hashes: BTreeMap<String, String>,
 }
 
 impl PinnedArchive {
     fn store_index_key(self) -> Option<String> {
-        let package_id = archive_package_id(&self.name);
-        let integrity = LockedWheel { name: self.name, url: String::new(), hashes: self.hashes }
-            .integrity()
-            .ok()?;
+        let name = self.name?;
+        let package_id = archive_package_id(&name);
+        let integrity =
+            LockedWheel { name, url: String::new(), hashes: self.hashes }.integrity().ok()?;
         Some(ArchiveStoreProjection::RawArchive.store_index_key(
             &integrity.to_string(),
             &package_id,

@@ -29,6 +29,11 @@ version = "0.1.0"
 directory = {{ path = "local" }}
 
 [[packages]]
+name = "unnamed"
+version = "4.0.0"
+wheels = [{{ url = "https://example.test/unnamed-4.0.0-py3-none-any.whl", hashes = {{ sha256 = "{DIGEST}" }} }}]
+
+[[packages]]
 name = "undigested"
 version = "3.0.0"
 wheels = [{{ name = "undigested-3.0.0-py3-none-any.whl", url = "https://example.test/u.whl", hashes = {{ md5 = "00" }} }}]
