@@ -132,6 +132,31 @@ where
     retry_fs_operation_within(operation, is_transient, PERMISSION_DENIED_RETRY_BUDGET)
 }
 
+/// Run `operation` until it succeeds, `is_transient` rejects its error, or
+/// `budget` has passed, with the backoff of [`rename_with_retry`].
+#[cfg(windows)]
+pub(crate) fn retry_fs_operation_for<Func, Value, Classify>(
+    operation: Func,
+    is_transient: Classify,
+    budget: Duration,
+) -> io::Result<Value>
+where
+    Func: FnMut() -> io::Result<Value>,
+    Classify: Fn(&io::Error) -> bool,
+{
+    let start = Instant::now();
+    retry_fs_operation_with_timing(
+        operation,
+        is_transient,
+        RetryTiming {
+            budget,
+            permission_denied_budget: budget,
+            elapsed: || start.elapsed(),
+            sleep: std::thread::sleep,
+        },
+    )
+}
+
 fn retry_fs_operation_within<Func, Value, Classify>(
     operation: Func,
     is_transient: Classify,

@@ -249,7 +249,7 @@ fn force_symlink_inner(
         _ => return Err(initial_err),
     }
 
-    let Ok(existing) = read_symlink_dir(link) else {
+    let Ok(existing) = read_conflicting_link(link) else {
         return replace_unreadable_occupant(target, link, tried, create_symlink, initial_err);
     };
     if existing_link_reusable(target, link, &existing) {
@@ -277,6 +277,15 @@ fn force_symlink_inner(
         Err(error) => return Err(error),
     }
     force_symlink_inner(target, link, TriedOnce { retargeted: true, ..tried }, create_symlink)
+}
+
+/// Read the entry a link create conflicted with. On Windows this waits out a
+/// link another process is still creating.
+fn read_conflicting_link(link: &Path) -> io::Result<PathBuf> {
+    #[cfg(windows)]
+    return windows::read_settled_link(link);
+    #[cfg(not(windows))]
+    read_symlink_dir(link)
 }
 
 /// Create the directory the link lives in, wrapping a failure so callers see

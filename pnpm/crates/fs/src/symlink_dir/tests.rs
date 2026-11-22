@@ -452,6 +452,72 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
     }
 }
 
+/// A symlink another worker is still creating reads as an empty directory.
+/// It is reused once it becomes a link, not moved aside as `.ignored_<name>`.
+#[cfg(windows)]
+#[test]
+fn windows_concurrent_symlink_creation_leaves_no_ignored_entry() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir_all(&target).expect("create target");
+    let probe = root.path().join("probe");
+    if let Err(error) = std::os::windows::fs::symlink_dir(&target, &probe) {
+        const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+        assert_eq!(error.raw_os_error(), Some(ERROR_PRIVILEGE_NOT_HELD), "probe symlink: {error}");
+        eprintln!("skipping: this process may not create symlinks");
+        return;
+    }
+
+    for iteration in 0..50 {
+        let link = root
+            .path()
+            .join(format!("link-{iteration}"));
+        for outcome in race_to_create_symlink(&target, &link) {
+            assert_eq!(outcome.warning, None, "no worker may move a link aside");
+        }
+        assert_eq!(
+            fs::canonicalize(&link).expect("resolve the link"),
+            fs::canonicalize(&target).expect("resolve the target"),
+        );
+    }
+    let ignored: Vec<_> = fs::read_dir(root.path())
+        .expect("read the temp dir")
+        .map(|entry| entry.expect("read entry"))
+        .map(|entry| entry.file_name())
+        .filter(|name| name.to_string_lossy().starts_with(".ignored_"))
+        .collect();
+    assert!(ignored.is_empty(), "links moved aside: {ignored:?}");
+}
+
+#[cfg(windows)]
+fn race_to_create_symlink(
+    target: &std::path::Path,
+    link: &std::path::Path,
+) -> Vec<ForceSymlinkOutcome> {
+    const WORKERS: usize = 16;
+    let barrier = std::sync::Barrier::new(WORKERS);
+    let worker = || {
+        barrier.wait();
+        super::force_symlink_inner(target, link, TriedOnce::default(), create_true_symlink)
+            .expect("concurrent symlink creation must succeed")
+    };
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..WORKERS)
+            .map(|_| scope.spawn(worker))
+            .collect();
+        let mut outcomes = Vec::with_capacity(WORKERS);
+        for handle in handles {
+            outcomes.push(handle.join().expect("symlink worker panicked"));
+        }
+        outcomes
+    })
+}
+
+#[cfg(windows)]
+fn create_true_symlink(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_dir(target, link)
+}
+
 /// Regression for the rename-failure race: if the atomic rename loses to a
 /// concurrent worker (failing with `AlreadyExists`) but that worker's link then
 /// disappears before the re-inspection, the surfaced error must not be
