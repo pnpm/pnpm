@@ -118,9 +118,13 @@ fn peer_issues(
         has_dedicated_lockfiles(config).then_some(&mut load_sibling);
     let report = peer_issues_for_lockfile(check, &config.peer_dependency_rules, linked_lockfiles)
         .map_err(InstallError::CatalogResolution)?;
+    // An unreadable sibling lockfile only matters when it could have
+    // answered an issue that fails the install.
     match sibling_err {
-        Some(err) => Err(InstallError::LoadWantedLockfile(err)),
-        None => Ok(report),
+        Some(err) if report.is_some() && config.strict_peer_dependencies => {
+            Err(InstallError::LoadWantedLockfile(err))
+        }
+        _ => Ok(report),
     }
 }
 
@@ -130,6 +134,8 @@ fn has_dedicated_lockfiles(config: &Config) -> bool {
     config.workspace_dir.is_some() && !config.shares_one_lockfile()
 }
 
+/// The lockfile `pnpm peers check` reads for the sibling: the current one,
+/// which records what is installed, and the wanted one before an install.
 fn load_sibling_lockfile(
     config: &Config,
     sibling_dir: &Path,
@@ -137,8 +143,12 @@ fn load_sibling_lockfile(
 ) -> Result<Option<Arc<Lockfile>>, LoadLockfileError> {
     let mut sibling_config = config.clone();
     sibling_config.anchor_dedicated_project(sibling_dir, sibling_name);
-    Ok(Lockfile::load_wanted(sibling_dir, &sibling_config.wanted_lockfile_selection())?
-        .map(Arc::new))
+    let current = Lockfile::load_current_from_install_state_dir(&sibling_config.install_state_dir)?;
+    let lockfile = match current {
+        Some(lockfile) => Some(lockfile),
+        None => Lockfile::load_wanted(sibling_dir, &sibling_config.wanted_lockfile_selection())?,
+    };
+    Ok(lockfile.map(Arc::new))
 }
 
 /// The workspace an install's peer report is checked against.

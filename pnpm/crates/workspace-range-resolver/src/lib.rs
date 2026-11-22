@@ -8,9 +8,9 @@ use pnpm_semver_include_prerelease::parse_strict_semver_range;
 /// Pick the highest workspace-sibling version matching `range`.
 ///
 /// `range` is the `<version>` portion of a `workspace:` specifier (see
-/// `pnpm-workspace-spec`'s `WorkspaceSpec`). A range that
-/// [`matches_any_workspace_version`] widens the search to *all* versions,
-/// prereleases included. Any other input is treated as a node-semver range and
+/// `pnpm-workspace-spec`'s `WorkspaceSpec`). The four sentinel tokens
+/// (`*`, `^`, `~`, `""`) widen the search to *all* versions, prereleases
+/// included. Any other input is treated as a node-semver range and
 /// prereleases are excluded unless the range itself carries a
 /// prerelease tag.
 ///
@@ -24,7 +24,7 @@ use pnpm_semver_include_prerelease::parse_strict_semver_range;
 /// `versions`) or `None` when nothing satisfies.
 #[must_use]
 pub fn resolve_workspace_range(range: &str, versions: &[String]) -> Option<String> {
-    if matches_any_workspace_version(range) {
+    if is_wildcard(range) {
         return max_version_including_prerelease(versions).or_else(|| max_by_utf16(versions));
     }
     if versions
@@ -45,14 +45,20 @@ fn max_by_utf16(versions: &[String]) -> Option<String> {
         .cloned()
 }
 
-/// Whether `range` admits every workspace version: one of the sentinel
-/// tokens, or a `||` union with one as a branch, such as `^ || ^2.0.0`.
+fn is_wildcard(range: &str) -> bool {
+    matches!(range, "*" | "^" | "~" | "")
+}
+
+/// Whether the version part of a `workspace:` specifier admits every
+/// workspace version: a sentinel token, or a `||` union with one as a
+/// branch, such as `^ || ^2.0.0`. A plain semver range is not a
+/// `workspace:` specifier, so it keeps `*`'s prerelease exclusion.
 #[must_use]
 pub fn matches_any_workspace_version(range: &str) -> bool {
     range
         .split("||")
         .map(str::trim)
-        .any(|branch| matches!(branch, "*" | "^" | "~" | ""))
+        .any(is_wildcard)
 }
 
 /// Highest version overall, including prereleases. Since `*` matches
