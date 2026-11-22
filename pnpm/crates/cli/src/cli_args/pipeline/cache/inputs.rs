@@ -244,7 +244,7 @@ impl TaskCache {
         &self,
         node: &TaskNode,
         settings: Option<&TaskSettings>,
-        sibling_outputs: &[Vec<String>],
+        sibling_outputs: &[OutputGlobs<'_>],
     ) -> miette::Result<ProjectInputHashes> {
         let selection =
             parse_inputs(settings.and_then(|settings| settings.inputs.as_deref()))?;
@@ -252,19 +252,14 @@ impl TaskCache {
             check_ancestors(&node.project, Path::new("")).into_diagnostic()?;
             return Ok(Some(Arc::new(Vec::new())));
         }
-        let mut output_globs = Vec::new();
-        if matches!(selection, InputSelection::Default) {
-            for outputs in sibling_outputs {
-                output_globs.push(OutputGlobs::new(outputs)?);
-            }
-        }
-        output_globs.push(OutputGlobs::new(
+        let output_globs = [OutputGlobs::new(
             settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default(),
-        )?);
+        )?];
         match selection {
             InputSelection::Default => {
                 self.hash_selected_project_files(&node.project, |rel_path| {
                     !matches_project_output(rel_path, &output_globs)
+                        && !matches_project_output(rel_path, sibling_outputs)
                 })
             }
             InputSelection::Empty => Ok(Some(Arc::new(Vec::new()))),

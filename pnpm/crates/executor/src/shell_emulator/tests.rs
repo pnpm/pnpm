@@ -582,3 +582,29 @@ fn parameter_placeholders_do_not_alias_user_variables() {
     assert_eq!(code, 0);
     assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), ["user prod"]);
 }
+
+#[test]
+fn parameter_defaults_expand_home_paths() {
+    let dir = tempdir().unwrap();
+    let (code, lines) = run(
+        "echo ~ && echo ${MISSING:-~} && echo ${MISSING:-~/out} && echo ${MISSING:- ~ } && echo ${MISSING:-prefix ~}",
+        dir.path(),
+        &HashMap::new(),
+    );
+    assert_eq!(code, 0);
+    let stdout = lines_from(&lines, LifecycleStdio::Stdout);
+    assert_eq!(stdout[1], stdout[0]);
+    assert_eq!(stdout[2], format!("{}/out", stdout[0]));
+    assert_eq!(stdout[3], stdout[0]);
+    assert_eq!(stdout[4], format!("prefix {}", stdout[0]));
+}
+
+#[test]
+fn unsupported_nested_parameter_forms_remain_literal() {
+    let dir = tempdir().unwrap();
+    for word in ["${B:=x;y}", "${B:=x,y}", "${B:=x&y}"] {
+        let (code, lines) = run(&format!("echo ${{A:-{word}}}"), dir.path(), &HashMap::new());
+        assert_eq!(code, 0);
+        assert_eq!(lines_from(&lines, LifecycleStdio::Stdout), [word]);
+    }
+}

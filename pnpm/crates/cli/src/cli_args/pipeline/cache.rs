@@ -6,6 +6,8 @@
 //! deliberate `PoC` stand-in for the per-importer dependency-graph hash the
 //! RFC specifies.
 
+pub(super) use output_globs::OutputGlobs;
+
 use super::{
     capture::CapturedScript,
     paths::{
@@ -20,8 +22,6 @@ use fs_ops::{
     replace_output_file,
 };
 use inputs::HashedFile;
-use output_globs::OutputGlobs;
-mod output_globs;
 use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
 use pnpm_crypto_hash::{
@@ -139,7 +139,7 @@ pub struct TaskKeyInputs<'a> {
     pub lockfile_selection: &'a WantedLockfileSelection,
     /// The cache keys of the tasks this task depends on, sorted.
     pub dependency_keys: &'a [&'a str],
-    pub sibling_outputs: &'a [Vec<String>],
+    pub sibling_outputs: &'a [OutputGlobs<'a>],
     pub environment: TaskKeyEnvironment<'a>,
     /// `(stage, body)` of every script the task runs, in run order.
     pub script_bodies: &'a [(String, String)],
@@ -499,3 +499,4 @@ fn stage_output_files(
 
 mod fs_ops;
 mod inputs;
+mod output_globs;

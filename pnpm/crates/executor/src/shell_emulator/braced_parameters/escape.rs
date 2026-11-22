@@ -161,3 +161,16 @@ fn push_single_quoted_char(expanded: &mut String, escaped: char) {
     expanded.push(escaped);
     expanded.push('\'');
 }
+
+pub(super) fn push_parameter_literal(expanded: &mut String, text: &str, landing: super::Landing) {
+    let quoted = matches!(landing, super::Landing::QuotedWord);
+    if quoted {
+        expanded.push('"');
+    }
+    for character in text.chars() {
+        push_single_quoted_char(expanded, character);
+    }
+    if quoted {
+        expanded.push('"');
+    }
+}

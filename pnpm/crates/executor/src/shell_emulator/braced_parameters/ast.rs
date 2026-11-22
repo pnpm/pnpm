@@ -31,14 +31,16 @@ pub(super) fn resolve(list: &mut SequentialList, prepared: &PreparedScript) -> R
 }
 
 fn parse_replacement(parameter: &Parameter) -> Result<Vec<WordPart>, String> {
-    // Markers preserve outer field boundaries; `@` terminates a variable name.
     let word = &parameter.word;
     let source = if parameter.quoted {
-        format!(r#"__pnpm_word "__start__{word}@__end__""#)
+        format!(r#"__pnpm_word "{word}""#)
     } else {
-        format!("__pnpm_word __start__{word}@__end__")
+        format!("__pnpm_word {word}")
     };
     let mut parsed = parser::parse(&source).map_err(|error| error.to_string())?;
+    if parsed.items.len() != 1 {
+        return Err("invalid parameter expansion word".to_string());
+    }
     let Some(Sequence::Pipeline(pipeline)) = parsed.items.pop().map(|item| item.sequence) else {
         return Err("invalid parameter expansion word".to_string());
     };
@@ -49,43 +51,27 @@ fn parse_replacement(parameter: &Parameter) -> Result<Vec<WordPart>, String> {
     else {
         return Err("invalid parameter expansion command".to_string());
     };
-    Ok(replacement_parts(
-        command.args
-            .into_iter()
-            .skip(1)
-            .map(Word::into_parts)
-            .collect(),
-    ))
+    Ok(replacement_parts(command.args.into_iter().skip(1), parameter))
 }
 
-fn replacement_parts(mut words: Vec<Vec<WordPart>>) -> Vec<WordPart> {
-    strip_marker(words.first_mut().expect("replacement has start marker"), true);
-    strip_marker(words.last_mut().expect("replacement has end marker"), false);
+fn replacement_parts(words: impl Iterator<Item = Word>, parameter: &Parameter) -> Vec<WordPart> {
+    let word = &parameter.word;
     let mut parts = Vec::new();
-    for (index, mut word) in words.into_iter().enumerate() {
+    if !parameter.quoted && word.starts_with(char::is_whitespace) {
+        parts.push(WordPart::FieldBoundary);
+    }
+    for (index, word) in words.enumerate() {
         if index != 0 {
             parts.push(WordPart::FieldBoundary);
         }
+        let mut word = word.into_parts();
         remove_empty_text(&mut word);
         parts.extend(word);
     }
-    parts
-}
-
-fn strip_marker(parts: &mut [WordPart], start: bool) {
-    let part = if start { parts.first_mut() } else { parts.last_mut() };
-    match part.expect("replacement marker exists") {
-        WordPart::Quoted(parts) => strip_marker(parts, start),
-        WordPart::Text(text) => {
-            *text = if start {
-                text.strip_prefix("__start__").expect("replacement starts with marker")
-            } else {
-                text.strip_suffix("@__end__").expect("replacement ends with marker")
-            }
-            .to_string();
-        }
-        _ => unreachable!("replacement marker is literal text"),
+    if !parameter.quoted && word.ends_with(char::is_whitespace) {
+        parts.push(WordPart::FieldBoundary);
     }
+    parts
 }
 
 fn remove_empty_text(parts: &mut Vec<WordPart>) {

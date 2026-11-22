@@ -161,7 +161,7 @@ struct KeyPlanContext<'a, 'graph> {
     config: &'a Config,
     lockfile_selection: pnpm_lockfile::WantedLockfileSelection,
     base_extra_env: HashMap<String, String>,
-    sibling_outputs: HashMap<PathBuf, Vec<Vec<String>>>,
+    sibling_outputs: HashMap<PathBuf, Vec<cache::OutputGlobs<'a>>>,
 }
 
 /// Pass-through tasks contribute keys to invalidate their dependents.
@@ -180,7 +180,7 @@ pub(super) fn compute_task_keys(
         config,
         lockfile_selection: config.wanted_lockfile_selection(),
         base_extra_env: cache_environment(config),
-        sibling_outputs: project_output_patterns(graph, config),
+        sibling_outputs: project_output_patterns(graph, config)?,
     };
     let mut plans: HashMap<TaskKey, TaskCachePlan> = HashMap::with_capacity(task_graph.len());
     let mut warned_projects: HashSet<PathBuf> = HashSet::new();
@@ -330,10 +330,10 @@ fn cache_environment(config: &Config) -> HashMap<String, String> {
     environment
 }
 
-fn project_output_patterns(
+fn project_output_patterns<'a>(
     graph: &ProjectGraph<GraphPkg<'_>>,
-    config: &Config,
-) -> HashMap<PathBuf, Vec<Vec<String>>> {
+    config: &'a Config,
+) -> miette::Result<HashMap<PathBuf, Vec<cache::OutputGlobs<'a>>>> {
     graph
         .iter()
         .map(|(project, node)| {
@@ -346,9 +346,10 @@ fn project_output_patterns(
                         .and_then(Value::as_str)
                         .is_some_and(|body| !body.is_empty())
                 })
-                .filter_map(|(_, task)| task.outputs.clone())
-                .collect();
-            (project.clone(), outputs)
+                .filter_map(|(_, task)| task.outputs.as_deref())
+                .map(cache::OutputGlobs::new)
+                .collect::<miette::Result<Vec<_>>>()?;
+            Ok((project.clone(), outputs))
         })
         .collect()
 }

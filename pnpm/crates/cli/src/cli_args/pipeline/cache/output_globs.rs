@@ -3,13 +3,13 @@ use wax::{
     Program,
 };
 
-pub(super) struct OutputGlobs<'a> {
+pub(crate) struct OutputGlobs<'a> {
     pub(super) include: Vec<Glob<'a>>,
     pub(super) exclude: Vec<Glob<'a>>,
 }
 
 impl<'a> OutputGlobs<'a> {
-    pub(super) fn new(patterns: &'a [String]) -> miette::Result<Self> {
+    pub(crate) fn new(patterns: &'a [String]) -> miette::Result<Self> {
         let mut include = Vec::new();
         let mut exclude = Vec::new();
         for pattern in patterns {

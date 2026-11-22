@@ -1040,7 +1040,7 @@ fn explicit_inputs_can_read_sibling_outputs() {
                 lockfile_dir: &project,
                 lockfile_selection: &WantedLockfileSelection::default(),
                 dependency_keys: &[],
-                sibling_outputs: &[vec!["input".to_string()]],
+                sibling_outputs: &[super::OutputGlobs::new(&["input".to_string()]).unwrap()],
                 environment: TaskKeyEnvironment {
                     shell_emulator: false,
                     script_shell: None,

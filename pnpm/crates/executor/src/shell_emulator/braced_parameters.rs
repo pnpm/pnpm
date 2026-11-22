@@ -374,7 +374,7 @@ fn push_braced_parameter(
         return start + 1;
     };
     let Some(replacement) = expand_parameter(&script[start + 2..close], word) else {
-        expanded.push_str(&script[start..=close]);
+        escape::push_parameter_literal(expanded, &script[start..=close], word.landing);
         return close + 1;
     };
 
