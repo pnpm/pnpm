@@ -1,4 +1,5 @@
 use crate::{
+    CafsFileInfo,
     StoreDir,
     StoreIndex,
     StoreIndexError,
@@ -10,8 +11,13 @@ use derive_more::{
     Error,
 };
 use miette::Diagnostic;
+use pnpm_fs::{
+    FileMode,
+    file_mode::is_executable,
+};
 use std::{
     collections::HashSet,
+    ffi::OsStr,
     fs,
     io::{
         self,
@@ -83,7 +89,7 @@ pub(crate) fn prune_cas_with_references(
     remove_tmp(store_dir)?;
 
     let mut stats = PruneCasStats::default();
-    let mut removed_files = HashSet::new();
+    let mut removed_files = RemovedFiles::default();
     for shard in read_entries(store_dir.files_dir())? {
         if !shard
             .file_type()
@@ -92,7 +98,7 @@ pub(crate) fn prune_cas_with_references(
         {
             continue;
         }
-        prune_shard(&shard.path(), &mut removed_files, &mut stats, referenced)?;
+        prune_shard(&shard.path(), &shard.file_name(), &mut removed_files, &mut stats, referenced)?;
     }
 
     prune_index(store_dir, &removed_files, &mut stats)?;
@@ -101,7 +107,7 @@ pub(crate) fn prune_cas_with_references(
 
 fn prune_index(
     store_dir: &StoreDir,
-    removed_files: &HashSet<PathBuf>,
+    removed_files: &RemovedFiles,
     stats: &mut PruneCasStats,
 ) -> Result<(), PruneCasError> {
     let mut index = StoreIndex::open_in(store_dir).map_err(PruneCasError::StoreIndex)?;
@@ -120,11 +126,7 @@ fn prune_index(
         };
         // A row missing any of its files cannot be imported, and a row of
         // an archive that is not an npm package has no `package.json`.
-        if package.files
-            .values()
-            .filter_map(|file| store_dir.cas_file_path_by_mode(&file.digest, file.mode))
-            .any(|path| removed_files.contains(&path))
-        {
+        if package.files.values().any(|file| removed_files.contains(file)) {
             rows_to_delete.push(key);
         }
         Ok::<_, PruneCasError>(())
@@ -136,7 +138,8 @@ fn prune_index(
 
 fn prune_shard(
     shard_dir: &Path,
-    removed_files: &mut HashSet<PathBuf>,
+    shard_name: &OsStr,
+    removed_files: &mut RemovedFiles,
     stats: &mut PruneCasStats,
     referenced: &HashSet<PathBuf>,
 ) -> Result<(), PruneCasError> {
@@ -148,9 +151,37 @@ fn prune_shard(
         let Some(bytes) = remove_unlinked_file(&path)? else { continue };
         stats.files += 1;
         stats.bytes += bytes;
-        removed_files.insert(path);
+        removed_files.insert(shard_name, &entry.file_name());
     }
     Ok(())
+}
+
+/// The digests of the removed files, by whether the file was the
+/// executable copy: a digest can be stored as both.
+#[derive(Default)]
+struct RemovedFiles {
+    regular: HashSet<String>,
+    executable: HashSet<String>,
+}
+
+impl RemovedFiles {
+    fn insert(&mut self, shard_name: &OsStr, file_name: &OsStr) {
+        let shard = shard_name.to_string_lossy();
+        let file = file_name.to_string_lossy();
+        match file.strip_suffix("-exec") {
+            Some(rest) => self.executable.insert(format!("{shard}{rest}")),
+            None => self.regular.insert(format!("{shard}{file}")),
+        };
+    }
+
+    fn contains(&self, file: &CafsFileInfo) -> bool {
+        let digests = if is_executable(FileMode::from_mode(file.mode)) {
+            &self.executable
+        } else {
+            &self.regular
+        };
+        digests.contains(&file.digest)
+    }
 }
 
 fn remove_unlinked_file(path: &Path) -> Result<Option<u64>, PruneCasError> {

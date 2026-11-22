@@ -145,6 +145,44 @@ async fn store_prune_keeps_the_wheels_of_an_installed_project() {
 }
 
 #[tokio::test]
+async fn store_prune_stops_on_a_malformed_lockfile_without_quoting_it() {
+    let root = tempfile::tempdir().unwrap();
+    let app = root.path().join("app");
+    fs::create_dir(&app).unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(&app, &server.url(), &["alpha>=1"]);
+    let settings = app.join("pnpm-workspace.yaml");
+    let text = fs::read_to_string(&settings)
+        .unwrap()
+        .replace(
+            &app.join("store").display().to_string(),
+            &root
+                .path()
+                .join("store")
+                .display()
+                .to_string(),
+        );
+    fs::write(&settings, text).unwrap();
+    pacquet_in(&app)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::write(app.join("pylock.toml"), "//registry.test/:_authToken=secret-token\n").unwrap();
+
+    let output = pacquet_in(&app)
+        .with_args(["store", "prune"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("not a valid pylock.toml"), "{stderr}");
+    assert!(!stderr.contains("secret-token"), "{stderr}");
+    assert!(!stderr.contains("Removed"), "{stderr}");
+}
+
+#[tokio::test]
 async fn sibling_projects_keep_their_generations_apart() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;

@@ -381,7 +381,7 @@ fn loaded_temporary_build_keeps_excluded_packages_materialized() {
     assert!(
         packages
             .values()
-            .any(|package| package["files"].get("built.txt").is_some()),
+            .any(|package| { package["files"].get("built.txt").is_some() }),
     );
     let excluded = &packages["@pnpm.e2e/pkg-with-1-dep@100.0.0"];
     assert!(Path::new(excluded["root"].as_str().unwrap()).is_dir());

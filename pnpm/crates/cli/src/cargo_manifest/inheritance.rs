@@ -211,13 +211,11 @@ fn optional_string_field<'a>(
     let Some(val) = ws_table.get(field) else {
         return Ok(None);
     };
-    val.as_str()
-        .map(Some)
-        .ok_or_else(|| {
-            miette::miette!(
-                "cannot detach crate {name}: `{field}` in `[workspace.dependencies]` is not a string",
-            )
-        })
+    val.as_str().map(Some).ok_or_else(|| {
+        miette::miette!(
+            "cannot detach crate {name}: `{field}` in `[workspace.dependencies]` is not a string",
+        )
+    })
 }
 
 fn disables_default_features(ws_table: &toml::Table) -> bool {

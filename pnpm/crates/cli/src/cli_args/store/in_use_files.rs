@@ -255,18 +255,15 @@ fn load_installed_lockfile(
     Err(io::Error::other(format!("{}: {error}", install_state_dir.display())))
 }
 
-/// A `pylock.toml` that cannot be parsed adds nothing, like a lockfile of an
-/// unsupported version.
+/// A `pylock.toml` that cannot be parsed stops the prune, as an unreadable
+/// `pnpm-lock.yaml` does, since its project may still use the archives it
+/// pins. The parser's message is left out because it quotes the file.
 fn python_index_keys(project: &Path) -> io::Result<Vec<String>> {
     let path = project.join("pylock.toml");
     match pnpm_python_installer::locked_archive_store_index_keys(&path) {
         Ok(keys) => Ok(keys.unwrap_or_default()),
         Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-            pnpm_diagnostics::eprintln!(
-                "Skipped {} because it could not be parsed: {error}",
-                path.display(),
-            );
-            Ok(Vec::new())
+            Err(io::Error::other(format!("{}: not a valid pylock.toml", path.display())))
         }
         Err(error) => Err(io::Error::other(format!("{}: {error}", path.display()))),
     }
