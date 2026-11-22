@@ -198,7 +198,7 @@ catalog:
   npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
   open: ^11.0.4
-  openpgp: ^6.3.2
+  openpgp: ^6.3.3
   '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
   p-every: ^2.0.0
