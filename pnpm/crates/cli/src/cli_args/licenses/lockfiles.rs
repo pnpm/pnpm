@@ -173,6 +173,7 @@ pub(super) struct LicensedDependency {
     pub name: String,
     pub version: String,
     pub registry_name: Option<String>,
+    pub integrity: Option<String>,
 }
 
 /// The listed packages with their manifest versions, in the order the
@@ -192,7 +193,11 @@ fn sorted_licensed_dependencies(
                 .and_then(|meta| meta.version.clone())
                 .or_else(|| key.suffix.registry_version().map(ToString::to_string))
                 .unwrap_or_else(|| key.suffix.version().to_string());
-            LicensedDependency { key, belongs_to, name, version, registry_name }
+            let integrity = pkgs
+                .and_then(|packages| packages.get(&key.without_peer()))
+                .and_then(|meta| meta.resolution.checkable_integrity())
+                .map(ToString::to_string);
+            LicensedDependency { key, belongs_to, name, version, registry_name, integrity }
         })
         .collect::<Vec<_>>();
     dependencies.sort_by(compare_licensed_dependencies);

@@ -5,7 +5,7 @@ title: pnpm licenses
 
 Aliases: `licences`
 
-Checks the licenses of the installed packages.
+Checks the licenses of project dependencies.
 
 ```sh
 pnpm licenses list
@@ -19,11 +19,16 @@ pnpm licenses list
 
 Aliases: `ls`
 
-List licenses for installed packages.
+List licenses for project dependencies.
 
 The command requires a `pnpm-lock.yaml` file. A workspace project not yet
 recorded in the lockfile has no licenses to list. When no licenses match, text
 output says `No licenses in packages found` and `--json` outputs `{}`.
+
+When `node_modules` is absent, pnpm reads package metadata and license files from
+the configured store. Run `pnpm fetch` to populate the store from the lockfile.
+Packages missing from both the installation and the store are reported with an
+`Unknown` license.
 
 Since v12.7.0, running `pnpm licenses list` inside a workspace project lists only
 that project's dependencies. Use [`--recursive`](#--recursive--r) or [`--filter`](#--filter-package_selector)

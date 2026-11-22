@@ -152,3 +152,5 @@ pub(crate) fn parse_depth_limit(text: &str) -> Result<usize, String> {
 
 #[cfg(test)]
 mod tests;
+
+mod stored_package;

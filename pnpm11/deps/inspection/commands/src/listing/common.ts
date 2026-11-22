@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import { getStorePath } from '@pnpm/store.path'
 import type { Finder, IncludedDependencies } from '@pnpm/types'
 
 export type ReportAs = 'parseable' | 'json' | 'tree'
@@ -85,3 +86,13 @@ For options that may be used with `-r`, see "pnpm help recursive"',
     name: '--no-optional',
   },
 ]
+
+export async function resolveInspectionStoreDir (opts: {
+  dir: string
+  storeDir?: string
+  pnpmHomeDir?: string
+  findBy?: string[]
+}): Promise<string | undefined> {
+  if (!opts.findBy?.length || (!opts.storeDir && !opts.pnpmHomeDir)) return undefined
+  return getStorePath({ pkgRoot: opts.dir, storePath: opts.storeDir, pnpmHomeDir: opts.pnpmHomeDir ?? '' })
+}

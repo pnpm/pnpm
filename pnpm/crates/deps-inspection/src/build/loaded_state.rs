@@ -91,14 +91,16 @@ impl LoadedState {
         lockfile_dir: &Path,
         config: &pnpm_config::Config,
     ) -> Option<PkgInfoEnv<'a>> {
-        self.env_with_node_linker(
+        let mut env = self.env_with_node_linker(
             lockfile_dir,
             config.virtual_store_dir_max_length as usize,
             &config.resolved_registries(),
             config.registry_options_by_url.clone(),
             config.peer_edge_options(),
             config.node_linker,
-        )
+        )?;
+        env.layout.store_dir.get_or_insert_with(|| config.store_dir.root().to_path_buf());
+        Some(env)
     }
 
     #[must_use]

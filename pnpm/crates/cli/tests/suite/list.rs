@@ -934,3 +934,36 @@ fn list_accepts_the_global_loglevel_flag() {
 
 mod local_refs;
 mod workspace;
+
+#[test]
+fn lockfile_only_finder_reads_manifest_from_configured_store_without_modules() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "dependencies": { "@pnpm.e2e/abc": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"
+module.exports = { finders: {
+  cached: ctx => ctx.readManifest()?.peerDependencies?.['@pnpm.e2e/peer-a'] === '^1.0.0'
+} }
+",
+    )
+    .unwrap();
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    run_ok(&workspace, &["fetch"]);
+    if workspace.join("node_modules").exists() {
+        fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    }
+    let output = run_ok(&workspace, &["list", "--lockfile-only", "--find-by=cached", "--json"]);
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(parsed[0]["dependencies"]["@pnpm.e2e/abc"]["version"], "1.0.0");
+    let why = run_ok(&workspace, &["why", "--lockfile-only", "--find-by=cached"]);
+    assert!(why.contains("@pnpm.e2e/abc"), "{why}");
+    assert!(!workspace.join("node_modules").exists());
+}

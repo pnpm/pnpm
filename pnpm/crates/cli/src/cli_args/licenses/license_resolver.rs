@@ -1,3 +1,4 @@
+use super::StoredPackage;
 use regex::Regex;
 use std::{
     collections::HashSet,
@@ -77,8 +78,9 @@ const LICENSE_NAMES: &[&str] = &[
 pub(super) async fn resolve_license_from_dir(
     manifest_license: Option<String>,
     dir: &Path,
+    cached: Option<&StoredPackage<'_>>,
 ) -> Option<String> {
-    let Some(contents) = read_first_license_file(dir).await else {
+    let Some(contents) = read_first_license_file(dir, cached).await else {
         return manifest_license;
     };
     Some(
@@ -87,10 +89,22 @@ pub(super) async fn resolve_license_from_dir(
     )
 }
 
-async fn read_first_license_file(dir: &Path) -> Option<Vec<u8>> {
+async fn read_first_license_file(
+    dir: &Path,
+    cached: Option<&StoredPackage<'_>>,
+) -> Option<Vec<u8>> {
     for name in LICENSE_FILES {
         if let Some(contents) = read_license_file(&dir.join(name)).await {
             return Some(contents);
+        }
+    }
+    if let Some(cached) = cached {
+        for name in LICENSE_FILES {
+            if let Some(path) = cached.file_path(name)
+                && let Some(contents) = read_license_file(&path).await
+            {
+                return Some(contents);
+            }
         }
     }
     None

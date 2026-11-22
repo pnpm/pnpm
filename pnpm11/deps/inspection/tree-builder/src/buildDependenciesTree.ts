@@ -15,7 +15,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import { StoreIndex } from '@pnpm/store.index'
+import type { StoreIndex } from '@pnpm/store.index'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type RegistriesByScope } from '@pnpm/types'
 import { importerModulesDir } from '@pnpm/workspace.state'
 import normalizePath from 'normalize-path'
@@ -27,6 +27,7 @@ import { resolveLinkTarget } from 'resolve-link-target'
 import { buildDependencyGraph } from './buildDependencyGraph.js'
 import type { DependencyNode } from './DependencyNode.js'
 import { type BaseTreeOpts, getTree, type MaterializationCache } from './getTree.js'
+import { openInspectionStoreIndex } from './readManifestFromCafs.js'
 import type { TreeNodeId } from './TreeNodeId.js'
 
 const limitUnsavedReads = pLimit(4)
@@ -60,6 +61,7 @@ export interface BuildDependenciesTreeOptions {
   lockfileDir: string
   checkWantedLockfileOnly?: boolean
   modulesDir?: string
+  storeDir?: string
   resolvePeersFromWorkspaceRoot?: boolean
   virtualStoreDirMaxLength: number
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
@@ -112,7 +114,7 @@ async function buildProjectsTrees (
     return Object.fromEntries(projectDirs.map((projectPath) => [projectPath, {}]))
   }
 
-  const storeIndex = modules?.storeDir ? new StoreIndex(modules.storeDir) : undefined
+  const storeIndex = openInspectionStoreIndex(modules?.storeDir || maybeOpts.storeDir)
   const ctx = createHierarchyContext({
     lockfile: lockfileToUse,
     wantedLockfile,
@@ -222,7 +224,7 @@ function createTreeOptions ({ treeOpts, modules, modulesDir, registriesByScope, 
     search: treeOpts.search,
     showDedupedSearchMatches: treeOpts.showDedupedSearchMatches ?? (treeOpts.search != null),
     skipped: new Set(modules?.skipped ?? []),
-    storeDir: modules?.storeDir,
+    storeDir: modules?.storeDir || treeOpts.storeDir,
     storeIndex,
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,

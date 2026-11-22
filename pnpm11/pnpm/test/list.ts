@@ -523,3 +523,17 @@ test('why with dedicated lockfiles keeps distinct local file directories separat
 })
 
 
+test('lockfile-only finder reads cached manifests without node_modules', async () => {
+  prepare({ dependencies: { '@pnpm.e2e/abc': '1.0.0' } })
+  fs.writeFileSync('.pnpmfile.cjs', `
+module.exports = { finders: {
+  cached: ctx => ctx.readManifest()?.peerDependencies?.['@pnpm.e2e/peer-a'] === '^1.0.0'
+} }
+`)
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['fetch'])
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  const { stdout } = execPnpmSync(['list', '--lockfile-only', '--find-by=cached', '--json'], { expectSuccess: true })
+  expect(JSON.parse(stdout.toString())[0].dependencies['@pnpm.e2e/abc'].version).toBe('1.0.0')
+  expect(fs.existsSync('node_modules')).toBe(false)
+})
