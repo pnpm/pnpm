@@ -166,9 +166,10 @@ fn licenses_requires_a_lockfile() {
         .output()
         .expect("run licenses");
     assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_LICENSES_NO_LOCKFILE"), "{stderr}");
-    assert!(stderr.contains("No pnpm-lock.yaml found"), "{stderr}");
+    let report: Value = serde_json::from_slice(&output.stdout).expect("parse JSON error");
+    assert_eq!(report["error"]["code"], "ERR_PNPM_LICENSES_NO_LOCKFILE");
+    let message = report["error"]["message"].as_str().expect("error message");
+    assert!(message.contains("No pnpm-lock.yaml found"), "{message}");
 }
 
 #[test]
