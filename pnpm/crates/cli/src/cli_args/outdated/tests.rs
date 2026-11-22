@@ -55,7 +55,7 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
 }
 
 // Mirrors `outdated() skips dependencies resolved from local refs` in
-// https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/inspection/outdated/test/outdated.spec.ts: a dependency
+// <https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/inspection/outdated/test/outdated.spec.ts>: a dependency
 // resolved to a local `link:`/`file:`/`workspace:` ref has no
 // lockfile-pinned semver, so `collect_outdated` drops it before any
 // registry fetch even when its manifest specifier is a plain semver range.
@@ -299,7 +299,7 @@ fn dependent_names_are_sanitized_for_terminal_output() {
 }
 
 // Mirrors the `getCellWidth(data, 3, 30)` clamp of pnpm 11's recursive
-// renderer in https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/inspection/commands/src/outdated/recursive.ts.
+// renderer in <https://github.com/pnpm/pnpm/blob/664d81d95b84d7fca2f91f737c5ab56e3784a81e/pnpm11/deps/inspection/commands/src/outdated/recursive.ts>.
 // A dependency shared by a dozen workspace projects lists all of them in one
 // cell, which sizes the `Dependents` column past any terminal unless the cell
 // wraps.
