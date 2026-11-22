@@ -1,5 +1,5 @@
 ---
-"pacquet": patch
+"pnpm": patch
 ---
 
 `pnpm deploy` no longer requires `injectWorkspacePackages` to be enabled. A linked workspace dependency is rewritten to a `file:` dependency in the dedicated deploy lockfile, and the peer dependencies it declares are bound to the deployed graph's own resolution.

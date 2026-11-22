@@ -1,6 +1,6 @@
 ---
 "@pnpm/pnpr": minor
-"pacquet": minor
+"pnpm": minor
 ---
 
 A pnpr resolve request now carries the client's registries the way the `registries` setting declares them — keyed by URL, with the scopes routed to each, the bare-specifier prefix each answers to, and each one's `serverType` — in place of the prefix map it used to send.

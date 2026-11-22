@@ -157,7 +157,7 @@ Example:
 
 ```text
 ---
-"pacquet": patch
+"pnpm": patch
 ---
 
 Fixed `pnpm install` failing when a workspace dependency uses an aliased catalog entry.
@@ -165,7 +165,7 @@ Fixed `pnpm install` failing when a workspace dependency uses an aliased catalog
 
 The package targets already place each changeset on the correct release page.
 Do not name a pnpm release line or implementation in the release-note text,
-such as "pnpm v12" or "pacquet", merely to distinguish its targets. Describe
+such as "pnpm v12", merely to distinguish its targets. Describe
 the behavior of the published `pnpm` command.
 
 ### Changeset style
@@ -216,14 +216,12 @@ After:
 
 The npm wrapper packages of the Rust products are workspace packages with committed versions. Target:
 
-- `pacquet` — the Rust pnpm CLI (published to npm as `pnpm` and `@pnpm/exe`; named `pacquet` in-repo). `@pnpm/napi` is a `versioning.fixed` group with it and bumps with it automatically.
+- `pnpm` — the Rust pnpm CLI (also published as `@pnpm/exe`). `@pnpm/napi` is a `versioning.fixed` group with it and bumps with it automatically.
 - `@pnpm/napi` — the Node.js addon bindings for the Rust engine.
 - `@pnpm/pnpr` — the pnpr registry server (published as `@pnpm/pnpr` and its platform packages, plus the `ghcr.io/pnpm/pnpr` Docker image).
-- `get-pnpm` — the installer package. A change to it that the pnpm npm package ships needs a `pacquet` entry as well, since the wrapper bundles get-pnpm's source.
+- `get-pnpm` — the installer package. A change to it that the pnpm npm package ships needs a `pnpm` entry as well, since the wrapper bundles get-pnpm's source.
 
 pnpm and its NAPI addon release as stable versions on the main lane. pnpr releases on the `alpha` prerelease lane configured in `pnpm-workspace.yaml`; `pnpm lane main --filter …` graduates it to a stable version.
-
-Use `pacquet` as the changeset package name, but use `pnpm` in its release-note prose and command examples (`pnpm add`, not `pacquet add`). The published Rust CLI's executable is `pnpm`; `pacquet` is only its in-repo package identifier.
 
 ## Comments
 
@@ -278,7 +276,7 @@ Most documentation in this repository is internal. The user-facing text is:
 -   diagnostics and log messages;
 -   the READMEs of published npm packages.
 
-User-facing text names only what the user can reach: their project, their config, the `pnpm` command, npm, Node.js. It does not name a crate, a module, a Rust or TypeScript item, the other implementation, the in-repo package name `pacquet`, a workflow, or a `just` recipe. It states a limitation by what the user sees, not by the mechanism behind it. Everything else is contributor text and says what helps a contributor.
+User-facing text names only what the user can reach: their project, their config, the `pnpm` command, npm, Node.js. It does not name a crate, a module, a Rust or TypeScript item, the other implementation, the codename `pacquet`, a workflow, or a `just` recipe. It states a limitation by what the user sees, not by the mechanism behind it. Everything else is contributor text and says what helps a contributor.
 
 ### Reviewing documentation and comments
 

@@ -21,7 +21,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 
    | Product           | Manifest                         | Tag prefix  |
    | ----------------- | -------------------------------- | ----------- |
-   | pacquet (Rust)    | `pnpm/npm/pnpm/package.json`     | `v`         |
+   | pnpm              | `pnpm/npm/pnpm/package.json`     | `v`         |
    | pnpr              | `pnpr/npm/pnpr/package.json`     | `pnpr@`     |
    | get-pnpm          | `pnpm/npm/get-pnpm/package.json` | `get-pnpm@` |
 

@@ -263,7 +263,7 @@ Tests must prove the changed behavior, not just execute nearby code.
 - **User-visible change to a published package → changeset required.**
 - **Test-only or internal change (not visible to CLI users) → none.**
 - **Behavior/setting users should know about → changeset and usually docs.**
-- **For a pnpm CLI change, target `pacquet`** and any affected supporting packages.
+- **For a pnpm CLI change, target `pnpm`** and any affected supporting packages.
 - **One changeset per logical change.** The text is a user-facing release note — accurate and
   concise, no implementation rationale — and it must match what the code actually does.
 - **Package targets determine the release page.** Do not name pnpm release lines or `pacquet` in
@@ -326,7 +326,7 @@ For each PR, in order:
 6. **Product/contract.** npm-recognized semantics; defaults preserved or properly gated;
    no log noise. (§5)
 7. **Tests.** Right level, meaningful, regression-proving, cross-platform where relevant. (§7)
-8. **Changeset.** Present iff user-visible; targets every affected package (`pacquet` for the
+8. **Changeset.** Present iff user-visible; targets every affected package (`pnpm` for the
    pnpm CLI); one per change; accurate; styled per `AGENTS.md`. (§8)
 9. **Conventions.** No swallowed errors, good names, reused libraries, correct dependency
    placement. (`AGENTS.md` → Conventions)

@@ -1,5 +1,5 @@
 ---
-"pacquet": patch
+"pnpm": patch
 "@pnpm/napi": patch
 ---
 

@@ -286,7 +286,7 @@ snapshots:
 			"unrs-resolver@1.13.0": "6f0022496a3c1e1d6436551000ed4048efec3f0420f57edb3864c699ad948fea",
 		},
 		"packageExtensionsChecksum": "sha256-0f4F35JKYWIbjkYlSStvhCNR/Of3QIJroV8SMRUHb6U=",
-		"pnpmfileChecksum": "sha256-C2XY6+pe0kqyHiBBFj5dX5DnhJzLAwdcic3kR7l3o5w=",
+		"pnpmfileChecksum": "sha256-mx8+uzkaD2WO2V3h9zTchFZZX3QdTTMrkVNvy8svgCY=",
 	},
 
 	"projects": {

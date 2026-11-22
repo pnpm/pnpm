@@ -1,5 +1,5 @@
 ---
-"pacquet": patch
+"pnpm": patch
 ---
 
 `pnpm setup` now removes leftover v10-layout shims at the top of `PNPM_HOME`, so `pnpm self-update` no longer warns about a v10 installation layout after PATH has been migrated to the v11 `PNPM_HOME/bin` layout.

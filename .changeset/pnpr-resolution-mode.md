@@ -1,6 +1,6 @@
 ---
 "@pnpm/pnpr": minor
-"pacquet": minor
+"pnpm": minor
 ---
 
 A resolve request now carries the client's `resolutionMode`, so an install delegated to a pnpr server picks versions the way the client would. `time-based` and `lowest-direct` reached the server as nothing at all, leaving it on its `highest` default: the returned lockfile pinned the highest satisfying version of every dependency, and the setting appeared to be ignored.
