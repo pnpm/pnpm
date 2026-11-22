@@ -417,6 +417,8 @@ default, all packages are hoisted - however, if you know that only some flawed
 packages have phantom dependencies, you can use this option to exclusively hoist
 the phantom dependencies (recommended).
 
+When the workspace root adds a direct dependency, pnpm removes any hidden hoist link for that name on the next full install.
+
 For instance:
 
 ```yaml title="pnpm-workspace.yaml"
