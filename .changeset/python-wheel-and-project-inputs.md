@@ -8,4 +8,4 @@ Python dependency groups now match normalized names. Adding a development depend
 
 Comments ending in a backslash in `requirements.txt` no longer hide the next requirement. `pnpm exec` finds the environment of requirements-only projects under a tool-only `pyproject.toml`.
 
-Fixed `pnpm add` in shared Python workspaces that contain a requirements-only member.
+Fixed `pnpm add` and `pnpm update` in shared Python workspaces that contain a requirements-only member.

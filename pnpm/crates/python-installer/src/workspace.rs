@@ -327,10 +327,10 @@ impl Workspace {
         Ok(local)
     }
 
-    pub(super) fn load(&self, root: &Path) -> Result<Arc<Manifest>> {
+    fn load(&self, root: &Path) -> Result<Arc<Manifest>> {
         match self.manifests.get(root) {
             Some(manifest) => Ok(Arc::clone(manifest)),
-            None => read_manifest(root),
+            None => Ok(Arc::new(load(root)?)),
         }
     }
 
@@ -417,12 +417,12 @@ struct Selection {
     environments: Vec<MarkerEnvironment>,
 }
 
-pub(super) fn read_manifest(root: &Path) -> Result<Arc<Manifest>> {
+fn load(root: &Path) -> Result<Manifest> {
     let path = root.join("pyproject.toml");
     let contents = std::fs::read_to_string(&path)
         .into_diagnostic()
         .wrap_err_with(|| format!("read the Python project at {}", path.display()))?;
-    Manifest::parse(&contents).map(Arc::new)
+    Manifest::parse(&contents)
 }
 
 fn read_project(

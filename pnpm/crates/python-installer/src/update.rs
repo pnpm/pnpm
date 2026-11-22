@@ -147,7 +147,7 @@ async fn run_update_prepare<Reporter: self::Reporter + 'static>(
     .inspect_err(|_| {
         let _ = restore_manifests(&originals);
     })?;
-    finalize_updated(&mut prepared, config, &workspace, &options, &selected, &originals)?;
+    finalize_updated(&mut prepared, config, &workspace, &options, &selected, &originals).await?;
     Ok(prepared)
 }
 
@@ -318,7 +318,7 @@ fn stage_selected_requirement(
     Ok(None)
 }
 
-fn finalize_updated(
+async fn finalize_updated(
     prepared: &mut [Prepared],
     config: &pnpm_config::Config,
     workspace: &Workspace,
@@ -328,12 +328,12 @@ fn finalize_updated(
 ) -> Result<()> {
     restore_manifests(originals)?;
     for project in prepared {
-        finalize_prepared_project(project, config, workspace, options, selected)?;
+        finalize_prepared_project(project, config, workspace, options, selected).await?;
     }
     Ok(())
 }
 
-fn finalize_prepared_project(
+async fn finalize_prepared_project(
     project: &mut Prepared,
     config: &pnpm_config::Config,
     workspace: &Workspace,
@@ -350,8 +350,7 @@ fn finalize_prepared_project(
             finalize_requirement(group, req, options, &lock_index)
         })?;
     }
-    let recorded =
-        workspace.recorded_requirements(config, &project.members, super::workspace::read_manifest)?;
+    let recorded = workspace.recorded_requirements(config, &project.members).await?;
     lock.tool.pnpm.set_requirements(&recorded);
     project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     Ok(())

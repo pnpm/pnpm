@@ -210,6 +210,10 @@ async fn adding_to_a_member_updates_its_manifest_and_the_shared_lockfile() {
         .with_args(["-c", "import alpha, gamma, a, b"])
         .assert()
         .success();
+    pacquet_in(&root.path().join("packages/b"))
+        .with_args(["update", "pypi:gamma"])
+        .assert()
+        .success();
     pacquet_in(root.path())
         .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()

@@ -87,7 +87,7 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
             selected.clone(),
         )
         .await?;
-        save_added(&mut prepared, config, &workspace, &options, &selected)?;
+        save_added(&mut prepared, config, &workspace, &options, &selected).await?;
         Ok(prepared)
     };
     Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
@@ -136,7 +136,7 @@ pub fn writable_project(root: &Path) -> Result<PathBuf> {
 
 /// Write the versions the lockfile resolved back to the manifests the add
 /// edited, and record what the members require now in the lockfile.
-fn save_added(
+async fn save_added(
     prepared: &mut [Prepared],
     config: &pnpm_config::Config,
     workspace: &Workspace,
@@ -158,13 +158,7 @@ fn save_added(
                 )?;
             }
         }
-        let recorded = workspace.recorded_requirements(config, &project.members, |root| {
-            if edited.contains(root) {
-                super::workspace::read_manifest(root)
-            } else {
-                workspace.load(root)
-            }
-        })?;
+        let recorded = workspace.recorded_requirements(config, &project.members).await?;
         lock.tool.pnpm.set_requirements(&recorded);
         project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     }

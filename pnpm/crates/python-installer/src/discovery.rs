@@ -145,13 +145,8 @@ impl Discovery {
         config: &pnpm_config::Config,
         edited: &BTreeSet<PathBuf>,
     ) -> Result<Self> {
-        let environments = EnvironmentStore::new(config);
         for root in edited {
-            let path = root.join("pyproject.toml");
-            let allowed_root = config.workspace_dir.as_deref().unwrap_or(root);
-            let own_environment = (self.workspace.lock_root(root) == root).then_some(&environments);
-            let adjacent = Adjacent { allowed_root, own_environment };
-            let manifest = Arc::new(read_member_manifest(&path, adjacent).await?);
+            let manifest = Arc::new(self.workspace.read_member(config, root).await?);
             match self.roots
                 .iter_mut()
                 .find(|(discovered, _)| discovered == root)
@@ -349,6 +344,19 @@ fn is_ignored_by_default(project: &Path, workspace_root: &Path) -> bool {
                         })
                 })
         })
+}
+
+impl Workspace {
+    pub(super) async fn read_member(
+        &self,
+        config: &pnpm_config::Config,
+        root: &Path,
+    ) -> Result<Manifest> {
+        let allowed_root = config.workspace_dir.as_deref().unwrap_or(root);
+        let environments = (self.lock_root(root) == root).then(|| EnvironmentStore::new(config));
+        let adjacent = Adjacent { allowed_root, own_environment: environments.as_ref() };
+        read_member_manifest(&root.join("pyproject.toml"), adjacent).await
+    }
 }
 
 async fn read_member_manifest(path: &Path, adjacent: Adjacent<'_>) -> Result<Manifest> {

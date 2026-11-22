@@ -197,15 +197,14 @@ impl super::Workspace {
 
     /// Every requirement `members` record in `pylock.toml`, including direct
     /// URLs synthesized from `[tool.uv.sources]`.
-    pub(crate) fn recorded_requirements(
+    pub(crate) async fn recorded_requirements(
         &self,
         config: &pnpm_config::Config,
         members: &[PathBuf],
-        load: impl Fn(&Path) -> Result<std::sync::Arc<Manifest>>,
     ) -> Result<Vec<Requirement>> {
         let mut recorded = Vec::new();
         for member in members {
-            let manifest = load(member)?;
+            let manifest = self.read_member(config, member).await?;
             let all = manifest.selected_requirements(config)?.all;
             recorded.extend(self.requirements(member, &manifest, all)?);
         }

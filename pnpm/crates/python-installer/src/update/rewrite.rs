@@ -48,9 +48,20 @@ pub(super) fn rewrite_pyproject_many(
     mut transform: impl FnMut(PythonDependencyGroup, Requirement) -> Result<Option<Vec<Requirement>>>,
 ) -> Result<()> {
     let path = member.join("pyproject.toml");
-    let original = fs::read_to_string(&path)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read {}", path.display()))?;
+    let original = match fs::read_to_string(&path) {
+        Ok(original) => original,
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound
+                && member.join("requirements.txt").is_file() =>
+        {
+            return Ok(());
+        }
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("read {}", path.display()));
+        }
+    };
     let parsed = manifest::Manifest::parse(&original)?;
     let non_index = workspace.non_index_sources(member, &parsed);
     let Some(updated) = rewrite_manifest_text(&original, &non_index, &mut transform)? else {
