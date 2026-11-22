@@ -10,6 +10,10 @@ codecov = "llvm-cov nextest --workspace --exclude pnpm-integrated-benchmark --ex
 AWS_LC_SYS_NO_JITTER_ENTROPY = "1"
 # clippy looks for clippy.toml in each crate directory and its parents, which never include .config/.
 CLIPPY_CONF_DIR = { value = ".config", relative = true }
+# At -Os, GCC on ppc64 calls out-of-line register save/restore helpers
+# (`_savefpr_*`, `_savevr_*`) that GNU ld synthesizes and LLD does not. The
+# ppc64le target links with LLD (below), so its C dependencies build at -O2.
+CFLAGS_powerpc64le_unknown_linux_gnu = "-O2"
 
 [target.powerpc64le-unknown-linux-gnu]
 # cross's binutils 2.26 mislinks calls to optional libc symbols such as gettid.
