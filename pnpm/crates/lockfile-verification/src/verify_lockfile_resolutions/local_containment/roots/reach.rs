@@ -1,4 +1,7 @@
-use std::collections::HashSet;
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use pnpm_lockfile::{
     Lockfile,
@@ -7,7 +10,6 @@ use pnpm_lockfile::{
     SnapshotEntry,
     package_root_link_target,
 };
-use rustc_hash::FxHashMap;
 
 use super::super::fast_scan::package_has_local_surface;
 
@@ -22,10 +24,14 @@ use super::super::fast_scan::package_has_local_surface;
 /// containment checks whichever importer reaches it.
 pub(super) struct SnapshotGraph {
     keys: Vec<PkgNameVerPeer>,
-    ids: FxHashMap<PkgNameVerPeer, u32>,
+    /// Keys come from the lockfile, so the map keeps the randomly seeded
+    /// default hasher.
+    ids: HashMap<PkgNameVerPeer, u32>,
     children: Vec<Vec<u32>>,
     relevant: Vec<bool>,
     leads_to_relevant: Vec<bool>,
+    /// The children of each node that lead to a relevant node.
+    pruned_children: Vec<Vec<u32>>,
 }
 
 /// What a set of importers reaches, as keys.
@@ -42,22 +48,25 @@ impl SnapshotGraph {
     ) -> Self {
         let mut graph = Self {
             keys: Vec::new(),
-            ids: FxHashMap::default(),
+            ids: HashMap::new(),
             children: Vec::new(),
             relevant: Vec::new(),
             leads_to_relevant: Vec::new(),
+            pruned_children: Vec::new(),
         };
         let mut links_host_path = Vec::new();
         for (snap_key, snapshot) in lockfile.snapshots.iter().flatten() {
             let id = graph.intern(snap_key);
-            let links = graph.add_children(id, snapshot);
-            links_host_path.push((id, links));
+            if graph.add_children(id, snapshot) {
+                links_host_path.push(id);
+            }
         }
         for seed in seeds {
             graph.intern(seed);
         }
         graph.mark_relevant(lockfile, &links_host_path);
         graph.mark_leads_to_relevant();
+        graph.prune_children();
         graph
     }
 
@@ -66,16 +75,19 @@ impl SnapshotGraph {
     pub(super) fn reach_relevant(&self, seeds: &[PkgNameVerPeer], stamps: &mut Stamps) -> Reached {
         let stamp = stamps.next(self.keys.len());
         let mut reached = Reached::default();
-        let mut stack: Vec<u32> = self.seed_ids(seeds).collect();
+        let mut stack: Vec<u32> = self
+            .seed_ids(seeds)
+            .filter(|&id| self.leads_to_relevant[id as usize])
+            .collect();
         while let Some(id) = stack.pop() {
             let idx = id as usize;
-            if !self.leads_to_relevant[idx] || !stamps.visit(idx, stamp) {
+            if !stamps.visit(idx, stamp) {
                 continue;
             }
             if self.relevant[idx] {
                 self.record(idx, &mut reached);
             }
-            stack.extend(self.children[idx].iter().copied());
+            stack.extend(self.pruned_children[idx].iter().copied());
         }
         reached
     }
@@ -144,7 +156,7 @@ impl SnapshotGraph {
         links_host_path
     }
 
-    fn mark_relevant(&mut self, lockfile: &Lockfile, links_host_path: &[(u32, bool)]) {
+    fn mark_relevant(&mut self, lockfile: &Lockfile, links_host_path: &[u32]) {
         let packages = lockfile.packages.as_ref();
         let local_package: Vec<bool> = self.keys
             .iter()
@@ -161,8 +173,8 @@ impl SnapshotGraph {
                         .any(|&child| local_package[child as usize])
             })
             .collect();
-        for &(id, links) in links_host_path {
-            self.relevant[id as usize] |= links;
+        for &id in links_host_path {
+            self.relevant[id as usize] = true;
         }
     }
 
@@ -186,6 +198,19 @@ impl SnapshotGraph {
                 }
             }
         }
+    }
+
+    fn prune_children(&mut self) {
+        self.pruned_children = self.children
+            .iter()
+            .map(|children| {
+                children
+                    .iter()
+                    .copied()
+                    .filter(|&child| self.leads_to_relevant[child as usize])
+                    .collect()
+            })
+            .collect();
     }
 }
 
