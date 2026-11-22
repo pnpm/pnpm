@@ -79,6 +79,8 @@ pub use runtime_on_fail::{
     apply_runtime_on_fail,
     apply_runtime_on_fail_to_projects,
 };
+#[cfg(feature = "runtime-provisioning")]
+pub use runtime_specifier::updated_node_runtime_specifier;
 pub(crate) use store_verification::StoreVerification;
 pub use tarball_prefetch::*;
 pub use update::*;

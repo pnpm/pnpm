@@ -145,6 +145,14 @@ fn a_node_runtime_range_moves_under_its_prefix() {
     assert_eq!(bump_node("runtime:~26.8.2", "runtime:26.8.5").as_deref(), Some("runtime:~26.8.5"));
 }
 
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
+#[test]
+fn a_node_runtime_update_keeps_compatible_compound_ranges() {
+    for declaration in ["runtime:>= 20 <23", "runtime:^18 || ^22", "runtime:20 - 22"] {
+        assert_eq!(bump_under("node", declaration, "runtime:22.11.0"), None);
+    }
+}
+
 #[test]
 fn a_node_runtime_declaration_that_already_names_the_version_is_left_alone() {
     assert_eq!(bump_under("node", "runtime:^26.9.0", "runtime:26.9.0"), None);
