@@ -591,8 +591,11 @@ fn empty_pnpm_config_home_falls_back_to_xdg() {
     );
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 #[test]
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "linux")),
+    ignore = "asserts the macOS and Linux default directories"
+)]
 fn empty_dir_env_vars_fall_back_to_platform_defaults() {
     struct EmptyDirEnvs;
     impl EnvVar for EmptyDirEnvs {
