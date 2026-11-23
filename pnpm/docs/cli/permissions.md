@@ -32,6 +32,14 @@ pnpm approve drizzle-kit !esbuild
 
 A named package is approved or denied for everything it requests, including every skill it ships. A package that is not awaiting approval yet is decided for every capability.
 
+For a Git dependency, the interactive prompt and `--all` approve the resolved commit. To approve the same package across updates, pass its package name and repository URL without a commit or branch suffix:
+
+```sh
+pnpm approve 'example@git+https://github.com/example/project.git'
+```
+
+This approves the requested capabilities for any commit from that repository.
+
 After the decision is written, pnpm rebuilds the packages approved to build and links the approved agent skills.
 
 A `build` decision is written to `permissions` only when `pnpm-workspace.yaml` already has a `permissions` setting. Otherwise it is written to [`allowBuilds`](../settings/build.md#allowbuilds), which older pnpm versions read too.

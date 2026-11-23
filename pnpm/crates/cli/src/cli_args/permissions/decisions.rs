@@ -18,6 +18,7 @@ use pnpm_package_manager::{
     allow_build_key_from_ignored_build,
     skill_approval_key,
 };
+use pnpm_package_name::git_repo_allow_build_key_from_dep_path;
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::{
     PermissionValue,
@@ -74,21 +75,29 @@ pub(super) fn pending_builds_approved(
     decisions: &Decisions,
     pending: &BTreeMap<String, Capabilities>,
 ) -> Vec<String> {
-    decisions
+    pending
         .iter()
-        .filter_map(|(pkg, decided)| {
-            decided.build
-                .filter(|&allowed| {
-                    allowed
-                        && pending
-                            .get(pkg)
-                            .is_some_and(|requested| {
-                                requested.contains(&PermissionCapability::Build)
-                            })
-                })
-                .map(|_| pkg.clone())
+        .filter(|(_, requested)| requested.contains(&PermissionCapability::Build))
+        .filter(|(pkg, _)| {
+            matching_decisions(decisions, pkg)
+                .filter_map(|decision| decision.build)
+                .min()
+                .unwrap_or(false)
         })
+        .map(|(pkg, _)| pkg.clone())
         .collect()
+}
+
+fn matching_decisions<'a>(
+    decisions: &'a Decisions,
+    key: &str,
+) -> impl Iterator<Item = &'a PackageDecisions> {
+    let repository =
+        git_repo_allow_build_key_from_dep_path(key).and_then(|repo| decisions.get(repo.as_ref()));
+    decisions
+        .get(key)
+        .into_iter()
+        .chain(repository)
 }
 
 pub(crate) fn confirmation(
@@ -110,7 +119,8 @@ pub(super) fn named_decisions<Reporter: self::Reporter>(
     params: &[String],
     pending: &BTreeMap<String, Capabilities>,
 ) -> miette::Result<Decisions> {
-    let pending_names: Vec<String> = pending.keys().cloned().collect();
+    let requests = requests_by_selector(pending);
+    let pending_names: Vec<String> = requests.keys().cloned().collect();
     let partition = partition_params(params, &pending_names);
     if !partition.unknown.is_empty() {
         emit_global_warning::<Reporter>(&format!(
@@ -123,7 +133,7 @@ pub(super) fn named_decisions<Reporter: self::Reporter>(
         names
             .iter()
             .map(|pkg| {
-                let capabilities: Capabilities = pending
+                let capabilities: Capabilities = requests
                     .get(pkg)
                     .cloned()
                     .unwrap_or_else(|| ALL_CAPABILITIES.into_iter().collect());
@@ -141,6 +151,21 @@ pub(super) fn named_decisions<Reporter: self::Reporter>(
         .into_iter()
         .chain(decide(&partition.denied, false))
         .collect())
+}
+
+fn requests_by_selector(
+    pending: &BTreeMap<String, Capabilities>,
+) -> BTreeMap<String, Capabilities> {
+    let mut requests = pending.clone();
+    for (key, capabilities) in pending {
+        if let Some(repo) = git_repo_allow_build_key_from_dep_path(key) {
+            requests
+                .entry(repo.into_owned())
+                .or_default()
+                .extend(capabilities);
+        }
+    }
+    requests
 }
 
 /// The decisions for `--all`: every capability of every pending package is
@@ -196,13 +221,13 @@ pub(super) fn decisions_by_approval(
 
 fn is_decided(decisions: &Decisions, dep_path: &str, capability: PermissionCapability) -> bool {
     match capability {
-        PermissionCapability::Build => decisions
-            .get(&allow_build_key_from_ignored_build(dep_path))
-            .is_some_and(|decided| decided.build.is_some()),
+        PermissionCapability::Build => {
+            matching_decisions(decisions, &allow_build_key_from_ignored_build(dep_path))
+                .any(|decided| decided.build.is_some())
+        }
         PermissionCapability::Skills => {
-            decisions
-                .get(&skill_approval_key(dep_path))
-                .is_some_and(|decided| decided.skills.is_some())
+            matching_decisions(decisions, &skill_approval_key(dep_path))
+                .any(|decided| decided.skills.is_some())
                 || decisions
                     .get(&allow_build_key_from_ignored_build(dep_path))
                     .is_some_and(|decided| decided.skills.is_some())

@@ -107,6 +107,63 @@ fn all_approves_every_pending_capability() {
 }
 
 #[test]
+fn an_explicit_git_repository_selector_decides_pending_commits() {
+    let repo = "example@git+https://example.org/project.git";
+    let first = format!("{repo}#1111111");
+    let second = format!("{repo}#2222222");
+    let other = "example@git+https://example.org/other.git#1111111";
+    let pending = pending(&[(&first, &[Build]), (&second, &[Build]), (other, &[Skills])]);
+    let approval = args(&[repo], false)
+        .decide::<SilentReporter>(&pending, decide_config(), Path::new("/workspace"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(approval.decisions, BTreeMap::from([(repo.to_string(), decided(Some(true), None))]));
+    assert_eq!(
+        super::decisions::pending_builds_approved(&approval.decisions, &pending),
+        vec![first, second],
+    );
+}
+
+#[test]
+fn a_git_repository_decision_clears_only_its_pending_skills() {
+    let dir = tempfile::tempdir().unwrap();
+    let other = "example@git+https://example.org/other.git#1111111";
+    let repo = "example@git+https://example.org/project.git";
+    let config = config_awaiting(&dir, &[&format!("{repo}#1111111"), other]);
+    let pending = super::pending_permissions(&config).unwrap();
+    let approval = args(&[repo], false)
+        .decide::<SilentReporter>(&pending.by_package, decide_config(), dir.path())
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        approval.decisions,
+        BTreeMap::from([(repo.to_string(), decided(None, Some(SkillsPermission::All(true))))]),
+    );
+    super::decisions::clear_decided(pending.scan, &approval.decisions).unwrap();
+    assert_eq!(
+        super::pending_permissions(&config).unwrap().by_package,
+        self::pending(&[(other, &[Skills])]),
+    );
+}
+
+#[test]
+fn approving_all_git_packages_keeps_the_resolved_commit() {
+    let commit = "example@git+https://example.org/project.git#1111111";
+    let approval = args(&[], true)
+        .decide::<SilentReporter>(
+            &pending(&[(commit, &[Skills])]),
+            decide_config(),
+            Path::new("/workspace"),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        approval.decisions,
+        BTreeMap::from([(commit.to_string(), decided(None, Some(SkillsPermission::All(true))))]),
+    );
+}
+
+#[test]
 fn rejects_contradictory_arguments() {
     let error = args(&["foo", "!foo"], false)
         .decide::<SilentReporter>(&BTreeMap::new(), decide_config(), Path::new("/workspace"))

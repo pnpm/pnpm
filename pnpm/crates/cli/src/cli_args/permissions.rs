@@ -84,7 +84,8 @@ pub struct ApproveArgs {
     /// Packages to approve (`<pkg>`) or deny (`!<pkg>`). A package is
     /// approved or denied for everything it requests. With no packages, the
     /// packages awaiting approval are chosen interactively, and for a
-    /// package whose skills are approved, which of its skills.
+    /// package whose skills are approved, which of its skills. To approve
+    /// a Git package across updates, pass `<name>@<git-url>` without a commit.
     pub packages: Vec<String>,
 
     /// Approve everything awaiting approval without interactive prompts.
