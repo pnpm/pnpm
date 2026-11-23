@@ -274,7 +274,9 @@ fn deploy_respects_package_import_method() {
     assert!(output.status.success(), "deploy with copy must succeed");
     let copy_stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        copy_stdout.contains("Packages are copied from the store at "),
+        copy_stdout.contains(
+            "Packages are copied from the content-addressable store to the virtual store."
+        ),
         "stdout should report copy: {copy_stdout}",
     );
 
@@ -292,7 +294,9 @@ fn deploy_respects_package_import_method() {
     assert!(output_hardlink.status.success(), "deploy with hardlink must succeed");
     let hardlink_stdout = String::from_utf8_lossy(&output_hardlink.stdout);
     assert!(
-        hardlink_stdout.contains("Packages are hard linked from the store at "),
+        hardlink_stdout.contains(
+            "Packages are hard linked from the content-addressable store to the virtual store."
+        ),
         "stdout should report hardlink: {hardlink_stdout}",
     );
 

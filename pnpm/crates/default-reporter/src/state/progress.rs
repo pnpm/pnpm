@@ -325,7 +325,6 @@ impl DownloadState {
 }
 
 impl InstallProgress {
-    /// One line on how packages reach `node_modules`, on a first install.
     pub(super) fn maybe_render_context(&mut self, cwd: &str, frame: &mut Frame) {
         if self.context_rendered {
             return;
@@ -337,7 +336,6 @@ impl InstallProgress {
             self.context_rendered = true;
             return;
         }
-        self.context_rendered = true;
         let method = match method {
             PackageImportMethod::Copy => "copied",
             PackageImportMethod::Clone => "cloned",
@@ -345,9 +343,11 @@ impl InstallProgress {
         };
         let virtual_store = normalize(&relative(cwd, &ctx.virtual_store_dir));
         let msg = format!(
-            "Packages are {method} from the store at {} into {virtual_store}",
-            ctx.store_dir,
+            "Packages are {method} from the content-addressable store to the virtual store.\n  \
+             Content-addressable store is at: {}\n  Virtual store is at:             {}",
+            ctx.store_dir, virtual_store,
         );
+        self.context_rendered = true;
         let mut slot = std::mem::take(&mut self.context_slot);
         frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.context_slot = slot;
