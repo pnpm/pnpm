@@ -33,6 +33,7 @@ fn summary_event_matches_pnpm_wire_shape() {
         level: LogLevel::Debug,
         prefix: "/some/project".to_string(),
         new_projects: None,
+        project_names: None,
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
@@ -54,6 +55,7 @@ fn workspace_summary_event_lists_new_projects() {
         level: LogLevel::Debug,
         prefix: "/ws".to_string(),
         new_projects: Some(vec!["/ws/packages/a".to_string()]),
+        project_names: None,
     });
     let json: Value = event.pipe_ref(serde_json::to_value).expect("serialize event");
     assert_eq!(json["newProjects"], serde_json::json!(["/ws/packages/a"]));

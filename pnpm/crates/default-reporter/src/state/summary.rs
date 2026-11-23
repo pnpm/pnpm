@@ -2,7 +2,7 @@ use super::{
     BlockPlacement,
     DepKind,
     DiffBuckets,
-    HashSet,
+    HashMap,
     PackageDiff,
     PackageManifestMessage,
     ReporterState,
@@ -21,6 +21,12 @@ use super::{
     relative,
     remove_optional_from_prod,
     removed_diff,
+};
+use node_semver::Version;
+use pnpm_semver_include_prerelease::{
+    VersionChange,
+    classify_version_change,
+    split_at_changed_field,
 };
 use std::fmt::Write as _;
 
@@ -82,10 +88,11 @@ impl ReporterState {
             && self.options.scope.summary == SummaryScope::CurrentPrefix
         {
             self.summary.workspace =
-                Some(WorkspaceSummary::new(&self.rendering.cwd, &log.prefix, new_projects));
+                Some(WorkspaceSummary::new(&self.rendering.cwd, log, new_projects));
         }
         self.summary.seen = true;
         self.try_render_summary();
+        self.render_up_to_date();
     }
 
     pub(super) fn try_render_summary(&mut self) {
@@ -93,20 +100,11 @@ impl ReporterState {
             return;
         }
         self.apply_manifest_diffs();
-        let (mut msg, shown_deprecations) = self.render_summary_sections();
+        let msg = self.render_summary_sections();
         if msg.is_empty() {
-            // A manifest event may still add dependency sections.
-            self.flush_deprecations();
             return;
         }
-        let warnings = self.deprecation_warnings(&shown_deprecations);
-        if !warnings.is_empty() {
-            msg.push('\n');
-            msg.push_str(&warnings.join("\n"));
-            msg.push('\n');
-        }
         self.summary.rendered = true;
-        self.clear_deprecations();
         let mut slot = std::mem::take(&mut self.summary.slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.summary.slot = slot;
@@ -119,11 +117,8 @@ impl ReporterState {
                 == normalized_prefix(&self.rendering.cwd, &self.rendering.cwd)
     }
 
-    /// The dependency sections, and the held deprecation warnings their
-    /// lines carry.
-    fn render_summary_sections(&self) -> (String, HashSet<String>) {
+    fn render_summary_sections(&self) -> String {
         let mut msg = String::new();
-        let mut shown_deprecations = HashSet::new();
         let workspace = self.summary.workspace
             .as_ref()
             .map(|workspace| (workspace, self.new_project_requests(workspace)));
@@ -137,40 +132,28 @@ impl ReporterState {
             if lines.is_empty() {
                 continue;
             }
-            shown_deprecations.extend(
-                lines
-                    .iter()
-                    .filter(|(_, diff)| diff.added)
-                    .filter_map(|(_, diff)| self.deprecated_label_of(diff)),
-            );
             msg.push('\n');
             msg.push_str(&self.rendering.colors.cyan_bright(&format!("{}:", kind.header())));
             msg.push('\n');
-            msg.push_str(
-                &lines
-                    .into_iter()
-                    .map(|(line, _)| line)
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            );
+            msg.push_str(&lines.join("\n"));
             msg.push('\n');
         }
-        (msg, shown_deprecations)
+        msg
     }
 
-    fn current_project_summary_lines(&self, kind: DepKind) -> Vec<(String, &PackageDiff)> {
-        let mut diffs: Vec<&PackageDiff> = self.summary.diff[diff_key(kind)]
-            .values()
-            .filter(|diff| !self.is_hidden_linked(diff))
-            .collect();
-        diffs.sort_by(|a, b| {
-            a.name
-                .cmp(&b.name)
-                .then(u8::from(a.added).cmp(&u8::from(b.added)))
-        });
-        diffs
+    fn current_project_summary_lines(&self, kind: DepKind) -> Vec<String> {
+        let mut changes: Vec<Change<'_>> = bucket_changes(&self.summary.diff[diff_key(kind)])
             .into_iter()
-            .map(|diff| (self.diff_line(diff), diff))
+            .filter(|change| !self.is_hidden_linked(change.diff))
+            .collect();
+        changes.sort_by(|a, b| {
+            a.diff.name
+                .cmp(&b.diff.name)
+                .then(u8::from(a.diff.added).cmp(&u8::from(b.diff.added)))
+        });
+        changes
+            .into_iter()
+            .map(|change| self.diff_line(&change))
             .collect()
     }
 
@@ -182,12 +165,9 @@ impl ReporterState {
         pkg.from.is_some() && self.rendering.hidden_linked_pkgs.matches(&pkg.name)
     }
 
-    pub(super) fn diff_line(&self, pkg: &PackageDiff) -> String {
-        let mut result = if pkg.added {
-            self.rendering.colors.green("+")
-        } else {
-            self.rendering.colors.red("-")
-        };
+    pub(super) fn diff_line(&self, change: &Change<'_>) -> String {
+        let pkg = change.diff;
+        let mut result = self.change_sign(change);
         match &pkg.real_name {
             Some(real) if *real != pkg.name => {
                 let _ = write!(result, " {} <- {real}", pkg.name);
@@ -198,8 +178,7 @@ impl ReporterState {
         }
         if let Some(version) = &pkg.version {
             result.push(' ');
-            result.push_str(&self.rendering.colors.grey(version));
-            result.push_str(&self.upgrade_hint(pkg, version));
+            result.push_str(&self.version_change(change.replaced_version(), version));
         }
         if pkg.added {
             result.push_str(&self.deprecation_marker(pkg));
@@ -213,20 +192,61 @@ impl ReporterState {
         result
     }
 
-    /// The trailing "is available" note, when the registry's latest is
-    /// strictly newer than the installed version.
-    ///
-    /// A bare `!=` would also fire when the user has pinned a newer version
-    /// than the registry's latest tag (e.g. a beta), wrongly suggesting a
-    /// downgrade.
-    pub(super) fn upgrade_hint(&self, pkg: &PackageDiff, version: &str) -> String {
-        let Some(latest) = &pkg.latest else {
-            return String::new();
-        };
-        if latest == version || !is_strictly_newer(latest, version) {
-            return String::new();
+    fn change_sign(&self, change: &Change<'_>) -> String {
+        match change.replaced_version() {
+            Some(previous) => {
+                self.update_sign(previous, change.diff.version.as_deref().unwrap_or_default())
+            }
+            None if change.diff.added => self.rendering.colors.green("+"),
+            None => self.rendering.colors.red("-"),
         }
-        format!(" {}", self.rendering.colors.grey(&format!("({latest} is available)")))
+    }
+
+    /// `version`, after the version it replaced when there is one.
+    fn version_change(&self, previous: Option<&str>, version: &str) -> String {
+        let colors = &self.rendering.colors;
+        match previous {
+            Some(previous) => {
+                format!(
+                    "{}{}",
+                    colors.grey(&format!("{previous} → ")),
+                    self.version_diff(previous, version),
+                )
+            }
+            None => colors.grey(version),
+        }
+    }
+
+    /// `version`, with the field bumped from `previous` and the fields
+    /// after it colored the way `pnpm outdated` colors them.
+    fn version_diff(&self, previous: &str, version: &str) -> String {
+        let colors = &self.rendering.colors;
+        let change = match (Version::parse(previous), Version::parse(version)) {
+            (Ok(previous), Ok(version)) => classify_version_change(&previous, &version),
+            _ => VersionChange::Unknown,
+        };
+        let Some((head, tail)) = split_at_changed_field(version, change) else {
+            return colors.grey(version);
+        };
+        let tail = match change {
+            VersionChange::Breaking => colors.red(tail),
+            VersionChange::Feature => colors.yellow(tail),
+            VersionChange::Fix | VersionChange::None | VersionChange::Unknown => colors.green(tail),
+        };
+        format!("{}{tail}", colors.grey(head))
+    }
+
+    /// `↑` for an upgrade, `↓` for a downgrade, and `~` for a change
+    /// between versions that do not compare.
+    fn update_sign(&self, previous: &str, version: &str) -> String {
+        let sign = if is_strictly_newer(version, previous) {
+            "↑"
+        } else if is_strictly_newer(previous, version) {
+            "↓"
+        } else {
+            "~"
+        };
+        self.rendering.colors.yellow(sign)
     }
 
     /// Fold each manifest edit not folded yet into the changes of its
@@ -253,6 +273,43 @@ impl ReporterState {
             edit.applied = true;
         }
     }
+}
+
+/// One summary line: an addition, a removal, or an addition that
+/// replaced a removed version of the same dependency.
+pub(super) struct Change<'a> {
+    /// The added side of an update.
+    pub(super) diff: &'a PackageDiff,
+    replaced: Option<&'a PackageDiff>,
+}
+
+impl<'a> Change<'a> {
+    pub(super) fn replaced_version(&self) -> Option<&'a str> {
+        self.replaced.and_then(|replaced| replaced.version.as_deref())
+    }
+}
+
+/// The changes of one bucket. A removal and an addition of the same
+/// dependency, both of a registry version, fold into one update.
+pub(super) fn bucket_changes(bucket: &HashMap<String, PackageDiff>) -> Vec<Change<'_>> {
+    let counterpart = |diff: &PackageDiff| {
+        let sign = if diff.added { '-' } else { '+' };
+        bucket
+            .get(&format!("{sign}{}", diff.name))
+            .filter(|other| is_versioned_registry_dep(diff) && is_versioned_registry_dep(other))
+    };
+    bucket
+        .values()
+        .filter_map(|diff| match (diff.added, counterpart(diff)) {
+            (false, Some(_)) => None,
+            (true, replaced) => Some(Change { diff, replaced }),
+            (false, None) => Some(Change { diff, replaced: None }),
+        })
+        .collect()
+}
+
+fn is_versioned_registry_dep(diff: &PackageDiff) -> bool {
+    diff.version.is_some() && diff.from.is_none()
 }
 
 /// Record one `pnpm:root` change. A change that undoes an earlier one of

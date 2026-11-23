@@ -3,11 +3,15 @@ use super::{
     DependencyType,
     LogEvent,
     LogLevel,
+    Output,
     SkippedOptionalDependencyLog,
     SkippedOptionalPackage,
     SkippedOptionalReason,
     added_root,
     added_root_with_latest_at,
+    flush_checks,
+    linked_root,
+    removed_root_at,
     render,
     state,
     summary,
@@ -65,20 +69,27 @@ fn summary_groups_by_dependency_type_in_order() {
 }
 
 #[test]
-fn summary_prints_is_available_when_latest_is_newer_than_version() {
+fn footer_names_a_dependency_with_a_newer_version() {
     let mut reporter = state(false);
-    let frame = render(
+    render(
         &mut reporter,
         vec![
             added_root_with_latest_at(CWD, "foo", "1.0.0", Some("2.0.0"), DependencyType::Prod),
             summary(),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0 (2.0.0 is available)\n");
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
+    };
+    assert_eq!(
+        frame,
+        "\ndependencies:\n+ foo 1.0.0\n\n\
+         · Newer versions: foo. Run \"pnpm outdated\"\n",
+    );
 }
 
 #[test]
-fn summary_omits_is_available_when_latest_equals_version() {
+fn footer_omits_a_dependency_when_latest_equals_version() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
@@ -88,10 +99,11 @@ fn summary_omits_is_available_when_latest_equals_version() {
         ],
     );
     assert_eq!(frame, "\ndependencies:\n+ foo 3.9.5\n");
+    assert!(matches!(flush_checks(&mut reporter), Output::None));
 }
 
 #[test]
-fn summary_omits_is_available_when_latest_is_older_than_version() {
+fn footer_omits_a_dependency_when_latest_is_older_than_version() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
@@ -101,6 +113,7 @@ fn summary_omits_is_available_when_latest_is_older_than_version() {
         ],
     );
     assert_eq!(frame, "\ndependencies:\n+ foo 2.0.0\n");
+    assert!(matches!(flush_checks(&mut reporter), Output::None));
 }
 
 /// Upstream keeps the console silent for skipped-optional emits without a
@@ -174,4 +187,57 @@ fn nothing_is_announced_unless_the_latest_version_is_ahead() {
     assert_eq!(render(&mut reporter, vec![update_check("12.0.0", "11.22.0")]), "");
     assert_eq!(render(&mut reporter, vec![update_check("12.0.0", "12.0.0")]), "");
     assert_eq!(render(&mut reporter, vec![update_check("12.0.0-rc.8", "11.22.0")]), "");
+}
+
+#[test]
+fn update_of_a_dependency_is_one_line() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            removed_root_at(CWD, "foo", "1.0.0"),
+            added_root_with_latest_at(CWD, "foo", "2.0.0", Some("3.0.0"), DependencyType::Prod),
+            removed_root_at(CWD, "bar", "2.0.0"),
+            added_root("bar", "1.0.0", DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n↓ bar 2.0.0 → 1.0.0\n↑ foo 1.0.0 → 2.0.0\n");
+}
+
+#[test]
+fn replacing_a_registry_version_with_a_link_is_two_lines() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![removed_root_at(CWD, "foo", "1.0.0"), linked_root("foo", "/repo/foo"), summary()],
+    );
+    assert_eq!(frame, "\ndependencies:\n- foo 1.0.0\n+ foo <- foo\n");
+}
+
+#[test]
+fn update_colors_the_bumped_fields_of_the_new_version() {
+    let mut reporter = state(true);
+    let frame = render(
+        &mut reporter,
+        vec![
+            removed_root_at(CWD, "foo", "1.2.3"),
+            added_root("foo", "1.3.0", DependencyType::Prod),
+            removed_root_at(CWD, "bar", "1.2.3"),
+            added_root("bar", "2.0.0", DependencyType::Prod),
+            summary(),
+        ],
+    );
+    let grey = |text: &str| format!("\u{1b}[90m{text}\u{1b}[39m");
+    let line = |name: &str, head: &str, tail: String| {
+        format!("\u{1b}[33m↑\u{1b}[39m {name} {}{}{tail}", grey("1.2.3 → "), grey(head))
+    };
+    assert_eq!(
+        frame,
+        format!(
+            "\n\u{1b}[96mdependencies:\u{1b}[39m\n{}\n{}\n",
+            line("bar", "", "\u{1b}[31m2.0.0\u{1b}[39m".to_string()),
+            line("foo", "1.", "\u{1b}[33m3.0\u{1b}[39m".to_string()),
+        ),
+    );
 }

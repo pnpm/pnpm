@@ -161,6 +161,7 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
         level: LogLevel::Debug,
         prefix: workspace.prefix.clone(),
         new_projects: None,
+        project_names: None,
     }));
     Ok(())
 }

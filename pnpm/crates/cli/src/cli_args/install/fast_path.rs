@@ -86,6 +86,7 @@ fn report_up_to_date_install(
         level: pnpm_reporter::LogLevel::Debug,
         prefix,
         new_projects: None,
+        project_names: None,
     }));
 }
 

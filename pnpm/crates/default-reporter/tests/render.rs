@@ -42,6 +42,7 @@ use pnpm_reporter::{
     PnpmLog,
     ProgressLog,
     ProgressMessage,
+    RemovedRoot,
     RootLog,
     RootMessage,
     ScopeLog,
@@ -76,6 +77,11 @@ fn state_without_summary_prefix_filter() -> ReporterState {
         false,
         SummaryScope::AllPrefixes,
     )
+}
+
+/// The checks footer a command that succeeded ends with.
+fn flush_checks(state: &mut ReporterState) -> Output {
+    state.flush_pending_checks(pnpm_default_reporter::state::CommandOutcome::Succeeded)
 }
 
 /// Feed events through the in-place renderer and return the last full frame.
@@ -198,6 +204,7 @@ fn summary_at(prefix: &str) -> LogEvent {
         level: LogLevel::Debug,
         prefix: prefix.to_string(),
         new_projects: None,
+        project_names: None,
     })
 }
 
@@ -274,6 +281,20 @@ fn ignored_scripts(names: &[&str]) -> LogEvent {
             .map(|name| (*name).to_string())
             .collect(),
         strict_dep_builds: false,
+    })
+}
+
+fn removed_root_at(prefix: &str, name: &str, version: &str) -> LogEvent {
+    LogEvent::Root(RootLog {
+        level: LogLevel::Debug,
+        message: RootMessage::Removed {
+            prefix: prefix.to_string(),
+            removed: RemovedRoot {
+                name: name.to_string(),
+                version: Some(version.to_string()),
+                dependency_type: Some(DependencyType::Prod),
+            },
+        },
     })
 }
 

@@ -3,6 +3,7 @@ use super::{
     BTreeSet,
     BlockPlacement,
     Colors,
+    CommandOutcome,
     DedupeCheckLog,
     ExecutionTimeLog,
     Frame,
@@ -16,6 +17,7 @@ use super::{
     MaxLogLevel,
     NoticeState,
     PendingSkillsLog,
+    RESOLUTION_SKIPPED,
     ReporterState,
     RequestRetryLog,
     SkippedOptionalDependencyLog,
@@ -141,13 +143,22 @@ impl ReporterState {
         self.display.config_deps_slot = slot;
     }
 
+    /// A passing verdict goes to the checks footer, and the in-place
+    /// progress block is cleared.
     pub(super) fn on_lockfile_verification(&mut self, message: &LockfileVerificationMessage) {
-        // Append-only output prints one line per event, so the throttled
-        // progress stream would flood CI logs; the terminal verdict
-        // carries the final count. In-place mode re-renders the
-        // verification block instead.
+        if matches!(
+            message,
+            LockfileVerificationMessage::Cached { .. } | LockfileVerificationMessage::Done { .. },
+        ) {
+            self.record_supply_chain_passed();
+            self.display.frame.clear(&mut self.display.lockfile_verification_slot);
+            return;
+        }
+        // Append-only output cannot erase a line, so it prints only a
+        // failure: progress would flood CI logs, and a passing verdict goes
+        // to the checks footer. In-place mode re-renders the block instead.
         if self.options.append_only
-            && matches!(message, LockfileVerificationMessage::Progress { .. })
+            && !matches!(message, LockfileVerificationMessage::Failed { .. })
         {
             return;
         }
@@ -263,16 +274,10 @@ impl ReporterState {
         if !prefix.is_empty() && prefix != self.rendering.cwd {
             return;
         }
-        if message == "Lockfile is up to date, resolution step is skipped" {
-            self.display.pending_lockfile_message = Some(message.to_string());
+        if message == RESOLUTION_SKIPPED {
+            self.record_resolution_skipped();
         } else {
             self.display.frame.push_block(message.to_string());
-        }
-    }
-
-    pub(super) fn flush_pending_lockfile_message(&mut self) {
-        if let Some(message) = self.display.pending_lockfile_message.take() {
-            self.display.frame.push_block(message);
         }
     }
 
@@ -281,7 +286,8 @@ impl ReporterState {
     }
 
     pub(super) fn on_execution_time(&mut self, log: &ExecutionTimeLog) {
-        self.flush_deprecations();
+        self.render_up_to_date();
+        self.render_checks(CommandOutcome::Succeeded);
         if self.options.append_only {
             self.render_pending_approvals();
         }
@@ -395,26 +401,6 @@ impl ReporterState {
             let zoomed = zoom_out(&self.rendering.cwd, &log.prefix, &msg);
             self.display.frame.push_block(zoomed);
         }
-    }
-
-    /// Mirrors pnpm's `reportPeerDependencyIssues`: the detail lives in
-    /// the event payload, and the terminal gets one line naming the
-    /// command that prints it. Upstream `take(1)`s the stream, so a
-    /// recursive run that installs several projects still warns once.
-    pub(super) fn on_peer_dependency_issues(&mut self) {
-        if std::mem::replace(&mut self.notices.reported_peer_issues, true) {
-            return;
-        }
-        self.notices.push_warning(
-            self.rendering.colors,
-            &mut self.display.frame,
-            self.options.append_only,
-            if self.options.scope.is_global {
-                r#"Issues with peer dependencies found. Run "pnpm peers check -g" to list them."#
-            } else {
-                r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
-            },
-        );
     }
 }
 

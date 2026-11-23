@@ -4,6 +4,7 @@
 //! pins fixed blocks below scrolling non-fixed blocks, with one rendering
 //! path per log channel.
 
+pub use checks::CommandOutcome;
 pub use options::{
     LifecycleOptions,
     ProgressOptions,
@@ -221,7 +222,6 @@ struct DisplayState {
     scope_slot: BlockSlot,
     config_deps_slot: BlockSlot,
     lockfile_verification_slot: BlockSlot,
-    pending_lockfile_message: Option<String>,
     exec_slot: BlockSlot,
 }
 
@@ -234,6 +234,9 @@ struct InstallProgress {
     stats_added: Option<u64>,
     stats_removed: Option<u64>,
     stats_slot: BlockSlot,
+    /// The stats reported no package added or removed. "Already up to
+    /// date" waits for the summary: a manifest edit can still change it.
+    no_package_changed: bool,
 }
 
 /// [`PackageDiff`]s keyed by [`diff_key`], then by sign and name.
@@ -276,12 +279,11 @@ struct NoticeState {
     /// The index in `deprecations` of the first notice of each package, by
     /// name and then version.
     deprecation_index: HashMap<String, HashMap<String, usize>>,
-    deprecated_slot: BlockSlot,
     /// `pnpm:unused-override` selectors withheld until
     /// `pnpm:stage { stage: "resolution_done" }`, mirroring
     /// `reportUnusedOverrides.ts`'s `buffer(resolutionDone$)`.
     unused_overrides: Vec<String>,
-    reported_peer_issues: bool,
+    checks: ChecksState,
     approvals: PendingApprovals,
 }
 
@@ -364,25 +366,7 @@ impl ReporterState {
         if !self.level_permits(event) {
             return Output::None;
         }
-        if matches!(event, LogEvent::Summary(_))
-            || matches!(event, LogEvent::ExecutionTime(_))
-                && self.options.max_log_level >= MaxLogLevel::Info
-        {
-            self.flush_pending_lockfile_message();
-        }
         self.handle_event(event);
-        if matches!(
-            event,
-            LogEvent::LockfileVerification(log)
-                if matches!(
-                    &log.message,
-                    LockfileVerificationMessage::Cached { .. }
-                        | LockfileVerificationMessage::Done { .. }
-                        | LockfileVerificationMessage::Failed { .. }
-                ),
-        ) {
-            self.flush_pending_lockfile_message();
-        }
         self.display.finish(self.options.append_only)
     }
 
@@ -443,7 +427,8 @@ impl ReporterState {
     /// upstream reports them as an error-level log
     /// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`). The
     /// `resolution_done` stage passes wherever warnings do, since it is what
-    /// flushes the buffered deprecation and unused-override warnings.
+    /// flushes the buffered unused-override warnings and marks the checks
+    /// that run with resolution.
     fn level_permits(&self, event: &LogEvent) -> bool {
         match event {
             LogEvent::Lockfile(_)
@@ -512,6 +497,12 @@ mod progress;
 mod summary;
 
 mod deprecations;
+
+mod checks;
+use checks::{
+    ChecksState,
+    RESOLUTION_SKIPPED,
+};
 
 mod workspace_summary;
 use workspace_summary::WorkspaceSummary;

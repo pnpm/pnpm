@@ -296,7 +296,7 @@ impl CliArgs {
         if setup.is_install_family && !builtin_replaced_by_script {
             emit_execution_time(reporter_emit(selected_reporter()), setup.started_at);
         }
-        crate::flush_held_notices();
+        crate::flush_held_notices(pnpm_default_reporter::state::CommandOutcome::Succeeded);
 
         Ok(())
     }

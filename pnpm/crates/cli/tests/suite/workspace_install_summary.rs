@@ -2,6 +2,7 @@
 //! projects: changes merged across projects, attributed to the projects
 //! that made them, and a project's first install kept out of the list.
 
+use crate::_utils::is_summary_change_line;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{
@@ -56,9 +57,8 @@ fn install_summary(dir: &Path) -> String {
         .success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
     eprintln!("STDOUT:\n{stdout}");
-    let is_summary_line = |line: &&str| {
-        line.ends_with("ependencies:") || line.starts_with("+ ") || line.starts_with("- ")
-    };
+    let is_summary_line =
+        |line: &&str| line.ends_with("ependencies:") || is_summary_change_line(line);
     stdout
         .lines()
         .filter(is_summary_line)
@@ -85,7 +85,7 @@ fn first_workspace_install_lists_only_deprecated_dependencies() {
 
     assert_eq!(
         install_summary(workspace),
-        "dependencies:\n+ @pnpm.e2e/deprecated 1.0.0 deprecated  packages/a",
+        "dependencies:\n+ @pnpm.e2e/deprecated 1.0.0 deprecated  in a",
     );
 
     drop(fixture);
@@ -113,8 +113,32 @@ fn workspace_install_attributes_changes_to_projects() {
     assert_eq!(
         install_summary(workspace),
         "dependencies:\n\
-         + @pnpm.e2e/bar 100.1.0  ., packages/a, packages/b\n\
+         + @pnpm.e2e/bar 100.1.0  in 3 projects\n\
          - @pnpm.e2e/foo 100.1.0",
+    );
+
+    drop(fixture);
+}
+
+#[test]
+fn workspace_update_is_one_line_per_change() {
+    let fixture = workspace_of(&["a", "b"]);
+    let workspace = &fixture.workspace;
+    let old_foo = serde_json::json!({ "@pnpm.e2e/foo": "100.0.0" });
+    let new_foo = serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" });
+    write_project(workspace, "root", &serde_json::json!({}));
+    for project in ["a", "b"] {
+        write_project(&workspace.join("packages").join(project), project, &old_foo);
+    }
+    install_summary(workspace);
+
+    for project in ["a", "b"] {
+        write_project(&workspace.join("packages").join(project), project, &new_foo);
+    }
+
+    assert_eq!(
+        install_summary(workspace),
+        "dependencies:\n↑ @pnpm.e2e/foo 100.0.0 → 100.1.0  in 2 projects",
     );
 
     drop(fixture);

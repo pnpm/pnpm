@@ -57,6 +57,7 @@ fn summary() -> LogEvent {
         level: LogLevel::Debug,
         prefix: DIR.to_string(),
         new_projects: None,
+        project_names: None,
     })
 }
 
@@ -213,7 +214,7 @@ fn a_zero_width_is_floored_to_one_column() {
 
 /// `warn` filters the summary out, and an engine call emits no footer.
 #[test]
-fn held_deprecation_warnings_print_when_the_renderer_is_dropped() {
+fn checks_footer_prints_when_the_renderer_is_dropped() {
     let (mut renderer, buffer) = renderer(&ReporterOptions {
         append_only: Some(true),
         log_level: Some("warn".to_string()),
@@ -234,5 +235,5 @@ fn held_deprecation_warnings_print_when_the_renderer_is_dropped() {
 
     drop(renderer);
 
-    assert_eq!(written(&buffer), "[WARN] deprecated: express@0.14.1\n");
+    assert_eq!(written(&buffer), "\n✗ Deprecations: express@0.14.1\n\n");
 }

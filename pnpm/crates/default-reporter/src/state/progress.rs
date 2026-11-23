@@ -89,7 +89,10 @@ impl ReporterState {
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
         match stage {
-            Stage::ResolutionDone => self.flush_unused_overrides(),
+            Stage::ResolutionDone => {
+                self.record_resolution_done();
+                self.flush_unused_overrides();
+            }
             Stage::ImportingDone => {
                 if !self.downloads.progress.contains_key(prefix) {
                     return;
@@ -192,17 +195,26 @@ impl ReporterState {
         }
     }
 
+    /// "Already up to date", when neither the packages nor the summary
+    /// changed.
+    pub(super) fn render_up_to_date(&mut self) {
+        if !std::mem::take(&mut self.install.no_package_changed) || self.summary.rendered {
+            return;
+        }
+        let mut slot = std::mem::take(&mut self.install.stats_slot);
+        self.display.frame.emit(
+            &mut slot,
+            "Already up to date".to_string(),
+            BlockPlacement::Scrolling,
+        );
+        self.install.stats_slot = slot;
+    }
+
     pub(super) fn render_stats(&mut self) {
         let added = self.install.stats_added.take().unwrap_or(0);
         let removed = self.install.stats_removed.take().unwrap_or(0);
         if added == 0 && removed == 0 {
-            let mut slot = std::mem::take(&mut self.install.stats_slot);
-            self.display.frame.emit(
-                &mut slot,
-                "Already up to date".to_string(),
-                BlockPlacement::Scrolling,
-            );
-            self.install.stats_slot = slot;
+            self.install.no_package_changed = true;
             return;
         }
         let mut msg = String::from("Packages:");

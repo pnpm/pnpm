@@ -71,6 +71,7 @@ pub(super) fn complete_resolve_only<Reporter: self::Reporter>(
         level: LogLevel::Debug,
         prefix: inputs.prefix.to_string(),
         new_projects: None,
+        project_names: None,
     }));
     Ok(true)
 }

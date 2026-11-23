@@ -288,11 +288,13 @@ impl NativeRenderer {
 }
 
 /// An engine call has no `Done in ...` footer, and its guard drops the
-/// renderer when the call ends, successful or not, so held deprecation
-/// warnings are printed here.
+/// renderer when the call ends, successful or not, so the checks footer is
+/// printed here.
 impl Drop for NativeRenderer {
     fn drop(&mut self) {
-        let output = self.state.flush_pending_deprecations();
+        let output = self.state.flush_pending_checks(
+            pnpm_default_reporter::state::CommandOutcome::Succeeded,
+        );
         self.write(output);
     }
 }

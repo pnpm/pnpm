@@ -156,22 +156,23 @@ fn initialize_wasm_paths() -> std::io::Result<()> {
 }
 
 /// Print what the default reporter holds back until the command ends: the
-/// approval notice of append-only output, and deprecation warnings no install
-/// summary carried. Commands outside the install family, such as
+/// approval notice of append-only output, and the checks footer no `Done in
+/// ...` line carried. Commands outside the install family, such as
 /// `approve-builds`, emit no `Done in ...` footer to print them with, and a
-/// failing command none at all.
-pub(crate) fn flush_held_notices() {
+/// failing command none at all. After a failure, only the footer's problems
+/// print.
+pub(crate) fn flush_held_notices(outcome: pnpm_default_reporter::state::CommandOutcome) {
     if matches!(
         cli_args::reporter::selected_reporter(),
         cli_args::reporter::ReporterType::Default | cli_args::reporter::ReporterType::AppendOnly,
     ) {
         pnpm_default_reporter::DefaultReporter::flush_pending_approvals();
-        pnpm_default_reporter::DefaultReporter::flush_pending_deprecations();
+        pnpm_default_reporter::DefaultReporter::flush_pending_checks(outcome);
     }
 }
 
 fn report_fatal_error(error: &miette::Report) {
-    flush_held_notices();
+    flush_held_notices(pnpm_default_reporter::state::CommandOutcome::Failed);
     for cause in error.chain() {
         if let Some(pnpm_package_manager::InstallError::PeerDependencyIssues { rendered }) =
             cause.downcast_ref::<pnpm_package_manager::InstallError>()

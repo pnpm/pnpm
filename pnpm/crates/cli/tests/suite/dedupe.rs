@@ -338,12 +338,20 @@ fn dedupe_reuses_the_verification_of_a_lockfile_saved_in_a_format_that_omits_fie
         .success();
 
     let output = pacquet_at(&workspace)
-        .with_args(["dedupe", "--lockfile-only"])
+        .with_args(["dedupe", "--lockfile-only", "--reporter=ndjson"])
         .output()
         .expect("run dedupe");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "{stdout}");
-    assert!(stdout.contains("Lockfile passes supply-chain policies (verified"), "{stdout}");
+    let ndjson = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{ndjson}");
+    assert!(
+        ndjson
+            .lines()
+            .any(|line| {
+                line.contains(r#""name":"pnpm:lockfile-verification""#)
+                    && line.contains(r#""status":"cached""#)
+            }),
+        "{ndjson}",
+    );
     drop((root, mock_instance));
 }
 
@@ -820,9 +828,7 @@ fn dedupe_warns_about_peer_dependency_issues() {
     assert!(output.status.success(), "dedupe must succeed: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(
-        stdout.contains(
-            r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#
-        ),
+        stdout.contains(r#"✗ Peers: issues found. Run "pnpm peers check""#),
         "stdout:\n{stdout}",
     );
 

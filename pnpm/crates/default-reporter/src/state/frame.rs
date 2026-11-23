@@ -75,6 +75,17 @@ impl Frame {
         }
     }
 
+    /// Drop the message `slot` holds. Append-only output has printed it
+    /// already.
+    pub(super) fn clear(&mut self, slot: &mut BlockSlot) {
+        if let Some(block) = slot.block.take() {
+            self.blocks[block] = None;
+        }
+        if let Some(fixed) = slot.fixed.take() {
+            self.fixed_blocks[fixed] = None;
+        }
+    }
+
     pub(super) fn render(&self) -> String {
         let non_fixed: Vec<&str> = self.blocks
             .iter()

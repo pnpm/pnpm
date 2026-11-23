@@ -452,6 +452,7 @@ fn emit_global_summary<Reporter: self::Reporter>(global_pkg_dir: &Path) {
         level: LogLevel::Debug,
         prefix,
         new_projects: None,
+        project_names: None,
     }));
 }
 

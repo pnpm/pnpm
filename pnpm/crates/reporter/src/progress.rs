@@ -2,6 +2,7 @@ use super::{
     LogLevel,
     Serialize,
 };
+use std::collections::BTreeMap;
 
 /// `pnpm:context` payload.
 ///
@@ -70,6 +71,11 @@ pub struct SummaryLog {
     /// wire otherwise, so `None` means a single-project install.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub new_projects: Option<Vec<String>>,
+    /// The package name of each project of the workspace, keyed by root
+    /// directory. Set under the same condition as `new_projects`. A
+    /// project without a name has no entry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_names: Option<BTreeMap<String, String>>,
 }
 
 /// `pnpm:package-import-method` payload. The method names match pnpm's

@@ -5231,6 +5231,7 @@ dependencies = [
  "pnpm-matcher",
  "pnpm-package-name",
  "pnpm-reporter",
+ "pnpm-semver-include-prerelease",
  "pnpm-text-sanitize",
  "pnpm-time",
  "pretty_assertions",

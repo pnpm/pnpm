@@ -25,6 +25,7 @@ fn summary() -> LogEvent {
         level: LogLevel::Debug,
         prefix: "/project".to_string(),
         new_projects: None,
+        project_names: None,
     })
 }
 
