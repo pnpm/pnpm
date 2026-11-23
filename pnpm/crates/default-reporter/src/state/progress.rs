@@ -230,7 +230,7 @@ impl ReporterState {
 
     /// The stats an install's progress ends with: a line such as
     /// `Packages: +5 -2 (60% downloaded)`, and a bar below it with a sign
-    /// per package: `▼` for downloaded, `+` for reused from the store, and
+    /// per package: `▾` for downloaded, `+` for reused from the store, and
     /// `-` for removed. The signs tell the sources apart without color. The line gives the larger share of
     /// downloaded and reused packages, not their counts: resolution also
     /// fetches versions it then drops, so a count would not match the
@@ -285,7 +285,7 @@ impl ReporterState {
         let downloaded_chars = self.downloads.downloaded_part(added_chars);
         let mut out = String::new();
         for _ in 0..downloaded_chars {
-            out.push_str(&self.rendering.colors.green("▼"));
+            out.push_str(&self.rendering.colors.green("▾"));
         }
         for _ in downloaded_chars..added_chars {
             out.push_str(&self.rendering.colors.green("+"));
@@ -335,7 +335,7 @@ impl DownloadState {
             })
     }
 
-    /// How many of the bar's `chars` added signs are downloaded `▼`
+    /// How many of the bar's `chars` added signs are downloaded `▾`
     /// packages, in the share the line reports. A download keeps at
     /// least one sign of its own. Zero when the sources are unknown.
     fn downloaded_part(&self, chars: usize) -> usize {
