@@ -1,10 +1,11 @@
 use super::{
     Capabilities,
+    capability_list,
+    disambiguated_labels,
     package_choices,
     prompt_for_choices,
 };
 use crate::checkbox_prompt::{
-    CheckboxAlternative,
     CheckboxAnswer,
     CheckboxChoice,
     CheckboxItem,
@@ -17,58 +18,80 @@ use std::collections::{
     BTreeSet,
 };
 
+#[derive(Default)]
+struct PackageGroup {
+    keys: Vec<String>,
+    requests: Capabilities,
+    git: bool,
+}
+
 pub(super) fn prompt_for_packages(
     pending: &BTreeMap<String, Capabilities>,
 ) -> miette::Result<Option<BTreeSet<String>>> {
-    let choices = package_choices(pending);
-    let alternatives = repository_alternatives(&choices);
     let message = "Choose which packages to approve";
-    if alternatives.is_empty() {
-        return Ok(prompt_for_choices(message, &choices)?.map(BTreeSet::from_iter));
+    let groups = package_groups(pending);
+    if !groups.values().any(|group| group.git) {
+        return Ok(prompt_for_choices(message, &package_choices(pending))?.map(BTreeSet::from_iter));
     }
-    let items = choices
-        .into_iter()
-        .enumerate()
-        .map(|(index, (key, label))| {
-            let description =
-                alternatives.contains_key(&index).then(|| "r: select all commits".to_string());
-            CheckboxItem::Choice(CheckboxChoice {
-                short: label.clone(),
-                name: if description.is_some() { format!("{label}  [this commit]") } else { label },
-                description,
-                value: key,
-            })
-        })
-        .collect();
-    let answer = CheckboxPrompt::new(message, items)
-        .with_alternatives(alternatives)
-        .interact()
-        .into_diagnostic()?;
-    Ok(match answer {
-        CheckboxAnswer::Selected(selected) => Some(selected.into_iter().collect()),
+    let prompt = grouped_prompt(message, &groups);
+    Ok(match prompt.interact().into_diagnostic()? {
+        CheckboxAnswer::Selected(selected) => Some(selected.into_iter().flatten().collect()),
         CheckboxAnswer::Cancelled => None,
     })
 }
 
-fn repository_alternatives(
-    choices: &[(String, String)],
-) -> BTreeMap<usize, CheckboxAlternative<String>> {
-    let mut groups = BTreeMap::new();
-    choices
-        .iter()
-        .enumerate()
-        .filter_map(|(index, (key, label))| {
-            let repo = git_repo_allow_build_key_from_dep_path(key)?.into_owned();
-            let group = *groups.entry(repo.clone()).or_insert(index);
-            let choice = CheckboxChoice {
-                name: format!("{label}  [all commits of {repo}]"),
-                short: format!("{label} (all commits)"),
-                value: repo,
-                description: Some("r: switch to this commit".to_string()),
+fn package_groups(pending: &BTreeMap<String, Capabilities>) -> BTreeMap<String, PackageGroup> {
+    let mut groups = BTreeMap::<String, PackageGroup>::new();
+    for (key, requests) in pending {
+        let repo = git_repo_allow_build_key_from_dep_path(key);
+        let git = repo.is_some();
+        let identity = repo.map(std::borrow::Cow::into_owned).unwrap_or_else(|| key.clone());
+        let group = groups
+            .entry(identity)
+            .or_insert_with(|| PackageGroup { git, ..Default::default() });
+        group.keys.push(key.clone());
+        group.requests.extend(requests);
+    }
+    groups
+}
+
+fn grouped_prompt(
+    message: &str,
+    groups: &BTreeMap<String, PackageGroup>,
+) -> CheckboxPrompt<Vec<String>> {
+    let labels = disambiguated_labels(groups.keys().map(String::as_str));
+    let mut items = Vec::new();
+    let mut alternatives = BTreeMap::new();
+    for (key, group) in groups {
+        let label = format!("{}  {}", labels[key.as_str()], capability_list(&group.requests));
+        let mut choice = CheckboxChoice {
+            short: label.clone(),
+            name: label.clone(),
+            description: None,
+            value: group.keys.clone(),
+        };
+        if group.git {
+            let count = group.keys.len();
+            let scope = if count == 1 {
+                "this commit".to_string()
+            } else {
+                format!("{count} pending commits")
             };
-            Some((index, CheckboxAlternative::new(group, choice)))
-        })
-        .collect()
+            choice.name = format!("{label}  [{scope}]");
+            choice.description = Some("r: include future commits".to_string());
+            alternatives.insert(
+                items.len(),
+                CheckboxChoice {
+                    name: format!("{label}  [all commits of {key}]"),
+                    short: format!("{label} (all commits)"),
+                    description: Some("r: pending commits only".to_string()),
+                    value: vec![key.clone()],
+                },
+            );
+        }
+        items.push(CheckboxItem::Choice(choice));
+    }
+    CheckboxPrompt::new(message, items).with_alternatives(alternatives)
 }
 
 /// Combine the requests covered by each selected repository. Every other key
@@ -89,3 +112,6 @@ pub(super) fn group_requests<Request: Ord>(
     }
     grouped
 }
+
+#[cfg(test)]
+mod tests;
