@@ -1,3 +1,4 @@
+#![allow(clippy::disallowed_methods, reason = "the wrapper the lint points to")]
 #[cfg(unix)]
 use crate::spawning;
 use crate::{

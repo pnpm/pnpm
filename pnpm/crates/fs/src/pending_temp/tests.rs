@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 use super::{
     remove_pending_temp_files,
     track_temp_file,

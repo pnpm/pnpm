@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 use super::{
     package_version,
     platform::validate_windows_kernel_version,

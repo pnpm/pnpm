@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "a test helper starts processes the executor does not run"
+)]
 //! Local git repositories for tests that install a git-hosted dependency.
 //!
 //! A test points its manifest at a repo on disk (`git+file://...`) rather

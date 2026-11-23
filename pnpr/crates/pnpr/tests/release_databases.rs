@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 //! End-to-end checks for built `pnpr` binaries against every `storage.database.url`
 //! scheme.
 

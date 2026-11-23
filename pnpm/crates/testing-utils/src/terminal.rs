@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "a test helper starts processes the executor does not run"
+)]
 //! A terminal for the tests that need one, and none for the tests that
 //! must not have one: what pacquet does with a signal depends on whether
 //! it holds a controlling terminal.

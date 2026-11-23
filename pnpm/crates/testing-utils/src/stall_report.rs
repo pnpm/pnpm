@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "a test helper starts processes the executor does not run"
+)]
 //! Run a command whose stall should be diagnosable from a CI log.
 
 use std::{

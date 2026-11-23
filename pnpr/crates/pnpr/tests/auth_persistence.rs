@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 //! Acceptance tests for issue [#11974], pnpr must keep user
 //! accounts and bearer tokens across process restarts so an
 //! operator can run it as a hosted registry without losing every

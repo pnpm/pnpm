@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 // Quarantine xattrs only exist on macOS, so these tests (and the helpers they
 // call) are scoped to it; the whole module compiles to nothing elsewhere.
 #![cfg(target_os = "macos")]

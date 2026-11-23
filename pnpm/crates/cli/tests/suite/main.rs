@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the e2e suite runs pnpm and its fixtures as processes of their own"
+)]
 //! Every `pnpm` end-to-end test, built as one binary.
 //!
 //! Cargo links an integration-test binary against the whole dependency

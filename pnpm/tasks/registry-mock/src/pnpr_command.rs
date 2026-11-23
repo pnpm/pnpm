@@ -1,3 +1,4 @@
+#![allow(clippy::disallowed_methods, reason = "a development tool runs its own commands")]
 use crate::{
     port_to_url::port_to_url,
     seed_storage::seed_runtime_storage,

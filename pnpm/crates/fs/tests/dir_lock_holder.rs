@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 //! Cross-process tests for [`pnpm_fs::DirLock`]: what a waiter sees of a
 //! holder in another process, alive and killed.
 use command_extra::CommandExtra;

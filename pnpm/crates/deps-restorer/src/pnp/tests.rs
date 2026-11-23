@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 use super::render_pnp_loader;
 use command_extra::CommandExtra;
 

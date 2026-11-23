@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 //! The registry admin API (`/-/pnpr/v0/admin/registries` and
 //! `/-/pnpr/v0/admin/registry-revisions`):
 //! writes, versions, revisions, who may make a change, the changes pnpr
