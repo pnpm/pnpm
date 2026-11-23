@@ -346,7 +346,7 @@ impl InstallProgress {
         let virtual_store = normalize(&relative(cwd, &ctx.virtual_store_dir));
         let msg = format!(
             "Packages are {method} from the store at {} into {virtual_store}",
-            ctx.store_dir
+            ctx.store_dir,
         );
         let mut slot = std::mem::take(&mut self.context_slot);
         frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
