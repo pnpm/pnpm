@@ -228,3 +228,21 @@ fn an_empty_pnpm_home_validates_the_data_home_fallback() {
     let error = ensure_windows_home_dir_env_on::<EmptyPnpmHome>("windows").unwrap_err();
     assert_eq!(error.variable, "XDG_DATA_HOME");
 }
+
+#[test]
+fn a_config_home_that_expands_to_empty_validates_the_local_app_data_fallback() {
+    struct EmptyExpandedConfigHome;
+    impl EnvVar for EmptyExpandedConfigHome {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "XDG_CONFIG_HOME" => Some("%EMPTY%".to_owned()),
+                "EMPTY" => Some(String::new()),
+                "PNPM_HOME" | "XDG_CACHE_HOME" | "XDG_STATE_HOME" => Some(r"C:\tools".to_owned()),
+                "LOCALAPPDATA" => Some(r"%MISSING%\Local".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    let error = ensure_windows_dir_envs_on::<EmptyExpandedConfigHome>("windows").unwrap_err();
+    assert_eq!(error.variable, "LOCALAPPDATA");
+}
