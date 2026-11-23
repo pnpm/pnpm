@@ -180,13 +180,19 @@ fn repository_scope_preserves_distinct_decisions_for_pending_commits() {
         (first.clone(), decided(Some(true), None)),
         (second.clone(), decided(Some(true), Some(SkillsPermission::All(true)))),
     ]);
-    assert!(repository_choices(&decisions, &[first.clone(), second.clone()].into()).is_empty());
+    let approved = [first.clone(), second.clone()].into();
+    assert!(repository_choices(&decisions, &approved).is_empty());
+    let skills_only = BTreeMap::from([
+        (first.clone(), decided(None, Some(SkillsPermission::All(true)))),
+        (second.clone(), decided(Some(true), Some(SkillsPermission::All(true)))),
+    ]);
+    assert!(repository_choices(&skills_only, &approved).is_empty());
     let matching = BTreeMap::from([
         (first.clone(), decided(Some(true), None)),
-        (second.clone(), decided(Some(true), None)),
+        (second, decided(Some(true), None)),
     ]);
-    assert!(repository_choices(&matching, &[first.clone()].into()).is_empty());
-    assert_eq!(repository_choices(&matching, &[first, second].into()).len(), 1);
+    assert!(repository_choices(&matching, &[first].into()).is_empty());
+    assert_eq!(repository_choices(&matching, &approved).len(), 1);
 }
 
 #[test]
