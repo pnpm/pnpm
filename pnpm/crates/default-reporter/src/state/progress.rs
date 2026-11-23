@@ -230,7 +230,7 @@ impl ReporterState {
 
     /// The stats an install's progress ends with: a line such as
     /// `Packages: +5 -2 (60% downloaded)`, and a bar of `+` and `-` below
-    /// it. The line gives the larger share of
+    /// it, with downloaded packages in yellow and reused ones in green. The line gives the larger share of
     /// downloaded and reused packages, not their counts: resolution also
     /// fetches versions it then drops, so a count would not match the
     /// packages added.
@@ -281,13 +281,13 @@ impl ReporterState {
         } else {
             (added as usize, removed as usize)
         };
-        let reused_chars = self.downloads.reused_part(added_chars);
+        let downloaded_chars = self.downloads.downloaded_part(added_chars);
         let mut out = String::new();
-        for _ in 0..added_chars - reused_chars {
-            out.push_str(&self.rendering.colors.green("+"));
+        for _ in 0..downloaded_chars {
+            out.push_str(&self.rendering.colors.yellow("+"));
         }
-        for _ in 0..reused_chars {
-            out.push_str(&self.rendering.colors.green_dim("+"));
+        for _ in downloaded_chars..added_chars {
+            out.push_str(&self.rendering.colors.green("+"));
         }
         for _ in 0..removed_chars {
             out.push_str(&self.rendering.colors.red("-"));
@@ -334,17 +334,17 @@ impl DownloadState {
             })
     }
 
-    /// How many of the bar's `chars` added signs stand for reused
-    /// packages, in the share the line reports. Rounded down, so a
-    /// download always keeps at least one sign of its own.
-    fn reused_part(&self, chars: usize) -> usize {
+    /// How many of the bar's `chars` added signs stand for downloaded
+    /// packages, in the share the line reports. A download keeps at
+    /// least one sign of its own. Zero when the sources are unknown.
+    fn downloaded_part(&self, chars: usize) -> usize {
         let (downloaded, reused) = self.package_sources();
         let total = downloaded + reused;
         if total == 0 {
             return 0;
         }
-        let part = usize::try_from(reused * chars as u64 / total).unwrap_or(chars);
-        if downloaded > 0 { part.min(chars.saturating_sub(1)) } else { part }
+        let part = usize::try_from(downloaded * chars as u64 / total).unwrap_or(chars);
+        if downloaded > 0 { part.max(1).min(chars) } else { part }
     }
 
     pub(super) fn progress_message(

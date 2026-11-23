@@ -137,9 +137,9 @@ fn aggregate_output_withholds_each_script_until_it_exits() {
     );
 }
 
-/// The bar draws reused packages dimmer than downloaded ones.
+/// The bar draws downloaded packages in yellow and reused ones in green.
 #[test]
-fn stats_bar_shades_reused_packages() {
+fn stats_bar_colors_downloaded_and_reused_packages() {
     let mut reporter = state(true);
     let frame = render(
         &mut reporter,
@@ -162,7 +162,7 @@ fn stats_bar_shades_reused_packages() {
         .lines()
         .nth(1)
         .expect("the bar follows the stats line");
+    let yellow = "\u{1b}[33m+\u{1b}[39m";
     let green = "\u{1b}[32m+\u{1b}[39m";
-    let dim_green = pnpm_default_reporter::colors::Colors { enabled: true }.green_dim("+");
-    assert_eq!(bar, format!("{green}{dim_green}{dim_green}"));
+    assert_eq!(bar, format!("{yellow}{green}{green}"));
 }
