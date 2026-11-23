@@ -199,7 +199,7 @@ fn render_yaml_scalar(value: &str) -> String {
 /// a raw one can fold into the surrounding value. JSON's `\u` escapes mean
 /// the same thing to a YAML reader and keep the character verbatim.
 fn escape_yaml_line_separators(text: &str) -> String {
-    text.replace('\u{85}', "\\u0085")
-        .replace('\u{2028}', "\\u2028")
-        .replace('\u{2029}', "\\u2029")
+    text.replace('\u{85}', r"\u0085")
+        .replace('\u{2028}', r"\u2028")
+        .replace('\u{2029}', r"\u2029")
 }
