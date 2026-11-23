@@ -3,8 +3,10 @@ use crate::{
     first_row,
     pool::ConnectionPool,
     testing::{
+        EXECUTE_RESPONSE,
         Primary,
         SYNC_STALL,
+        serve_closing_idle_http,
         serve_primary,
     },
 };
@@ -264,6 +266,29 @@ async fn a_connection_idle_past_its_expiry_is_not_handed_out() {
     server.abort();
     after.unwrap();
     assert_eq!(rejections, 0);
+}
+
+/// The server closes an idle connection sooner than Turso, standing in for
+/// the time Turso's last response took to arrive.
+#[tokio::test]
+async fn a_connection_is_not_handed_out_as_the_database_closes_it() {
+    let server_closes_after = Duration::from_secs(4);
+    let server = serve_closing_idle_http(EXECUTE_RESPONSE, server_closes_after);
+    let db = Builder::new_remote(server.url.clone(), String::new())
+        .connector(LibsqlConnector::for_url(&server.url, false).unwrap())
+        .build()
+        .await
+        .unwrap();
+    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30), timed_out);
+    pool.write(|conn| async move { Ok(conn.execute("SELECT 1", ()).await?) })
+        .await
+        .unwrap();
+
+    tokio::time::sleep(server_closes_after).await;
+    pool.write(|conn| async move { Ok(conn.execute("SELECT 1", ()).await?) })
+        .await
+        .unwrap();
+    assert_eq!(server.connections.load(Ordering::SeqCst), 2);
 }
 
 /// A server can expire a stream sooner than the pool expects. The read on it
