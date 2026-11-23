@@ -122,7 +122,8 @@ pub struct ImporterResolutionInputs {
     /// `base_opts.published_by`, never this value.
     pub subdep_published_by: Option<Timestamp>,
     /// Catalogs parsed from `pnpm-workspace.yaml`. Applied to importer
-    /// dependencies and to children of injected workspace packages.
+    /// dependencies, to children of injected workspace packages, and to the
+    /// peers of `file:` directory packages.
     pub catalogs: Catalogs,
     /// Directory `pnpm-workspace.yaml` sits in, which a `file:` /
     /// `link:` catalog entry's relative path is measured from. `None`
