@@ -137,7 +137,7 @@ fn aggregate_output_withholds_each_script_until_it_exits() {
     );
 }
 
-/// The bar draws downloaded packages as `▾` and reused ones as `+`.
+/// The bar draws downloaded packages as `↓` and reused ones as `+`.
 #[test]
 fn stats_bar_colors_downloaded_and_reused_packages() {
     let mut reporter = state(true);
@@ -161,7 +161,7 @@ fn stats_bar_colors_downloaded_and_reused_packages() {
     let mut lines = frame.lines();
     assert_eq!(lines.next(), Some("Packages: \u{1b}[32m+3\u{1b}[39m (66% reused)"));
     let bar = lines.next().expect("the bar follows the stats line");
-    let downloaded = "\u{1b}[32m▾\u{1b}[39m";
+    let downloaded = "\u{1b}[32m↓\u{1b}[39m";
     let reused = "\u{1b}[32m+\u{1b}[39m";
     assert_eq!(bar, format!("{downloaded}{reused}{reused}"));
 }

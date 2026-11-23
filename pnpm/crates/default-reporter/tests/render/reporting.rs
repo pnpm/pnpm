@@ -627,8 +627,8 @@ fn append_only_progress_ends_with_the_final_counts() {
 #[test]
 fn stats_give_the_larger_share_of_downloaded_and_reused_packages() {
     for (statuses, expected) in [
-        (vec!["fetched", "fetched", "found_in_store"], "Packages: +3 (66% downloaded)\n▾▾+"),
-        (vec!["fetched", "found_in_store", "found_in_store"], "Packages: +3 (66% reused)\n▾++"),
+        (vec!["fetched", "fetched", "found_in_store"], "Packages: +3 (66% downloaded)\n↓↓+"),
+        (vec!["fetched", "found_in_store", "found_in_store"], "Packages: +3 (66% reused)\n↓++"),
         (vec!["found_in_store"], "Packages: +3 (100% reused)\n+++"),
         (vec!["resolved"], "Packages: +3\n+++"),
     ] {
