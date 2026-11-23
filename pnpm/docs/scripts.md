@@ -53,6 +53,55 @@ starting with `_`, `/`, or `@`, or containing `:_`).
 
 :::
 
+### Build options for native addons
+
+`pnpm install` does not turn extra command-line flags into `npm_config_*`
+variables the way `npm install --build-from-source` does. Set the variables
+in the environment instead. Native addons that use `node-pre-gyp` or
+`prebuild-install`, such as `sqlite3`, read them. For example, to build
+`sqlite3` from source for Electron:
+
+```sh
+npm_config_build_from_source=true \
+npm_config_runtime=electron \
+npm_config_target=38.0.0 \
+npm_config_disturl=https://electronjs.org/headers \
+pnpm install
+```
+
+To set them for every install of a project, return them in `extraEnv` from the
+[`updateConfig`](./pnpmfile.md#hooksupdateconfigconfig-config--promiseconfig)
+hook:
+
+```js title=".pnpmfile.mjs"
+export const hooks = {
+  updateConfig (config) {
+    return {
+      ...config,
+      extraEnv: {
+        ...config.extraEnv,
+        npm_config_build_from_source: 'true',
+        npm_config_runtime: 'electron',
+        npm_config_target: '38.0.0',
+        npm_config_disturl: 'https://electronjs.org/headers',
+      },
+    }
+  },
+}
+```
+
+The [side-effects cache](./settings/build.md#sideeffectscache) does not include
+these variables in its key. pnpm reuses a build cached without them when they
+are set, and the other way around. List the package in
+[`sideEffectsCache.exclude`](./settings/build.md#sideeffectscacheexclude) so
+pnpm builds it on every install:
+
+```yaml title="pnpm-workspace.yaml"
+sideEffectsCache:
+  exclude:
+    - sqlite3
+```
+
 ## Processes a script leaves running
 
 A process that a script or a command run by `pnpm exec` or `pnpm dlx` starts
