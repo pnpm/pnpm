@@ -6,6 +6,7 @@ use super::{
     emit_global_warning,
     partition_params,
 };
+use crate::cli_args::approve_builds::ApproveBuildsError;
 use indexmap::IndexSet;
 use miette::IntoDiagnostic;
 use pnpm_config::SkillsPermission;
@@ -17,7 +18,11 @@ use pnpm_package_manager::{
     allow_build_key_from_ignored_build,
     skill_approval_key,
 };
-use pnpm_package_name::git_repo_allow_build_key_from_dep_path;
+use pnpm_package_name::{
+    git_repo_allow_build_key_from_dep_path,
+    is_git_repo_dep_path,
+    parse_dep_path_name_version,
+};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::{
     PermissionValue,
@@ -108,13 +113,14 @@ pub(super) fn named_decisions<Reporter: self::Reporter>(
     let requests = requests_by_selector(pending);
     let pending_names: Vec<String> = requests.keys().cloned().collect();
     let partition = partition_params(params, &pending_names);
+    partition.reject_contradictions()?;
     if !partition.unknown.is_empty() {
+        validate_git_selectors(&partition.unknown, pending)?;
         emit_global_warning::<Reporter>(&format!(
             "The following packages are not awaiting approval: {}",
             partition.unknown.join(", "),
         ));
     }
-    partition.reject_contradictions()?;
     let decide = |names: &[String], value: bool| -> Vec<(String, PackageDecisions)> {
         names
             .iter()
@@ -137,6 +143,34 @@ pub(super) fn named_decisions<Reporter: self::Reporter>(
         .into_iter()
         .chain(decide(&partition.denied, false))
         .collect())
+}
+
+fn validate_git_selectors(
+    unknown: &[String],
+    pending: &BTreeMap<String, Capabilities>,
+) -> miette::Result<()> {
+    let candidates: BTreeSet<_> = unknown
+        .iter()
+        .map(|key| match key.split_once('#') {
+            Some((repo, _)) if is_git_repo_dep_path(repo) => repo,
+            _ => key.as_str(),
+        })
+        .collect();
+    let mut suggestions = BTreeSet::new();
+    for key in pending.keys() {
+        let Some(repo) = git_repo_allow_build_key_from_dep_path(key) else { continue };
+        let bare_name = parse_dep_path_name_version(key).map(|(name, _)| name);
+        if candidates.contains(repo.as_ref())
+            || bare_name.is_some_and(|name| candidates.contains(name))
+        {
+            suggestions.insert(key.clone());
+            suggestions.insert(repo.into_owned());
+        }
+    }
+    if suggestions.is_empty() {
+        return Ok(());
+    }
+    Err(ApproveBuildsError::ExactSelectorRequired(suggestions.into_iter().collect()).into())
 }
 
 fn requests_by_selector(
