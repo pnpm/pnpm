@@ -41,6 +41,7 @@ use pnpm_default_reporter::{
     colors::Colors,
     diff::Diff,
     state::{
+        CommandOutcome,
         Output,
         ReporterOptions as StateOptions,
         ReporterState,
@@ -187,6 +188,9 @@ pub struct NativeRenderer {
     throttle: Duration,
     last_write: Option<Instant>,
     destination: Destination,
+    /// Decides the checks footer printed on drop. Failed until the engine
+    /// call marks its success.
+    outcome: CommandOutcome,
 }
 
 impl NativeRenderer {
@@ -228,7 +232,12 @@ impl NativeRenderer {
             throttle,
             last_write: None,
             destination,
+            outcome: CommandOutcome::Failed,
         }
+    }
+
+    pub fn mark_succeeded(&mut self) {
+        self.outcome = CommandOutcome::Succeeded;
     }
 
     /// Fold one event and write whatever it produced.
@@ -292,9 +301,7 @@ impl NativeRenderer {
 /// printed here.
 impl Drop for NativeRenderer {
     fn drop(&mut self) {
-        let output = self.state.flush_pending_checks(
-            pnpm_default_reporter::state::CommandOutcome::Succeeded,
-        );
+        let output = self.state.flush_pending_checks(self.outcome);
         self.write(output);
     }
 }

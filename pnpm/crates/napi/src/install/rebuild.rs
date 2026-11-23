@@ -7,6 +7,7 @@ use super::{
     OutputSink,
     build_renderer,
     engine_call_lock,
+    mark_engine_call_succeeded,
     napi,
     run_install_inner,
 };
@@ -47,6 +48,9 @@ fn run_rebuild_blocking(
     let rebuild_options =
         rebuild_options(selected_names, options.skip_if_has_side_effects_cache.unwrap_or(false));
     let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options));
+    if outcome.is_ok() {
+        mark_engine_call_succeeded();
+    }
     outcome.map(|_| ())
 }
 

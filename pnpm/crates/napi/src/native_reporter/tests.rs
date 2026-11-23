@@ -9,6 +9,8 @@ use pnpm_reporter::{
     LogLevel,
     ProgressLog,
     ProgressMessage,
+    Stage,
+    StageLog,
     StatsLog,
     StatsMessage,
     SummaryLog,
@@ -236,4 +238,36 @@ fn checks_footer_prints_when_the_renderer_is_dropped() {
     drop(renderer);
 
     assert_eq!(written(&buffer), "\n✗ Deprecations: express@0.14.1\n\n");
+}
+
+fn resolution_done() -> LogEvent {
+    LogEvent::Stage(StageLog {
+        level: LogLevel::Debug,
+        prefix: DIR.to_string(),
+        stage: Stage::ResolutionDone,
+    })
+}
+
+/// A passing verdict beside a failed engine call's error is noise.
+#[test]
+fn failed_engine_call_prints_no_passing_checks() {
+    let (mut renderer, buffer) =
+        renderer(&ReporterOptions { append_only: Some(true), ..ReporterOptions::default() });
+    renderer.handle(&resolution_done());
+
+    drop(renderer);
+
+    assert_eq!(written(&buffer), "");
+}
+
+#[test]
+fn succeeded_engine_call_prints_the_passing_checks() {
+    let (mut renderer, buffer) =
+        renderer(&ReporterOptions { append_only: Some(true), ..ReporterOptions::default() });
+    renderer.handle(&resolution_done());
+    renderer.mark_succeeded();
+
+    drop(renderer);
+
+    assert_eq!(written(&buffer), "\n✓ Deprecations · Peers\n\n");
 }
