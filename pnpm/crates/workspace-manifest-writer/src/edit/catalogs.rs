@@ -58,10 +58,10 @@ pub(crate) type CatalogReferences =
     std::collections::BTreeMap<String, std::collections::BTreeSet<String>>;
 
 /// The `catalogPrune` pass: drop catalog entries that no
-/// collected reference names. A default-catalog entry survives only via
-/// a bare `catalog:` reference; a named-catalog entry survives via
-/// `catalog:<name>` or bare `catalog:`. Emptied blocks are dropped
-/// whole. Returns whether anything changed.
+/// collected reference names. A default-catalog entry survives via
+/// `catalog:` or its long form `catalog:default`; a named-catalog entry
+/// survives via `catalog:<name>` or bare `catalog:`. Emptied blocks are
+/// dropped whole. Returns whether anything changed.
 pub(crate) fn remove_unused_catalogs(
     manifest: &mut Manifest,
     references: &CatalogReferences,
@@ -84,7 +84,7 @@ fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogRe
     let Some(catalog) = manifest.catalogs.default.as_ref() else { return false };
     let to_remove: Vec<String> = catalog
         .keys()
-        .filter(|pkg| !is_referenced(references, pkg, &["catalog:"]))
+        .filter(|pkg| !is_referenced(references, pkg, &["catalog:", "catalog:default"]))
         .cloned()
         .collect();
     let path = manifest.document.sections.catalog();

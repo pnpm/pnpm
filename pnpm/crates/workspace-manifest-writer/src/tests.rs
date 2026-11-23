@@ -280,6 +280,19 @@ mod remove_unused_catalogs {
         assert_eq!(out.as_deref(), Some("catalog:\n  bar: 3.2.1\n"));
     }
 
+    #[test]
+    fn keeps_default_catalog_entries_referenced_as_catalog_default() {
+        let consumer = project(serde_json::json!({
+            "dependencies": { "react": "catalog:default", "bar": "catalog:" },
+        }));
+        let original = concat!(
+            "catalog:\n  bar: 3.2.1\n  foo: 1.0.0\n  react: ^18.2.0\n",
+            "overrides:\n  foo: catalog:default\n",
+        );
+        let out = run_cleanup(Some(original), None, &[&consumer]);
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
     /// TS: `remove the unused default catalog with catalogs`.
     #[test]
     fn removes_the_unused_entries_under_catalogs_default() {
