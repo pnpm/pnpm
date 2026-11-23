@@ -32,7 +32,9 @@ pnpm approve drizzle-kit !esbuild
 
 A named package is approved or denied for everything it requests, including every skill it ships. A package that is not awaiting approval yet is decided for every capability.
 
-For a Git dependency, the interactive prompt and `--all` approve the resolved commit. To approve the same package across updates, pass its package name and repository URL without a commit or branch suffix:
+Git approvals apply to the resolved commit by default. In the interactive prompt, press Space to select a repository if you want your decisions to apply to all its commits, including future updates. When several commits from the same repository are pending for a package, this option appears if you approve all of them with the same capabilities and skill choices. `--all` approves only the pending commits.
+
+To approve a Git package across updates without a prompt, pass its package name and repository URL without a commit or branch suffix:
 
 ```sh
 pnpm approve 'example@git+https://github.com/example/project.git'

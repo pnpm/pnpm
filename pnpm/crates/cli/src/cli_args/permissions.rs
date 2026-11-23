@@ -4,6 +4,8 @@ pub(crate) mod render;
 pub(crate) use decisions::Approval;
 pub(crate) use render::render_permissions;
 
+mod repository_scope;
+
 use crate::{
     State,
     cli_args::{
@@ -85,7 +87,8 @@ pub struct ApproveArgs {
     /// approved or denied for everything it requests. With no packages, the
     /// packages awaiting approval are chosen interactively, and for a
     /// package whose skills are approved, which of its skills. To approve
-    /// a Git package across updates, pass `<name>@<git-url>` without a commit.
+    /// a Git package across updates, select its repository in the prompt or
+    /// pass `<name>@<git-url>` without a commit.
     pub packages: Vec<String>,
 
     /// Approve everything awaiting approval without interactive prompts.
@@ -151,7 +154,6 @@ pub(crate) fn pending_permissions(config: &Config) -> miette::Result<PendingPerm
 use decisions::{
     capability_list,
     clear_decided,
-    confirmation,
     decisions_by_approval,
     decisions_for_all,
     named_decisions,
@@ -262,13 +264,12 @@ impl ApproveArgs {
         let Some(review) = review_skills(config, manifest_dir, &approved, pending)? else {
             return Ok(None);
         };
-        if !approved.is_empty() && !confirm(&confirmation(&approved, pending))? {
+        let decisions = decisions_by_approval(&approved, pending, &review.skills_by_package);
+        let Some(decisions) = repository_scope::confirm_decisions(decisions, &approved, pending)?
+        else {
             return Ok(None);
-        }
-        Ok(Some(Approval {
-            decisions: decisions_by_approval(&approved, pending, &review.skills_by_package),
-            skills_dirs: review.dirs,
-        }))
+        };
+        Ok(Some(Approval { decisions, skills_dirs: review.dirs }))
     }
 }
 

@@ -103,6 +103,7 @@ fn matching_decisions<'a>(
 pub(crate) fn confirmation(
     approved: &BTreeSet<String>,
     pending: &BTreeMap<String, Capabilities>,
+    repositories: &[String],
 ) -> String {
     let labels = disambiguated_labels(pending.keys().map(String::as_str));
     let packages = approved
@@ -110,7 +111,10 @@ pub(crate) fn confirmation(
         .map(|pkg| format!("{} ({})", labels[pkg.as_str()], capability_list(&pending[pkg])))
         .collect::<Vec<_>>()
         .join(", ");
-    format!("Approve {packages}?")
+    if repositories.is_empty() {
+        return format!("Approve {packages}?");
+    }
+    format!("Approve {packages}, including all commits of {}?", repositories.join(", "))
 }
 
 /// The decisions of `<pkg>` / `!<pkg>` arguments. A package that is not

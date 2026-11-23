@@ -147,6 +147,49 @@ fn a_git_repository_decision_clears_only_its_pending_skills() {
 }
 
 #[test]
+fn repository_scope_keeps_commits_by_default_and_preserves_chosen_skills() {
+    use super::repository_scope::{
+        apply_scope,
+        repository_choices,
+    };
+    let repo = "demo@git+https://example.org/demo.git";
+    let commit = format!("{repo}#abcdef1");
+    let other = "other@1.0.0";
+    let decision =
+        || decided(Some(true), Some(SkillsPermission::Chosen(vec!["guide".to_string()])));
+    let decisions =
+        || BTreeMap::from([(commit.clone(), decision()), (other.to_string(), decided(None, None))]);
+    let approved = [commit.clone()].into();
+    assert_eq!(
+        repository_choices(&decisions(), &approved),
+        vec![(repo.to_string(), repo.to_string())],
+    );
+    assert_eq!(apply_scope(decisions(), &[]), decisions());
+    assert_eq!(
+        apply_scope(decisions(), &[repo.to_string()]),
+        BTreeMap::from([(repo.to_string(), decision()), (other.to_string(), decided(None, None))]),
+    );
+}
+
+#[test]
+fn repository_scope_preserves_distinct_decisions_for_pending_commits() {
+    use super::repository_scope::repository_choices;
+    let first = "demo@git+https://example.org/demo.git#abcdef1".to_string();
+    let second = "demo@git+https://example.org/demo.git#abcdef2".to_string();
+    let decisions = BTreeMap::from([
+        (first.clone(), decided(Some(true), None)),
+        (second.clone(), decided(Some(true), Some(SkillsPermission::All(true)))),
+    ]);
+    assert!(repository_choices(&decisions, &[first.clone(), second.clone()].into()).is_empty());
+    let matching = BTreeMap::from([
+        (first.clone(), decided(Some(true), None)),
+        (second.clone(), decided(Some(true), None)),
+    ]);
+    assert!(repository_choices(&matching, &[first.clone()].into()).is_empty());
+    assert_eq!(repository_choices(&matching, &[first, second].into()).len(), 1);
+}
+
+#[test]
 fn approving_all_git_packages_keeps_the_resolved_commit() {
     let commit = "example@git+https://example.org/project.git#1111111";
     let approval = args(&[], true)
@@ -249,7 +292,7 @@ fn the_confirmation_names_packages_without_their_dep_path() {
         pending(&[("@pnpm/marked-skills", &[Skills]), ("@pnpm/git-skills", &[Build, Skills])]);
 
     assert_eq!(
-        confirmation(&pending.keys().cloned().collect(), &pending),
+        confirmation(&pending.keys().cloned().collect(), &pending, &[]),
         "Approve @pnpm/git-skills (build, skills), @pnpm/marked-skills (skills)?",
     );
 }
