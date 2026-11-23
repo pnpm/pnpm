@@ -51,6 +51,9 @@ pub(crate) struct ManifestDocument {
     /// as judged by [`crate::edit::uses_blank_line_style`] on the original
     /// text. New blocks are inserted in the same style.
     pub(crate) blank_lines: bool,
+    /// The text before any edit, before scalar aliases were expanded.
+    /// [`Self::into_text`] judges the quote style of added scalars on it.
+    original: String,
 }
 
 #[derive(Default)]
@@ -177,7 +180,7 @@ impl Manifest {
             .map_err(Box::new)?
             .unwrap_or_default();
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
-        let (text, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
+        let (expanded, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
             .map_err(<serde_saphyr::Error as serde::de::Error>::custom)
             .map_err(Box::new)?;
 
@@ -188,10 +191,11 @@ impl Manifest {
             overrides,
             non_scalar_overrides,
             document: crate::model::ManifestDocument {
-                text,
+                text: expanded,
                 aliases,
                 keys: top_level_keys,
                 blank_lines: blank_line_style,
+                original: text,
             },
             catalogs: crate::model::CatalogEntries { default: data.catalog, named: data.catalogs },
             exceptions: crate::model::SecurityExceptions {
@@ -278,6 +282,10 @@ impl ManifestDocument {
     }
 
     pub(crate) fn into_text(self) -> Result<String, Box<yamlpatch::Error>> {
-        self.aliases.restore(&self.text)
+        let text = self.aliases.restore(&self.text)?;
+        if text == self.original {
+            return Ok(text);
+        }
+        Ok(crate::render::AddedQuotes::detect(&self.original).apply(text))
     }
 }

@@ -35,10 +35,9 @@ pub(super) fn reconcile_sequence_items(
     key: &str,
     current: &[String],
     items: &[String],
-    quote_style: render::QuoteStyle,
 ) -> Option<String> {
     let layout = item_layout(text, key, current)?;
-    let body = rebuild_items(text, &layout, current, items, quote_style);
+    let body = rebuild_items(text, &layout, current, items);
     let mut out = text.to_string();
     out.replace_range(layout.spans.first()?.0..layout.spans.last()?.1, &body);
     Some(out)
@@ -139,13 +138,7 @@ fn item_lines(
 /// The item lines of `layout` rebuilt as `items`: an entry whose value
 /// `current` already holds is copied out of `text` with the comments its span
 /// carries, and every other entry is rendered afresh.
-fn rebuild_items(
-    text: &str,
-    layout: &ItemLayout,
-    current: &[String],
-    items: &[String],
-    quote_style: render::QuoteStyle,
-) -> String {
+fn rebuild_items(text: &str, layout: &ItemLayout, current: &[String], items: &[String]) -> String {
     // First-come claim of each surviving entry's lines, like the TypeScript
     // writer's node reuse: duplicate values claim their lines in order.
     let mut unclaimed: HashMap<&str, VecDeque<usize>> = HashMap::with_capacity(current.len());
@@ -163,7 +156,7 @@ fn rebuild_items(
         } else {
             body.push_str(&indent);
             body.push_str("- ");
-            body.push_str(&render::render_value_with_quotes(item, quote_style));
+            body.push_str(&render::render_value(item));
         }
         // A document that ends without a newline leaves its last span without
         // one, which would splice the entry after it onto that same line.
@@ -236,12 +229,7 @@ fn block_sequence_indent(all: &[Line<'_>], key_idx: usize) -> Option<usize> {
 
 /// Render a top-level block whose value is a block sequence (`key:` then
 /// sequence item lines matching `indent`).
-pub(super) fn render_top_level_sequence(
-    key: &str,
-    items: &[String],
-    quote_style: render::QuoteStyle,
-    indent: usize,
-) -> String {
+pub(super) fn render_top_level_sequence(key: &str, items: &[String], indent: usize) -> String {
     let indent_str = " ".repeat(indent);
     let mut block = String::new();
     block.push_str(key);
@@ -249,7 +237,7 @@ pub(super) fn render_top_level_sequence(
     for item in items {
         block.push_str(&indent_str);
         block.push_str("- ");
-        block.push_str(&render::render_value_with_quotes(item, quote_style));
+        block.push_str(&render::render_value(item));
         block.push('\n');
     }
     block

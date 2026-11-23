@@ -1,7 +1,9 @@
+use std::fmt::Write as _;
+
 use crate::render::{
+    AddedQuotes,
     QuoteStyle,
     detect_quote_style,
-    render_value_with_quotes,
 };
 
 #[test]
@@ -39,17 +41,121 @@ fn detect_quote_style_ignores_comments() {
 }
 
 #[test]
-fn render_value_with_quotes_formats_correctly() {
-    assert_eq!(render_value_with_quotes("foo@1.0.0", QuoteStyle::Single), "foo@1.0.0");
-    assert_eq!(render_value_with_quotes("foo@1.0.0", QuoteStyle::Double), "foo@1.0.0");
+fn added_quotes_double_quote_added_scalars_in_a_double_quoted_document() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  '@scope/kept': true\n";
+    let edited = format!("{original}  '@scope/added': true\n  '*': true\n");
+    let out = AddedQuotes::detect(original).apply(edited);
+    eprintln!("OUTPUT:\n{out}\n");
     assert_eq!(
-        render_value_with_quotes("@better-auth/core@1.7.3", QuoteStyle::Single),
-        "'@better-auth/core@1.7.3'",
+        out,
+        "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  '@scope/kept': true\n  \"@scope/added\": true\n  \"*\": true\n",
     );
+}
+
+#[test]
+fn added_quotes_tell_an_added_scalar_after_an_equal_existing_one() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\n  - '@x'\n";
+    let edited = format!("{original}  - '@x'\n");
+    let out = AddedQuotes::detect(original).apply(edited);
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, "packages:\n  - \"a\"\n  - \"b\"\n  - '@x'\n  - \"@x\"\n");
+}
+
+#[test]
+fn added_quotes_tell_an_added_scalar_before_an_equal_existing_one() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\nexisting: '@x'\n";
+    let edited = "packages:\n  - \"a\"\n  - \"b\"\nadded: '@x'\nexisting: '@x'\n".to_string();
+    let out = AddedQuotes::detect(original).apply(edited);
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, "packages:\n  - \"a\"\n  - \"b\"\nadded: \"@x\"\nexisting: '@x'\n");
+}
+
+#[test]
+fn added_quotes_keep_single_quotes_where_double_quotes_need_escapes() {
+    let original = "packages:\n  - \"a\"\n";
+    let edited = format!("{original}  - '@x \"y\"'\n  - '@x\\y'\n");
+    let out = AddedQuotes::detect(original).apply(edited.clone());
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, edited);
+}
+
+#[test]
+fn added_quotes_leave_other_documents_unchanged() {
+    for original in ["", "packages:\n  - a\n", "packages:\n  - 'a'\n", "a: \"x\"\nb: 'y'\n"] {
+        let edited = format!("{original}c: '@x'\n");
+        let out = AddedQuotes::detect(original).apply(edited.clone());
+        eprintln!("OUTPUT:\n{out}\n");
+        assert_eq!(out, edited);
+    }
+}
+
+/// A catalog of `count` double-quoted entries under a double-quoted
+/// `packages` list.
+fn large_catalog(count: usize) -> String {
+    let mut entries = String::new();
+    for index in 0..count {
+        writeln!(entries, r#"  pkg{index:05}: "1.0.0""#).expect("writing to a String never fails");
+    }
+    format!("packages:\n  - \"a\"\ncatalog:\n{entries}")
+}
+
+#[test]
+fn added_quotes_align_edits_at_both_ends_of_a_large_document() {
+    let original = large_catalog(5000);
+    let edited = format!("{original}  '@scope/last': ^1.0.0\n").replacen(
+        "catalog:\n",
+        "catalog:\n  '@scope/first': ^1.0.0\n",
+        1,
+    );
+    let expected = format!("{original}  \"@scope/last\": ^1.0.0\n").replacen(
+        "catalog:\n",
+        "catalog:\n  \"@scope/first\": ^1.0.0\n",
+        1,
+    );
+    let out = AddedQuotes::detect(&original).apply(edited);
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, expected);
+}
+
+#[test]
+fn added_quotes_fall_back_to_source_text_past_the_alignment_limit() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\n  - \"c\"\n  - '@scope/kept'\n";
+    let mut added = String::new();
+    let mut expected_added = String::new();
+    for index in 0..1200 {
+        writeln!(added, "  - '@scope/pkg{index}'").expect("writing to a String never fails");
+        writeln!(expected_added, r#"  - "@scope/pkg{index}""#).expect(
+            "writing to a String never fails",
+        );
+    }
+    let edited = format!("packages:\n  - \"a\"\n  - \"b\"\n{added}  - '@scope/kept'\n  - \"d\"\n");
+    let expected =
+        format!("packages:\n  - \"a\"\n  - \"b\"\n{expected_added}  - '@scope/kept'\n  - \"d\"\n");
+    let out = AddedQuotes::detect(original).apply(edited);
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(out, expected);
+}
+
+#[test]
+fn added_quotes_tell_an_added_scalar_before_an_equal_existing_one_inside_a_wider_edit() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\ncatalog:\n  '@x': ^1.0.0\nlast: \"1.0.0\"\n";
+    let edited = "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  '@x': true\ncatalog:\n  '@x': ^1.0.0\nlast: \"2.0.0\"\n";
+    let out = AddedQuotes::detect(original).apply(edited.to_string());
+    eprintln!("OUTPUT:\n{out}\n");
     assert_eq!(
-        render_value_with_quotes("@better-auth/core@1.7.3", QuoteStyle::Double),
-        r#""@better-auth/core@1.7.3""#,
+        out,
+        "packages:\n  - \"a\"\n  - \"b\"\nallowBuilds:\n  \"@x\": true\ncatalog:\n  '@x': ^1.0.0\nlast: \"2.0.0\"\n",
     );
-    assert_eq!(render_value_with_quotes("*", QuoteStyle::Single), "'*'");
-    assert_eq!(render_value_with_quotes("*", QuoteStyle::Double), r#""*""#);
+}
+
+#[test]
+fn added_quotes_double_quote_a_scalar_moved_across_untouched_entries() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\ntrustPolicyExclude:\n  - '@scope/pkg'\ncatalog:\n  react: \"^18.0.0\"\n  vue: \"^3.0.0\"\n";
+    let edited = "packages:\n  - \"a\"\n  - \"b\"\ncatalog:\n  react: \"^18.0.0\"\n  vue: \"^3.0.0\"\nallowBuilds:\n  '@scope/pkg': true\n";
+    let out = AddedQuotes::detect(original).apply(edited.to_string());
+    eprintln!("OUTPUT:\n{out}\n");
+    assert_eq!(
+        out,
+        "packages:\n  - \"a\"\n  - \"b\"\ncatalog:\n  react: \"^18.0.0\"\n  vue: \"^3.0.0\"\nallowBuilds:\n  \"@scope/pkg\": true\n",
+    );
 }

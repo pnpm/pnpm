@@ -890,6 +890,8 @@ mod dependencies;
 
 mod integrity;
 
+mod quote_style;
+
 mod render;
 mod scalar_aliases;
 
