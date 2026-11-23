@@ -30,16 +30,14 @@ pub(super) fn workspace_projects_for_add(
     let workspace_dir =
         crate::install::configured_or_discovered_workspace_dir(config, project_dir).ok()??;
     let manifest = pnpm_workspace::read_workspace_manifest(&workspace_dir).ok()??;
-    let mut projects = pnpm_workspace::find_workspace_projects(
+    pnpm_workspace::find_workspace_projects(
         &workspace_dir,
         &pnpm_workspace::FindWorkspaceProjectsOpts {
             patterns: Some(pnpm_workspace::workspace_package_patterns(&manifest)),
             ignored_directories: config.managed_directories(),
         },
     )
-    .ok()?;
-    crate::apply_runtime_on_fail_to_projects(config, &mut projects);
-    Some(projects)
+    .ok()
 }
 /// The `workspace:` specifier to save for `package_name`, or `None`
 /// when this add isn't a workspace dependency.

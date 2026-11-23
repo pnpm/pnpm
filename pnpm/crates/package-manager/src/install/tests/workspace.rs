@@ -915,7 +915,7 @@ fn discovered_workspace_index_serves_only_its_own_projects() {
         ),
         dependency_manifest: None,
     };
-    let workspace = crate::DiscoveredWorkspace::new(vec![project("lib")]);
+    let workspace = crate::DiscoveredWorkspace::new(&Config::default(), vec![project("lib")]);
 
     let index = workspace
         .packages_of(Some(&workspace.projects))

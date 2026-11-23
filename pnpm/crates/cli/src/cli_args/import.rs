@@ -82,10 +82,9 @@ async fn import_workspace_projects<Reporter: self::Reporter + 'static>(
     shared: PreferredVersions,
     backups: &mut Vec<LockfileBackup>,
 ) -> miette::Result<()> {
-    let (mut projects, _) = super::recursive::discover_workspace_projects(workspace, state.config)?;
-    pnpm_package_manager::apply_runtime_on_fail_to_projects(state.config, &mut projects);
-    check_workspace_cycles::<Reporter>(state.config, &projects, workspace)?;
-    let discovered = DiscoveredWorkspace::new(projects);
+    let (projects, _) = super::recursive::discover_workspace_projects(workspace, state.config)?;
+    let discovered = DiscoveredWorkspace::new(state.config, projects);
+    check_workspace_cycles::<Reporter>(state.config, discovered.projects(), workspace)?;
     state.discovered_workspace = Some(discovered.clone());
     import_workspace::<Reporter>(state, &discovered, shared, backups).await
 }

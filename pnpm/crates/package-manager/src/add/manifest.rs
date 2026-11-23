@@ -106,7 +106,8 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
     if let Some(projects) = &mut workspace_projects {
         crate::install::replace_project_manifest(projects, manifest);
     }
-    let workspace = workspace_projects.map(DiscoveredWorkspace::new);
+    let workspace =
+        workspace_projects.map(|projects| DiscoveredWorkspace::new(add.config, projects));
     Ok(SingleAddPreparation { catalog_ctx, prepared, workspace })
 }
 /// The workspace projects, walked only when resolving the selectors reads them.
