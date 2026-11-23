@@ -230,7 +230,8 @@ fn update_colors_the_bumped_fields_of_the_new_version() {
     );
     let grey = |text: &str| format!("\u{1b}[90m{text}\u{1b}[39m");
     let line = |name: &str, head: &str, tail: String| {
-        format!("\u{1b}[33m↑\u{1b}[39m {name} {}{}{tail}", grey("1.2.3 → "), grey(head))
+        let head = if head.is_empty() { String::new() } else { grey(head) };
+        format!("\u{1b}[33m↑\u{1b}[39m {name} {}{head}{tail}", grey("1.2.3 → "))
     };
     assert_eq!(
         frame,

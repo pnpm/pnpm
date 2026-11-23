@@ -62,3 +62,23 @@ fn peer_issues_row_names_the_peers() {
         "\n✗ 2 peer dependencies have issues: @types/react and react (see \"pnpm peers check\")\n",
     );
 }
+
+#[test]
+fn footer_highlights_package_names_and_commands() {
+    let mut reporter = super::state(true);
+    render(
+        &mut reporter,
+        vec![LogEvent::PeerDependencyIssues(PeerDependencyIssuesLog {
+            level: LogLevel::Debug,
+            issues_by_projects: serde_json::json!({ ".": { "bad": { "react": [] } } }),
+        })],
+    );
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
+    };
+    assert_eq!(
+        frame,
+        "\n\u{1b}[31m✗\u{1b}[39m 1 peer dependency has issues: \u{1b}[1mreact\u{1b}[0m \
+         (see \"\u{1b}[36mpnpm peers check\u{1b}[39m\")\n",
+    );
+}

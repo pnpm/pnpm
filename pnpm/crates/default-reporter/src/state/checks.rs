@@ -123,7 +123,7 @@ impl ReporterState {
                 "{} {} {noun} {verb} deprecated: {}",
                 self.rendering.colors.red("✗"),
                 deprecated.len(),
-                list_names(deprecated),
+                list_names(deprecated, |label| self.package_label(label)),
             )
         })
     }
@@ -133,8 +133,9 @@ impl ReporterState {
             if self.options.scope.is_global { "pnpm peers check -g" } else { "pnpm peers check" };
         let peers = self.notices.checks.peer_issues.as_ref()?;
         let cross = self.rendering.colors.red("✗");
+        let see = self.see(command);
         if peers.is_empty() {
-            return Some(format!(r#"{cross} Peer dependencies have issues (see "{command}")"#));
+            return Some(format!("{cross} Peer dependencies have issues {see}"));
         }
         let (noun, verb) = if peers.len() == 1 {
             ("peer dependency", "has")
@@ -142,9 +143,9 @@ impl ReporterState {
             ("peer dependencies", "have")
         };
         Some(format!(
-            r#"{cross} {} {noun} {verb} issues: {} (see "{command}")"#,
+            "{cross} {} {noun} {verb} issues: {} {see}",
             peers.len(),
-            list_names(peers),
+            list_names(peers, |name| self.rendering.colors.package_name(name)),
         ))
     }
 
@@ -157,12 +158,28 @@ impl ReporterState {
         };
         (!outdated.is_empty()).then(|| {
             format!(
-                r#"{} {} {noun} {verb}: {} (see "pnpm outdated")"#,
+                "{} {} {noun} {verb}: {} {}",
                 self.rendering.colors.grey("·"),
                 outdated.len(),
-                list_names(&outdated),
+                list_names(&outdated, |name| self.rendering.colors.package_name(name)),
+                self.see("pnpm outdated"),
             )
         })
+    }
+
+    /// The hint that closes a line: the command that tells more.
+    fn see(&self, command: &str) -> String {
+        format!(r#"(see "{}")"#, self.rendering.colors.command(command))
+    }
+
+    /// A `name@version` label with its name highlighted.
+    fn package_label(&self, label: &str) -> String {
+        match label.rsplit_once('@') {
+            Some((name, version)) if !name.is_empty() => {
+                format!("{}@{version}", self.rendering.colors.package_name(name))
+            }
+            _ => self.rendering.colors.package_name(label),
+        }
     }
 
     fn resolution_skipped_line(&self) -> Option<String> {
@@ -221,17 +238,18 @@ fn pkg_label(log: &DeprecationLog) -> String {
         .into_owned()
 }
 
-/// At most [`MAX_LISTED`] names, then a count of the rest.
-fn list_names(names: &BTreeSet<String>) -> String {
-    let listed: Vec<&str> = names
+/// At most [`MAX_LISTED`] names, each through `paint`, then a count of
+/// the rest.
+fn list_names(names: &BTreeSet<String>, paint: impl Fn(&str) -> String) -> String {
+    let listed: Vec<String> = names
         .iter()
         .take(MAX_LISTED)
-        .map(String::as_str)
+        .map(|name| paint(name))
         .collect();
     let rest = names.len() - listed.len();
     match listed.as_slice() {
         [] => String::new(),
-        [only] => (*only).to_string(),
+        [only] => only.clone(),
         [init @ .., last] if rest == 0 => format!("{} and {last}", init.join(", ")),
         _ => format!("{} and {rest} more", listed.join(", ")),
     }

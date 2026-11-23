@@ -231,6 +231,9 @@ impl ReporterState {
             VersionChange::Feature => colors.yellow(tail),
             VersionChange::Fix | VersionChange::None | VersionChange::Unknown => colors.green(tail),
         };
+        if head.is_empty() {
+            return tail;
+        }
         format!("{}{tail}", colors.grey(head))
     }
 
