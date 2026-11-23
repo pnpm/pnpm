@@ -36,7 +36,7 @@ fn importing_done_clears_the_progress_line() {
 }
 
 #[test]
-fn stats_counts_are_colored_when_enabled() {
+fn stats_bar_is_colored_when_enabled() {
     let mut reporter = state(true);
     let frame = render(
         &mut reporter,
@@ -51,7 +51,7 @@ fn stats_counts_are_colored_when_enabled() {
             }),
         ],
     );
-    assert_eq!(frame, "Packages: \u{1b}[32m+1\u{1b}[39m");
+    assert_eq!(frame, "Packages: \u{1b}[32m+1\u{1b}[39m\n\u{1b}[32m+\u{1b}[39m");
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn full_install_frame_orders_blocks_like_pnpm() {
     );
     assert_eq!(
         frame,
-        "Packages: +1 (100% reused)\n\ndependencies:\n+ foo 1.0.0\n\nDone in 1.2s using pnpm v0.0.1",
+        "Packages: +1 (100% reused)\n+\n\ndependencies:\n+ foo 1.0.0\n\nDone in 1.2s using pnpm v0.0.1",
     );
 }
 

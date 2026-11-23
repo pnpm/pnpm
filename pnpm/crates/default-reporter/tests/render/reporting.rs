@@ -167,7 +167,7 @@ fn ignores_progress_after_importing_done() {
 }
 
 #[test]
-fn stats_render_one_packages_line() {
+fn stats_render_packages_line_and_bar() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
@@ -182,7 +182,7 @@ fn stats_render_one_packages_line() {
             }),
         ],
     );
-    assert_eq!(frame, "Packages: +5 -2");
+    assert_eq!(frame, "Packages: +5 -2\n+++++--");
 }
 
 /// The stats replace the live progress line, so they wait for it to end.
@@ -205,7 +205,7 @@ fn stats_wait_for_importing_to_finish() {
     );
     assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
     let frame = render(&mut reporter, vec![stage_at(CWD, Stage::ImportingDone)]);
-    assert_eq!(frame, "Packages: +1");
+    assert_eq!(frame, "Packages: +1\n+");
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn append_only_stats_render_once_after_both_events() {
         message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
     }));
     match removed {
-        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5"]),
+        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
         _ => panic!("complete stats should emit Lines"),
     }
 }
@@ -241,7 +241,7 @@ fn append_only_stats_render_on_summary_when_pair_is_incomplete() {
 
     let summarized = reporter.handle(&summary());
     match summarized {
-        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5"]),
+        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
         _ => panic!("summary should flush incomplete stats"),
     }
 }
@@ -627,10 +627,10 @@ fn append_only_progress_ends_with_the_final_counts() {
 #[test]
 fn stats_give_the_larger_share_of_downloaded_and_reused_packages() {
     for (statuses, expected) in [
-        (vec!["fetched", "fetched", "found_in_store"], "Packages: +3 (66% downloaded)"),
-        (vec!["fetched", "found_in_store", "found_in_store"], "Packages: +3 (66% reused)"),
-        (vec!["found_in_store"], "Packages: +3 (100% reused)"),
-        (vec!["resolved"], "Packages: +3"),
+        (vec!["fetched", "fetched", "found_in_store"], "Packages: +3 (66% downloaded)\n+++"),
+        (vec!["fetched", "found_in_store", "found_in_store"], "Packages: +3 (66% reused)\n+++"),
+        (vec!["found_in_store"], "Packages: +3 (100% reused)\n+++"),
+        (vec!["resolved"], "Packages: +3\n+++"),
     ] {
         let mut reporter = state(false);
         let mut events: Vec<LogEvent> = statuses

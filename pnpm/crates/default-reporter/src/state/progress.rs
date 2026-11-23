@@ -228,8 +228,9 @@ impl ReporterState {
         self.install.stats_slot = slot;
     }
 
-    /// The one line an install's progress ends with, such as
-    /// `Packages: +5 -2 (60% downloaded)`. It gives the larger share of
+    /// The stats an install's progress ends with: a line such as
+    /// `Packages: +5 -2 (60% downloaded)`, and a bar of `+` and `-` below
+    /// it. The line gives the larger share of
     /// downloaded and reused packages, not their counts: resolution also
     /// fetches versions it then drops, so a count would not match the
     /// packages added.
@@ -253,9 +254,41 @@ impl ReporterState {
         if let Some(source) = self.downloads.package_source() {
             let _ = write!(msg, " ({source})");
         }
+        msg.push('\n');
+        msg.push_str(&self.pluses_and_minuses(self.rendering.width, added, removed));
         let mut slot = std::mem::take(&mut self.install.stats_slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.install.stats_slot = slot;
+    }
+
+    pub(super) fn pluses_and_minuses(&self, max_width: usize, added: u64, removed: u64) -> String {
+        if max_width == 0 {
+            return String::new();
+        }
+        let changes = added + removed;
+        let (added_chars, removed_chars) = if changes > max_width as u64 {
+            if added == 0 {
+                (0, max_width)
+            } else if removed == 0 {
+                (max_width, 0)
+            } else {
+                let ratio = max_width as f64 / changes as f64;
+                let added_chars = ((added as f64 * ratio).floor() as usize)
+                    .max(1)
+                    .min(max_width.saturating_sub(1));
+                (added_chars, max_width - added_chars)
+            }
+        } else {
+            (added as usize, removed as usize)
+        };
+        let mut out = String::new();
+        for _ in 0..added_chars {
+            out.push_str(&self.rendering.colors.green("+"));
+        }
+        for _ in 0..removed_chars {
+            out.push_str(&self.rendering.colors.red("-"));
+        }
+        out
     }
 }
 
