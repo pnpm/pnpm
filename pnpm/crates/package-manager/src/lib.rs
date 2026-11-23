@@ -13,6 +13,8 @@ pub use agent_skills::{
     SyncAgentSkills,
     agent_skills_dir_from_env,
     detected_agent_dirs,
+    prune_agent_skill_links,
+    resync_global_agent_skills,
     resync_installed_agent_skills,
     skill_approval_options,
     sync_agent_skills,

@@ -123,3 +123,26 @@ fn ends_an_unterminated_last_line_before_appending() {
         ),
     );
 }
+
+#[test]
+fn skill_dirs_preserve_permissions_in_flow_and_block_mappings() {
+    for original in [
+        "globalPackagesConfig: {permissions: {foo: {build: true}}}",
+        "globalPackagesConfig:\n    permissions:\n        foo:\n            build: true",
+        "globalPackagesConfig:\n    permissions: {foo: {build: true}}\n    skills:\n        dirs: [old]",
+        "globalPackagesConfig:\n  permissions: {foo: {build: true}}\n  skills: {}",
+    ] {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("config.yaml");
+        let dirs = [".claude/skills".to_string(), "skills [custom]".to_string()];
+        fs::write(&path, original).expect("seed config.yaml");
+        crate::set_global_packages_skills_dirs(&path, &dirs).expect("update skills directories");
+        let updated = fs::read_to_string(&path).expect("read config.yaml");
+        let config: serde_json::Value = serde_saphyr::from_str(&updated).expect("valid YAML");
+        let global = &config["globalPackagesConfig"];
+        assert_eq!(global["permissions"]["foo"]["build"], true, "{updated}");
+        assert_eq!(global["skills"]["dirs"], serde_json::json!(dirs), "{updated}");
+        crate::set_global_packages_skills_dirs(&path, &dirs).expect("repeat update");
+        assert_eq!(fs::read_to_string(&path).expect("read config.yaml"), updated);
+    }
+}

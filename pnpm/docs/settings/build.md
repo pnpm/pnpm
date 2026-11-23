@@ -417,10 +417,10 @@ A build decision is written to `permissions` only when the file already has a `p
 
 Added in: v12.11.0
 
-* Default: **the agent skill directories that exist in the workspace root, plus the one of the agent running pnpm**
+* Default: **the agent skill directories detected under the workspace root for projects or the home directory for global packages, plus the directory of the agent running pnpm**
 * Type: **String[]**
 
-The directories that pnpm links approved [agent skills](../agent-skills.md) into. In a project, paths are relative to the workspace root. In `globalPackagesConfig` in the global `config.yaml`, paths are relative to the home directory and must stay inside it. When set, it replaces the detected directories, and pnpm creates the ones that are missing. The first time skills are approved, `pnpm approve` or `pnpm approve -g` lists the detected directories and asks which ones to link into, recording the answer here.
+The directories that pnpm links approved [agent skills](../agent-skills.md) into. In a project, paths are relative to the workspace root. In `globalPackagesConfig` in the global `config.yaml`, paths are relative to the home directory and must stay inside it. When set, it replaces the detected directories, and pnpm creates the ones that are missing. The first time skills are approved, `pnpm approve` or `pnpm approve -g` lists the detected directories and asks which ones to link into, recording the selected directories here. If you select no directories, pnpm keeps using the detected directories.
 
 ```yaml title="pnpm-workspace.yaml"
 skills:

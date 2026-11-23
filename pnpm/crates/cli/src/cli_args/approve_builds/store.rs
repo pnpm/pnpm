@@ -79,23 +79,21 @@ impl ApprovalStore<'_> {
         self,
         decisions: &BTreeMap<String, crate::cli_args::permissions::decisions::PackageDecisions>,
     ) -> miette::Result<()> {
+        let entries = decisions
+            .iter()
+            .flat_map(|(pkg, decided)| {
+                decided.build
+                    .map(|allowed| (pkg.as_str(), PermissionValue::Build(allowed)))
+                    .into_iter()
+                    .chain(
+                        decided.skills
+                            .clone()
+                            .map(|skills| (pkg.as_str(), PermissionValue::Skills(skills))),
+                    )
+            });
         match self {
-            Self::Workspace(dir) => {
-                let entries = decisions
-                    .iter()
-                    .flat_map(|(pkg, decided)| {
-                        decided.build
-                            .map(|allowed| (pkg.as_str(), PermissionValue::Build(allowed)))
-                            .into_iter()
-                            .chain(
-                                decided.skills
-                                    .clone()
-                                    .map(|skills| (pkg.as_str(), PermissionValue::Skills(skills))),
-                            )
-                    });
-                set_permissions(dir, entries).into_diagnostic()
-            }
-            Self::GlobalPackages(store) => store.write_permission_decisions(decisions),
+            Self::Workspace(dir) => set_permissions(dir, entries).into_diagnostic(),
+            Self::GlobalPackages(store) => store.write_permissions(entries),
         }
     }
 
@@ -151,19 +149,17 @@ impl GlobalPackagesStore<'_> {
         self,
         entries: impl IntoIterator<Item = (&'entry str, bool)>,
     ) -> miette::Result<()> {
-        let decisions = entries
-            .into_iter()
-            .map(|(pkg, allowed)| (pkg.to_string(), PermissionValue::Build(allowed)))
-            .collect::<BTreeMap<_, _>>();
-        self.write_permissions(decisions)
+        self.write_permissions(
+            entries
+                .into_iter()
+                .map(|(pkg, allowed)| (pkg, PermissionValue::Build(allowed))),
+        )
     }
 
-    /// Write capability decisions to `globalPackagesConfig.permissions`,
-    /// moving legacy build decisions from the global packages directory when
-    /// safe.
-    pub(crate) fn write_permissions(
+    /// Write capability decisions and migrate editable legacy global settings.
+    fn write_permissions<'entry>(
         self,
-        entries: BTreeMap<String, PermissionValue>,
+        entries: impl IntoIterator<Item = (&'entry str, PermissionValue)>,
     ) -> miette::Result<()> {
         let movable = self.movable_legacy_settings()?;
         let recorded = self.load_global_packages()?;
@@ -176,27 +172,6 @@ impl GlobalPackagesStore<'_> {
         )
         .into_diagnostic()?;
         remove_moved_legacy_settings(self.global_pkg_dir, movable.as_ref())
-    }
-
-    /// Write permission decisions from `pnpm approve`/`pnpm permissions approve`.
-    pub(crate) fn write_permission_decisions(
-        self,
-        decisions: &BTreeMap<String, crate::cli_args::permissions::decisions::PackageDecisions>,
-    ) -> miette::Result<()> {
-        let entries = decisions
-            .iter()
-            .flat_map(|(pkg, decided)| {
-                decided.build
-                    .map(|allowed| (pkg.clone(), PermissionValue::Build(allowed)))
-                    .into_iter()
-                    .chain(
-                        decided.skills
-                            .clone()
-                            .map(|skills| (pkg.clone(), PermissionValue::Skills(skills))),
-                    )
-            })
-            .collect::<BTreeMap<_, _>>();
-        self.write_permissions(entries)
     }
 
     /// Write `globalPackagesConfig.skills.dirs` to the global config.
@@ -264,17 +239,12 @@ fn legacy_permission_decisions(
         .map(BTreeMap::from_iter)
         .unwrap_or_default();
     for (pkg, allowed) in settings.decided_build_approvals().unwrap_or_default() {
-        decisions
-            .entry(pkg)
-            .or_default()
-            .build
-            .get_or_insert(pnpm_config::AllowBuild::Decided(allowed));
+        decisions.entry(pkg).or_default().build = Some(pnpm_config::AllowBuild::Decided(allowed));
     }
     decisions
 }
 
-/// Lay the decisions `globalPackagesConfig` already holds under the legacy
-/// ones: a recorded capability wins over the one it would replace.
+/// Overlay recorded decisions on the legacy policy.
 fn apply_recorded_permissions(
     decisions: &mut BTreeMap<String, pnpm_config::PackagePermissions>,
     recorded: Option<&WorkspaceSettings>,
@@ -284,22 +254,26 @@ fn apply_recorded_permissions(
     };
     for (pkg, recorded) in recorded {
         let entry = decisions.entry(pkg.clone()).or_default();
-        if entry.build.is_none() {
+        if recorded.build
+            .as_ref()
+            .and_then(pnpm_config::AllowBuild::decided)
+            .is_some()
+        {
             entry.build.clone_from(&recorded.build);
         }
-        if entry.skills.is_none() {
+        if recorded.skills.is_some() {
             entry.skills.clone_from(&recorded.skills);
         }
     }
 }
 
 /// Overlay the decisions being written on `decisions`.
-fn apply_permission_entries(
+fn apply_permission_entries<'entry>(
     decisions: &mut BTreeMap<String, pnpm_config::PackagePermissions>,
-    entries: BTreeMap<String, PermissionValue>,
+    entries: impl IntoIterator<Item = (&'entry str, PermissionValue)>,
 ) {
     for (pkg, value) in entries {
-        let entry = decisions.entry(pkg).or_default();
+        let entry = decisions.entry(pkg.to_owned()).or_default();
         match value {
             PermissionValue::Build(allowed) => {
                 entry.build = Some(pnpm_config::AllowBuild::Decided(allowed));

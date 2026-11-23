@@ -4,7 +4,6 @@ use super::{
     IgnoredBuildsScan,
     PermissionCapability,
     disambiguated_labels,
-    emit_global_warning,
     partition_params,
 };
 use crate::cli_args::approve_builds::ApproveBuildsError;
@@ -24,7 +23,10 @@ use pnpm_package_name::{
     is_git_repo_dep_path,
     parse_dep_path_name_version,
 };
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{
+    Reporter,
+    emit_global_warning,
+};
 use pnpm_workspace_manifest_writer::{
     PermissionValue,
     set_permissions,

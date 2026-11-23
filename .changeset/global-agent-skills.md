@@ -1,5 +1,5 @@
 ---
-"pacquet": patch
+"pnpm": patch
 ---
 
-Global installs can now link approved agent skills into agent skill directories under the home directory. `pnpm approve -g` and `pnpm permissions approve -g` review pending global skill and build approvals, and global skill decisions are stored in `globalPackagesConfig.permissions` in the global `config.yaml` [pnpm/tasks#117](https://github.com/pnpm/tasks/issues/117).
+Global installs can now link approved agent skills into skill directories under your home directory. Use `pnpm approve -g` to review skills and build scripts for globally installed packages [pnpm/tasks#117](https://github.com/pnpm/tasks/issues/117).

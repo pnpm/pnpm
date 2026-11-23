@@ -14,9 +14,11 @@ pub use installed::{
     ResyncAgentSkillsError,
     SkillApprovalError,
     SkillApprovalOptions,
+    resync_global_agent_skills,
     resync_installed_agent_skills,
     skill_approval_options,
 };
+pub use links::prune_agent_skill_links;
 pub use targets::{
     agent_skills_dir_from_env,
     detected_agent_dirs,
@@ -75,10 +77,9 @@ use discovery::{
 };
 use gitignore::update_gitignores;
 use links::{
-    ensure_unoccupied,
     is_occupied,
-    materialize,
     prune,
+    reconcile_links,
 };
 use miette::Diagnostic;
 use pnpm_config::{
@@ -227,11 +228,19 @@ pub enum AgentSkillsError {
 pub fn sync_agent_skills(
     input: &SyncAgentSkills<'_>,
 ) -> Result<AgentSkillsState, AgentSkillsError> {
+    sync_with_other_links(input, &BTreeSet::new())
+}
+
+/// Reconcile one group while protecting links still used by other groups.
+fn sync_with_other_links(
+    input: &SyncAgentSkills<'_>,
+    other_links: &BTreeSet<String>,
+) -> Result<AgentSkillsState, AgentSkillsError> {
     if input.config.agent_skills_disabled
         || input.config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
     {
-        prune(input.target_root, input.linked, &BTreeSet::new())?;
-        update_gitignores(input.target_root, &[], input.linked, &BTreeMap::new())?;
+        prune(input.target_root, input.linked, other_links)?;
+        update_gitignores(input.target_root, input.linked, other_links)?;
         return Ok(AgentSkillsState::default());
     }
     let sources = discover_skill_sources(input);
@@ -245,13 +254,13 @@ pub fn sync_agent_skills(
         targets::target_dirs(input.config, target_root, input.agent_dir)
             .map_err(|(path, source)| AgentSkillsError::Io { path, source })?
     };
-    let entries =
-        if dirs.is_empty() { BTreeMap::new() } else { link_entries(input, &dirs, &approved)? };
-    let desired = desired_entries(target_root, &dirs, &entries);
-    ensure_unoccupied(target_root, input.linked, &desired, input.config.virtual_store_dir())?;
-    prune(target_root, input.linked, &desired.keys().cloned().collect())?;
-    materialize(target_root, &desired)?;
-    update_gitignores(target_root, &dirs, input.linked, &desired)?;
+    let entries = if dirs.is_empty() {
+        BTreeMap::new()
+    } else {
+        link_entries(input, &dirs, &approved, other_links)?
+    };
+    let desired = desired_entries(input, &dirs, &entries);
+    reconcile_links(input, &desired, other_links)?;
     let mut pending: Vec<String> = pending_sources
         .into_iter()
         .map(|source| source.dep_path)
@@ -302,11 +311,12 @@ fn link_entries(
     input: &SyncAgentSkills<'_>,
     dirs: &[PathBuf],
     approved: &[SkillSource],
+    other_links: &BTreeSet<String>,
 ) -> Result<BTreeMap<String, PathBuf>, AgentSkillsError> {
     let by_name = skills_by_name(approved);
     let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
     for providers in by_name.values() {
-        insert_skill_entries(input, dirs, providers, &mut entries)?;
+        insert_skill_entries(input, dirs, providers, &mut entries, other_links)?;
     }
     Ok(entries
         .into_iter()
@@ -334,6 +344,7 @@ fn insert_skill_entries<'a>(
     dirs: &[PathBuf],
     providers: &[(&'a SkillSource, &'a Skill)],
     entries: &mut BTreeMap<String, (PathBuf, &'a str)>,
+    other_links: &BTreeSet<String>,
 ) -> Result<(), AgentSkillsError> {
     if providers.len() > 1 {
         for &(source, skill) in providers {
@@ -343,7 +354,7 @@ fn insert_skill_entries<'a>(
     }
     let (source, skill) = providers[0];
     let target = target_of(source, skill);
-    let name = if bare_name_free(input, dirs, &skill.name, &target) {
+    let name = if bare_name_free(input, dirs, &skill.name, &target, other_links) {
         skill.name.clone()
     } else {
         prefixed_name(source, skill)
@@ -394,13 +405,20 @@ fn bare_name_free(
     dirs: &[PathBuf],
     name: &str,
     target: &Path,
+    other_links: &BTreeSet<String>,
 ) -> bool {
     !dirs
         .iter()
         .any(|dir| {
             let path = dir.join(name);
-            let recorded = recorded_path(input.target_root, &path)
-                .is_some_and(|entry| input.linked.contains(&entry));
+            let entry = skill_entry_path(input, &path);
+            if entry
+                .as_ref()
+                .is_some_and(|entry| other_links.contains(entry))
+            {
+                return !links::links_to(&path, target);
+            }
+            let recorded = entry.is_some_and(|entry| input.linked.contains(&entry));
             is_occupied(&path, target, recorded, input.config.virtual_store_dir())
         })
 }
@@ -428,7 +446,7 @@ fn insert_entry<'a>(
 
 /// Every entry to link, keyed by the form recorded in `.modules.yaml`.
 fn desired_entries(
-    target_root: &Path,
+    input: &SyncAgentSkills<'_>,
     dirs: &[PathBuf],
     entries: &BTreeMap<String, PathBuf>,
 ) -> BTreeMap<String, PathBuf> {
@@ -437,10 +455,18 @@ fn desired_entries(
             entries
                 .iter()
                 .filter_map(move |(name, target)| {
-                    Some((recorded_path(target_root, &dir.join(name))?, target.clone()))
+                    Some((skill_entry_path(input, &dir.join(name))?, target.clone()))
                 })
         })
         .collect()
+}
+
+fn skill_entry_path(input: &SyncAgentSkills<'_>, path: &Path) -> Option<String> {
+    let entry = recorded_path(input.target_root, path)?;
+    if input.config.agent_skills_target_root.is_some() {
+        return links::canonical_recorded_entry(input.target_root, &entry);
+    }
+    Some(entry)
 }
 
 pub(super) fn recorded_path(root: &Path, path: &Path) -> Option<String> {

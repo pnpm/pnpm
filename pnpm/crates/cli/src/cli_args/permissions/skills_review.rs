@@ -15,7 +15,10 @@ use pnpm_config::{
     PermissionCapability,
     SkillsPermission,
 };
-use pnpm_package_manager::skill_approval_options;
+use pnpm_package_manager::{
+    SkillApprovalOptions,
+    skill_approval_options,
+};
 use std::{
     collections::{
         BTreeMap,
@@ -37,40 +40,16 @@ pub(super) struct SkillsReview {
 }
 
 pub(super) fn review_skills(
-    config: &'static Config,
+    config: &Config,
     manifest_dir: &Path,
     approved: &BTreeSet<String>,
     pending: &BTreeMap<String, Capabilities>,
 ) -> miette::Result<Option<SkillsReview>> {
-    let skills_pending: Vec<&String> = approved
-        .iter()
-        .filter(|pkg| {
-            pending
-                .get(*pkg)
-                .is_some_and(|capabilities| capabilities.contains(&PermissionCapability::Skills))
-        })
-        .collect();
-    if skills_pending.is_empty() {
-        return Ok(Some(SkillsReview::default()));
-    }
-
-    let options = skill_approval_options(config, manifest_dir)
-        .map_err(Report::new)
-        .wrap_err("find the skills of the packages awaiting approval")?;
-
-    let labels = disambiguated_labels(pending.keys().map(String::as_str));
-    let Some(skills_by_package) =
-        collect_package_skill_decisions(&skills_pending, &labels, &options.skills_by_key)?
-    else {
-        return Ok(None);
-    };
-
-    let Some(dirs) = resolve_skills_dirs(config, &skills_by_package, &options.detected_dirs)?
-    else {
-        return Ok(None);
-    };
-
-    Ok(Some(SkillsReview { skills_by_package, dirs }))
+    review_skills_with_options(config, approved, pending, || {
+        skill_approval_options(config, manifest_dir)
+            .map_err(Report::new)
+            .wrap_err("find the skills of the packages awaiting approval")
+    })
 }
 
 fn collect_package_skill_decisions(
@@ -155,10 +134,10 @@ fn prompt_for_skills_dirs(detected_dirs: &[String]) -> miette::Result<Option<Vec
 }
 
 pub(super) fn review_skills_with_options(
-    config: &'static Config,
+    config: &Config,
     approved: &BTreeSet<String>,
     pending: &BTreeMap<String, Capabilities>,
-    options: &pnpm_package_manager::SkillApprovalOptions,
+    load_options: impl FnOnce() -> miette::Result<SkillApprovalOptions>,
 ) -> miette::Result<Option<SkillsReview>> {
     let skills_pending: Vec<&String> = approved
         .iter()
@@ -171,6 +150,7 @@ pub(super) fn review_skills_with_options(
     if skills_pending.is_empty() {
         return Ok(Some(SkillsReview::default()));
     }
+    let options = load_options()?;
     let labels = disambiguated_labels(pending.keys().map(String::as_str));
     let Some(skills_by_package) =
         collect_package_skill_decisions(&skills_pending, &labels, &options.skills_by_key)?

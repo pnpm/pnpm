@@ -24,34 +24,28 @@ const LEGACY_GITIGNORE_RULE: &str = "pnpm-*";
 /// The name of the `.gitignore` block that lists pnpm's entries.
 const GITIGNORE_SECTION: &str = "pnpm";
 
-/// Keep pnpm's entries out of commits, because they point into
-/// `node_modules` and would dangle in a fresh clone. The `.gitignore` of
-/// each directory in `dirs`, or that `linked` or `desired` has entries in,
-/// gets a `# pnpm` block listing exactly the entries `desired` has there.
-pub(super) fn update_gitignores(
+/// List the surviving links in pnpm's ignore block for each affected directory.
+pub(super) fn update_gitignores<'entry>(
     target_root: &Path,
-    dirs: &[PathBuf],
-    linked: &[String],
-    desired: &BTreeMap<String, PathBuf>,
+    affected: impl IntoIterator<Item = &'entry String>,
+    desired: &BTreeSet<String>,
 ) -> Result<(), AgentSkillsError> {
-    let mut by_dir: BTreeMap<PathBuf, BTreeSet<String>> = dirs
-        .iter()
-        .map(|dir| (dir.clone(), BTreeSet::new()))
-        .collect();
-    for entry in linked.iter().filter(|entry| recorded_parent_is_within_root(target_root, entry)) {
+    let mut by_dir: BTreeMap<PathBuf, BTreeSet<String>> = BTreeMap::new();
+    for entry in
+        affected.into_iter().filter(|entry| recorded_parent_is_within_root(target_root, entry))
+    {
         if let Some(dir) = Path::new(entry).parent() {
             by_dir
                 .entry(target_root.join(dir))
                 .or_default();
         }
     }
-    for entry in desired.keys() {
+    for entry in desired.iter().filter(|entry| recorded_parent_is_within_root(target_root, entry)) {
         let path = Path::new(entry);
         let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else { continue };
-        by_dir
-            .entry(target_root.join(dir))
-            .or_default()
-            .insert(gitignore_rule(&name.to_string_lossy()));
+        if let Some(rules) = by_dir.get_mut(&target_root.join(dir)) {
+            rules.insert(gitignore_rule(&name.to_string_lossy()));
+        }
     }
     for (dir, rules) in by_dir {
         update_gitignore(&dir.join(".gitignore"), &rules)?;

@@ -129,6 +129,15 @@ fn global_install_links_approved_agent_skill_into_home() {
         "global install should not pollute project state",
     );
 
+    let gitignore = link.with_file_name(".gitignore");
+    assert!(fs::read_to_string(&gitignore).expect("read skill ignore").contains("/guide"));
+    global_command(&workspace, &pnpm_home)
+        .with_args(["remove", "-g", "@pnpm.e2e/with-agent-skills"])
+        .assert()
+        .success();
+    assert!(link.symlink_metadata().is_err(), "remove should unlink the global skill");
+    assert!(!gitignore.exists(), "remove should clear the managed ignore rule");
+
     drop(npmrc_info);
     drop(root);
 }
@@ -154,6 +163,23 @@ fn global_permissions_approve_records_and_links_skill() {
             .join("skills")
             .join("guide")
             .exists(),
+    );
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "permissions:\n  '@pnpm.e2e/with-agent-skills': {skills: true}\n",
+    )
+    .expect("write project approval");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["permissions", "approve", "-g", "unrelated-package"])
+        .assert()
+        .success();
+    assert!(
+        pnpm_home
+            .join(".claude/skills/guide")
+            .symlink_metadata()
+            .is_err(),
+        "project approval must never link a global skill",
     );
 
     global_command(&workspace, &pnpm_home)
@@ -223,6 +249,87 @@ fn global_approve_denies_and_prunes_skill() {
 
     drop(npmrc_info);
     drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn global_permissions_migrate_effective_policy_and_keep_both_capabilities() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let global_pkg_dir = pnpm_home.join("global").join("v11");
+    fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
+    fs::write(
+        global_pkg_dir.join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  undecided-build: false\npermissions:\n  undecided-build: {build: 'set this to true or false'}\n  denied: {build: true, skills: true}\n",
+    )
+    .expect("write legacy policy");
+    let config_path = global_config_yaml(&pnpm_home);
+    fs::create_dir_all(config_path.parent().expect("config parent")).expect("create config home");
+    fs::write(
+        &config_path,
+        "globalPackagesConfig:\n  permissions:\n    denied: {build: false, skills: false}\n",
+    )
+    .expect("write recorded policy");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["approve", "-g", "future-package"])
+        .assert()
+        .success();
+
+    let config = fs::read_to_string(config_path).expect("read global config");
+    let config: serde_json::Value = serde_saphyr::from_str(&config).expect("read global policy");
+    let permissions = &config["globalPackagesConfig"]["permissions"];
+    assert_eq!(permissions["denied"], serde_json::json!({"build": false, "skills": false}));
+    assert_eq!(permissions["undecided-build"]["build"], false);
+    assert_eq!(permissions["future-package"], serde_json::json!({"build": true, "skills": true}));
+}
+
+#[cfg(unix)]
+#[test]
+fn global_approve_all_retries_a_failed_rebuild() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let source = root.path().join("retry-build");
+    fs::create_dir_all(&source).expect("create package source");
+    fs::write(
+        source.join("package.json"),
+        r#"{"name":"retry-build","version":"1.0.0","scripts":{"install":"node build.cjs"}}"#,
+    )
+    .expect("write package manifest");
+    fs::write(
+        source.join("build.cjs"),
+        "if (process.env.PNPM_TEST_FAIL_BUILD) process.exit(1); require('node:fs').writeFileSync('built.txt', 'built')",
+    )
+    .expect("write fixture build script");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", &format!("file:{}", source.display())])
+        .assert()
+        .success();
+
+    let group = pnpm_global::find_global_package(&pnpm_home.join("global/v11"), "retry-build")
+        .expect("scan global packages")
+        .expect("find installed group");
+    let built = group.install_dir.join("node_modules/retry-build/built.txt");
+    global_command(&workspace, &pnpm_home)
+        .with_env("PNPM_TEST_FAIL_BUILD", "1")
+        .with_args(["approve", "-g", "--all"])
+        .assert()
+        .failure();
+    assert!(!built.exists(), "the failed build should not produce its output");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["approve", "-g", "--all"])
+        .assert()
+        .success();
+    assert!(built.exists(), "the next approval must retry the unfinished build");
 }
 
 #[cfg(unix)]
@@ -449,11 +556,20 @@ fn global_add_of_several_groups_summarizes_every_group() {
 
 #[cfg(unix)]
 #[test]
-fn global_add_prints_no_summary_when_a_group_fails_activation() {
+fn global_add_does_not_publish_skills_or_summary_for_failed_activation() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let pnpm_home = root.path().join("pnpm-home");
     prepare_global_home(&pnpm_home, &npmrc_info);
+    let config_path = global_config_yaml(&pnpm_home);
+    fs::create_dir_all(config_path.parent().expect("config parent")).expect("create config home");
+    fs::write(
+        config_path,
+        "globalPackagesConfig:\n  permissions:\n    alpha: {skills: true}\n    beta: {skills: true}\n",
+    )
+    .expect("approve both skills");
+    let skill_dir = pnpm_home.join(".claude/skills");
+    fs::create_dir_all(&skill_dir).expect("create agent directory");
     let selectors = ["alpha", "beta"].map(|name| {
         let dir = root.path().join(name);
         fs::create_dir_all(&dir).expect("create package dir");
@@ -464,6 +580,9 @@ fn global_add_prints_no_summary_when_a_group_fails_activation() {
         )
         .expect("write manifest");
         fs::write(dir.join("cli.js"), "#!/usr/bin/env node\n").expect("write bin");
+        let skill = dir.join("skills").join(name);
+        fs::create_dir_all(&skill).expect("create skill dir");
+        fs::write(skill.join("SKILL.md"), "# Fixture skill\n").expect("write skill");
         format!("file:{}", dir.display())
     });
 
@@ -480,6 +599,17 @@ fn global_add_prints_no_summary_when_a_group_fails_activation() {
     assert!(stderr.contains("ERR_PNPM_GLOBAL_BIN_CONFLICT"), "{stderr}");
     assert!(!stdout.contains("+ alpha"), "{stdout}");
     assert!(!stdout.contains("+ beta"), "{stdout}");
+
+    assert!(skill_dir.join("alpha/SKILL.md").is_file(), "activated group's skill should link");
+    assert!(
+        skill_dir
+            .join("beta")
+            .symlink_metadata()
+            .is_err(),
+        "rejected skill must stay unpublished"
+    );
+    let rules = fs::read_to_string(skill_dir.join(".gitignore")).expect("read skill ignore rules");
+    assert!(rules.contains("/alpha\n") && !rules.contains("/beta\n"), "{rules}");
 
     drop(npmrc_info);
     drop(root);
@@ -875,6 +1005,17 @@ fn approve_builds_global_approves_every_install_group() {
 #[cfg(unix)]
 #[test]
 fn approve_builds_global_all_keeps_a_legacy_denial() {
+    global_all_keeps_a_legacy_denial("approve-builds");
+}
+
+#[cfg(unix)]
+#[test]
+fn approve_global_all_keeps_a_legacy_denial() {
+    global_all_keeps_a_legacy_denial("approve");
+}
+
+#[cfg(unix)]
+fn global_all_keeps_a_legacy_denial(command: &str) {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -899,7 +1040,7 @@ fn approve_builds_global_all_keeps_a_legacy_denial() {
     .expect("write the legacy denial");
 
     global_command(&workspace, &pnpm_home)
-        .with_args(["approve-builds", "-g", "--all"])
+        .with_args([command, "-g", "--all"])
         .assert()
         .success();
 

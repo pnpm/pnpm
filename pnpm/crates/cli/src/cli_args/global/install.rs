@@ -307,13 +307,16 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
         global_approval_store(install.base_config, install.global_pkg_dir)?,
     )?;
 
-    let config: &'static Config = Config::leak(cfg);
+    let config: &'static Config = Config::leak(cfg.clone());
+    // The candidate may still fail global bin activation.
+    cfg.disable_agent_skills();
+    let candidate_config = Config::leak(cfg);
 
     let selectors = install.selectors
         .iter()
         .map(|selector| infer_local_package_alias(selector))
         .collect::<miette::Result<Vec<_>>>()?;
-    let state = State::init(install.install_dir.join("package.json"), config, false)
+    let state = State::init(install.install_dir.join("package.json"), candidate_config, false)
         .wrap_err("initialize the global install state")?;
     add_packages::<Reporter, _>(
         state,
@@ -328,7 +331,7 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
 
     if !install.lockfile_only {
         prompt_approve_install_builds::<Reporter>(
-            config,
+            candidate_config,
             install.install_dir,
             global_approval_store(install.base_config, install.global_pkg_dir)?,
         )

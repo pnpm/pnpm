@@ -601,3 +601,13 @@ fn a_denied_build_is_not_awaiting_approval_for_an_unnamed_run() {
 
     assert_eq!(pending.by_package, self::pending(&[("drizzle-kit", &[Skills])]));
 }
+#[test]
+fn the_confirmation_names_packages_without_their_dep_path() {
+    let pending =
+        pending(&[("@pnpm/marked-skills", &[Skills]), ("@pnpm/git-skills", &[Build, Skills])]);
+
+    assert_eq!(
+        confirmation(&pending.keys().cloned().collect(), &pending),
+        "Approve @pnpm/git-skills (build, skills), @pnpm/marked-skills (skills)?",
+    );
+}

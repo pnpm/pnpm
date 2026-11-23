@@ -4,8 +4,8 @@ pub(crate) mod render;
 pub(crate) use decisions::Approval;
 pub(crate) use render::render_permissions;
 
-mod repository_scope;
 mod global_approvals;
+mod repository_scope;
 mod skills_review;
 
 use crate::{
@@ -14,7 +14,6 @@ use crate::{
         approve_builds::{
             ApprovalStore,
             ApproveBuildsArgs,
-            confirm,
             disambiguated_labels,
             partition_params,
             prompt_for_choices,
@@ -155,7 +154,6 @@ use self::skills_review::review_skills;
 use decisions::{
     capability_list,
     clear_decided,
-    confirmation,
     decisions_by_approval,
     decisions_for_all,
     named_decisions,

@@ -47,6 +47,10 @@ use super::{
     restore_virtual_shims,
     run_group_install,
     should_replace_existing_package,
+    skills::{
+        links_of_other_groups,
+        prepare_skill_link_replacement,
+    },
     snapshot_global_package,
     warn_global,
 };
@@ -143,16 +147,19 @@ impl GlobalInstallTarget<'_> {
             .wrap_err("scan existing global installs"),
         )?;
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
-        self.activate_group::<Reporter>(&GroupActivation {
-            install_dir,
-            pkgs: &pkgs,
-            dependencies: &dependencies,
-            bins_to_skip: &bins_to_skip,
-            retained_bin_names: &retained_bin_names,
-            groups_to_replace: &existing.groups_to_replace,
-            protected_bins: &existing.protected_bins,
-            hash: &cache_hash,
-        })
+        self.activate_group::<Reporter>(
+            &GroupActivation {
+                install_dir,
+                pkgs: &pkgs,
+                dependencies: &dependencies,
+                bins_to_skip: &bins_to_skip,
+                retained_bin_names: &retained_bin_names,
+                groups_to_replace: &existing.groups_to_replace,
+                protected_bins: &existing.protected_bins,
+                hash: &cache_hash,
+            },
+            config,
+        )
     }
 
     /// Reinstall each of `groups` for `update -g`, skipping with a warning the
@@ -295,6 +302,17 @@ impl GlobalInstallTarget<'_> {
             global_approval_store(self.base_config, self.global_pkg_dir)?,
         )
         .await?;
+        let _lock = acquire_global_bin_lock(self.global_bin_dir)?;
+        let other_links = links_of_other_groups(
+            self.global_pkg_dir,
+            &std::collections::BTreeSet::from([pkg.install_dir.as_path()]),
+        )?;
+        pnpm_package_manager::resync_global_agent_skills(
+            active_config,
+            &pkg.install_dir,
+            &other_links,
+        )
+        .wrap_err("reconcile skills of the global install")?;
         Ok(true)
     }
 
@@ -307,7 +325,7 @@ impl GlobalInstallTarget<'_> {
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<()> {
         let filter = EventFilter::GlobalUpdateMaterialization.apply();
-        Box::pin(run_group_install::<Reporter>(GroupInstall {
+        let config = Box::pin(run_group_install::<Reporter>(GroupInstall {
             base_config: self.base_config,
             global_pkg_dir: self.global_pkg_dir,
             install_dir,
@@ -322,13 +340,14 @@ impl GlobalInstallTarget<'_> {
         .await?;
         drop(filter);
 
-        self.activate_updated_group::<Reporter>(install_dir, pkg)
+        self.activate_updated_group::<Reporter>(install_dir, pkg, config)
     }
 
     fn activate_updated_group<Reporter: self::Reporter>(
         &self,
         install_dir: &Path,
         pkg: &GlobalPackageInfo,
+        config: &Config,
     ) -> miette::Result<()> {
         let pkgs = read_installed_packages(install_dir);
         let dependencies = read_direct_dependencies(install_dir);
@@ -359,16 +378,19 @@ impl GlobalInstallTarget<'_> {
             })()
             .wrap_err("scan global package bin ownership"),
         )?;
-        self.activate_group::<Reporter>(&GroupActivation {
-            install_dir,
-            pkgs: &pkgs,
-            dependencies: &dependencies,
-            bins_to_skip: &bins_to_skip,
-            retained_bin_names: &retained_bin_names,
-            groups_to_replace: std::slice::from_ref(&group_to_replace),
-            protected_bins: &protected,
-            hash: &pkg.hash,
-        })
+        self.activate_group::<Reporter>(
+            &GroupActivation {
+                install_dir,
+                pkgs: &pkgs,
+                dependencies: &dependencies,
+                bins_to_skip: &bins_to_skip,
+                retained_bin_names: &retained_bin_names,
+                groups_to_replace: std::slice::from_ref(&group_to_replace),
+                protected_bins: &protected,
+                hash: &pkg.hash,
+            },
+            config,
+        )
     }
 
     fn check_activation_conflicts(
@@ -397,11 +419,47 @@ impl GlobalInstallTarget<'_> {
     fn activate_group<Reporter: self::Reporter>(
         &self,
         activation: &GroupActivation<'_>,
+        config: &Config,
     ) -> miette::Result<()> {
         let replacement_plan = self.replacement_plan(activation, activation.retained_bin_names)?;
+        let other_links = discard_install_dir_on_error(
+            activation.install_dir,
+            prepare_skill_link_replacement(
+                self.global_pkg_dir,
+                activation.install_dir,
+                activation.groups_to_replace,
+            ),
+        )?;
+        let activated = self.activate_bins(activation, &replacement_plan)?;
+        warn_on_leftover::<Reporter>(activated.leftover_backup.as_ref());
+        let skills = pnpm_package_manager::resync_global_agent_skills(
+            config,
+            activation.install_dir,
+            &other_links,
+        );
+        let leftover = cleanup_replaced_global_installs(
+            self.global_pkg_dir,
+            self.global_bin_dir,
+            activation.groups_to_replace,
+            activation.hash,
+            &activated.activated_bins,
+            activation.protected_bins,
+            &replacement_plan.restored_bin_names(),
+        )
+        .wrap_err("remove existing global installs")?;
+        warn_on_leftover::<Reporter>(leftover.as_ref());
+        skills.wrap_err("reconcile skills of the activated global install")?;
+        Ok(())
+    }
+
+    fn activate_bins(
+        &self,
+        activation: &GroupActivation<'_>,
+        replacement_plan: &ReplacedGlobalBinPlan,
+    ) -> miette::Result<super::activation::Activation> {
         let hash_link = get_hash_link(self.global_pkg_dir, activation.hash);
         let linked_pkgs = hash_linked_packages(activation.pkgs, activation.install_dir, &hash_link);
-        let activated = activate_global_install_with_extra_bin_names::<CmdShimHost>(
+        activate_global_install_with_extra_bin_names::<CmdShimHost>(
             activation.install_dir,
             &hash_link,
             self.global_bin_dir,
@@ -423,21 +481,9 @@ impl GlobalInstallTarget<'_> {
                 restore_virtual_shims(&replacement_plan.shims_to_restore, self.global_bin_dir)
             },
         )
-        .wrap_err("activate global install")?;
-        warn_on_leftover::<Reporter>(activated.leftover_backup.as_ref());
-        let leftover = cleanup_replaced_global_installs(
-            self.global_pkg_dir,
-            self.global_bin_dir,
-            activation.groups_to_replace,
-            activation.hash,
-            &activated.activated_bins,
-            activation.protected_bins,
-            &replacement_plan.restored_bin_names(),
-        )
-        .wrap_err("remove existing global installs")?;
-        warn_on_leftover::<Reporter>(leftover.as_ref());
-        Ok(())
+        .wrap_err("activate global install")
     }
+
     fn replacement_plan(
         &self,
         activation: &GroupActivation<'_>,

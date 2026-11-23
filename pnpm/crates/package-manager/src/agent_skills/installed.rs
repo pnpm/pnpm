@@ -6,7 +6,8 @@ use super::{
     detected_agent_dirs,
     discover_skill_sources,
     discovery::SkillSource,
-    sync_agent_skills,
+    links::canonical_recorded_entry,
+    sync_with_other_links,
 };
 use crate::{
     SkillsPolicy,
@@ -68,6 +69,15 @@ pub fn resync_installed_agent_skills(
     resync_agent_skills_at(config, &workspace_root, None).map(drop)
 }
 
+/// Reconcile an active global group while preserving other groups' links.
+pub fn resync_global_agent_skills(
+    config: &Config,
+    install_dir: &Path,
+    other_links: &BTreeSet<String>,
+) -> Result<(), ResyncAgentSkillsError> {
+    resync_agent_skills(config, install_dir, None, other_links).map(drop)
+}
+
 /// [`resync_installed_agent_skills`] for an install rooted at
 /// `workspace_root`, reusing `current_lockfile` when the caller has loaded
 /// it. Writes `.modules.yaml` only when the result differs from what it
@@ -95,6 +105,15 @@ pub(crate) fn resync_agent_skills_dep_paths_at(
     workspace_root: &Path,
     current_lockfile: Option<&Lockfile>,
 ) -> Result<Vec<String>, ResyncAgentSkillsError> {
+    resync_agent_skills(config, workspace_root, current_lockfile, &BTreeSet::new())
+}
+
+fn resync_agent_skills(
+    config: &Config,
+    workspace_root: &Path,
+    current_lockfile: Option<&Lockfile>,
+    other_links: &BTreeSet<String>,
+) -> Result<Vec<String>, ResyncAgentSkillsError> {
     let Some(mut modules) = pnpm_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir)
         .map_err(ResyncAgentSkillsError::ReadModules)?
     else {
@@ -110,16 +129,35 @@ pub(crate) fn resync_agent_skills_dep_paths_at(
         lockfile
     };
     let target_root = config.agent_skills_target_root.as_deref().unwrap_or(workspace_root);
-    let state = sync_agent_skills(&SyncAgentSkills {
-        config,
-        workspace_root,
-        lockfile,
-        included: modules.included,
-        linked: modules.linked_skills.as_deref().unwrap_or_default(),
-        agent_dir: agent_skills_dir_from_env(),
-        target_root,
-        hoisted_locations: modules.hoisted_locations.as_ref(),
-    })
+    let recorded = modules.linked_skills.as_deref().unwrap_or_default();
+    let canonical_links;
+    let canonical_other_links;
+    let (linked, other_links) = if config.agent_skills_target_root.is_some() {
+        canonical_links = recorded
+            .iter()
+            .filter_map(|entry| canonical_recorded_entry(target_root, entry))
+            .collect::<Vec<_>>();
+        canonical_other_links = other_links
+            .iter()
+            .filter_map(|entry| canonical_recorded_entry(target_root, entry))
+            .collect();
+        (canonical_links.as_slice(), &canonical_other_links)
+    } else {
+        (recorded, other_links)
+    };
+    let state = sync_with_other_links(
+        &SyncAgentSkills {
+            config,
+            workspace_root,
+            lockfile,
+            included: modules.included,
+            linked,
+            agent_dir: agent_skills_dir_from_env(),
+            target_root,
+            hoisted_locations: modules.hoisted_locations.as_ref(),
+        },
+        other_links,
+    )
     .map_err(ResyncAgentSkillsError::Sync)?;
     let pending_dep_paths = state.pending.clone();
     if state.update_modules(&mut modules) {

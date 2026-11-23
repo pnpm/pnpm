@@ -22,6 +22,7 @@ pub use remove::{
     handle_global_remove,
     remove_global_groups,
 };
+pub(crate) use skills::links_of_other_groups;
 
 pub use selectors::{
     has_pnpm_cli_dependency,
@@ -479,6 +480,8 @@ fn registries_with_default(config: &Config) -> Vec<(String, String)> {
 mod tests;
 
 mod install;
+
+mod skills;
 
 mod remove;
 

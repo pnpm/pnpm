@@ -3,7 +3,9 @@
 
 use super::{
     AgentSkillsError,
+    SyncAgentSkills,
     discovery::MAX_SKILL_DIR_DEPTH,
+    gitignore::update_gitignores,
     targets::STANDARD_AGENT_DIRS,
 };
 use std::{
@@ -19,6 +21,52 @@ use std::{
         PathBuf,
     },
 };
+
+pub(super) fn reconcile_links(
+    input: &SyncAgentSkills<'_>,
+    desired: &BTreeMap<String, PathBuf>,
+    other_links: &BTreeSet<String>,
+) -> Result<(), AgentSkillsError> {
+    let target_root = input.target_root;
+    let mut to_write = BTreeMap::new();
+    for (entry, target) in desired {
+        if other_links.contains(entry) {
+            let path = target_root.join(entry);
+            if !links_to(&path, target) {
+                return Err(AgentSkillsError::Occupied { path });
+            }
+        } else {
+            to_write.insert(entry.clone(), target.clone());
+        }
+    }
+    ensure_unoccupied(target_root, input.linked, &to_write, input.config.virtual_store_dir())?;
+    let keep = desired
+        .keys()
+        .chain(other_links)
+        .cloned()
+        .collect();
+    prune(target_root, input.linked, &keep)?;
+    materialize(target_root, &to_write)?;
+    update_gitignores(target_root, input.linked.iter().chain(desired.keys()), &keep)
+}
+
+/// Remove recorded links that no surviving group uses.
+pub fn prune_agent_skill_links(
+    target_root: &Path,
+    linked: &[String],
+    keep: &BTreeSet<String>,
+) -> Result<(), AgentSkillsError> {
+    let linked: Vec<_> = linked
+        .iter()
+        .filter_map(|entry| canonical_recorded_entry(target_root, entry))
+        .collect();
+    let keep = keep
+        .iter()
+        .filter_map(|entry| canonical_recorded_entry(target_root, entry))
+        .collect();
+    prune(target_root, &linked, &keep)?;
+    update_gitignores(target_root, &linked, &keep)
+}
 
 pub(super) fn prune(
     target_root: &Path,
@@ -46,6 +94,17 @@ pub(super) fn recorded_parent_is_within_root(target_root: &Path, entry: &str) ->
     let Ok(root) = dunce::canonicalize(target_root) else { return false };
     let Ok(parent) = dunce::canonicalize(target_root.join(parent)) else { return false };
     pnpm_fs::is_subdir(&root, &parent)
+}
+
+/// Identify a recorded slot by its directory, without following its link.
+pub(super) fn canonical_recorded_entry(root: &Path, entry: &str) -> Option<String> {
+    if !is_within_target_root(entry) {
+        return None;
+    }
+    let path = Path::new(entry);
+    let root = dunce::canonicalize(root).ok()?;
+    let parent = dunce::canonicalize(root.join(path.parent()?)).ok()?;
+    super::recorded_path(&root, &parent.join(path.file_name()?))
 }
 
 /// `.modules.yaml` is not trusted to name only pnpm's entries, so pnpm
@@ -246,7 +305,7 @@ fn skill_path_from_modules_dir(target: &Path) -> Option<&Path> {
         .ok()
 }
 
-fn links_to(path: &Path, target: &Path) -> bool {
+pub(super) fn links_to(path: &Path, target: &Path) -> bool {
     matches!(
         (fs::canonicalize(path), fs::canonicalize(target)),
         (Ok(resolved), Ok(target)) if resolved == target,

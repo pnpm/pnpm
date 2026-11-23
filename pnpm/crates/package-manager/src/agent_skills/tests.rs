@@ -14,6 +14,7 @@ use pretty_assertions::assert_eq;
 use std::{
     collections::{
         BTreeMap,
+        BTreeSet,
         HashMap,
     },
     fmt::Write as _,
@@ -1003,4 +1004,53 @@ fn entries_prune_and_relink_when_the_naming_changes() {
     assert_eq!(state.linked, [".claude/skills/guide"]);
     assert!(fs::symlink_metadata(skills.join("pnpm-foo-guide")).is_err());
     assert!(skills.join("guide/SKILL.md").is_file());
+}
+
+#[test]
+fn global_groups_keep_shared_links_and_each_others_ignore_rules() {
+    let (root, lockfile) =
+        workspace(&[("foo", "1.0.0", &["guide"]), ("bar", "1.0.0", &["reference"])]);
+    let home = tempfile::tempdir().expect("create home");
+    let dir = home.path().join(".claude/skills");
+    let first_config = config(&[("foo", true)], Some(&[".claude/skills"]));
+    let second_config = config(&[("foo", true), ("bar", true)], Some(&[".claude/skills"]));
+    let sync = |config, other_links: &_| {
+        super::sync_with_other_links(
+            &SyncAgentSkills {
+                config,
+                workspace_root: root.path(),
+                lockfile: &lockfile,
+                included: ALL_GROUPS,
+                linked: &[],
+                agent_dir: None,
+                target_root: home.path(),
+                hoisted_locations: None,
+            },
+            other_links,
+        )
+        .expect("sync global skills")
+    };
+    let first = sync(&first_config, &BTreeSet::new());
+    let second = sync(&second_config, &first.linked.iter().cloned().collect());
+    let guide = dir.join("guide");
+    let reference = dir.join("reference");
+    let gitignore = dir.join(".gitignore");
+    assert_eq!(second.linked, [".claude/skills/guide", ".claude/skills/reference"]);
+
+    super::prune_agent_skill_links(
+        home.path(),
+        &first.linked,
+        &second.linked.iter().cloned().collect(),
+    )
+    .expect("remove first group");
+    assert!(guide.exists());
+    assert!(reference.exists());
+    let rules = fs::read_to_string(&gitignore).expect("read ignore rules");
+    assert!(rules.contains("/guide\n") && rules.contains("/reference\n"), "{rules}");
+
+    super::prune_agent_skill_links(home.path(), &second.linked, &BTreeSet::new())
+        .expect("remove last group");
+    assert!(guide.symlink_metadata().is_err());
+    assert!(reference.symlink_metadata().is_err());
+    assert!(!gitignore.exists());
 }

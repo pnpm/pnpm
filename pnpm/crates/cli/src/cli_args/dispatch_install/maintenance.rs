@@ -287,6 +287,12 @@ pub(in super::super) fn approve<'a>(
     ctx: &RunCtx<'a>,
     args: ApproveArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    if args.global {
+        let config = (ctx.loaders.global_packages_config)()?;
+        let dir = ctx.locations.dir;
+        let manifest_path = ctx.locations.manifest_path;
+        return Ok(Box::pin(args.run::<CliReporter>(dir, config, manifest_path)));
+    }
     let config = ctx.prepared_config();
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
