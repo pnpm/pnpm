@@ -93,8 +93,10 @@ impl ReporterState {
     }
 
     fn checks_footer(&self, outcome: CommandOutcome) -> Option<String> {
-        let shows_info =
-            outcome == CommandOutcome::Succeeded && self.options.max_log_level >= MaxLogLevel::Info;
+        let shows_info = match outcome {
+            CommandOutcome::Succeeded => self.options.max_log_level >= MaxLogLevel::Info,
+            CommandOutcome::Failed => false,
+        };
         let lines: Vec<String> = [
             self.passed_line().filter(|_| shows_info),
             self.deprecated_line(),

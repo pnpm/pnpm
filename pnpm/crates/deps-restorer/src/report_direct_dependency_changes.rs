@@ -221,6 +221,7 @@ fn emit_removed<Reporter: self::Reporter>(
                 name: name.to_string(),
                 version: Some(resolved_version(name, spec, packages)),
                 dependency_type: Some(dependency_type),
+                real_name: spec.version.registry_package(name).map(ToString::to_string),
             },
         },
     }));

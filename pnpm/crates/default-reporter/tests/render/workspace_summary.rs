@@ -5,11 +5,10 @@ use super::{
     LogLevel,
     Output,
     ReporterOptions,
-    RootLog,
-    RootMessage,
     SummaryLog,
     added_root_at,
     added_root_with_latest_at,
+    aliased_root_at,
     deprecation,
     flush_checks,
     package_manifest_initial_at,
@@ -20,7 +19,6 @@ use super::{
     state_with_options,
     summary,
 };
-use pnpm_reporter::AddedRoot;
 use serde_json::json;
 
 /// A reporter for a command that edits manifests, such as `pnpm add`.
@@ -54,24 +52,6 @@ fn named_workspace_summary(new_projects: &[&str], project_names: &[(&str, &str)]
                 .map(|(prefix, name)| ((*prefix).to_string(), (*name).to_string()))
                 .collect(),
         ),
-    })
-}
-
-fn aliased_root_at(prefix: &str, alias: &str, real_name: &str, version: &str) -> LogEvent {
-    LogEvent::Root(RootLog {
-        level: LogLevel::Debug,
-        message: RootMessage::Added {
-            prefix: prefix.to_string(),
-            added: AddedRoot {
-                name: alias.to_string(),
-                real_name: real_name.to_string(),
-                version: Some(version.to_string()),
-                dependency_type: Some(DependencyType::Prod),
-                id: None,
-                latest: None,
-                linked_from: None,
-            },
-        },
     })
 }
 

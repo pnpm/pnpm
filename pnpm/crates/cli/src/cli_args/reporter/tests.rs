@@ -51,7 +51,12 @@ fn root() -> LogEvent {
         level: LogLevel::Debug,
         message: RootMessage::Removed {
             prefix: "/project".to_string(),
-            removed: RemovedRoot { name: "dep".to_string(), version: None, dependency_type: None },
+            removed: RemovedRoot {
+                name: "dep".to_string(),
+                version: None,
+                dependency_type: None,
+                real_name: None,
+            },
         },
     })
 }

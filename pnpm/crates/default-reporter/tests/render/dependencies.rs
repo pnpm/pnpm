@@ -242,3 +242,62 @@ fn update_colors_the_bumped_fields_of_the_new_version() {
         ),
     );
 }
+
+fn removed_root_with(name: &str, version: &str, real_name: Option<&str>) -> LogEvent {
+    LogEvent::Root(super::RootLog {
+        level: LogLevel::Debug,
+        message: super::RootMessage::Removed {
+            prefix: CWD.to_string(),
+            removed: super::RemovedRoot {
+                name: name.to_string(),
+                version: Some(version.to_string()),
+                dependency_type: Some(DependencyType::Prod),
+                real_name: real_name.map(ToString::to_string),
+            },
+        },
+    })
+}
+
+/// A removed link reports its package's manifest version but names no
+/// registry package, so a switch to the registry is not an update.
+#[test]
+fn replacing_a_link_with_a_registry_version_is_two_lines() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            removed_root_with("foo", "1.0.0", None),
+            added_root("foo", "1.0.1", DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n- foo 1.0.0\n+ foo 1.0.1\n");
+}
+
+#[test]
+fn alias_that_names_another_package_is_two_lines() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            removed_root_with("tool", "1.0.0", Some("alpha")),
+            super::aliased_root_at(CWD, "tool", "beta", "2.0.0"),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n- tool <- alpha 1.0.0\n+ tool <- beta 2.0.0\n");
+}
+
+#[test]
+fn update_of_an_alias_target_is_one_line() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            removed_root_with("tool", "1.0.0", Some("beta")),
+            super::aliased_root_at(CWD, "tool", "beta", "2.0.0"),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n↑ tool <- beta 1.0.0 → 2.0.0\n");
+}

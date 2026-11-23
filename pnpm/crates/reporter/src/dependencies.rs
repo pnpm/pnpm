@@ -78,6 +78,11 @@ pub struct RemovedRoot {
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dependency_type: Option<DependencyType>,
+    /// The registry package the removed dependency resolved to: an alias's
+    /// target, or the dependency itself. `None` for a `link:` or `file:`
+    /// dependency, and when the emitter does not know.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub real_name: Option<String>,
 }
 
 /// Direct-dependency category. Mirrors pnpm's three-value union;

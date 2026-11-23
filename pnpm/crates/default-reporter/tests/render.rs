@@ -293,6 +293,25 @@ fn removed_root_at(prefix: &str, name: &str, version: &str) -> LogEvent {
                 name: name.to_string(),
                 version: Some(version.to_string()),
                 dependency_type: Some(DependencyType::Prod),
+                real_name: Some(name.to_string()),
+            },
+        },
+    })
+}
+
+fn aliased_root_at(prefix: &str, alias: &str, real_name: &str, version: &str) -> LogEvent {
+    LogEvent::Root(RootLog {
+        level: LogLevel::Debug,
+        message: RootMessage::Added {
+            prefix: prefix.to_string(),
+            added: AddedRoot {
+                name: alias.to_string(),
+                real_name: real_name.to_string(),
+                version: Some(version.to_string()),
+                dependency_type: Some(DependencyType::Prod),
+                id: None,
+                latest: None,
+                linked_from: None,
             },
         },
     })

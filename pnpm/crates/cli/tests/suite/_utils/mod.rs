@@ -1312,7 +1312,6 @@ pub fn assert_shim_omits_path(shim: &str, path: &Path) {
     );
 }
 
-/// Whether `line` is one change of an install summary section.
 pub fn is_summary_change_line(line: &str) -> bool {
     ["+ ", "- ", "↑ ", "↓ ", "~ "]
         .iter()

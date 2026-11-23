@@ -56,10 +56,18 @@ impl WorkspaceSummary {
     }
 }
 
-/// One rendered line: changes equal in sign, name, package behind an
-/// alias, replaced version, version and link target are the same line.
-type ChangeKey<'a> =
-    (&'a str, bool, Option<&'a str>, Option<&'a str>, Option<&'a str>, Option<&'a str>);
+/// One rendered line: changes equal in every field are the same line. The
+/// field order is the order the lines sort in.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct ChangeKey<'a> {
+    name: &'a str,
+    added: bool,
+    /// The package behind an alias.
+    aliased: Option<&'a str>,
+    replaced_version: Option<&'a str>,
+    version: Option<&'a str>,
+    from: Option<&'a str>,
+}
 
 /// The dependencies each project with no previous install was asked for,
 /// keyed by normalized prefix.
@@ -253,7 +261,10 @@ impl ReporterState {
         {
             return name.clone();
         }
-        let root = workspace.map_or(current_project, |workspace| workspace.root.as_str());
+        let root = match workspace {
+            Some(workspace) => workspace.root.as_str(),
+            None => current_project,
+        };
         format_prefix_no_trim(root, project)
     }
 }
@@ -263,14 +274,14 @@ fn change_key<'a>(change: &Change<'a>) -> ChangeKey<'a> {
     let aliased = diff.real_name
         .as_deref()
         .filter(|real_name| *real_name != diff.name);
-    (
-        &diff.name,
-        diff.added,
+    ChangeKey {
+        name: &diff.name,
+        added: diff.added,
         aliased,
-        change.replaced_version(),
-        diff.version.as_deref(),
-        diff.from.as_deref(),
-    )
+        replaced_version: change.replaced_version(),
+        version: diff.version.as_deref(),
+        from: diff.from.as_deref(),
+    }
 }
 
 /// Whether `version` is outside the semver range `spec`. A specifier that

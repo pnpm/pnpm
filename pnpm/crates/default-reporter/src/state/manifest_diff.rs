@@ -38,7 +38,7 @@ pub(super) fn removed_diff(removed: &RemovedRoot) -> (DepKind, PackageDiff) {
             added: false,
             from: None,
             name: removed.name.clone(),
-            real_name: None,
+            real_name: removed.real_name.clone(),
             version: removed.version.clone(),
             latest: None,
         },

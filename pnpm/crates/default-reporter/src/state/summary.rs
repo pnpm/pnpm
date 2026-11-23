@@ -291,13 +291,18 @@ impl<'a> Change<'a> {
 }
 
 /// The changes of one bucket. A removal and an addition of the same
-/// dependency, both of a registry version, fold into one update.
+/// dependency fold into one update when both name the same registry
+/// package, so a switch to or from a link, or an alias that now names
+/// another package, stays two lines.
 pub(super) fn bucket_changes(bucket: &HashMap<String, PackageDiff>) -> Vec<Change<'_>> {
     let counterpart = |diff: &PackageDiff| {
         let sign = if diff.added { '-' } else { '+' };
         bucket
             .get(&format!("{sign}{}", diff.name))
-            .filter(|other| is_versioned_registry_dep(diff) && is_versioned_registry_dep(other))
+            .filter(|other| {
+                registry_package(diff).is_some()
+                    && registry_package(diff) == registry_package(other)
+            })
     };
     bucket
         .values()
@@ -309,8 +314,17 @@ pub(super) fn bucket_changes(bucket: &HashMap<String, PackageDiff>) -> Vec<Chang
         .collect()
 }
 
-fn is_versioned_registry_dep(diff: &PackageDiff) -> bool {
-    diff.version.is_some() && diff.from.is_none()
+/// The registry package behind a change with a version. A removal names
+/// it only when its emitter knew the dependency came from the registry.
+fn registry_package(diff: &PackageDiff) -> Option<&str> {
+    if diff.version.is_none() || diff.from.is_some() {
+        return None;
+    }
+    match &diff.real_name {
+        Some(real_name) => Some(real_name),
+        None if diff.added => Some(&diff.name),
+        None => None,
+    }
 }
 
 /// Record one `pnpm:root` change. A change that undoes an earlier one of
