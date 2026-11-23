@@ -9,8 +9,7 @@ use super::{
     InstallProgress,
     PackageImportMethod,
     ProgressMessage,
-    ProgressOptions,
-    RenderingContext,
+    ProgressStats,
     ReporterState,
     ScopeLog,
     Stage,
@@ -18,7 +17,6 @@ use super::{
     normalize,
     pretty_bytes,
     relative,
-    zoom_out,
 };
 
 use std::fmt::Write as _;
@@ -59,6 +57,8 @@ impl ReporterState {
 
     // --- progress ---------------------------------------------------------
 
+    /// Progress is one live `Packages:` line in the place the final stats
+    /// take: the projects that report progress are summed into it.
     pub(super) fn on_progress(&mut self, message: &ProgressMessage) {
         let requester = match message {
             ProgressMessage::Resolved { requester, .. }
@@ -66,7 +66,7 @@ impl ReporterState {
             | ProgressMessage::FoundInStore { requester, .. }
             | ProgressMessage::Imported { requester, .. } => requester.clone(),
         };
-        let entry = self.downloads.progress.entry(requester.clone()).or_default();
+        let entry = self.downloads.progress.entry(requester).or_default();
         if entry.done {
             return;
         }
@@ -76,50 +76,40 @@ impl ReporterState {
             ProgressMessage::FoundInStore { .. } => entry.stats.reused += 1,
             ProgressMessage::Imported { .. } => entry.stats.imported += 1,
         }
-        let msg = self.downloads.progress_message(
-            &self.rendering,
-            &self.options.progress,
-            &requester,
-            ProgressLine::Live,
-        );
-        let Some(entry) = self.downloads.progress.get_mut(&requester) else { return };
-        let mut slot = std::mem::take(&mut entry.slot);
+        let msg = self.live_packages_message();
+        let mut slot = std::mem::take(&mut self.install.stats_slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Pinned);
-        if let Some(entry) = self.downloads.progress.get_mut(&requester) {
-            entry.slot = slot;
+        self.install.stats_slot = slot;
+    }
+
+    /// The live `Packages:` line, such as `Packages: +12 of 58 resolved`,
+    /// with the bar of the packages added so far below it in a terminal.
+    fn live_packages_message(&self) -> String {
+        let totals = self.downloads.totals();
+        let resolved = self.rendering.colors.cyan_bright(&totals.resolved.to_string());
+        let shows_added = totals.imported > 0 && !self.options.progress.hide_added_pkgs;
+        if !shows_added {
+            return format!("Packages: {resolved} resolved");
         }
+        let added = self.rendering.colors.green(&format!("+{}", totals.imported));
+        let line = format!("Packages: {added} of {resolved} resolved");
+        // Append-only output prints each update as a new line, so a bar
+        // would repeat on every one.
+        if self.options.append_only {
+            return line;
+        }
+        format!("{line}\n{}", self.pluses_and_minuses(self.rendering.width, totals.imported, 0))
     }
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
         match stage {
             Stage::ResolutionDone => self.flush_unused_overrides(),
-            // In a terminal the live progress line gives way to the one
-            // line of stats. Append-only output throttles progress lines
-            // and cannot clear them, so it ends with the final counts.
             Stage::ImportingDone => {
-                if !self.downloads.progress.contains_key(prefix) {
-                    return;
-                }
-                let final_counts = self.options.append_only.then(|| {
-                    self.downloads.progress_message(
-                        &self.rendering,
-                        &self.options.progress,
-                        prefix,
-                        ProgressLine::Done,
-                    )
-                });
                 let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
-                match final_counts {
-                    Some(msg) => {
-                        self.display.frame.emit(&mut entry.slot, msg, BlockPlacement::Scrolling);
-                    }
-                    None => {
-                        self.display.frame.clear(&mut entry.slot);
-                    }
-                }
                 entry.done = true;
                 if self.install.stats_added.is_some()
                     && self.install.stats_removed.is_some()
+                    && self.downloads.importing_finished()
                 {
                     self.render_stats();
                 }
@@ -239,6 +229,7 @@ impl ReporterState {
         let added = self.install.stats_added.take().unwrap_or(0);
         let removed = self.install.stats_removed.take().unwrap_or(0);
         if added == 0 && removed == 0 {
+            self.display.frame.clear(&mut self.install.stats_slot);
             self.install.no_package_changed = true;
             return;
         }
@@ -297,13 +288,6 @@ impl ReporterState {
     }
 }
 
-/// Whether a progress line is still updating or reports the final counts.
-#[derive(Clone, Copy)]
-pub(super) enum ProgressLine {
-    Live,
-    Done,
-}
-
 impl DownloadState {
     /// Whether every live progress line has finished. True when there
     /// was none.
@@ -348,36 +332,16 @@ impl DownloadState {
         if downloaded > 0 { part.max(1).min(chars) } else { part }
     }
 
-    pub(super) fn progress_message(
-        &self,
-        rendering: &RenderingContext,
-        options: &ProgressOptions,
-        requester: &str,
-        line: ProgressLine,
-    ) -> String {
-        let stats = self.progress
-            .get(requester)
-            .map(|entry| entry.stats)
-            .unwrap_or_default();
-        let hl = |count: u64| rendering.colors.cyan_bright(&count.to_string());
-        let mut msg = format!(
-            "Progress: resolved {}, reused {}, downloaded {}",
-            hl(stats.resolved),
-            hl(stats.reused),
-            hl(stats.fetched),
-        );
-        if !options.hide_added_pkgs {
-            msg.push_str(", added ");
-            msg.push_str(&hl(stats.imported));
-        }
-        match line {
-            ProgressLine::Live => {}
-            ProgressLine::Done => msg.push_str(", done"),
-        }
-        if !options.hide_prefix && requester != rendering.cwd {
-            msg = zoom_out(&rendering.cwd, requester, &msg);
-        }
-        msg
+    /// The progress of every project, summed.
+    fn totals(&self) -> ProgressStats {
+        self.progress
+            .values()
+            .fold(ProgressStats::default(), |sum, entry| ProgressStats {
+                resolved: sum.resolved + entry.stats.resolved,
+                reused: sum.reused + entry.stats.reused,
+                fetched: sum.fetched + entry.stats.fetched,
+                imported: sum.imported + entry.stats.imported,
+            })
     }
 }
 

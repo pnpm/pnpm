@@ -173,12 +173,12 @@ fn installing_with_hoisted_node_linker() {
     drop((root, mock_instance));
 }
 
-/// The `added` counter on the progress line is fed by
+/// The count of added packages on the live `Packages:` line is fed by
 /// `pnpm:progress imported`, which under `nodeLinker: hoisted` only
 /// the hoisted linker emits, an install that materializes packages
-/// must move it off zero (pnpm/pnpm#14348).
+/// must emit one per package (pnpm/pnpm#14348).
 #[test]
-fn the_progress_line_counts_the_packages_the_hoisted_linker_added() {
+fn the_hoisted_linker_reports_each_package_it_added() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -187,15 +187,18 @@ fn the_progress_line_counts_the_packages_the_hoisted_linker_added() {
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
 
     let output = pacquet_at(&workspace)
-        .with_args(["install"])
+        .with_args(["install", "--reporter=ndjson"])
         .output()
         .expect("run pnpm install");
     assert!(output.status.success(), "install failed: {output:?}");
-    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(
-        stdout.contains("Progress: resolved 2, reused 0, downloaded 2, added 2, done"),
-        "stdout:\n{stdout}",
-    );
+    let ndjson = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    let imported = ndjson
+        .lines()
+        .filter(|line| {
+            line.contains(r#""name":"pnpm:progress""#) && line.contains(r#""status":"imported""#)
+        })
+        .count();
+    assert_eq!(imported, 2, "ndjson:\n{ndjson}");
 
     drop((root, mock_instance));
 }

@@ -71,7 +71,7 @@ fn append_only_writes_each_update_as_a_line() {
     renderer.handle(&progress());
 
     let output = written(&buffer);
-    assert!(output.contains("Progress: resolved 1"), "output: {output:?}");
+    assert!(output.contains("Packages: 1 resolved"), "output: {output:?}");
     assert!(output.ends_with('\n'), "output: {output:?}");
 }
 

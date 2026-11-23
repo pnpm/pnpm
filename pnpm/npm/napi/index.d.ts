@@ -327,9 +327,12 @@ export interface ReporterOptions {
    * append-only mode and 200 otherwise.
    */
   throttleProgress?: number
-  /** Leave the materialized-package count out of the progress line. */
+  /** Leave the count of added packages out of the live `Packages:` line. */
   hideAddedPkgsProgress?: boolean
-  /** Leave the workspace-project prefix out of progress lines. */
+  /**
+   * Has no effect: install progress is one `Packages:` line without a
+   * workspace-project prefix.
+   */
   hideProgressPrefix?: boolean
   /**
    * Keep dependency build-script output in its collapsed block instead of

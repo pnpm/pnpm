@@ -28,11 +28,11 @@ fn pretty_bytes_truncates_without_floating_point_drift() {
 }
 
 #[test]
-fn importing_done_clears_the_progress_line() {
+fn the_live_packages_line_waits_for_the_stats() {
     let mut reporter = state(false);
     let frame =
         render(&mut reporter, vec![progress("resolved"), progress("imported"), importing_done()]);
-    assert_eq!(frame, "");
+    assert_eq!(frame, "Packages: +1 of 1 resolved\n+");
 }
 
 #[test]

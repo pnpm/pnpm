@@ -31,7 +31,7 @@ fn prints_progress_on_first_download() {
         &mut reporter,
         vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved"), progress("fetched")],
     );
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 1, added 0");
+    assert_eq!(frame, "Packages: 1 resolved");
 }
 
 #[test]
@@ -65,39 +65,39 @@ fn prints_progress_of_big_files_download() {
     assert_eq!(
         frames,
         vec![
-            "Progress: resolved 1, reused 0, downloaded 0, added 0".to_string(),
+            "Packages: 1 resolved".to_string(),
             format!(
-                "Progress: resolved 1, reused 0, downloaded 0, added 0\n\
+                "Packages: 1 resolved\n\
                  Downloading {pkg_1}: 0.00 B/10.48 MB",
             ),
             format!(
-                "Progress: resolved 1, reused 0, downloaded 0, added 0\n\
+                "Packages: 1 resolved\n\
                  Downloading {pkg_1}: 5.76 MB/10.48 MB",
             ),
             format!(
-                "Progress: resolved 2, reused 0, downloaded 0, added 0\n\
+                "Packages: 2 resolved\n\
                  Downloading {pkg_1}: 5.76 MB/10.48 MB",
             ),
             format!(
-                "Progress: resolved 2, reused 0, downloaded 0, added 0\n\
+                "Packages: 2 resolved\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB",
             ),
             format!(
-                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
+                "Packages: 3 resolved\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB",
             ),
             format!(
-                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
+                "Packages: 3 resolved\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
                  Downloading {pkg_3}: 0.00 B/20.97 MB",
             ),
             format!(
-                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
+                "Packages: 3 resolved\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
                  Downloading {pkg_3}: 19.92 MB/20.97 MB",
             ),
             format!(
-                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
+                "Packages: 3 resolved\n\
                  Downloading {pkg_3}: 19.92 MB/20.97 MB",
             ),
         ],
