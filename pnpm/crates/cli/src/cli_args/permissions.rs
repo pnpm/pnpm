@@ -252,15 +252,14 @@ impl ApproveArgs {
         if !prompt.is_available() {
             return Err(ApproveNonInteractive.into());
         }
-        let Some(selected) = repository_scope::prompt_for_packages(pending)? else {
+        let Some(approved) = repository_scope::prompt_for_packages(pending)? else {
             return Ok(None);
         };
-        let approved = selected.keys().cloned().collect();
-        let Some(review) = review_skills(config, manifest_dir, &approved, pending)? else {
+        let pending = repository_scope::group_requests(pending.clone(), &approved);
+        let Some(review) = review_skills(config, manifest_dir, &approved, &pending)? else {
             return Ok(None);
         };
-        let decisions = decisions_by_approval(&approved, pending, &review.skills_by_package);
-        let decisions = repository_scope::apply_scope(decisions, &selected)?;
+        let decisions = decisions_by_approval(&approved, &pending, &review.skills_by_package);
         Ok(Some(Approval { decisions, skills_dirs: review.dirs }))
     }
 }
@@ -310,8 +309,9 @@ fn review_skills(
         .wrap_err("find the skills of the packages awaiting approval")?;
 
     let labels = disambiguated_labels(pending.keys().map(String::as_str));
+    let skills_by_key = repository_scope::group_requests(options.skills_by_key, approved);
     let Some(skills_by_package) =
-        collect_package_skill_decisions(&skills_pending, &labels, &options.skills_by_key)?
+        collect_package_skill_decisions(&skills_pending, &labels, &skills_by_key)?
     else {
         return Ok(None);
     };
@@ -327,14 +327,16 @@ fn review_skills(
 fn collect_package_skill_decisions(
     skills_pending: &[&String],
     labels: &BTreeMap<&str, String>,
-    skills_by_key: &BTreeMap<String, Vec<String>>,
+    skills_by_key: &BTreeMap<String, BTreeSet<String>>,
 ) -> miette::Result<Option<BTreeMap<String, SkillsPermission>>> {
     let mut skills_by_package = BTreeMap::new();
     for &pkg in skills_pending {
         let skills = skills_by_key
             .get(pkg.as_str())
+            .into_iter()
+            .flatten()
             .cloned()
-            .unwrap_or_default();
+            .collect::<Vec<_>>();
         match prompt_for_package_skills(&labels[pkg.as_str()], &skills)? {
             SkillPromptOutcome::Cancelled => return Ok(None),
             SkillPromptOutcome::Undiscovered => {}

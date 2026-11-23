@@ -1,4 +1,5 @@
 use super::{
+    CheckboxAlternative,
     CheckboxChoice,
     CheckboxItem,
     CheckboxPrompt,
@@ -57,18 +58,29 @@ fn selected(prompt: &CheckboxPrompt<&'static str>) -> Vec<&'static str> {
 }
 
 #[test]
-fn repository_shortcut_selects_only_the_highlighted_alternative() {
-    let alternate = CheckboxChoice {
+fn repository_shortcut_groups_matching_commits_and_restores_commit_scope() {
+    let alternate = || CheckboxChoice {
         value: "repo",
         name: "all commits".to_string(),
         short: "repo".to_string(),
         description: None,
     };
-    let mut prompt = grouped_prompt().with_alternatives([(2, alternate)].into());
+    let mut prompt = grouped_prompt()
+        .with_alternatives(
+            [
+                (2, CheckboxAlternative::new(2, alternate())),
+                (3, CheckboxAlternative::new(2, alternate())),
+            ]
+            .into(),
+        );
     press(&mut prompt, &[Key::Char('a')]);
     assert_eq!(selected(&prompt), vec!["foo", "bar", "baz"]);
     press(&mut prompt, &[Key::Char('a'), Key::Char('r')]);
-    assert_eq!(selected(&prompt), vec!["repo"]);
+    assert_eq!(selected(&prompt), vec!["repo", "repo"]);
+    press(&mut prompt, &[Key::Char(' ')]);
+    assert!(selected(&prompt).is_empty());
+    press(&mut prompt, &[Key::Char(' ')]);
+    assert_eq!(selected(&prompt), vec!["repo", "repo"]);
     press(&mut prompt, &[Key::Char('R'), Key::Enter]);
     assert_eq!(selected(&prompt), vec!["foo"]);
 }

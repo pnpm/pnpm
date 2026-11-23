@@ -5,6 +5,9 @@
 //! header) that are drawn but never selected: the cursor skips them and
 //! they take no part in the answer.
 
+pub(crate) use alternatives::CheckboxAlternative;
+
+mod alternatives;
 #[cfg(any(target_family = "wasm", test))]
 mod wasm;
 #[cfg(target_family = "wasm")]
@@ -22,7 +25,6 @@ use owo_colors::{
 use std::{
     collections::BTreeMap,
     io,
-    mem,
 };
 
 /// One line of a [`CheckboxPrompt`].
@@ -84,7 +86,7 @@ pub(crate) struct CheckboxPrompt<Value> {
 
 struct CheckboxSelection<Value> {
     checked: Vec<bool>,
-    alternatives: BTreeMap<usize, CheckboxChoice<Value>>,
+    alternatives: BTreeMap<usize, CheckboxAlternative<Value>>,
 }
 
 struct PromptViewport {
@@ -138,15 +140,6 @@ impl<Value> CheckboxPrompt<Value> {
             #[cfg(any(target_family = "wasm", test))]
             mode: wasm::Mode::Checkbox,
         }
-    }
-
-    /// Pressing `r` swaps the highlighted choice with its alternative and selects it.
-    pub(crate) fn with_alternatives(
-        mut self,
-        alternatives: BTreeMap<usize, CheckboxChoice<Value>>,
-    ) -> Self {
-        self.selection.alternatives = alternatives;
-        self
     }
 
     /// Refuse to confirm an empty selection.
@@ -241,10 +234,7 @@ impl<Value> CheckboxPrompt<Value> {
             Key::Char('r' | 'R') => self.toggle_alternative(),
             Key::ArrowUp | Key::Char('k') => self.move_active(-1),
             Key::ArrowDown | Key::Char('j') => self.move_active(1),
-            Key::Char(' ') => {
-                self.selection.checked[self.viewport.active] =
-                    !self.selection.checked[self.viewport.active];
-            }
+            Key::Char(' ') => self.toggle_checked(self.viewport.active),
             Key::Char('a') => {
                 let select_all = self.items
                     .iter()
@@ -262,16 +252,6 @@ impl<Value> CheckboxPrompt<Value> {
         KeyOutcome::Redraw
     }
 
-    fn toggle_alternative(&mut self) {
-        let active = self.viewport.active;
-        if let CheckboxItem::Choice(choice) = &mut self.items[active]
-            && let Some(alternative) = self.selection.alternatives.get_mut(&active)
-        {
-            mem::swap(choice, alternative);
-            self.selection.checked[active] = true;
-        }
-    }
-
     fn toggle_numbered_choice(&mut self, digit: char) {
         let nth = usize::from(digit as u8 - b'1');
         if let Some(index) = self.items
@@ -282,7 +262,7 @@ impl<Value> CheckboxPrompt<Value> {
             .map(|(index, _)| index)
         {
             self.viewport.active = index;
-            self.selection.checked[index] = !self.selection.checked[index];
+            self.toggle_checked(index);
         }
     }
 

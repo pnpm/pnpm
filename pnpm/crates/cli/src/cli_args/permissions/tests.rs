@@ -144,32 +144,20 @@ fn a_git_repository_decision_clears_only_its_pending_skills() {
 }
 
 #[test]
-fn repository_scope_preserves_each_selected_scope_and_the_chosen_skills() {
+fn repository_scope_combines_all_pending_commits_before_review() {
     let repo = "demo@git+https://example.org/demo.git";
     let first = format!("{repo}#abcdef1");
     let second = format!("{repo}#abcdef2");
-    let chosen = || decided(None, Some(SkillsPermission::Chosen(vec!["guide".to_string()])));
-    let decisions =
-        BTreeMap::from([(first.clone(), chosen()), (second.clone(), decided(Some(false), None))]);
-    let selected = BTreeMap::from([(first, repo.to_string())]);
-    let scoped = super::repository_scope::apply_scope(decisions, &selected).unwrap();
+    let other = "demo@git+https://example.org/other.git#abcdef1";
+    let requests = pending(&[(&first, &[Build]), (&second, &[Skills]), (other, &[Skills])]);
+    let selected = [repo.to_string()].into();
+    let grouped = super::repository_scope::group_requests(requests, &selected);
+    assert_eq!(grouped, pending(&[(repo, &[Build, Skills]), (other, &[Skills])]));
+    let skills = BTreeMap::from([(first, vec!["one"]), (second, vec!["two", "one"])]);
     assert_eq!(
-        scoped,
-        BTreeMap::from([(repo.to_string(), chosen()), (second, decided(Some(false), None))]),
+        super::repository_scope::group_requests(skills, &selected),
+        BTreeMap::from([(repo.to_string(), ["one", "two"].into())]),
     );
-}
-
-#[test]
-fn conflicting_skill_choices_cannot_be_saved_under_one_repository() {
-    let repo = "demo@git+https://example.org/demo.git";
-    let first = format!("{repo}#abcdef1");
-    let second = format!("{repo}#abcdef2");
-    let decisions = BTreeMap::from([
-        (first.clone(), decided(None, Some(SkillsPermission::Chosen(vec!["first".to_string()])))),
-        (second.clone(), decided(None, Some(SkillsPermission::Chosen(vec!["second".to_string()])))),
-    ]);
-    let selected = BTreeMap::from([(first, repo.to_string()), (second, repo.to_string())]);
-    assert!(super::repository_scope::apply_scope(decisions, &selected).is_err());
 }
 
 #[test]
