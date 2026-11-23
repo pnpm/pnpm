@@ -309,6 +309,10 @@ fn render_yaml_top_level_field_preserves_unicode_line_separators() {
             assert_eq!(parsed["sample"], value, "rendered YAML:\n{rendered}");
         }
     }
+    assert_eq!(
+        crate::render_yaml_top_level_field("sample", &json!({ "nested": "sha\u{2028}red" })),
+        "sample: {\"nested\":\"sha\\u2028red\"}\n",
+    );
 }
 
 #[test]

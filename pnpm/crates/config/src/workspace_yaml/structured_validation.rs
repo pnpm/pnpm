@@ -153,15 +153,14 @@ pub fn render_yaml_top_level_field(key: &str, value: &Value) -> String {
             let body =
                 yaml_serde::to_string(value).expect("serializing a JSON value to YAML never fails");
             // The YAML emitter treats these as line breaks and indents the
-            // text after them, which readers then keep as value content.
-            let body = if body.contains(['\u{2028}', '\u{2029}']) {
-                escape_yaml_line_separators(
-                    &serde_json::to_string(value)
-                        .expect("serializing a JSON value to JSON never fails"),
-                )
-            } else {
-                body
-            };
+            // text after them, which readers then keep as value content. The
+            // JSON flow collection stays on the key's line, the only flow
+            // shape the workspace manifest writer can edit later.
+            if body.contains(['\u{2028}', '\u{2029}']) {
+                let json = serde_json::to_string(value)
+                    .expect("serializing a JSON value to JSON never fails");
+                return format!("{key_text}: {}\n", escape_yaml_line_separators(&json));
+            }
             let mut out = format!("{key_text}:\n");
             for line in body.lines() {
                 if line.is_empty() {
