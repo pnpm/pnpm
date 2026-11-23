@@ -178,7 +178,7 @@ dashmap = { version = "7.0.0-rc2" }
 deno_task_shell = { version = "0.33.3" }
 derive_more = { version = "2.1.1", features = ["full"] }
 dialoguer = { version = "0.12.0", default-features = false }
-diffy = { version = "0.5.2" }
+diffy = { version = "0.5.2", features = ["binary"] }
 ed25519-dalek = { version = "2.2.0", default-features = false, features = ["std", "zeroize"] }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }

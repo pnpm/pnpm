@@ -15,11 +15,13 @@ use derive_more::{
 };
 use diffy::{
     Patch,
+    binary::BinaryPatch,
     patch_set::{
         FileMode,
         FileOperation,
         FilePatch,
         ParseOptions,
+        PatchKind,
         PatchSet,
     },
 };
@@ -196,35 +198,55 @@ fn apply_one_file(
     let operation = package_relative_operation(file_patch);
     let apply = FileApply { patched_dir, canonical_dir, patch_file_path };
 
-    let text_patch = || {
-        file_patch
-            .patch()
-            .as_text()
-            .ok_or_else(|| apply.failed("binary patch is not supported".to_string()))
-    };
-    match operation {
-        FileOperation::Modify { modified, .. } => apply.modify(
-            &apply.resolve_target(Path::new(modified.as_ref()))?,
-            text_patch()?,
-            file_patch.new_mode(),
-        ),
-        FileOperation::Create(path) => apply.create(
-            &apply.resolve_target(Path::new(path.as_ref()))?,
-            text_patch()?,
-            file_patch.new_mode(),
-        ),
-        FileOperation::Delete(path) => {
-            apply.delete(&apply.resolve_target(Path::new(path.as_ref()))?, text_patch()?)
-        }
-        FileOperation::Rename { from, to } => apply.rename(
-            &apply.resolve_target(Path::new(from.as_ref()))?,
-            &apply.resolve_target(Path::new(to.as_ref()))?,
-            text_patch()?,
-            file_patch.new_mode(),
-        ),
-        FileOperation::Copy { .. } => {
-            Err(apply.failed("copy operations in patches are not yet supported".to_string()))
-        }
+    match file_patch.patch() {
+        PatchKind::Binary(binary_patch) => match operation {
+            FileOperation::Modify { modified, .. } => apply.modify_binary(
+                &apply.resolve_target(Path::new(modified.as_ref()))?,
+                binary_patch,
+                file_patch.new_mode(),
+            ),
+            FileOperation::Create(path) => apply.create_binary(
+                &apply.resolve_target(Path::new(path.as_ref()))?,
+                binary_patch,
+                file_patch.new_mode(),
+            ),
+            FileOperation::Delete(path) => {
+                apply.delete_binary(&apply.resolve_target(Path::new(path.as_ref()))?, binary_patch)
+            }
+            FileOperation::Rename { from, to } => apply.rename_binary(
+                &apply.resolve_target(Path::new(from.as_ref()))?,
+                &apply.resolve_target(Path::new(to.as_ref()))?,
+                binary_patch,
+                file_patch.new_mode(),
+            ),
+            FileOperation::Copy { .. } => {
+                Err(apply.failed("copy operations in patches are not yet supported".to_string()))
+            }
+        },
+        PatchKind::Text(text_patch) => match operation {
+            FileOperation::Modify { modified, .. } => apply.modify(
+                &apply.resolve_target(Path::new(modified.as_ref()))?,
+                text_patch,
+                file_patch.new_mode(),
+            ),
+            FileOperation::Create(path) => apply.create(
+                &apply.resolve_target(Path::new(path.as_ref()))?,
+                text_patch,
+                file_patch.new_mode(),
+            ),
+            FileOperation::Delete(path) => {
+                apply.delete(&apply.resolve_target(Path::new(path.as_ref()))?, text_patch)
+            }
+            FileOperation::Rename { from, to } => apply.rename(
+                &apply.resolve_target(Path::new(from.as_ref()))?,
+                &apply.resolve_target(Path::new(to.as_ref()))?,
+                text_patch,
+                file_patch.new_mode(),
+            ),
+            FileOperation::Copy { .. } => {
+                Err(apply.failed("copy operations in patches are not yet supported".to_string()))
+            }
+        },
     }
 }
 
@@ -382,6 +404,18 @@ impl FileApply<'_> {
         text_patch: &Patch<'_, str>,
         new_mode: Option<&FileMode>,
     ) -> Result<(), PatchApplyError> {
+        self.move_entry(from, to)?;
+        if text_patch.hunks().is_empty() && !atomic_write::needs_mode_change(to, new_mode) {
+            return Ok(());
+        }
+        self.modify(to, text_patch, new_mode)
+    }
+
+    /// Move `from` to `to` for a rename record: refuse to overwrite an
+    /// existing `to` (see [`Self::create`]), tolerate a missing `from` when
+    /// an earlier apply of the same patch already moved it, and leave a
+    /// missing pair to the caller's error handling.
+    fn move_entry(&self, from: &Path, to: &Path) -> Result<(), PatchApplyError> {
         if from.symlink_metadata().is_ok() {
             if to.symlink_metadata().is_ok() {
                 let (from, to) = (from.display(), to.display());
@@ -398,10 +432,143 @@ impl FileApply<'_> {
             let (from, to) = (from.display(), to.display());
             return Err(self.failed(format!("cannot rename {from} to {to}: neither exists")));
         }
-        if text_patch.hunks().is_empty() && !atomic_write::needs_mode_change(to, new_mode) {
+        Ok(())
+    }
+
+    /// Modify a file with a `GIT binary patch` block (`git diff --binary`).
+    ///
+    /// The forward block (`literal` or `delta`) is decoded against the
+    /// target's current bytes. A reverse-only success means the file is
+    /// already in the post-patch state — same idempotency rule as the text
+    /// [`Self::modify`], including the atomic re-write when a mode change is
+    /// still pending or the target is a symlink.
+    fn modify_binary(
+        &self,
+        target: &Path,
+        binary_patch: &BinaryPatch<'_>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        let permissions = atomic_write::modify_permissions(target, new_mode)
+            .map_err(|source| self.failed(format!("stat {}: {source}", target.display())))?;
+        let bytes = fs::read(target)
+            .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
+        let updated = match binary_patch.apply(&bytes) {
+            Ok(updated) => updated,
+            Err(_) if binary_patch.apply_reverse(&bytes).is_ok() => {
+                if atomic_write::needs_mode_change(target, new_mode) || target.is_symlink() {
+                    bytes
+                } else {
+                    return Ok(());
+                }
+            }
+            Err(message) => {
+                return Err(self.failed(format!("apply to {}: {message}", target.display())));
+            }
+        };
+        // Atomic rename for the same store-hardlink reason as [`Self::modify`].
+        write_atomic_with_mode(target, &updated, Some(&permissions))
+            .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
+    }
+
+    /// Create a file from a `GIT binary patch` block: the forward block
+    /// decoded against an empty preimage. The no-overwrite rule and the
+    /// already-created idempotency exception mirror the text [`Self::create`].
+    fn create_binary(
+        &self,
+        target: &Path,
+        binary_patch: &BinaryPatch<'_>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        let created = binary_patch
+            .apply(&[])
+            .map_err(|message| self.failed(format!("create {}: {message}", target.display())))?;
+        let exists = target.symlink_metadata().is_ok();
+        if exists && self.existing_file_matches_bytes(target, &created, new_mode)? {
             return Ok(());
         }
-        self.modify(to, text_patch, new_mode)
+        self.create_parent_dir(target)?;
+        let permissions = atomic_write::create_permissions(new_mode);
+        write_atomic_with_mode(target, &created, permissions.as_ref())
+            .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
+    }
+
+    /// Delete a file recorded with binary content. A patch that carries the
+    /// preimage is validated against the file on disk before unlinking, the
+    /// same way the text [`Self::delete`] does; a marker-only record — what
+    /// `git diff --irreversible-delete` leaves when it strips a deleted
+    /// binary file's data — is unlinked on the header alone.
+    fn delete_binary(
+        &self,
+        target: &Path,
+        binary_patch: &BinaryPatch<'_>,
+    ) -> Result<(), PatchApplyError> {
+        if let BinaryPatch::Full { .. } = binary_patch {
+            let bytes = match fs::read(target) {
+                Ok(bytes) => bytes,
+                // Already removed by an earlier apply of the same patch.
+                Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+                Err(source) => {
+                    return Err(self.failed(format!("read {}: {source}", target.display())));
+                }
+            };
+            let after = binary_patch
+                .apply(&bytes)
+                .map_err(|message| {
+                    self.failed(format!("apply to {}: {message}", target.display()))
+                })?;
+            if !after.is_empty() {
+                return Err(self.failed(format!(
+                    "delete patch left {} non-empty after apply ({} bytes remain)",
+                    target.display(),
+                    after.len(),
+                )));
+            }
+        }
+        match fs::remove_file(target) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(source) => Err(self.failed(format!("delete {}: {source}", target.display()))),
+        }
+    }
+
+    /// Rename a file whose content change is a `GIT binary patch` block. The
+    /// entry is moved first, then the binary content is applied to `to`; a
+    /// marker-only record moves the entry without touching its bytes.
+    fn rename_binary(
+        &self,
+        from: &Path,
+        to: &Path,
+        binary_patch: &BinaryPatch<'_>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        self.move_entry(from, to)?;
+        if matches!(binary_patch, BinaryPatch::Marker)
+            && !atomic_write::needs_mode_change(to, new_mode)
+        {
+            return Ok(());
+        }
+        self.modify_binary(to, binary_patch, new_mode)
+    }
+
+    /// The [`Self::existing_file_matches`] check over raw bytes, for records
+    /// whose content was decoded from binary patch data.
+    fn existing_file_matches_bytes(
+        &self,
+        target: &Path,
+        created: &[u8],
+        new_mode: Option<&FileMode>,
+    ) -> Result<bool, PatchApplyError> {
+        if target.is_symlink() {
+            let target = target.display();
+            return Err(self.failed(format!("cannot create {target}: target already exists")));
+        }
+        let existing = fs::read(target)
+            .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
+        if existing != created {
+            let target = target.display();
+            return Err(self.failed(format!("cannot create {target}: target already exists")));
+        }
+        Ok(!atomic_write::needs_mode_change(target, new_mode))
     }
 
     /// A "new file" patch (`--- /dev/null`) means the target is expected NOT

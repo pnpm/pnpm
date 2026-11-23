@@ -680,3 +680,63 @@ impl PatchCommitFs for RemoveDirErrorFs {
         Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked remove_dir_all"))
     }
 }
+
+#[test]
+fn patch_commit_diff_dirs_emits_binary_patch_that_round_trips() {
+    use crate::apply_patch_to_dir;
+
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    let original: Vec<u8> = (0..768u32).map(|i| (i % 256) as u8).collect();
+    let mut patched = Vec::with_capacity(original.len() + 2);
+    patched.extend_from_slice(&original[..400]);
+    patched.extend_from_slice(b"\xde\xad\xbe\xefPATCHED");
+    patched.extend_from_slice(&original[400..]);
+    fs::write(before.path().join("asset.bin"), &original).expect("write original");
+    fs::write(after.path().join("asset.bin"), &patched).expect("write patched");
+    fs::write(before.path().join("index.js"), "module.exports = false\n").expect("write text");
+    fs::write(after.path().join("index.js"), "module.exports = true\n").expect("write text");
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+    assert!(diff.contains("GIT binary patch"), "diff: {diff}");
+
+    // The generated patch applies to a copy of the before tree and yields
+    // the after tree, byte for byte.
+    let target = tempdir().expect("target dir");
+    fs::write(target.path().join("asset.bin"), &original).expect("write target original");
+    fs::write(target.path().join("index.js"), "module.exports = false\n").expect("write target text");
+    let patch_file = target.path().join("patch.patch");
+    fs::write(&patch_file, &diff).expect("write patch file");
+    apply_patch_to_dir(target.path(), &patch_file).expect("apply generated patch");
+    assert_eq!(
+        fs::read(target.path().join("asset.bin")).expect("read patched asset"),
+        patched,
+    );
+    assert_eq!(
+        fs::read(target.path().join("index.js")).expect("read patched text"),
+        b"module.exports = true\n".as_slice(),
+    );
+}
+
+#[test]
+fn patch_commit_diff_dirs_binary_create_and_delete_round_trip() {
+    use crate::apply_patch_to_dir;
+
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::write(before.path().join("gone.bin"), b"\x00\x01deleted").expect("write deleted");
+    fs::write(after.path().join("fresh.bin"), b"created\x00data").expect("write created");
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    let target = tempdir().expect("target dir");
+    fs::write(target.path().join("gone.bin"), b"\x00\x01deleted").expect("write target deleted");
+    let patch_file = target.path().join("patch.patch");
+    fs::write(&patch_file, &diff).expect("write patch file");
+    apply_patch_to_dir(target.path(), &patch_file).expect("apply generated patch");
+    assert!(!target.path().join("gone.bin").exists(), "deleted file should be gone");
+    assert_eq!(
+        fs::read(target.path().join("fresh.bin")).expect("read created"),
+        b"created\x00data".as_slice(),
+    );
+}
