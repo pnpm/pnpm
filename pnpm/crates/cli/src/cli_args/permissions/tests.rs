@@ -2,10 +2,7 @@ use super::{
     ApproveArgs,
     Capabilities,
     PromptAvailability,
-    decisions::{
-        PackageDecisions,
-        confirmation,
-    },
+    decisions::PackageDecisions,
     render_permissions,
 };
 use pnpm_config::{
@@ -107,6 +104,80 @@ fn all_approves_every_pending_capability() {
 }
 
 #[test]
+fn an_explicit_git_repository_selector_decides_pending_commits() {
+    let repo = "example@git+https://example.org/project.git";
+    let first = format!("{repo}#1111111");
+    let second = format!("{repo}#2222222");
+    let other = "example@git+https://example.org/other.git#1111111";
+    let pending = pending(&[(&first, &[Build]), (&second, &[Build]), (other, &[Build, Skills])]);
+    let approval = args(&[repo], false)
+        .decide::<SilentReporter>(&pending, decide_config(), Path::new("/workspace"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(approval.decisions, BTreeMap::from([(repo.to_string(), decided(Some(true), None))]));
+    assert_eq!(
+        super::decisions::pending_builds_approved(&approval.decisions, &pending),
+        vec![first, second],
+    );
+}
+
+#[test]
+fn a_git_repository_decision_clears_only_its_pending_skills() {
+    let dir = tempfile::tempdir().unwrap();
+    let other = "example@git+https://example.org/other.git#1111111";
+    let repo = "example@git+https://example.org/project.git";
+    let config = config_awaiting(&dir, &[&format!("{repo}#1111111"), other]);
+    let pending = super::pending_permissions(&config).unwrap();
+    let approval = args(&[repo], false)
+        .decide::<SilentReporter>(&pending.by_package, decide_config(), dir.path())
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        approval.decisions,
+        BTreeMap::from([(repo.to_string(), decided(None, Some(SkillsPermission::All(true))))]),
+    );
+    super::decisions::clear_decided(pending.scan, &approval.decisions).unwrap();
+    assert_eq!(
+        super::pending_permissions(&config).unwrap().by_package,
+        self::pending(&[(other, &[Skills])]),
+    );
+}
+
+#[test]
+fn repository_scope_combines_all_pending_commits_before_review() {
+    let repo = "demo@git+https://example.org/demo.git";
+    let first = format!("{repo}#abcdef1");
+    let second = format!("{repo}#abcdef2");
+    let other = "demo@git+https://example.org/other.git#abcdef1";
+    let requests = pending(&[(&first, &[Build]), (&second, &[Skills]), (other, &[Skills])]);
+    let selected = [repo.to_string()].into();
+    let grouped = super::repository_scope::group_requests(requests, &selected);
+    assert_eq!(grouped, pending(&[(repo, &[Build, Skills]), (other, &[Skills])]));
+    let skills = BTreeMap::from([(first, vec!["one"]), (second, vec!["two", "one"])]);
+    assert_eq!(
+        super::repository_scope::group_requests(skills, &selected),
+        BTreeMap::from([(repo.to_string(), ["one", "two"].into())]),
+    );
+}
+
+#[test]
+fn approving_all_git_packages_keeps_the_resolved_commit() {
+    let commit = "example@git+https://example.org/project.git#1111111";
+    let approval = args(&[], true)
+        .decide::<SilentReporter>(
+            &pending(&[(commit, &[Skills])]),
+            decide_config(),
+            Path::new("/workspace"),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        approval.decisions,
+        BTreeMap::from([(commit.to_string(), decided(None, Some(SkillsPermission::All(true))))]),
+    );
+}
+
+#[test]
 fn rejects_contradictory_arguments() {
     let error = args(&["foo", "!foo"], false)
         .decide::<SilentReporter>(&BTreeMap::new(), decide_config(), Path::new("/workspace"))
@@ -183,17 +254,6 @@ fn lists_chosen_skills_next_to_the_package() {
     assert_eq!(
         render_permissions(&config).unwrap(),
         "Granted:\n  drizzle-kit  skills (guide)\n\nDenied:\n  esbuild  skills\n",
-    );
-}
-
-#[test]
-fn the_confirmation_names_packages_without_their_dep_path() {
-    let pending =
-        pending(&[("@pnpm/marked-skills", &[Skills]), ("@pnpm/git-skills", &[Build, Skills])]);
-
-    assert_eq!(
-        confirmation(&pending.keys().cloned().collect(), &pending),
-        "Approve @pnpm/git-skills (build, skills), @pnpm/marked-skills (skills)?",
     );
 }
 

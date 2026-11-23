@@ -4,13 +4,14 @@ pub(crate) mod render;
 pub(crate) use decisions::Approval;
 pub(crate) use render::render_permissions;
 
+mod repository_scope;
+
 use crate::{
     State,
     cli_args::{
         approve_builds::{
             ApprovalStore,
             ApproveBuildsArgs,
-            confirm,
             disambiguated_labels,
             partition_params,
             prompt_for_choices,
@@ -84,7 +85,9 @@ pub struct ApproveArgs {
     /// Packages to approve (`<pkg>`) or deny (`!<pkg>`). A package is
     /// approved or denied for everything it requests. With no packages, the
     /// packages awaiting approval are chosen interactively, and for a
-    /// package whose skills are approved, which of its skills.
+    /// package whose skills are approved, which of its skills. To approve
+    /// a Git package across updates, select its repository in the prompt or
+    /// pass `<name>@<git-url>` without a commit.
     pub packages: Vec<String>,
 
     /// Approve everything awaiting approval without interactive prompts.
@@ -150,7 +153,6 @@ pub(crate) fn pending_permissions(config: &Config) -> miette::Result<PendingPerm
 use decisions::{
     capability_list,
     clear_decided,
-    confirmation,
     decisions_by_approval,
     decisions_for_all,
     named_decisions,
@@ -250,24 +252,15 @@ impl ApproveArgs {
         if !prompt.is_available() {
             return Err(ApproveNonInteractive.into());
         }
-        let Some(selected) = prompt_for_packages(pending)? else {
+        let Some(approved) = repository_scope::prompt_for_packages(pending)? else {
             return Ok(None);
         };
-        let approved: BTreeSet<String> = pending
-            .keys()
-            .filter(|pkg| selected.contains(pkg))
-            .cloned()
-            .collect();
-        let Some(review) = review_skills(config, manifest_dir, &approved, pending)? else {
+        let pending = repository_scope::group_requests(pending.clone(), &approved);
+        let Some(review) = review_skills(config, manifest_dir, &approved, &pending)? else {
             return Ok(None);
         };
-        if !approved.is_empty() && !confirm(&confirmation(&approved, pending))? {
-            return Ok(None);
-        }
-        Ok(Some(Approval {
-            decisions: decisions_by_approval(&approved, pending, &review.skills_by_package),
-            skills_dirs: review.dirs,
-        }))
+        let decisions = decisions_by_approval(&approved, &pending, &review.skills_by_package);
+        Ok(Some(Approval { decisions, skills_dirs: review.dirs }))
     }
 }
 
@@ -279,12 +272,6 @@ pub(crate) fn package_choices(pending: &BTreeMap<String, Capabilities>) -> Vec<(
             (pkg.clone(), format!("{}  {}", labels[pkg.as_str()], capability_list(capabilities)))
         })
         .collect()
-}
-
-fn prompt_for_packages(
-    pending: &BTreeMap<String, Capabilities>,
-) -> miette::Result<Option<Vec<String>>> {
-    prompt_for_choices("Choose which packages to approve", &package_choices(pending))
 }
 
 /// The interactive skills review of an approval: the first-run
@@ -322,8 +309,9 @@ fn review_skills(
         .wrap_err("find the skills of the packages awaiting approval")?;
 
     let labels = disambiguated_labels(pending.keys().map(String::as_str));
+    let skills_by_key = repository_scope::group_requests(options.skills_by_key, approved);
     let Some(skills_by_package) =
-        collect_package_skill_decisions(&skills_pending, &labels, &options.skills_by_key)?
+        collect_package_skill_decisions(&skills_pending, &labels, &skills_by_key)?
     else {
         return Ok(None);
     };
@@ -339,14 +327,16 @@ fn review_skills(
 fn collect_package_skill_decisions(
     skills_pending: &[&String],
     labels: &BTreeMap<&str, String>,
-    skills_by_key: &BTreeMap<String, Vec<String>>,
+    skills_by_key: &BTreeMap<String, BTreeSet<String>>,
 ) -> miette::Result<Option<BTreeMap<String, SkillsPermission>>> {
     let mut skills_by_package = BTreeMap::new();
     for &pkg in skills_pending {
         let skills = skills_by_key
             .get(pkg.as_str())
+            .into_iter()
+            .flatten()
             .cloned()
-            .unwrap_or_default();
+            .collect::<Vec<_>>();
         match prompt_for_package_skills(&labels[pkg.as_str()], &skills)? {
             SkillPromptOutcome::Cancelled => return Ok(None),
             SkillPromptOutcome::Undiscovered => {}

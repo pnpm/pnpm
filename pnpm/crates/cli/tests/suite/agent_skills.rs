@@ -6,9 +6,12 @@ mod local_deps;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{
-    AddMockedRegistry,
-    CommandTempCwd,
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    git_repo::GitRepoFixture,
 };
 use std::{
     fs,
@@ -485,4 +488,48 @@ fn approve_builds_reports_skills_still_awaiting_approval_in_append_only_output()
     );
     assert_eq!(output.matches("Packages awaiting approval:").count(), 1, "{output}");
     drop(harness);
+}
+
+#[test]
+fn repository_approval_links_a_pending_git_skill_across_updates() {
+    let harness = CommandTempCwd::init();
+    let workspace = &harness.workspace;
+    let repo = GitRepoFixture::init(harness.root.path(), "sample");
+    repo.write_file("package.json", r#"{"name":"sample","version":"1.0.0"}"#);
+    let skill = "skills/sample-guide/SKILL.md";
+    repo.write_file(skill, "---\nname: sample-guide\n---\nFirst revision");
+    let _ = repo.commit("first revision");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "sample": repo.git_url_at("main") },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let settings = workspace.join("pnpm-workspace.yaml");
+    fs::write(&settings, "skills:\n  dirs:\n    - .agents/skills\n").unwrap();
+    pnpm(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(pending_skills(workspace).is_some());
+    let selector = format!("sample@git+{}", repo.file_url());
+    let output = output_of(pnpm(workspace).with_args(["approve", &selector]));
+    assert!(!output.contains("not awaiting approval"), "{output}");
+    let yaml: serde_json::Value =
+        serde_saphyr::from_str(&fs::read_to_string(settings).unwrap()).unwrap();
+    assert_eq!(yaml["permissions"][&selector]["skills"], true);
+    assert!(pending_skills(workspace).is_none());
+    let updated = "---\nname: sample-guide\n---\nUpdated revision";
+    repo.write_file(skill, updated);
+    let _ = repo.commit("update skill");
+    pnpm(workspace)
+        .with_args(["update", "sample"])
+        .assert()
+        .success();
+    assert!(pending_skills(workspace).is_none());
+    let linked =
+        fs::read_to_string(workspace.join(".agents/skills/sample-guide/SKILL.md")).unwrap();
+    assert!(linked.lines().eq(updated.lines()));
 }

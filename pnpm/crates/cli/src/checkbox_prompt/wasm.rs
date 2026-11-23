@@ -14,16 +14,16 @@ pub(super) enum Mode {
 
 impl<Value> CheckboxPrompt<Value> {
     pub(crate) fn dialoguer_defaults(mut self, defaults: Vec<bool>) -> Self {
-        assert_eq!(self.checked.len(), defaults.len());
-        self.checked = defaults;
+        assert_eq!(self.selection.checked.len(), defaults.len());
+        self.selection.checked = defaults;
         self.mode = Mode::MultiSelect;
         self
     }
 
     pub(crate) fn single_selection(mut self, active: usize) -> Self {
         self.viewport.active = active;
-        self.checked.fill(false);
-        self.checked[active] = true;
+        self.selection.checked.fill(false);
+        self.selection.checked[active] = true;
         self.mode = Mode::Select;
         self.theme = CheckboxTheme { checked: String::new(), unchecked: String::new() };
         self
@@ -49,8 +49,8 @@ impl<Value> CheckboxPrompt<Value> {
         }
         if self.move_for_dialoguer_key(key) {
             if self.mode == Mode::Select {
-                self.checked.fill(false);
-                self.checked[self.viewport.active] = true;
+                self.selection.checked.fill(false);
+                self.selection.checked[self.viewport.active] = true;
             }
             self.scroll_into_view();
             return Some(KeyOutcome::Redraw);

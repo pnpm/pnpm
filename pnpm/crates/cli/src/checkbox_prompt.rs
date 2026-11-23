@@ -19,7 +19,11 @@ use owo_colors::{
     OwoColorize,
     Stream,
 };
-use std::io;
+use std::{
+    collections::BTreeMap,
+    io,
+    mem,
+};
 
 /// One line of a [`CheckboxPrompt`].
 pub(crate) enum CheckboxItem<Value> {
@@ -69,13 +73,18 @@ pub(crate) enum CheckboxAnswer<Value> {
 pub(crate) struct CheckboxPrompt<Value> {
     message: String,
     items: Vec<CheckboxItem<Value>>,
-    checked: Vec<bool>,
+    selection: CheckboxSelection<Value>,
     required: bool,
     theme: CheckboxTheme,
     error: Option<&'static str>,
     viewport: PromptViewport,
     #[cfg(any(target_family = "wasm", test))]
     mode: wasm::Mode,
+}
+
+struct CheckboxSelection<Value> {
+    checked: Vec<bool>,
+    alternatives: BTreeMap<usize, CheckboxChoice<Value>>,
 }
 
 struct PromptViewport {
@@ -116,7 +125,7 @@ impl<Value> CheckboxPrompt<Value> {
         Self {
             message: message.into(),
             items,
-            checked,
+            selection: CheckboxSelection { checked, alternatives: BTreeMap::new() },
             required: false,
             theme: CheckboxTheme::default(),
             error: None,
@@ -129,6 +138,15 @@ impl<Value> CheckboxPrompt<Value> {
             #[cfg(any(target_family = "wasm", test))]
             mode: wasm::Mode::Checkbox,
         }
+    }
+
+    /// Pressing `r` swaps the highlighted choice with its alternative and selects it.
+    pub(crate) fn with_alternatives(
+        mut self,
+        alternatives: BTreeMap<usize, CheckboxChoice<Value>>,
+    ) -> Self {
+        self.selection.alternatives = alternatives;
+        self
     }
 
     /// Refuse to confirm an empty selection.
@@ -212,22 +230,25 @@ impl<Value> CheckboxPrompt<Value> {
         }
         match key {
             Key::Enter => {
-                if self.required && !self.checked.iter().any(|&checked| checked) {
+                if self.required && !self.selection.checked.iter().any(|&checked| checked) {
                     self.error = Some("At least one choice must be selected");
                     return KeyOutcome::Redraw;
                 }
                 return KeyOutcome::Submit;
             }
+            Key::Escape if !self.selection.alternatives.is_empty() => return KeyOutcome::Cancel,
             Key::CtrlC => return KeyOutcome::Cancel,
+            Key::Char('r' | 'R') => self.toggle_alternative(),
             Key::ArrowUp | Key::Char('k') => self.move_active(-1),
             Key::ArrowDown | Key::Char('j') => self.move_active(1),
             Key::Char(' ') => {
-                self.checked[self.viewport.active] = !self.checked[self.viewport.active];
+                self.selection.checked[self.viewport.active] =
+                    !self.selection.checked[self.viewport.active];
             }
             Key::Char('a') => {
                 let select_all = self.items
                     .iter()
-                    .zip(&self.checked)
+                    .zip(&self.selection.checked)
                     .any(|(item, &checked)| is_choice(item) && !checked);
                 self.check_every_choice(|_| select_all);
             }
@@ -241,6 +262,16 @@ impl<Value> CheckboxPrompt<Value> {
         KeyOutcome::Redraw
     }
 
+    fn toggle_alternative(&mut self) {
+        let active = self.viewport.active;
+        if let CheckboxItem::Choice(choice) = &mut self.items[active]
+            && let Some(alternative) = self.selection.alternatives.get_mut(&active)
+        {
+            mem::swap(choice, alternative);
+            self.selection.checked[active] = true;
+        }
+    }
+
     fn toggle_numbered_choice(&mut self, digit: char) {
         let nth = usize::from(digit as u8 - b'1');
         if let Some(index) = self.items
@@ -251,7 +282,7 @@ impl<Value> CheckboxPrompt<Value> {
             .map(|(index, _)| index)
         {
             self.viewport.active = index;
-            self.checked[index] = !self.checked[index];
+            self.selection.checked[index] = !self.selection.checked[index];
         }
     }
 
@@ -270,7 +301,7 @@ impl<Value> CheckboxPrompt<Value> {
     }
 
     fn check_every_choice(&mut self, checked: impl Fn(bool) -> bool) {
-        for (item, slot) in self.items.iter().zip(&mut self.checked) {
+        for (item, slot) in self.items.iter().zip(&mut self.selection.checked) {
             if is_choice(item) {
                 *slot = checked(*slot);
             }
@@ -366,7 +397,7 @@ impl<Value> CheckboxPrompt<Value> {
         let active = index == self.viewport.active;
         let cursor = if active { "❯" } else { " " };
         let checkbox =
-            if self.checked[index] { &self.theme.checked } else { &self.theme.unchecked };
+            if self.selection.checked[index] { &self.theme.checked } else { &self.theme.unchecked };
         let line = format!("{cursor}{checkbox} {}", choice.name);
         if active { stdout_styled(&line, in_active_cyan) } else { line }
     }
@@ -387,7 +418,7 @@ impl<Value> CheckboxPrompt<Value> {
     pub(crate) fn selected_choices(&self) -> impl Iterator<Item = &CheckboxChoice<Value>> {
         self.items
             .iter()
-            .zip(&self.checked)
+            .zip(&self.selection.checked)
             .filter_map(|(item, &checked)| match item {
                 CheckboxItem::Choice(choice) if checked => Some(choice),
                 _ => None,
@@ -395,7 +426,7 @@ impl<Value> CheckboxPrompt<Value> {
     }
 
     fn take_selected(&mut self) -> Vec<Value> {
-        let checked = std::mem::take(&mut self.checked);
+        let checked = std::mem::take(&mut self.selection.checked);
         std::mem::take(&mut self.items)
             .into_iter()
             .zip(checked)
