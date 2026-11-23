@@ -301,3 +301,14 @@ fn update_of_an_alias_target_is_one_line() {
     );
     assert_eq!(frame, "\ndependencies:\n↑ tool <- beta 1.0.0 → 2.0.0\n");
 }
+
+/// Names and versions come from the lockfile, which a contributor can edit.
+#[test]
+fn summary_line_strips_control_characters() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![removed_root_with("tool", "1.0.0\n\u{1b}[2J", Some("evil\n\u{1b}[2Kx")), summary()],
+    );
+    assert_eq!(frame, "\ndependencies:\n- tool <- evil[2Kx 1.0.0[2J\n");
+}

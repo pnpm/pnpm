@@ -230,3 +230,17 @@ fn display_matches_string_conversion() {
         assert_eq!(via_display, case);
     }
 }
+
+#[test]
+fn registry_package_names_only_registry_versions() {
+    let key = PkgName::parse("foo").unwrap();
+    let registry_package = |version: &str| {
+        let parsed: ImporterDepVersion = version.parse().unwrap();
+        parsed.registry_package(&key).map(ToString::to_string)
+    };
+    assert_eq!(registry_package("1.0.0"), Some("foo".to_string()));
+    assert_eq!(registry_package("bar@2.0.0"), Some("bar".to_string()));
+    assert_eq!(registry_package("https://codeload.github.com/org/foo/tar.gz/abc123"), None);
+    assert_eq!(registry_package("link:../foo"), None);
+    assert_eq!(registry_package("file:../foo"), None);
+}

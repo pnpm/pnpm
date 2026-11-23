@@ -28,6 +28,7 @@ use pnpm_semver_include_prerelease::{
     classify_version_change,
     split_at_changed_field,
 };
+use pnpm_text_sanitize::sanitize_inline;
 use std::fmt::Write as _;
 
 impl ReporterState {
@@ -166,26 +167,33 @@ impl ReporterState {
         pkg.from.is_some() && self.rendering.hidden_linked_pkgs.matches(&pkg.name)
     }
 
+    /// One summary line. Names, versions and paths come from the lockfile,
+    /// which a contributor can edit, so each is sanitized.
     pub(super) fn diff_line(&self, change: &Change<'_>) -> String {
         let pkg = change.diff;
         let mut result = self.change_sign(change);
+        let name = sanitize_inline(&pkg.name);
         match &pkg.real_name {
             Some(real) if *real != pkg.name => {
-                let _ = write!(result, " {} <- {real}", pkg.name);
+                let _ = write!(result, " {name} <- {}", sanitize_inline(real));
             }
             _ => {
-                let _ = write!(result, " {}", pkg.name);
+                let _ = write!(result, " {name}");
             }
         }
         if let Some(version) = &pkg.version {
+            let previous = change.replaced_version().map(sanitize_inline);
             result.push(' ');
-            result.push_str(&self.version_change(change.replaced_version(), version));
+            result.push_str(&self.version_change(previous.as_deref(), &sanitize_inline(version)));
         }
         if let Some(from) = &pkg.from {
             let rel = relative(&self.rendering.cwd, from);
             let shown = if rel.is_empty() { from.clone() } else { rel };
             result.push(' ');
-            result.push_str(&self.rendering.colors.grey(&format!("<- {shown}")));
+            result.push_str(&self.rendering.colors.grey(&format!(
+                "<- {}",
+                sanitize_inline(&shown),
+            )));
         }
         result
     }

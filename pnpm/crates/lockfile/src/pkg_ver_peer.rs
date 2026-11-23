@@ -41,6 +41,18 @@ pub enum VersionPart {
     NonSemver(String),
 }
 
+impl VersionPart {
+    /// Whether this names a version of a registry package: a semver
+    /// version, from the default registry or a named one.
+    #[must_use]
+    pub fn is_registry(&self) -> bool {
+        match self {
+            VersionPart::Semver(_) | VersionPart::RegistryQualified { .. } => true,
+            VersionPart::File(_) | VersionPart::NonSemver(_) => false,
+        }
+    }
+}
+
 impl fmt::Display for VersionPart {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
