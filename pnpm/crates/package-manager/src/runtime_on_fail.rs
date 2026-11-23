@@ -5,10 +5,7 @@ use pnpm_package_manifest::PackageManifest;
 /// declares the runtime dependencies the install acts on.
 pub fn apply_runtime_on_fail(config: &Config, manifest: &mut PackageManifest) {
     if let Some(runtime_on_fail) = config.runtime_on_fail {
-        pnpm_package_manifest::apply_runtime_on_fail_override(
-            manifest.value_mut(),
-            runtime_on_fail.as_str(),
-        );
+        manifest.apply_runtime_on_fail(runtime_on_fail.as_str());
     }
 }
 

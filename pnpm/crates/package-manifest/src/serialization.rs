@@ -310,6 +310,7 @@ impl PackageManifest {
             value,
             formatting,
             on_disk: Some(on_disk),
+            runtime_policy: None,
             empty_dependency_fields,
         })
     }

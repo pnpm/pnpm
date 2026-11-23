@@ -1022,6 +1022,69 @@ fn runtime_on_fail_ignore_removes_the_synthesized_runtime_dependency() {
 }
 
 #[test]
+fn dependency_edits_preserve_declared_runtime_policies() {
+    assert_dependency_edits_preserve_runtime(&[]);
+}
+
+#[test]
+fn filtered_dependency_edits_preserve_declared_runtime_policies() {
+    assert_dependency_edits_preserve_runtime(&["--filter", "project"]);
+}
+
+fn assert_dependency_edits_preserve_runtime(selection: &[&str]) {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "packages: [member]\nruntimeOnFail: ignore\n");
+    let project = if selection.is_empty() {
+        workspace.clone()
+    } else {
+        let dir = workspace.join("member");
+        fs::create_dir(&dir).unwrap();
+        fs::write(workspace.join("package.json"), "{}").unwrap();
+        dir
+    };
+    let manifest_path = project.join("package.json");
+    let manifest = json!({
+        "name": "project",
+        "devEngines": { "runtime": { "name": "node", "version": "24" } },
+        "engines": { "runtime": [{ "name": "bun", "version": "1", "onFail": "download" }] },
+    });
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+    fs::create_dir(project.join("fixture")).unwrap();
+    fs::write(project.join("fixture/package.json"), r#"{"name":"fixture","version":"1.0.0"}"#)
+        .unwrap();
+
+    for (args, expected_dependency) in [
+        (vec!["add", "fixture@link:./fixture"], Some("link:./fixture")),
+        (vec!["update"], Some("link:./fixture")),
+        (vec!["update", "--latest", "--offline"], Some("link:./fixture")),
+        (vec!["remove", "fixture"], None),
+    ] {
+        command(&project)
+            .with_args(selection)
+            .with_args(args)
+            .assert()
+            .success();
+        let saved: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        assert_eq!(saved["dependencies"]["fixture"].as_str(), expected_dependency);
+        assert_eq!(saved["devEngines"], manifest["devEngines"]);
+        assert_eq!(saved["engines"], manifest["engines"]);
+        let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+        assert!(!lockfile.contains("bun@runtime:"), "lockfile was:\n{lockfile}");
+    }
+
+    command(&project)
+        .with_args(selection)
+        .with_args(["--config.runtime-on-fail=download", "remove", "--offline", "node", "bun"])
+        .assert()
+        .success();
+    let saved: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    assert_eq!(saved["devEngines"].get("runtime"), None);
+    assert_eq!(saved["engines"].get("runtime"), None);
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(!lockfile.contains("runtime:"), "lockfile was:\n{lockfile}");
+}
+
+#[test]
 fn repeat_install_acts_on_a_runtime_on_fail_change() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();

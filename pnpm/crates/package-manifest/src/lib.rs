@@ -178,6 +178,7 @@ pub struct PackageManifest {
     path: PathBuf,
     value: Value, // TODO: convert this into a proper struct + an array of keys order
     formatting: ManifestFormatting,
+    runtime_policy: Option<Box<runtime::RuntimePolicy>>,
     /// The manifest as the file currently encodes it (`devEngines` folded,
     /// dependency fields normalized), used to skip a save that wouldn't
     /// change the file. `None` when there is no file baseline (in-memory
@@ -236,6 +237,7 @@ impl PackageManifest {
             path,
             value,
             formatting: ManifestFormatting::in_memory(),
+            runtime_policy: None,
             on_disk: None,
             empty_dependency_fields: Vec::new(),
         }
@@ -268,6 +270,9 @@ impl PackageManifest {
         let mut value = self.value.clone();
         convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
         convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
+        if let Some(policy) = &self.runtime_policy {
+            policy.restore(&self.value, &mut value);
+        }
         normalize_dependency_fields(&mut value, &self.empty_dependency_fields);
         Ok(value)
     }
