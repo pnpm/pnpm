@@ -277,6 +277,26 @@ fn save_preserves_runtime_when_explicit_user_dep_is_present() {
 }
 
 #[test]
+fn local_ignore_policy_preserves_the_declaration_after_a_version_edit() {
+    let mut manifest = PackageManifest::from_value(
+        "package.json".into(),
+        json!({
+            "devEngines": { "runtime": { "name": "node", "version": "22", "onFail": "warn" } },
+        }),
+    );
+    manifest.apply_runtime_on_fail("ignore");
+    manifest.add_dependency("node", "runtime:24", DependencyGroup::Dev).unwrap();
+    manifest.add_dependency("deno", "runtime:2", DependencyGroup::Dev).unwrap();
+    assert_eq!(
+        manifest.written_value().unwrap()["devEngines"]["runtime"],
+        json!([
+            { "name": "node", "version": "24", "onFail": "warn" },
+            { "name": "deno", "version": "2", "onFail": "download" },
+        ]),
+    );
+}
+
+#[test]
 fn local_download_policy_preserves_runtime_edits_across_saves() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json");

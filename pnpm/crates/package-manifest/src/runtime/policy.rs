@@ -60,7 +60,7 @@ fn declared_policies(runtime: &Value) -> PoliciesByName {
 }
 
 impl RuntimePolicy {
-    pub(crate) fn restore(&self, written: &mut Value) {
+    pub(crate) fn restore(&self, effective: &Value, written: &mut Value) {
         for (field, policies) in &self.declared {
             let Some(runtime) = written
                 .get_mut(*field)
@@ -68,12 +68,27 @@ impl RuntimePolicy {
             else {
                 continue;
             };
-            restore_policies(runtime, policies.clone(), self.applied);
+            if let Some(source) = effective
+                .get(*field)
+                .and_then(|engines| engines.get("runtime"))
+            {
+                restore_policies(
+                    runtime,
+                    policies.clone(),
+                    declared_policies(source),
+                    self.applied,
+                );
+            }
         }
     }
 }
 
-fn restore_policies(runtime: &mut Value, mut policies: PoliciesByName, applied: &str) {
+fn restore_policies(
+    runtime: &mut Value,
+    mut policies: PoliciesByName,
+    mut effective: PoliciesByName,
+    applied: &str,
+) {
     let entries = match runtime {
         Value::Array(entries) => entries.as_mut_slice(),
         entry => std::slice::from_mut(entry),
@@ -81,7 +96,11 @@ fn restore_policies(runtime: &mut Value, mut policies: PoliciesByName, applied: 
     for entry in entries.iter_mut().filter_map(Value::as_object_mut) {
         let name = entry.get("name").unwrap_or(&Value::Null);
         let Some(declared) = policies.get_mut(name).and_then(VecDeque::pop_front) else { continue };
-        if entry.get("onFail").and_then(Value::as_str) != Some(applied) {
+        let before_fold = effective
+            .get_mut(name)
+            .and_then(VecDeque::pop_front)
+            .flatten();
+        if before_fold.as_ref().and_then(Value::as_str) != Some(applied) {
             continue;
         }
         match declared {

@@ -271,7 +271,7 @@ impl PackageManifest {
         convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
         convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
         if let Some(policy) = &self.runtime_policy {
-            policy.restore(&mut value);
+            policy.restore(&self.value, &mut value);
         }
         normalize_dependency_fields(&mut value, &self.empty_dependency_fields);
         Ok(value)
