@@ -23,6 +23,12 @@ fn prefers_xdg_config_home_on_every_os_without_consulting_home() {
 }
 
 #[test]
+fn empty_env_values_count_as_unset() {
+    let dir = config_dir("pnpr", "windows", Some(""), Some(""), home(r"C:\Users\u"));
+    assert_eq!(dir, Some(Path::new(r"C:\Users\u").join(".config").join("pnpr")));
+}
+
+#[test]
 fn macos_uses_library_preferences() {
     let dir = config_dir("pnpr", "macos", None, None, home("/Users/u"));
     assert_eq!(

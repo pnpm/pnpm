@@ -14,7 +14,7 @@ use std::path::{
 /// `os` is a [`std::env::consts::OS`] string (`"macos"`, `"windows"`,
 /// `"linux"`, ...). `home` is a thunk so the (potentially I/O-bound)
 /// home-dir lookup is skipped whenever an env var short-circuits the
-/// resolution.
+/// resolution. An empty env value counts as unset.
 pub fn config_dir(
     app_name: &str,
     os: &str,
@@ -22,11 +22,11 @@ pub fn config_dir(
     local_app_data: Option<&str>,
     home: impl FnOnce() -> Option<PathBuf>,
 ) -> Option<PathBuf> {
-    if let Some(xdg_config_home) = xdg_config_home {
+    if let Some(xdg_config_home) = xdg_config_home.filter(|value| !value.is_empty()) {
         return Some(Path::new(xdg_config_home).join(app_name));
     }
     if os == "windows"
-        && let Some(local_app_data) = local_app_data
+        && let Some(local_app_data) = local_app_data.filter(|value| !value.is_empty())
     {
         return Some(Path::new(local_app_data).join(app_name).join("config"));
     }
