@@ -281,9 +281,13 @@ impl ReporterState {
         } else {
             (added as usize, removed as usize)
         };
+        let reused_chars = self.downloads.reused_part(added_chars);
         let mut out = String::new();
-        for _ in 0..added_chars {
+        for _ in 0..added_chars - reused_chars {
             out.push_str(&self.rendering.colors.green("+"));
+        }
+        for _ in 0..reused_chars {
+            out.push_str(&self.rendering.colors.green_dim("+"));
         }
         for _ in 0..removed_chars {
             out.push_str(&self.rendering.colors.red("-"));
@@ -310,11 +314,7 @@ impl DownloadState {
     /// Rounded down, so 100% means every package. `None` when no package
     /// was downloaded or reused.
     fn package_source(&self) -> Option<String> {
-        let (downloaded, reused) = self.progress
-            .values()
-            .fold((0, 0), |(downloaded, reused), entry| {
-                (downloaded + entry.stats.fetched, reused + entry.stats.reused)
-            });
+        let (downloaded, reused) = self.package_sources();
         let total = downloaded + reused;
         if total == 0 {
             return None;
@@ -322,6 +322,29 @@ impl DownloadState {
         let (share, source) =
             if downloaded >= reused { (downloaded, "downloaded") } else { (reused, "reused") };
         Some(format!("{}% {source}", share * 100 / total))
+    }
+
+    /// How many packages were downloaded and how many reused from the
+    /// store.
+    fn package_sources(&self) -> (u64, u64) {
+        self.progress
+            .values()
+            .fold((0, 0), |(downloaded, reused), entry| {
+                (downloaded + entry.stats.fetched, reused + entry.stats.reused)
+            })
+    }
+
+    /// How many of the bar's `chars` added signs stand for reused
+    /// packages, in the share the line reports. Rounded down, so a
+    /// download always keeps at least one sign of its own.
+    fn reused_part(&self, chars: usize) -> usize {
+        let (downloaded, reused) = self.package_sources();
+        let total = downloaded + reused;
+        if total == 0 {
+            return 0;
+        }
+        let part = usize::try_from(reused * chars as u64 / total).unwrap_or(chars);
+        if downloaded > 0 { part.min(chars.saturating_sub(1)) } else { part }
     }
 
     pub(super) fn progress_message(

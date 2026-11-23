@@ -136,3 +136,33 @@ fn aggregate_output_withholds_each_script_until_it_exits() {
         ],
     );
 }
+
+/// The bar draws reused packages dimmer than downloaded ones.
+#[test]
+fn stats_bar_shades_reused_packages() {
+    let mut reporter = state(true);
+    let frame = render(
+        &mut reporter,
+        vec![
+            progress("fetched"),
+            progress("found_in_store"),
+            progress("found_in_store"),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 3 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+            }),
+            importing_done(),
+        ],
+    );
+    let bar = frame
+        .lines()
+        .nth(1)
+        .expect("the bar follows the stats line");
+    let green = "\u{1b}[32m+\u{1b}[39m";
+    let dim_green = pnpm_default_reporter::colors::Colors { enabled: true }.green_dim("+");
+    assert_eq!(bar, format!("{green}{dim_green}{dim_green}"));
+}

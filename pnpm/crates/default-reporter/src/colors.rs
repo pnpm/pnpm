@@ -59,6 +59,12 @@ impl Colors {
     // A package name among other words. A basic ANSI color follows the
     // terminal's theme; bold is not rendered by every terminal.
     paint!(package_name, magenta);
+
+    /// Dim green: an added package that was reused from the store.
+    #[must_use]
+    pub fn green_dim(&self, text: &str) -> String {
+        if self.enabled { text.green().dimmed().to_string() } else { text.to_string() }
+    }
     paint!(command, cyan);
 
     /// The `[WARN]` label: yellow-on-yellow brackets around black-on-yellow
