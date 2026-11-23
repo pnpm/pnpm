@@ -10,6 +10,7 @@ use super::{
     HashSet,
     PackageDiff,
     ReporterState,
+    SUMMARY_ORDER,
     diff_key,
     format_prefix_no_trim,
     manifest_dep_versions,
@@ -100,12 +101,49 @@ struct WorkspaceChange<'a> {
 }
 
 impl ReporterState {
-    pub(super) fn workspace_summary_lines<'a>(
+    /// The lines of each dependency kind. A line names the projects that
+    /// made its change only when the changes differ in their projects:
+    /// when they all share them, the names tell no line apart.
+    pub(super) fn workspace_summary_lines(
+        &self,
+        workspace: &WorkspaceSummary,
+        requests: &NewProjectRequests<'_>,
+    ) -> Vec<(DepKind, Vec<String>)> {
+        let sections: Vec<(DepKind, Vec<WorkspaceChange<'_>>)> = SUMMARY_ORDER
+            .into_iter()
+            .map(|kind| (kind, self.workspace_changes(workspace, requests, kind)))
+            .collect();
+        let mut project_sets = sections
+            .iter()
+            .flat_map(|(_, changes)| changes)
+            .map(|change| &change.projects);
+        let first = project_sets.next();
+        let names_projects = project_sets.any(|projects| Some(projects) != first);
+        sections
+            .into_iter()
+            .map(|(kind, changes)| {
+                let lines = changes
+                    .into_iter()
+                    .map(|WorkspaceChange { change, projects }| {
+                        let suffix = if names_projects {
+                            self.projects_suffix(&projects)
+                        } else {
+                            String::new()
+                        };
+                        format!("{}{suffix}", self.diff_line(&change))
+                    })
+                    .collect();
+                (kind, lines)
+            })
+            .collect()
+    }
+
+    fn workspace_changes<'a>(
         &'a self,
         workspace: &'a WorkspaceSummary,
         requests: &NewProjectRequests<'_>,
         kind: DepKind,
-    ) -> Vec<String> {
+    ) -> Vec<WorkspaceChange<'a>> {
         let mut changes: BTreeMap<ChangeKey<'_>, WorkspaceChange<'_>> = BTreeMap::new();
         for (prefix, buckets) in self.project_diffs(workspace) {
             let requested = requests.get(prefix);
@@ -122,12 +160,11 @@ impl ReporterState {
                     .push(prefix);
             }
         }
+        let mut changes: Vec<WorkspaceChange<'_>> = changes.into_values().collect();
+        for change in &mut changes {
+            change.projects.sort_unstable();
+        }
         changes
-            .into_values()
-            .map(|WorkspaceChange { change, projects }| {
-                format!("{}{}", self.diff_line(&change), self.projects_suffix(&projects))
-            })
-            .collect()
     }
 
     fn project_diffs<'a>(

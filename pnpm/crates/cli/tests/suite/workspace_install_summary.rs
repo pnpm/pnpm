@@ -85,7 +85,7 @@ fn first_workspace_install_lists_only_deprecated_dependencies() {
 
     assert_eq!(
         install_summary(workspace),
-        "dependencies:\n+ @pnpm.e2e/deprecated 1.0.0 deprecated  in a",
+        "dependencies:\n+ @pnpm.e2e/deprecated 1.0.0 deprecated",
     );
 
     drop(fixture);
@@ -136,10 +136,7 @@ fn workspace_update_is_one_line_per_change() {
         write_project(&workspace.join("packages").join(project), project, &new_foo);
     }
 
-    assert_eq!(
-        install_summary(workspace),
-        "dependencies:\n↑ @pnpm.e2e/foo 100.0.0 → 100.1.0  in 2 projects",
-    );
+    assert_eq!(install_summary(workspace), "dependencies:\n↑ @pnpm.e2e/foo 100.0.0 → 100.1.0");
 
     drop(fixture);
 }

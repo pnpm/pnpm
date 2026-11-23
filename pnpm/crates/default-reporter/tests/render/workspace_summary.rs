@@ -110,9 +110,10 @@ fn change_in_several_projects_counts_them() {
         .iter()
         .map(|project| removed_root_at(&format!("/repo/packages/{project}"), "lodash", "4.17.21"))
         .collect();
+    events.push(removed_root_at(CWD, "ms", "2.0.0"));
     events.push(workspace_summary(&[]));
     let frame = render(&mut reporter, events);
-    assert_eq!(frame, "\ndependencies:\n- lodash 4.17.21  in 5 projects\n");
+    assert_eq!(frame, "\ndependencies:\n- lodash 4.17.21  in 5 projects\n- ms 2.0.0\n");
 }
 
 #[test]
@@ -181,8 +182,8 @@ fn first_workspace_install_lists_only_what_carries_information() {
     assert_eq!(
         frame,
         "\ndependencies:\n\
-         + old 1.0.0 deprecated  in packages/a\n\
-         + wanted 3.0.0  in packages/a\n",
+         + old 1.0.0 deprecated\n\
+         + wanted 3.0.0\n",
     );
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
@@ -209,7 +210,7 @@ fn deprecated_dependency_of_a_new_project_is_listed_whoever_it_was_reported_for(
             workspace_summary(&["/repo/packages/b"]),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ old 1.0.0 deprecated  in packages/b\n");
+    assert_eq!(frame, "\ndependencies:\n+ old 1.0.0 deprecated\n");
 }
 
 #[test]
@@ -293,11 +294,12 @@ fn project_paths_lose_control_characters() {
     let frame = render(
         &mut reporter,
         vec![
+            added_root_at(CWD, "bar", "1.0.0", DependencyType::Prod),
             added_root_at("/repo/packages/evil\n\u{1b}[2Jx", "foo", "1.0.0", DependencyType::Prod),
             workspace_summary(&[]),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0  in packages/evil[2Jx\n");
+    assert_eq!(frame, "\ndependencies:\n+ bar 1.0.0\n+ foo 1.0.0  in packages/evil[2Jx\n");
 }
 
 /// An override can install a version outside the declared range without
@@ -344,10 +346,7 @@ fn workspace_deprecations_join_the_checks_footer() {
             workspace_summary(&[]),
         ],
     );
-    assert_eq!(
-        frame,
-        "\ndependencies:\n+ request 2.88.2 deprecated. 3.0.0 is not deprecated.  in 2 projects\n",
-    );
+    assert_eq!(frame, "\ndependencies:\n+ request 2.88.2 deprecated. 3.0.0 is not deprecated.\n");
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
     };
@@ -357,6 +356,22 @@ fn workspace_deprecations_join_the_checks_footer() {
         ),
         "{frame}",
     );
+}
+
+/// When every change was made by the same projects, naming them tells no
+/// line apart.
+#[test]
+fn changes_made_by_the_same_projects_name_none() {
+    let mut reporter = state(false);
+    let mut events = Vec::new();
+    for project in ["a", "b"] {
+        let prefix = format!("/repo/packages/{project}");
+        events.push(added_root_at(&prefix, "foo", "1.0.0", DependencyType::Prod));
+        events.push(added_root_at(&prefix, "bar", "1.0.0", DependencyType::Dev));
+    }
+    events.push(workspace_summary(&[]));
+    let frame = render(&mut reporter, events);
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n\ndevDependencies:\n+ bar 1.0.0\n");
 }
 
 #[test]
@@ -370,7 +385,7 @@ fn update_in_several_projects_is_one_line() {
     }
     events.push(workspace_summary(&[]));
     let frame = render(&mut reporter, events);
-    assert_eq!(frame, "\ndependencies:\n↑ lodash 4.17.20 → 4.18.1  in 3 projects\n");
+    assert_eq!(frame, "\ndependencies:\n↑ lodash 4.17.20 → 4.18.1\n");
 }
 
 #[test]
@@ -402,9 +417,10 @@ fn change_in_one_project_names_its_package() {
     let frame = render(
         &mut reporter,
         vec![
+            added_root_at(CWD, "bar", "1.0.0", DependencyType::Prod),
             added_root_at("/repo/packages/a", "foo", "1.0.0", DependencyType::Prod),
             named_workspace_summary(&[], &[("/repo/packages/a", "@scope/a")]),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0  in @scope/a\n");
+    assert_eq!(frame, "\ndependencies:\n+ bar 1.0.0\n+ foo 1.0.0  in @scope/a\n");
 }

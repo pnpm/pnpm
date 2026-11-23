@@ -122,13 +122,14 @@ impl ReporterState {
         let workspace = self.summary.workspace
             .as_ref()
             .map(|workspace| (workspace, self.new_project_requests(workspace)));
-        for kind in SUMMARY_ORDER {
-            let lines = match &workspace {
-                Some((workspace, requests)) => {
-                    self.workspace_summary_lines(workspace, requests, kind)
-                }
-                None => self.current_project_summary_lines(kind),
-            };
+        let sections = match &workspace {
+            Some((workspace, requests)) => self.workspace_summary_lines(workspace, requests),
+            None => SUMMARY_ORDER
+                .into_iter()
+                .map(|kind| (kind, self.current_project_summary_lines(kind)))
+                .collect(),
+        };
+        for (kind, lines) in sections {
             if lines.is_empty() {
                 continue;
             }
