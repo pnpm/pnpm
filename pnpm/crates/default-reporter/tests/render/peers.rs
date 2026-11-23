@@ -36,6 +36,6 @@ fn peer_issues_row_targets_the_command_scope_and_is_printed_once() {
         let Output::Frame(frame) = flush_checks(&mut reporter) else {
             panic!("the footer renders");
         };
-        assert_eq!(frame, format!("\n✗ Peers: issues found. Run \"{command}\"\n"));
+        assert_eq!(frame, format!("\n✗ Peer dependencies have issues (see \"{command}\")\n"));
     }
 }

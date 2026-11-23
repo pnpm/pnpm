@@ -84,7 +84,7 @@ fn footer_names_a_dependency_with_a_newer_version() {
     assert_eq!(
         frame,
         "\ndependencies:\n+ foo 1.0.0\n\n\
-         · Newer versions: foo. Run \"pnpm outdated\"\n",
+         · 1 dependency has a newer version: foo (see \"pnpm outdated\")\n",
     );
 }
 

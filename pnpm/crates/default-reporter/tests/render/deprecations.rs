@@ -58,7 +58,7 @@ fn footer_counts_every_deprecated_package() {
     assert!(
         frame.starts_with(
             "\ndependencies:\n+ express 0.14.1 deprecated\n\n\
-             ✗ Deprecations: express@0.14.1, request@2.88.2 and uuid@3.4.0\n\n\
+             ✗ 3 packages are deprecated: express@0.14.1, request@2.88.2 and uuid@3.4.0\n\n\
              Done in ",
         ),
         "{frame}",
@@ -75,23 +75,16 @@ fn footer_lists_three_deprecated_packages_and_counts_the_rest() {
     events.push(execution_time());
     let frame = render(&mut reporter, events);
     assert!(
-        frame.starts_with("\n✗ Deprecations: a@1.0.0, b@1.0.0, c@1.0.0 and 2 more\n"),
+        frame.starts_with("\n✗ 5 packages are deprecated: a@1.0.0, b@1.0.0, c@1.0.0 and 2 more\n"),
         "{frame}",
     );
 }
 
+/// The deprecation and peer checks print nothing when they pass.
 #[test]
-fn resolution_without_deprecations_passes_the_check() {
+fn passing_checks_print_no_footer() {
     let mut reporter = state(false);
     let frame = render(&mut reporter, vec![resolution_done(), execution_time()]);
-    assert!(frame.starts_with("\n✓ Deprecations · Peers\n\nDone in "), "{frame}");
-}
-
-/// Deprecations are only checked when dependencies are resolved.
-#[test]
-fn install_without_resolution_claims_no_deprecation_check() {
-    let mut reporter = state(false);
-    let frame = render(&mut reporter, vec![execution_time()]);
     assert!(frame.starts_with("Done in "), "{frame}");
 }
 
@@ -103,7 +96,7 @@ fn footer_is_flushed_when_the_command_ends_without_done_line() {
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
     };
-    assert_eq!(frame, "\n✗ Deprecations: express@0.14.1\n");
+    assert_eq!(frame, "\n✗ 1 package is deprecated: express@0.14.1\n");
     assert!(matches!(flush_checks(&mut reporter), Output::None));
 }
 
@@ -185,5 +178,5 @@ fn failed_command_prints_only_the_problems() {
     else {
         panic!("the problems render");
     };
-    assert_eq!(frame, "\n✗ Deprecations: express@0.14.1\n");
+    assert_eq!(frame, "\n✗ 1 package is deprecated: express@0.14.1\n");
 }

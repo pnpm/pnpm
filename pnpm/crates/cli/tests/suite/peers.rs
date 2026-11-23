@@ -292,7 +292,7 @@ fn peer_dependency_rules_settle_the_install_verdict() {
     drop((root, mock_instance));
 }
 
-const PEERS_CHECK_HINT: &str = r#"✗ Peers: issues found. Run "pnpm peers check""#;
+const PEERS_CHECK_HINT: &str = r#"✗ Peer dependencies have issues (see "pnpm peers check")"#;
 
 /// `@pnpm.e2e/has-foo100-peer` wants `@pnpm.e2e/foo@100.0.0`; pinning
 /// `2.0.0` alongside it makes that peer resolvable but unsatisfying, a

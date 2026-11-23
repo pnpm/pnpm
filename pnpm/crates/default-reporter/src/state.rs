@@ -427,8 +427,7 @@ impl ReporterState {
     /// upstream reports them as an error-level log
     /// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`). The
     /// `resolution_done` stage passes wherever warnings do, since it is what
-    /// flushes the buffered unused-override warnings and marks the checks
-    /// that run with resolution.
+    /// flushes the buffered unused-override warnings.
     fn level_permits(&self, event: &LogEvent) -> bool {
         match event {
             LogEvent::Lockfile(_)

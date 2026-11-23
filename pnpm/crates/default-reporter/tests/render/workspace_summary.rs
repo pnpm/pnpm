@@ -189,8 +189,8 @@ fn first_workspace_install_lists_only_what_carries_information() {
     };
     assert!(
         frame.ends_with(
-            "\n✗ Deprecations: old@1.0.0\n\
-             · Newer versions: stale. Run \"pnpm outdated\"\n",
+            "\n✗ 1 package is deprecated: old@1.0.0\n\
+             · 1 dependency has a newer version: stale (see \"pnpm outdated\")\n",
         ),
         "{frame}",
     );
@@ -352,7 +352,9 @@ fn workspace_deprecations_join_the_checks_footer() {
         panic!("the footer renders");
     };
     assert!(
-        frame.ends_with("\n✗ Deprecations: left-pad@1.0.0, request@2.88.2 and uuid@3.4.0\n",),
+        frame.ends_with(
+            "\n✗ 3 packages are deprecated: left-pad@1.0.0, request@2.88.2 and uuid@3.4.0\n",
+        ),
         "{frame}",
     );
 }

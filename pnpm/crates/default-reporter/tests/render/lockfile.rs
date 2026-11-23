@@ -103,7 +103,7 @@ fn passing_lockfile_policy_verdict_moves_to_the_checks_footer() {
     };
     assert_eq!(
         frame,
-        "\n✓ Supply chain\n\
+        "\n✓ Lockfile passes supply-chain policies\n\
          · Lockfile is up to date, resolution step is skipped\n",
     );
 }
@@ -376,5 +376,5 @@ fn transitive_deprecations_wait_for_the_checks_footer() {
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
     };
-    assert_eq!(frame, "\n✓ Peers\n✗ Deprecations: request@2.88.2 and uuid@3.4.0\n");
+    assert_eq!(frame, "\n✗ 2 packages are deprecated: request@2.88.2 and uuid@3.4.0\n");
 }

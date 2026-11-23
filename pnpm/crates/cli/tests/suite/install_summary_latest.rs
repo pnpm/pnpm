@@ -39,7 +39,8 @@ fn added_line_and_note(command: Command, args: &[&str]) -> (String, Option<Strin
         .to_owned();
     let note = stdout
         .lines()
-        .find(|line| line.starts_with("· Newer versions: "))
+        .filter(|line| line.starts_with("· "))
+        .find(|line| line.ends_with(r#"(see "pnpm outdated")"#))
         .map(ToOwned::to_owned);
     (added, note)
 }
@@ -60,7 +61,7 @@ fn install_names_a_newer_latest_of_a_direct_dependency() {
         added_line_and_note(pacquet, &["install"]),
         (
             format!("+ {FOO} 100.0.0"),
-            Some(format!(r#"· Newer versions: {FOO}. Run "pnpm outdated""#)),
+            Some(format!(r#"· 1 dependency has a newer version: {FOO} (see "pnpm outdated")"#)),
         ),
     );
 

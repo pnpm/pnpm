@@ -6,6 +6,6 @@ The install summary prints an updated dependency on one line, such as `↑ lodas
 
 In a workspace, a change made by one project is labeled with that project's package name, such as `in @scope/app`. A change made by several projects shows how many, such as `in 5 projects`.
 
-An install now ends with a short checklist above `Done in`, such as `✓ Supply chain · Deprecations · Peers`. A check that found a problem gets its own line, such as `✗ Deprecations: request@2.88.2 and uuid@3.4.0`. A check that did not run is left out. The deprecation and peer warnings that were printed before the summary are replaced by these lines.
+Deprecated packages, peer dependency issues, and the lockfile's supply-chain verdict are now printed together at the end of the install, above `Done in`. Deprecated packages are listed on one line, such as `✗ 2 packages are deprecated: request@2.88.2 and uuid@3.4.0`.
 
-Dependencies with newer versions are named on one line of the checklist. Summary lines no longer end with "(x is available)". "Already up to date" is only printed when the install changed nothing.
+Dependencies with newer versions are named on one line at the end, with a hint to run `pnpm outdated`. Summary lines no longer end with "(x is available)". "Already up to date" is only printed when the install changed nothing.
