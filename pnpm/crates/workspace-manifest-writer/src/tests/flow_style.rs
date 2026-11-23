@@ -242,3 +242,24 @@ fn an_aliased_block_is_refused_rather_than_corrupted() {
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
     assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
 }
+
+#[test]
+fn a_field_holding_a_line_separator_stays_editable() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::write(&path, "packages:\n  - '*'\n").expect("seed manifest");
+    let overrides = serde_json::json!({ "foo": "link:../foo\u{2028}bar" });
+
+    crate::update_manifest_field(&path, "overrides", &overrides)
+        .expect("update_manifest_field succeeds");
+    crate::set_overrides(dir.path(), [("baz", "2.0.0")]).expect("set_overrides succeeds");
+
+    let text = fs::read_to_string(&path).expect("read manifest");
+    let parsed: serde_json::Map<String, serde_json::Value> =
+        serde_saphyr::from_str(&text).unwrap_or_else(|error| panic!("{error}:\n{text}"));
+    assert_eq!(
+        parsed["overrides"],
+        serde_json::json!({ "baz": "2.0.0", "foo": "link:../foo\u{2028}bar" }),
+        "manifest:\n{text}",
+    );
+}

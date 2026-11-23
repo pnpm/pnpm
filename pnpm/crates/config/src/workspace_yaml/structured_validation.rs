@@ -152,6 +152,15 @@ pub fn render_yaml_top_level_field(key: &str, value: &Value) -> String {
         Value::Array(_) | Value::Object(_) => {
             let body =
                 yaml_serde::to_string(value).expect("serializing a JSON value to YAML never fails");
+            // The YAML emitter treats these as line breaks and indents the
+            // text after them, which readers then keep as value content. The
+            // JSON flow collection stays on the key's line, the only flow
+            // shape the workspace manifest writer can edit later.
+            if body.contains(['\u{2028}', '\u{2029}']) {
+                let json = serde_json::to_string(value)
+                    .expect("serializing a JSON value to JSON never fails");
+                return format!("{key_text}: {}\n", escape_yaml_line_separators(&json));
+            }
             let mut out = format!("{key_text}:\n");
             for line in body.lines() {
                 if line.is_empty() {
@@ -168,16 +177,28 @@ pub fn render_yaml_top_level_field(key: &str, value: &Value) -> String {
 }
 
 fn render_yaml_scalar(value: &str) -> String {
-    if value.contains(['\n', '\r']) {
-        return serde_json::to_string(value)
-            .expect("serializing a string scalar to JSON never fails");
+    if value.contains(['\n', '\r', '\u{2028}', '\u{2029}']) {
+        return escape_yaml_line_separators(
+            &serde_json::to_string(value).expect("serializing a string scalar to JSON never fails"),
+        );
     }
     let rendered = yaml_serde::to_string(&yaml_serde::Value::from(value))
         .expect("serializing a string scalar to YAML never fails");
     let single_line = rendered.strip_suffix('\n').unwrap_or(&rendered);
     if single_line.contains(['\n', '\r']) {
-        serde_json::to_string(value).expect("serializing a string scalar to JSON never fails")
+        escape_yaml_line_separators(
+            &serde_json::to_string(value).expect("serializing a string scalar to JSON never fails"),
+        )
     } else {
         single_line.to_string()
     }
+}
+
+/// YAML 1.1 readers treat these as line breaks even inside quoted scalars, so
+/// a raw one can fold into the surrounding value. JSON's `\u` escapes mean
+/// the same thing to a YAML reader and keep the character verbatim.
+fn escape_yaml_line_separators(text: &str) -> String {
+    text.replace('\u{85}', r"\u0085")
+        .replace('\u{2028}', r"\u2028")
+        .replace('\u{2029}', r"\u2029")
 }
