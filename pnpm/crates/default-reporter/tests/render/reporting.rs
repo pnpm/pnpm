@@ -128,7 +128,7 @@ fn prints_progress_beginning_during_recursive_install() {
 }
 
 #[test]
-fn moves_fixed_progress_line_to_the_end() {
+fn progress_line_stays_below_other_output_until_importing_is_done() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
@@ -142,10 +142,11 @@ fn moves_fixed_progress_line_to_the_end() {
                 prefix: CWD.to_string(),
             }),
             stage_at(CWD, Stage::ResolutionDone),
-            stage_at(CWD, Stage::ImportingDone),
         ],
     );
-    assert_eq!(frame, "[WARN] foo\nProgress: resolved 1, reused 0, downloaded 1, added 0, done");
+    assert_eq!(frame, "[WARN] foo\nProgress: resolved 1, reused 0, downloaded 1, added 0");
+    let frame = render(&mut reporter, vec![stage_at(CWD, Stage::ImportingDone)]);
+    assert_eq!(frame, "[WARN] foo");
 }
 
 #[test]
@@ -162,11 +163,11 @@ fn ignores_progress_after_importing_done() {
             progress("found_in_store"),
         ],
     );
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 1, added 0, done");
+    assert_eq!(frame, "");
 }
 
 #[test]
-fn stats_render_packages_line_and_bar() {
+fn stats_render_one_packages_line() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
@@ -181,7 +182,30 @@ fn stats_render_packages_line_and_bar() {
             }),
         ],
     );
-    assert_eq!(frame, "Packages: +5 -2\n+++++--");
+    assert_eq!(frame, "Packages: +5 -2");
+}
+
+/// The stats replace the live progress line, so they wait for it to end.
+#[test]
+fn stats_wait_for_importing_to_finish() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            progress("resolved"),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+            }),
+        ],
+    );
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
+    let frame = render(&mut reporter, vec![stage_at(CWD, Stage::ImportingDone)]);
+    assert_eq!(frame, "Packages: +1");
 }
 
 #[test]
@@ -198,7 +222,7 @@ fn append_only_stats_render_once_after_both_events() {
         message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
     }));
     match removed {
-        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
+        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5"]),
         _ => panic!("complete stats should emit Lines"),
     }
 }
@@ -217,7 +241,7 @@ fn append_only_stats_render_on_summary_when_pair_is_incomplete() {
 
     let summarized = reporter.handle(&summary());
     match summarized {
-        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
+        Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5"]),
         _ => panic!("summary should flush incomplete stats"),
     }
 }
@@ -584,4 +608,46 @@ fn hide_lifecycle_prefix_only_drops_it_from_output_lines() {
             "packages/foo postinstall: Done",
         ],
     );
+}
+
+/// Append-only output throttles progress lines and cannot clear them, so
+/// it ends with the final counts.
+#[test]
+fn append_only_progress_ends_with_the_final_counts() {
+    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
+    reporter.handle(&progress("resolved"));
+    match reporter.handle(&stage_at(CWD, Stage::ImportingDone)) {
+        Output::Lines(lines) => {
+            assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 0, done"]);
+        }
+        _ => panic!("importing done should print the final counts"),
+    }
+}
+
+#[test]
+fn stats_give_the_larger_share_of_downloaded_and_reused_packages() {
+    for (statuses, expected) in [
+        (vec!["fetched", "fetched", "found_in_store"], "Packages: +3 (66% downloaded)"),
+        (vec!["fetched", "found_in_store", "found_in_store"], "Packages: +3 (66% reused)"),
+        (vec!["found_in_store"], "Packages: +3 (100% reused)"),
+        (vec!["resolved"], "Packages: +3"),
+    ] {
+        let mut reporter = state(false);
+        let mut events: Vec<LogEvent> = statuses
+            .into_iter()
+            .map(progress)
+            .collect();
+        events.extend([
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 3 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+            }),
+            stage_at(CWD, Stage::ImportingDone),
+        ]);
+        assert_eq!(render(&mut reporter, events), expected);
+    }
 }

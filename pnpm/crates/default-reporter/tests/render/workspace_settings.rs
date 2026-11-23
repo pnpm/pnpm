@@ -6,12 +6,9 @@ use super::{
 };
 
 #[test]
-fn reports_an_unnarrowed_workspace_scope() {
+fn stays_silent_for_an_unnarrowed_workspace_scope() {
     let mut reporter = scope_reporting_state();
-    assert_eq!(
-        render(&mut reporter, vec![scope(3, Some(3), Some(CWD))]),
-        "Scope: all 3 workspace projects",
-    );
+    assert_eq!(render(&mut reporter, vec![scope(3, Some(3), Some(CWD))]), "");
 }
 
 #[test]

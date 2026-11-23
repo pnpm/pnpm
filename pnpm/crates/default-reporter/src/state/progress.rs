@@ -21,19 +21,22 @@ use super::{
     zoom_out,
 };
 
+use std::fmt::Write as _;
+
 impl ReporterState {
     // --- scope ------------------------------------------------------------
 
     /// pnpm's `reportScope`: how many workspace projects the command
-    /// selected. Silent for a command that doesn't report scope, and for a
+    /// selected. Silent for a command that doesn't report scope, for a
     /// single selected project, where the answer is the directory the
-    /// user is already standing in.
+    /// user is already standing in, and when every project was selected,
+    /// which the user did not have to ask for.
     pub(super) fn on_scope(&mut self, log: &ScopeLog) {
         if !self.options.scope.reports_scope || log.selected == 1 {
             return;
         }
         let count = match log.total {
-            Some(total) if total == log.selected => format!("all {total}"),
+            Some(total) if total == log.selected => return,
             Some(total) => format!("{} of {total}", log.selected),
             None => log.selected.to_string(),
         };
@@ -77,7 +80,7 @@ impl ReporterState {
             &self.rendering,
             &self.options.progress,
             &requester,
-            false,
+            ProgressLine::Live,
         );
         let Some(entry) = self.downloads.progress.get_mut(&requester) else { return };
         let mut slot = std::mem::take(&mut entry.slot);
@@ -90,22 +93,35 @@ impl ReporterState {
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
         match stage {
             Stage::ResolutionDone => self.flush_unused_overrides(),
+            // In a terminal the live progress line gives way to the one
+            // line of stats. Append-only output throttles progress lines
+            // and cannot clear them, so it ends with the final counts.
             Stage::ImportingDone => {
                 if !self.downloads.progress.contains_key(prefix) {
                     return;
                 }
-                let msg = self.downloads.progress_message(
-                    &self.rendering,
-                    &self.options.progress,
-                    prefix,
-                    true,
-                );
+                let final_counts = self.options.append_only.then(|| {
+                    self.downloads.progress_message(
+                        &self.rendering,
+                        &self.options.progress,
+                        prefix,
+                        ProgressLine::Done,
+                    )
+                });
                 let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
-                let mut slot = std::mem::take(&mut entry.slot);
-                self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
-                if let Some(entry) = self.downloads.progress.get_mut(prefix) {
-                    entry.slot = slot;
-                    entry.done = true;
+                match final_counts {
+                    Some(msg) => {
+                        self.display.frame.emit(&mut entry.slot, msg, BlockPlacement::Scrolling);
+                    }
+                    None => {
+                        self.display.frame.clear(&mut entry.slot);
+                    }
+                }
+                entry.done = true;
+                if self.install.stats_added.is_some()
+                    && self.install.stats_removed.is_some()
+                {
+                    self.render_stats();
                 }
             }
             _ => {}
@@ -130,7 +146,9 @@ impl ReporterState {
     fn start_tarball_block(&mut self, attempt: u32, package_id: &str, size: Option<u64>) {
         const BIG_TARBALL_SIZE: u64 = 1024 * 1024 * 5;
         let Some(size) = size else { return };
-        if size < BIG_TARBALL_SIZE || attempt != 1 {
+        // Append-only output cannot rewrite the line as the download
+        // advances, so it would only print where the download started.
+        if size < BIG_TARBALL_SIZE || attempt != 1 || self.options.append_only {
             return;
         }
         let mut entry = BigTarball { size, slot: BlockSlot::default() };
@@ -142,14 +160,16 @@ impl ReporterState {
     fn rewrite_tarball_block(&mut self, package_id: &str, downloaded: u64) {
         let Some(entry) = self.downloads.tarballs.get(package_id) else { return };
         let size = entry.size;
+        if downloaded == size {
+            if let Some(mut entry) = self.downloads.tarballs.remove(package_id) {
+                self.display.frame.clear(&mut entry.slot);
+            }
+            return;
+        }
         let msg = self.downloading_message(package_id, downloaded, size);
-        // A finished download stops being rewritten in place and scrolls
-        // away with the rest of the output.
-        let placement =
-            if downloaded == size { BlockPlacement::Scrolling } else { BlockPlacement::Pinned };
         let Some(entry) = self.downloads.tarballs.get_mut(package_id) else { return };
         let mut slot = std::mem::take(&mut entry.slot);
-        self.display.frame.emit(&mut slot, msg, placement);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Pinned);
         if let Some(entry) = self.downloads.tarballs.get_mut(package_id) {
             entry.slot = slot;
         }
@@ -161,10 +181,8 @@ impl ReporterState {
         downloaded: u64,
         size: u64,
     ) -> String {
-        let done = downloaded == size;
-        let suffix = if done { ", done" } else { "" };
         format!(
-            "Downloading {package_id}: {}/{}{suffix}",
+            "Downloading {package_id}: {}/{}",
             self.rendering.colors.cyan_bright(&pretty_bytes(downloaded)),
             self.rendering.colors.cyan_bright(&pretty_bytes(size)),
         )
@@ -187,7 +205,10 @@ impl ReporterState {
                 self.install.stats_removed = Some(*removed);
             }
         }
-        if self.install.stats_added.is_some() && self.install.stats_removed.is_some() {
+        if self.install.stats_added.is_some()
+            && self.install.stats_removed.is_some()
+            && self.downloads.importing_finished()
+        {
             self.render_stats();
         }
     }
@@ -207,6 +228,11 @@ impl ReporterState {
         self.install.stats_slot = slot;
     }
 
+    /// The one line an install's progress ends with, such as
+    /// `Packages: +5 -2 (60% downloaded)`. It gives the larger share of
+    /// downloaded and reused packages, not their counts: resolution also
+    /// fetches versions it then drops, so a count would not match the
+    /// packages added.
     pub(super) fn render_stats(&mut self) {
         let added = self.install.stats_added.take().unwrap_or(0);
         let removed = self.install.stats_removed.take().unwrap_or(0);
@@ -214,60 +240,63 @@ impl ReporterState {
             self.install.no_package_changed = true;
             return;
         }
+        let colors = &self.rendering.colors;
         let mut msg = String::from("Packages:");
         if added > 0 {
             msg.push(' ');
-            msg.push_str(&self.rendering.colors.green(&format!("+{added}")));
+            msg.push_str(&colors.green(&format!("+{added}")));
         }
         if removed > 0 {
             msg.push(' ');
-            msg.push_str(&self.rendering.colors.red(&format!("-{removed}")));
+            msg.push_str(&colors.red(&format!("-{removed}")));
         }
-        msg.push('\n');
-        msg.push_str(&self.pluses_and_minuses(self.rendering.width, added, removed));
+        if let Some(source) = self.downloads.package_source() {
+            let _ = write!(msg, " ({source})");
+        }
         let mut slot = std::mem::take(&mut self.install.stats_slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.install.stats_slot = slot;
     }
+}
 
-    pub(super) fn pluses_and_minuses(&self, max_width: usize, added: u64, removed: u64) -> String {
-        if max_width == 0 {
-            return String::new();
-        }
-        let changes = added + removed;
-        let (added_chars, removed_chars) = if changes > max_width as u64 {
-            if added == 0 {
-                (0, max_width)
-            } else if removed == 0 {
-                (max_width, 0)
-            } else {
-                let ratio = max_width as f64 / changes as f64;
-                let added_chars = ((added as f64 * ratio).floor() as usize)
-                    .max(1)
-                    .min(max_width.saturating_sub(1));
-                (added_chars, max_width - added_chars)
-            }
-        } else {
-            (added as usize, removed as usize)
-        };
-        let mut out = String::new();
-        for _ in 0..added_chars {
-            out.push_str(&self.rendering.colors.green("+"));
-        }
-        for _ in 0..removed_chars {
-            out.push_str(&self.rendering.colors.red("-"));
-        }
-        out
-    }
+/// Whether a progress line is still updating or reports the final counts.
+#[derive(Clone, Copy)]
+pub(super) enum ProgressLine {
+    Live,
+    Done,
 }
 
 impl DownloadState {
+    /// Whether every live progress line has finished. True when there
+    /// was none.
+    pub(super) fn importing_finished(&self) -> bool {
+        self.progress.values().all(|entry| entry.done)
+    }
+
+    /// Where most packages came from, as `60% downloaded` or `90% reused`.
+    /// Rounded down, so 100% means every package. `None` when no package
+    /// was downloaded or reused.
+    fn package_source(&self) -> Option<String> {
+        let (downloaded, reused) = self.progress
+            .values()
+            .fold((0, 0), |(downloaded, reused), entry| {
+                (downloaded + entry.stats.fetched, reused + entry.stats.reused)
+            });
+        let total = downloaded + reused;
+        if total == 0 {
+            return None;
+        }
+        let (share, source) =
+            if downloaded >= reused { (downloaded, "downloaded") } else { (reused, "reused") };
+        Some(format!("{}% {source}", share * 100 / total))
+    }
+
     pub(super) fn progress_message(
         &self,
         rendering: &RenderingContext,
         options: &ProgressOptions,
         requester: &str,
-        done: bool,
+        line: ProgressLine,
     ) -> String {
         let stats = self.progress
             .get(requester)
@@ -284,8 +313,9 @@ impl DownloadState {
             msg.push_str(", added ");
             msg.push_str(&hl(stats.imported));
         }
-        if done {
-            msg.push_str(", done");
+        match line {
+            ProgressLine::Live => {}
+            ProgressLine::Done => msg.push_str(", done"),
         }
         if !options.hide_prefix && requester != rendering.cwd {
             msg = zoom_out(&rendering.cwd, requester, &msg);
@@ -295,6 +325,7 @@ impl DownloadState {
 }
 
 impl InstallProgress {
+    /// One line on how packages reach `node_modules`, on a first install.
     pub(super) fn maybe_render_context(&mut self, cwd: &str, frame: &mut Frame) {
         if self.context_rendered {
             return;
@@ -306,6 +337,7 @@ impl InstallProgress {
             self.context_rendered = true;
             return;
         }
+        self.context_rendered = true;
         let method = match method {
             PackageImportMethod::Copy => "copied",
             PackageImportMethod::Clone => "cloned",
@@ -313,11 +345,9 @@ impl InstallProgress {
         };
         let virtual_store = normalize(&relative(cwd, &ctx.virtual_store_dir));
         let msg = format!(
-            "Packages are {method} from the content-addressable store to the virtual store.\n  \
-             Content-addressable store is at: {}\n  Virtual store is at:             {}",
-            ctx.store_dir, virtual_store,
+            "Packages are {method} from the store at {} into {virtual_store}",
+            ctx.store_dir
         );
-        self.context_rendered = true;
         let mut slot = std::mem::take(&mut self.context_slot);
         frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.context_slot = slot;

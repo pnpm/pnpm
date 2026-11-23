@@ -130,7 +130,7 @@ fn a_repeat_frozen_install_leaves_present_hoisted_packages_alone() {
         .expect("run pnpm install");
     assert!(output.status.success(), "repeat install failed: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("Packages: +1\n"), "stdout:\n{stdout}");
+    assert!(reports_added(&stdout, 1), "stdout:\n{stdout}");
 
     assert_eq!(
         fs::read_to_string(workspace.join("node_modules/local-pkg/marker.txt")).unwrap(),
@@ -207,7 +207,7 @@ fn a_repeat_frozen_install_leaves_present_patched_hoisted_packages_alone() {
         .expect("run pnpm install");
     assert!(output.status.success(), "repeat install failed: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("Packages: +1\n"), "stdout:\n{stdout}");
+    assert!(reports_added(&stdout, 1), "stdout:\n{stdout}");
 
     assert!(
         witnesses.iter().all(DirWitness::is_intact),
@@ -311,7 +311,7 @@ fn adding_a_dependency_leaves_present_hoisted_packages_alone() {
         .expect("run pnpm add");
     assert!(output.status.success(), "add failed: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("Packages: +1\n"), "stdout:\n{stdout}");
+    assert!(reports_added(&stdout, 1), "stdout:\n{stdout}");
 
     assert!(is_real_dir(&workspace, "node_modules/is-positive"), "the new package landed");
 
@@ -1123,4 +1123,13 @@ fn an_interrupted_hoisted_install_forgets_the_locations_it_replaces() {
     assert_eq!(read_pkg_version(&workspace, &format!("node_modules/{REPLACED}")), "100.0.0");
 
     drop((root, mock_instance));
+}
+
+/// Whether the stats line reports exactly `count` added packages, with or
+/// without the share of downloaded or reused ones after it.
+fn reports_added(stdout: &str, count: u64) -> bool {
+    let line = format!("Packages: +{count}");
+    stdout
+        .lines()
+        .any(|printed| printed == line || printed.starts_with(&format!("{line} (")))
 }

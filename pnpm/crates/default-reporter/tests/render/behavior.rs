@@ -28,15 +28,15 @@ fn pretty_bytes_truncates_without_floating_point_drift() {
 }
 
 #[test]
-fn importing_done_appends_done_suffix() {
+fn importing_done_clears_the_progress_line() {
     let mut reporter = state(false);
     let frame =
         render(&mut reporter, vec![progress("resolved"), progress("imported"), importing_done()]);
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 1, done");
+    assert_eq!(frame, "");
 }
 
 #[test]
-fn stats_bar_is_colored_when_enabled() {
+fn stats_counts_are_colored_when_enabled() {
     let mut reporter = state(true);
     let frame = render(
         &mut reporter,
@@ -51,7 +51,7 @@ fn stats_bar_is_colored_when_enabled() {
             }),
         ],
     );
-    assert_eq!(frame, "Packages: \u{1b}[32m+1\u{1b}[39m\n\u{1b}[32m+\u{1b}[39m");
+    assert_eq!(frame, "Packages: \u{1b}[32m+1\u{1b}[39m");
 }
 
 #[test]
@@ -83,9 +83,7 @@ fn full_install_frame_orders_blocks_like_pnpm() {
     );
     assert_eq!(
         frame,
-        "Packages: +1\n+\n\ndependencies:\n+ foo 1.0.0\n\n\
-         Progress: resolved 1, reused 1, downloaded 0, added 1, done\n\
-         Done in 1.2s using pnpm v0.0.1",
+        "Packages: +1 (100% reused)\n\ndependencies:\n+ foo 1.0.0\n\nDone in 1.2s using pnpm v0.0.1",
     );
 }
 

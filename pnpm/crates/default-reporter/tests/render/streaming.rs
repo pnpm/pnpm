@@ -97,8 +97,7 @@ fn prints_progress_of_big_files_download() {
                  Downloading {pkg_3}: 19.92 MB/20.97 MB",
             ),
             format!(
-                "Downloading {pkg_1}: 10.48 MB/10.48 MB, done\n\
-                 Progress: resolved 3, reused 0, downloaded 0, added 0\n\
+                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
                  Downloading {pkg_3}: 19.92 MB/20.97 MB",
             ),
         ],
@@ -241,4 +240,16 @@ packages/foo postinstall: foo II
 packages/bar postinstall: Done
 packages/foo postinstall: Done",
     );
+}
+
+/// Append-only output cannot rewrite a download's line as it advances.
+#[test]
+fn append_only_output_prints_no_download_lines() {
+    const MIB: u64 = 1024 * 1024;
+    let pkg = "registry.npmjs.org/foo/1.0.0";
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    for event in [fetching_started(pkg, 10 * MIB, 1), fetching_in_progress(pkg, 10 * MIB)] {
+        assert!(matches!(reporter.handle(&event), Output::None));
+    }
 }

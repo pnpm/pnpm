@@ -28,7 +28,7 @@ use super::{
 };
 
 #[test]
-fn context_block_renders_when_no_current_lockfile() {
+fn context_line_names_the_import_method_and_both_stores() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
@@ -41,15 +41,11 @@ fn context_block_renders_when_no_current_lockfile() {
             }),
             LogEvent::PackageImportMethod(PackageImportMethodLog {
                 level: LogLevel::Debug,
-                method: PackageImportMethod::Hardlink,
+                method: PackageImportMethod::Copy,
             }),
         ],
     );
-    assert_eq!(
-        frame,
-        "Packages are hard linked from the content-addressable store to the virtual store.\n  \
-         Content-addressable store is at: /store\n  Virtual store is at:             node_modules/.pnpm",
-    );
+    assert_eq!(frame, "Packages are copied from the store at /store into node_modules/.pnpm");
 }
 
 #[test]
