@@ -56,9 +56,9 @@ impl Colors {
     paint!(magenta, magenta);
     paint!(magenta_bright, bright_magenta);
 
-    // A package name among other words. Bold, unlike a color, reads on
-    // light and dark terminal themes alike.
-    paint!(package_name, bold);
+    // A package name among other words. A basic ANSI color follows the
+    // terminal's theme; bold is not rendered by every terminal.
+    paint!(package_name, magenta);
     // A command the user can run.
     paint!(command, cyan);
 

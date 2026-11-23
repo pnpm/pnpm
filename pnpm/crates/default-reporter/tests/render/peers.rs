@@ -78,7 +78,7 @@ fn footer_highlights_package_names_and_commands() {
     };
     assert_eq!(
         frame,
-        "\n\u{1b}[31m✗\u{1b}[39m 1 peer dependency has issues: \u{1b}[1mreact\u{1b}[0m \
+        "\n\u{1b}[31m✗\u{1b}[39m 1 peer dependency has issues: \u{1b}[35mreact\u{1b}[39m \
          (see \"\u{1b}[36mpnpm peers check\u{1b}[39m\")\n",
     );
 }
