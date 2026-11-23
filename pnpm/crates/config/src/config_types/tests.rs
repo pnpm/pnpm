@@ -293,6 +293,40 @@ fn render_yaml_top_level_field_preserves_multiple_trailing_newlines() {
     }
 }
 
+#[test]
+fn render_yaml_top_level_field_preserves_unicode_line_separators() {
+    use serde_json::{
+        Value,
+        json,
+    };
+
+    for separator in ['\u{85}', '\u{2028}', '\u{2029}'] {
+        let scalar = format!("sha{separator}red");
+        let package = format!("pkg{separator}name@1.0.0");
+        for value in
+            [json!(scalar.clone()), json!({ "nested": package.clone() }), json!([package, scalar])]
+        {
+            let rendered = crate::render_yaml_top_level_field("sample", &value);
+            let parsed: serde_json::Map<String, Value> = serde_saphyr::from_str(&rendered).unwrap();
+            assert_eq!(parsed["sample"], value, "rendered YAML:\n{rendered}");
+        }
+    }
+}
+
+#[test]
+fn render_yaml_top_level_field_leaves_plain_values_unchanged() {
+    use serde_json::json;
+
+    assert_eq!(
+        crate::render_yaml_top_level_field("sample", &json!("sha red")),
+        "sample: sha red\n",
+    );
+    assert_eq!(
+        crate::render_yaml_top_level_field("sample", &json!({ "nested": "sha red" })),
+        "sample:\n  nested: sha red\n",
+    );
+}
+
 /// Every `WorkspaceSettings` field accepted by `is_config_file_key` must
 /// survive `clear_workspace_only_fields`, and every field rejected by
 /// `is_config_file_key` (except `_auth`, which routes via `is_ini_config_key`)
