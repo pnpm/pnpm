@@ -48,6 +48,7 @@ use pnpm_reporter::{
     LogLevel,
     PackageImportMethod,
     PackageManifestMessage,
+    PeerDependencyIssuesLog,
     PendingSkillsLog,
     ProgressMessage,
     RemovedRoot,
@@ -406,7 +407,7 @@ impl ReporterState {
             LogEvent::Hook(log) => self.on_hook(log),
             LogEvent::Deprecation(log) => self.on_deprecation(log),
             LogEvent::UnusedOverride(log) => self.on_unused_override(log),
-            LogEvent::PeerDependencyIssues(_) => self.on_peer_dependency_issues(),
+            LogEvent::PeerDependencyIssues(log) => self.on_peer_dependency_issues(log),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::BrokenModules(_) => {}
         }

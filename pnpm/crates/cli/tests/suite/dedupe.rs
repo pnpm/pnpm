@@ -828,7 +828,7 @@ fn dedupe_warns_about_peer_dependency_issues() {
     assert!(output.status.success(), "dedupe must succeed: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(
-        stdout.contains(r#"✗ Peer dependencies have issues (see "pnpm peers check")"#),
+        stdout.contains(r#"has issues: @pnpm.e2e/foo (see "pnpm peers check")"#),
         "stdout:\n{stdout}",
     );
 

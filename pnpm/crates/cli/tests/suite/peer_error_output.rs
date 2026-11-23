@@ -69,7 +69,7 @@ fn nonfatal_peer_warning_stays_on_stdout() {
     assert!(output.status.success(), "{output:?}");
     assert!(output.stderr.is_empty(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("✗ Peer dependencies have issues"), "{stdout}");
+    assert!(stdout.contains(" has issues: "), "{stdout}");
     assert!(!stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"), "{stdout}");
 }
 

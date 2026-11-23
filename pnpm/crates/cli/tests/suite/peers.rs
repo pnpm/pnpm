@@ -145,7 +145,12 @@ fn a_resolving_install_warns_about_peer_dependency_issues() {
         .expect("run pnpm install");
     assert!(output.status.success(), "install must succeed: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
+    assert!(
+        stdout.contains(
+            r#"✗ 1 peer dependency has issues: @pnpm.e2e/foo (see "pnpm peers check")"#
+        ),
+        "stdout:\n{stdout}",
+    );
 
     drop((root, mock_instance));
 }
@@ -292,7 +297,8 @@ fn peer_dependency_rules_settle_the_install_verdict() {
     drop((root, mock_instance));
 }
 
-const PEERS_CHECK_HINT: &str = r#"✗ Peer dependencies have issues (see "pnpm peers check")"#;
+/// How the checks footer's peer issues line ends, whichever peers it names.
+const PEERS_CHECK_HINT: &str = r#"(see "pnpm peers check")"#;
 
 /// `@pnpm.e2e/has-foo100-peer` wants `@pnpm.e2e/foo@100.0.0`; pinning
 /// `2.0.0` alongside it makes that peer resolvable but unsatisfying, a

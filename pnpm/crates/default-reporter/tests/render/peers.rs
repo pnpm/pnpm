@@ -39,3 +39,26 @@ fn peer_issues_row_targets_the_command_scope_and_is_printed_once() {
         assert_eq!(frame, format!("\n✗ Peer dependencies have issues (see \"{command}\")\n"));
     }
 }
+
+#[test]
+fn peer_issues_row_names_the_peers() {
+    let mut reporter = state_with_options(ReporterOptions::default());
+    let issues = serde_json::json!({
+        ".": { "bad": { "react": [] }, "missing": { "@types/react": [] }, "conflicts": [], "intersections": {} },
+        "packages/web": { "bad": { "react": [] }, "missing": {}, "conflicts": [], "intersections": {} },
+    });
+    render(
+        &mut reporter,
+        vec![LogEvent::PeerDependencyIssues(PeerDependencyIssuesLog {
+            level: LogLevel::Debug,
+            issues_by_projects: issues,
+        })],
+    );
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
+    };
+    assert_eq!(
+        frame,
+        "\n✗ 2 peer dependencies have issues: @types/react and react (see \"pnpm peers check\")\n",
+    );
+}

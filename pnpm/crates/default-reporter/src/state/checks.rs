@@ -19,7 +19,9 @@ use super::{
     DeprecationLog,
     MaxLogLevel,
     Output,
+    PeerDependencyIssuesLog,
     ReporterState,
+    Value,
     is_strictly_newer,
 };
 
@@ -42,7 +44,9 @@ pub(super) const RESOLUTION_SKIPPED: &str = "Lockfile is up to date, resolution 
 pub(super) struct ChecksState {
     resolution_skipped: bool,
     supply_chain_passed: bool,
-    peer_issues: bool,
+    /// The peers with issues, by name. `Some` once peer issues were
+    /// reported, even when the payload names none.
+    peer_issues: Option<BTreeSet<String>>,
     /// `name@version` of every deprecated package resolution reported.
     deprecated: BTreeSet<String>,
     slot: BlockSlot,
@@ -58,8 +62,10 @@ impl ReporterState {
         self.notices.checks.supply_chain_passed = true;
     }
 
-    pub(super) fn on_peer_dependency_issues(&mut self) {
-        self.notices.checks.peer_issues = true;
+    pub(super) fn on_peer_dependency_issues(&mut self, log: &PeerDependencyIssuesLog) {
+        self.notices.checks.peer_issues
+            .get_or_insert_default()
+            .extend(peers_with_issues(&log.issues_by_projects));
     }
 
     pub(super) fn on_deprecation(&mut self, log: &DeprecationLog) {
@@ -125,12 +131,21 @@ impl ReporterState {
     fn peer_issues_line(&self) -> Option<String> {
         let command =
             if self.options.scope.is_global { "pnpm peers check -g" } else { "pnpm peers check" };
-        self.notices.checks.peer_issues.then(|| {
-            format!(
-                r#"{} Peer dependencies have issues (see "{command}")"#,
-                self.rendering.colors.red("✗"),
-            )
-        })
+        let peers = self.notices.checks.peer_issues.as_ref()?;
+        let cross = self.rendering.colors.red("✗");
+        if peers.is_empty() {
+            return Some(format!(r#"{cross} Peer dependencies have issues (see "{command}")"#));
+        }
+        let (noun, verb) = if peers.len() == 1 {
+            ("peer dependency", "has")
+        } else {
+            ("peer dependencies", "have")
+        };
+        Some(format!(
+            r#"{cross} {} {noun} {verb} issues: {} (see "{command}")"#,
+            peers.len(),
+            list_names(peers),
+        ))
     }
 
     fn outdated_line(&self) -> Option<String> {
@@ -178,6 +193,23 @@ impl ReporterState {
             .map(|diff| pnpm_text_sanitize::sanitize_inline(&diff.name).into_owned())
             .collect()
     }
+}
+
+/// The names of the peers a `pnpm:peer-dependency-issues` payload reports
+/// as bad or missing, in any project. The names come from manifests, so
+/// they are sanitized.
+fn peers_with_issues(issues_by_projects: &Value) -> impl Iterator<Item = String> + '_ {
+    issues_by_projects
+        .as_object()
+        .into_iter()
+        .flat_map(serde_json::Map::values)
+        .flat_map(|issues| ["bad", "missing"].map(|kind| issues.get(kind)))
+        .flatten()
+        .filter_map(Value::as_object)
+        .flat_map(serde_json::Map::keys)
+        .map(String::as_str)
+        .map(pnpm_text_sanitize::sanitize_inline)
+        .map(std::borrow::Cow::into_owned)
 }
 
 /// `name@version` as the footer prints it.
