@@ -58,6 +58,7 @@ pub(super) async fn finish_prepared<'install, Reporter: self::Reporter>(
         level: LogLevel::Debug,
         prefix: settled.projects.workspace.prefix.clone(),
         new_projects: None,
+        project_names: None,
     }));
     Ok(None)
 }

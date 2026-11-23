@@ -5,6 +5,8 @@ use std::sync::{
 
 use pnpm_reporter::{
     DeprecationLog,
+    LockfileVerificationLog,
+    LockfileVerificationMessage,
     LogEvent,
     LogLevel,
     ProgressLog,
@@ -57,6 +59,7 @@ fn summary() -> LogEvent {
         level: LogLevel::Debug,
         prefix: DIR.to_string(),
         new_projects: None,
+        project_names: None,
     })
 }
 
@@ -182,6 +185,7 @@ fn linked_root(name: &str) -> LogEvent {
                 id: None,
                 latest: None,
                 linked_from: Some("/elsewhere".to_string()),
+                registry_package: None,
             },
         },
     })
@@ -213,7 +217,7 @@ fn a_zero_width_is_floored_to_one_column() {
 
 /// `warn` filters the summary out, and an engine call emits no footer.
 #[test]
-fn held_deprecation_warnings_print_when_the_renderer_is_dropped() {
+fn checks_footer_prints_when_the_renderer_is_dropped() {
     let (mut renderer, buffer) = renderer(&ReporterOptions {
         append_only: Some(true),
         log_level: Some("warn".to_string()),
@@ -234,5 +238,36 @@ fn held_deprecation_warnings_print_when_the_renderer_is_dropped() {
 
     drop(renderer);
 
-    assert_eq!(written(&buffer), "[WARN] deprecated: express@0.14.1\n");
+    assert_eq!(written(&buffer), "\n✗ 1 package is deprecated: express@0.14.1\n\n");
+}
+
+fn supply_chain_passed() -> LogEvent {
+    LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Cached { verified_at: None, lockfile_path: None },
+    })
+}
+
+/// A passing verdict beside a failed engine call's error is noise.
+#[test]
+fn failed_engine_call_prints_no_passing_checks() {
+    let (mut renderer, buffer) =
+        renderer(&ReporterOptions { append_only: Some(true), ..ReporterOptions::default() });
+    renderer.handle(&supply_chain_passed());
+
+    drop(renderer);
+
+    assert_eq!(written(&buffer), "");
+}
+
+#[test]
+fn succeeded_engine_call_prints_the_passing_checks() {
+    let (mut renderer, buffer) =
+        renderer(&ReporterOptions { append_only: Some(true), ..ReporterOptions::default() });
+    renderer.handle(&supply_chain_passed());
+    renderer.mark_succeeded();
+
+    drop(renderer);
+
+    assert_eq!(written(&buffer), "\n✓ Lockfile passes supply-chain policies\n\n");
 }

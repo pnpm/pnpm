@@ -8,7 +8,6 @@ use super::{
     StatsLog,
     StatsMessage,
     added_root,
-    deprecation,
     emitted_lines,
     importing_done,
     interleaved_lifecycle_events,
@@ -88,26 +87,6 @@ fn full_install_frame_orders_blocks_like_pnpm() {
          Progress: resolved 1, reused 1, downloaded 0, added 1, done\n\
          Done in 1.2s using pnpm v0.0.1",
     );
-}
-
-#[test]
-fn direct_deprecation_of_the_current_project_names_no_project() {
-    let mut reporter = state_with_options(ReporterOptions {
-        scope: pnpm_default_reporter::state::ScopeOptions { recursive: true, ..Default::default() },
-        ..ReporterOptions::default()
-    });
-    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD), summary()]);
-    assert_eq!(frame, "[WARN] deprecated: express@0.14.1");
-}
-
-#[test]
-fn direct_deprecation_of_another_project_names_it() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![deprecation("express", "0.14.1", 0, "/repo/packages/app"), summary()],
-    );
-    assert_eq!(frame, "[WARN] deprecated: express@0.14.1 (packages/app)");
 }
 
 /// A single selected project is the directory the user is standing in, so

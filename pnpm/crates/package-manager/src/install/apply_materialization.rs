@@ -373,6 +373,7 @@ fn install_summary(
     SummaryLog {
         level: LogLevel::Debug,
         new_projects: new_projects(inputs, installed_importer_ids),
+        project_names: project_names(inputs),
         prefix: std::mem::take(&mut inputs.completion.prefix),
     }
 }
@@ -401,6 +402,22 @@ fn new_projects(
         .map(|(project_dir, _)| project_dir.to_string_lossy().into_owned())
         .collect();
     Some(new_projects)
+}
+
+/// See [`SummaryLog::project_names`].
+fn project_names(inputs: &ApplyMaterializationInputs<'_, '_>) -> Option<BTreeMap<String, String>> {
+    let importers = &inputs.projects.importers;
+    if importers.real_ids.len() < 2 {
+        return None;
+    }
+    let names = importers.manifests
+        .iter()
+        .filter_map(|(project_dir, manifest)| {
+            let name = manifest.value().get("name")?.as_str()?;
+            Some((project_dir.to_string_lossy().into_owned(), name.to_string()))
+        })
+        .collect();
+    Some(names)
 }
 
 /// The settings an install's state write takes from the run. See

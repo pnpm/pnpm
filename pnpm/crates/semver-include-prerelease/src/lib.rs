@@ -10,6 +10,11 @@ pub use subset::{
     ParsedSemverRange,
     is_semver_subset,
 };
+pub use version_change::{
+    VersionChange,
+    classify_version_change,
+    split_at_changed_field,
+};
 
 use std::borrow::Cow;
 
@@ -20,6 +25,7 @@ use node_semver::{
 
 mod semver_range;
 mod subset;
+mod version_change;
 
 /// A semver range evaluated the way npm's `semver` does with
 /// `includePrerelease: true`.

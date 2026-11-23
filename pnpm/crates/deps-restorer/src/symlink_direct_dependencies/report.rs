@@ -68,6 +68,7 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
                 id: None,
                 latest,
                 linked_from,
+                registry_package: spec.version.registry_package(name).map(ToString::to_string),
             },
         },
     }));

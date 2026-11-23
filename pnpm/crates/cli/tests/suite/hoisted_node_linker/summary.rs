@@ -7,6 +7,7 @@ use super::{
     write_manifest,
     write_workspace_yaml,
 };
+use crate::_utils::is_summary_change_line;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use std::process::Command;
@@ -18,7 +19,7 @@ fn summary_of(stdout: &str, header_line: &str) -> Option<String> {
         .lines()
         .skip_while(|line| *line != header_line);
     let header = lines.next()?;
-    let entries = lines.take_while(|line| line.starts_with('+') || line.starts_with('-'));
+    let entries = lines.take_while(|line| is_summary_change_line(line));
     Some(
         std::iter::once(header)
             .chain(entries)
@@ -76,7 +77,7 @@ fn hoisted_install_reports_the_version_a_dependency_resolved_to() {
 }
 
 #[test]
-fn hoisted_install_reports_both_sides_of_a_version_change() {
+fn hoisted_install_reports_a_version_change_on_one_line() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -92,7 +93,7 @@ fn hoisted_install_reports_both_sides_of_a_version_change() {
     write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" }));
     assert_eq!(
         install_summary(pacquet_at(&workspace)).as_deref(),
-        Some("dependencies:\n- @pnpm.e2e/foo 100.0.0\n+ @pnpm.e2e/foo 100.1.0"),
+        Some("dependencies:\n↑ @pnpm.e2e/foo 100.0.0 → 100.1.0"),
     );
 
     write_manifest(&workspace, serde_json::json!({}));
@@ -168,7 +169,7 @@ fn hoisted_install_does_not_report_an_optional_dependency_it_skipped() {
     let output = install_output(pacquet_at(&workspace));
     assert_eq!(
         summary_of(&output, "dependencies:").as_deref(),
-        Some("dependencies:\n+ @pnpm.e2e/foo 100.0.0 (100.1.0 is available)"),
+        Some("dependencies:\n+ @pnpm.e2e/foo 100.0.0"),
     );
     assert_eq!(summary_of(&output, "optionalDependencies:"), None);
 

@@ -289,7 +289,12 @@ fn remove_unwanted_entries<Reporter: self::Reporter>(
                 level: LogLevel::Debug,
                 message: RootMessage::Removed {
                     prefix: prefix.clone(),
-                    removed: RemovedRoot { name: pkg_name, version, dependency_type: None },
+                    removed: RemovedRoot {
+                        name: pkg_name,
+                        version,
+                        dependency_type: None,
+                        registry_package: None,
+                    },
                 },
             }));
         }

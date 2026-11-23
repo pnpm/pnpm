@@ -42,6 +42,7 @@ use pnpm_reporter::{
     PnpmLog,
     ProgressLog,
     ProgressMessage,
+    RemovedRoot,
     RootLog,
     RootMessage,
     ScopeLog,
@@ -76,6 +77,11 @@ fn state_without_summary_prefix_filter() -> ReporterState {
         false,
         SummaryScope::AllPrefixes,
     )
+}
+
+/// The checks footer a command that succeeded ends with.
+fn flush_checks(state: &mut ReporterState) -> Output {
+    state.flush_pending_checks(pnpm_default_reporter::state::CommandOutcome::Succeeded)
 }
 
 /// Feed events through the in-place renderer and return the last full frame.
@@ -170,6 +176,7 @@ fn added_root_with_latest_at(
                 id: None,
                 latest: latest.map(str::to_string),
                 linked_from: None,
+                registry_package: Some(name.to_string()),
             },
         },
     })
@@ -198,6 +205,7 @@ fn summary_at(prefix: &str) -> LogEvent {
         level: LogLevel::Debug,
         prefix: prefix.to_string(),
         new_projects: None,
+        project_names: None,
     })
 }
 
@@ -277,6 +285,40 @@ fn ignored_scripts(names: &[&str]) -> LogEvent {
     })
 }
 
+fn removed_root_at(prefix: &str, name: &str, version: &str) -> LogEvent {
+    LogEvent::Root(RootLog {
+        level: LogLevel::Debug,
+        message: RootMessage::Removed {
+            prefix: prefix.to_string(),
+            removed: RemovedRoot {
+                name: name.to_string(),
+                version: Some(version.to_string()),
+                dependency_type: Some(DependencyType::Prod),
+                registry_package: Some(name.to_string()),
+            },
+        },
+    })
+}
+
+fn aliased_root_at(prefix: &str, alias: &str, real_name: &str, version: &str) -> LogEvent {
+    LogEvent::Root(RootLog {
+        level: LogLevel::Debug,
+        message: RootMessage::Added {
+            prefix: prefix.to_string(),
+            added: AddedRoot {
+                name: alias.to_string(),
+                real_name: real_name.to_string(),
+                version: Some(version.to_string()),
+                dependency_type: Some(DependencyType::Prod),
+                id: None,
+                latest: None,
+                linked_from: None,
+                registry_package: Some(real_name.to_string()),
+            },
+        },
+    })
+}
+
 fn linked_root(name: &str, from: &str) -> LogEvent {
     LogEvent::Root(RootLog {
         level: LogLevel::Debug,
@@ -290,6 +332,7 @@ fn linked_root(name: &str, from: &str) -> LogEvent {
                 id: None,
                 latest: None,
                 linked_from: Some(from.to_string()),
+                registry_package: None,
             },
         },
     })

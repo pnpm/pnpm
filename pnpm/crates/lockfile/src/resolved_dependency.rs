@@ -179,6 +179,25 @@ impl ImporterDepVersion {
         }
     }
 
+    /// The registry package this dependency resolves to: the alias's
+    /// target for [`Self::Alias`], `importer_key` for [`Self::Regular`].
+    /// `None` for `link:` / `file:` siblings, and for a version that is no
+    /// registry version, such as a tarball or Git URL.
+    #[must_use]
+    pub fn registry_package<'a>(&'a self, importer_key: &'a PkgName) -> Option<&'a PkgName> {
+        match self {
+            ImporterDepVersion::Regular(ver) => ver
+                .version()
+                .is_registry()
+                .then_some(importer_key),
+            ImporterDepVersion::Alias(alias) => alias.suffix
+                .version()
+                .is_registry()
+                .then_some(&alias.name),
+            ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => None,
+        }
+    }
+
     /// The version-with-peer portion of this dependency, or `None` for
     /// `link:` / `file:` siblings. For [`Self::Alias`] this returns the
     /// alias's suffix, matching the version present in the snapshot

@@ -11,8 +11,10 @@ use super::{
     added_root,
     deprecation,
     deprecation_with_alternative,
+    flush_checks,
     installed_deprecation,
     render,
+    resolution_done,
     state,
     summary,
 };
@@ -26,7 +28,7 @@ fn execution_time() -> LogEvent {
 }
 
 #[test]
-fn added_deprecated_dependency_carries_the_warning_on_its_summary_line() {
+fn deprecated_dependency_line_leaves_the_deprecation_to_the_footer() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
@@ -36,83 +38,80 @@ fn added_deprecated_dependency_carries_the_warning_on_its_summary_line() {
             summary(),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ express 0.14.1 deprecated. 4.21.2 is not deprecated.\n");
+    assert_eq!(frame, "\ndependencies:\n+ express 0.14.1\n");
 }
 
 #[test]
-fn unchanged_deprecated_dependency_follows_the_summary_sections() {
+fn footer_counts_every_deprecated_package() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
         vec![
-            deprecation_with_alternative("express", "0.14.1", 0, CWD, not_deprecated("4.21.2")),
-            added_root("foo", "1.0.0", DependencyType::Prod),
+            deprecation("express", "0.14.1", 0, CWD),
+            deprecation("uuid", "3.4.0", 1, CWD),
+            installed_deprecation("request", "2.88.2", 0),
+            added_root("express", "0.14.1", DependencyType::Prod),
             summary(),
+            execution_time(),
         ],
     );
-    assert_eq!(
-        frame,
-        "\ndependencies:\n+ foo 1.0.0\n\n[WARN] deprecated: express@0.14.1. 4.21.2 is not deprecated.\n",
-    );
-}
-
-#[test]
-fn deprecations_without_a_summary_print_with_the_footer() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![deprecation("express", "0.14.1", 0, CWD), deprecation("uuid", "3.4.0", 1, CWD)],
-    );
-    assert_eq!(frame, "");
-    let frame = render(&mut reporter, vec![execution_time()]);
     assert!(
         frame.starts_with(
-            "[WARN] deprecated: express@0.14.1\n\
-             [WARN] 1 deprecated subdependencies found: uuid@3.4.0\n\
+            "\ndependencies:\n+ express 0.14.1\n\n\
+             ✗ 3 packages are deprecated: express@0.14.1, request@2.88.2 and uuid@3.4.0\n\n\
              Done in ",
         ),
         "{frame}",
     );
 }
 
-/// A command that fails after resolution emits no summary and no footer.
 #[test]
-fn deprecations_are_flushed_when_the_command_ends_without_a_footer() {
+fn footer_lists_three_deprecated_packages_and_counts_the_rest() {
+    let mut reporter = state(false);
+    let mut events: Vec<LogEvent> = ["a", "b", "c", "d", "e"]
+        .iter()
+        .map(|name| deprecation(name, "1.0.0", 1, CWD))
+        .collect();
+    events.push(execution_time());
+    let frame = render(&mut reporter, events);
+    assert!(
+        frame.starts_with("\n✗ 5 packages are deprecated: a@1.0.0, b@1.0.0, c@1.0.0 and 2 more\n"),
+        "{frame}",
+    );
+}
+
+/// The deprecation and peer checks print nothing when they pass.
+#[test]
+fn passing_checks_print_no_footer() {
+    let mut reporter = state(false);
+    let frame = render(&mut reporter, vec![resolution_done(), execution_time()]);
+    assert!(frame.starts_with("Done in "), "{frame}");
+}
+
+/// A command that fails after resolution emits no `Done in ...` line.
+#[test]
+fn footer_is_flushed_when_the_command_ends_without_done_line() {
     let mut reporter = state(false);
     render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
-    let Output::Frame(frame) = reporter.flush_pending_deprecations() else {
-        panic!("the held warning renders");
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
     };
-    assert_eq!(frame, "[WARN] deprecated: express@0.14.1");
-    assert!(matches!(reporter.flush_pending_deprecations(), Output::None));
+    assert_eq!(frame, "\n✗ 1 package is deprecated: express@0.14.1\n");
+    assert!(matches!(flush_checks(&mut reporter), Output::None));
 }
 
 /// The flush runs after every command, so with nothing held it must not draw
 /// an empty frame into output such as `pnpm cat-file`.
 #[test]
-fn nothing_is_flushed_when_no_warning_is_held() {
+fn nothing_is_flushed_when_no_check_ran() {
     let mut reporter = state(false);
-    assert!(matches!(reporter.flush_pending_deprecations(), Output::None));
-}
-
-#[test]
-fn deprecations_the_summary_carried_are_not_repeated() {
-    let mut reporter = state(false);
-    render(
-        &mut reporter,
-        vec![
-            deprecation("express", "0.14.1", 0, CWD),
-            added_root("express", "0.14.1", DependencyType::Prod),
-            summary(),
-        ],
-    );
-    assert!(matches!(reporter.flush_pending_deprecations(), Output::None));
+    assert!(matches!(flush_checks(&mut reporter), Output::None));
 }
 
 /// `pnpm add --lockfile-only` links nothing, so its summary has no section
 /// until the edited manifest arrives after it.
 #[test]
-fn warnings_do_not_close_a_summary_a_manifest_edit_still_fills() {
+fn summary_waits_for_a_later_manifest_edit() {
     let manifest = |updated: bool, value: serde_json::Value| {
         LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
@@ -132,74 +131,53 @@ fn warnings_do_not_close_a_summary_a_manifest_edit_still_fills() {
             summary(),
         ],
     );
-    assert_eq!(frame, "[WARN] deprecated: express@0.14.1");
+    assert_eq!(frame, "");
     let frame = render(
         &mut reporter,
         vec![manifest(true, serde_json::json!({ "dependencies": { "express": "0.14.1" } }))],
     );
-    assert_eq!(frame, "[WARN] deprecated: express@0.14.1\n\ndependencies:\n+ express 0.14.1\n");
+    assert_eq!(frame, "\ndependencies:\n+ express 0.14.1\n");
 }
 
 #[test]
-fn every_notice_of_a_package_on_a_summary_line_is_carried_by_it() {
+fn package_reported_by_several_projects_is_listed_once() {
     let mut reporter = state(false);
-    let frame = render(
+    render(
         &mut reporter,
         vec![
             deprecation("left-pad", "1.0.0", 0, "/repo/packages/a"),
             deprecation("left-pad", "1.0.0", 0, CWD),
-            added_root("left-pad", "1.0.0", DependencyType::Prod),
-            summary(),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ left-pad 1.0.0 deprecated\n");
-}
-
-#[test]
-fn repeat_install_counts_deprecations_it_did_not_add() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            installed_deprecation("request", "2.88.2", 0),
-            installed_deprecation("uuid", "3.4.0", 1),
-            installed_deprecation("har-validator", "5.1.5", 1),
-            added_root("foo", "1.0.0", DependencyType::Prod),
-            summary(),
-        ],
-    );
-    assert_eq!(
-        frame,
-        "\ndependencies:\n+ foo 1.0.0\n\n[WARN] 3 deprecated packages are still installed\n",
-    );
-}
-
-#[test]
-fn only_newly_added_deprecated_subdependencies_are_named() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            installed_deprecation("uuid", "3.4.0", 1),
-            deprecation("inflight", "1.0.6", 2, CWD),
-            added_root("glob", "7.2.3", DependencyType::Prod),
-            summary(),
-        ],
-    );
-    assert_eq!(
-        frame,
-        "\ndependencies:\n+ glob 7.2.3\n\n\
-         [WARN] 1 deprecated subdependencies found: inflight@1.0.6\n\
-         [WARN] 1 deprecated package is still installed\n",
-    );
-}
-
-#[test]
-fn installed_deprecations_are_counted_by_the_end_of_command_flush() {
-    let mut reporter = state(false);
-    render(&mut reporter, vec![installed_deprecation("request", "2.88.2", 0)]);
-    let Output::Frame(frame) = reporter.flush_pending_deprecations() else {
-        panic!("the held warning renders");
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
     };
-    assert_eq!(frame, "[WARN] 1 deprecated package is still installed");
+    assert_eq!(frame, "\n✗ 1 package is deprecated: left-pad@1.0.0\n");
+}
+
+/// After a failure, a passing verdict or a newer version is noise beside the
+/// error, so only the problems print.
+#[test]
+fn failed_command_prints_only_the_problems() {
+    let mut reporter = state(false);
+    render(
+        &mut reporter,
+        vec![
+            resolution_done(),
+            deprecation("express", "0.14.1", 0, CWD),
+            super::added_root_with_latest_at(
+                CWD,
+                "foo",
+                "1.0.0",
+                Some("2.0.0"),
+                DependencyType::Prod,
+            ),
+        ],
+    );
+    let Output::Frame(frame) =
+        reporter.flush_pending_checks(pnpm_default_reporter::state::CommandOutcome::Failed)
+    else {
+        panic!("the problems render");
+    };
+    assert_eq!(frame, "\n✗ 1 package is deprecated: express@0.14.1\n");
 }

@@ -16,7 +16,7 @@ fn global_install_and_update_recommend_global_peer_checks() {
     let home = root.path().join("pnpm-home");
     prepare_global_home(&home, &npmrc_info);
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let hint = r#"Issues with peer dependencies found. Run "pnpm peers check -g" to list them."#;
+    let hint = r#"(see "pnpm peers check -g")"#;
     let output = global_command(&workspace, &home)
         .with_args([
             "add",

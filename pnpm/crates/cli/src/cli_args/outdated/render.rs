@@ -13,12 +13,16 @@ use super::{
     SortBy,
     Stream,
     TrustChange,
-    Version,
     Write,
     sanitize_inline,
 };
 use owo_colors::OwoColorize;
 use pnpm_resolving_npm_resolver::TrustEvidence;
+use pnpm_semver_include_prerelease::{
+    VersionChange,
+    classify_version_change,
+    split_at_changed_field,
+};
 use tabled::{
     builder::Builder,
     settings::{
@@ -35,40 +39,15 @@ pub(super) fn write_output(output: &str) -> miette::Result<()> {
     Ok(())
 }
 
-/// The kind of semver bump from `current` to `target`. Drives the default
-/// sort order and the colorized highlight in the `Latest` column.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Change {
-    None,
-    Fix,
-    Feature,
-    Breaking,
-    Unknown,
-}
-
-pub(super) fn classify(current: &Version, target: &Version) -> Change {
-    if current == target {
-        Change::None
-    } else if target.major != current.major {
-        Change::Breaking
-    } else if target.minor != current.minor {
-        Change::Feature
-    } else if target.patch != current.patch {
-        Change::Fix
-    } else {
-        Change::Unknown
-    }
-}
-
 /// Ascending sort priority for the default (non-`--sort-by name`) order:
 /// no-change, fix, feature, breaking, then unknown last.
-fn change_priority(change: Change) -> u8 {
+fn change_priority(change: VersionChange) -> u8 {
     match change {
-        Change::None => 0,
-        Change::Fix => 1,
-        Change::Feature => 2,
-        Change::Breaking => 3,
-        Change::Unknown => 4,
+        VersionChange::None => 0,
+        VersionChange::Fix => 1,
+        VersionChange::Feature => 2,
+        VersionChange::Breaking => 3,
+        VersionChange::Unknown => 4,
     }
 }
 
@@ -103,8 +82,8 @@ fn compare_outdated(
     if sort_by == Some(SortBy::Name) {
         return left.package_name.cmp(&right.package_name);
     }
-    let by_change = change_priority(classify(&left.current, &left.target))
-        .cmp(&change_priority(classify(&right.current, &right.target)));
+    let by_change = change_priority(classify_version_change(&left.current, &left.target))
+        .cmp(&change_priority(classify_version_change(&right.current, &right.target)));
     by_change
         .then_with(|| left.package_name.cmp(&right.package_name))
         .then_with(|| {
@@ -267,8 +246,8 @@ pub(super) fn dependency_type_label(pkg: &OutdatedPackage) -> Option<&'static st
 /// nothing else, the form the interactive update list shows, where a
 /// deprecation is not part of the row.
 pub(crate) fn colorize_target(pkg: &OutdatedPackage) -> String {
-    let change = classify(&pkg.current, &pkg.target);
-    if change == Change::None {
+    let change = classify_version_change(&pkg.current, &pkg.target);
+    if change == VersionChange::None {
         return pkg.target_str().into_owned();
     }
     colorize_version(&pkg.target_str(), change)
@@ -299,8 +278,8 @@ fn trust_label(evidence: Option<TrustEvidence>) -> &'static str {
 }
 
 pub(super) fn render_latest(pkg: &OutdatedPackage) -> String {
-    let change = classify(&pkg.current, &pkg.target);
-    if change == Change::None {
+    let change = classify_version_change(&pkg.current, &pkg.target);
+    if change == VersionChange::None {
         return if pkg.metadata.deprecated.is_some() {
             red_bold("Deprecated")
         } else {
@@ -315,31 +294,15 @@ pub(super) fn render_latest(pkg: &OutdatedPackage) -> String {
     }
 }
 
-/// Highlight the version segment that changed: the whole string for a
-/// breaking bump, from the minor field for a feature bump, from the patch
-/// field for a fix.
-fn colorize_version(text: &str, change: Change) -> String {
-    let split = match change {
-        Change::Breaking => 0,
-        Change::Feature => text.find('.').map_or(0, |i| i + 1),
-        Change::Fix => text
-            .find('.')
-            .and_then(|i| {
-                text[i + 1..]
-                    .find('.')
-                    .map(|j| i + 1 + j + 1)
-            })
-            .unwrap_or(0),
-        // Nothing is highlighted for an `unknown` (or no) change, so the
-        // version renders plain.
-        Change::None | Change::Unknown => return text.to_string(),
+/// Highlight the version field that changed and the fields after it.
+fn colorize_version(text: &str, change: VersionChange) -> String {
+    let Some((head, tail)) = split_at_changed_field(text, change) else {
+        return text.to_string();
     };
-    let (head, tail) = text.split_at(split);
     let painted = match change {
-        Change::Breaking => red(tail),
-        Change::Feature => yellow(tail),
-        Change::Fix => green(tail),
-        Change::None | Change::Unknown => tail.to_string(),
+        VersionChange::Breaking => red(tail),
+        VersionChange::Feature => yellow(tail),
+        VersionChange::Fix | VersionChange::None | VersionChange::Unknown => green(tail),
     };
     format!("{head}{painted}")
 }

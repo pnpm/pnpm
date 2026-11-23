@@ -104,6 +104,7 @@ use crate::{
         LogSink,
         NodeBridgeReporter,
         begin_stats,
+        mark_engine_call_succeeded,
         take_stats,
     },
 };
@@ -208,6 +209,9 @@ fn run_install_blocking(
         pnpmfile_hook,
         EngineMode::Install(deps_requiring_build_sink.as_ref().map(Arc::clone)),
     );
+    if outcome.is_ok() {
+        mark_engine_call_succeeded();
+    }
     let stats = take_stats();
     let store_dir = outcome?;
     let deps_requiring_build =

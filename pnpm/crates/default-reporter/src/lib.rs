@@ -271,11 +271,10 @@ impl DefaultReporter {
         sink.write(output, false);
     }
 
-    /// Print the deprecation warnings no install summary or `Done in ...`
-    /// footer carried.
-    pub fn flush_pending_deprecations() {
+    /// Print the checks footer no `Done in ...` line carried.
+    pub fn flush_pending_checks(outcome: state::CommandOutcome) {
         let mut sink = SINK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let output = sink.state.flush_pending_deprecations();
+        let output = sink.state.flush_pending_checks(outcome);
         sink.write(output, false);
     }
 }

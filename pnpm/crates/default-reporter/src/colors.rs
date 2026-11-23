@@ -56,6 +56,11 @@ impl Colors {
     paint!(magenta, magenta);
     paint!(magenta_bright, bright_magenta);
 
+    // A package name among other words. A basic ANSI color follows the
+    // terminal's theme; bold is not rendered by every terminal.
+    paint!(package_name, magenta);
+    paint!(command, cyan);
+
     /// The `[WARN]` label: yellow-on-yellow brackets around black-on-yellow
     /// `WARN`, matching `formatWarn`.
     #[must_use]

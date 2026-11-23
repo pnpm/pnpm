@@ -14,9 +14,7 @@ use crate::cli_args::{
         notes::with_notes,
         query::current_versions_from_importer,
         render::{
-            Change,
             DEPENDENTS_COLUMN_WIDTH,
-            classify,
             render_dependents,
             render_latest,
         },
@@ -89,15 +87,6 @@ fn current_versions_record_local_refs_without_a_version() {
     assert_eq!(versions.get("private-workspace-pkg"), Some(&None));
     assert_eq!(versions.get("injected-pkg"), Some(&None));
     assert_eq!(versions.get("workspace-pkg"), Some(&None));
-}
-
-#[test]
-fn classify_detects_each_bump_kind() {
-    assert_eq!(classify(&v("1.0.0"), &v("2.0.0")), Change::Breaking);
-    assert_eq!(classify(&v("1.0.0"), &v("1.1.0")), Change::Feature);
-    assert_eq!(classify(&v("1.0.0"), &v("1.0.1")), Change::Fix);
-    assert_eq!(classify(&v("1.0.0"), &v("1.0.0")), Change::None);
-    assert_eq!(classify(&v("1.0.0-alpha.1"), &v("1.0.0")), Change::Unknown);
 }
 
 #[test]

@@ -12,7 +12,6 @@ use super::{
     LogEvent,
     LogLevel,
     MaxLogLevel,
-    NonDeprecatedAlternative,
     Output,
     PnpmErrorLog,
     PnpmLog,
@@ -24,13 +23,14 @@ use super::{
     added_root_at,
     added_root_with_latest_at,
     deprecation,
-    deprecation_with_alternative,
     emitted_lines,
+    flush_checks,
     interleaved_lifecycle_events,
     linked_root,
     pnpm_log,
     progress,
     progress_at,
+    removed_root_at,
     render,
     scope,
     stage_at,
@@ -289,23 +289,36 @@ fn already_up_to_date_pnpm_log_renders() {
     assert_eq!(frame, "Already up to date");
 }
 
+fn zero_stats(prefix: &str) -> Vec<LogEvent> {
+    vec![
+        LogEvent::Stats(StatsLog {
+            level: LogLevel::Debug,
+            message: StatsMessage::Added { added: 0, prefix: prefix.to_string() },
+        }),
+        LogEvent::Stats(StatsLog {
+            level: LogLevel::Debug,
+            message: StatsMessage::Removed { removed: 0, prefix: prefix.to_string() },
+        }),
+    ]
+}
+
 #[test]
 fn zero_install_stats_render_already_up_to_date() {
     let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Added { added: 0, prefix: CWD.to_string() },
-            }),
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Removed { removed: 0, prefix: CWD.to_string() },
-            }),
-        ],
-    );
-    assert_eq!(frame, "Already up to date");
+    let mut events = zero_stats(CWD);
+    events.push(summary());
+    assert_eq!(render(&mut reporter, events), "Already up to date");
+}
+
+/// A manifest edit can change the summary although no package left
+/// `node_modules`, as when another project still uses a removed dependency.
+#[test]
+fn summary_with_changes_is_not_already_up_to_date() {
+    let mut reporter = state(false);
+    let mut events = zero_stats(CWD);
+    events.push(removed_root_at(CWD, "foo", "1.0.0"));
+    events.push(summary());
+    assert_eq!(render(&mut reporter, events), "\ndependencies:\n- foo 1.0.0\n");
 }
 
 /// A `pnpm:global` info message renders as a block, like the prefix-less
@@ -473,75 +486,26 @@ fn hook_log_renders_with_magenta_hook_name() {
 }
 
 #[test]
-fn direct_deprecation_waits_for_the_summary_without_the_notice() {
+fn deprecation_waits_for_the_end_of_the_command() {
     let mut reporter = state(false);
-    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
+    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD), summary()]);
     assert_eq!(frame, "");
-    let frame = render(&mut reporter, vec![summary()]);
-    assert_eq!(frame, "[WARN] deprecated: express@0.14.1");
-}
-
-/// A git or tarball dependency names itself, so the identifier is filtered
-/// like any other store-derived text before it reaches the terminal.
-/// The version comes from pnpm's own reading of the packument, so unlike the
-/// notice it is safe to print.
-#[test]
-fn direct_deprecation_names_a_version_that_is_not_deprecated() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            deprecation_with_alternative(
-                "express",
-                "0.14.1",
-                0,
-                CWD,
-                Some(NonDeprecatedAlternative {
-                    version: "4.21.2".to_string(),
-                    outside_declared_range: true,
-                }),
-            ),
-            summary(),
-        ],
-    );
-    assert_eq!(
-        frame,
-        "[WARN] deprecated: express@0.14.1. 4.21.2 is not deprecated, outside the range you declared.",
-    );
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
+    };
+    assert_eq!(frame, "\n✗ 1 package is deprecated: express@0.14.1\n");
 }
 
 #[test]
-fn direct_deprecation_drops_the_range_clause_when_no_range_was_declared() {
+fn deprecation_strips_control_characters_from_the_identifier() {
     let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            deprecation_with_alternative(
-                "express",
-                "0.14.1",
-                0,
-                CWD,
-                Some(NonDeprecatedAlternative {
-                    version: "0.14.2".to_string(),
-                    outside_declared_range: false,
-                }),
-            ),
-            summary(),
-        ],
-    );
-    assert_eq!(frame, "[WARN] deprecated: express@0.14.1. 0.14.2 is not deprecated.");
-}
-
-#[test]
-fn direct_deprecation_strips_control_characters_from_the_identifier() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![deprecation("express\u{1b}[2K\rclean", "0.14.1", 0, CWD), summary()],
-    );
+    render(&mut reporter, vec![deprecation("express\u{1b}[2K\rclean", "0.14.1", 0, CWD)]);
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
+    };
     // The payload stays readable rather than being removed: without the
     // leading ESC the terminal prints it instead of acting on it.
-    assert_eq!(frame, "[WARN] deprecated: express[2Kclean@0.14.1");
+    assert_eq!(frame, "\n✗ 1 package is deprecated: express[2Kclean@0.14.1\n");
 }
 
 /// The event fires for every command; only the ones in pnpm's

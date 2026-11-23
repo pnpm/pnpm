@@ -199,6 +199,7 @@ pub(super) fn report_already_up_to_date<Reporter: self::Reporter>(
         level: LogLevel::Debug,
         prefix,
         new_projects: None,
+        project_names: None,
     }));
     super::InstallRunOutcome::AlreadyUpToDate
 }

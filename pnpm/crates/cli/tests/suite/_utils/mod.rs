@@ -1311,3 +1311,9 @@ pub fn assert_shim_omits_path(shim: &str, path: &Path) {
         "the shim must not contain {path:?}: {shim:?}",
     );
 }
+
+pub fn is_summary_change_line(line: &str) -> bool {
+    ["+ ", "- ", "↑ ", "↓ ", "~ "]
+        .iter()
+        .any(|sign| line.starts_with(sign))
+}

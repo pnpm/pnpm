@@ -224,6 +224,15 @@ impl Reporter for NodeBridgeReporter {
     }
 }
 
+/// Tell the installed renderer that the engine call succeeded, so the
+/// checks footer it prints on drop is not cut to the problems.
+pub fn mark_engine_call_succeeded() {
+    let Ok(mut guard) = renderer_slot().lock() else { return };
+    if let Some(renderer) = guard.as_mut() {
+        renderer.mark_succeeded();
+    }
+}
+
 /// Fold the event into the installed renderer, if the call asked for
 /// pnpm's own output. A poisoned lock (a panic while rendering) silently
 /// stops the output rather than propagating: the reporter contract is that
