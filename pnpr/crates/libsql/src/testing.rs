@@ -7,8 +7,10 @@
 
 pub use hrana::RoundTrips;
 pub use plain_http::{
+    ClosingIdleServer,
     EXECUTE_RESPONSE,
     PlainHttpServer,
+    serve_closing_idle_http,
     serve_plain_http,
 };
 pub use tls_proxy::serve_tls_proxy;

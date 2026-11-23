@@ -50,11 +50,14 @@ pub async fn first_row<Output>(
 }
 
 /// How long a connection may sit in the pool before the pool closes it
-/// instead of handing it out. `sqld`, which Turso runs, expires a stream 10
-/// seconds after it last answered on it, and rejects the stream's next request.
-/// Opening a remote connection costs no round trip: its first request opens
-/// a new stream.
-const IDLE_EXPIRY: Duration = Duration::from_secs(5);
+/// instead of handing it out. Each connection has its own HTTP connection,
+/// which Turso closes 5 seconds after its last response. A request sent as it
+/// closes fails, and a write's outcome is then unknown. The client counts
+/// from when the response arrived, so the expiry leaves a margin for that.
+/// `sqld` expires the connection's stream later, 10 seconds after it last
+/// answered. Opening a remote connection costs no round trip: its first
+/// request opens a new stream.
+const IDLE_EXPIRY: Duration = Duration::from_secs(3);
 
 /// Connections to one database, each running one operation at a time.
 ///
