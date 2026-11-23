@@ -124,7 +124,7 @@ fn added_quotes_fall_back_to_source_text_past_the_alignment_limit() {
     let mut expected_added = String::new();
     for index in 0..1200 {
         writeln!(added, "  - '@scope/pkg{index}'").expect("writing to a String never fails");
-        writeln!(expected_added, "  - \"@scope/pkg{index}\"").expect(
+        writeln!(expected_added, r#"  - "@scope/pkg{index}""#).expect(
             "writing to a String never fails",
         );
     }
