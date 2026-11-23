@@ -55,7 +55,7 @@ fn root() -> LogEvent {
                 name: "dep".to_string(),
                 version: None,
                 dependency_type: None,
-                real_name: None,
+                registry_package: None,
             },
         },
     })

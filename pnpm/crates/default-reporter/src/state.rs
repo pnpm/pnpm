@@ -133,6 +133,8 @@ struct PackageDiff {
     real_name: Option<String>,
     version: Option<String>,
     latest: Option<String>,
+    /// See [`AddedRoot::registry_package`].
+    registry_package: Option<String>,
 }
 
 #[derive(Debug, Default)]

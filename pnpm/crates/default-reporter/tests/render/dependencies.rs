@@ -243,7 +243,7 @@ fn update_colors_the_bumped_fields_of_the_new_version() {
     );
 }
 
-fn removed_root_with(name: &str, version: &str, real_name: Option<&str>) -> LogEvent {
+fn removed_root_with(name: &str, version: &str, registry_package: Option<&str>) -> LogEvent {
     LogEvent::Root(super::RootLog {
         level: LogLevel::Debug,
         message: super::RootMessage::Removed {
@@ -252,7 +252,7 @@ fn removed_root_with(name: &str, version: &str, real_name: Option<&str>) -> LogE
                 name: name.to_string(),
                 version: Some(version.to_string()),
                 dependency_type: Some(DependencyType::Prod),
-                real_name: real_name.map(ToString::to_string),
+                registry_package: registry_package.map(ToString::to_string),
             },
         },
     })
@@ -311,4 +311,32 @@ fn summary_line_strips_control_characters() {
         vec![removed_root_with("tool", "1.0.0\n\u{1b}[2J", Some("evil\n\u{1b}[2Kx")), summary()],
     );
     assert_eq!(frame, "\ndependencies:\n- tool <- evil[2Kx 1.0.0[2J\n");
+}
+
+/// A tarball reports its package's version, but names no registry package,
+/// so a switch from the registry to it is not an update.
+#[test]
+fn replacing_a_registry_version_with_a_tarball_is_two_lines() {
+    let mut reporter = state(false);
+    let tarball = LogEvent::Root(super::RootLog {
+        level: LogLevel::Debug,
+        message: super::RootMessage::Added {
+            prefix: CWD.to_string(),
+            added: super::AddedRoot {
+                name: "foo".to_string(),
+                real_name: "foo".to_string(),
+                version: Some("1.0.1".to_string()),
+                dependency_type: Some(DependencyType::Prod),
+                id: None,
+                latest: None,
+                linked_from: None,
+                registry_package: None,
+            },
+        },
+    });
+    let frame = render(
+        &mut reporter,
+        vec![removed_root_with("foo", "1.0.0", Some("foo")), tarball, summary()],
+    );
+    assert_eq!(frame, "\ndependencies:\n- foo 1.0.0\n+ foo 1.0.1\n");
 }

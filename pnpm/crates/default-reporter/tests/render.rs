@@ -176,6 +176,7 @@ fn added_root_with_latest_at(
                 id: None,
                 latest: latest.map(str::to_string),
                 linked_from: None,
+                registry_package: Some(name.to_string()),
             },
         },
     })
@@ -293,7 +294,7 @@ fn removed_root_at(prefix: &str, name: &str, version: &str) -> LogEvent {
                 name: name.to_string(),
                 version: Some(version.to_string()),
                 dependency_type: Some(DependencyType::Prod),
-                real_name: Some(name.to_string()),
+                registry_package: Some(name.to_string()),
             },
         },
     })
@@ -312,6 +313,7 @@ fn aliased_root_at(prefix: &str, alias: &str, real_name: &str, version: &str) ->
                 id: None,
                 latest: None,
                 linked_from: None,
+                registry_package: Some(real_name.to_string()),
             },
         },
     })
@@ -330,6 +332,7 @@ fn linked_root(name: &str, from: &str) -> LogEvent {
                 id: None,
                 latest: None,
                 linked_from: Some(from.to_string()),
+                registry_package: None,
             },
         },
     })

@@ -262,6 +262,7 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
                     id: None,
                     latest: None,
                     linked_from: Some(target_path.display().to_string()),
+                    registry_package: None,
                 },
             },
         }));

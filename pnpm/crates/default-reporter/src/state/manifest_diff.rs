@@ -27,6 +27,7 @@ pub(super) fn added_diff(added: &AddedRoot) -> (DepKind, PackageDiff) {
             real_name: Some(added.real_name.clone()),
             version: added.version.clone().or_else(|| added.id.clone()),
             latest: added.latest.clone(),
+            registry_package: added.registry_package.clone(),
         },
     )
 }
@@ -38,9 +39,10 @@ pub(super) fn removed_diff(removed: &RemovedRoot) -> (DepKind, PackageDiff) {
             added: false,
             from: None,
             name: removed.name.clone(),
-            real_name: removed.real_name.clone(),
+            real_name: removed.registry_package.clone(),
             version: removed.version.clone(),
             latest: None,
+            registry_package: removed.registry_package.clone(),
         },
     )
 }
@@ -82,6 +84,7 @@ pub(super) fn record_missing(
                 real_name: None,
                 version: Some(version.clone()),
                 latest: None,
+                registry_package: None,
             });
     }
 }

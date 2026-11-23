@@ -322,17 +322,13 @@ pub(super) fn bucket_changes(bucket: &HashMap<String, PackageDiff>) -> Vec<Chang
         .collect()
 }
 
-/// The registry package behind a change with a version. A removal names
-/// it only when its emitter knew the dependency came from the registry.
+/// The registry package behind a change with a version, when its emitter
+/// knew the dependency came from the registry.
 fn registry_package(diff: &PackageDiff) -> Option<&str> {
     if diff.version.is_none() || diff.from.is_some() {
         return None;
     }
-    match &diff.real_name {
-        Some(real_name) => Some(real_name),
-        None if diff.added => Some(&diff.name),
-        None => None,
-    }
+    diff.registry_package.as_deref()
 }
 
 /// Record one `pnpm:root` change. A change that undoes an earlier one of

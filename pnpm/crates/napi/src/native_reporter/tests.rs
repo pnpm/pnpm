@@ -185,6 +185,7 @@ fn linked_root(name: &str) -> LogEvent {
                 id: None,
                 latest: None,
                 linked_from: Some("/elsewhere".to_string()),
+                registry_package: None,
             },
         },
     })

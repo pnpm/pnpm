@@ -293,7 +293,7 @@ fn remove_unwanted_entries<Reporter: self::Reporter>(
                         name: pkg_name,
                         version,
                         dependency_type: None,
-                        real_name: None,
+                        registry_package: None,
                     },
                 },
             }));

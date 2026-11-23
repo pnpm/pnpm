@@ -367,7 +367,7 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
             message: RootMessage::Removed {
                 prefix: importer_dir.display().to_string(),
                 removed: RemovedRoot {
-                    real_name: current_spec.version
+                    registry_package: current_spec.version
                         .registry_package(alias)
                         .map(ToString::to_string),
                     name: alias_name,

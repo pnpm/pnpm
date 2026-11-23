@@ -297,6 +297,7 @@ fn root_event_matches_pnpm_wire_shape() {
                 id: None,
                 latest: None,
                 linked_from: None,
+                registry_package: None,
             },
         },
     });
@@ -328,7 +329,7 @@ fn root_event_matches_pnpm_wire_shape() {
                 name: "fastify".to_string(),
                 version: None,
                 dependency_type: None,
-                real_name: None,
+                registry_package: None,
             },
         },
     });
