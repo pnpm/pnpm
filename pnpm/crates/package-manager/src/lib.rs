@@ -78,6 +78,7 @@ pub use resolve_latest::ResolveLatestError;
 pub use runtime_on_fail::{
     apply_runtime_on_fail,
     apply_runtime_on_fail_to_projects,
+    runtime_on_fail_manifest,
 };
 #[cfg(feature = "runtime-provisioning")]
 pub use runtime_specifier::updated_node_runtime_specifier;

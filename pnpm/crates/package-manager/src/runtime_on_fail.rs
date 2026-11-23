@@ -21,3 +21,23 @@ pub fn apply_runtime_on_fail_to_projects(
         apply_runtime_on_fail(config, &mut project.manifest);
     }
 }
+
+/// The install view of a declared manifest, when the local runtime policy applies.
+pub fn runtime_on_fail_manifest(
+    config: &Config,
+    manifest: &PackageManifest,
+) -> Option<PackageManifest> {
+    config.runtime_on_fail?;
+    if !declares_runtime(manifest) {
+        return None;
+    }
+    let mut effective = manifest.clone();
+    apply_runtime_on_fail(config, &mut effective);
+    Some(effective)
+}
+
+pub(crate) fn declares_runtime(manifest: &PackageManifest) -> bool {
+    ["devEngines", "engines"]
+        .into_iter()
+        .any(|field| manifest.value()[field].get("runtime").is_some())
+}

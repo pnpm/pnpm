@@ -404,3 +404,17 @@ fn allow_build_disqualifies_fast_path() {
         "--allow-build must disqualify fast path so build policy applies",
     );
 }
+
+#[test]
+fn pnpr_resolve_request_applies_runtime_on_fail_to_dependencies() {
+    let manifest = pnpm_package_manifest::PackageManifest::from_value(
+        "package.json".into(),
+        serde_json::json!({ "devEngines": { "runtime": { "name": "node", "version": "24" } } }),
+    );
+    let config = pnpm_config::Config {
+        runtime_on_fail: Some(pnpm_config::RuntimeOnFail::Download),
+        ..Default::default()
+    };
+    let project = super::pnpr_request::resolve_project(&config, ".".into(), &manifest);
+    assert_eq!(project.dev_dependencies["node"], "runtime:24");
+}

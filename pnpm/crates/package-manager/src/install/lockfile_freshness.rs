@@ -121,15 +121,16 @@ async fn workspace_manifests_satisfy(
     let Ok(workspace_manifest) = pnpm_workspace::read_workspace_manifest(workspace_root) else {
         return false;
     };
-    let Ok(workspace_projects) = super::load_workspace_projects(
-        workspace_root,
-        workspace_manifest.as_ref(),
-        check.config.managed_directories(),
-    ) else {
+    let Ok(workspace_projects) =
+        super::load_workspace_projects(workspace_root, workspace_manifest.as_ref(), check.config)
+    else {
         return false;
     };
-    let project_manifests =
-        build_project_manifests_list(check.manifest, workspace_projects.as_deref());
+    let effective = crate::runtime_on_fail_manifest(check.config, check.manifest);
+    let project_manifests = build_project_manifests_list(
+        effective.as_ref().unwrap_or(check.manifest),
+        workspace_projects.as_deref(),
+    );
     let workspace_packages = workspace_packages_for_freshness(check, workspace_projects.as_deref());
     let manifest_freshness_inputs = manifest_freshness_inputs(lockfile_root, &project_manifests);
     check_lockfile_freshness(

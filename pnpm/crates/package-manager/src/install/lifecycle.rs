@@ -46,14 +46,15 @@ use std::sync::Mutex;
 pub(crate) fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-    ignored_directories: Vec<std::path::PathBuf>,
+    config: &Config,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
-    pnpm_workspace::find_workspace_projects(
+    let mut projects = pnpm_workspace::find_workspace_projects(
         workspace_root,
-        &workspace_projects_opts(manifest, ignored_directories),
-    )
-    .map(Some)
+        &workspace_projects_opts(manifest, config.managed_directories()),
+    )?;
+    crate::apply_runtime_on_fail_to_projects(config, &mut projects);
+    Ok(Some(projects))
 }
 
 /// How [`load_workspace_projects`] discovers the projects of the workspace

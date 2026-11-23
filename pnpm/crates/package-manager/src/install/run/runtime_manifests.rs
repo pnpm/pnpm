@@ -22,13 +22,14 @@ impl RuntimeManifests {
         if config.runtime_on_fail.is_none() {
             return (install, options);
         }
-        if declares_runtime(install.context.manifest) {
-            let root = self.root.insert(install.context.manifest.clone());
-            crate::apply_runtime_on_fail(config, root);
+        self.root = crate::runtime_on_fail_manifest(config, install.context.manifest);
+        if let Some(root) = &self.root {
             install.context.manifest = root;
         }
         if let Some(selection) = &mut options.selection
-            && selection.all_projects.iter().any(|project| declares_runtime(&project.manifest))
+            && selection.all_projects
+                .iter()
+                .any(|project| crate::runtime_on_fail::declares_runtime(&project.manifest))
         {
             self.projects.extend_from_slice(selection.all_projects);
             crate::apply_runtime_on_fail_to_projects(config, &mut self.projects);
@@ -41,10 +42,4 @@ impl RuntimeManifests {
         }
         (install, options)
     }
-}
-
-fn declares_runtime(manifest: &PackageManifest) -> bool {
-    ["devEngines", "engines"]
-        .into_iter()
-        .any(|field| manifest.value()[field].get("runtime").is_some())
 }
