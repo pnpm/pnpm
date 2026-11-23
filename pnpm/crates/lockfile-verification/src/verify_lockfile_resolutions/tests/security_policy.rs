@@ -766,3 +766,29 @@ fn a_local_child_deep_under_registry_packages_is_checked_for_each_importer() {
         assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{err:?}");
     }
 }
+
+#[cfg(unix)]
+#[test]
+fn shortening_a_relative_override_preserves_symlink_resolution() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("projects/app");
+    let linked = root.path().join("shared/nested");
+    std::fs::create_dir(root.path().join("projects")).unwrap();
+    std::fs::create_dir_all(linked.join("helper")).unwrap();
+    std::fs::create_dir_all(root.path().join("shared/app/helper")).unwrap();
+    std::os::unix::fs::symlink(&linked, &workspace).unwrap();
+
+    let policy = LocalResolutionPolicy::from_scoped_inputs(
+        [("helper", "file:../app/helper")],
+        [],
+        false,
+        Some(&workspace),
+    );
+    let edges = policy.authorized_edges.unwrap();
+    assert!(
+        !edges[0].targets
+            .iter()
+            .any(|target| target == "helper"),
+        "{edges:?}",
+    );
+}

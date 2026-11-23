@@ -36,7 +36,7 @@ fn resolved_file_url_matches(key_path: &str, target: &str, lockfile_dir: &Path) 
     if from_url == from_target {
         return true;
     }
-    canonicalized_paths_match(&from_url, &lockfile_dir.join(target))
+    canonicalized_paths_match(Path::new(&from_url), &lockfile_dir.join(target))
 }
 
 pub(super) fn decode_file_url_path(key_path: &str) -> Option<String> {
@@ -144,14 +144,14 @@ fn apply_path_segment<'s>(stack: &mut Vec<&'s str>, segment: &'s str, relative: 
 }
 
 #[cfg(not(target_family = "wasm"))]
-fn canonicalized_paths_match(from_url: &str, target_path: &Path) -> bool {
-    std::fs::canonicalize(from_url)
+pub(super) fn canonicalized_paths_match(left: &Path, right: &Path) -> bool {
+    std::fs::canonicalize(left)
         .ok()
-        .zip(std::fs::canonicalize(target_path).ok())
+        .zip(std::fs::canonicalize(right).ok())
         .is_some_and(|(left, right)| left == right)
 }
 
 #[cfg(target_family = "wasm")]
-const fn canonicalized_paths_match(_from_url: &str, _target_path: &Path) -> bool {
+pub(super) const fn canonicalized_paths_match(_left: &Path, _right: &Path) -> bool {
     false
 }

@@ -13,6 +13,44 @@ use super::reject_remote_host_filesystem_subdeps::{
 };
 
 #[test]
+fn equivalent_local_override_reinstalls_with_an_offline_frozen_lockfile() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (home, auth_file) = setup_host_secrets(root.path());
+    let mut server = mockito::Server::new();
+    let manifest = json!({
+        "name": "remote-pkg",
+        "version": "1.0.0",
+        "dependencies": { "helper": "^1.0.0" },
+    });
+    let _package = serve_remote_pkg(&mut server, "remote-pkg", "1.0.0", &manifest);
+    let app = workspace.join("app");
+    let helper = workspace.join("helper");
+    fs::create_dir(&app).unwrap();
+    fs::create_dir(&helper).unwrap();
+    fs::write(helper.join("package.json"), r#"{"name":"helper","version":"1.0.0"}"#).unwrap();
+    fs::write(
+        app.join("package.json"),
+        r#"{"dependencies":{"remote-pkg":"1.0.0","helper":"file:../helper"}}"#,
+    )
+    .unwrap();
+    fs::write(app.join(".npmrc"), format!("registry={}/\n", server.url())).unwrap();
+    fs::write(
+        app.join("pnpm-workspace.yaml"),
+        "overrides:\n  helper: file:../../workspace/helper\n",
+    )
+    .unwrap();
+
+    pnpm_cmd(&app, &home, &auth_file)
+        .with_arg("install")
+        .assert()
+        .success();
+    pnpm_cmd(&app, &home, &auth_file)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+}
+
+#[test]
 fn ranged_override_reinstalls_on_frozen_and_warm_paths_while_rejecting_non_matching_declared_range()
 {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
