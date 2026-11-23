@@ -130,10 +130,8 @@ fn file_dependencies_on_a_workspace_publish_directory_resolve_catalogs() {
 }
 
 /// A `catalog:` peer of an ordinary `file:` dependency resolves through the
-/// importer's catalogs. Such a package is not a workspace project, so its
-/// child specifiers do not inherit catalogs (the ordinary-file-dependency
-/// guard below covers that), but its taken peers are bound by the consuming
-/// importer and do.
+/// importer's catalogs, although the package's own `catalog:` dependencies
+/// do not.
 #[test]
 fn ordinary_file_dependency_peers_resolve_catalogs() {
     let fixture = CommandTempCwd::init().add_mocked_registry();
