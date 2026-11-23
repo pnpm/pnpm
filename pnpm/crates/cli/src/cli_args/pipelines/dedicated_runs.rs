@@ -312,7 +312,7 @@ pub(super) fn discover_dedicated_workspace_projects(
         covers_workspace: true,
         injected_source_dirs,
         early_starts: early_starts(cfg, &projects),
-        workspace: pnpm_package_manager::DiscoveredWorkspace::new(cfg, projects),
+        workspace: pnpm_package_manager::DiscoveredWorkspace::new(projects),
     })
 }
 

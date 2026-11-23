@@ -257,7 +257,8 @@ fn select_workspace_projects_with_cycles(
     }
 
     let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| prefix.to_path_buf());
-    let (projects, workspace_patterns) = discover_workspace_projects(&workspace_root, cfg)?;
+    let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root, cfg)?;
+    pnpm_package_manager::apply_runtime_on_fail_to_projects(cfg, &mut projects);
     let resolved = resolve_selection(
         &projects,
         cfg,

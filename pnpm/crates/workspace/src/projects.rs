@@ -60,7 +60,6 @@ use wax::Glob;
 /// anything else is read on demand from the manifest. If a caller
 /// needs more, extend here rather than reaching back into the
 /// `package.json` value directly.
-#[derive(Clone)]
 pub struct Project {
     pub root_dir: PathBuf,
     pub manifest: PackageManifest,

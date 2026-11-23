@@ -231,7 +231,7 @@ impl DedicatedProjects {
             covers_workspace,
             injected_source_dirs,
             early_starts,
-            workspace: pnpm_package_manager::DiscoveredWorkspace::new(config, selection.projects),
+            workspace: pnpm_package_manager::DiscoveredWorkspace::new(selection.projects),
         }
     }
 

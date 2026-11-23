@@ -53,8 +53,6 @@ mod auto_dedupe;
 mod custom_fetcher_reuse;
 mod execution;
 mod manifest_validation;
-mod runtime_manifests;
-use runtime_manifests::RuntimeManifests;
 mod materialization_inputs;
 mod mode;
 mod store_fetch;
@@ -225,8 +223,6 @@ where
         time_machine_exclusions: &mut super::TimeMachineExclusions,
     ) -> Result<InstallRunOutcome, InstallError> {
         let (install, mut owned) = self.split();
-        let mut runtime_manifests = RuntimeManifests::default();
-        let (install, options) = runtime_manifests.apply(install, options);
         install.context.http_client.set_warning_handler(
             pnpm_reporter::emit_global_warning::<Reporter>,
         );

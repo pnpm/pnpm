@@ -275,3 +275,37 @@ fn save_preserves_runtime_when_explicit_user_dep_is_present() {
     manifest.save().unwrap();
     assert_eq!(read_to_string(&path).unwrap(), original);
 }
+
+#[test]
+fn local_download_policy_preserves_runtime_edits_across_saves() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::from_value(
+        path.clone(),
+        json!({
+            "devEngines": { "runtime": [
+                { "name": "bun", "version": "1" },
+                { "name": "node", "version": "22", "onFail": "warn" },
+                { "name": "deno", "version": "2" },
+            ] },
+        }),
+    );
+    manifest.apply_runtime_on_fail("download");
+    manifest.apply_runtime_on_fail("download");
+    manifest.remove_dependencies(&["bun".to_string()], Some(DependencyGroup::Dev));
+    manifest.add_dependency("node", "runtime:24", DependencyGroup::Dev).unwrap();
+    let written = manifest.save_and_get_written_value().unwrap();
+    assert_eq!(
+        written["devEngines"]["runtime"],
+        json!([
+            { "name": "node", "version": "24", "onFail": "warn" },
+            { "name": "deno", "version": "2" },
+        ]),
+    );
+    assert_eq!(manifest.value()["devDependencies"]["node"], "runtime:24");
+    assert_eq!(manifest.save_and_get_written_value().unwrap(), written);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&read_to_string(path).unwrap()).unwrap(),
+        written,
+    );
+}

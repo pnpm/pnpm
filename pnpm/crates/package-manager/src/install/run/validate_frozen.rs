@@ -28,7 +28,6 @@ use super::{
     Loaded,
     RunExecution,
     RunMode,
-    RuntimeManifests,
     Verification,
     lockfile_load::{
         join_current_lockfile_load,
@@ -129,8 +128,6 @@ where
         self.execution.dry_run = false;
         let options = InstallRunOptions { selection, ..Default::default() };
         let (install, mut owned) = self.split();
-        let mut runtime_manifests = RuntimeManifests::default();
-        let (install, options) = runtime_manifests.apply(install, options);
         let mode = RunMode::settle(install, &owned, &options)?;
         owned.projects.dependency_groups = super::super::project_dependency_groups(std::mem::take(
             &mut owned.projects.dependency_groups,
@@ -162,8 +159,6 @@ where
         self.execution.dry_run = false;
         let options = InstallRunOptions { selection, ..Default::default() };
         let (install, mut owned) = self.split();
-        let mut runtime_manifests = RuntimeManifests::default();
-        let (install, options) = runtime_manifests.apply(install, options);
         let mode = RunMode::settle(install, &owned, &options)?;
         owned.projects.dependency_groups = super::super::project_dependency_groups(std::mem::take(
             &mut owned.projects.dependency_groups,

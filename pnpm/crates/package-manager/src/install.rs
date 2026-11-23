@@ -634,8 +634,7 @@ pub struct DiscoveredWorkspace {
 
 impl DiscoveredWorkspace {
     #[must_use]
-    pub fn new(config: &Config, mut projects: Vec<pnpm_workspace::Project>) -> Self {
-        crate::apply_runtime_on_fail_to_projects(config, &mut projects);
+    pub fn new(projects: Vec<pnpm_workspace::Project>) -> Self {
         DiscoveredWorkspace { projects: Arc::from(projects), packages: Arc::default() }
     }
 

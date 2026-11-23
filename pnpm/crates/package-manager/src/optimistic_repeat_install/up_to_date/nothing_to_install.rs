@@ -39,11 +39,14 @@ pub(super) fn projects_have_nothing_to_install(inputs: &GateInputs<'_>) -> bool 
     if !config.shares_one_lockfile() {
         return true;
     }
-    let Ok(workspace_projects) =
-        load_workspace_projects(workspace_root, workspace_manifest, config)
+    let Ok(mut workspace_projects) =
+        load_workspace_projects(workspace_root, workspace_manifest, config.managed_directories())
     else {
         return false;
     };
+    if let Some(projects) = &mut workspace_projects {
+        crate::apply_runtime_on_fail_to_projects(config, projects);
+    }
     build_project_manifests_list(manifest, workspace_projects.as_deref())
         .into_iter()
         .all(|(_, project_manifest)| !project_has_install_work(config, project_manifest))

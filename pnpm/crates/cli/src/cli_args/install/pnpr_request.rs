@@ -210,13 +210,10 @@ pub(super) fn pnpr_catalogs(state: &State) -> miette::Result<Option<Catalogs>> {
     Ok((!catalogs.is_empty()).then_some(catalogs))
 }
 
-pub(super) fn resolve_project(
-    config: &pnpm_config::Config,
+fn resolve_project(
     dir: String,
     manifest: &pnpm_package_manifest::PackageManifest,
 ) -> ResolveProject {
-    let effective = pnpm_package_manager::runtime_on_fail_manifest(config, manifest);
-    let manifest = effective.as_ref().unwrap_or(manifest);
     ResolveProject {
         dir,
         name: manifest
@@ -276,7 +273,6 @@ pub(super) fn resolve_projects_for_pnpr(
 ) -> miette::Result<Vec<ResolveProject>> {
     if let Some(selection) = selection {
         return Ok(resolve_workspace_projects(
-            state.config,
             state.config.lockfile_dir_for(&selection.workspace_root),
             &selection.projects,
         ));
@@ -287,16 +283,14 @@ pub(super) fn resolve_projects_for_pnpr(
     {
         let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
         return Ok(resolve_workspace_projects(
-            state.config,
             state.config.lockfile_dir_for(workspace_root),
             &projects,
         ));
     }
-    Ok(vec![resolve_project(state.config, ".".to_string(), &state.manifest)])
+    Ok(vec![resolve_project(".".to_string(), &state.manifest)])
 }
 
 fn resolve_workspace_projects(
-    config: &pnpm_config::Config,
     workspace_root: &std::path::Path,
     projects: &[pnpm_workspace::Project],
 ) -> Vec<ResolveProject> {
@@ -304,7 +298,6 @@ fn resolve_workspace_projects(
         .iter()
         .map(|project| {
             resolve_project(
-                config,
                 pnpm_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir),
                 &project.manifest,
             )

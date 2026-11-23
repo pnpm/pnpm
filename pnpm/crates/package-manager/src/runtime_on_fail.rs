@@ -5,10 +5,7 @@ use pnpm_package_manifest::PackageManifest;
 /// declares the runtime dependencies the install acts on.
 pub fn apply_runtime_on_fail(config: &Config, manifest: &mut PackageManifest) {
     if let Some(runtime_on_fail) = config.runtime_on_fail {
-        pnpm_package_manifest::apply_runtime_on_fail_override(
-            manifest.value_mut(),
-            runtime_on_fail.as_str(),
-        );
+        manifest.apply_runtime_on_fail(runtime_on_fail.as_str());
     }
 }
 
@@ -20,24 +17,4 @@ pub fn apply_runtime_on_fail_to_projects(
     for project in projects {
         apply_runtime_on_fail(config, &mut project.manifest);
     }
-}
-
-/// The install view of a declared manifest, when the local runtime policy applies.
-pub fn runtime_on_fail_manifest(
-    config: &Config,
-    manifest: &PackageManifest,
-) -> Option<PackageManifest> {
-    config.runtime_on_fail?;
-    if !declares_runtime(manifest) {
-        return None;
-    }
-    let mut effective = manifest.clone();
-    apply_runtime_on_fail(config, &mut effective);
-    Some(effective)
-}
-
-pub(crate) fn declares_runtime(manifest: &PackageManifest) -> bool {
-    ["devEngines", "engines"]
-        .into_iter()
-        .any(|field| manifest.value()[field].get("runtime").is_some())
 }

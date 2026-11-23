@@ -1,3 +1,7 @@
+pub(super) use policy::RuntimePolicy;
+
+mod policy;
+
 use pnpm_tool_protocol::{
     is_tool_specifier,
     strip_tool_protocol,

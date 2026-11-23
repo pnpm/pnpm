@@ -91,7 +91,11 @@ fn walk_workspace_projects(
     workspace_dir: &Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
 ) -> Result<Option<std::sync::Arc<[pnpm_workspace::Project]>>, InstallError> {
-    let projects = load_workspace_projects(workspace_dir, workspace_manifest, config)
-        .map_err(InstallError::FindWorkspaceProjects)?;
+    let mut projects =
+        load_workspace_projects(workspace_dir, workspace_manifest, config.managed_directories())
+            .map_err(InstallError::FindWorkspaceProjects)?;
+    if let Some(projects) = &mut projects {
+        crate::apply_runtime_on_fail_to_projects(config, projects);
+    }
     Ok(projects.map(std::sync::Arc::from))
 }

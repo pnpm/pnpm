@@ -296,13 +296,24 @@ fn load_or_create_manifest(
         if let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(project_dir)
             .map_err(InitStateError::ManifestRead)?
         {
-            return Ok(manifest);
+            return Ok(apply_runtime_on_fail(manifest, config));
         }
         if config.workspace_dir.is_some() {
-            return Ok(PackageManifest::from_value(manifest_path, serde_json::json!({})));
+            return Ok(apply_runtime_on_fail(
+                PackageManifest::from_value(manifest_path, serde_json::json!({})),
+                config,
+            ));
         }
     }
-    manifest_path.pipe(PackageManifest::load_or_init).map_err(InitStateError::Manifest)
+    manifest_path
+        .pipe(PackageManifest::load_or_init)
+        .map(|manifest| apply_runtime_on_fail(manifest, config))
+        .map_err(InitStateError::Manifest)
+}
+
+fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> PackageManifest {
+    pnpm_package_manager::apply_runtime_on_fail(config, &mut manifest);
+    manifest
 }
 
 /// Check what the root project requires of the host, per
