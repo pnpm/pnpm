@@ -11,6 +11,7 @@
 use std::{
     borrow::Cow,
     cmp::Ordering,
+    collections::HashSet,
     ops::Range,
 };
 
@@ -177,10 +178,7 @@ impl AddedQuotes {
             .iter()
             .map(|scalar| scalar.source)
             .collect();
-        // An edit too large to align keeps the quotes edits rendered.
-        let Some(kept) = kept_from(&original, &sources) else {
-            return text;
-        };
+        let kept = kept_from(&original, &sources);
         double_quote_added(&text, &edited, &kept)
     }
 }
@@ -237,9 +235,10 @@ fn scalars(text: &str) -> Vec<Scalar<'_>> {
 /// Which items of `edited` a shortest edit script from `original` keeps:
 /// the scalars an edit left in place, told apart by position rather than by
 /// text alone. The common prefix and suffix are matched first, so only the
-/// scalars between the first and last change are aligned. `None` when that
-/// alignment needs more than [`MAX_ALIGNED_EDITS`] edits.
-fn kept_from(original: &[&str], edited: &[&str]) -> Option<Vec<bool>> {
+/// scalars between the first and last change are aligned. When that alignment
+/// needs more than [`MAX_ALIGNED_EDITS`] edits, a scalar of the region counts
+/// as kept if the original region holds the same source text.
+fn kept_from(original: &[&str], edited: &[&str]) -> Vec<bool> {
     let prefix = common_len(original.iter(), edited.iter());
     let suffix = common_len(original[prefix..].iter().rev(), edited[prefix..].iter().rev());
     let old = &original[prefix..original.len() - suffix];
@@ -255,11 +254,19 @@ fn kept_from(original: &[&str], edited: &[&str]) -> Option<Vec<bool>> {
     } else if old.is_empty() {
         vec![false; new.len()]
     } else {
-        myers_matches(old, new)?
+        myers_matches(old, new).unwrap_or_else(|| present_in(old, new))
     };
     let mut kept = vec![true; edited.len()];
     kept[changed].copy_from_slice(&matched);
-    Some(kept)
+    kept
+}
+
+/// Which items of `new` also occur somewhere in `old`.
+fn present_in(old: &[&str], new: &[&str]) -> Vec<bool> {
+    let old: HashSet<&str> = old.iter().copied().collect();
+    new.iter()
+        .map(|source| old.contains(source))
+        .collect()
 }
 
 /// How many leading items `left` and `right` share.

@@ -118,16 +118,22 @@ fn added_quotes_align_edits_at_both_ends_of_a_large_document() {
 }
 
 #[test]
-fn added_quotes_leave_an_edit_too_large_to_align_unchanged() {
-    let original = "packages:\n  - \"a\"\n  - \"b\"\n  - \"c\"\n";
+fn added_quotes_fall_back_to_source_text_past_the_alignment_limit() {
+    let original = "packages:\n  - \"a\"\n  - \"b\"\n  - \"c\"\n  - '@scope/kept'\n";
     let mut added = String::new();
+    let mut expected_added = String::new();
     for index in 0..1200 {
         writeln!(added, "  - '@scope/pkg{index}'").expect("writing to a String never fails");
+        writeln!(expected_added, "  - \"@scope/pkg{index}\"").expect(
+            "writing to a String never fails",
+        );
     }
-    let edited = original.replace("  - \"c\"\n", &format!("{added}  - \"d\"\n"));
-    let out = AddedQuotes::detect(original).apply(edited.clone());
+    let edited = format!("packages:\n  - \"a\"\n  - \"b\"\n{added}  - '@scope/kept'\n  - \"d\"\n");
+    let expected =
+        format!("packages:\n  - \"a\"\n  - \"b\"\n{expected_added}  - '@scope/kept'\n  - \"d\"\n");
+    let out = AddedQuotes::detect(original).apply(edited);
     eprintln!("OUTPUT:\n{out}\n");
-    assert_eq!(out, edited);
+    assert_eq!(out, expected);
 }
 
 #[test]
