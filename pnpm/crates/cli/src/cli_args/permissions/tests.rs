@@ -112,7 +112,7 @@ fn an_explicit_git_repository_selector_decides_pending_commits() {
     let first = format!("{repo}#1111111");
     let second = format!("{repo}#2222222");
     let other = "example@git+https://example.org/other.git#1111111";
-    let pending = pending(&[(&first, &[Build]), (&second, &[Build]), (other, &[Skills])]);
+    let pending = pending(&[(&first, &[Build]), (&second, &[Build]), (other, &[Build, Skills])]);
     let approval = args(&[repo], false)
         .decide::<SilentReporter>(&pending, decide_config(), Path::new("/workspace"))
         .unwrap()
