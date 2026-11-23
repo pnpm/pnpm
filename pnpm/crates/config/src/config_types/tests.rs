@@ -304,7 +304,7 @@ fn render_yaml_top_level_field_preserves_unicode_line_separators() {
         let scalar = format!("sha{separator}red");
         let package = format!("pkg{separator}name@1.0.0");
         for value in
-            [json!(scalar.clone()), json!({ "nested": package.clone() }), json!([package, scalar])]
+            [json!(scalar), json!({ "nested": package }), json!([package, scalar])]
         {
             let rendered = crate::render_yaml_top_level_field("sample", &value);
             let parsed: serde_json::Map<String, Value> = serde_saphyr::from_str(&rendered).unwrap();
