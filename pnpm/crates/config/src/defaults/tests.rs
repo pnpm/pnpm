@@ -590,3 +590,33 @@ fn empty_pnpm_config_home_falls_back_to_xdg() {
         Some(PathBuf::from("/other/config").join("pnpm")),
     );
 }
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[test]
+fn empty_dir_env_vars_fall_back_to_platform_defaults() {
+    struct EmptyDirEnvs;
+    impl EnvVar for EmptyDirEnvs {
+        fn var(name: &str) -> Option<String> {
+            matches!(name, "XDG_CONFIG_HOME" | "XDG_CACHE_HOME" | "XDG_DATA_HOME" | "PNPM_HOME")
+                .then(String::new)
+        }
+    }
+    impl GetHomeDir for EmptyDirEnvs {
+        fn home_dir() -> Option<PathBuf> {
+            Some(PathBuf::from("/home/test-user"))
+        }
+    }
+    let home = PathBuf::from("/home/test-user");
+    let (config_dir, cache_dir, pnpm_home_dir) = if cfg!(target_os = "macos") {
+        (
+            home.join("Library/Preferences/pnpm"),
+            home.join("Library/Caches/pnpm"),
+            home.join("Library/pnpm"),
+        )
+    } else {
+        (home.join(".config/pnpm"), home.join(".cache/pnpm"), home.join(".local/share/pnpm"))
+    };
+    assert_eq!(default_config_dir::<EmptyDirEnvs>(), Some(config_dir));
+    assert_eq!(default_cache_dir::<EmptyDirEnvs>(), cache_dir);
+    assert_eq!(default_pnpm_home_dir::<EmptyDirEnvs>(), Some(pnpm_home_dir));
+}

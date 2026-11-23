@@ -61,7 +61,7 @@ pub(crate) fn ensure_windows_dir_envs_on<Sys: EnvVar>(
     if dirs_with_fallback
         .iter()
         .copied()
-        .map(Sys::var)
+        .map(non_empty_var::<Sys>)
         .any(|variable| variable.is_none())
     {
         expand_if_set::<Sys>("LOCALAPPDATA")?;
@@ -77,7 +77,7 @@ pub(crate) fn ensure_windows_home_dir_env_on<Sys: EnvVar>(
     }
     let name = ["PNPM_HOME", "XDG_DATA_HOME"]
         .into_iter()
-        .find(|name| Sys::var(name).is_some())
+        .find(|name| non_empty_var::<Sys>(name).is_some())
         .unwrap_or("LOCALAPPDATA");
     expand_if_set::<Sys>(name)
 }
@@ -87,7 +87,7 @@ pub(crate) fn ensure_windows_home_dir_env_on<Sys: EnvVar>(
 /// On failure the original value is returned. [`ensure_windows_dir_envs`]
 /// reports that failure before the path is used to create a directory.
 pub(crate) fn read_dir_env<Sys: EnvVar>(name: &str) -> Option<String> {
-    let value = Sys::var(name)?;
+    let value = non_empty_var::<Sys>(name)?;
     // `ensure_windows_dir_envs` rejects an unexpanded reference before this path is used.
     Some(expand_dir_env(std::env::consts::OS, name, &value, Sys::var).unwrap_or(value))
 }
@@ -106,10 +106,15 @@ pub(crate) fn expand_dir_env(
 }
 
 fn expand_if_set<Sys: EnvVar>(name: &str) -> Result<(), UnexpandedWindowsEnvVar> {
-    let Some(value) = Sys::var(name) else {
+    let Some(value) = non_empty_var::<Sys>(name) else {
         return Ok(());
     };
     expand_dir_env("windows", name, &value, Sys::var).map(|_| ())
+}
+
+/// The value of `name`, with an empty value counted as unset.
+fn non_empty_var<Sys: EnvVar>(name: &str) -> Option<String> {
+    Sys::var(name).filter(|value| !value.is_empty())
 }
 
 const MAX_EXPANSIONS: usize = 32;
