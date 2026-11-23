@@ -63,7 +63,9 @@ fn grouped_prompt(
     let mut items = Vec::new();
     let mut alternatives = BTreeMap::new();
     for (key, group) in groups {
-        let label = format!("{}  {}", labels[key.as_str()], capability_list(&group.requests));
+        let display_key = pnpm_network::redact_and_sanitize(key.split('?').next().unwrap_or(key));
+        let display_label = labels[key.as_str()].replace(key, &display_key);
+        let label = format!("{display_label}  {}", capability_list(&group.requests));
         let mut choice = CheckboxChoice {
             short: label.clone(),
             name: label.clone(),
@@ -82,7 +84,7 @@ fn grouped_prompt(
             alternatives.insert(
                 items.len(),
                 CheckboxChoice {
-                    name: format!("{label}  [all commits of {key}]"),
+                    name: format!("{label}  [all commits of {display_key}]"),
                     short: format!("{label} (all commits)"),
                     description: Some("r: pending commits only".to_string()),
                     value: vec![key.clone()],

@@ -54,3 +54,33 @@ fn one_git_row_selects_none_pending_commits_or_the_repository() {
     prompt.handle_key(&Key::Char(' '));
     assert_eq!(prompt.selected_choices().count(), 0);
 }
+
+#[test]
+fn repository_labels_redact_credentials_and_keep_the_policy_key() {
+    let key =
+        "demo@git+https://example-user:example-password@example.org/demo.git?token=example-query";
+    let pending = BTreeMap::from([
+        (format!("{key}#1234567"), [Build].into()),
+        ("demo@git+https://example.org/other.git#7654321".to_string(), [Build].into()),
+    ]);
+    let mut prompt = grouped_prompt("Approve", &package_groups(&pending));
+    for frame in [
+        prompt.render_frame(),
+        {
+            prompt.handle_key(&Key::Char('r'));
+            prompt.render_frame()
+        },
+        prompt.render_answer(),
+    ] {
+        assert!(!frame.contains("example-password"));
+        assert!(!frame.contains("example-query"));
+    }
+    assert_eq!(
+        prompt
+            .selected_choices()
+            .next()
+            .unwrap()
+            .value,
+        vec![key.to_string()],
+    );
+}

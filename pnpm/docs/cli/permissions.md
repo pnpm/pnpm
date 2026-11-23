@@ -34,7 +34,7 @@ A named package is approved or denied for everything it requests, including ever
 
 Each Git package appears once per repository. Press **Space** to approve its pending commits, or **R** to include future commits. Press **Enter** to save. To approve a single revision, pass its full commit selector to `pnpm approve`. `--all` approves only pending commits.
 
-To approve a Git package across updates without a prompt, pass its package name and exact `git+` repository URL without a commit or branch suffix. Use the spelling pnpm shows in the repository prompt. For a `github:` dependency, the URL ends in `.git`. See the [repository matching rules](../settings/build.md#allowbuilds).
+To approve a Git package across updates without a prompt, pass its package name and exact `git+` repository URL without a commit or branch suffix. For a `github:` dependency, the URL ends in `.git`. See the [repository matching rules](../settings/build.md#allowbuilds).
 
 ```sh
 pnpm approve 'example@git+https://github.com/example/project.git'
