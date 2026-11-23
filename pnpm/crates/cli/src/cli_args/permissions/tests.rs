@@ -2,10 +2,7 @@ use super::{
     ApproveArgs,
     Capabilities,
     PromptAvailability,
-    decisions::{
-        PackageDecisions,
-        confirmation,
-    },
+    decisions::PackageDecisions,
     render_permissions,
 };
 use pnpm_config::{
@@ -147,52 +144,32 @@ fn a_git_repository_decision_clears_only_its_pending_skills() {
 }
 
 #[test]
-fn repository_scope_keeps_commits_by_default_and_preserves_chosen_skills() {
-    use super::repository_scope::{
-        apply_scope,
-        repository_choices,
-    };
+fn repository_scope_preserves_each_selected_scope_and_the_chosen_skills() {
     let repo = "demo@git+https://example.org/demo.git";
-    let commit = format!("{repo}#abcdef1");
-    let other = "other@1.0.0";
-    let decision =
-        || decided(Some(true), Some(SkillsPermission::Chosen(vec!["guide".to_string()])));
+    let first = format!("{repo}#abcdef1");
+    let second = format!("{repo}#abcdef2");
+    let chosen = || decided(None, Some(SkillsPermission::Chosen(vec!["guide".to_string()])));
     let decisions =
-        || BTreeMap::from([(commit.clone(), decision()), (other.to_string(), decided(None, None))]);
-    let approved = [commit.clone()].into();
+        BTreeMap::from([(first.clone(), chosen()), (second.clone(), decided(Some(false), None))]);
+    let selected = BTreeMap::from([(first, repo.to_string())]);
+    let scoped = super::repository_scope::apply_scope(decisions, &selected).unwrap();
     assert_eq!(
-        repository_choices(&decisions(), &approved),
-        vec![(repo.to_string(), repo.to_string())],
-    );
-    assert_eq!(apply_scope(decisions(), &[]), decisions());
-    assert_eq!(
-        apply_scope(decisions(), &[repo.to_string()]),
-        BTreeMap::from([(repo.to_string(), decision()), (other.to_string(), decided(None, None))]),
+        scoped,
+        BTreeMap::from([(repo.to_string(), chosen()), (second, decided(Some(false), None))]),
     );
 }
 
 #[test]
-fn repository_scope_preserves_distinct_decisions_for_pending_commits() {
-    use super::repository_scope::repository_choices;
-    let first = "demo@git+https://example.org/demo.git#abcdef1".to_string();
-    let second = "demo@git+https://example.org/demo.git#abcdef2".to_string();
+fn conflicting_skill_choices_cannot_be_saved_under_one_repository() {
+    let repo = "demo@git+https://example.org/demo.git";
+    let first = format!("{repo}#abcdef1");
+    let second = format!("{repo}#abcdef2");
     let decisions = BTreeMap::from([
-        (first.clone(), decided(Some(true), None)),
-        (second.clone(), decided(Some(true), Some(SkillsPermission::All(true)))),
+        (first.clone(), decided(None, Some(SkillsPermission::Chosen(vec!["first".to_string()])))),
+        (second.clone(), decided(None, Some(SkillsPermission::Chosen(vec!["second".to_string()])))),
     ]);
-    let approved = [first.clone(), second.clone()].into();
-    assert!(repository_choices(&decisions, &approved).is_empty());
-    let skills_only = BTreeMap::from([
-        (first.clone(), decided(None, Some(SkillsPermission::All(true)))),
-        (second.clone(), decided(Some(true), Some(SkillsPermission::All(true)))),
-    ]);
-    assert!(repository_choices(&skills_only, &approved).is_empty());
-    let matching = BTreeMap::from([
-        (first.clone(), decided(Some(true), None)),
-        (second, decided(Some(true), None)),
-    ]);
-    assert!(repository_choices(&matching, &[first].into()).is_empty());
-    assert_eq!(repository_choices(&matching, &approved).len(), 1);
+    let selected = BTreeMap::from([(first, repo.to_string()), (second, repo.to_string())]);
+    assert!(super::repository_scope::apply_scope(decisions, &selected).is_err());
 }
 
 #[test]
@@ -289,17 +266,6 @@ fn lists_chosen_skills_next_to_the_package() {
     assert_eq!(
         render_permissions(&config).unwrap(),
         "Granted:\n  drizzle-kit  skills (guide)\n\nDenied:\n  esbuild  skills\n",
-    );
-}
-
-#[test]
-fn the_confirmation_names_packages_without_their_dep_path() {
-    let pending =
-        pending(&[("@pnpm/marked-skills", &[Skills]), ("@pnpm/git-skills", &[Build, Skills])]);
-
-    assert_eq!(
-        confirmation(&pending.keys().cloned().collect(), &pending, &[]),
-        "Approve @pnpm/git-skills (build, skills), @pnpm/marked-skills (skills)?",
     );
 }
 

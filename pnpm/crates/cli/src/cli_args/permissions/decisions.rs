@@ -3,7 +3,6 @@ use super::{
     Capabilities,
     IgnoredBuildsScan,
     PermissionCapability,
-    disambiguated_labels,
     emit_global_warning,
     partition_params,
 };
@@ -98,23 +97,6 @@ fn matching_decisions<'a>(
         .get(key)
         .into_iter()
         .chain(repository)
-}
-
-pub(crate) fn confirmation(
-    approved: &BTreeSet<String>,
-    pending: &BTreeMap<String, Capabilities>,
-    repositories: &[String],
-) -> String {
-    let labels = disambiguated_labels(pending.keys().map(String::as_str));
-    let packages = approved
-        .iter()
-        .map(|pkg| format!("{} ({})", labels[pkg.as_str()], capability_list(&pending[pkg])))
-        .collect::<Vec<_>>()
-        .join(", ");
-    if repositories.is_empty() {
-        return format!("Approve {packages}?");
-    }
-    format!("Approve {packages}, including all commits of {}?", repositories.join(", "))
 }
 
 /// The decisions of `<pkg>` / `!<pkg>` arguments. A package that is not

@@ -1,95 +1,101 @@
 use super::{
     Capabilities,
-    confirm,
-    decisions::{
-        Decisions,
-        confirmation,
-    },
+    decisions::Decisions,
+    package_choices,
     prompt_for_choices,
 };
-use pnpm_config::SkillsPermission;
+use crate::checkbox_prompt::{
+    CheckboxAnswer,
+    CheckboxChoice,
+    CheckboxItem,
+    CheckboxPrompt,
+};
+use miette::IntoDiagnostic;
 use pnpm_package_name::git_repo_allow_build_key_from_dep_path;
-use std::{
-    borrow::Cow,
-    collections::{
-        BTreeMap,
-        BTreeSet,
-    },
+use std::collections::{
+    BTreeMap,
+    btree_map::Entry,
 };
 
-pub(super) fn confirm_decisions(
-    decisions: Decisions,
-    approved: &BTreeSet<String>,
+/// Selected pending keys and the policy key under which to save each one.
+pub(super) type Selection = BTreeMap<String, String>;
+
+pub(super) fn prompt_for_packages(
     pending: &BTreeMap<String, Capabilities>,
-) -> miette::Result<Option<Decisions>> {
-    if approved.is_empty() {
-        return Ok(Some(decisions));
+) -> miette::Result<Option<Selection>> {
+    let choices = package_choices(pending);
+    let alternatives = repository_alternatives(&choices);
+    let message = "Choose which packages to approve";
+    if alternatives.is_empty() {
+        return Ok(prompt_for_choices(message, &choices)?
+            .map(|keys| {
+                keys.into_iter()
+                    .map(|key| (key.clone(), key))
+                    .collect()
+            }));
     }
-    let choices = repository_choices(&decisions, approved);
-    let repositories = if choices.is_empty() {
-        Vec::new()
-    } else {
-        let Some(selected) = prompt_for_choices(
-            "Apply these decisions to all commits from the selected repositories (leave unchecked for current commits only)",
-            &choices,
-        )?
-        else {
-            return Ok(None);
-        };
-        selected
-    };
-    let message = confirmation(approved, pending, &repositories);
-    if !confirm(&message)? {
-        return Ok(None);
-    }
-    Ok(Some(apply_scope(decisions, &repositories)))
+    let items = choices
+        .into_iter()
+        .enumerate()
+        .map(|(index, (key, label))| {
+            let description =
+                alternatives.contains_key(&index).then(|| "r: select all commits".to_string());
+            CheckboxItem::Choice(CheckboxChoice {
+                short: label.clone(),
+                name: if description.is_some() { format!("{label}  [this commit]") } else { label },
+                description,
+                value: (key.clone(), key),
+            })
+        })
+        .collect();
+    let answer = CheckboxPrompt::new(message, items)
+        .with_alternatives(alternatives)
+        .interact()
+        .into_diagnostic()?;
+    Ok(match answer {
+        CheckboxAnswer::Selected(selected) => Some(selected.into_iter().collect()),
+        CheckboxAnswer::Cancelled => None,
+    })
 }
 
-/// Offer one repository decision only when every pending commit was selected
-/// with the same build and skills decisions.
-pub(super) fn repository_choices(
-    decisions: &Decisions,
-    approved: &BTreeSet<String>,
-) -> Vec<(String, String)> {
-    let mut groups = BTreeMap::<_, Vec<_>>::new();
+fn repository_alternatives(
+    choices: &[(String, String)],
+) -> BTreeMap<usize, CheckboxChoice<(String, String)>> {
+    choices
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (key, label))| {
+            let repo = git_repo_allow_build_key_from_dep_path(key)?.into_owned();
+            let choice = CheckboxChoice {
+                name: format!("{label}  [all commits of {repo}]"),
+                short: format!("{label} (all commits)"),
+                value: (key.clone(), repo),
+                description: Some("r: switch to this commit".to_string()),
+            };
+            Some((index, choice))
+        })
+        .collect()
+}
+
+pub(super) fn apply_scope(decisions: Decisions, selected: &Selection) -> miette::Result<Decisions> {
+    let mut scoped = Decisions::new();
     for (key, decision) in decisions {
-        if let Some(repo) = git_repo_allow_build_key_from_dep_path(key) {
-            groups
-                .entry(repo)
-                .or_default()
-                .push((key, decision));
+        let policy_key = selected
+            .get(&key)
+            .cloned()
+            .unwrap_or(key);
+        match scoped.entry(policy_key) {
+            Entry::Vacant(entry) => {
+                entry.insert(decision);
+            }
+            Entry::Occupied(entry) if entry.get() != &decision => {
+                miette::bail!(
+                    "Conflicting decisions for {}. Choose the same permissions for all commits or approve each commit separately.",
+                    entry.key(),
+                );
+            }
+            Entry::Occupied(_) => {}
         }
     }
-    groups
-        .into_iter()
-        .filter_map(|(repo, members)| {
-            let (_, first) = members.first()?;
-            let allows_capability = first.build.unwrap_or(false)
-                || first.skills.as_ref().is_some_and(SkillsPermission::links_any);
-            (allows_capability
-                && members
-                    .iter()
-                    .all(|(key, decision)| approved.contains(*key) && decision == first))
-            .then(|| (repo.to_string(), repo.into_owned()))
-        })
-        .collect()
-}
-
-pub(super) fn apply_scope(decisions: Decisions, repositories: &[String]) -> Decisions {
-    if repositories.is_empty() {
-        return decisions;
-    }
-    decisions
-        .into_iter()
-        .map(|(key, decision)| {
-            let repo = git_repo_allow_build_key_from_dep_path(&key)
-                .filter(|repo| {
-                    repositories
-                        .iter()
-                        .any(|choice| choice == repo.as_ref())
-                })
-                .map(Cow::into_owned);
-            (repo.unwrap_or(key), decision)
-        })
-        .collect()
+    Ok(scoped)
 }

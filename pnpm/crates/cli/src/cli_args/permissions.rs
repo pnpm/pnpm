@@ -12,7 +12,6 @@ use crate::{
         approve_builds::{
             ApprovalStore,
             ApproveBuildsArgs,
-            confirm,
             disambiguated_labels,
             partition_params,
             prompt_for_choices,
@@ -253,22 +252,15 @@ impl ApproveArgs {
         if !prompt.is_available() {
             return Err(ApproveNonInteractive.into());
         }
-        let Some(selected) = prompt_for_packages(pending)? else {
+        let Some(selected) = repository_scope::prompt_for_packages(pending)? else {
             return Ok(None);
         };
-        let approved: BTreeSet<String> = pending
-            .keys()
-            .filter(|pkg| selected.contains(pkg))
-            .cloned()
-            .collect();
+        let approved = selected.keys().cloned().collect();
         let Some(review) = review_skills(config, manifest_dir, &approved, pending)? else {
             return Ok(None);
         };
         let decisions = decisions_by_approval(&approved, pending, &review.skills_by_package);
-        let Some(decisions) = repository_scope::confirm_decisions(decisions, &approved, pending)?
-        else {
-            return Ok(None);
-        };
+        let decisions = repository_scope::apply_scope(decisions, &selected)?;
         Ok(Some(Approval { decisions, skills_dirs: review.dirs }))
     }
 }
@@ -281,12 +273,6 @@ pub(crate) fn package_choices(pending: &BTreeMap<String, Capabilities>) -> Vec<(
             (pkg.clone(), format!("{}  {}", labels[pkg.as_str()], capability_list(capabilities)))
         })
         .collect()
-}
-
-fn prompt_for_packages(
-    pending: &BTreeMap<String, Capabilities>,
-) -> miette::Result<Option<Vec<String>>> {
-    prompt_for_choices("Choose which packages to approve", &package_choices(pending))
 }
 
 /// The interactive skills review of an approval: the first-run

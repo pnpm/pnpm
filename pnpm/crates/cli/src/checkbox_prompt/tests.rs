@@ -56,6 +56,23 @@ fn selected(prompt: &CheckboxPrompt<&'static str>) -> Vec<&'static str> {
         .collect()
 }
 
+#[test]
+fn repository_shortcut_selects_only_the_highlighted_alternative() {
+    let alternate = CheckboxChoice {
+        value: "repo",
+        name: "all commits".to_string(),
+        short: "repo".to_string(),
+        description: None,
+    };
+    let mut prompt = grouped_prompt().with_alternatives([(2, alternate)].into());
+    press(&mut prompt, &[Key::Char('a')]);
+    assert_eq!(selected(&prompt), vec!["foo", "bar", "baz"]);
+    press(&mut prompt, &[Key::Char('a'), Key::Char('r')]);
+    assert_eq!(selected(&prompt), vec!["repo"]);
+    press(&mut prompt, &[Key::Char('R'), Key::Enter]);
+    assert_eq!(selected(&prompt), vec!["foo"]);
+}
+
 fn frame_lines(prompt: &CheckboxPrompt<&'static str>) -> Vec<String> {
     strip_ansi_codes(&prompt.render_frame())
         .lines()
