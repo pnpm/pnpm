@@ -16,6 +16,7 @@ use super::{
     BTreeSet,
     BlockPlacement,
     BlockSlot,
+    DeprecationLog,
     MaxLogLevel,
     Output,
     ReporterState,
@@ -61,8 +62,8 @@ impl ReporterState {
         self.notices.checks.peer_issues = true;
     }
 
-    pub(super) fn record_deprecated(&mut self, label: String) {
-        self.notices.checks.deprecated.insert(label);
+    pub(super) fn on_deprecation(&mut self, log: &DeprecationLog) {
+        self.notices.checks.deprecated.insert(pkg_label(log));
     }
 
     /// Print the footer when the command ends, once. A command that ends
@@ -177,6 +178,15 @@ impl ReporterState {
             .map(|diff| pnpm_text_sanitize::sanitize_inline(&diff.name).into_owned())
             .collect()
     }
+}
+
+/// `name@version` as the footer prints it.
+///
+/// Both halves come from the resolved manifest, which a git or tarball
+/// dependency writes itself, so neither is a validated npm package name.
+fn pkg_label(log: &DeprecationLog) -> String {
+    pnpm_text_sanitize::sanitize_inline(&format!("{}@{}", log.pkg_name, log.pkg_version))
+        .into_owned()
 }
 
 /// At most [`MAX_LISTED`] names, then a count of the rest.

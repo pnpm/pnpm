@@ -149,7 +149,7 @@ impl ReporterState {
             let requested = requests.get(prefix);
             for change in bucket_changes(&buckets[diff_key(kind)]) {
                 if self.is_hidden_linked(change.diff)
-                    || requested.is_some_and(|requested| !self.is_notable(requested, change.diff))
+                    || requested.is_some_and(|requested| !requested.contains(change.diff))
                 {
                     continue;
                 }
@@ -177,13 +177,6 @@ impl ReporterState {
                     .iter()
                     .map(|(prefix, buckets)| (prefix.as_str(), buckets)),
             )
-    }
-
-    /// Whether a change of a project with no previous install tells more
-    /// than that the project was installed: this command asked for it, or
-    /// the dependency is deprecated.
-    fn is_notable(&self, requested: &RequestedDependencies, diff: &PackageDiff) -> bool {
-        requested.contains(diff) || self.deprecation_of(diff).is_some()
     }
 
     pub(super) fn new_project_requests<'a>(

@@ -273,12 +273,6 @@ struct LifecycleState {
 struct NoticeState {
     warnings: usize,
     collapsed_slot: BlockSlot,
-    /// Every `pnpm:deprecation` not printed yet. pnpm reports each
-    /// deprecated package once, for whichever project reached it first.
-    deprecations: Vec<DeprecationLog>,
-    /// The index in `deprecations` of the first notice of each package, by
-    /// name and then version.
-    deprecation_index: HashMap<String, HashMap<String, usize>>,
     /// `pnpm:unused-override` selectors withheld until
     /// `pnpm:stage { stage: "resolution_done" }`, mirroring
     /// `reportUnusedOverrides.ts`'s `buffer(resolutionDone$)`.
@@ -494,8 +488,6 @@ mod tests;
 mod progress;
 
 mod summary;
-
-mod deprecations;
 
 mod checks;
 use checks::{

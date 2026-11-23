@@ -12,7 +12,6 @@ use super::{
     LogEvent,
     LogLevel,
     MaxLogLevel,
-    NonDeprecatedAlternative,
     Output,
     PnpmErrorLog,
     PnpmLog,
@@ -21,11 +20,9 @@ use super::{
     Stage,
     StatsLog,
     StatsMessage,
-    added_root,
     added_root_at,
     added_root_with_latest_at,
     deprecation,
-    deprecation_with_alternative,
     emitted_lines,
     flush_checks,
     interleaved_lifecycle_events,
@@ -497,60 +494,6 @@ fn deprecation_waits_for_the_end_of_the_command() {
         panic!("the footer renders");
     };
     assert_eq!(frame, "\n✗ 1 package is deprecated: express@0.14.1\n");
-}
-
-/// A git or tarball dependency names itself, so the identifier is filtered
-/// like any other store-derived text before it reaches the terminal.
-/// The version comes from pnpm's own reading of the packument, so unlike the
-/// notice it is safe to print.
-#[test]
-fn deprecated_line_names_a_version_that_is_not_deprecated() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            deprecation_with_alternative(
-                "express",
-                "0.14.1",
-                0,
-                CWD,
-                Some(NonDeprecatedAlternative {
-                    version: "4.21.2".to_string(),
-                    outside_declared_range: true,
-                }),
-            ),
-            added_root("express", "0.14.1", DependencyType::Prod),
-            summary(),
-        ],
-    );
-    assert_eq!(
-        frame,
-        "\ndependencies:\n\
-         + express 0.14.1 deprecated. 4.21.2 is not deprecated, outside the range you declared.\n",
-    );
-}
-
-#[test]
-fn deprecated_line_drops_the_range_clause_when_no_range_was_declared() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            deprecation_with_alternative(
-                "express",
-                "0.14.1",
-                0,
-                CWD,
-                Some(NonDeprecatedAlternative {
-                    version: "0.14.2".to_string(),
-                    outside_declared_range: false,
-                }),
-            ),
-            added_root("express", "0.14.1", DependencyType::Prod),
-            summary(),
-        ],
-    );
-    assert_eq!(frame, "\ndependencies:\n+ express 0.14.1 deprecated. 0.14.2 is not deprecated.\n");
 }
 
 #[test]

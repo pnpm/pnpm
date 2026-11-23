@@ -48,15 +48,23 @@ fn workspace_of(projects: &[&str]) -> CommandTempCwd<AddMockedRegistry> {
     fixture
 }
 
-/// The summary's lines, from the first dependency-type header to the end
-/// of the last change.
-fn install_summary(dir: &Path) -> String {
+fn install_stdout(dir: &Path) -> String {
     let assert = pacquet_at(dir)
         .with_arg("install")
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
     eprintln!("STDOUT:\n{stdout}");
+    stdout
+}
+
+/// The summary's lines, from the first dependency-type header to the end
+/// of the last change.
+fn install_summary(dir: &Path) -> String {
+    summary_lines(&install_stdout(dir))
+}
+
+fn summary_lines(stdout: &str) -> String {
     let is_summary_line =
         |line: &&str| line.ends_with("ependencies:") || is_summary_change_line(line);
     stdout
@@ -66,12 +74,10 @@ fn install_summary(dir: &Path) -> String {
         .join("\n")
 }
 
-// Every version below is its package's latest, so no line carries an
-// "is available" note and no first-install line is listed for being
-// outdated.
-
+/// A first install lists no dependency it was not asked for. The checks
+/// footer names the deprecated one.
 #[test]
-fn first_workspace_install_lists_only_deprecated_dependencies() {
+fn first_workspace_install_leaves_deprecations_to_the_footer() {
     let fixture = workspace_of(&["a", "b"]);
     let workspace = &fixture.workspace;
     let foo = serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" });
@@ -83,10 +89,9 @@ fn first_workspace_install_lists_only_deprecated_dependencies() {
     );
     write_project(&workspace.join("packages/b"), "b", &foo);
 
-    assert_eq!(
-        install_summary(workspace),
-        "dependencies:\n+ @pnpm.e2e/deprecated 1.0.0 deprecated",
-    );
+    let stdout = install_stdout(workspace);
+    assert_eq!(summary_lines(&stdout), "");
+    assert!(stdout.contains("✗ 1 package is deprecated: @pnpm.e2e/deprecated@1.0.0"), "{stdout}");
 
     drop(fixture);
 }

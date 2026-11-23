@@ -28,7 +28,7 @@ fn execution_time() -> LogEvent {
 }
 
 #[test]
-fn added_deprecated_dependency_carries_the_warning_on_its_summary_line() {
+fn deprecated_dependency_line_leaves_the_deprecation_to_the_footer() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
@@ -38,7 +38,7 @@ fn added_deprecated_dependency_carries_the_warning_on_its_summary_line() {
             summary(),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ express 0.14.1 deprecated. 4.21.2 is not deprecated.\n");
+    assert_eq!(frame, "\ndependencies:\n+ express 0.14.1\n");
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn footer_counts_every_deprecated_package() {
     );
     assert!(
         frame.starts_with(
-            "\ndependencies:\n+ express 0.14.1 deprecated\n\n\
+            "\ndependencies:\n+ express 0.14.1\n\n\
              ✗ 3 packages are deprecated: express@0.14.1, request@2.88.2 and uuid@3.4.0\n\n\
              Done in ",
         ),
@@ -111,7 +111,7 @@ fn nothing_is_flushed_when_no_check_ran() {
 /// `pnpm add --lockfile-only` links nothing, so its summary has no section
 /// until the edited manifest arrives after it.
 #[test]
-fn deprecation_marks_a_line_a_later_manifest_edit_adds() {
+fn summary_waits_for_a_later_manifest_edit() {
     let manifest = |updated: bool, value: serde_json::Value| {
         LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
@@ -136,22 +136,23 @@ fn deprecation_marks_a_line_a_later_manifest_edit_adds() {
         &mut reporter,
         vec![manifest(true, serde_json::json!({ "dependencies": { "express": "0.14.1" } }))],
     );
-    assert_eq!(frame, "\ndependencies:\n+ express 0.14.1 deprecated\n");
+    assert_eq!(frame, "\ndependencies:\n+ express 0.14.1\n");
 }
 
 #[test]
-fn every_notice_of_a_package_on_a_summary_line_is_carried_by_it() {
+fn package_reported_by_several_projects_is_listed_once() {
     let mut reporter = state(false);
-    let frame = render(
+    render(
         &mut reporter,
         vec![
             deprecation("left-pad", "1.0.0", 0, "/repo/packages/a"),
             deprecation("left-pad", "1.0.0", 0, CWD),
-            added_root("left-pad", "1.0.0", DependencyType::Prod),
-            summary(),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ left-pad 1.0.0 deprecated\n");
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
+    };
+    assert_eq!(frame, "\n✗ 1 package is deprecated: left-pad@1.0.0\n");
 }
 
 /// After a failure, a passing verdict or a newer version is noise beside the

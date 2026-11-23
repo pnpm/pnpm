@@ -179,12 +179,7 @@ fn first_workspace_install_lists_only_what_carries_information() {
             ),
         ],
     );
-    assert_eq!(
-        frame,
-        "\ndependencies:\n\
-         + old 1.0.0 deprecated\n\
-         + wanted 3.0.0\n",
-    );
+    assert_eq!(frame, "\ndependencies:\n+ wanted 3.0.0\n");
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
     };
@@ -195,22 +190,6 @@ fn first_workspace_install_lists_only_what_carries_information() {
         ),
         "{frame}",
     );
-}
-
-/// pnpm reports a deprecated package once, for the first project that
-/// reached it.
-#[test]
-fn deprecated_dependency_of_a_new_project_is_listed_whoever_it_was_reported_for() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            deprecation("old", "1.0.0", 1, "/repo/packages/a"),
-            added_root_at("/repo/packages/b", "old", "1.0.0", DependencyType::Prod),
-            workspace_summary(&["/repo/packages/b"]),
-        ],
-    );
-    assert_eq!(frame, "\ndependencies:\n+ old 1.0.0 deprecated\n");
 }
 
 #[test]
@@ -346,7 +325,7 @@ fn workspace_deprecations_join_the_checks_footer() {
             workspace_summary(&[]),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ request 2.88.2 deprecated. 3.0.0 is not deprecated.\n");
+    assert_eq!(frame, "\ndependencies:\n+ request 2.88.2\n");
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
     };

@@ -181,9 +181,6 @@ impl ReporterState {
             result.push(' ');
             result.push_str(&self.version_change(change.replaced_version(), version));
         }
-        if pkg.added {
-            result.push_str(&self.deprecation_marker(pkg));
-        }
         if let Some(from) = &pkg.from {
             let rel = relative(&self.rendering.cwd, from);
             let shown = if rel.is_empty() { from.clone() } else { rel };
