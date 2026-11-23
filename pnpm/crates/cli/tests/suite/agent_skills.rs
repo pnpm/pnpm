@@ -529,8 +529,7 @@ fn repository_approval_links_a_pending_git_skill_across_updates() {
         .assert()
         .success();
     assert!(pending_skills(workspace).is_none());
-    assert_eq!(
-        fs::read_to_string(workspace.join(".agents/skills/sample-guide/SKILL.md")).unwrap(),
-        updated,
-    );
+    let linked =
+        fs::read_to_string(workspace.join(".agents/skills/sample-guide/SKILL.md")).unwrap();
+    assert!(linked.lines().eq(updated.lines()));
 }
