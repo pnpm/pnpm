@@ -23,7 +23,7 @@ use super::{
     SkippedOptionalDependencyParent,
     TreeChildren,
     TreeCtx,
-    catalogs_for_children,
+    catalogs_for_peers,
     claim_children_owner,
     claim_recorded_subtree_owners,
     extract_peer_dependencies,
@@ -108,7 +108,7 @@ pub(super) fn install_owner_peer_dependencies(
     let peer_set = extract_peer_dependencies(
         &pending.result,
         &claim.peer_shadowed,
-        catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
+        catalogs_for_peers(ctx, &pending.result),
         ctx.catalogs_dir.as_deref(),
         &ctx.importer.lockfile_dir,
     )?;

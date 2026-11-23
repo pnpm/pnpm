@@ -47,7 +47,7 @@ use workspace_resolution::resolve_wanted_cached;
 mod child_seeds;
 use child_seeds::{
     ChildSeedScope,
-    catalogs_for_children,
+    catalogs_for_peers,
     child_wanted,
     landed_on_prior_entry,
     overlay_lookup_names,

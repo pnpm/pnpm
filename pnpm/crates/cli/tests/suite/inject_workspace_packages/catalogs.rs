@@ -129,6 +129,55 @@ fn file_dependencies_on_a_workspace_publish_directory_resolve_catalogs() {
     assert_eq!(dependencies[&foo].to_string(), "1.0.0");
 }
 
+/// A `catalog:` peer of an ordinary `file:` dependency resolves through the
+/// importer's catalogs, although the package's own `catalog:` dependencies
+/// do not.
+#[test]
+fn ordinary_file_dependency_peers_resolve_catalogs() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    append_workspace_yaml_key(workspace, "packages", "[]");
+    append_workspace_yaml_key(workspace, "catalog", "{ '@pnpm.e2e/foo': 1.0.0 }");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "private": true,
+            "dependencies": { "peer": "file:./peer" },
+        })
+        .to_string(),
+    )
+    .expect("write app manifest");
+    fs::create_dir_all(workspace.join("peer")).expect("create peer directory");
+    fs::write(
+        workspace.join("peer/package.json"),
+        serde_json::json!({
+            "name": "peer",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/foo": "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write peer manifest");
+
+    pacquet_in(workspace)
+        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .assert()
+        .success();
+
+    let lockfile =
+        Lockfile::load_wanted_from_dir(workspace).expect("read lockfile").expect("lockfile exists");
+    let snapshot = lockfile.snapshots
+        .expect("lockfile has snapshots")
+        .into_iter()
+        .find(|(key, _)| key.to_string().starts_with("peer@file:"))
+        .expect("lockfile records the file dependency")
+        .1;
+    let dependencies = snapshot.dependencies.expect("peer has auto-installed dependencies");
+    let foo: pnpm_lockfile::PkgName = "@pnpm.e2e/foo".parse().expect("parse package name");
+    assert_eq!(dependencies[&foo].to_string(), "1.0.0");
+}
+
 fn relative_catalog_fixture(
     relative_path: &str,
     catalog_specifier: &str,

@@ -377,3 +377,19 @@ pub(super) fn catalogs_for_children(
 ) -> Option<&Catalogs> {
     (resolves_children_through_catalogs && !ctx.catalogs.is_empty()).then_some(&ctx.catalogs)
 }
+
+/// Catalogs for the taken peers of a resolved package.
+///
+/// An ordinary `file:` dependency is not a workspace project, so its child
+/// specifiers do not inherit the importer's catalogs (see
+/// [`resolves_children_through_catalogs`]). Its taken peers are different:
+/// the consuming importer binds them, so a `catalog:` peer range resolves
+/// through the same catalogs a workspace package uses.
+pub(super) fn catalogs_for_peers<'a>(
+    ctx: &'a TreeCtx,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+) -> Option<&'a Catalogs> {
+    (!ctx.catalogs.is_empty()
+        && declaring_manifest_dir(&ctx.importer.lockfile_dir, result).is_some())
+    .then_some(&ctx.catalogs)
+}
