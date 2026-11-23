@@ -12,6 +12,7 @@ use super::{
     super::{
         super::file_url_shape::{
             canonical_slash_path,
+            canonicalized_paths_match,
             decode_file_url_path,
         },
         roots::{
@@ -145,17 +146,25 @@ fn rebase_relative_target(
     base_dir: Option<&Path>,
     lockfile_dir: Option<&Path>,
 ) -> Option<Vec<String>> {
+    let original = normalize_rel_dir(slash_rel);
     if let (Some(base), Some(lf_dir)) = (base_dir, lockfile_dir)
-        && base != lf_dir
+        && (base != lf_dir || original.starts_with("../"))
         && let Some(base_str) = base.to_str()
     {
         let joined = format!("{}/{slash_rel}", base_str.replace('\\', "/"));
         let rebased = relative_posix_path(lf_dir, &joined)
             .map(|rel| normalize_rel_dir(&rel))
             .unwrap_or_else(|| canonical_slash_path(&joined));
-        return Some(vec![rebased]);
+        if base != lf_dir {
+            return Some(vec![rebased]);
+        }
+        if original != rebased
+            && canonicalized_paths_match(&base.join(slash_rel), &lf_dir.join(&rebased))
+        {
+            return Some(vec![original, rebased]);
+        }
     }
-    Some(vec![normalize_rel_dir(slash_rel)])
+    Some(vec![original])
 }
 
 #[derive(Debug, PartialEq, Eq)]

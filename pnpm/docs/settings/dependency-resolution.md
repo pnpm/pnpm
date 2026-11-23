@@ -11,7 +11,7 @@ dependency graph, including peer dependencies. This is useful for enforcing all 
 version of a dependency, backporting a fix, replacing a dependency with a fork, or
 removing an unused dependency.
 
-The overrides field can only be set at the root of the project.
+The overrides field can only be set at the root of the project. A relative `file:` override is resolved from that root. The lockfile may use a shorter relative path to the same directory.
 
 An example of the `overrides` field:
 
