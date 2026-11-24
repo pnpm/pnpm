@@ -94,6 +94,20 @@ fn footer_keeps_bounds_that_are_not_a_caret_range() {
 }
 
 #[test]
+fn footer_joins_adjacent_ranges() {
+    let events = vec![
+        unsupported_node("a@1.0.0", "^18.0.0 || ^19.0.0 || ^20.0.0 || ^21.0.0 || ^22.0.0"),
+        unsupported_node("b@1.0.0", ">=18"),
+        unsupported_node("c@1.0.0", "8 || 9 || 10 || 11 || 12"),
+    ];
+    assert_eq!(
+        footer(events),
+        "\n✗ 1 package wants Node.js >=8.0.0 <13.0.0, not 26.13.0: c@1.0.0\n\
+         ✗ 2 packages want Node.js >=18.0.0 <23.0.0, not 26.13.0: a@1.0.0 and b@1.0.0\n",
+    );
+}
+
+#[test]
 fn footer_prints_a_line_per_range_that_has_no_version_in_common() {
     let events = vec![
         unsupported_node("a@1.0.0", ">=18 <26"),

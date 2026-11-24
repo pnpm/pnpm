@@ -64,50 +64,112 @@ impl Group {
     fn into_line(self) -> (String, BTreeSet<String>) {
         let range = match self.shared {
             Some(shared) if self.merged => shorten(&shared.to_string()),
-            _ => self.declared,
+            Some(shared) => {
+                let short = shorten(&shared.to_string());
+                if short.len() < self.declared.len() { short } else { self.declared }
+            }
+            None => self.declared,
         };
         (range, self.packages)
     }
 }
 
-/// The intersection as `Range` prints it, desugared into comparators, with
-/// each caret range written as one again and the `-0` of upper bounds
-/// dropped: `>=18.18.0 <19.0.0-0` is `^18.18.0`.
+/// One `||` set of a range: versions from `lower` (inclusive) up to `upper`
+/// (exclusive). `None` leaves that side open.
+struct Interval {
+    lower: Option<Version>,
+    upper: Option<Version>,
+}
+
+/// The range as `Range` prints it, desugared into comparators, written
+/// compactly: touching or overlapping sets are joined, a caret range is
+/// written as one again, and the `-0` of upper bounds is dropped.
+/// `>=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0` is `>=18.0.0 <20.0.0`.
 fn shorten(range: &str) -> String {
-    range
+    let sets: Vec<&str> = range
         .split("||")
         .map(str::trim)
-        .map(shorten_set)
+        .collect();
+    let Some(mut intervals) = sets
+        .iter()
+        .map(|set| parse_interval(set))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return sets.join(" || ");
+    };
+    intervals.sort_by(|left, right| left.lower.cmp(&right.lower));
+    join_touching(intervals)
+        .iter()
+        .map(format_interval)
         .collect::<Vec<_>>()
         .join(" || ")
 }
 
-fn shorten_set(set: &str) -> String {
-    let comparators: Vec<&str> = set.split_whitespace().collect();
-    if let [lower, upper] = comparators.as_slice()
-        && let Some(lower) = lower.strip_prefix(">=")
-        && let Some(upper) = upper.strip_prefix('<')
-        && let Ok(version) = Version::parse(lower)
-        && version.pre_release.is_empty()
-        && upper == caret_upper_bound(&version)
-    {
-        return format!("^{lower}");
+/// `None` for a set with a comparator other than `>=` and `<`, which
+/// [`shorten`] leaves as printed.
+fn parse_interval(set: &str) -> Option<Interval> {
+    let mut interval = Interval { lower: None, upper: None };
+    for comparator in set.split_whitespace() {
+        if comparator == "*" {
+            continue;
+        }
+        if let Some(version) = comparator.strip_prefix(">=") {
+            interval.lower = Some(Version::parse(version).ok()?);
+        } else if let Some(version) = comparator.strip_prefix('<')
+            && !version.starts_with('=')
+        {
+            let version = version.strip_suffix("-0").unwrap_or(version);
+            interval.upper = Some(Version::parse(version).ok()?);
+        } else {
+            return None;
+        }
     }
-    comparators
-        .iter()
-        .map(|comparator| match comparator.strip_prefix('<') {
-            Some(_) => comparator.strip_suffix("-0").unwrap_or(comparator),
-            None => comparator,
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    Some(interval)
 }
 
-/// The exclusive upper bound of `^version`, as `Range` prints it.
-fn caret_upper_bound(version: &Version) -> String {
-    match (version.major, version.minor) {
-        (0, 0) => format!("0.0.{}-0", version.patch + 1),
-        (0, minor) => format!("0.{}.0-0", minor + 1),
-        (major, _) => format!("{}.0.0-0", major + 1),
+/// Joins each interval with the previous one when they touch or overlap.
+/// `intervals` is sorted by lower bound, an open one first.
+fn join_touching(intervals: Vec<Interval>) -> Vec<Interval> {
+    let mut joined: Vec<Interval> = Vec::new();
+    for interval in intervals {
+        let Some(last) = joined.last_mut() else {
+            joined.push(interval);
+            continue;
+        };
+        let touches = match (&last.upper, &interval.lower) {
+            (None, _) | (_, None) => true,
+            (Some(upper), Some(lower)) => lower <= upper,
+        };
+        if !touches {
+            joined.push(interval);
+            continue;
+        }
+        last.upper = match (last.upper.take(), interval.upper) {
+            (Some(left), Some(right)) => Some(left.max(right)),
+            _ => None,
+        };
     }
+    joined
+}
+
+fn format_interval(interval: &Interval) -> String {
+    match (&interval.lower, &interval.upper) {
+        (Some(lower), Some(upper)) if is_caret(lower, upper) => format!("^{lower}"),
+        (Some(lower), Some(upper)) => format!(">={lower} <{upper}"),
+        (Some(lower), None) => format!(">={lower}"),
+        (None, Some(upper)) => format!("<{upper}"),
+        (None, None) => "*".to_string(),
+    }
+}
+
+/// Whether `[lower, upper)` is `^lower`.
+fn is_caret(lower: &Version, upper: &Version) -> bool {
+    let bound = match (lower.major, lower.minor) {
+        (0, 0) => (0, 0, lower.patch + 1),
+        (0, minor) => (0, minor + 1, 0),
+        (major, _) => (major + 1, 0, 0),
+    };
+    lower.pre_release.is_empty()
+        && upper.pre_release.is_empty()
+        && (upper.major, upper.minor, upper.patch) == bound
 }
