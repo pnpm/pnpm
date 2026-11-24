@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { git, temporaryRepo } from './git-fixture.mjs'
-import { isPnprPackage, parseOptions, selectPackages, smokeStandIns, trackedBase, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
+import { e2eAreas, e2eFilter, isPnprPackage, parseOptions, selectPackages, smokeStandIns, trackedBase, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
 
 const script = fileURLToPath(new URL('./test-affected.mjs', import.meta.url))
 
@@ -102,6 +102,28 @@ test('skips smoke tests when the CLI is selected in full', () => {
 test('skips smoke tests when nothing depends on what changed', () => {
   const selected = ['pnpm-micro-benchmark']
   assert.deepEqual(smokeStandIns(selected, unselectedDependents(selected, graph)), [])
+})
+
+test('maps a core crate to the CLI modules that observe its effects', () => {
+  assert.deepEqual(e2eAreas(['pnpm-lockfile']), [
+    'add', 'ci_frozen_lockfile', 'current_lockfile', 'dedupe', 'import',
+    'install', 'lockfile_dir', 'lockfile_format_v13', 'remove', 'update',
+  ])
+})
+
+test('unions and deduplicates the modules for several changed crates', () => {
+  const areas = e2eAreas(['pnpm-fs', 'pnpm-lockfile'])
+  assert.ok(areas.includes('cas_linker'))
+  assert.ok(areas.includes('update'))
+  assert.equal(areas.filter(area => area === 'install').length, 1)
+})
+
+test('leaves crates without a module map to their own tests and smoke', () => {
+  assert.deepEqual(e2eAreas(['pnpm-micro-benchmark']), [])
+})
+
+test('builds an anchored nextest filter from module names', () => {
+  assert.equal(e2eFilter(['add', 'install']), 'test(/^add::/) + test(/^install::/)')
 })
 
 test('reads --no-smoke', () => {

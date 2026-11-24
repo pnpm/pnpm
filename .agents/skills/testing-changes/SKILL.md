@@ -31,7 +31,9 @@ For anything narrower, `pnpm test:rust` (`node pnpm/scripts/run-rust-tests.mjs`)
 - **Killed runs leak fixtures.** An interrupted run abandons temp trees, each holding a per-test store. `just sweep-test-temp` clears the ones older than an hour.
 - **`known_failures` modules** hold ported tests for unimplemented behavior; `just known-failures` lists them. A failure there is expected, a pass is not.
 
-Do not reach for nextest's `rdeps()` to widen a selection. `pnpm-cli` holds a third of the workspace's tests and sits downstream of nearly every crate, so `rdeps()` on anything core selects 84% or more of the suite. Restructuring that target is [pnpm/pnpm#14984](https://github.com/pnpm/pnpm/issues/14984).
+A change to a core crate no longer has to choose between that crate's own tests and the whole CLI suite. `pnpm test:rust-affected` also runs the CLI end-to-end modules listed for the changed crate in `E2E_AREAS` in `pnpm/scripts/test-affected.mjs`. For `pnpm-lockfile` that is the `add`, `install`, `update` and related modules. The mapping is explicit because the tests spawn the CLI, so no call edge connects a test to the crate it covers. Add a module to the map when a crate's observable effects are asserted in a suite file that is missing from it.
+
+Do not widen a selection with nextest's `rdeps()`. `pnpm-cli` holds a third of the workspace's tests and sits downstream of nearly every crate, so `rdeps()` on anything core selects 84% or more of the suite. The measurable tradeoff between splitting the suite, sharing registry fixtures, and this mapping is tracked in [pnpm/tasks#18](https://github.com/pnpm/tasks/issues/18).
 
 ## TypeScript and JavaScript
 
