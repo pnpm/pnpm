@@ -108,8 +108,61 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     packages: &HashMap<PackageKey, PackageMetadata>,
     host: &InstallabilityHost,
     prefix: &str,
-    mut seed: SkippedSnapshots,
+    seed: SkippedSnapshots,
 ) -> Result<SkippedSnapshots, Box<InstallabilityError>> {
+    let scan = scan_installability::<Reporter>(
+        LockfileGraph { importers, snapshots, packages },
+        host,
+        prefix,
+        seed,
+    )?;
+    for warn in scan.reported.warnings.values() {
+        Reporter::emit(&LogEvent::InstallCheck(install_check_log(warn, prefix.to_string())));
+    }
+    Ok(scan.skipped)
+}
+
+/// The packages an install keeps although `host` cannot run them, the ones
+/// [`compute_skipped_snapshots`] warns about, by their peer-stripped key.
+/// `host.engine_strict` is ignored, so every one is listed rather than the
+/// first failing.
+pub fn incompatible_required_packages(
+    importers: &HashMap<String, ProjectSnapshot>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    host: &InstallabilityHost,
+) -> Result<HashMap<PackageKey, InstallabilityError>, Box<InstallabilityError>> {
+    let host = InstallabilityHost { engine_strict: false, ..host.clone() };
+    let scan = scan_installability::<pnpm_reporter::SilentReporter>(
+        LockfileGraph { importers, snapshots, packages },
+        &host,
+        "",
+        SkippedSnapshots::default(),
+    )?;
+    Ok(scan.reported.warnings)
+}
+
+/// The lockfile sections an installability scan reads.
+#[derive(Clone, Copy)]
+struct LockfileGraph<'a> {
+    importers: &'a HashMap<String, ProjectSnapshot>,
+    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    packages: &'a HashMap<PackageKey, PackageMetadata>,
+}
+
+/// The skips and the incompatible required packages of one scan.
+struct ScanResult {
+    skipped: SkippedSnapshots,
+    reported: ReportedPackages,
+}
+
+fn scan_installability<Reporter: self::Reporter>(
+    graph: LockfileGraph<'_>,
+    host: &InstallabilityHost,
+    prefix: &str,
+    mut seed: SkippedSnapshots,
+) -> Result<ScanResult, Box<InstallabilityError>> {
+    let LockfileGraph { importers, snapshots, packages } = graph;
     seed.retain_installability_for_optional_snapshots(snapshots);
 
     // Fast path: if no package in the lockfile declares any
@@ -134,7 +187,7 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // `Option::is_some` checks per row and short-circuits on the
     // first declared constraint.
     if !any_installability_constraint(snapshots, packages) {
-        return Ok(seed);
+        return Ok(ScanResult { skipped: seed, reported: ReportedPackages::default() });
     }
 
     // Build the host-derived part of the options once. Only the
@@ -175,7 +228,7 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
         scan.classify::<Reporter>(snapshot_key, snapshot)?;
     }
 
-    Ok(scan.skipped)
+    Ok(ScanResult { skipped: scan.skipped, reported: scan.reported })
 }
 
 /// The per-snapshot dispatch of [`compute_skipped_snapshots`] and the
@@ -191,12 +244,13 @@ struct SkipScan<'a, 'lock> {
     skipped: SkippedSnapshots,
 }
 
-/// Metadata keys already reported, so peer variants of one package emit
-/// a single log of each kind.
+/// The packages already reported, by metadata key, so peer variants of one
+/// package emit a single log of each kind.
 #[derive(Default)]
 struct ReportedPackages {
     skips: HashSet<PackageKey>,
-    warnings: HashSet<PackageKey>,
+    /// The incompatible packages an installed non-optional edge reaches.
+    warnings: HashMap<PackageKey, InstallabilityError>,
 }
 
 impl SkipScan<'_, '_> {
@@ -239,7 +293,7 @@ impl SkipScan<'_, '_> {
             self.record_skip::<Reporter>(snapshot_key, &metadata_key, &warn);
             return Ok(());
         }
-        self.report_incompatible_required::<Reporter>(
+        self.record_incompatible_required(
             &metadata_key,
             metadata,
             warn,
@@ -281,7 +335,7 @@ impl SkipScan<'_, '_> {
     /// A package that an installed non-optional edge reaches cannot be
     /// skipped: under `engine-strict` it fails the install, otherwise
     /// it warns.
-    fn report_incompatible_required<Reporter: self::Reporter>(
+    fn record_incompatible_required(
         &mut self,
         metadata_key: &PackageKey,
         metadata: &PackageMetadata,
@@ -305,12 +359,7 @@ impl SkipScan<'_, '_> {
             return Err(Box::new(warn));
         }
 
-        if self.reported.warnings.insert(metadata_key.clone()) {
-            Reporter::emit(&LogEvent::InstallCheck(install_check_log(
-                &warn,
-                self.prefix.to_string(),
-            )));
-        }
+        self.reported.warnings.entry(metadata_key.clone()).or_insert(warn);
         Ok(())
     }
 }

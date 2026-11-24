@@ -4,7 +4,10 @@
 //! pins fixed blocks below scrolling non-fixed blocks, with one rendering
 //! path per log channel.
 
-pub use checks::CommandOutcome;
+pub use checks::{
+    CommandOutcome,
+    platform_requirement,
+};
 pub use options::{
     LifecycleOptions,
     ProgressOptions,

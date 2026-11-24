@@ -64,7 +64,7 @@ fn footer_lists_the_packages_that_want_another_node_version() {
         .into();
     assert_eq!(
         footer(events),
-        "\n✗ 4 packages want Node.js >=18 <26, not 26.13.0: a@1.0.0, b@2.0.0, c@1.0.0 and 1 more\n",
+        "\n✗ 4 packages want Node.js >=18 <26, not 26.13.0: a@1.0.0, b@2.0.0, c@1.0.0 and 1 more (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -82,7 +82,7 @@ fn footer_merges_ranges_into_their_intersection() {
     assert_eq!(
         footer(events),
         "\n✗ 5 packages want Node.js ^18.18.0 || ^20.9.0 || >=21.1.0, not 12.0.0: \
-         a@1.0.0, b@1.0.0, c@1.0.0 and 2 more\n",
+         a@1.0.0, b@1.0.0, c@1.0.0 and 2 more (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -95,7 +95,7 @@ fn footer_keeps_bounds_that_are_not_a_caret_range() {
     ];
     assert_eq!(
         footer(events),
-        "\n✗ 3 packages want Node.js >=20.5.0 <26.0.0, not 26.13.0: a@1.0.0, b@1.0.0 and c@1.0.0\n",
+        "\n✗ 3 packages want Node.js >=20.5.0 <26.0.0, not 26.13.0: a@1.0.0, b@1.0.0 and c@1.0.0 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -108,8 +108,8 @@ fn footer_joins_adjacent_ranges() {
     ];
     assert_eq!(
         footer(events),
-        "\n✗ 1 package wants Node.js >=8.0.0 <13.0.0, not 26.13.0: c@1.0.0\n\
-         ✗ 2 packages want Node.js >=18.0.0 <23.0.0, not 26.13.0: a@1.0.0 and b@1.0.0\n",
+        "\n✗ 1 package wants Node.js >=8.0.0 <13.0.0, not 26.13.0: c@1.0.0 (see \"pnpm audit engines\")\n\
+         ✗ 2 packages want Node.js >=18.0.0 <23.0.0, not 26.13.0: a@1.0.0 and b@1.0.0 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -119,7 +119,7 @@ fn footer_keeps_an_explicit_upper_bound_out_of_a_caret_range() {
         vec![unsupported_node("a@1.0.0", ">=18.0.0 <19.0.0"), unsupported_node("b@1.0.0", ">=17")];
     assert_eq!(
         footer(events),
-        "\n✗ 2 packages want Node.js >=18.0.0 <19.0.0, not 26.13.0: a@1.0.0 and b@1.0.0\n",
+        "\n✗ 2 packages want Node.js >=18.0.0 <19.0.0, not 26.13.0: a@1.0.0 and b@1.0.0 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -132,7 +132,7 @@ fn footer_keeps_prerelease_bounds_that_reject_a_prerelease_node() {
     ];
     assert_eq!(
         footer(events),
-        "\n✗ 2 packages want Node.js >=20.0.0 <26.0.0-0, not 26.0.0-rc.1: a@1.0.0 and b@1.0.0\n",
+        "\n✗ 2 packages want Node.js >=20.0.0 <26.0.0-0, not 26.0.0-rc.1: a@1.0.0 and b@1.0.0 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -145,8 +145,8 @@ fn footer_prints_a_line_per_range_that_has_no_version_in_common() {
     ];
     assert_eq!(
         footer(events),
-        "\n✗ 2 packages want Node.js >=18 <26, not 26.13.0: a@1.0.0 and c@1.0.0\n\
-         ✗ 1 package wants Node.js >=28, not 26.13.0: b@1.0.0\n",
+        "\n✗ 2 packages want Node.js >=18 <26, not 26.13.0: a@1.0.0 and c@1.0.0 (see \"pnpm audit engines\")\n\
+         ✗ 1 package wants Node.js >=28, not 26.13.0: b@1.0.0 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -159,8 +159,8 @@ fn footer_prints_a_range_that_does_not_parse_on_its_own_line() {
     ];
     assert_eq!(
         footer(events),
-        "\n✗ 2 packages want Node.js >=20.0.0, not 12.0.0: b@1.0.0 and c@1.0.0\n\
-         ✗ 1 package wants Node.js not a range, not 12.0.0: a@1.0.0\n",
+        "\n✗ 2 packages want Node.js >=20.0.0, not 12.0.0: b@1.0.0 and c@1.0.0 (see \"pnpm audit engines\")\n\
+         ✗ 1 package wants Node.js not a range, not 12.0.0: a@1.0.0 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -177,9 +177,9 @@ fn footer_lists_the_packages_that_want_another_platform() {
             unsupported_platform("native@1.0.0", linux_arm),
             unsupported_platform("odd@1.0.0", WantedPlatform::default()),
         ]),
-        "\n✗ 1 package wants another platform: odd@1.0.0\n\
-         ✗ 1 package wants os darwin: fsevents@2.3.3\n\
-         ✗ 1 package wants os linux or android and cpu arm64: native@1.0.0\n",
+        "\n✗ 1 package wants another platform: odd@1.0.0 (see \"pnpm audit engines\")\n\
+         ✗ 1 package wants os darwin: fsevents@2.3.3 (see \"pnpm audit engines\")\n\
+         ✗ 1 package wants os linux or android and cpu arm64: native@1.0.0 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -191,7 +191,7 @@ fn footer_reads_rejected_platform_values_as_exclusions() {
     };
     assert_eq!(
         footer(vec![unsupported_platform("win-only@1.0.0", not_darwin_or_linux)]),
-        "\n✗ 1 package wants os other than darwin or linux: win-only@1.0.0\n",
+        "\n✗ 1 package wants os other than darwin or linux: win-only@1.0.0 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -217,9 +217,9 @@ fn footer_puts_engine_lines_before_platform_lines() {
     ];
     assert_eq!(
         footer(events),
-        "\n✗ 2 packages want Node.js >=99, not 26.13.0: old@1.0.0 and tool@1.0.0\n\
-         ✗ 1 package wants pnpm >=99, not 12.0.0: tool@1.0.0\n\
-         ✗ 1 package wants os darwin: fsevents@2.3.3\n",
+        "\n✗ 2 packages want Node.js >=99, not 26.13.0: old@1.0.0 and tool@1.0.0 (see \"pnpm audit engines\")\n\
+         ✗ 1 package wants pnpm >=99, not 12.0.0: tool@1.0.0 (see \"pnpm audit engines\")\n\
+         ✗ 1 package wants os darwin: fsevents@2.3.3 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -227,7 +227,7 @@ fn footer_puts_engine_lines_before_platform_lines() {
 fn footer_strips_control_characters() {
     assert_eq!(
         footer(vec![unsupported_node("evil\n\u{1b}[2Jpkg@1.0.0", ">=99\u{1b}[2J"),]),
-        "\n✗ 1 package wants Node.js >=99[2J, not 26.13.0: evil[2Jpkg@1.0.0\n",
+        "\n✗ 1 package wants Node.js >=99[2J, not 26.13.0: evil[2Jpkg@1.0.0 (see \"pnpm audit engines\")\n",
     );
 }
 
@@ -263,4 +263,22 @@ fn install_check_warning_strips_control_characters() {
     let frame =
         render(&mut reporter, vec![install_check("Invalid evil\n\u{1b}[2Jpkg@1.0.0", None)]);
     assert_eq!(frame, "[WARN] Invalid evil[2Jpkg@1.0.0");
+}
+
+/// `pnpm audit` reads a project's lockfile, so a global install has no
+/// command to point at.
+#[test]
+fn footer_of_a_global_install_points_at_no_command() {
+    let mut reporter = super::state_with_options(super::ReporterOptions {
+        scope: pnpm_default_reporter::state::ScopeOptions {
+            is_global: true,
+            ..super::ReporterOptions::default().scope
+        },
+        ..super::ReporterOptions::default()
+    });
+    render(&mut reporter, vec![unsupported_platform("fsevents@2.3.3", darwin_only())]);
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
+    };
+    assert_eq!(frame, "\n✗ 1 package wants os darwin: fsevents@2.3.3\n");
 }
