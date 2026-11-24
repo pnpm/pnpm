@@ -103,11 +103,13 @@ pub(super) async fn find_deprecated(
     if let Some(env_lockfile) = env_lockfile.as_ref() {
         collect_installed(&AuditGraph::env(env_lockfile), include, &mut installed);
     }
+    let shared_versions = shared_versions(&installed);
     let mut deprecated = look_up(state, installed, ignore_registry_errors).await?;
     deprecated.sort_by(|left, right| {
         (&left.name, &left.version).cmp(&(&right.name, &right.version))
     });
-    let origins = Origins { lockfile, env_lockfile: env_lockfile.as_ref(), include };
+    let origins =
+        Origins { lockfile, env_lockfile: env_lockfile.as_ref(), include, shared_versions };
     origins.add_to(&mut deprecated);
     Ok(Some(deprecated))
 }
@@ -225,6 +227,8 @@ struct Origins<'a> {
     lockfile: &'a Lockfile,
     env_lockfile: Option<&'a pnpm_lockfile::EnvLockfile>,
     include: Include,
+    /// The `(name, version)` pairs installed from more than one registry.
+    shared_versions: HashSet<(String, String)>,
 }
 
 /// A package by name and the specifier that resolves it on its registry.
@@ -265,6 +269,7 @@ impl Origins<'_> {
                 .flat_map(|importer| {
                     importer.roots
                         .iter()
+                        .filter(|(kind, _)| root_included(*kind, self.include))
                         .map(move |(_, edge)| (importer.path_segment.clone(), edge.key.clone()))
                 });
             record_declarations(&mut declared, env_roots, env.packages);
@@ -282,20 +287,8 @@ impl Origins<'_> {
             .map(|package| package.name.clone())
             .collect();
         let index = build_audit_path_index(self.lockfile, self.env_lockfile, &names, self.include);
-        let mut registries: HashMap<(String, String), usize> = HashMap::new();
-        for package in deprecated.iter() {
-            *registries
-                .entry((package.name.clone(), package.version.clone()))
-                .or_default() += 1;
-        }
         for package in deprecated.iter_mut().filter(|package| package.projects.is_empty()) {
-            let key = (package.name.clone(), package.version.clone());
-            if registries
-                .get(&key)
-                .copied()
-                .unwrap_or_default()
-                > 1
-            {
+            if self.shared_versions.contains(&(package.name.clone(), package.version.clone())) {
                 continue;
             }
             let chain = index
@@ -315,6 +308,21 @@ impl Origins<'_> {
             }
         }
     }
+}
+
+/// The `(name, version)` pairs installed from more than one registry.
+fn shared_versions(installed: &BTreeSet<InstalledPackage>) -> HashSet<(String, String)> {
+    let mut registries: HashMap<(String, String), usize> = HashMap::new();
+    for package in installed {
+        *registries
+            .entry((package.name.clone(), package.version.clone()))
+            .or_default() += 1;
+    }
+    registries
+        .into_iter()
+        .filter(|(_, count)| *count > 1)
+        .map(|(version, _)| version)
+        .collect()
 }
 
 fn record_declarations(

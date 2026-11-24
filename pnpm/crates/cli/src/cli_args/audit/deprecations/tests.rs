@@ -3,6 +3,7 @@ use super::{
     InstalledPackage,
     deprecation,
     render_deprecations,
+    shared_versions,
 };
 use pnpm_resolving_resolver_base::{
     NonDeprecatedAlternative,
@@ -97,4 +98,12 @@ fn text_output_strips_control_characters_from_lockfile_labels() {
     evil.deprecated = "no longer maintained".to_string();
     let output = render_deprecations(&[evil]);
     assert!(!output.contains('\u{1b}'), "{output:?}");
+}
+
+#[test]
+fn a_version_installed_from_two_registries_is_shared() {
+    let mut work = installed("foo", "1.0.0");
+    work.specifier = "work:1.0.0".to_string();
+    let installed = [installed("foo", "1.0.0"), work, installed("bar", "1.0.0")].into();
+    assert_eq!(shared_versions(&installed), [("foo".to_string(), "1.0.0".to_string())].into(),);
 }
