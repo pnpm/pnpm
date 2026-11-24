@@ -9,19 +9,24 @@
 //! with no trailing period. A command to learn more follows in
 //! `(see "...")`.
 //!
-//! The deprecation and peer checks print nothing when they pass, as they
-//! did before the footer existed.
+//! The deprecation, peer, engine, and platform checks print nothing when
+//! they pass, as they did before the footer existed.
 
 use super::{
+    BTreeMap,
     BTreeSet,
     BlockPlacement,
     BlockSlot,
     DeprecationLog,
+    InstallCheckLog,
     MaxLogLevel,
     Output,
     PeerDependencyIssuesLog,
     ReporterState,
+    UnsupportedPackage,
     Value,
+    WantedPlatform,
+    engine_ranges::merge_ranges,
     is_strictly_newer,
 };
 
@@ -49,6 +54,12 @@ pub(super) struct ChecksState {
     peer_issues: Option<BTreeSet<String>>,
     /// `name@version` of every deprecated package resolution reported.
     deprecated: BTreeSet<String>,
+    /// The packages that reject an engine, by the engine and its current
+    /// version, then by the range they declare.
+    unsupported_engine: BTreeMap<(&'static str, String), BTreeMap<String, BTreeSet<String>>>,
+    /// The packages that reject the platform, by what they want, such as
+    /// `os darwin`.
+    unsupported_platform: BTreeMap<String, BTreeSet<String>>,
     slot: BlockSlot,
     rendered: bool,
 }
@@ -70,6 +81,41 @@ impl ReporterState {
 
     pub(super) fn on_deprecation(&mut self, log: &DeprecationLog) {
         self.notices.checks.deprecated.insert(pkg_label(log));
+    }
+
+    pub(super) fn on_install_check(&mut self, log: &InstallCheckLog) {
+        // The package comes from the lockfile, which a contributor can edit.
+        let sanitize = |text: &str| pnpm_text_sanitize::sanitize_inline(text).into_owned();
+        let Some(unsupported) = &log.unsupported else {
+            return self.on_pnpm(log.level, &sanitize(&log.message), &log.prefix);
+        };
+        if self.options.max_log_level < MaxLogLevel::Warn {
+            return;
+        }
+        let checks = &mut self.notices.checks;
+        match unsupported {
+            UnsupportedPackage::Platform { pkg_id, wanted } => {
+                checks.unsupported_platform
+                    .entry(sanitize(&platform_requirement(wanted)))
+                    .or_default()
+                    .insert(sanitize(pkg_id));
+            }
+            UnsupportedPackage::Engine { pkg_id, wanted, current } => {
+                let engines = [
+                    ("Node.js", &wanted.node, &current.node),
+                    ("pnpm", &wanted.pnpm, &current.pnpm),
+                ];
+                for (engine, range, version) in engines {
+                    let Some(range) = range else { continue };
+                    checks.unsupported_engine
+                        .entry((engine, sanitize(version.as_deref().unwrap_or_default())))
+                        .or_default()
+                        .entry(sanitize(range))
+                        .or_default()
+                        .insert(sanitize(pkg_id));
+                }
+            }
+        }
     }
 
     /// Print the footer when the command ends, once. A command that ends
@@ -97,16 +143,17 @@ impl ReporterState {
             CommandOutcome::Succeeded => self.options.max_log_level >= MaxLogLevel::Info,
             CommandOutcome::Failed => false,
         };
-        let lines: Vec<String> = [
-            self.passed_line().filter(|_| shows_info),
-            self.deprecated_line(),
-            self.peer_issues_line(),
-            self.outdated_line().filter(|_| shows_info),
-            self.resolution_skipped_line().filter(|_| shows_info),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        let lines: Vec<String> =
+            [self.passed_line().filter(|_| shows_info), self.deprecated_line()]
+                .into_iter()
+                .chain(self.unsupported_lines().map(Some))
+                .chain([
+                    self.peer_issues_line(),
+                    self.outdated_line().filter(|_| shows_info),
+                    self.resolution_skipped_line().filter(|_| shows_info),
+                ])
+                .flatten()
+                .collect();
         (!lines.is_empty()).then(|| lines.join("\n"))
     }
 
@@ -128,6 +175,36 @@ impl ReporterState {
                 list_names(deprecated, |label| self.package_label(label)),
             )
         })
+    }
+
+    fn unsupported_lines(&self) -> impl Iterator<Item = String> + '_ {
+        let checks = &self.notices.checks;
+        let engines = checks.unsupported_engine
+            .iter()
+            .flat_map(|((engine, current), by_range)| {
+                merge_ranges(by_range, current)
+                    .into_iter()
+                    .map(move |(range, packages)| {
+                        (format!("{engine} {range}, not {current}"), packages)
+                    })
+            });
+        let platforms = checks.unsupported_platform
+            .iter()
+            .map(|(requirement, packages)| (requirement.clone(), packages.clone()));
+        engines
+            .chain(platforms)
+            .map(|(requirement, packages)| self.unsupported_line(&requirement, &packages))
+    }
+
+    fn unsupported_line(&self, requirement: &str, packages: &BTreeSet<String>) -> String {
+        let (noun, verb) =
+            if packages.len() == 1 { ("package", "wants") } else { ("packages", "want") };
+        format!(
+            "{} {} {noun} {verb} {requirement}: {}",
+            self.rendering.colors.red("✗"),
+            packages.len(),
+            list_names(packages, |label| self.package_label(label)),
+        )
     }
 
     fn peer_issues_line(&self) -> Option<String> {
@@ -238,6 +315,40 @@ fn peers_with_issues(issues_by_projects: &Value) -> impl Iterator<Item = String>
 fn pkg_label(log: &DeprecationLog) -> String {
     pnpm_text_sanitize::sanitize_inline(&format!("{}@{}", log.pkg_name, log.pkg_version))
         .into_owned()
+}
+
+/// The declared `os`, `cpu`, and `libc` lists, such as
+/// `os darwin or linux and cpu arm64`.
+fn platform_requirement(wanted: &WantedPlatform) -> String {
+    let fields: Vec<String> = [("os", &wanted.os), ("cpu", &wanted.cpu), ("libc", &wanted.libc)]
+        .into_iter()
+        .filter_map(|(field, values)| Some((field, values.as_deref()?)))
+        .filter(|(_, values)| !values.is_empty())
+        .map(|(field, values)| format!("{field} {}", platform_values(values)))
+        .collect();
+    if fields.is_empty() {
+        return "another platform".to_string();
+    }
+    fields.join(" and ")
+}
+
+/// The values of one platform field. A `!value` entry rejects that value,
+/// so a list of them reads `other than a or b`. A list with plain values
+/// needs one of them, which already leaves out the rejected ones.
+fn platform_values(values: &[String]) -> String {
+    let wanted: Vec<&str> = values
+        .iter()
+        .map(String::as_str)
+        .filter(|value| !value.starts_with('!'))
+        .collect();
+    if !wanted.is_empty() {
+        return wanted.join(" or ");
+    }
+    let rejected: Vec<&str> = values
+        .iter()
+        .filter_map(|value| value.strip_prefix('!'))
+        .collect();
+    format!("other than {}", rejected.join(" or "))
 }
 
 /// At most [`MAX_LISTED`] names, each through `paint`, then a count of

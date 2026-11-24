@@ -193,3 +193,51 @@ pub enum SkippedOptionalReason {
     UnsupportedPlatform,
     ResolutionFailure,
 }
+
+/// `pnpm:install-check` payload: a dependency that does not support the
+/// host. `message` is the whole warning. `unsupported` names the failed
+/// check, and is absent when the check could not run, such as on an
+/// invalid `nodeVersion`.
+#[derive(Debug, Clone, Serialize)]
+pub struct InstallCheckLog {
+    pub level: LogLevel,
+    pub message: String,
+    pub prefix: String,
+    #[serde(flatten)]
+    pub unsupported: Option<UnsupportedPackage>,
+}
+
+/// The installability check a package failed, keyed by its error code.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "code")]
+pub enum UnsupportedPackage {
+    #[serde(rename = "ERR_PNPM_UNSUPPORTED_ENGINE", rename_all = "camelCase")]
+    Engine {
+        pkg_id: String,
+        /// Only the ranges the host does not satisfy.
+        wanted: EngineVersions,
+        current: EngineVersions,
+    },
+    #[serde(rename = "ERR_PNPM_UNSUPPORTED_PLATFORM", rename_all = "camelCase")]
+    Platform { pkg_id: String, wanted: WantedPlatform },
+}
+
+/// The `os`, `cpu`, and `libc` lists of a package's manifest.
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct WantedPlatform {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub os: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub libc: Option<Vec<String>>,
+}
+
+/// Versions, or version ranges, of the engines in a package's `engines`.
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct EngineVersions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pnpm: Option<String>,
+}

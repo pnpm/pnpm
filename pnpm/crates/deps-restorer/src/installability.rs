@@ -64,13 +64,16 @@ use pnpm_package_is_installable::{
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
+    EngineVersions,
+    InstallCheckLog,
     LogEvent,
     LogLevel,
-    PnpmLog,
     Reporter,
     SkippedOptionalDependencyLog,
     SkippedOptionalPackage,
     SkippedOptionalReason,
+    UnsupportedPackage,
+    WantedPlatform,
 };
 
 /// Compute the [`SkippedSnapshots`] set for an install.
@@ -303,14 +306,39 @@ impl SkipScan<'_, '_> {
         }
 
         if self.reported.warnings.insert(metadata_key.clone()) {
-            Reporter::emit(&LogEvent::InstallCheck(PnpmLog {
-                level: LogLevel::Warn,
-                message: warn.to_string(),
-                prefix: self.prefix.to_string(),
-            }));
+            Reporter::emit(&LogEvent::InstallCheck(install_check_log(
+                &warn,
+                self.prefix.to_string(),
+            )));
         }
         Ok(())
     }
+}
+
+fn install_check_log(warn: &InstallabilityError, prefix: String) -> InstallCheckLog {
+    let unsupported = match warn {
+        InstallabilityError::Engine(error) => Some(UnsupportedPackage::Engine {
+            pkg_id: error.package_id.clone(),
+            wanted: EngineVersions {
+                node: error.wanted.node.clone(),
+                pnpm: error.wanted.pnpm.clone(),
+            },
+            current: EngineVersions {
+                node: Some(error.current.node.clone()),
+                pnpm: error.current.pnpm.clone(),
+            },
+        }),
+        InstallabilityError::Platform(error) => Some(UnsupportedPackage::Platform {
+            pkg_id: error.package_id.clone(),
+            wanted: WantedPlatform {
+                os: error.wanted.os.clone(),
+                cpu: error.wanted.cpu.clone(),
+                libc: error.wanted.libc.clone(),
+            },
+        }),
+        InstallabilityError::InvalidNodeVersion(_) => None,
+    };
+    InstallCheckLog { level: LogLevel::Warn, message: warn.to_string(), prefix, unsupported }
 }
 
 /// `--no-runtime` (or `config.skip_runtimes`): add every project-direct

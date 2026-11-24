@@ -14,10 +14,15 @@ use super::{
 
 #[test]
 fn install_check_matches_the_package_installability_warning() {
-    let event = LogEvent::InstallCheck(super::PnpmLog {
+    let event = LogEvent::InstallCheck(super::InstallCheckLog {
         level: LogLevel::Warn,
         message: "Unsupported engine for foo@1.0.0".to_string(),
         prefix: "/projects/x".to_string(),
+        unsupported: Some(super::UnsupportedPackage::Engine {
+            pkg_id: "foo@1.0.0".to_string(),
+            wanted: super::EngineVersions { node: Some(">=99".to_string()), pnpm: None },
+            current: super::EngineVersions { node: Some("20.10.0".to_string()), pnpm: None },
+        }),
     });
     assert_eq!(
         serde_json::to_value(&event).unwrap(),
@@ -25,6 +30,57 @@ fn install_check_matches_the_package_installability_warning() {
             "name": "pnpm:install-check",
             "level": "warn",
             "message": "Unsupported engine for foo@1.0.0",
+            "prefix": "/projects/x",
+            "code": "ERR_PNPM_UNSUPPORTED_ENGINE",
+            "pkgId": "foo@1.0.0",
+            "wanted": { "node": ">=99" },
+            "current": { "node": "20.10.0" },
+        }),
+    );
+}
+
+#[test]
+fn install_check_names_the_wanted_platform() {
+    let event = LogEvent::InstallCheck(super::InstallCheckLog {
+        level: LogLevel::Warn,
+        message: "Unsupported platform for fsevents@2.3.3".to_string(),
+        prefix: "/projects/x".to_string(),
+        unsupported: Some(super::UnsupportedPackage::Platform {
+            pkg_id: "fsevents@2.3.3".to_string(),
+            wanted: super::WantedPlatform {
+                os: Some(vec!["darwin".to_string()]),
+                ..Default::default()
+            },
+        }),
+    });
+    assert_eq!(
+        serde_json::to_value(&event).unwrap(),
+        serde_json::json!({
+            "name": "pnpm:install-check",
+            "level": "warn",
+            "message": "Unsupported platform for fsevents@2.3.3",
+            "prefix": "/projects/x",
+            "code": "ERR_PNPM_UNSUPPORTED_PLATFORM",
+            "pkgId": "fsevents@2.3.3",
+            "wanted": { "os": ["darwin"] },
+        }),
+    );
+}
+
+#[test]
+fn install_check_without_a_failed_check_has_only_the_message() {
+    let event = LogEvent::InstallCheck(super::InstallCheckLog {
+        level: LogLevel::Warn,
+        message: "invalid".to_string(),
+        prefix: "/projects/x".to_string(),
+        unsupported: None,
+    });
+    assert_eq!(
+        serde_json::to_value(&event).unwrap(),
+        serde_json::json!({
+            "name": "pnpm:install-check",
+            "level": "warn",
+            "message": "invalid",
             "prefix": "/projects/x",
         }),
     );

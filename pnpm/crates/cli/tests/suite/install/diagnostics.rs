@@ -24,13 +24,16 @@ fn required_engine_mismatch_warns_on_fresh_and_frozen_install() {
                 String::from_utf8_lossy(&output.get_output().stderr),
             );
             eprintln!("{reporter}, frozen={frozen}:\n{combined}");
-            assert!(combined.contains("Unsupported engine for"), "{combined}");
-            assert!(combined.contains("incompatible-engine"), "{combined}");
             assert!(
                 fixture.workspace.join("node_modules/incompatible-engine/package.json").exists(),
             );
             if reporter != "--reporter=ndjson" {
-                assert!(combined.contains("[WARN]"), "{combined}");
+                assert!(
+                    combined.contains(
+                        "✗ 1 package wants Node.js >=999.0.0, not 20.0.0: incompatible-engine@",
+                    ),
+                    "{combined}",
+                );
                 continue;
             }
             let records = ndjson_records(output.get_output());
@@ -39,6 +42,8 @@ fn required_engine_mismatch_warns_on_fresh_and_frozen_install() {
                 .find(|record| record["name"] == "pnpm:install-check")
                 .expect("install-check warning");
             assert_eq!(warning["level"], "warn");
+            assert_eq!(warning["code"], "ERR_PNPM_UNSUPPORTED_ENGINE");
+            assert_eq!(warning["current"]["node"], "20.0.0");
             let prefix = dunce::canonicalize(&fixture.workspace).unwrap();
             assert_eq!(warning["prefix"], prefix.display().to_string());
             assert!(

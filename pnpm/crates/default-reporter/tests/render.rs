@@ -20,12 +20,14 @@ use pnpm_reporter::{
     DedupeCheckLog,
     DependencyType,
     DeprecationLog,
+    EngineVersions,
     ExecutionTimeLog,
     FetchingProgressLog,
     FetchingProgressMessage,
     GlobalLog,
     HookLog,
     IgnoredScriptsLog,
+    InstallCheckLog,
     LifecycleLog,
     LifecycleMessage,
     LifecycleStdio,
@@ -55,8 +57,10 @@ use pnpm_reporter::{
     StatsLog,
     StatsMessage,
     SummaryLog,
+    UnsupportedPackage,
     UnusedOverrideLog,
     UpdateCheckLog,
+    WantedPlatform,
 };
 
 const CWD: &str = "/repo";
@@ -472,6 +476,9 @@ mod peers;
 
 #[path = "render/deprecations.rs"]
 mod deprecations;
+
+#[path = "render/install_checks.rs"]
+mod install_checks;
 
 #[path = "render/workspace_summary.rs"]
 mod workspace_summary;
