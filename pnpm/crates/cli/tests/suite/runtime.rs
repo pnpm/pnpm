@@ -59,7 +59,7 @@ fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
 }
 
 #[test]
-fn remove_deletes_a_matching_global_runtime_group() {
+fn unset_deletes_a_matching_global_runtime_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
     let pnpm_home = root.path().join("pnpm-home");
@@ -71,9 +71,9 @@ fn remove_deletes_a_matching_global_runtime_group() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "remove", "node", "22.14.0", "-g"])
+        .with_args(["runtime", "unset", "node", "22.14.0", "-g"])
         .output()
-        .expect("spawn pacquet runtime remove");
+        .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(output.status.success(), "stderr={stderr}");
@@ -83,7 +83,7 @@ fn remove_deletes_a_matching_global_runtime_group() {
 }
 
 #[test]
-fn remove_without_a_global_bin_dir_deletes_the_store_group() {
+fn unset_without_a_global_bin_dir_deletes_the_store_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
     let pnpm_home = root.path().join("pnpm-home");
@@ -92,9 +92,9 @@ fn remove_without_a_global_bin_dir_deletes_the_store_group() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "remove", "node", "20.19", "-g"])
+        .with_args(["runtime", "unset", "node", "20.19", "-g"])
         .output()
-        .expect("spawn pacquet runtime remove");
+        .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(output.status.success(), "stderr={stderr}");
@@ -103,7 +103,7 @@ fn remove_without_a_global_bin_dir_deletes_the_store_group() {
 }
 
 #[test]
-fn remove_keeps_other_versions_of_the_same_runtime() {
+fn unset_keeps_other_versions_of_the_same_runtime() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
     let pnpm_home = root.path().join("pnpm-home");
@@ -116,9 +116,9 @@ fn remove_keeps_other_versions_of_the_same_runtime() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "remove", "deno", "2.1", "-g"])
+        .with_args(["runtime", "unset", "deno", "2.1", "-g"])
         .output()
-        .expect("spawn pacquet runtime remove");
+        .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(output.status.success(), "stderr={stderr}");
@@ -129,7 +129,7 @@ fn remove_keeps_other_versions_of_the_same_runtime() {
 }
 
 #[test]
-fn remove_without_a_version_deletes_every_installed_version() {
+fn unset_without_a_version_deletes_every_installed_version() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
     let pnpm_home = root.path().join("pnpm-home");
@@ -144,7 +144,7 @@ fn remove_without_a_version_deletes_every_installed_version() {
         .with_env("PNPM_HOME", &pnpm_home)
         .with_args(["runtime", "rm", "bun", "-g"])
         .output()
-        .expect("spawn pacquet runtime remove");
+        .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(output.status.success(), "stderr={stderr}");
@@ -155,7 +155,7 @@ fn remove_without_a_version_deletes_every_installed_version() {
 }
 
 #[test]
-fn remove_cleans_up_the_active_legacy_node_link() {
+fn unset_cleans_up_the_active_legacy_node_link() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
     let pnpm_home = root.path().join("pnpm-home");
@@ -166,9 +166,9 @@ fn remove_cleans_up_the_active_legacy_node_link() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "remove", "node", "22.14", "-g"])
+        .with_args(["runtime", "unset", "node", "22.14", "-g"])
         .output()
-        .expect("spawn pacquet runtime remove");
+        .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(output.status.success(), "stderr={stderr}");
@@ -177,7 +177,7 @@ fn remove_cleans_up_the_active_legacy_node_link() {
 }
 
 #[test]
-fn remove_fails_when_the_runtime_is_not_installed() {
+fn unset_fails_when_the_runtime_is_not_installed() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
     let pnpm_home = root.path().join("pnpm-home");
@@ -185,9 +185,9 @@ fn remove_fails_when_the_runtime_is_not_installed() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "remove", "node", "22", "-g"])
+        .with_args(["runtime", "unset", "node", "22", "-g"])
         .output()
-        .expect("spawn pacquet runtime remove");
+        .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(!output.status.success());
@@ -195,14 +195,14 @@ fn remove_fails_when_the_runtime_is_not_installed() {
 }
 
 #[test]
-fn remove_rejects_an_unsupported_runtime_name() {
+fn unset_rejects_an_unsupported_runtime_name() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
 
     let output = pacquet
-        .with_args(["runtime", "remove", "python", "-g"])
+        .with_args(["runtime", "unset", "python", "-g"])
         .output()
-        .expect("spawn pacquet runtime remove");
+        .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(!output.status.success());

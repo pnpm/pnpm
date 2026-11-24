@@ -1,8 +1,8 @@
 use super::{
     RuntimeArgs,
     RuntimeError,
-    remove::ensure_project_runtime_matches,
     runtime_shim_hint,
+    unset::ensure_project_runtime_matches,
 };
 use crate::{
     State,
@@ -153,17 +153,17 @@ fn global_install_builds_the_same_runtime_selector() {
 }
 
 #[test]
-fn remove_request_defaults_to_dev_engines_runtime() {
-    let request = args(&["remove", "node"]).remove_request().unwrap();
+fn unset_request_defaults_to_dev_engines_runtime() {
+    let request = args(&["unset", "node"]).unset_request().unwrap();
     assert_eq!(request.runtime_name, "node");
     assert_eq!(request.version_spec, None);
     assert_eq!(request.dependency_group, DependencyGroup::Dev);
 }
 
 #[test]
-fn remove_request_accepts_every_remove_alias_and_a_version() {
-    for subcommand in ["remove", "rm", "uninstall", "un"] {
-        let request = args(&[subcommand, "bun", "v1.2.3"]).remove_request().unwrap();
+fn unset_request_accepts_every_unset_alias_and_a_version() {
+    for subcommand in ["unset", "remove", "rm", "uninstall", "un"] {
+        let request = args(&[subcommand, "bun", "v1.2.3"]).unset_request().unwrap();
         assert_eq!(request.runtime_name, "bun");
         assert_eq!(request.version_spec.as_deref(), Some("v1.2.3"));
         assert_eq!(request.dependency_group, DependencyGroup::Dev);
@@ -171,56 +171,56 @@ fn remove_request_accepts_every_remove_alias_and_a_version() {
 }
 
 #[test]
-fn remove_request_uses_prod_when_save_prod_is_set() {
+fn unset_request_uses_prod_when_save_prod_is_set() {
     let request =
-        RuntimeArgs { save_prod: true, ..args(&["remove", "deno", "2"]) }.remove_request().unwrap();
+        RuntimeArgs { save_prod: true, ..args(&["unset", "deno", "2"]) }.unset_request().unwrap();
     assert_eq!(request.dependency_group, DependencyGroup::Prod);
 }
 
 #[test]
-fn remove_request_prefers_save_dev_over_save_prod() {
-    let request = RuntimeArgs { save_dev: true, save_prod: true, ..args(&["remove", "node"]) }
-        .remove_request()
+fn unset_request_prefers_save_dev_over_save_prod() {
+    let request = RuntimeArgs { save_dev: true, save_prod: true, ..args(&["unset", "node"]) }
+        .unset_request()
         .unwrap();
     assert_eq!(request.dependency_group, DependencyGroup::Dev);
 }
 
 #[test]
-fn remove_request_ignores_an_empty_version() {
-    let request = args(&["remove", "node", "  "]).remove_request().unwrap();
+fn unset_request_ignores_an_empty_version() {
+    let request = args(&["unset", "node", "  "]).unset_request().unwrap();
     assert_eq!(request.version_spec, None);
 }
 
 #[test]
-fn remove_request_fails_without_runtime_name() {
-    let err = args(&["remove"]).remove_request().unwrap_err();
+fn unset_request_fails_without_runtime_name() {
+    let err = args(&["unset"]).unset_request().unwrap_err();
     assert_eq!(err, RuntimeError::MissingRuntimeName);
 }
 
 #[test]
-fn remove_request_rejects_unsupported_runtime_names() {
+fn unset_request_rejects_unsupported_runtime_names() {
     for name in ["python", "node,is-positive", "./evil", "file:./evil"] {
-        let err = args(&["remove", name]).remove_request().unwrap_err();
+        let err = args(&["unset", name]).unset_request().unwrap_err();
         assert_eq!(err, RuntimeError::InvalidRuntimeName { name: name.to_string() });
     }
 }
 
 #[test]
-fn remove_request_rejects_a_comma_in_the_version() {
-    let err = args(&["remove", "node", "22,is-positive"]).remove_request().unwrap_err();
+fn unset_request_rejects_a_comma_in_the_version() {
+    let err = args(&["unset", "node", "22,is-positive"]).unset_request().unwrap_err();
     assert_eq!(err, RuntimeError::InvalidRuntimeVersion { version: "22,is-positive".to_string() });
 }
 
 #[test]
-fn remove_request_rejects_extra_arguments() {
-    let err = args(&["remove", "node", "22", "unexpected"]).remove_request().unwrap_err();
+fn unset_request_rejects_extra_arguments() {
+    let err = args(&["unset", "node", "22", "unexpected"]).unset_request().unwrap_err();
     assert_eq!(err, RuntimeError::UnexpectedArgument { argument: "unexpected".to_string() });
 }
 
 #[test]
-fn set_request_rejects_the_remove_subcommand() {
-    let err = args(&["remove", "node"]).set_request().unwrap_err();
-    assert_eq!(err, RuntimeError::UnknownSubcommand { subcommand: "remove".to_string() });
+fn set_request_rejects_the_unset_subcommand() {
+    let err = args(&["unset", "node"]).set_request().unwrap_err();
+    assert_eq!(err, RuntimeError::UnknownSubcommand { subcommand: "unset".to_string() });
 }
 
 #[test]
@@ -236,7 +236,7 @@ fn project_runtime_matches_the_requested_version() {
     .unwrap();
     let config = Config::new().leak();
     let state = State::init(dir.path().join("package.json"), config, false).unwrap();
-    let request = args(&["remove", "node", "22.14"]).remove_request().unwrap();
+    let request = args(&["unset", "node", "22.14"]).unset_request().unwrap();
 
     ensure_project_runtime_matches(&state, &request).unwrap();
 }
@@ -254,7 +254,7 @@ fn project_runtime_rejects_a_different_version() {
     .unwrap();
     let config = Config::new().leak();
     let state = State::init(dir.path().join("package.json"), config, false).unwrap();
-    let request = args(&["remove", "node", "22.14"]).remove_request().unwrap();
+    let request = args(&["unset", "node", "22.14"]).unset_request().unwrap();
 
     assert_eq!(
         ensure_project_runtime_matches(&state, &request).unwrap_err().to_string(),

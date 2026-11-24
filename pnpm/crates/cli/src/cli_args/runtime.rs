@@ -1,6 +1,6 @@
-use self::remove::{
+use self::unset::{
     ensure_project_runtime_matches,
-    run_remove,
+    run_unset,
 };
 use crate::{
     State,
@@ -52,7 +52,7 @@ pub struct RuntimeArgs {
     pub save_prod: bool,
 
     /// Subcommand and its arguments: `set <name> [<version>]` or
-    /// `remove <name> [<version>]`, where `<name>` is `node`, `deno`, or `bun`.
+    /// `unset <name> [<version>]`, where `<name>` is `node`, `deno`, or `bun`.
     pub params: Vec<String>,
 }
 
@@ -97,7 +97,7 @@ pub enum RuntimeError {
         argument: String,
     },
 
-    #[display(r#"Cannot remove "{name}" version {version}: no matching runtime is declared in the project"#)]
+    #[display(r#"Cannot unset "{name}" version {version}: no matching runtime is declared in the project"#)]
     #[diagnostic(code(ERR_PNPM_RUNTIME_NOT_DECLARED))]
     RuntimeNotDeclared {
         #[error(not(source))]
@@ -115,7 +115,7 @@ struct RuntimeSetRequest {
 }
 
 #[derive(Debug)]
-struct RuntimeRemoveRequest {
+struct RuntimeUnsetRequest {
     runtime_name: String,
     version_spec: Option<String>,
     dependency_group: DependencyGroup,
@@ -124,7 +124,7 @@ struct RuntimeRemoveRequest {
 #[derive(Debug)]
 enum RuntimeCommand {
     Set(RuntimeSetRequest),
-    Remove(RuntimeRemoveRequest),
+    Unset(RuntimeUnsetRequest),
 }
 
 impl RuntimeArgs {
@@ -132,7 +132,7 @@ impl RuntimeArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         match self.command()? {
             RuntimeCommand::Set(request) => Self::run_set::<Reporter>(state, request).await,
-            RuntimeCommand::Remove(request) => {
+            RuntimeCommand::Unset(request) => {
                 ensure_project_runtime_matches(&state, &request)?;
                 RemoveArgs::for_runtime(request.runtime_name, request.dependency_group)
                     .run::<Reporter>(state)
@@ -151,7 +151,7 @@ impl RuntimeArgs {
             RuntimeCommand::Set(request) => {
                 Self::run_global_set::<Reporter>(config, dir, request).await
             }
-            RuntimeCommand::Remove(request) => run_remove::<Reporter>(&request, config),
+            RuntimeCommand::Unset(request) => run_unset::<Reporter>(&request, config),
         }
     }
 
@@ -214,8 +214,8 @@ impl RuntimeArgs {
         };
         match subcommand.as_str() {
             "set" => Ok(RuntimeCommand::Set(self.set_request()?)),
-            "remove" | "rm" | "uninstall" | "un" => {
-                Ok(RuntimeCommand::Remove(self.remove_request()?))
+            "unset" | "remove" | "rm" | "uninstall" | "un" => {
+                Ok(RuntimeCommand::Unset(self.unset_request()?))
             }
             _ => Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() }),
         }
@@ -261,7 +261,7 @@ impl RuntimeArgs {
         })
     }
 
-    fn remove_request(&self) -> Result<RuntimeRemoveRequest, RuntimeError> {
+    fn unset_request(&self) -> Result<RuntimeUnsetRequest, RuntimeError> {
         let Some(runtime_name) = self.params
             .get(1)
             .map(|name| name.trim())
@@ -290,7 +290,7 @@ impl RuntimeArgs {
         } else {
             DependencyGroup::Prod
         };
-        Ok(RuntimeRemoveRequest {
+        Ok(RuntimeUnsetRequest {
             runtime_name: runtime_name.to_string(),
             version_spec,
             dependency_group,
@@ -322,7 +322,7 @@ fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> boo
         || crate::shim_dispatch::is_legacy_context_aware_shim(&bin_dir.join(runtime_name))
 }
 
-mod remove;
+mod unset;
 
 #[cfg(test)]
 mod tests;
