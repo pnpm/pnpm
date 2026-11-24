@@ -57,7 +57,7 @@ new file mode 100644
   '@pnpm.e2e/hello-world-js-bin@1.0.0':
     dependencies:
       is-positive: 1.0.0
-"
+",
         ),
     );
     pacquet(&workspace)
