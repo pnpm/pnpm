@@ -53,6 +53,74 @@ starting with `_`, `/`, or `@`, or containing `:_`).
 
 :::
 
+### Build options for native addons
+
+`pnpm install` does not turn extra command-line flags into `npm_config_*`
+variables the way `npm install --build-from-source` does. Set the variables
+in the environment instead. Native addons that use `node-pre-gyp` or
+`prebuild-install`, such as `sqlite3`, read them. For example, to build
+`sqlite3` from source for Electron, approve its build in
+[`allowBuilds`](./settings/build.md#allowbuilds), then put the variables in an
+env file:
+
+```ini title=".env.electron"
+npm_config_build_from_source=true
+npm_config_runtime=electron
+npm_config_target=38.0.0
+npm_config_disturl=https://electronjs.org/headers
+```
+
+Then load it with [`--env-file`](./pnpm-cli.md#--env-file-path):
+
+```sh
+pnpm --env-file .env.electron install
+```
+
+To set them for every install of a project without a flag, return them in
+`extraEnv` from the
+[`updateConfig`](./pnpmfile.md#hooksupdateconfigconfig-config--promiseconfig)
+hook:
+
+```js title=".pnpmfile.mjs"
+export const hooks = {
+  updateConfig (config) {
+    return {
+      ...config,
+      extraEnv: {
+        ...config.extraEnv,
+        npm_config_build_from_source: 'true',
+        npm_config_runtime: 'electron',
+        npm_config_target: '38.0.0',
+        npm_config_disturl: 'https://electronjs.org/headers',
+      },
+    }
+  },
+}
+```
+
+The [side-effects cache](./settings/build.md#sideeffectscache) does not include
+these variables in its key, so pnpm can restore a build made with different
+values. List the package in
+[`sideEffectsCache.exclude`](./settings/build.md#sideeffectscacheexclude) so
+pnpm never restores its build from the cache:
+
+```yaml title="pnpm-workspace.yaml"
+sideEffectsCache:
+  exclude:
+    - sqlite3
+```
+
+A repeat install does not rebuild a package that is already installed. After
+changing the variables, rebuild the package in every project with them:
+
+```sh
+pnpm --env-file .env.electron pm rebuild -r sqlite3
+```
+
+With the `updateConfig` hook, drop `--env-file .env.electron`.
+[`pnpm pm`](./cli/pm.md) runs the built-in command even if `package.json`
+defines a `rebuild` script.
+
 ## Processes a script leaves running
 
 A process that a script or a command run by `pnpm exec` or `pnpm dlx` starts
