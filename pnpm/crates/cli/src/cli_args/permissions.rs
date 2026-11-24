@@ -97,10 +97,6 @@ pub struct ApproveArgs {
 
 type Capabilities = BTreeSet<PermissionCapability>;
 
-/// Every capability, for a package named before it requested any.
-const ALL_CAPABILITIES: [PermissionCapability; 2] =
-    [PermissionCapability::Build, PermissionCapability::Skills];
-
 /// What awaits approval, by the key a package is approved under.
 pub(crate) struct PendingPermissions {
     pub(crate) by_package: BTreeMap<String, Capabilities>,
@@ -156,7 +152,7 @@ use decisions::{
     clear_decided,
     decisions_by_approval,
     decisions_for_all,
-    named_decisions,
+    named_approval,
     pending_builds_approved,
     write_decisions,
 };
@@ -212,11 +208,8 @@ impl ApproveArgs {
         Box::pin(run_rebuild::<Reporter>(&rebuild_state, selection, None)).await
     }
 
-    /// The decisions of this run. When packages are named, every capability
-    /// they request (or ever will) gets the verdicts they asked for. When
-    /// `--all` is set, every pending package is approved for everything it
-    /// requests. Otherwise the run prompts, and for a package whose skills
-    /// are being approved, prompts for the skills.
+    /// Decide which pending requests to record. An interactive run can
+    /// choose individual skills for an approved package.
     fn decide<Reporter: self::Reporter>(
         &self,
         pending: &BTreeMap<String, Capabilities>,
@@ -239,10 +232,7 @@ impl ApproveArgs {
         prompt: PromptAvailability,
     ) -> miette::Result<Option<Approval>> {
         if !self.packages.is_empty() {
-            return Ok(Some(Approval {
-                decisions: named_decisions::<Reporter>(&self.packages, pending)?,
-                skills_dirs: Vec::new(),
-            }));
+            return named_approval::<Reporter>(&self.packages, pending);
         }
         if self.all {
             return Ok(Some(Approval {

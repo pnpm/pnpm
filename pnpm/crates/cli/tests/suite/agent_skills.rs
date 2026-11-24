@@ -114,6 +114,18 @@ fn approve_links_the_skills_and_records_the_grant() {
         .assert()
         .success();
 
+    let settings_path = workspace.join("pnpm-workspace.yaml");
+    let original_settings = fs::read(&settings_path).expect("read settings before approval");
+    let modules_path = workspace.join("node_modules/.modules.yaml");
+    let original_modules = fs::read(&modules_path).expect("read modules before approval");
+    let warning = output_of(
+        pnpm(&workspace).with_args(["approve", "unrelated-package", "--reporter=append-only"]),
+    );
+    assert!(warning.contains("not awaiting approval: unrelated-package"), "{warning}");
+    assert!(warning.contains("pnpm approve-builds"), "{warning}");
+    assert_eq!(fs::read(&settings_path).unwrap(), original_settings);
+    assert_eq!(fs::read(&modules_path).unwrap(), original_modules);
+
     pnpm(&workspace)
         .with_args(["approve", PACKAGE])
         .assert()

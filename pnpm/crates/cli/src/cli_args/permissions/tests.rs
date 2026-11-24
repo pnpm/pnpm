@@ -60,7 +60,7 @@ fn decide_config() -> &'static Config {
 fn a_named_package_is_decided_for_everything_it_requests() {
     let pending = pending(&[("drizzle-kit", &[Build, Skills]), ("esbuild", &[Build])]);
 
-    let approval = args(&["drizzle-kit", "!esbuild"], false)
+    let approval = args(&["drizzle-kit", "!esbuild", "unrelated", "!unknown"], false)
         .decide::<SilentReporter>(&pending, decide_config(), Path::new("/workspace"))
         .unwrap()
         .unwrap();
@@ -75,19 +75,12 @@ fn a_named_package_is_decided_for_everything_it_requests() {
 }
 
 #[test]
-fn a_package_named_before_it_is_pending_is_decided_for_every_capability() {
-    let approval = args(&["!foo"], false)
+fn only_unmatched_names_produce_no_approval() {
+    let approval = args(&["foo", "!bar"], false)
         .decide::<SilentReporter>(&BTreeMap::new(), decide_config(), Path::new("/workspace"))
-        .unwrap()
         .unwrap();
 
-    assert_eq!(
-        approval.decisions,
-        BTreeMap::from([(
-            "foo".to_string(),
-            decided(Some(false), Some(SkillsPermission::All(false))),
-        )]),
-    );
+    assert!(approval.is_none());
 }
 
 #[test]

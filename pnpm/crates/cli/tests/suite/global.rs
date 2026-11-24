@@ -170,10 +170,20 @@ fn global_permissions_approve_records_and_links_skill() {
         "permissions:\n  '@pnpm.e2e/with-agent-skills': {skills: true}\n",
     )
     .expect("write project approval");
+    let config_path = global_config_yaml(&pnpm_home);
+    let original_config = config_path
+        .exists()
+        .then(|| fs::read(&config_path).unwrap());
     global_command(&workspace, &pnpm_home)
         .with_args(["permissions", "approve", "-g", "unrelated-package"])
         .assert()
         .success();
+    assert_eq!(
+        config_path
+            .exists()
+            .then(|| fs::read(&config_path).unwrap()),
+        original_config,
+    );
     assert!(
         pnpm_home
             .join(".claude/skills/guide")

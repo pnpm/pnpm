@@ -9,7 +9,7 @@ use super::{
         confirmation,
         decisions_by_approval,
         decisions_for_all,
-        named_decisions,
+        named_approval,
         pending_builds_approved,
     },
     pending_permissions,
@@ -325,10 +325,7 @@ impl ApproveArgs {
         load_skill_options: impl FnOnce() -> miette::Result<pnpm_package_manager::SkillApprovalOptions>,
     ) -> miette::Result<Option<Approval>> {
         if !self.packages.is_empty() {
-            return Ok(Some(Approval {
-                decisions: named_decisions::<Reporter>(&self.packages, pending)?,
-                skills_dirs: Vec::new(),
-            }));
+            return named_approval::<Reporter>(&self.packages, pending);
         }
         if self.all {
             return Ok(Some(Approval {
