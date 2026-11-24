@@ -29,7 +29,7 @@ use pnpm_reporter::{
     SilentReporter,
 };
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     fs::is_symlink_or_junction,
     registry::TestRegistry,
 };

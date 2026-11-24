@@ -10,7 +10,7 @@ use pnpm_lockfile::{
     PkgName,
     PkgNameVerPeer,
 };
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

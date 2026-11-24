@@ -15,9 +15,10 @@ const WORKSPACE_WIDE = [
   '.cargo/',
   '.config/nextest.toml',
   'pnpm/scripts/run-rust-tests.mjs',
-  // A dev-dependency of most crates: a change here can alter how any test in
-  // the workspace behaves, not just this crate's own.
+  // Dev-dependencies of most crates: a change here can alter how any test in
+  // the workspace behaves, not just these crates' own.
   'pnpm/crates/testing-utils/',
+  'pnpm/crates/testing-utils-registry/',
   // The packages the mocked registry serves, which nearly every end-to-end
   // install resolves against.
   'pnpr/.fixtures/',

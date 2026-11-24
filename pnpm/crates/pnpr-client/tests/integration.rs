@@ -63,7 +63,7 @@ use pnpm_pnpr_client::{
     SignedArtifactEnvelope,
     VerifyLockfileOptions,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use sha2::{
     Digest as _,
     Sha512,

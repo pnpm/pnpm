@@ -23,7 +23,7 @@ use pnpm_reporter::{
     RootMessage,
     SilentReporter,
 };
-use pnpm_testing_utils::fs::is_symlink_or_junction;
+use pnpm_testing_utils_registry::fs::is_symlink_or_junction;
 use std::{
     collections::HashMap,
     fs,

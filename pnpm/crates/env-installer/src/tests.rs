@@ -51,7 +51,7 @@ use pnpm_resolving_resolver_base::{
     WantedDependency,
 };
 use pnpm_store_dir::StoreDir;
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use pnpm_workspace_state::ConfigDependency;
 use std::{
     collections::{

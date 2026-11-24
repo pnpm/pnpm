@@ -5,7 +5,7 @@
 use command_extra::CommandExtra;
 
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,

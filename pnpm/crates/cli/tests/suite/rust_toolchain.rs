@@ -8,7 +8,7 @@ use crate::_utils::{
     write_fake_bin,
 };
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     diagnostics::assert_diagnostic_contains,
 };

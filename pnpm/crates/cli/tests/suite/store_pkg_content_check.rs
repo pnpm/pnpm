@@ -4,7 +4,7 @@ use pnpm_store_dir::{
     StoreDir,
     StoreIndex,
 };
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use std::{
     fs,
     path::Path,

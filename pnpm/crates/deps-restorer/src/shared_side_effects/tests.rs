@@ -336,7 +336,7 @@ mod restore {
         SideEffectsDiff,
         StoreDir,
     };
-    use pnpm_testing_utils::turborepo_cache::TurborepoCache;
+    use pnpm_testing_utils_registry::turborepo_cache::TurborepoCache;
     use sha2::{
         Digest as _,
         Sha512,

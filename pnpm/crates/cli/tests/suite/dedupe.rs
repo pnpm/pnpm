@@ -4,7 +4,7 @@ use crate::_utils::{
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,
@@ -275,7 +275,7 @@ fn dedupe_refreshes_cached_registry_metadata_for_locked_versions() {
 fn warm_cache_dedupe_requests(
     workspace_yaml: &str,
     dedupe_args: &[&str],
-) -> Vec<pnpm_testing_utils::registry::RecordedRequest> {
+) -> Vec<pnpm_testing_utils_registry::registry::RecordedRequest> {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_recording_mocked_registry_without_fields(&[]);
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;

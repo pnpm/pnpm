@@ -32,7 +32,7 @@ use pnpm_package_manifest::{
     PackageManifest,
 };
 use pnpm_reporter::SilentReporter;
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use std::{
     fs,
     path::Path,

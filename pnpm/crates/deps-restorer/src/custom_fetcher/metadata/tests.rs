@@ -112,7 +112,7 @@ fn ingest<'a>(
 #[tokio::test]
 async fn resolve_time_custom_fetch_is_reused_by_the_install_pass() {
     let dir = tempfile::tempdir().unwrap();
-    let body = pnpm_testing_utils::fixtures::minimal_tarball("foo", "1.0.0");
+    let body = pnpm_testing_utils_registry::fixtures::minimal_tarball("foo", "1.0.0");
     let tarball_path = dir.path().join("foo.tgz");
     std::fs::write(&tarball_path, &body).unwrap();
     let integrity = ssri::Integrity::from(&body).to_string();

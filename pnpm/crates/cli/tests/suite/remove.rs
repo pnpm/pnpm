@@ -4,7 +4,7 @@ use pnpm_package_manifest::{
     DependencyGroup,
     PackageManifest,
 };
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

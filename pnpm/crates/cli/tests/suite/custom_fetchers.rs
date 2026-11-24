@@ -4,7 +4,7 @@ mod directory;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,
@@ -906,7 +906,7 @@ fn assert_native_git_fetcher_ignores_a_hook_supplied_store_index_key(
         StoreIndex,
         store_index_key,
     };
-    use pnpm_testing_utils::git_repo::GitRepoFixture;
+    use pnpm_testing_utils_registry::git_repo::GitRepoFixture;
 
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();

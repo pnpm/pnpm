@@ -113,7 +113,7 @@ fn a_local_tarball_child_link_is_resolved_from_the_lockfile_directory() {
         .expect("write root package.json");
     fs::write(
         workspace.join("tpkg.tgz"),
-        pnpm_testing_utils::fixtures::tarball_with_manifest(&serde_json::json!({
+        pnpm_testing_utils_registry::fixtures::tarball_with_manifest(&serde_json::json!({
             "name": "tpkg",
             "version": "1.0.0",
             "dependencies": { "child": "link:child", "child-bare": "./child" },
@@ -161,7 +161,7 @@ fn a_root_local_tarball_child_keeps_its_path_resolver_shape() {
     .expect("write root package.json");
     fs::write(
         workspace.join("tpkg.tgz"),
-        pnpm_testing_utils::fixtures::tarball_with_manifest(&serde_json::json!({
+        pnpm_testing_utils_registry::fixtures::tarball_with_manifest(&serde_json::json!({
             "name": "tpkg",
             "version": "1.0.0",
             "dependencies": { "child": "./child" },

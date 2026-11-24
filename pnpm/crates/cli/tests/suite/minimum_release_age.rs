@@ -13,7 +13,7 @@ use crate::_utils::{
     without_colors,
 };
 use pnpm_config::WorkspaceSettings;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     command_env::CommandTestExt,
 };

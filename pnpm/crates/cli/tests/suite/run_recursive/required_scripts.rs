@@ -8,7 +8,7 @@ use super::{
     write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt as _;
-use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
+use pnpm_testing_utils_registry::diagnostics::assert_diagnostic_contains;
 
 /// A script listed in `requiredScripts` must exist in every selected
 /// project. The run fails before any script starts and names each project

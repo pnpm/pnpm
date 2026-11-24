@@ -1,9 +1,9 @@
 #[cfg(windows)]
-pub use pnpm_testing_utils::console;
+pub use pnpm_testing_utils_registry::console;
 #[cfg(unix)]
-pub use pnpm_testing_utils::terminal;
+pub use pnpm_testing_utils_registry::terminal;
 
-pub use pnpm_testing_utils::bin::read_v11_bundle_path;
+pub use pnpm_testing_utils_registry::bin::read_v11_bundle_path;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -23,7 +23,7 @@ use pnpm_store_dir::{
     StoreDir,
     StoreIndex,
 };
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,
@@ -202,7 +202,7 @@ pub fn flatten_report(report: &str) -> String {
 }
 
 /// Flip the `enableGlobalVirtualStore` key in the `pnpm-workspace.yaml`
-/// that [`pnpm_testing_utils::bin::CommandTempCwd::add_mocked_registry`]
+/// that [`pnpm_testing_utils_registry::bin::CommandTempCwd::add_mocked_registry`]
 /// populated with `storeDir` / `cacheDir` / `enableGlobalVirtualStore: false`.
 /// The replacement is in-place rather than appended so the file stays
 /// valid YAML (pnpm rejects duplicate top-level mapping keys).
@@ -806,7 +806,7 @@ pub fn assert_bin_linked(shim: &Path) {
     assert!(shim.exists(), "the bin must be linked at {shim:?}");
     #[cfg(unix)]
     assert!(
-        pnpm_testing_utils::fs::is_path_executable(shim),
+        pnpm_testing_utils_registry::fs::is_path_executable(shim),
         "the bin shim at {shim:?} must be executable",
     );
     #[cfg(windows)]

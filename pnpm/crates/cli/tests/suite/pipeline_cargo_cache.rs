@@ -3,7 +3,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils_registry::command_env::CommandTestExt;
 use std::{
     env::consts::EXE_SUFFIX,
     fs::{
@@ -60,7 +60,7 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     let second_worktree = root.join("b");
     let cache = temp.path().join("cache");
     fs::create_dir_all(first_worktree.join("src")).unwrap();
-    pnpm_testing_utils::git_repo::init_isolated_repo(&first_worktree);
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(&first_worktree);
     fs::write(first_worktree.join(".gitignore"), "target/\nnode_modules/\n").unwrap();
     fs::write(
         first_worktree.join("Cargo.toml"),
@@ -168,7 +168,7 @@ fn dependent_cargo_tasks_keep_build_snapshots() {
         r#"{"name":"app","version":"1.0.0","dependencies":{"leaf":"workspace:*"},"scripts":{"build":"cargo build --locked --offline"}}"#,
     )
     .unwrap();
-    pnpm_testing_utils::git_repo::init_isolated_repo(&first_worktree);
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(&first_worktree);
     fs::write(first_worktree.join(".gitignore"), "**/target/\n**/node_modules/\n").unwrap();
     fs::write(first_worktree.join("package.json"), r#"{"private":true}"#).unwrap();
     fs::write(

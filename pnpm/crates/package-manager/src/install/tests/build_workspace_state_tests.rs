@@ -78,7 +78,10 @@ fn prefers_the_manifest_mtime_over_the_clock() {
         crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         None,
     );
-    assert_eq!(state.last_validated_timestamp, pnpm_testing_utils::fs::mtime_ms(manifest.path()));
+    assert_eq!(
+        state.last_validated_timestamp,
+        pnpm_testing_utils_registry::fs::mtime_ms(manifest.path())
+    );
 }
 
 /// A manifest mtime truncated to milliseconds reads as modified
@@ -89,7 +92,7 @@ fn prefers_the_manifest_mtime_over_the_clock() {
 fn raises_the_manifest_mtime_baseline_to_the_filesystem_now() {
     let dir = tempdir().unwrap();
     let manifest = write_manifest(dir.path(), "root", "1.0.0");
-    pnpm_testing_utils::fs::set_mtime(
+    pnpm_testing_utils_registry::fs::set_mtime(
         manifest.path(),
         SystemTime::UNIX_EPOCH + Duration::new(1_600_000_000, 500_000),
     );
@@ -111,7 +114,7 @@ fn raises_the_manifest_mtime_baseline_to_the_filesystem_now() {
     assert_eq!(build(Some(now_ms)).last_validated_timestamp, now_ms);
     // A manifest dated ahead of the filesystem clock keeps its own
     // mtime as the baseline.
-    let manifest_ms = pnpm_testing_utils::fs::mtime_ms(manifest.path());
+    let manifest_ms = pnpm_testing_utils_registry::fs::mtime_ms(manifest.path());
     assert_eq!(build(Some(manifest_ms - 1)).last_validated_timestamp, manifest_ms);
 }
 
@@ -137,7 +140,8 @@ fn source_date_epoch_lowers_the_timestamp_but_never_raises_it() {
     };
 
     assert_eq!(build(1_500_000_000_000), 1_500_000_000_000);
-    let validated = pnpm_testing_utils::fs::mtime_ms(manifest.path()).max(1_600_000_001_000);
+    let validated =
+        pnpm_testing_utils_registry::fs::mtime_ms(manifest.path()).max(1_600_000_001_000);
     assert_eq!(build(u64::try_from(validated).unwrap() + 1), validated);
 }
 

@@ -11,7 +11,7 @@ use super::{
 };
 use crate::_utils::wait_for_child;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::{
     Value,
     json,
@@ -158,7 +158,7 @@ fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
     // Well inside the grace: the script that ignored `SIGTERM` is still
     // running, and pnpm still waits for it.
     std::thread::sleep(std::time::Duration::from_secs(1));
-    let running_in_grace = pnpm_testing_utils::process_liveness::is_running(stubborn)
+    let running_in_grace = pnpm_testing_utils_registry::process_liveness::is_running(stubborn)
         && run
             .try_wait()
             .expect("poll pnpm")
@@ -304,7 +304,7 @@ fn recursive_run_bail_ends_a_detached_grandchild_of_a_running_script() {
 #[cfg(unix)]
 fn ends_within(pid: libc::pid_t, deadline: std::time::Duration) -> bool {
     let until = std::time::Instant::now() + deadline;
-    while pnpm_testing_utils::process_liveness::is_running(pid) {
+    while pnpm_testing_utils_registry::process_liveness::is_running(pid) {
         if std::time::Instant::now() >= until {
             return false;
         }

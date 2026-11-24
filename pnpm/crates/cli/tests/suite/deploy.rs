@@ -7,7 +7,7 @@ use pnpm_lockfile::{
     PackageKey,
     PkgName,
 };
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,

@@ -192,7 +192,7 @@ fn a_closure_over_every_group_keeps_every_peer_edge() {
 #[test]
 fn a_big_lockfile_loses_no_edge_whose_target_the_filter_keeps() {
     let lockfile =
-        Lockfile::parse(pnpm_testing_utils::fixtures::BIG_LOCKFILE, Path::new("big.yaml"))
+        Lockfile::parse(pnpm_testing_utils_registry::fixtures::BIG_LOCKFILE, Path::new("big.yaml"))
             .expect("parse the big lockfile")
             .expect("the big lockfile is not empty");
     let without_dev = super::super::filter_lockfile_for_current(

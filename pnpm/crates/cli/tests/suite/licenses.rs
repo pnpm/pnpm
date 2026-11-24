@@ -6,7 +6,7 @@ use _utils::{
     pacquet_in,
 };
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };
@@ -1220,7 +1220,7 @@ fn licenses_reads_license_file_from_cached_local_tarball() {
 
 #[test]
 fn licenses_reads_cached_git_metadata() {
-    use pnpm_testing_utils::git_repo::GitRepoFixture;
+    use pnpm_testing_utils_registry::git_repo::GitRepoFixture;
 
     for ignore_scripts in [false, true] {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();

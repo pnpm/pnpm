@@ -11,7 +11,7 @@ use super::{
     set_minimum_release_age,
 };
 use assert_cmd::assert::OutputAssertExt;
-use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
+use pnpm_testing_utils_registry::diagnostics::assert_diagnostic_contains;
 
 /// Install `@pnpm.e2e/bravo@1.0.0` under `time-based` with its dependency
 /// `@pnpm.e2e/bravo-dep` overridden to 1.1.0. Bravo is published in 2022-04,

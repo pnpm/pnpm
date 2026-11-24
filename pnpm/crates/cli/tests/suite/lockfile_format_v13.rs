@@ -9,7 +9,7 @@ use crate::_utils::{
 use assert_cmd::assert::OutputAssertExt;
 use command_extra::CommandExtra;
 use pnpm_lockfile::Lockfile;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     fixtures::tarball_with_manifest,
 };

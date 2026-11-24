@@ -11,7 +11,7 @@ use p256::{
         EncodePublicKey as _,
     },
 };
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     command_env::CommandTestExt,
     turborepo_cache::TurborepoCache,
 };
@@ -55,7 +55,7 @@ fn key_pair(seed: u8) -> (String, String) {
 fn workspace(root: &Path) -> PathBuf {
     let project = root.join("project");
     fs::create_dir(&project).unwrap();
-    pnpm_testing_utils::git_repo::init_isolated_repo(&project);
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(&project);
     fs::write(project.join(".gitignore"), "out/\nnode_modules/\n").unwrap();
     fs::create_dir(project.join("src")).unwrap();
     fs::write(project.join("src/input"), "source").unwrap();

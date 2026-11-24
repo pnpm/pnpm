@@ -1,0 +1,34 @@
+[package]
+name = "pnpm-testing-utils-registry"
+version = "0.0.0"
+description = "Registry-backed test helpers for pacquet"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pnpm-testing-utils = { workspace = true }
+pnpr = { workspace = true }
+pnpr-fixtures = { workspace = true }
+pnpm-fs = { workspace = true }
+pnpm-workspace-state = { workspace = true }
+
+assert_cmd = { workspace = true }
+axum = { workspace = true }
+command-extra = { workspace = true }
+pipe-trait = { workspace = true }
+same-file = { workspace = true }
+tempfile = { workspace = true }
+text-block-macros = { workspace = true }
+tokio = { workspace = true }
+walkdir = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[lints]
+workspace = true

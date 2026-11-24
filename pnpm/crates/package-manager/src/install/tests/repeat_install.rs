@@ -38,7 +38,7 @@ use pnpm_reporter::{
     SilentReporter,
 };
 use pnpm_store_dir::VerifiedFileIntegrity;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     fs::{
         MTIME_STEP_MS,
         set_mtime_ms,
@@ -154,7 +154,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             workspace_projects: None,
             lockfile: None,
         },
-        filesystem_now_ms: Some(pnpm_testing_utils::fs::backdate_existing_files(
+        filesystem_now_ms: Some(pnpm_testing_utils_registry::fs::backdate_existing_files(
             &dirs.project_root,
         )),
         carried: crate::install::CarriedSettings {
@@ -440,7 +440,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
             workspace_projects: None,
             lockfile: None,
         },
-        filesystem_now_ms: Some(pnpm_testing_utils::fs::backdate_existing_files(
+        filesystem_now_ms: Some(pnpm_testing_utils_registry::fs::backdate_existing_files(
             &dirs.project_root,
         )),
         carried: crate::install::CarriedSettings {

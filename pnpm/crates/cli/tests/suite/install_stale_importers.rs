@@ -1,7 +1,7 @@
 pub use _utils::*;
 
 use crate::_utils;
-use pnpm_testing_utils::fixtures::minimal_tarball;
+use pnpm_testing_utils_registry::fixtures::minimal_tarball;
 use pretty_assertions::assert_eq;
 use std::{
     collections::BTreeSet,

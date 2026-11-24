@@ -76,7 +76,7 @@ walkdir = { workspace = true }
 
 [dev-dependencies]
 pnpm-fs = { workspace = true, features = ["test"] }
-pnpm-testing-utils = { workspace = true }
+pnpm-testing-utils-registry = { workspace = true }
 
 async-trait = { workspace = true }
 command-extra = { workspace = true }

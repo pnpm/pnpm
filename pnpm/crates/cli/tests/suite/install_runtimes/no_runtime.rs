@@ -14,7 +14,7 @@ use pnpm_graph_hasher::{
     host_arch,
     host_platform,
 };
-use pnpm_testing_utils::fs::{
+use pnpm_testing_utils_registry::fs::{
     MTIME_STEP_MS,
     set_mtime_ms,
 };
@@ -40,7 +40,7 @@ fn hoisted_no_runtime_installs_can_be_repeated_and_restore_the_runtime() {
     let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
     write_devengines_manifest(&workspace, fixture.version, Some("download"));
     write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
-    let tarball = pnpm_testing_utils::fixtures::minimal_tarball("dependency", "1.0.0");
+    let tarball = pnpm_testing_utils_registry::fixtures::minimal_tarball("dependency", "1.0.0");
     fs::write(workspace.join("dependency.tgz"), &tarball).unwrap();
     let manifest_path = workspace.join("package.json");
     let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();

@@ -43,7 +43,7 @@ use pnpm_store_dir::{
     StoreIndex,
     store_index_key,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::{

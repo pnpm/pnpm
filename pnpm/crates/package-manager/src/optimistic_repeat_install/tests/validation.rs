@@ -178,7 +178,7 @@ fn source_date_epoch_records_deterministic_pnpmfile_digests_without_trusting_mti
     fs::write(&pnpmfile, "module.exports = {}\n").unwrap();
     fs::write(root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n").unwrap();
     let epoch = SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
-    pnpm_testing_utils::fs::set_mtime(&pnpmfile, epoch + Duration::from_hours(1));
+    pnpm_testing_utils_registry::fs::set_mtime(&pnpmfile, epoch + Duration::from_hours(1));
 
     let mut config = Config::new();
     config.modules_dir = root.join("node_modules");
@@ -216,7 +216,7 @@ fn source_date_epoch_records_deterministic_pnpmfile_digests_without_trusting_mti
     );
 
     fs::write(&pnpmfile, "module.exports = { hooks: {} }\n").unwrap();
-    pnpm_testing_utils::fs::set_mtime(&pnpmfile, epoch - Duration::from_hours(1));
+    pnpm_testing_utils_registry::fs::set_mtime(&pnpmfile, epoch - Duration::from_hours(1));
     assert!(
         pnpmfiles_drift(root, &config, &state).is_some(),
         "an edited pnpmfile with mtime restored before SOURCE_DATE_EPOCH must be detected",
@@ -277,7 +277,7 @@ fn project_files(root: &Path, manifests: &[(&str, &str)]) -> Vec<PackageManifest
             let path = root.join(dir).join("package.json");
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, json).unwrap();
-            pnpm_testing_utils::fs::set_mtime(&path, an_hour_ago);
+            pnpm_testing_utils_registry::fs::set_mtime(&path, an_hour_ago);
             PackageManifest::from_path(path).unwrap()
         })
         .collect();
@@ -596,7 +596,7 @@ fn records_cannot_stand_in_for_a_same_size_edit_with_its_mtime_restored() {
     super::wait_for_the_next_filesystem_tick(root);
 
     fs::write(&path, r#"{"name":"a","dependencies":{"b":"2"}}"#).unwrap();
-    pnpm_testing_utils::fs::set_mtime(&path, mtime);
+    pnpm_testing_utils_registry::fs::set_mtime(&path, mtime);
 
     assert!(manifest_stand_ins(root, &validation, &[listed(root, "a")]).is_none());
 }

@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils_registry::command_env::CommandTestExt;
 use std::{
     fs,
     process::Command,
@@ -9,7 +9,7 @@ use std::{
 #[test]
 fn configured_environment_changes_invalidate_task_outputs() {
     let project = tempfile::tempdir().unwrap();
-    pnpm_testing_utils::git_repo::init_isolated_repo(project.path());
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(project.path());
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("src/input"), "source").unwrap();
     fs::write(project.path().join(".gitignore"), "out/\nnode_modules/\nhook-count\n").unwrap();
@@ -156,8 +156,9 @@ fn empty_selection_dry_run_prints_empty_graph_without_a_report() {
 #[test]
 fn submodule_projects_and_their_dependents_bypass_task_caching() {
     let root = tempfile::tempdir().unwrap();
-    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "workspace");
-    let module = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "module");
+    let repo =
+        pnpm_testing_utils_registry::git_repo::GitRepoFixture::init(root.path(), "workspace");
+    let module = pnpm_testing_utils_registry::git_repo::GitRepoFixture::init(root.path(), "module");
     module.write_file("input", "one");
     let _ = module.commit("initial submodule");
     let workspace = root.path().join("workspace-src");
@@ -243,8 +244,9 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
 #[test]
 fn projects_rooted_in_submodules_bypass_task_caching() {
     let root = tempfile::tempdir().unwrap();
-    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "workspace");
-    let module = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "module");
+    let repo =
+        pnpm_testing_utils_registry::git_repo::GitRepoFixture::init(root.path(), "workspace");
+    let module = pnpm_testing_utils_registry::git_repo::GitRepoFixture::init(root.path(), "module");
     let script = r#"node -e "const fs=require('fs');fs.mkdirSync('out',{recursive:true});fs.writeFileSync('out/result',fs.readFileSync('input'));fs.appendFileSync('runs','x')""#;
     module.write_file(
         "package.json",
@@ -309,7 +311,7 @@ fn projects_rooted_in_submodules_bypass_task_caching() {
 fn symlinked_input_project(project: &std::path::Path, task_settings: &str) {
     use std::os::unix::fs::symlink;
 
-    pnpm_testing_utils::git_repo::init_isolated_repo(project);
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(project);
     fs::write(project.join("AGENTS.md"), "shared text").unwrap();
     fs::write(project.join("NOTES.md"), "shared text").unwrap();
     symlink("AGENTS.md", project.join("CLAUDE.md")).unwrap();
@@ -332,7 +334,7 @@ fn symlinked_input_project(project: &std::path::Path, task_settings: &str) {
         .with_args(["add", "-A"])
         .assert()
         .success();
-    let inputs = pnpm_testing_utils::git_repo::unignored_files(project);
+    let inputs = pnpm_testing_utils_registry::git_repo::unignored_files(project);
     assert!(
         inputs
             .iter()
@@ -498,7 +500,7 @@ fn run_pipeline_cmd(
 #[test]
 fn additive_empty_and_excluded_inputs_control_cache_invalidation() {
     let root = tempfile::tempdir().unwrap();
-    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "ws");
+    let repo = pnpm_testing_utils_registry::git_repo::GitRepoFixture::init(root.path(), "ws");
     let workspace = root.path().join("ws-src");
     let storage = root.path().join("storage");
     repo.write_file("package.json", r#"{"private":true}"#);
@@ -568,7 +570,7 @@ fn additive_empty_and_excluded_inputs_control_cache_invalidation() {
 #[test]
 fn uncacheable_depends_on_tasks_force_dependents_to_rerun_while_passthrough_caches() {
     let root = tempfile::tempdir().unwrap();
-    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "ws");
+    let repo = pnpm_testing_utils_registry::git_repo::GitRepoFixture::init(root.path(), "ws");
     let workspace = root.path().join("ws-src");
     let storage = root.path().join("storage");
     repo.write_file("package.json", r#"{"private":true}"#);
@@ -633,7 +635,7 @@ fn uncacheable_depends_on_tasks_force_dependents_to_rerun_while_passthrough_cach
 fn readonly_outputs_restore_from_cache_without_permission_errors() {
     let project = tempfile::tempdir().unwrap();
     let storage = tempfile::tempdir().unwrap();
-    pnpm_testing_utils::git_repo::init_isolated_repo(project.path());
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(project.path());
     fs::write(project.path().join(".gitignore"), "node_modules/\ndist/\nruns\n").unwrap();
     let script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.rmSync('dist/out.txt',{force:true});fs.writeFileSync('dist/out.txt',process.env.MODE);fs.chmodSync('dist/out.txt',0o444);fs.appendFileSync('runs','x')""#;
     fs::write(
@@ -682,7 +684,7 @@ fn readonly_outputs_restore_from_cache_without_permission_errors() {
 #[test]
 fn per_project_lockfile_and_lockfile_dir_invalidate_task_cache() {
     let root = tempfile::tempdir().unwrap();
-    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "ws");
+    let repo = pnpm_testing_utils_registry::git_repo::GitRepoFixture::init(root.path(), "ws");
     let workspace = root.path().join("ws-src");
     let storage = root.path().join("storage");
     repo.write_file("package.json", r#"{"private":true}"#);
@@ -717,7 +719,7 @@ fn per_project_lockfile_and_lockfile_dir_invalidate_task_cache() {
     assert_eq!(fs::read_to_string(workspace.join("packages/beta/runs")).unwrap(), "x");
 
     let custom = tempfile::tempdir().unwrap();
-    pnpm_testing_utils::git_repo::init_isolated_repo(custom.path());
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(custom.path());
     fs::write(custom.path().join(".gitignore"), "node_modules/\ndist/\nruns\ncustom-locks/\n")
         .unwrap();
     fs::write(
@@ -747,7 +749,7 @@ fn per_project_lockfile_and_lockfile_dir_invalidate_task_cache() {
 #[test]
 fn git_branch_lockfile_fallback_and_detached_head_invalidate_task_cache() {
     let root = tempfile::tempdir().unwrap();
-    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "ws");
+    let repo = pnpm_testing_utils_registry::git_repo::GitRepoFixture::init(root.path(), "ws");
     let workspace = root.path().join("ws-src");
     let storage = root.path().join("storage");
     let script = r#"node -e "const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/out.txt','built');fs.appendFileSync('runs','x')""#;
@@ -813,7 +815,7 @@ fn git_branch_lockfile_fallback_and_detached_head_invalidate_task_cache() {
 #[test]
 fn env_files_and_node_options_invalidate_outputs_without_declared_env() {
     let project = tempfile::tempdir().unwrap();
-    pnpm_testing_utils::git_repo::init_isolated_repo(project.path());
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(project.path());
     fs::write(project.path().join("package.json"), serde_json::json!({
         "name": "env-probe", "version": "1.0.0", "scripts": {
             "build": r#"node -e "require('fs').writeFileSync('result', process.env.PIPELINE_VALUE + '|' + (process.env.NODE_OPTIONS || ''))""#
@@ -857,7 +859,7 @@ fn env_files_and_node_options_invalidate_outputs_without_declared_env() {
 #[test]
 fn sibling_outputs_do_not_invalidate_default_inputs_and_negative_outputs_are_not_restored() {
     let project = tempfile::tempdir().unwrap();
-    pnpm_testing_utils::git_repo::init_isolated_repo(project.path());
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(project.path());
     fs::write(project.path().join("package.json"), serde_json::json!({
         "name": "output-probe", "version": "1.0.0", "scripts": {
             "build": r#"node -e "require('fs').mkdirSync('dist',{recursive:true}); require('fs').writeFileSync('dist/code.js','code'); require('fs').writeFileSync('dist/code.map','map')""#,

@@ -15,7 +15,7 @@ use crate::_utils::{
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     command_env::CommandTestExt,
 };
@@ -581,7 +581,7 @@ fn recursive_exec_diff_selector_selects_changed_projects() {
             String::from_utf8_lossy(&output.stderr),
         );
     };
-    pnpm_testing_utils::git_repo::init_isolated_repo(&workspace);
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(&workspace);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     fs::write(workspace.join("project-1").join("changed.js"), "").expect("write changed file");

@@ -110,7 +110,7 @@ fn publish_with_dir_flag_runs_git_checks_in_nested_target_repo() {
         &json!({ "name": "test-nested-git-checks", "version": "1.0.0" }),
     );
 
-    pnpm_testing_utils::git_repo::init_isolated_repo(caller.path());
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(caller.path());
     fs::write(caller.path().join("README.md"), "clean caller\n").expect("write caller readme");
     for args in [vec!["add", "."], vec!["commit", "-m", "init"]] {
         Command::new("git")
@@ -120,7 +120,7 @@ fn publish_with_dir_flag_runs_git_checks_in_nested_target_repo() {
             .success();
     }
 
-    pnpm_testing_utils::git_repo::init_isolated_repo(&nested);
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(&nested);
     for args in [vec!["add", "."], vec!["commit", "-m", "init"]] {
         Command::new("git")
             .with_current_dir(&nested)

@@ -7,7 +7,7 @@ use command_extra::CommandExtra;
 #[cfg(unix)]
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,
@@ -213,7 +213,7 @@ fn should_install_exec_files() {
 
     #[cfg(unix)]
     {
-        use pnpm_testing_utils::fs::is_path_executable;
+        use pnpm_testing_utils_registry::fs::is_path_executable;
         use pretty_assertions::assert_eq;
         use std::{
             fs::File,

@@ -15,7 +15,7 @@ use pnpm_store_dir::{
     StoreIndex,
     store_index_key,
 };
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

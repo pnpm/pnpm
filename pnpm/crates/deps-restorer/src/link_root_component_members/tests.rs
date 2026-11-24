@@ -18,7 +18,7 @@ use pnpm_lockfile::{
     SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_testing_utils::fs::is_symlink_or_junction;
+use pnpm_testing_utils_registry::fs::is_symlink_or_junction;
 use std::{
     collections::HashMap,
     fs,

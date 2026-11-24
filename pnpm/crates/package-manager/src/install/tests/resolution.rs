@@ -16,7 +16,7 @@ use pnpm_package_manifest::{
     PackageManifest,
 };
 use pnpm_reporter::SilentReporter;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     fs::is_symlink_or_junction,
     registry::TestRegistry,
 };

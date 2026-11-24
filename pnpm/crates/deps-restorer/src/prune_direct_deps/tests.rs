@@ -9,7 +9,7 @@ use pnpm_lockfile::{
     ResolvedDependencySpec,
 };
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_testing_utils::fs::is_symlink_or_junction;
+use pnpm_testing_utils_registry::fs::is_symlink_or_junction;
 use std::{
     collections::{
         HashMap,

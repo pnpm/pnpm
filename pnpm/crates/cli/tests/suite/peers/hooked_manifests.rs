@@ -3,7 +3,7 @@ use super::{
     write_linked_peer_workspace,
 };
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

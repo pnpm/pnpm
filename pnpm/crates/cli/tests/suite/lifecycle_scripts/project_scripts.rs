@@ -3,7 +3,7 @@ mod uninstall;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };
@@ -570,7 +570,7 @@ mod dev_preinstall {
     };
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pnpm_testing_utils::bin::{
+    use pnpm_testing_utils_registry::bin::{
         AddMockedRegistry,
         CommandTempCwd,
     };
@@ -1143,7 +1143,7 @@ mod dev_preinstall {
 mod root_preinstall {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pnpm_testing_utils::bin::{
+    use pnpm_testing_utils_registry::bin::{
         AddMockedRegistry,
         CommandTempCwd,
     };

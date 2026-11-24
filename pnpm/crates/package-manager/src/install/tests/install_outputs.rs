@@ -43,7 +43,7 @@ use pnpm_reporter::{
     StatsMessage,
 };
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     fs::{
         get_all_folders,
         is_symlink_or_junction,

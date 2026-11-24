@@ -1,5 +1,5 @@
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use std::fs;
 
 /// A token an earlier pnpm wrote to `auth.ini` is still revoked and removed:

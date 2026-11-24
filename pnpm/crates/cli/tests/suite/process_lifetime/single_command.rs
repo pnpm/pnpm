@@ -10,7 +10,7 @@ use super::{
     write_fixture,
 };
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,

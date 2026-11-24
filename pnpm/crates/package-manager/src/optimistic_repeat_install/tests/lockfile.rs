@@ -45,7 +45,7 @@ use pnpm_lockfile::{
     MaybeLazyLockfile,
 };
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::set_mtime_ms;
+use pnpm_testing_utils_registry::fs::set_mtime_ms;
 use pnpm_workspace_state::{
     ProjectEntry,
     load_workspace_state,
@@ -380,7 +380,7 @@ fn poison_lockfile_content(workspace_root: &std::path::Path) {
         .modified()
         .unwrap();
     fs::write(&path, super::FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
-    pnpm_testing_utils::fs::set_mtime(&path, modified);
+    pnpm_testing_utils_registry::fs::set_mtime(&path, modified);
 }
 
 /// A lockfile edit that restores both its size and its mtime still moves the

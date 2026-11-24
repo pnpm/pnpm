@@ -51,7 +51,7 @@ use pnpm_store_dir::{
     STORE_VERSION,
     VerifiedFileIntegrity,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use pnpm_workspace_state::{
     WorkspaceState,
     update_workspace_state,

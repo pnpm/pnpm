@@ -22,7 +22,7 @@ use pnpm_lockfile::{
     MaybeLazyLockfile,
 };
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::set_mtime_ms;
+use pnpm_testing_utils_registry::fs::set_mtime_ms;
 use pnpm_workspace_state::{
     ProjectEntry,
     WORKSPACE_STATE_FILENAME,

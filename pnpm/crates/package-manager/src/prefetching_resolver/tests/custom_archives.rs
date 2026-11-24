@@ -183,7 +183,7 @@ impl pnpm_hooks::CustomFetcher for DecliningScratchWritingFetcher {
 async fn custom_fetcher_reads_git_subdirectory_without_adding_integrity() {
     let dir = tempdir().unwrap();
     let manifest = json!({"name": "subpackage", "dependencies": {"ms": "2.1.2"}}).to_string();
-    let body = pnpm_testing_utils::fixtures::tarball_entries(&[
+    let body = pnpm_testing_utils_registry::fixtures::tarball_entries(&[
         ("repo/package.json", br#"{"name":"root"}"#),
         ("repo/packages/foo/package.json", manifest.as_bytes()),
     ]);

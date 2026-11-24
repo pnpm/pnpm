@@ -8,7 +8,7 @@ use pnpm_store_dir::{
     StoreDir,
     StoreIndex,
 };
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,

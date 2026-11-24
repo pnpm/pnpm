@@ -74,7 +74,9 @@ test('identifies the crates that must be selected together', () => {
 })
 
 test('refuses to scope a change to the shared test harness', () => {
-  assert.deepEqual(workspaceWideChanges(['pnpm/crates/testing-utils/src/bin.rs']), ['pnpm/crates/testing-utils/src/bin.rs'])
+  assert.deepEqual(
+    workspaceWideChanges(['pnpm/crates/testing-utils/src/lib.rs', 'pnpm/crates/testing-utils-registry/src/registry.rs']),
+    ['pnpm/crates/testing-utils/src/lib.rs', 'pnpm/crates/testing-utils-registry/src/registry.rs'])
 })
 
 const graph = [

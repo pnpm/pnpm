@@ -1,7 +1,7 @@
 use std::fs;
 
 use mockito::Matcher;
-use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
+use pnpm_testing_utils_registry::diagnostics::assert_diagnostic_contains;
 use serde_json::json;
 
 use super::{

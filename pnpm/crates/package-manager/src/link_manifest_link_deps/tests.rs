@@ -15,7 +15,7 @@ use pnpm_resolving_resolver_base::{
     WorkspacePackage,
     WorkspacePackages,
 };
-use pnpm_testing_utils::fs::is_symlink_or_junction;
+use pnpm_testing_utils_registry::fs::is_symlink_or_junction;
 use std::fs;
 use tempfile::tempdir;
 

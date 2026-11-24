@@ -11,7 +11,7 @@ use crate::install_state::settings::current_settings_with_catalogs;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::Lockfile;
-use pnpm_testing_utils::fs::set_mtime_ms;
+use pnpm_testing_utils_registry::fs::set_mtime_ms;
 use pnpm_workspace_state::{
     ProjectEntry,
     WORKSPACE_STATE_FILENAME,

@@ -128,7 +128,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     workspace_state::update_workspace_state(
         &dirs.project_root,
         &pnpm_workspace_state::WorkspaceState {
-            last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
+            last_validated_timestamp: pnpm_testing_utils_registry::fs::backdate_existing_files(
                 &dirs.project_root,
             ),
             projects,

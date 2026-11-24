@@ -6,7 +6,7 @@ use super::cargo_install::{
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     diagnostics::assert_diagnostic_contains,
     git_repo::GitRepoFixture,
 };

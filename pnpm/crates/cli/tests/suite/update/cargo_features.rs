@@ -2,7 +2,7 @@ use super::{
     fs,
     pacquet,
 };
-use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
+use pnpm_testing_utils_registry::diagnostics::assert_diagnostic_contains;
 use std::path::{
     Path,
     PathBuf,

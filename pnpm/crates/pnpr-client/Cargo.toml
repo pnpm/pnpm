@@ -33,7 +33,7 @@ tracing = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
-pnpm-testing-utils = { workspace = true }
+pnpm-testing-utils-registry = { workspace = true }
 base64 = { workspace = true }
 mockito = { workspace = true }
 p256 = { workspace = true }

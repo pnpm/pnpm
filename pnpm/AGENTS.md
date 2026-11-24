@@ -108,7 +108,7 @@ TypeScript side" below is its TypeScript counterpart):
 - `crates/` — library and binary crates that make up pacquet.
   - `cli`, `package-manager`, `package-manifest`, `lockfile`, `store-dir`,
     `tarball`, `registry`, `network`, `npmrc`, `fs`, `executor`,
-    `diagnostics`, `testing-utils`.
+    `diagnostics`, `testing-utils`, `testing-utils-registry`.
 - `tasks/` — developer tooling: `integrated-benchmark`, `micro-benchmark`,
   `registry-mock`.
 - `CONTRIBUTING.md` — commit-message format, writing style, setup, and the
@@ -192,7 +192,7 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
   review the diff carefully, then accept with `cargo insta review`. Never
   accept snapshot changes blindly.
 - Tests that need the mocked registry start `pnpr` through
-  `pnpm-testing-utils`; `cargo test` / `cargo nextest run` should not
+  `pnpm-testing-utils-registry`; `cargo test` / `cargo nextest run` should not
   require a separate `just registry-mock launch` step.
 - The active test-porting plan lives in
   [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It enumerates the
@@ -398,8 +398,8 @@ crates / keep deps at the right level" rules from
 [`../AGENTS.md`](../AGENTS.md#code-reuse-and-avoiding-duplication) apply.
 Pacquet-specific notes:
 
-- Shared helpers tend to live in `crates/fs`, `crates/testing-utils`, and
-  `crates/diagnostics` — check there first.
+- Shared helpers tend to live in `crates/fs`, `crates/testing-utils`,
+  `crates/testing-utils-registry`, and `crates/diagnostics` — check there first.
 - Check whether the workspace already depends on something suitable (see
   `[workspace.dependencies]` in the root `Cargo.toml`) before adding a new
   dependency.

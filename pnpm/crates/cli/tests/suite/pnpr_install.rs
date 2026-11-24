@@ -24,7 +24,7 @@ use pnpm_lockfile::{
     ProjectSnapshot,
     SnapshotEntry,
 };
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,

@@ -5,7 +5,7 @@
 use command_extra::CommandExtra;
 
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,

@@ -26,7 +26,7 @@ use pnpm_graph_hasher::{
 };
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use std::fs;
 
 /// The engine install must stay anchored to its install dir even when an

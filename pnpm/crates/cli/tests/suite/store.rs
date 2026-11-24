@@ -5,7 +5,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     command_env::CommandTestExt,
 };
@@ -1391,7 +1391,7 @@ fn store_prune_reclaims_packages_of_an_expired_dlx_cache_entry() {
 #[cfg(unix)]
 #[test]
 fn install_keeps_a_group_writable_store() {
-    use pnpm_testing_utils::bin::AddMockedRegistry;
+    use pnpm_testing_utils_registry::bin::AddMockedRegistry;
     use std::os::unix::fs::{
         MetadataExt,
         PermissionsExt,

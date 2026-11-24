@@ -15,7 +15,7 @@ use pnpm_lockfile::{
     Lockfile,
     PkgName,
 };
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

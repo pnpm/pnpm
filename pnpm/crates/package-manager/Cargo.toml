@@ -117,7 +117,7 @@ miette = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
-pnpm-testing-utils = { workspace = true }
+pnpm-testing-utils-registry = { workspace = true }
 
 async-trait = { workspace = true }
 command-extra = { workspace = true }

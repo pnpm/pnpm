@@ -20,7 +20,7 @@ use crate::_utils::console::PrivateConsole;
 #[cfg(unix)]
 use crate::_utils::terminal::Terminal;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 #[cfg(windows)]
 use std::process::{
     ExitStatus,

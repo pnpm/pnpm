@@ -19,7 +19,7 @@ use pnpm_crypto_hash::{
     create_hex_hash_from_file,
 };
 use pnpm_lockfile::WantedLockfileSelection;
-use pnpm_testing_utils::git_repo::GitRepoFixture;
+use pnpm_testing_utils_registry::git_repo::GitRepoFixture;
 use pnpm_workspace_task_scheduler::TaskNode;
 use std::{
     collections::HashMap,

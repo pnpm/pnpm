@@ -2,8 +2,8 @@ use super::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 #[cfg(unix)]
-use pnpm_testing_utils::command_env::CommandTestExt;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::command_env::CommandTestExt;
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     fixtures::tarball_entries,
 };

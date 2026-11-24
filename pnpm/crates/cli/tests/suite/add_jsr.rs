@@ -15,7 +15,7 @@ use pnpm_lockfile::{
     PkgName,
     ResolvedDependencySpec,
 };
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

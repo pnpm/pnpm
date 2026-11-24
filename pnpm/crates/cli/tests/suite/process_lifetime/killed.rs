@@ -7,7 +7,7 @@
 
 use super::node_launching_pacquet;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use std::{
     path::Path,
     thread,

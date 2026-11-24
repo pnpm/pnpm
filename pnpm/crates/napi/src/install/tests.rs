@@ -27,7 +27,7 @@ use crate::{
 };
 use pnpm_network::NoProxySetting;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use std::{
     collections::{
         BTreeSet,

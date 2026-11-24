@@ -9,7 +9,7 @@ use assert_cmd::{
     assert::OutputAssertExt,
     cargo::CommandCargoExt,
 };
-use pnpm_testing_utils::git_repo::GitRepoFixture;
+use pnpm_testing_utils_registry::git_repo::GitRepoFixture;
 use sha2::{
     Digest,
     Sha256,

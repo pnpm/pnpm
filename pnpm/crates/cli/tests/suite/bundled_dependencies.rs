@@ -14,7 +14,7 @@ use pnpm_lockfile::{
     Lockfile,
     PackageMetadata,
 };
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     fixtures::tarball_entries,
     fs::is_symlink_or_junction,

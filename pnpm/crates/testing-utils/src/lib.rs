@@ -2,14 +2,12 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
-pub mod bin;
 pub mod command_env;
 #[cfg(windows)]
 pub mod console;
 pub mod diagnostics;
 pub mod env_guard;
 pub mod fixtures;
-pub mod fs;
 pub mod git_repo;
 pub mod known_failure;
 #[cfg(target_os = "linux")]
@@ -20,7 +18,6 @@ pub mod pending_signal;
 pub mod privileges;
 #[cfg(unix)]
 pub mod process_liveness;
-pub mod registry;
 #[cfg(unix)]
 pub mod signal_delivery;
 #[cfg(unix)]
@@ -34,4 +31,4 @@ pub mod trusted_tls_server;
 pub mod turborepo_cache;
 pub mod untrusted_tls_server;
 
-mod registry_activity;
+pub mod registry_activity;
