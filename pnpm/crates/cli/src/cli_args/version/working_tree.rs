@@ -1,9 +1,6 @@
 use super::git::git_output;
 use pnpm_config::Config;
-use pnpm_fs_packlist::{
-    PacklistOptions,
-    packlist_with_sources,
-};
+use pnpm_pack::static_pack_sources;
 use pnpm_package_manifest::{
     PROJECT_MANIFEST_BASENAMES,
     safe_read_project_manifest_from_dir,
@@ -31,37 +28,26 @@ pub(super) fn can_bump(dir: &Path, config: &Config, recursive: bool) -> miette::
         return Ok(false);
     };
     let Some(manifest) = safe_read_project_manifest_from_dir(dir)? else { return Ok(false) };
-    if !has_static_packlist(&manifest, config, dir) {
+    if has_version_hooks(&manifest)
+        || crate::config_deps::may_update_config(config, config.root_project_manifest_dir(dir))
+    {
         return Ok(false);
     }
-    let files = packlist_with_sources(
-        dir,
-        &manifest,
-        PacklistOptions {
-            workspace_dir: config.workspace_dir.as_deref(),
-            bundled_dependencies_dir: Some(dir),
-        },
-    )?;
-    // A bundled dependency's source may live outside its archive path.
-    Ok(files
-        .values()
-        .all(|source| {
-            source
-                .canonicalize()
-                .is_ok_and(|path| !changed.contains(&path))
-        }))
+    let Some(mut sources) = static_pack_sources(dir, config.workspace_dir.as_deref(), &manifest)?
+    else {
+        return Ok(false);
+    };
+    Ok(sources.all(|source| {
+        source
+            .canonicalize()
+            .is_ok_and(|path| !changed.contains(&path))
+    }))
 }
 
-fn has_static_packlist(manifest: &Value, config: &Config, dir: &Path) -> bool {
-    let has_scripts = ["prepack", "prepare", "preversion", "version", "postversion"]
+fn has_version_hooks(manifest: &Value) -> bool {
+    ["preversion", "version", "postversion"]
         .iter()
-        .any(|stage| manifest["scripts"][stage].is_string());
-    let overrides_files = ["directory", "main", "bin", "browser"]
-        .iter()
-        .any(|key| !manifest["publishConfig"][key].is_null());
-    !has_scripts
-        && !overrides_files
-        && !crate::config_deps::may_update_config(config, config.root_project_manifest_dir(dir))
+        .any(|stage| manifest["scripts"][stage].is_string())
 }
 
 fn unstaged_package_files(dir: &Path, prefix: &str, status: &str) -> Option<HashSet<PathBuf>> {

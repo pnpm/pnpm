@@ -2,7 +2,6 @@ use super::{
     FsFileLen,
     HashSet,
     PackError,
-    PackOptions,
     Path,
     PathBuf,
     Value,
@@ -50,11 +49,11 @@ pub(super) fn executable_sources(
 /// Append a workspace-root `LICENSE` to a sub-package tarball that lacks
 /// one.
 pub(super) fn inject_workspace_license(
-    opts: &PackOptions,
+    workspace_dir: Option<&Path>,
     dir: &Path,
     files_map: &mut indexmap::IndexMap<String, PathBuf>,
 ) {
-    let Some(workspace_dir) = &opts.workspace_dir else { return };
+    let Some(workspace_dir) = workspace_dir else { return };
     if dir == workspace_dir || files_map.keys().any(|entry| is_package_license(entry)) {
         return;
     }

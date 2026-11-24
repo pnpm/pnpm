@@ -86,6 +86,34 @@ fn nested_package_honors_npmignore_but_still_checks_required_files() {
 }
 
 #[test]
+fn version_checks_files_in_the_publish_directory_with_publish_overrides() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(
+        &workspace,
+        r#"{"name":"test-pkg","version":"1.0.0","publishConfig":{"directory":"dist"}}"#,
+    );
+    let dist = workspace.join("dist");
+    fs::create_dir(&dist).expect("create publish directory");
+    write_manifest(
+        &dist,
+        r#"{"name":"test-pkg","version":"1.0.0","files":[],"publishConfig":{"main":"entry.js"}}"#,
+    );
+    git_commit_all(&workspace, "init");
+
+    fs::write(workspace.join("scratch.txt"), "local").expect("write local notes");
+    let output = pacquet_version(&workspace, &["patch"]);
+    assert!(output.status.success(), "{}", stderr_of(&output));
+
+    fs::write(dist.join("entry.js"), "export {}").expect("write published entry point");
+    let output = pacquet_version(&workspace, &["patch"]);
+    assert!(!output.status.success());
+    assert!(stderr_of(&output).contains("ERR_PNPM_UNCLEAN_WORKING_TREE"));
+    assert_eq!(manifest_version(&workspace), "1.0.1");
+    drop(root);
+}
+
+#[test]
 fn tag_version_prefix_replaces_the_default_v() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     init_git(&workspace);
