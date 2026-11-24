@@ -80,7 +80,7 @@ fn prefers_the_manifest_mtime_over_the_clock() {
     );
     assert_eq!(
         state.last_validated_timestamp,
-        pnpm_testing_utils_registry::fs::mtime_ms(manifest.path())
+        pnpm_testing_utils_registry::fs::mtime_ms(manifest.path()),
     );
 }
 
