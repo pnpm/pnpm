@@ -16,9 +16,6 @@ use std::process::{
 const LEGACY_NODE: &str = "@pnpm.e2e/for-legacy-node";
 const NO_OS: &str = "@pnpm.e2e/not-compatible-with-any-os";
 
-/// A project with `manifest` as its `package.json`, a local `file:` package
-/// `local` that depends on the Node.js 0.10 fixture, and a `nodeVersion`
-/// that fixture does not support.
 fn write_project(workspace: &Path, manifest: &serde_json::Value) {
     let local = workspace.join("local");
     fs::create_dir_all(&local).expect("create the local package");
@@ -133,4 +130,45 @@ fn prod_leaves_out_a_dev_dependency() {
 
     assert_failure(&pnpm(&fixture.workspace, &["audit", "engines"]));
     assert_success(&pnpm(&fixture.workspace, &["audit", "engines", "--prod"]));
+}
+
+/// A filter that leaves the root project out still checks against the
+/// Node.js the root pins. Only that version satisfies the package.
+#[test]
+fn a_filtered_project_is_checked_against_the_node_the_root_pins() {
+    let fixture = CommandTempCwd::init();
+    let workspace = &fixture.workspace;
+    let api = workspace.join("packages/api");
+    fs::create_dir_all(&api).expect("create the workspace project");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"root","devDependencies":{"node":"runtime:20.0.0"}}"#,
+    )
+    .expect("write package.json");
+    fs::write(api.join("package.json"), r#"{"name":"api","dependencies":{"old":"1.0.0"}}"#)
+        .expect("write the project's package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let integrity = format!("sha512-{}==", "A".repeat(86));
+    fs::write(
+        workspace.join("pnpm-lock.yaml"),
+        format!(
+            "lockfileVersion: '9.0'\n\n\
+             importers:\n  .:\n    devDependencies:\n      node:\n        \
+             specifier: runtime:20.0.0\n        version: runtime:20.0.0\n  \
+             packages/api:\n    dependencies:\n      old:\n        \
+             specifier: 1.0.0\n        version: 1.0.0\n\n\
+             packages:\n  node@runtime:20.0.0:\n    resolution: {{type: binary, \
+             archive: tarball, url: https://example.test/node.tgz, integrity: {integrity}, \
+             bin: bin/node}}\n    version: 20.0.0\n  old@1.0.0:\n    \
+             resolution: {{integrity: {integrity}}}\n    engines: {{node: 20.0.0}}\n\n\
+             snapshots:\n  node@runtime:20.0.0: {{}}\n  old@1.0.0: {{}}\n",
+        ),
+    )
+    .expect("write pnpm-lock.yaml");
+
+    let output = pnpm(workspace, &["--filter", "api", "audit", "engines"]);
+
+    assert_success(&output);
+    assert!(stdout(&output).contains("No incompatible packages found"), "{}", stdout(&output));
 }

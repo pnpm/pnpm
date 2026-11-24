@@ -420,7 +420,7 @@ impl AuditArgs {
         }
         match subcommand {
             "deprecations" => self.run_deprecations(state).await,
-            "engines" => self.run_engines(state).await,
+            "engines" => self.run_engines(&state),
             _ => self.run_signatures(state).await,
         }
     }
@@ -428,11 +428,10 @@ impl AuditArgs {
     /// Handle `audit engines`: list the installed packages that don't
     /// support the current Node.js version or platform. Exit code 1 (via
     /// [`AuditOutcome::Vulnerable`]) when any doesn't.
-    async fn run_engines(&self, state: State) -> miette::Result<AuditOutcome> {
+    fn run_engines(&self, state: &State) -> miette::Result<AuditOutcome> {
         let include = self.dependency_options.include(state.config);
         let lockfile_dir = state.lockfile_dir().to_path_buf();
-        let Some(incompatible) = engines::find_incompatible(&state, include, &lockfile_dir).await?
-        else {
+        let Some(incompatible) = engines::find_incompatible(state, include, &lockfile_dir)? else {
             return Ok(AuditOutcome::Clean);
         };
         let output = if self.json {

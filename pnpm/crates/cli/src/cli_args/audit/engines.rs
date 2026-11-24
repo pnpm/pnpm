@@ -21,14 +21,12 @@ use super::{
     walk_reachable,
 };
 use crate::cli_args::sanitize::sanitize_inline;
-use pnpm_config::Config;
+use miette::WrapErr;
 use pnpm_deps_restorer::{
     InstallabilityHost,
+    any_installability_constraint,
     incompatible_required_packages,
-    materialization_plan::{
-        detect_installability_host,
-        with_locked_runtime_node,
-    },
+    materialization_plan::with_locked_runtime_node,
 };
 use pnpm_lockfile::ProjectSnapshot;
 use pnpm_package_is_installable::{
@@ -82,7 +80,7 @@ pub(super) struct PlatformFields {
 
 /// The installed packages that an install warns about because they don't
 /// support the host. `None` when the selectors matched no project.
-pub(super) async fn find_incompatible(
+pub(super) fn find_incompatible(
     state: &crate::State,
     include: Include,
     lockfile_dir: &Path,
@@ -94,7 +92,10 @@ pub(super) async fn find_incompatible(
     let (Some(snapshots), Some(packages)) = (&lockfile.snapshots, &lockfile.packages) else {
         return Ok(Some(Vec::new()));
     };
-    let host = installability_host(state.config, lockfile).await;
+    if !any_installability_constraint(snapshots, packages) {
+        return Ok(Some(Vec::new()));
+    }
+    let host = installability_host(state)?;
     let incompatible = incompatible_required_packages(
         &included_importers(lockfile, include),
         snapshots,
@@ -135,17 +136,18 @@ impl Audited for IncompatiblePackage {
 
 /// The host an install checks the packages against: the configured
 /// `nodeVersion`, the Node.js the lockfile pins for the root project, or
-/// the system Node.js, and the `supportedArchitectures`.
-async fn installability_host(config: &Config, lockfile: &Lockfile) -> InstallabilityHost {
-    let detected = detect_installability_host(
-        true,
-        false,
-        config.node_version.clone(),
-        config.supported_architectures.as_ref(),
-    )
-    .await;
-    with_locked_runtime_node(detected.as_ref(), config, &lockfile.importers)
-        .expect("a needed detection returns a host")
+/// the system Node.js, and the `supportedArchitectures`. The pin is read
+/// from the whole lockfile, since a workspace filter can leave the root
+/// project out of the audited importers.
+fn installability_host(state: &crate::State) -> miette::Result<InstallabilityHost> {
+    let config = state.config;
+    let mut host =
+        InstallabilityHost::detect_with(config.engine_strict, config.node_version.clone());
+    host.supported_architectures.clone_from(&config.supported_architectures);
+    let Some(lockfile) = state.lockfile.get().wrap_err("load the lockfile")? else {
+        return Ok(host);
+    };
+    Ok(with_locked_runtime_node(Some(&host), config, &lockfile.importers).unwrap_or(host))
 }
 
 /// The importers with only the dependency groups `include` selects.
