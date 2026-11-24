@@ -161,12 +161,18 @@ fn unset_request_defaults_to_dev_engines_runtime() {
 }
 
 #[test]
-fn unset_request_accepts_every_unset_alias_and_a_version() {
-    for subcommand in ["unset", "remove", "rm", "uninstall", "un"] {
-        let request = args(&[subcommand, "bun", "v1.2.3"]).unset_request().unwrap();
-        assert_eq!(request.runtime_name, "bun");
-        assert_eq!(request.version_spec.as_deref(), Some("v1.2.3"));
-        assert_eq!(request.dependency_group, DependencyGroup::Dev);
+fn unset_request_accepts_a_version() {
+    let request = args(&["unset", "bun", "v1.2.3"]).unset_request().unwrap();
+    assert_eq!(request.runtime_name, "bun");
+    assert_eq!(request.version_spec.as_deref(), Some("v1.2.3"));
+    assert_eq!(request.dependency_group, DependencyGroup::Dev);
+}
+
+#[test]
+fn unset_rejects_other_removal_subcommands() {
+    for subcommand in ["remove", "rm", "uninstall", "un"] {
+        let err = args(&[subcommand, "node"]).command().unwrap_err();
+        assert_eq!(err, RuntimeError::UnknownSubcommand { subcommand: subcommand.to_string() });
     }
 }
 
