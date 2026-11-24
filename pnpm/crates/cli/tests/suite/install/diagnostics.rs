@@ -261,3 +261,40 @@ fn an_override_to_a_missing_version_is_reported_on_the_override() {
         }
     }
 }
+
+/// With a shared workspace lockfile, the workspace root is the only
+/// project that reports progress, so an install from a workspace project
+/// prints its progress without a prefix pointing at the root.
+#[test]
+fn progress_from_a_workspace_project_has_no_prefix() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    let project = workspace.join("packages/a");
+    fs::create_dir_all(&project).expect("create the workspace project");
+    fs::write(workspace.join("package.json"), r#"{"name":"root"}"#).expect("write package.json");
+    fs::write(
+        project.join("package.json"),
+        r#"{"name":"a","dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write the project's package.json");
+    let settings = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&settings).unwrap_or_default();
+    fs::write(&settings, format!("{yaml}\npackages:\n  - packages/*\n"))
+        .expect("write pnpm-workspace.yaml");
+
+    let output = fixture.pacquet
+        .with_current_dir(&project)
+        .with_args(["install", "--reporter=append-only"])
+        .output()
+        .expect("run pnpm install");
+
+    assert!(output.status.success(), "install failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line.starts_with("Progress: resolved")),
+        "stdout:\n{stdout}",
+    );
+    assert!(!stdout.contains("| Progress"), "stdout:\n{stdout}");
+}

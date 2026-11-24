@@ -128,6 +128,40 @@ fn prints_progress_beginning_during_recursive_install() {
 }
 
 #[test]
+fn hides_the_progress_prefix_when_asked() {
+    let lockfile_dir = "/repo";
+    let mut reporter = state_with_options(ReporterOptions {
+        progress: pnpm_default_reporter::state::ProgressOptions {
+            hide_prefix: true,
+            ..Default::default()
+        },
+        ..ReporterOptions::default()
+    });
+    let frame = render(
+        &mut reporter,
+        vec![
+            stage_at(lockfile_dir, Stage::ResolutionStarted),
+            progress_at(lockfile_dir, "resolved"),
+        ],
+    );
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
+}
+
+#[test]
+fn hiding_the_progress_prefix_keeps_the_python_environment_label() {
+    let python = pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER;
+    let mut reporter = state_with_options(ReporterOptions {
+        progress: pnpm_default_reporter::state::ProgressOptions {
+            hide_prefix: true,
+            ..Default::default()
+        },
+        ..ReporterOptions::default()
+    });
+    let frame = render(&mut reporter, vec![progress_at(python, "resolved")]);
+    assert!(frame.contains(&format!("{python} ")), "{frame}");
+}
+
+#[test]
 fn ignores_progress_after_importing_done() {
     let mut reporter = state(false);
     let frame = render(

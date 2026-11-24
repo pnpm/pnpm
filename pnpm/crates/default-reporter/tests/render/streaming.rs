@@ -105,6 +105,27 @@ fn prints_progress_of_big_files_download() {
     );
 }
 
+/// Append-only output cannot rewrite a line, so a big download prints
+/// only once it finishes.
+#[test]
+fn prints_only_finished_big_downloads_in_append_only_mode() {
+    const MIB: u64 = 1024 * 1024;
+    let pkg = "registry.npmjs.org/foo/1.0.0";
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
+    let mut lines = Vec::new();
+    for event in [
+        fetching_started(pkg, 10 * MIB, 1),
+        fetching_in_progress(pkg, 5 * MIB),
+        fetching_in_progress(pkg, 10 * MIB),
+    ] {
+        if let Output::Lines(emitted) = reporter.handle(&event) {
+            lines.extend(emitted);
+        }
+    }
+    assert_eq!(lines, vec![format!("Downloading {pkg}: 10.48 MB/10.48 MB, done")]);
+}
+
 #[test]
 fn loglevel_error_suppresses_warnings_and_the_visual_streams() {
     let mut reporter = state_with_options(ReporterOptions {

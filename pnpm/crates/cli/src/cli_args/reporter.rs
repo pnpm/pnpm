@@ -346,6 +346,15 @@ pub(crate) fn configure_default_reporter(setup: &DefaultReporterSetup<'_>) {
     }
 }
 
+/// Drop the project prefix from progress lines when the workspace shares
+/// one lockfile: its directory is then the only project that reports
+/// progress, so the prefix names nothing.
+pub(crate) fn configure_progress_prefix(config: &pnpm_config::Config) {
+    if config.workspace_dir.is_some() && config.shared_workspace_lockfile {
+        pnpm_default_reporter::hide_progress_prefix();
+    }
+}
+
 /// Seed the default reporter's verbosity ceiling from the `--loglevel`
 /// value. `silent` and an absent flag leave the [`MaxLogLevel::Info`]
 /// default in place, `silent` never reaches the default reporter (see

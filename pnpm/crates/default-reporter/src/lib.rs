@@ -31,7 +31,10 @@ pub use lifecycle_settings::{
     stream_lifecycle_output,
     summarize_scripts,
 };
-pub use progress::set_progress;
+pub use progress::{
+    hide_progress_prefix,
+    set_progress,
+};
 
 mod progress;
 
@@ -67,7 +70,6 @@ use pnpm_reporter::{
 use crate::{
     colors::Colors,
     format::visible_width,
-    progress::is_coalesceable,
     state::{
         Output,
         ReporterState,
@@ -247,8 +249,9 @@ impl Reporter for DefaultReporter {
             sink.on_prompt(log.action);
             return;
         }
+        let coalesceable = sink.state.is_coalesceable(event);
         let output = sink.state.handle(event);
-        sink.write(output, is_coalesceable(event));
+        sink.write(output, coalesceable);
         if sink.state.scripts_running() && !SCRIPTS_TICKER.swap(true, Ordering::SeqCst) {
             std::thread::spawn(tick_scripts);
         }
@@ -549,7 +552,7 @@ fn reporter_options(append_only: bool) -> state::ReporterOptions {
         lifecycle: lifecycle_settings::lifecycle_options(),
         progress: crate::state::ProgressOptions {
             hide_added_pkgs: HIDE_ADDED_PKGS_PROGRESS.get().is_some_and(|value| *value),
-            ..Default::default()
+            hide_prefix: progress::prefix_hidden(),
         },
         scope: crate::state::ScopeOptions {
             summary: SUMMARY_SCOPE

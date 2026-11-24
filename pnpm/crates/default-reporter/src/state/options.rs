@@ -57,7 +57,10 @@ pub struct LifecycleOptions {
 pub struct ProgressOptions {
     /// Omit the `added` counter from dependency progress lines.
     pub hide_added_pkgs: bool,
-    /// Omit the workspace-project prefix from progress lines.
+    /// Omit the workspace-project prefix from progress lines. Set when the
+    /// workspace shares one lockfile, whose directory is then the only
+    /// project that reports progress. The Python environment's line keeps
+    /// its label.
     pub hide_prefix: bool,
 }
 
