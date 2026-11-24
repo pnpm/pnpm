@@ -10,6 +10,11 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+# There are no unit tests here, and a lib test harness links both bundled SQLite libraries.
+test = false
+doctest = false
+
 [dependencies]
 pnpm-testing-utils = { workspace = true }
 pnpr = { workspace = true }

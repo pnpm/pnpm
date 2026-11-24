@@ -189,6 +189,7 @@ crates = [
   "pnpm-network-web-auth-testing",
   "pnpm-registry-mock",
   "pnpm-testing-utils",
+  "pnpm-testing-utils-registry",
   "pnpm-unsafe-audit",
   "pnpr-fixtures",
 ]
@@ -364,7 +365,7 @@ pnpm-resolving-tarball-resolver = 9
 pnpm-rust-toolchain = 9
 pnpm-store-dir = 9
 pnpm-tarball = 8
-pnpm-testing-utils = 4
+pnpm-testing-utils-registry = 5
 pnpm-version-policy = 1
 pnpm-versioning = 4
 pnpm-wasm-host = 1
@@ -454,7 +455,7 @@ pnpm-resolving-tarball-resolver = 4
 pnpm-rust-toolchain = 5
 pnpm-store-dir = 2
 pnpm-tarball = 6
-pnpm-testing-utils = 1
+pnpm-testing-utils-registry = 1
 pnpm-versioning = 1
 pnpm-workspace = 2
 pnpm-workspace-manifest-writer = 4
