@@ -51,8 +51,30 @@ pub(super) fn reconcile_links(
         .cloned()
         .collect();
     prune(target_root, input.linked, &keep)?;
-    materialize(target_root, &to_write)?;
-    update_gitignores(target_root, affected(), &keep)
+    let created = absent_entries(target_root, &to_write);
+    materialize(target_root, &to_write)
+        .and_then(|()| update_gitignores(target_root, affected(), &keep))
+        .inspect_err(|_| remove_created_links(target_root, &created))
+}
+
+/// The entries of `to_write` that nothing occupies yet.
+fn absent_entries<'entry>(
+    target_root: &Path,
+    to_write: &'entry BTreeMap<String, PathBuf>,
+) -> Vec<&'entry String> {
+    to_write
+        .keys()
+        .filter(|entry| fs::symlink_metadata(target_root.join(entry)).is_err())
+        .collect()
+}
+
+/// `.modules.yaml` records a sync's links only when it succeeds, so a
+/// failed sync removes the links it created, which nothing would prune.
+/// The sync's error is the one reported, so a removal error is dropped.
+fn remove_created_links(target_root: &Path, created: &[&String]) {
+    for entry in created {
+        let _ = remove_link(&target_root.join(entry));
+    }
 }
 
 /// Remove recorded links that no surviving group uses.

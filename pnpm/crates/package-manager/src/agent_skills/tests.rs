@@ -743,6 +743,19 @@ fn rejects_symlinked_gitignore() {
 }
 
 #[test]
+fn a_failed_gitignore_update_removes_the_links_it_created() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    let target_dir = root.path().join(".claude/skills");
+    fs::create_dir_all(&target_dir).unwrap();
+    fs::write(target_dir.join(".gitignore"), [0xff, 0xfe]).unwrap();
+
+    let error =
+        sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
+    assert!(matches!(error, AgentSkillsError::Io { .. }));
+    assert!(fs::symlink_metadata(target_dir.join("guide")).is_err());
+}
+
+#[test]
 fn peer_variants_choose_the_same_target_when_importers_change_order() {
     let root = tempfile::tempdir().unwrap();
     let variants = ["1.0.0(peer@1.0.0)", "1.0.0(peer@2.0.0)"];
