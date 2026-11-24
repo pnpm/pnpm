@@ -955,6 +955,8 @@ mod dependency_sources;
 
 mod signatures;
 
+mod deprecations;
+
 mod fixes;
 
 mod fix_update;

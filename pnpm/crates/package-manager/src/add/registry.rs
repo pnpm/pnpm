@@ -185,6 +185,7 @@ pub(super) fn explicit_registry_pick_options<'a>(
             dry_run: false,
             optional: false,
             refresh_metadata: false,
+            metadata_max_age: None,
             update_checksums: false,
         },
     }

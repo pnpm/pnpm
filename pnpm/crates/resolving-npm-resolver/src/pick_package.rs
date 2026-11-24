@@ -289,7 +289,7 @@ async fn pick_from_metadata<Cache: PackageMetaCache>(
     let disk_first = match DiskFirst::decide(
         ctx.cache_policy.network,
         opts.pick_lowest_version,
-        opts.request.refresh_metadata,
+        state.cache_use.revalidate_mirror,
     ) {
         DiskFirst::Never => false,
         DiskFirst::Always => true,

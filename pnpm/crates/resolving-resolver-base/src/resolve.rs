@@ -279,6 +279,35 @@ pub struct VersionSelectionOptions {
     pub latest_current_version: Option<node_semver::Version>,
 }
 
+/// When a resolution revalidates cached registry metadata against the
+/// registry.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum MetadataRefresh {
+    /// Cached metadata is used whatever its age.
+    #[default]
+    Cached,
+    Always,
+    /// Cached metadata older than this is revalidated, and younger metadata
+    /// is used as it is.
+    OlderThan(jiff::SignedDuration),
+}
+
+impl MetadataRefresh {
+    /// [`Self::Always`] when `revalidate`, else [`Self::Cached`].
+    #[must_use]
+    pub fn always_when(revalidate: bool) -> Self {
+        if revalidate { Self::Always } else { Self::Cached }
+    }
+
+    #[must_use]
+    pub fn max_age(self) -> Option<jiff::SignedDuration> {
+        match self {
+            Self::OlderThan(max_age) => Some(max_age),
+            Self::Cached | Self::Always => None,
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ResolutionRefreshOptions {
     /// Previously-resolved lockfile entry. The `currentPkg` field.
@@ -290,7 +319,7 @@ pub struct ResolutionRefreshOptions {
     /// [`Self::current_pkg`] as it is.
     pub repick_current_version: bool,
     pub update: UpdateBehavior,
-    pub refresh_metadata: bool,
+    pub metadata: MetadataRefresh,
     /// True only when this specific package matches the user's update
     /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for
     /// unrelated packages that get re-resolved as a side effect of an
@@ -315,7 +344,9 @@ impl ResolutionRefreshOptions {
     /// its target.
     #[must_use]
     pub fn refreshes_metadata(&self) -> bool {
-        self.update != UpdateBehavior::Off || self.update_requested || self.refresh_metadata
+        self.update != UpdateBehavior::Off
+            || self.update_requested
+            || self.metadata == MetadataRefresh::Always
     }
 
     /// The locked runtime a runtime resolver returns as it is: a

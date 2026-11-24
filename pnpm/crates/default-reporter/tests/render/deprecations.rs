@@ -58,7 +58,7 @@ fn footer_counts_every_deprecated_package() {
     assert!(
         frame.starts_with(
             "\ndependencies:\n+ express 0.14.1\n\n\
-             ✗ 3 packages are deprecated: express@0.14.1, request@2.88.2 and uuid@3.4.0\n\n\
+             ✗ 3 packages are deprecated: express@0.14.1, request@2.88.2 and uuid@3.4.0 (see \"pnpm audit deprecations\")\n\n\
              Done in ",
         ),
         "{frame}",
@@ -75,7 +75,7 @@ fn footer_lists_three_deprecated_packages_and_counts_the_rest() {
     events.push(execution_time());
     let frame = render(&mut reporter, events);
     assert!(
-        frame.starts_with("\n✗ 5 packages are deprecated: a@1.0.0, b@1.0.0, c@1.0.0 and 2 more\n"),
+        frame.starts_with("\n✗ 5 packages are deprecated: a@1.0.0, b@1.0.0, c@1.0.0 and 2 more (see \"pnpm audit deprecations\")\n"),
         "{frame}",
     );
 }
@@ -96,7 +96,10 @@ fn footer_is_flushed_when_the_command_ends_without_done_line() {
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
     };
-    assert_eq!(frame, "\n✗ 1 package is deprecated: express@0.14.1\n");
+    assert_eq!(
+        frame,
+        "\n✗ 1 package is deprecated: express@0.14.1 (see \"pnpm audit deprecations\")\n",
+    );
     assert!(matches!(flush_checks(&mut reporter), Output::None));
 }
 
@@ -152,7 +155,10 @@ fn package_reported_by_several_projects_is_listed_once() {
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
     };
-    assert_eq!(frame, "\n✗ 1 package is deprecated: left-pad@1.0.0\n");
+    assert_eq!(
+        frame,
+        "\n✗ 1 package is deprecated: left-pad@1.0.0 (see \"pnpm audit deprecations\")\n",
+    );
 }
 
 /// After a failure, a passing verdict or a newer version is noise beside the
@@ -178,6 +184,27 @@ fn failed_command_prints_only_the_problems() {
         reporter.flush_pending_checks(pnpm_default_reporter::state::CommandOutcome::Failed)
     else {
         panic!("the problems render");
+    };
+    assert_eq!(
+        frame,
+        "\n✗ 1 package is deprecated: express@0.14.1 (see \"pnpm audit deprecations\")\n",
+    );
+}
+
+/// `pnpm audit` reads a project's lockfile, so a global install has no
+/// command to point at.
+#[test]
+fn a_global_install_points_at_no_command() {
+    let mut reporter = super::state_with_options(super::ReporterOptions {
+        scope: pnpm_default_reporter::state::ScopeOptions {
+            is_global: true,
+            ..super::ReporterOptions::default().scope
+        },
+        ..super::ReporterOptions::default()
+    });
+    render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the footer renders");
     };
     assert_eq!(frame, "\n✗ 1 package is deprecated: express@0.14.1\n");
 }

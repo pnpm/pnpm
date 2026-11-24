@@ -77,6 +77,7 @@ pub use resolve::{
     LatestInfo,
     LatestQuery,
     LockedPackagePolicy,
+    MetadataRefresh,
     NonDeprecatedAlternative,
     PackageVersionGuard,
     PackageVersionGuardDecision,

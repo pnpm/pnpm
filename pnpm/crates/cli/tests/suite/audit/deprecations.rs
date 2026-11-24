@@ -1,0 +1,191 @@
+use super::{
+    CommandTempCwd,
+    Path,
+    assert_failure,
+    assert_success,
+    fs,
+    stdout,
+};
+use assert_cmd::cargo::CommandCargoExt;
+use command_extra::CommandExtra;
+use std::process::{
+    Command,
+    Output,
+};
+
+const DEPRECATED: &str = "@pnpm.e2e/deprecated";
+
+/// A project that depends on `dependencies`, and a local `file:` package
+/// `local` that depends on the deprecated fixture, so a subdependency has a
+/// chain to report.
+fn write_project(workspace: &Path, dependencies: &serde_json::Value) {
+    let local = workspace.join("local");
+    fs::create_dir_all(&local).expect("create the local package");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({
+            "name": "local",
+            "version": "1.0.0",
+            "dependencies": { DEPRECATED: "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the local package.json");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "project", "dependencies": dependencies }).to_string(),
+    )
+    .expect("write package.json");
+}
+
+fn pnpm(workspace: &Path, args: &[&str]) -> Output {
+    Command::cargo_bin("pnpm")
+        .expect("find pnpm")
+        .with_current_dir(workspace)
+        .with_args(args)
+        .output()
+        .expect("run pnpm")
+}
+
+fn install(workspace: &Path) {
+    assert_success(&pnpm(workspace, &["install", "--lockfile-only"]));
+}
+
+#[test]
+fn lists_a_deprecated_direct_dependency_and_fails() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    write_project(&fixture.workspace, &serde_json::json!({ DEPRECATED: "1.0.0" }));
+    install(&fixture.workspace);
+
+    let output = pnpm(&fixture.workspace, &["audit", "deprecations"]);
+
+    assert_failure(&output);
+    let out = stdout(&output);
+    assert!(out.contains(&format!("{DEPRECATED} 1.0.0  .")), "{out}");
+    assert!(out.contains("1 deprecated package"), "{out}");
+}
+
+#[test]
+fn names_the_chain_of_a_deprecated_subdependency() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    write_project(&fixture.workspace, &serde_json::json!({ "local": "file:./local" }));
+    install(&fixture.workspace);
+
+    let output = pnpm(&fixture.workspace, &["audit", "deprecations", "--json"]);
+
+    assert_failure(&output);
+    let report: serde_json::Value =
+        serde_json::from_str(&stdout(&output)).expect("the report is JSON");
+    assert_eq!(report[0]["name"], DEPRECATED);
+    assert_eq!(report[0]["version"], "1.0.0");
+    assert_eq!(report[0]["via"], serde_json::json!(["local"]));
+    assert!(
+        report[0]["deprecated"]
+            .as_str()
+            .is_some_and(|message| !message.is_empty()),
+    );
+}
+
+#[test]
+fn reports_nothing_without_deprecated_packages() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    write_project(&fixture.workspace, &serde_json::json!({ "is-positive": "1.0.0" }));
+    install(&fixture.workspace);
+
+    let output = pnpm(&fixture.workspace, &["audit", "deprecations"]);
+
+    assert_success(&output);
+    assert!(stdout(&output).contains("No deprecated packages found"));
+}
+
+#[test]
+fn prod_leaves_out_a_deprecated_dev_dependency() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    write_project(&fixture.workspace, &serde_json::json!({}));
+    fs::write(
+        fixture.workspace.join("package.json"),
+        serde_json::json!({ "name": "project", "devDependencies": { DEPRECATED: "1.0.0" } })
+            .to_string(),
+    )
+    .expect("write package.json");
+    install(&fixture.workspace);
+
+    assert_failure(&pnpm(&fixture.workspace, &["audit", "deprecations"]));
+    assert_success(&pnpm(&fixture.workspace, &["audit", "deprecations", "--prod"]));
+}
+
+/// The install cached the metadata of every package moments ago, so the
+/// audit reads it from the cache.
+#[test]
+fn reads_the_metadata_an_install_cached() {
+    let fixture = CommandTempCwd::init().add_recording_mocked_registry();
+    write_project(&fixture.workspace, &serde_json::json!({ "local": "file:./local" }));
+    install(&fixture.workspace);
+    let _ = fixture.npmrc_info.mock_instance.take_requests();
+
+    assert_failure(&pnpm(&fixture.workspace, &["audit", "deprecations"]));
+
+    let requests = fixture.npmrc_info.mock_instance.take_requests();
+    assert!(requests.is_empty(), "the audit asked the registry again: {requests:#?}");
+}
+
+#[test]
+fn revalidates_metadata_cached_long_ago() {
+    let fixture = CommandTempCwd::init().add_recording_mocked_registry();
+    write_project(&fixture.workspace, &serde_json::json!({ DEPRECATED: "1.0.0" }));
+    install(&fixture.workspace);
+    let _ = fixture.npmrc_info.mock_instance.take_requests();
+    let long_ago = std::time::SystemTime::now() - std::time::Duration::from_mins(10);
+    set_modified_under(&fixture.npmrc_info.cache_dir, long_ago);
+
+    assert_failure(&pnpm(&fixture.workspace, &["audit", "deprecations"]));
+
+    let requests = fixture.npmrc_info.mock_instance.take_requests();
+    assert!(
+        requests
+            .iter()
+            .any(|request| request.path.ends_with("deprecated")),
+        "the audit did not ask the registry: {requests:#?}",
+    );
+}
+
+fn set_modified_under(dir: &Path, time: std::time::SystemTime) {
+    for entry in fs::read_dir(dir).expect("read the cache directory") {
+        let path = entry.expect("read a cache entry").path();
+        if path.is_dir() {
+            set_modified_under(&path, time);
+        } else {
+            fs::File::options()
+                .write(true)
+                .open(&path)
+                .and_then(|file| file.set_modified(time))
+                .expect("age a cached file");
+        }
+    }
+}
+
+#[test]
+fn names_a_workspace_project_by_its_path() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    let member = workspace.join("packages/api");
+    fs::create_dir_all(&member).expect("create the workspace project");
+    fs::write(
+        member.join("package.json"),
+        serde_json::json!({ "name": "api", "dependencies": { DEPRECATED: "1.0.0" } }).to_string(),
+    )
+    .expect("write the project's package.json");
+    fs::write(workspace.join("package.json"), r#"{"name":"root"}"#).expect("write package.json");
+    let settings = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&settings).expect("read pnpm-workspace.yaml");
+    fs::write(&settings, format!("{yaml}\npackages:\n  - packages/*\n"))
+        .expect("write pnpm-workspace.yaml");
+    install(workspace);
+
+    let output = pnpm(workspace, &["audit", "deprecations", "--json"]);
+
+    assert_failure(&output);
+    let report: serde_json::Value =
+        serde_json::from_str(&stdout(&output)).expect("the report is JSON");
+    assert_eq!(report[0]["projects"], serde_json::json!(["packages/api"]));
+}

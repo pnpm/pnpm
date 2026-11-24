@@ -154,6 +154,9 @@ pub struct MetadataPickRequest {
     /// Revalidates the metadata mirror against the registry instead of
     /// serving from unverified mirror shortcuts.
     pub refresh_metadata: bool,
+    /// Revalidates the metadata mirror only when it is older than this, see
+    /// [`MetadataRefresh::OlderThan`](pnpm_resolving_resolver_base::MetadataRefresh::OlderThan).
+    pub metadata_max_age: Option<jiff::SignedDuration>,
     /// `true` forces this pick to use the full packument because
     /// the dependency carries `optionalDependencies`-specific
     /// fields (`libc`, `cpu`, `os`) the abbreviated form drops

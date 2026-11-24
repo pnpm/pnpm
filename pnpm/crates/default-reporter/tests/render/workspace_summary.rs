@@ -165,7 +165,7 @@ fn first_workspace_install_lists_only_what_carries_information() {
     };
     assert!(
         frame.ends_with(
-            "\n✗ 1 package is deprecated: old@1.0.0\n\
+            "\n✗ 1 package is deprecated: old@1.0.0 (see \"pnpm audit deprecations\")\n\
              · 1 dependency has a newer version: stale (see \"pnpm outdated\")\n",
         ),
         "{frame}",
@@ -311,7 +311,7 @@ fn workspace_deprecations_join_the_checks_footer() {
     };
     assert!(
         frame.ends_with(
-            "\n✗ 3 packages are deprecated: left-pad@1.0.0, request@2.88.2 and uuid@3.4.0\n",
+            "\n✗ 3 packages are deprecated: left-pad@1.0.0, request@2.88.2 and uuid@3.4.0 (see \"pnpm audit deprecations\")\n",
         ),
         "{frame}",
     );

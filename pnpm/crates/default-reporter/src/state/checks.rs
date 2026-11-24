@@ -221,9 +221,15 @@ impl ReporterState {
         let deprecated = &self.notices.checks.deprecated;
         let (noun, verb) =
             if deprecated.len() == 1 { ("package", "is") } else { ("packages", "are") };
+        // `pnpm audit` reads a project's lockfile, which a global install has none of.
+        let see = if self.options.scope.is_global {
+            String::new()
+        } else {
+            format!(" {}", self.see("pnpm audit deprecations"))
+        };
         (!deprecated.is_empty()).then(|| {
             format!(
-                "{} {} {noun} {verb} deprecated: {}",
+                "{} {} {noun} {verb} deprecated: {}{see}",
                 self.rendering.colors.red("✗"),
                 deprecated.len(),
                 list_names(deprecated.iter(), |label| self.package_label(label)),
