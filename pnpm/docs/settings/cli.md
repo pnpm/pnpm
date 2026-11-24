@@ -70,8 +70,9 @@ directory.
 
 If this is enabled, installation fails when the project or a dependency
 declares an `engines.node` range that does not accept the current Node.js
-version. When it is disabled, an incompatible project or required dependency
-prints a warning and the install continues.
+version. When it is disabled, the install continues. An incompatible project
+prints a warning, and the incompatible required dependencies are listed at the
+end of the install output.
 
 Regardless of this setting, installation fails if the project's `engines.pnpm`
 does not accept the running pnpm version.

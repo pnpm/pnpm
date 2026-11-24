@@ -43,7 +43,8 @@ the install fails.
 With [`engineStrict`](./settings/cli.md#enginestrict) enabled, an incompatible
 `engines.node` in the project or in a dependency fails the install. Optional
 dependencies are exempt. With it disabled, an incompatible `engines.node` in
-the project or a required dependency prints a warning.
+the project prints a warning. The required dependencies with an incompatible
+`engines.node` are listed at the end of the install output.
 
 In a workspace, these checks apply to every workspace project, even when
 `pnpm add` or `pnpm remove` changes only one of them. `pnpm run -r` and
