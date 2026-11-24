@@ -1,0 +1,26 @@
+lockfileVersion: '9.0'
+
+importers:
+  .:
+    devDependencies:
+      build-tool:
+        specifier: 1.0.0
+        version: 1.0.0
+    optionalDependencies:
+      runtime-addon:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+  build-tool@1.0.0: {resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}}
+  build-addon@1.0.0: {resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}}
+  runtime-addon@1.0.0: {resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}}
+
+snapshots:
+  build-tool@1.0.0:
+    optionalDependencies:
+      build-addon: 1.0.0
+  build-addon@1.0.0:
+    optional: true
+  runtime-addon@1.0.0:
+    optional: true

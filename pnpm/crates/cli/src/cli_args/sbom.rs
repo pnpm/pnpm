@@ -192,14 +192,11 @@ impl SbomArgs {
         IncludeFilter {
             dependencies: !self.dependencies.dev,
             dev_dependencies: !self.dependencies.prod,
-            // pnpm's config reader clears `optional` for a dev-only run,
-            // and leaves it alone for a production-only one.
-            optional_dependencies: !self.dependencies.dev
-                && resolve_bool_override(
-                    self.dependencies.optional,
-                    self.dependencies.no_optional,
-                    include_optional,
-                ),
+            optional_dependencies: resolve_bool_override(
+                self.dependencies.optional,
+                self.dependencies.no_optional,
+                include_optional,
+            ),
         }
     }
 }
