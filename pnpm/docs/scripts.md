@@ -111,11 +111,14 @@ sideEffectsCache:
 ```
 
 A repeat install does not rebuild a package that is already installed. After
-changing the variables, rebuild the package with them:
+changing the variables, rebuild the package in every project with them:
 
 ```sh
-pnpm --env-file .env.electron rebuild sqlite3
+pnpm --env-file .env.electron pm rebuild -r sqlite3
 ```
+
+[`pnpm pm`](./cli/pm.md) runs the built-in command even if `package.json`
+defines a `rebuild` script.
 
 ## Processes a script leaves running
 
