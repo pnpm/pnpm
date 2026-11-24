@@ -114,8 +114,8 @@ fn prod_leaves_out_a_deprecated_dev_dependency() {
     assert_success(&pnpm(&fixture.workspace, &["audit", "deprecations", "--prod"]));
 }
 
-/// The install cached the metadata of every package, so the audit reads
-/// it from the cache.
+/// The install cached the metadata of every package moments ago, so the
+/// audit reads it from the cache.
 #[test]
 fn reads_the_metadata_an_install_cached() {
     let fixture = CommandTempCwd::init().add_recording_mocked_registry();
@@ -127,4 +127,40 @@ fn reads_the_metadata_an_install_cached() {
 
     let requests = fixture.npmrc_info.mock_instance.take_requests();
     assert!(requests.is_empty(), "the audit asked the registry again: {requests:#?}");
+}
+
+/// Metadata cached more than five minutes ago is revalidated.
+#[test]
+fn revalidates_metadata_cached_long_ago() {
+    let fixture = CommandTempCwd::init().add_recording_mocked_registry();
+    write_project(&fixture.workspace, &serde_json::json!({ DEPRECATED: "1.0.0" }));
+    install(&fixture.workspace);
+    let _ = fixture.npmrc_info.mock_instance.take_requests();
+    let long_ago = std::time::SystemTime::now() - std::time::Duration::from_mins(10);
+    set_modified_under(&fixture.npmrc_info.cache_dir, long_ago);
+
+    assert_failure(&pnpm(&fixture.workspace, &["audit", "deprecations"]));
+
+    let requests = fixture.npmrc_info.mock_instance.take_requests();
+    assert!(
+        requests
+            .iter()
+            .any(|request| request.path.ends_with("deprecated")),
+        "the audit did not ask the registry: {requests:#?}",
+    );
+}
+
+fn set_modified_under(dir: &Path, time: std::time::SystemTime) {
+    for entry in fs::read_dir(dir).expect("read the cache directory") {
+        let path = entry.expect("read a cache entry").path();
+        if path.is_dir() {
+            set_modified_under(&path, time);
+        } else {
+            fs::File::options()
+                .write(true)
+                .open(&path)
+                .and_then(|file| file.set_modified(time))
+                .expect("age a cached file");
+        }
+    }
 }

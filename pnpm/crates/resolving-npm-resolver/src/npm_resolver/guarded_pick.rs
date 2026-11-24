@@ -89,6 +89,7 @@ impl<'a> PickFromRegistryOptions<'a> {
                 dry_run: opts.refresh.dry_run,
                 optional,
                 refresh_metadata: opts.refresh.refreshes_metadata(),
+                metadata_max_age: opts.refresh.metadata.max_age(),
                 update_checksums: opts.refresh.update_checksums
                     || opts.refresh.update == UpdateBehavior::Patches,
             },

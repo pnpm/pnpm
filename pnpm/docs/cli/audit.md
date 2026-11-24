@@ -50,7 +50,7 @@ pnpm audit deprecations
 
 Lists the installed packages that their registry marks as deprecated, with the message the publisher left. Each package shows the projects that depend on it directly, or a chain of packages that brings it in. When the package has a version that is not deprecated, the newest one is named.
 
-pnpm reads the registry metadata it caches during installation, so after an install most packages need no request. Tarball, git, and directory dependencies are skipped.
+pnpm reads registry metadata from its cache when that metadata is less than 5 minutes old, so right after an install no requests are needed. Older metadata is checked against the registry, so a package deprecated since then is reported. Tarball, git, and directory dependencies are skipped.
 
 The command exits with code `1` if any installed package is deprecated. `--prod`, `--dev`, `--no-optional`, `--json`, `--ignore-registry-errors`, and workspace filters apply to it.
 

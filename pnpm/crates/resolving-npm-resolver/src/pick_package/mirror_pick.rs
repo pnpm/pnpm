@@ -81,7 +81,7 @@ impl PickState<'_> {
                 spec_type: spec.spec_type,
                 include_latest_tag: opts.include_latest_tag,
                 update_checksums: opts.request.update_checksums,
-                refresh_metadata: opts.request.refresh_metadata,
+                refresh_metadata: self.cache_use.revalidate_mirror,
                 pick_lowest_version: opts.pick_lowest_version,
                 has_blocked_versions: opts.blocked_versions.is_some(),
             },

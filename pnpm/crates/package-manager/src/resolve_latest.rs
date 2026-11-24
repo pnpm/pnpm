@@ -161,6 +161,7 @@ impl<'a> LatestPicker<'a> {
                 dry_run,
                 optional: false,
                 refresh_metadata: false,
+                metadata_max_age: None,
                 update_checksums: false,
             },
         }

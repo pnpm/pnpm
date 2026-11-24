@@ -46,11 +46,20 @@ pub(super) struct PickState<'a> {
     /// `Private` route relocates it.
     pub(super) base_meta_dir: &'static str,
     pub(super) cache_key: String,
+    pub(super) cache_use: CacheUse,
+}
+
+/// Which caches may answer a pick.
+pub(super) struct CacheUse {
     /// `updateChecksums` must reach the conditional registry request, so it
     /// can't be served from the in-memory cache, which may hold a
     /// disk-promoted entry rather than a fresh network fetch (see the
     /// `update_checksums` doc).
-    pub(super) use_mem_cache: bool,
+    pub(super) memory: bool,
+    /// Whether the pick revalidates the mirror: the caller asked for it, or
+    /// the mirror is older than the caller's
+    /// [`MetadataPickRequest::metadata_max_age`](crate::MetadataPickRequest::metadata_max_age).
+    pub(super) revalidate_mirror: bool,
 }
 
 impl<'a> PickState<'a> {
@@ -111,9 +120,15 @@ impl<'a> PickState<'a> {
             scope,
             full_metadata,
             use_filtered_full_metadata,
-            pkg_mirror,
             base_meta_dir,
-            use_mem_cache: !opts.request.update_checksums,
+            cache_use: CacheUse {
+                memory: !opts.request.update_checksums,
+                revalidate_mirror: opts.request.refresh_metadata
+                    || opts.request.metadata_max_age.is_some_and(|max_age| {
+                        mirror_is_older_than(pkg_mirror.as_deref(), max_age)
+                    }),
+            },
+            pkg_mirror,
         }
     }
 
@@ -147,7 +162,7 @@ impl<'a> PickState<'a> {
         spec: &RegistryPackageSpec,
         opts: &PickPackageOptions<'_>,
     ) -> Result<Option<PickPackageResult>, PickPackageError> {
-        if !self.use_mem_cache {
+        if !self.cache_use.memory {
             return Ok(None);
         }
         let Some(cached) = ctx.metadata.meta_cache.get(&self.cache_key) else {
@@ -198,3 +213,15 @@ impl<'a> PickState<'a> {
         .await
     }
 }
+
+/// Whether the mirror at `path` was written more than `max_age` ago, or is
+/// missing.
+fn mirror_is_older_than(path: Option<&std::path::Path>, max_age: jiff::SignedDuration) -> bool {
+    let Some(mtime) = path.and_then(super::mirror_persistence::get_file_mtime) else {
+        return true;
+    };
+    jiff::Timestamp::now().duration_since(mtime) >= max_age
+}
+
+#[cfg(test)]
+mod tests;

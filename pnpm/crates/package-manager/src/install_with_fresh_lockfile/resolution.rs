@@ -206,7 +206,9 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             workspace_packages: self.setup.workspace_packages.clone(),
             update_checksums: self.install.update_checksums,
             update_behavior: resolver_update_behavior(&self.owned.resolution.update_seed_policy),
-            refresh_metadata: self.refreshes_metadata(),
+            metadata: pnpm_resolving_resolver_base::MetadataRefresh::always_when(
+                self.refreshes_metadata(),
+            ),
         }
     }
 

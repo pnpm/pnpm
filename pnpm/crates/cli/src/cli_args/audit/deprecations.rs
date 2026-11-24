@@ -23,6 +23,8 @@ use pnpm_package_manager::{
     create_configured_registry_resolver,
 };
 use pnpm_resolving_resolver_base::{
+    MetadataRefresh,
+    ResolutionRefreshOptions,
     ResolveOptions,
     ResolvedPackageInfo,
     WantedDependency,
@@ -36,6 +38,10 @@ use std::{
 
 /// How many registry lookups run at once.
 const CONCURRENT_LOOKUPS: usize = 16;
+
+/// How old cached registry metadata may be before the audit asks the
+/// registry again. Within it the audit reads what the last install cached.
+const METADATA_MAX_AGE: jiff::SignedDuration = jiff::SignedDuration::from_mins(5);
 
 /// How many projects a dependency's line names before it counts the rest.
 const MAX_LISTED_PROJECTS: usize = 3;
@@ -106,7 +112,13 @@ async fn look_up(
     let resolver =
         create_configured_registry_resolver(state.config, Arc::clone(&state.http_client), &policy)
             .map_err(miette::Report::new)?;
-    let options = ResolveOptions::default();
+    let options = ResolveOptions {
+        refresh: ResolutionRefreshOptions {
+            metadata: MetadataRefresh::OlderThan(METADATA_MAX_AGE),
+            ..ResolutionRefreshOptions::default()
+        },
+        ..ResolveOptions::default()
+    };
     let lookups: Vec<_> = stream::iter(installed)
         .map(|package| {
             let (resolver, options) = (&resolver, &options);

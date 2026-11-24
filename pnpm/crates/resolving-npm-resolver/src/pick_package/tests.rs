@@ -191,6 +191,7 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
             dry_run: false,
             optional: false,
             refresh_metadata: false,
+            metadata_max_age: None,
             update_checksums: false,
         },
     }
