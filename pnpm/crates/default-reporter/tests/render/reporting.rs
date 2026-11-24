@@ -773,13 +773,23 @@ fn a_later_install_of_the_same_project_counts_its_progress() {
     events.push(stage_at(CWD, Stage::ImportingDone));
     render(&mut reporter, events);
 
-    let mut events = vec![progress("found_in_store")];
+    let mut events = vec![stage_at(CWD, Stage::ImportingStarted), progress("found_in_store")];
     events.extend(stats_at(CWD, 1, 0));
     events.push(stage_at(CWD, Stage::ImportingDone));
     assert_eq!(
         render(&mut reporter, events),
         "Packages: +1 (100% downloaded)\n↓\nPackages: +1 (100% reused)\n+",
     );
+}
+
+#[test]
+fn progress_after_the_stats_of_a_finished_install_is_ignored() {
+    let mut reporter = state(false);
+    let mut events = vec![progress("fetched")];
+    events.extend(stats_at(CWD, 1, 0));
+    events.push(stage_at(CWD, Stage::ImportingDone));
+    events.push(progress("fetched"));
+    assert_eq!(render(&mut reporter, events), "Packages: +1 (100% downloaded)\n↓");
 }
 
 #[test]

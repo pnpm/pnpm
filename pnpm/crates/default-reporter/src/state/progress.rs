@@ -67,11 +67,6 @@ impl ReporterState {
             | ProgressMessage::Imported { requester, .. } => requester.clone(),
         };
         let entry = self.downloads.progress.entry(requester.clone()).or_default();
-        // A stats line counted this requester's last install, so this is
-        // a later install of it.
-        if entry.done && entry.reported {
-            *entry = super::ProgressEntry::default();
-        }
         if entry.done {
             return;
         }
@@ -97,35 +92,36 @@ impl ReporterState {
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
         match stage {
+            Stage::ResolutionStarted => {}
             Stage::ResolutionDone => self.flush_unused_overrides(),
-            Stage::ImportingDone => {
-                let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
-                if entry.reported {
-                    entry.done = true;
-                    self.display.frame.clear(&mut entry.slot);
-                    return;
-                }
-                let msg = self.downloads.progress_message(
-                    &self.rendering,
-                    &self.options.progress,
-                    prefix,
-                    true,
-                );
-                let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
-                let mut slot = std::mem::take(&mut entry.slot);
-                self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
-                if let Some(entry) = self.downloads.progress.get_mut(prefix) {
-                    entry.slot = slot;
-                    entry.done = true;
-                }
-                if self.downloads.importing_finished() {
-                    self.render_stats();
-                }
-            }
-            _ => {}
+            Stage::ImportingStarted => self.downloads.restart_finished(prefix),
+            Stage::ImportingDone => self.finish_importing(prefix),
         }
     }
 
+    /// Ends `prefix`'s progress line with `, done`, or drops it when a
+    /// stats line already counted it, and shows the stats once every
+    /// project finished.
+    fn finish_importing(&mut self, prefix: &str) {
+        let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
+        if entry.reported {
+            entry.done = true;
+            self.display.frame.clear(&mut entry.slot);
+            return;
+        }
+        let msg =
+            self.downloads.progress_message(&self.rendering, &self.options.progress, prefix, true);
+        let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
+        let mut slot = std::mem::take(&mut entry.slot);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
+        if let Some(entry) = self.downloads.progress.get_mut(prefix) {
+            entry.slot = slot;
+            entry.done = true;
+        }
+        if self.downloads.importing_finished() {
+            self.render_stats();
+        }
+    }
     // --- big tarballs -----------------------------------------------------
 
     pub(super) fn on_fetching(&mut self, message: &FetchingProgressMessage) {
@@ -363,6 +359,16 @@ impl DownloadState {
             msg = zoom_out(&rendering.cwd, requester, &msg);
         }
         msg
+    }
+
+    /// A later install of a project that finished starts its progress
+    /// afresh. Its earlier lines stay where they are.
+    fn restart_finished(&mut self, requester: &str) {
+        if let Some(entry) = self.progress.get_mut(requester)
+            && entry.done
+        {
+            *entry = super::ProgressEntry::default();
+        }
     }
 
     /// Marks the progress of `requesters`, whose stats a stats line
