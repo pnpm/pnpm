@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 //! Windows console events reach every attached process at once, so pnpm
 //! relays nothing. But a `cmd` hosting a batch script answers the event
 //! with a "Terminate batch job (Y/N)?" prompt and waits on the answer

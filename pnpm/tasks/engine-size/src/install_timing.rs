@@ -1,3 +1,4 @@
+#![allow(clippy::disallowed_methods, reason = "a development tool runs its own commands")]
 //! Wall-clock timings of the stripped probe installing a fixture.
 use command_extra::CommandExtra;
 

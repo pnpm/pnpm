@@ -126,6 +126,11 @@ pnpm waits for them, and further `Ctrl+C` escalate as described in
   cancelled tasks finish their grace, then releases the Job Object, so no exit
   ends what a command left running. `.config/clippy.toml` bans `std::process::exit`
   everywhere else, and `main` calls `before_exit` before it returns.
+- A child spawn goes through `pnpm_process::Command` or
+  `pnpm_process::asynchronous::Command`, the executor's single spawn point; on
+  Unix they hold the spawn lock while the spawn runs. `.config/clippy.toml`
+  bans `std::process::Command` and `tokio::process::Command` spawns everywhere
+  else.
 - [`interrupt/windows.rs`](./src/interrupt/windows.rs) releases the Job Object
   when the console closes, because the operating system ends the console's
   own processes itself.

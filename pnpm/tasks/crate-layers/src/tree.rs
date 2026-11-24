@@ -1,3 +1,4 @@
+#![allow(clippy::disallowed_methods, reason = "a development tool runs its own commands")]
 use command_extra::CommandExtra;
 use std::{
     collections::BTreeSet,

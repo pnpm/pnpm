@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 use crate::copy_dirent::{
     copy_dir_contents,
     copy_dirent,

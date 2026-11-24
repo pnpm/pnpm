@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 //! Rendering and config-file-editing tests for the POSIX path extender.
 //! The shell-detection / home-resolution wrapper reads process-global env
 //! state, so the tests exercise the pure renderers and the file editor

@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 //! Unit tests for the pure summary rendering and the alias-script writer.
 //! The full `setup` flow installs the CLI globally and edits the user's
 //! shell config, so it is exercised on a real host rather than here.

@@ -1,3 +1,4 @@
+#![allow(clippy::disallowed_methods, reason = "a development tool runs its own commands")]
 pub(crate) use peer_heavy::seed_peer_heavy_registry;
 
 use command_extra::CommandExtra;

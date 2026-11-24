@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 use super::{
     add_esm_node_path_loader_option,
     esm_node_path_loader_import_flag,

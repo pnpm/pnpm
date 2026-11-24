@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 //! Cross-process stress tests for [`pnpm_fs::ensure_file`].
 //!
 //! Pacquet's [`cas_write_lock`](pnpm_fs::ensure_file) is

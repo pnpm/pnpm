@@ -1,3 +1,7 @@
+#![allow(
+    clippy::disallowed_methods,
+    reason = "test setup starts processes the executor does not run"
+)]
 //! Cross-process test for the interrupt cleanup of the temp file that
 //! [`pnpm_fs::write_atomic`] stages next to its target
 //! ([pnpm/pnpm#1418](https://github.com/pnpm/pnpm/issues/1418)). The writer
