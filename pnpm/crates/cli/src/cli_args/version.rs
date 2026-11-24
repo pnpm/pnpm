@@ -43,7 +43,6 @@ use pnpm_publish::{
     Host,
     RunCommand,
     is_git_repo,
-    is_working_tree_clean,
 };
 use pnpm_versioning::{
     AssembleReleasePlanOptions,
@@ -166,14 +165,12 @@ impl VersionArgs {
         } else {
             parse_bump(raw)?
         };
-        if !self.dry_run
-            && config.git_checks
-            && !self.git.no_git_checks
-            && is_git_repo::<Host>(&git_cwd)
-            && !working_tree::can_bump(dir, config, recursive)?
-        {
-            return Err(VersionError::UncleanWorkingTree.into());
-        }
+        let check = if recursive {
+            working_tree::Scope::Repository
+        } else {
+            working_tree::Scope::Package(dir)
+        };
+        self.check_working_tree(config, &git_cwd, check)?;
 
         let changes = self.collect_version_changes::<Reporter>(&bump, config, dir, recursive)?;
         if changes.is_empty() {

@@ -84,19 +84,26 @@ where
 }
 
 /// Disk sources for a package whose file selection uses no pnpmfile hooks.
-/// Returns `None` when a pack lifecycle script can generate or change those sources.
+/// Returns `None` when a packing or publishing script can generate or change those sources.
 pub fn static_pack_sources(
     project_dir: &Path,
     workspace_dir: Option<&Path>,
     entry_manifest: &Value,
 ) -> Result<Option<impl Iterator<Item = PathBuf>>, PackError> {
-    if ["prepack", "prepare"]
+    if ["prepublishOnly", "prepublish", "prepack", "prepare"]
         .iter()
         .any(|stage| entry_manifest["scripts"][stage].is_string())
     {
         return Ok(None);
     }
     let source_dir = resolve_publish_directory(project_dir, entry_manifest)?;
+    if [project_dir, &source_dir]
+        .into_iter()
+        .map(pnpm_package_manifest::project_manifest_path)
+        .any(|manifest| manifest.is_symlink())
+    {
+        return Ok(None);
+    }
     let mut manifest = if source_dir == project_dir {
         entry_manifest.clone()
     } else {

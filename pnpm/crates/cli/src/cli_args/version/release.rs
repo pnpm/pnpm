@@ -4,7 +4,6 @@ use super::{
     Config,
     HashMap,
     HashSet,
-    Host,
     Path,
     VersionArgs,
     VersionChange,
@@ -14,8 +13,6 @@ use super::{
     changelog,
     confirmed_published_versions,
     discover_workspace_projects,
-    is_git_repo,
-    is_working_tree_clean,
     read_change_intents,
     read_ledger,
     render_release_plan,
@@ -303,14 +300,7 @@ impl VersionArgs {
             return Err(VersionError::ReleaseOutsideWorkspace.into());
         };
 
-        if !self.dry_run
-            && config.git_checks
-            && !self.git.no_git_checks
-            && is_git_repo::<Host>(&workspace_dir)
-            && !is_working_tree_clean::<Host>(&workspace_dir)
-        {
-            return Err(VersionError::UncleanWorkingTree.into());
-        }
+        self.check_working_tree(config, &workspace_dir, super::working_tree::Scope::Repository)?;
 
         plan_workspace_release(config, &workspace_dir).await?
             .apply::<Reporter>(self, config, (&workspace_dir, dir))

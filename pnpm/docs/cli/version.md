@@ -17,7 +17,7 @@ When run inside a git repository, `pnpm version` creates a git commit and an ann
 
 A single-package bump allows unstaged edits and untracked regular files inside the package when packing excludes them. For example, with `"files": ["dist"]`, you can leave a local `notes.txt` outside `dist`. An edit to `README.md` still blocks the bump because packing always includes it.
 
-Staged changes, deletions, changes outside the package, and changes to ignore rules still block the bump. Recursive bumps require a clean working tree. The same requirement applies when version or packing hooks can change what gets packed.
+Staged changes, deletions, changes outside the package, and changes to ignore rules still block the bump. Recursive bumps require a clean working tree. The same requirement applies when version, packing, or publishing hooks can change what gets packed.
 
 ## Usage
 
@@ -97,7 +97,7 @@ Sign the generated git tag with GPG (`git tag -s`).
 
 ### --no-git-checks
 
-Do not check whether the working tree is clean before bumping the version. Without this option, a dirty working tree fails with `ERR_PNPM_UNCLEAN_WORKING_TREE`.
+Skip the working-tree check before bumping the version. Use this option to proceed after `ERR_PNPM_UNCLEAN_WORKING_TREE`.
 
 ### --allow-same-version
 

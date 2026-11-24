@@ -17,6 +17,14 @@ use super::{
 };
 use pnpm_testing_utils::command_env::CommandTestExt;
 
+#[track_caller]
+fn assert_unclean_working_tree(dir: &Path) {
+    let output = pacquet_version(dir, &["patch"]);
+    let stderr = stderr_of(&output);
+    assert!(!output.status.success(), "expected an unclean working tree: {output:?}");
+    assert!(stderr.contains("ERR_PNPM_UNCLEAN_WORKING_TREE"), "{stderr}");
+}
+
 #[test]
 fn version_leaves_excluded_files_unstaged() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -38,9 +46,7 @@ fn version_leaves_excluded_files_unstaged() {
     assert_eq!(git_stdout(&workspace, &["status", "--porcelain"]), "M notes.txt\n?? scratch.txt");
 
     git_stdout(&workspace, &["add", "notes.txt"]);
-    let output = pacquet_version(&workspace, &["patch"]);
-    assert!(!output.status.success());
-    assert!(stderr_of(&output).contains("ERR_PNPM_UNCLEAN_WORKING_TREE"));
+    assert_unclean_working_tree(&workspace);
     assert_eq!(manifest_version(&workspace), "1.0.1");
     drop(root);
 }
@@ -53,10 +59,7 @@ fn version_rejects_untracked_package_files_and_changes_to_pack_rules() {
     git_commit_all(&workspace, "init");
     for path in ["notes.txt", ".npmignore"] {
         fs::write(workspace.join(path), "*.txt").expect("write untracked file");
-        let output = pacquet_version(&workspace, &["patch"]);
-        assert!(!output.status.success());
-        let stderr = stderr_of(&output);
-        assert!(stderr.contains("ERR_PNPM_UNCLEAN_WORKING_TREE"), "{stderr}");
+        assert_unclean_working_tree(&workspace);
         fs::remove_file(workspace.join(path)).expect("remove fixture file");
     }
     assert_eq!(manifest_version(&workspace), "1.0.0");
@@ -78,9 +81,7 @@ fn nested_package_honors_npmignore_but_still_checks_required_files() {
     assert!(output.status.success(), "{}", stderr_of(&output));
 
     fs::write(package.join("README.txt"), "readme").expect("write required file");
-    let output = pacquet_version(&package, &["patch"]);
-    assert!(!output.status.success());
-    assert!(stderr_of(&output).contains("ERR_PNPM_UNCLEAN_WORKING_TREE"));
+    assert_unclean_working_tree(&package);
     assert_eq!(manifest_version(&package), "1.0.1");
     drop(root);
 }
@@ -106,11 +107,26 @@ fn version_checks_files_in_the_publish_directory_with_publish_overrides() {
     assert!(output.status.success(), "{}", stderr_of(&output));
 
     fs::write(dist.join("entry.js"), "export {}").expect("write published entry point");
-    let output = pacquet_version(&workspace, &["patch"]);
-    assert!(!output.status.success());
-    assert!(stderr_of(&output).contains("ERR_PNPM_UNCLEAN_WORKING_TREE"));
+    assert_unclean_working_tree(&workspace);
     assert_eq!(manifest_version(&workspace), "1.0.1");
     drop(root);
+}
+
+#[test]
+fn version_requires_a_clean_tree_when_publication_inputs_are_unknown() {
+    for manifest in [
+        r#"{"name":"test-pkg","version":"1.0.0","publishConfig":{"directory":"dist"}}"#,
+        r#"{"name":"test-pkg","version":"1.0.0","files":["dist"],"scripts":{"prepublishOnly":"build"}}"#,
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        init_git(&workspace);
+        write_manifest(&workspace, manifest);
+        git_commit_all(&workspace, "init");
+        fs::write(workspace.join("local.txt"), "edited").expect("write local file");
+        assert_unclean_working_tree(&workspace);
+        assert_eq!(manifest_version(&workspace), "1.0.0");
+        drop(root);
+    }
 }
 
 #[test]
@@ -350,17 +366,11 @@ fn unclean_working_tree_fails_unless_git_checks_are_disabled() {
     fs::write(workspace.join("dirty.txt"), "x").expect("write file");
     git_stdout(&workspace, &["add", "dirty.txt"]);
 
-    let output = pacquet_version(&workspace, &["patch"]);
-    assert!(!output.status.success(), "an unclean tree must fail");
-    let stderr = stderr_of(&output);
-    assert!(stderr.contains("ERR_PNPM_UNCLEAN_WORKING_TREE"), "{stderr}");
+    assert_unclean_working_tree(&workspace);
 
     git_commit_all(&workspace, "track file");
     fs::write(workspace.join("dirty.txt"), "edited").expect("modify tracked file");
-    let output = pacquet_version(&workspace, &["patch"]);
-    assert!(!output.status.success(), "a modified tracked file must block the bump");
-    let stderr = stderr_of(&output);
-    assert!(stderr.contains("ERR_PNPM_UNCLEAN_WORKING_TREE"), "{stderr}");
+    assert_unclean_working_tree(&workspace);
 
     let output = pacquet_version(&workspace, &["patch", "--no-git-checks", "--no-git-tag-version"]);
     assert!(output.status.success(), "{}", stderr_of(&output));
