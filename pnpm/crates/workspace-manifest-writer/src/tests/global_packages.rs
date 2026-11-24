@@ -15,9 +15,24 @@ fn run(original: Option<&str>, entries: &[(&str, bool)]) -> Option<String> {
         fs::create_dir_all(path.parent().expect("config dir")).expect("create config dir");
         fs::write(&path, text).expect("seed config.yaml");
     }
-    crate::set_global_packages_build_permissions(&path, entries.iter().copied())
+    crate::set_global_packages_permissions(&path, &build_decisions(entries))
         .expect("update succeeds");
     fs::read_to_string(&path).ok()
+}
+
+fn build_decisions(
+    entries: &[(&str, bool)],
+) -> std::collections::BTreeMap<String, pnpm_config::PackagePermissions> {
+    entries
+        .iter()
+        .map(|&(name, allowed)| {
+            let decision = pnpm_config::PackagePermissions {
+                build: Some(pnpm_config::AllowBuild::Decided(allowed)),
+                ..Default::default()
+            };
+            (name.to_string(), decision)
+        })
+        .collect()
 }
 
 #[test]
@@ -100,9 +115,11 @@ fn leaves_the_file_untouched_when_nothing_changes() {
 fn refuses_a_name_with_a_control_character() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join("config.yaml");
-    let error =
-        crate::set_global_packages_build_permissions(&path, [("evil\nstoreDir: /tmp", true)])
-            .expect_err("a newline in a name is refused");
+    let error = crate::set_global_packages_permissions(
+        &path,
+        &build_decisions(&[("evil\nstoreDir: /tmp", true)]),
+    )
+    .expect_err("a newline in a name is refused");
     assert!(
         matches!(error, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }),
         "{error:?}",

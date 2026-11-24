@@ -15,7 +15,6 @@ pub use build_settings::{
     scaffold_allow_builds,
     set_allow_builds,
     set_allow_builds_clearing_legacy,
-    set_global_packages_build_permissions,
     set_global_packages_permissions,
     set_global_packages_skills_dirs,
     set_permissions,

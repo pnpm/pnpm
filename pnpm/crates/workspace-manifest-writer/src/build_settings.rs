@@ -55,33 +55,6 @@ where
     update_allow_builds(dir, entries, false)
 }
 
-/// Record `name → bool` build decisions as
-/// `globalPackagesConfig.permissions.<name>.build` in the global
-/// `config.yaml` at `path`, creating the file, its directory, and the
-/// section if absent. Preserves the rest of the document's formatting, and
-/// writes the file back only when something changed.
-pub fn set_global_packages_build_permissions<'a, Entries>(
-    path: &Path,
-    entries: Entries,
-) -> Result<(), UpdateWorkspaceManifestError>
-where
-    Entries: IntoIterator<Item = (&'a str, bool)>,
-{
-    let decisions = entries
-        .into_iter()
-        .map(|(name, allowed)| {
-            (
-                name.to_string(),
-                PackagePermissions {
-                    build: Some(AllowBuild::Decided(allowed)),
-                    ..Default::default()
-                },
-            )
-        })
-        .collect::<std::collections::BTreeMap<_, _>>();
-    set_global_packages_permissions(path, &decisions)
-}
-
 /// Record `globalPackagesConfig.permissions` decisions in the global
 /// `config.yaml` at `path`, creating the file, its directory, and the
 /// section if absent. Preserves the rest of the document's formatting, and
