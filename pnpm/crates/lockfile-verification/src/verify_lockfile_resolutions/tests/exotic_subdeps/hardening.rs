@@ -18,7 +18,6 @@ use crate::{
     ExoticSubdepsPolicy,
     ExoticSubdepsScope,
     lockfile_verification_is_cached,
-    record_lockfile_verified_by_content,
 };
 
 #[tokio::test]
@@ -313,10 +312,10 @@ async fn non_registry_exotic_child_cannot_spoof_is_replaced_via_semver_version()
 }
 
 #[tokio::test]
-async fn changing_known_importer_ids_invalidates_verification_cache() {
+async fn workspace_discovery_rechecks_exotic_subdeps_and_reuses_registry_verification() {
     let dir = TempDir::new().expect("tempdir");
     let lockfile_path = dir.path().join("pnpm-lock.yaml");
-    let raw = "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      safe: {specifier: 1.0.0, version: 1.0.0}\npackages:\n  safe@1.0.0:\n    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}\nsnapshots:\n  safe@1.0.0: {}\n";
+    let raw = "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/a:\n    dependencies:\n      safe: {specifier: 1.0.0, version: 1.0.0}\npackages:\n  safe@1.0.0:\n    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}\nsnapshots:\n  safe@1.0.0: {}\n";
     std::fs::write(&lockfile_path, raw).expect("write lockfile");
     let lockfile = parse(raw);
     let cache_dir = dir.path().join("cache");
@@ -335,24 +334,42 @@ async fn changing_known_importer_ids_invalidates_verification_cache() {
         std::iter::empty(),
     ));
 
-    record_lockfile_verified_by_content(
-        Some(&cache_dir),
+    verify_lockfile_resolutions::<SilentReporter>(
         &lockfile,
         std::slice::from_ref(&verifier),
-        &wide,
-    );
+        &VerifyLockfileResolutionsOptions {
+            cache_dir: Some(&cache_dir),
+            exotic_subdeps: narrow.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("verify before discovering workspace manifests");
     assert!(lockfile_verification_is_cached(
-        &cache_dir,
-        &lockfile_path,
-        &lockfile,
-        std::slice::from_ref(&verifier),
-        &wide,
-    ));
-    assert!(!lockfile_verification_is_cached(
         &cache_dir,
         &lockfile_path,
         &lockfile,
         std::slice::from_ref(&verifier),
         &narrow,
     ));
+    assert!(!lockfile_verification_is_cached(
+        &cache_dir,
+        &lockfile_path,
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &wide,
+    ));
+
+    let offline = FailFor::new("OFFLINE", "registry unavailable", vec!["safe"]);
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[offline as Arc<dyn ResolutionVerifier>],
+        &VerifyLockfileResolutionsOptions {
+            cache_dir: Some(&cache_dir),
+            exotic_subdeps: wide,
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("rechecking workspace scope should reuse registry verification");
 }

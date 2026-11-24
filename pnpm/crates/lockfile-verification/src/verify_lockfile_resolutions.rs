@@ -327,12 +327,10 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     let lockfile_path_str =
         opts.lockfile_path.map(Path::to_string_lossy).map(std::borrow::Cow::into_owned);
 
-    let CacheOutcome::Miss(cache_precomputed) = reuse_cached_verdict::<Reporter>(
-        cache_target,
-        &cache_verifiers,
-        &mut hash_once,
-        CachedVerdict { has_policy_verifiers, lockfile_path: lockfile_path_str.as_ref() },
-    ) else {
+    let verdict = CachedVerdict { has_policy_verifiers, lockfile_path: lockfile_path_str.as_ref() };
+    let CacheOutcome::Miss(cache_precomputed) =
+        reuse_cached_verdict::<Reporter>(cache_target, &cache_verifiers, &mut hash_once, verdict)
+    else {
         return Ok(());
     };
 
@@ -355,14 +353,16 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    let violations =
-        verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
-            .await?;
-    if violations.is_empty() {
-        record_verdict(cache_target, &cache_verifiers, &mut hash_once, cache_precomputed);
+    if opts.exotic_subdeps.is_enforced()
+        && reuse_registry_verdict::<Reporter>(cache_target, verifiers, &mut hash_once, verdict)
+    {
         return Ok(());
     }
-    Err(build_verification_error(violations))
+
+    verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
+        .await?;
+    record_verdict(cache_target, &cache_verifiers, &mut hash_once, cache_precomputed);
+    Ok(())
 }
 
 fn shape_context_from_policy<'p>(
@@ -445,17 +445,18 @@ async fn verify_candidates<Reporter: self::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     concurrency: Option<usize>,
     lockfile_path_str: Option<String>,
-) -> Result<Vec<ResolutionPolicyViolation>, VerifyError> {
+) -> Result<(), VerifyError> {
     let mut progress =
         VerificationProgress::<Reporter>::start(candidates.len() as u64, lockfile_path_str);
     let violations =
         run_fan_out(candidates, verifiers, concurrency, &mut || progress.entry_checked())
             .await
             .map_err(|message| VerifyError::RegistryMetaFetchFailed { message })?;
-    if violations.is_empty() {
-        progress.pass();
+    if !violations.is_empty() {
+        return Err(build_verification_error(violations));
     }
-    Ok(violations)
+    progress.pass();
+    Ok(())
 }
 
 enum CacheOutcome {
@@ -472,6 +473,26 @@ struct CachedVerdict<'a> {
 fn memoized_lockfile_hash(lockfile: &Lockfile) -> impl FnMut() -> String + '_ {
     let mut cached_hash: Option<String> = None;
     move || cached_hash.get_or_insert_with(|| hash_lockfile(lockfile)).clone()
+}
+
+/// After the exotic-subdependency scan passes for this workspace, a registry
+/// verdict can cover the lockfile even when fetch saw different importers.
+fn reuse_registry_verdict<Reporter: self::Reporter>(
+    cache_target: Option<(&Path, Option<(&Path, &LockfileStat)>)>,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    hash_once: &mut impl FnMut() -> String,
+    verdict: CachedVerdict<'_>,
+) -> bool {
+    cache_target.is_some()
+        && matches!(
+            reuse_cached_verdict::<Reporter>(
+                cache_target,
+                &with_offline_check_cache_identities(verifiers),
+                hash_once,
+                verdict,
+            ),
+            CacheOutcome::Hit,
+        )
 }
 
 fn reuse_cached_verdict<Reporter: self::Reporter>(
