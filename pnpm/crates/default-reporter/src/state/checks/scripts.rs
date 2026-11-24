@@ -18,31 +18,117 @@ use super::{
 #[derive(Default)]
 pub(super) struct ScriptsRun {
     /// `<project> <stage>` of every project script that succeeded.
-    projects: BTreeSet<String>,
-    /// `name@version` of every dependency whose scripts succeeded, by
-    /// lockfile key, since peer variants share the label.
-    built: BTreeMap<String, String>,
+    projects: Labels,
+    /// The project scripts running now, labeled like `projects`.
+    running_projects: Labels,
+    dependencies: DependencyBuilds,
     /// `name@version` of every dependency whose build output came from
     /// the side-effects cache.
     cached: BTreeSet<String>,
     /// `name@version` of every optional dependency skipped because its
     /// build failed.
     failed_optional: BTreeSet<String>,
-    /// The project scripts running now, labeled like `projects`.
-    running_projects: BTreeSet<String>,
-    /// The dependency builds running now, by the directory their scripts
-    /// run in, since the hoisted linker builds each copy of a package.
-    building: BTreeMap<String, DependencyBuild>,
-    /// The lockfile key of every directory a dependency build ran in, which
-    /// is how the skip event of a project-local build names it.
-    keys: BTreeMap<String, String>,
     /// The frame of the spinner the lines of running scripts show.
     spinner: usize,
+}
+
+/// Display labels with how many entries carry each, kept up to date as
+/// entries come and go, so a redraw reads them without collecting.
+#[derive(Default)]
+struct Labels(BTreeMap<String, usize>);
+
+impl Labels {
+    fn add(&mut self, label: String) {
+        *self.0.entry(label).or_default() += 1;
+    }
+
+    fn remove(&mut self, label: &str) {
+        let Some(count) = self.0.get_mut(label) else { return };
+        *count -= 1;
+        if *count == 0 {
+            self.0.remove(label);
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn names(&self) -> impl ExactSizeIterator<Item = &String> {
+        self.0.keys()
+    }
+}
+
+/// The dependency builds of the command. Peer variants share a
+/// `name@version` label, and the hoisted linker builds each copy of a
+/// package in its own directory, so builds are kept by lockfile key and
+/// by directory, with their labels counted for display.
+#[derive(Default)]
+struct DependencyBuilds {
+    /// The label of every dependency whose scripts succeeded, by lockfile
+    /// key.
+    built: BTreeMap<String, String>,
+    built_labels: Labels,
+    /// The builds running now, by the directory their scripts run in.
+    building: BTreeMap<String, DependencyBuild>,
+    building_labels: Labels,
+    /// The lockfile key of every directory a build ran in, which is how
+    /// the skip event of a project-local build names it.
+    keys: BTreeMap<String, String>,
 }
 
 struct DependencyBuild {
     label: String,
     key: String,
+}
+
+impl DependencyBuilds {
+    fn start(&mut self, key: &str, dir: &str, label: String) {
+        self.keys.insert(dir.to_string(), key.to_string());
+        let build = DependencyBuild { label: label.clone(), key: key.to_string() };
+        if let Some(previous) = self.building.insert(dir.to_string(), build) {
+            self.building_labels.remove(&previous.label);
+        }
+        self.building_labels.add(label);
+    }
+
+    fn finish(&mut self, dir: &str) {
+        if let Some(build) = self.building.remove(dir) {
+            self.building_labels.remove(&build.label);
+        }
+    }
+
+    fn succeed(&mut self, key: &str, label: String) {
+        if let Some(previous) = self.built.insert(key.to_string(), label.clone()) {
+            self.built_labels.remove(&previous);
+        }
+        self.built_labels.add(label);
+    }
+
+    /// Drops the result and the running copies of the build `id` names:
+    /// its lockfile key, or the directory of one of its copies.
+    fn retract(&mut self, id: &str) {
+        let key = self.keys
+            .get(id)
+            .map(String::as_str)
+            .unwrap_or(id)
+            .to_string();
+        if let Some(label) = self.built.remove(&key) {
+            self.built_labels.remove(&label);
+        }
+        let building_labels = &mut self.building_labels;
+        self.building.retain(|_, build| {
+            let retracted = build.key == key;
+            if retracted {
+                building_labels.remove(&build.label);
+            }
+            !retracted
+        });
+    }
 }
 
 /// Whether a lifecycle script belongs to a workspace project or builds a
@@ -91,24 +177,23 @@ const DEPENDENCY_BUILDS: ScriptWords = ScriptWords {
 
 impl ReporterState {
     pub(in crate::state) fn record_project_script(&mut self, label: &str) {
-        self.notices.checks.scripts.projects.insert(sanitize(label));
+        let projects = &mut self.notices.checks.scripts.projects;
+        let label = sanitize(label);
+        if !projects.0.contains_key(&label) {
+            projects.add(label);
+        }
     }
 
     pub(in crate::state) fn record_dependency_built(&mut self, script: &RunningScript<'_>) {
-        self.notices.checks.scripts.built.insert(script.id.to_string(), sanitize(script.label));
+        self.notices.checks.scripts.dependencies.succeed(script.id, sanitize(script.label));
     }
 
     pub(in crate::state) fn record_script_started(&mut self, script: &RunningScript<'_>) {
         let scripts = &mut self.notices.checks.scripts;
         match script.kind {
-            ScriptKind::Project => {
-                scripts.running_projects.insert(sanitize(script.label));
-            }
+            ScriptKind::Project => scripts.running_projects.add(sanitize(script.label)),
             ScriptKind::Dependency => {
-                let build =
-                    DependencyBuild { label: sanitize(script.label), key: script.id.to_string() };
-                scripts.building.insert(script.dir.to_string(), build);
-                scripts.keys.insert(script.dir.to_string(), script.id.to_string());
+                scripts.dependencies.start(script.id, script.dir, sanitize(script.label));
             }
         }
     }
@@ -116,12 +201,8 @@ impl ReporterState {
     pub(in crate::state) fn record_script_finished(&mut self, script: &RunningScript<'_>) {
         let scripts = &mut self.notices.checks.scripts;
         match script.kind {
-            ScriptKind::Project => {
-                scripts.running_projects.remove(&sanitize(script.label));
-            }
-            ScriptKind::Dependency => {
-                scripts.building.remove(script.dir);
-            }
+            ScriptKind::Project => scripts.running_projects.remove(&sanitize(script.label)),
+            ScriptKind::Dependency => scripts.dependencies.finish(script.dir),
         }
     }
 
@@ -136,13 +217,7 @@ impl ReporterState {
         version: &str,
     ) {
         let scripts = &mut self.notices.checks.scripts;
-        let key = scripts.keys
-            .get(id)
-            .map(String::as_str)
-            .unwrap_or(id)
-            .to_string();
-        scripts.built.remove(&key);
-        scripts.building.retain(|_, build| build.key != key);
+        scripts.dependencies.retract(id);
         scripts.failed_optional.insert(sanitize(&format!("{name}@{version}")));
     }
 
@@ -154,7 +229,8 @@ impl ReporterState {
         self.options.lifecycle.summarize_scripts
             && !self.options.append_only
             && !self.notices.checks.rendered
-            && (!scripts.running_projects.is_empty() || !scripts.building.is_empty())
+            && (!scripts.running_projects.is_empty()
+                || !scripts.dependencies.building.is_empty())
     }
 
     /// Advances the spinner of the running scripts and redraws the live
@@ -183,9 +259,10 @@ impl ReporterState {
             &PROJECT_SCRIPTS,
             str::to_string,
         );
+        let dependencies = &scripts.dependencies;
         let built = self.script_line(
-            &labels(scripts.built.values()),
-            &labels(scripts.building.values().map(|build| &build.label)),
+            &dependencies.built_labels,
+            &dependencies.building_labels,
             &DEPENDENCY_BUILDS,
             |label| self.package_label(label),
         );
@@ -199,7 +276,7 @@ impl ReporterState {
                 "{} {} {noun} {verb}: {}",
                 self.rendering.colors.green("✓"),
                 scripts.cached.len(),
-                list_names(&scripts.cached, |label| self.package_label(label)),
+                list_names(scripts.cached.iter(), |label| self.package_label(label)),
             )
         });
         [projects, built, cached]
@@ -212,12 +289,12 @@ impl ReporterState {
     /// while any runs, then a `✓` with the finished ones.
     fn script_line(
         &self,
-        finished: &BTreeSet<String>,
-        running: &BTreeSet<String>,
+        finished: &Labels,
+        running: &Labels,
         words: &ScriptWords,
         paint: impl Fn(&str) -> String,
     ) -> Option<String> {
-        let count = |names: &BTreeSet<String>, (one, many): (&'static str, &'static str)| {
+        let count = |names: &Labels, (one, many): (&'static str, &'static str)| {
             format!("{} {}", names.len(), if names.len() == 1 { one } else { many })
         };
         if running.is_empty() {
@@ -227,7 +304,7 @@ impl ReporterState {
                     self.rendering.colors.green("✓"),
                     count(finished, words.noun),
                     pick(finished, words.finished),
-                    list_names(finished, &paint),
+                    list_names(finished.names(), &paint),
                 )
             });
         }
@@ -246,7 +323,7 @@ impl ReporterState {
             "{} {done}{running_count} {}: {}",
             self.rendering.colors.green(spinner),
             pick(running, words.running),
-            list_names(running, &paint),
+            list_names(running.names(), &paint),
         ))
     }
 
@@ -262,16 +339,12 @@ impl ReporterState {
                 "{} {} {noun} {verb}: {}",
                 self.rendering.colors.red("✗"),
                 failed.len(),
-                list_names(failed, |label| self.package_label(label)),
+                list_names(failed.iter(), |label| self.package_label(label)),
             )
         })
     }
 }
 
-fn pick(names: &BTreeSet<String>, (one, many): (&'static str, &'static str)) -> &'static str {
+fn pick(names: &Labels, (one, many): (&'static str, &'static str)) -> &'static str {
     if names.len() == 1 { one } else { many }
-}
-
-fn labels<'a>(labels: impl Iterator<Item = &'a String>) -> BTreeSet<String> {
-    labels.cloned().collect()
 }

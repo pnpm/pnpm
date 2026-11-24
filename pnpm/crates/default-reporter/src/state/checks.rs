@@ -226,7 +226,7 @@ impl ReporterState {
                 "{} {} {noun} {verb} deprecated: {}",
                 self.rendering.colors.red("✗"),
                 deprecated.len(),
-                list_names(deprecated, |label| self.package_label(label)),
+                list_names(deprecated.iter(), |label| self.package_label(label)),
             )
         })
     }
@@ -257,7 +257,7 @@ impl ReporterState {
             "{} {} {noun} {verb} {requirement}: {}",
             self.rendering.colors.red("✗"),
             packages.len(),
-            list_names(packages, |label| self.package_label(label)),
+            list_names(packages.iter(), |label| self.package_label(label)),
         )
     }
 
@@ -278,7 +278,7 @@ impl ReporterState {
         Some(format!(
             "{cross} {} {noun} {verb} issues: {} {see}",
             peers.len(),
-            list_names(peers, |name| self.rendering.colors.package_name(name)),
+            list_names(peers.iter(), |name| self.rendering.colors.package_name(name)),
         ))
     }
 
@@ -294,7 +294,7 @@ impl ReporterState {
                 "{} {} {noun} {verb}: {} {}",
                 self.rendering.colors.grey("·"),
                 outdated.len(),
-                list_names(&outdated, |name| self.rendering.colors.package_name(name)),
+                list_names(outdated.iter(), |name| self.rendering.colors.package_name(name)),
                 self.see("pnpm outdated"),
             )
         })
@@ -438,13 +438,16 @@ fn sanitize(text: &str) -> String {
 
 /// At most [`MAX_LISTED`] names, each through `paint`, then a count of
 /// the rest.
-fn list_names(names: &BTreeSet<String>, paint: impl Fn(&str) -> String) -> String {
+fn list_names<'a>(
+    names: impl ExactSizeIterator<Item = &'a String>,
+    paint: impl Fn(&str) -> String,
+) -> String {
+    let total = names.len();
     let listed: Vec<String> = names
-        .iter()
         .take(MAX_LISTED)
         .map(|name| paint(name))
         .collect();
-    let rest = names.len() - listed.len();
+    let rest = total - listed.len();
     match listed.as_slice() {
         [] => String::new(),
         [only] => only.clone(),
