@@ -348,19 +348,19 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     let CollectedCandidates { candidates, skipped_replaced } =
         collect_candidates_to_verify(lockfile, opts.replaced, &opts.exotic_subdeps)?;
     let cache_target = cache_target.filter(|_| !skipped_replaced);
-    if verifiers.is_empty() || candidates.is_empty() {
-        record_verdict(cache_target, &cache_verifiers, &mut hash_once, cache_precomputed);
-        return Ok(());
+    let registry_verified = verifiers.is_empty()
+        || candidates.is_empty()
+        || (opts.exotic_subdeps.is_enforced()
+            && reuse_registry_verdict::<Reporter>(
+                cache_target,
+                verifiers,
+                &mut hash_once,
+                verdict,
+            ));
+    if !registry_verified {
+        verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
+            .await?;
     }
-
-    if opts.exotic_subdeps.is_enforced()
-        && reuse_registry_verdict::<Reporter>(cache_target, verifiers, &mut hash_once, verdict)
-    {
-        return Ok(());
-    }
-
-    verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
-        .await?;
     record_verdict(cache_target, &cache_verifiers, &mut hash_once, cache_precomputed);
     Ok(())
 }

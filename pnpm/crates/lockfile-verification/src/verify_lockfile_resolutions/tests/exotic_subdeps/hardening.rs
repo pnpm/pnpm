@@ -366,10 +366,21 @@ async fn workspace_discovery_rechecks_exotic_subdeps_and_reuses_registry_verific
         &[offline as Arc<dyn ResolutionVerifier>],
         &VerifyLockfileResolutionsOptions {
             cache_dir: Some(&cache_dir),
-            exotic_subdeps: wide,
+            lockfile_path: Some(&lockfile_path),
+            lockfile_stat: Some(crate::stat_from_metadata(
+                &std::fs::metadata(&lockfile_path).unwrap(),
+            )),
+            exotic_subdeps: wide.clone(),
             ..Default::default()
         },
     )
     .await
     .expect("rechecking workspace scope should reuse registry verification");
+    assert!(lockfile_verification_is_cached(
+        &cache_dir,
+        &lockfile_path,
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &wide,
+    ));
 }
