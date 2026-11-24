@@ -27,6 +27,8 @@ import path from 'node:path'
 import process from 'node:process'
 import { setImmediate } from 'node:timers/promises'
 import { URL } from 'node:url'
+import { getSystemErrorName } from 'node:util'
+import { isMainThread } from 'node:worker_threads'
 import { readWrapperManifest, resolveInstalledBinary, wrapperDir } from '../native-binary.mjs'
 
 // Deliberately not the `pnpm` placeholder that `install.js` overwrites: a name
@@ -35,6 +37,7 @@ const DOWNLOADED_BINARY = path.join(
   wrapperDir,
   process.platform === 'win32' ? 'pnpm-native.exe' : 'pnpm-native'
 )
+const UNIX_SHELL = process.platform === 'android' ? '/system/bin/sh' : '/bin/sh'
 const GET_PNPM = new URL('../dist/node_modules/get-pnpm/lib/index.js', import.meta.url)
 
 if ('webcontainer' in process.versions) {
@@ -43,14 +46,36 @@ if ('webcontainer' in process.versions) {
 await run(await nativeBinary())
 
 async function run (binary) {
+  const args = process.argv.slice(2)
+  const env = childEnv(binary) ?? process.env
+  // Keep the caller's PID and foreground group so both PID-directed and
+  // terminal signals reach the binary exactly once.
+  if (isMainThread && typeof process.execve === 'function' && !['win32', 'os400'].includes(process.platform)) {
+    try {
+      fs.accessSync(binary, fs.constants.X_OK)
+      // Node can put inherited pipes in nonblocking mode when it opens
+      // the streams. Process replacement preserves those descriptor flags.
+      for (const stream of [process.stdin, process.stdout, process.stderr]) {
+        const status = stream._handle?.setBlocking?.(true)
+        if (status < 0) throw new Error(`Could not set fd ${stream.fd} to blocking mode: ${getSystemErrorName(status)}`)
+      }
+      // Some Node.js releases abort on execve failure. Let the system shell
+      // report an invalid binary or missing loader when one is available.
+      if (fs.existsSync(UNIX_SHELL)) {
+        process.execve(UNIX_SHELL, [UNIX_SHELL, '-c', 'exec "$@"', 'pnpm', binary, ...args], env)
+      } else {
+        process.execve(binary, [binary, ...args], env)
+      }
+    } catch (error) {
+      fail(`Could not run the pnpm binary at ${binary}: ${error.message}`)
+    }
+  }
   // Ctrl-C reaches the whole foreground process group, so the binary gets its
   // own SIGINT; exiting here first would hand the terminal back while it is
   // still shutting down.
   let interrupted = false
   const onInterrupt = () => { interrupted = true }
   process.on('SIGINT', onInterrupt)
-  const args = process.argv.slice(2)
-  const env = childEnv(binary)
   let result = process.platform === 'win32'
     ? spawnSync(binary, args, { stdio: 'inherit', env })
     : await runUnix(binary, args, env, () => interrupted)
@@ -104,8 +129,7 @@ async function runUnix (binary, args, env, wasInterrupted) {
   }
   // Keep the child in the foreground group and hold it at a pipe until Node
   // has had a chance to dispatch a SIGINT received before the child existed.
-  const shell = process.platform === 'android' ? '/system/bin/sh' : '/bin/sh'
-  const child = spawn(shell, ['-c', 'read -r launch <&3 || exit 130\nexec 3<&-\nexec "$@"', 'pnpm', binary, ...args], {
+  const child = spawn(UNIX_SHELL, ['-c', 'read -r launch <&3 || exit 130\nexec 3<&-\nexec "$@"', 'pnpm', binary, ...args], {
     stdio: ['inherit', 'inherit', 'inherit', 'pipe'],
     env,
   })

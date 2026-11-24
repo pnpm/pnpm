@@ -84,6 +84,9 @@ loop, does not stop the script ([#18221](https://github.com/pnpm/pnpm/issues/182
 Press `Ctrl+C` a second time to stop it. Without a terminal, send `SIGTERM` to
 pnpm instead. A script that traps `SIGTERM` keeps running.
 
+On Unix, when Corepack runs on Node.js with `process.execve` support, a supervisor
+can send `SIGINT` or `SIGTERM` directly to the pnpm PID.
+
 ## Environment
 
 There are some environment variables that pnpm automatically creates for the executed scripts.
