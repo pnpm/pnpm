@@ -5,8 +5,8 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
-pub use pnpm_testing_utils::*;
-
 pub mod bin;
 pub mod fs;
 pub mod registry;
+
+pub use pnpm_testing_utils::*;

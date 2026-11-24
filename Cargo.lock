@@ -7067,7 +7067,6 @@ dependencies = [
 name = "pnpm-testing-utils"
 version = "0.0.0"
 dependencies = [
- "assert_cmd",
  "axum 0.8.9",
  "bytes",
  "command-extra",
@@ -7076,18 +7075,14 @@ dependencies = [
  "futures-util",
  "libc",
  "libsql",
- "pipe-trait",
  "rustls",
  "same-file",
  "serde_json",
  "ssri",
  "sysinfo",
  "tar",
- "tempfile",
- "text-block-macros",
  "tokio",
  "url",
- "walkdir",
  "windows-sys 0.61.2",
 ]
 
