@@ -113,7 +113,10 @@ impl VersionArgs {
     }
 }
 
-fn git_output(cwd: &Path, args: &[&str]) -> Result<pnpm_publish::CommandOutput, VersionError> {
+pub(super) fn git_output(
+    cwd: &Path,
+    args: &[&str],
+) -> Result<pnpm_publish::CommandOutput, VersionError> {
     let output = <Host as RunCommand>::run("git", args, Some(cwd))
         .map_err(|err| VersionError::GitCommandFailed {
             args: args.join(" "),

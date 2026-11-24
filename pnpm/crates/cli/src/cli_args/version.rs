@@ -42,7 +42,6 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_publish::{
     Host,
     RunCommand,
-    are_tracked_files_clean,
     is_git_repo,
     is_working_tree_clean,
 };
@@ -171,7 +170,7 @@ impl VersionArgs {
             && config.git_checks
             && !self.git.no_git_checks
             && is_git_repo::<Host>(&git_cwd)
-            && !are_tracked_files_clean::<Host>(&git_cwd)
+            && !working_tree::can_bump(dir, config, recursive)?
         {
             return Err(VersionError::UncleanWorkingTree.into());
         }
@@ -497,3 +496,4 @@ mod error;
 use error::VersionError;
 
 mod git;
+mod working_tree;

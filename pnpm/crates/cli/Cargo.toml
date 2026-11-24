@@ -61,6 +61,7 @@ pnpm-deps-inspection = { workspace = true }
 pnpm-deps-inspection-peers = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-deps-restorer = { workspace = true, features = ["shell-emulator"] }
+pnpm-fs-packlist = { workspace = true }
 pnpm-pack = { workspace = true }
 pnpm-publish = { workspace = true }
 pnpm-python-resolver = { workspace = true }
@@ -161,7 +162,6 @@ libc = { workspace = true }
 mimalloc = { workspace = true }
 
 [dev-dependencies]
-pnpm-fs-packlist = { workspace = true }
 pnpm-network-web-auth-testing = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pnpr = { workspace = true }

@@ -41,17 +41,7 @@ pub fn is_git_repo<Sys: RunCommand>(cwd: &Path) -> bool {
 /// Whether the working tree has no uncommitted changes.
 #[must_use]
 pub fn is_working_tree_clean<Sys: RunCommand>(cwd: &Path) -> bool {
-    git_status_is_empty::<Sys>(cwd, &["status", "--porcelain"])
-}
-
-/// Whether all tracked files match HEAD in both the index and the working tree.
-#[must_use]
-pub fn are_tracked_files_clean<Sys: RunCommand>(cwd: &Path) -> bool {
-    git_status_is_empty::<Sys>(cwd, &["status", "--porcelain", "--untracked-files=no"])
-}
-
-fn git_status_is_empty<Sys: RunCommand>(cwd: &Path, args: &[&str]) -> bool {
-    match Sys::run("git", args, Some(cwd)) {
+    match Sys::run("git", &["status", "--porcelain"], Some(cwd)) {
         Ok(output) if output.success => output.stdout.is_empty(),
         _ => false,
     }

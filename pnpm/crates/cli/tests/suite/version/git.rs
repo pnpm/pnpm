@@ -18,19 +18,70 @@ use super::{
 use pnpm_testing_utils::command_env::CommandTestExt;
 
 #[test]
-fn git_commit_and_tag_are_created_with_untracked_files() {
+fn version_leaves_excluded_files_unstaged() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     init_git(&workspace);
-    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0","files":["dist"]}"#);
+    fs::write(workspace.join("notes.txt"), "original").expect("write notes");
     git_commit_all(&workspace, "init");
+    fs::write(workspace.join("notes.txt"), "edited").expect("edit notes");
+    fs::write(workspace.join("scratch.txt"), "local").expect("write scratch file");
 
-    fs::write(workspace.join("scratch.txt"), "notes").expect("write untracked file");
     let output = pacquet_version(&workspace, &["patch"]);
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "v1.0.1");
-    assert_eq!(git_stdout(&workspace, &["log", "-1", "--pretty=%s"]), "1.0.1");
-    assert_eq!(git_stdout(&workspace, &["status", "--porcelain"]), "?? scratch.txt");
+    assert_eq!(
+        git_stdout(&workspace, &["show", "--format=", "--name-only", "HEAD"]),
+        "package.json",
+    );
+    assert_eq!(git_stdout(&workspace, &["status", "--porcelain"]), "M notes.txt\n?? scratch.txt");
+
+    git_stdout(&workspace, &["add", "notes.txt"]);
+    let output = pacquet_version(&workspace, &["patch"]);
+    assert!(!output.status.success());
+    assert!(stderr_of(&output).contains("ERR_PNPM_UNCLEAN_WORKING_TREE"));
+    assert_eq!(manifest_version(&workspace), "1.0.1");
+    drop(root);
+}
+
+#[test]
+fn version_rejects_untracked_package_files_and_changes_to_pack_rules() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    git_commit_all(&workspace, "init");
+    for path in ["notes.txt", ".npmignore"] {
+        fs::write(workspace.join(path), "*.txt").expect("write untracked file");
+        let output = pacquet_version(&workspace, &["patch"]);
+        assert!(!output.status.success());
+        let stderr = stderr_of(&output);
+        assert!(stderr.contains("ERR_PNPM_UNCLEAN_WORKING_TREE"), "{stderr}");
+        fs::remove_file(workspace.join(path)).expect("remove fixture file");
+    }
+    assert_eq!(manifest_version(&workspace), "1.0.0");
+    drop(root);
+}
+
+#[test]
+fn nested_package_honors_npmignore_but_still_checks_required_files() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let package = workspace.join("nested");
+    fs::create_dir(&package).expect("create nested package");
+    init_git(&workspace);
+    write_manifest(&package, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    fs::write(package.join(".npmignore"), "*.txt\n").expect("write package ignore rules");
+    git_commit_all(&workspace, "init");
+    fs::write(package.join("local notes.txt"), "local").expect("write excluded file");
+
+    let output = pacquet_version(&package, &["patch"]);
+    assert!(output.status.success(), "{}", stderr_of(&output));
+
+    fs::write(package.join("README.txt"), "readme").expect("write required file");
+    let output = pacquet_version(&package, &["patch"]);
+    assert!(!output.status.success());
+    assert!(stderr_of(&output).contains("ERR_PNPM_UNCLEAN_WORKING_TREE"));
+    assert_eq!(manifest_version(&package), "1.0.1");
     drop(root);
 }
 
