@@ -38,6 +38,7 @@ pnpm-engine-runtime-node-resolver = { path = "pnpm/crates/engine-runtime-node-re
 pnpm-env-installer = { path = "pnpm/crates/env-installer" }
 pnpm-env-replace = { path = "pnpm/crates/env-replace" }
 pnpm-ffi-fs = { path = "pnpm/crates/ffi-fs" }
+pnpm-ffi-libsql = { path = "pnpm/crates/ffi-libsql" }
 pnpm-ffi-mimalloc = { path = "pnpm/crates/ffi-mimalloc" }
 pnpm-ffi-process = { path = "pnpm/crates/ffi-process" }
 pnpm-ffi-security = { path = "pnpm/crates/ffi-security" }

@@ -5639,6 +5639,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-ffi-libsql"
+version = "0.0.0"
+dependencies = [
+ "libsql",
+]
+
+[[package]]
 name = "pnpm-ffi-mimalloc"
 version = "0.0.1"
 dependencies = [
@@ -7074,7 +7081,6 @@ dependencies = [
  "flate2",
  "futures-util",
  "libc",
- "libsql",
  "rustls",
  "serde_json",
  "ssri",
@@ -7473,6 +7479,7 @@ dependencies = [
  "openidconnect",
  "p256 0.14.0",
  "pnpm-crypto-hash",
+ "pnpm-ffi-libsql",
  "pnpm-network",
  "pnpm-testing-utils",
  "pnpr-config",

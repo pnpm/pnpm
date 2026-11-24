@@ -22,8 +22,6 @@ pub mod process_liveness;
 pub mod signal_delivery;
 #[cfg(unix)]
 pub mod spawn;
-#[cfg(feature = "libsql")]
-pub mod sqlite_misuse;
 pub mod stall_report;
 #[cfg(unix)]
 pub mod terminal;
