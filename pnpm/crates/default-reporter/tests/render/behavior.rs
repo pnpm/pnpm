@@ -32,7 +32,7 @@ fn the_live_packages_line_waits_for_the_stats() {
     let mut reporter = state(false);
     let frame =
         render(&mut reporter, vec![progress("resolved"), progress("imported"), importing_done()]);
-    assert_eq!(frame, "Packages: +1 of 1 resolved");
+    assert_eq!(frame, "Packages: +1 of 1");
 }
 
 #[test]

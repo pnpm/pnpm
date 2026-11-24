@@ -55,7 +55,7 @@ fn progress_line_counts_each_status() {
             progress("imported"),
         ],
     );
-    assert_eq!(frame, "Packages: +1 of 3 resolved\n++");
+    assert_eq!(frame, "Packages: +1 of 2\n++");
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn prints_all_progress_stats() {
             progress("imported"),
         ],
     );
-    assert_eq!(frame, "Packages: +1 of 1 resolved\n↓+");
+    assert_eq!(frame, "Packages: +1 of 2\n↓+");
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn live_packages_line_stays_below_other_output_until_the_stats() {
             stage_at(CWD, Stage::ResolutionDone),
         ],
     );
-    assert_eq!(frame, "[WARN] foo\nPackages: 1 resolved\n↓");
+    assert_eq!(frame, "[WARN] foo\nPackages: 1 downloaded\n↓");
     let frame = render(
         &mut reporter,
         vec![
@@ -173,7 +173,7 @@ fn ignores_progress_after_importing_done() {
             progress("found_in_store"),
         ],
     );
-    assert_eq!(frame, "Packages: 1 resolved\n↓");
+    assert_eq!(frame, "Packages: 1 downloaded\n↓");
 }
 
 #[test]
@@ -629,7 +629,7 @@ fn append_only_progress_ends_with_the_stats() {
     let Output::Lines(lines) = reporter.handle(&progress("imported")) else {
         panic!("a live update prints a line");
     };
-    assert_eq!(lines, vec!["Packages: +1 of 1 resolved"]);
+    assert_eq!(lines, vec!["Packages: +1 of 1"]);
     reporter.handle(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
         message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
@@ -710,10 +710,10 @@ fn stats_of_several_projects_are_summed() {
 }
 
 /// An install from the lockfile reuses and adds packages without resolving
-/// any.
+/// any, and a cold install downloads them before the resolved count moves.
 #[test]
-fn live_line_leaves_out_a_zero_resolved_count() {
+fn live_line_counts_arrived_packages_before_any_is_added() {
     let mut reporter = state(false);
-    assert_eq!(render(&mut reporter, vec![progress("found_in_store")]), "Packages: +0\n+");
-    assert_eq!(render(&mut reporter, vec![progress("imported")]), "Packages: +1\n+");
+    assert_eq!(render(&mut reporter, vec![progress("found_in_store")]), "Packages: 1 reused\n+");
+    assert_eq!(render(&mut reporter, vec![progress("imported")]), "Packages: +1 of 1\n+");
 }

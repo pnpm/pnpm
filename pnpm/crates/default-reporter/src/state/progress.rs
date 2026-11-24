@@ -82,11 +82,11 @@ impl ReporterState {
         self.install.stats_slot = slot;
     }
 
-    /// The live `Packages:` line, such as `Packages: +12 of 58 resolved`,
-    /// with a progress bar below it in a terminal: see [`Self::live_bar`].
-    /// An install from the lockfile resolves nothing, so the resolved
-    /// count is left out while it is zero. `None` while there is nothing
-    /// to count.
+    /// The live `Packages:` line, with a progress bar below it in a
+    /// terminal: see [`Self::live_bar`]. The line follows the bar:
+    /// `Packages: 58 resolved` before any package arrives, `Packages: 90
+    /// downloaded, 5 reused` while they arrive, and `Packages: +12 of 95`
+    /// once packages are added. `None` while there is nothing to count.
     fn live_packages_message(&self) -> Option<String> {
         let totals = self.downloads.totals();
         let line = self.live_packages_line(totals)?;
@@ -100,17 +100,29 @@ impl ReporterState {
 
     fn live_packages_line(&self, totals: ProgressStats) -> Option<String> {
         let colors = &self.rendering.colors;
-        let resolved = colors.cyan_bright(&totals.resolved.to_string());
-        let added = colors.green(&format!("+{}", totals.imported));
-        if self.options.progress.hide_added_pkgs {
-            return (totals.resolved > 0).then(|| format!("Packages: {resolved} resolved"));
+        let arrived = totals.fetched + totals.reused;
+        if totals.imported > 0 && !self.options.progress.hide_added_pkgs {
+            let added = colors.green(&format!("+{}", totals.imported));
+            // A package added without a download or reuse event still
+            // counts, so the total never trails the added count.
+            let total = arrived.max(totals.imported);
+            return Some(format!(
+                "Packages: {added} of {}",
+                colors.cyan_bright(&total.to_string()),
+            ));
         }
-        match (totals.resolved, totals.imported) {
-            (0, 0) if totals.fetched + totals.reused == 0 => None,
-            (0, _) => Some(format!("Packages: {added}")),
-            (_, 0) => Some(format!("Packages: {resolved} resolved")),
-            _ => Some(format!("Packages: {added} of {resolved} resolved")),
+        let counts = [(totals.fetched, "downloaded"), (totals.reused, "reused")];
+        let arriving: Vec<String> = counts
+            .into_iter()
+            .filter(|(count, _)| *count > 0)
+            .map(|(count, label)| format!("{} {label}", colors.cyan_bright(&count.to_string())))
+            .collect();
+        if !arriving.is_empty() {
+            return Some(format!("Packages: {}", arriving.join(", ")));
         }
+        (totals.resolved > 0).then(|| {
+            format!("Packages: {} resolved", colors.cyan_bright(&totals.resolved.to_string()))
+        })
     }
 
     /// A sign for each package that arrived, `↓` for downloaded and `+`
