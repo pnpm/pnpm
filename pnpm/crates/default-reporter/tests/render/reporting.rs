@@ -671,3 +671,49 @@ fn stats_give_the_larger_share_of_downloaded_and_reused_packages() {
         assert_eq!(render(&mut reporter, events), expected);
     }
 }
+
+fn stats_at(prefix: &str, added: u64, removed: u64) -> Vec<LogEvent> {
+    vec![
+        LogEvent::Stats(StatsLog {
+            level: LogLevel::Debug,
+            message: StatsMessage::Added { prefix: prefix.to_string(), added },
+        }),
+        LogEvent::Stats(StatsLog {
+            level: LogLevel::Debug,
+            message: StatsMessage::Removed { prefix: prefix.to_string(), removed },
+        }),
+    ]
+}
+
+/// Run from a workspace member, an install reports its progress and its
+/// stats under the workspace root.
+#[test]
+fn stats_of_the_workspace_root_replace_the_live_line_in_a_member() {
+    let root = "/workspace";
+    let mut reporter = state(false);
+    let mut events = vec![progress_at(root, "resolved"), progress_at(root, "imported")];
+    events.extend(stats_at(root, 1, 0));
+    events.push(stage_at(root, Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +1\n+");
+}
+
+#[test]
+fn stats_of_several_projects_are_summed() {
+    let mut reporter = state(false);
+    let mut events =
+        vec![progress_at("/repo/foo", "resolved"), progress_at("/repo/bar", "resolved")];
+    events.extend(stats_at("/repo/foo", 2, 1));
+    events.extend(stats_at("/repo/bar", 3, 0));
+    events.push(stage_at("/repo/foo", Stage::ImportingDone));
+    events.push(stage_at("/repo/bar", Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +5 -1\n+++++-");
+}
+
+/// An install from the lockfile reuses and adds packages without resolving
+/// any.
+#[test]
+fn live_line_leaves_out_a_zero_resolved_count() {
+    let mut reporter = state(false);
+    assert_eq!(render(&mut reporter, vec![progress("found_in_store")]), "");
+    assert_eq!(render(&mut reporter, vec![progress("imported")]), "Packages: +1\n+");
+}

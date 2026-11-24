@@ -76,7 +76,7 @@ impl ReporterState {
             ProgressMessage::FoundInStore { .. } => entry.stats.reused += 1,
             ProgressMessage::Imported { .. } => entry.stats.imported += 1,
         }
-        let msg = self.live_packages_message();
+        let Some(msg) = self.live_packages_message() else { return };
         let mut slot = std::mem::take(&mut self.install.stats_slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Pinned);
         self.install.stats_slot = slot;
@@ -84,21 +84,31 @@ impl ReporterState {
 
     /// The live `Packages:` line, such as `Packages: +12 of 58 resolved`,
     /// with the bar of the packages added so far below it in a terminal.
-    fn live_packages_message(&self) -> String {
+    /// An install from the lockfile resolves nothing, so the resolved
+    /// count is left out while it is zero. `None` while there is nothing
+    /// to count.
+    fn live_packages_message(&self) -> Option<String> {
         let totals = self.downloads.totals();
         let resolved = self.rendering.colors.cyan_bright(&totals.resolved.to_string());
         let shows_added = totals.imported > 0 && !self.options.progress.hide_added_pkgs;
         if !shows_added {
-            return format!("Packages: {resolved} resolved");
+            return (totals.resolved > 0).then(|| format!("Packages: {resolved} resolved"));
         }
         let added = self.rendering.colors.green(&format!("+{}", totals.imported));
-        let line = format!("Packages: {added} of {resolved} resolved");
+        let line = if totals.resolved > 0 {
+            format!("Packages: {added} of {resolved} resolved")
+        } else {
+            format!("Packages: {added}")
+        };
         // Append-only output prints each update as a new line, so a bar
         // would repeat on every one.
         if self.options.append_only {
-            return line;
+            return Some(line);
         }
-        format!("{line}\n{}", self.pluses_and_minuses(self.rendering.width, totals.imported, 0))
+        Some(format!(
+            "{line}\n{}",
+            self.pluses_and_minuses(self.rendering.width, totals.imported, 0),
+        ))
     }
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
@@ -107,10 +117,7 @@ impl ReporterState {
             Stage::ImportingDone => {
                 let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
                 entry.done = true;
-                if self.install.stats_added.is_some()
-                    && self.install.stats_removed.is_some()
-                    && self.downloads.importing_finished()
-                {
+                if self.downloads.importing_finished() {
                     self.render_stats();
                 }
             }
@@ -184,21 +191,17 @@ impl ReporterState {
         let prefix = match message {
             StatsMessage::Added { prefix, .. } | StatsMessage::Removed { prefix, .. } => prefix,
         };
-        if prefix != &self.rendering.cwd {
+        // Run from a workspace member, an install reports both its progress
+        // and its stats under the workspace root.
+        if prefix != &self.rendering.cwd && !self.downloads.progress.contains_key(prefix) {
             return;
         }
+        let stats = self.install.stats.entry(prefix.clone()).or_default();
         match message {
-            StatsMessage::Added { added, .. } => {
-                self.install.stats_added = Some(*added);
-            }
-            StatsMessage::Removed { removed, .. } => {
-                self.install.stats_removed = Some(*removed);
-            }
+            StatsMessage::Added { added, .. } => stats.added = Some(*added),
+            StatsMessage::Removed { removed, .. } => stats.removed = Some(*removed),
         }
-        if self.install.stats_added.is_some()
-            && self.install.stats_removed.is_some()
-            && self.downloads.importing_finished()
-        {
+        if self.downloads.importing_finished() {
             self.render_stats();
         }
     }
@@ -225,9 +228,13 @@ impl ReporterState {
     /// downloaded and reused packages, not their counts: resolution also
     /// fetches versions it then drops, so a count would not match the
     /// packages added.
+    /// Waits for both halves of every project's stats, and shows each
+    /// total once.
     pub(super) fn render_stats(&mut self) {
-        let added = self.install.stats_added.take().unwrap_or(0);
-        let removed = self.install.stats_removed.take().unwrap_or(0);
+        let Some((added, removed)) = self.install.stats_totals() else { return };
+        if self.install.stats_shown.replace((added, removed)) == Some((added, removed)) {
+            return;
+        }
         if added == 0 && removed == 0 {
             self.display.frame.clear(&mut self.install.stats_slot);
             self.install.no_package_changed = true;
@@ -346,6 +353,28 @@ impl DownloadState {
 }
 
 impl InstallProgress {
+    /// The stats summed over the projects, once every project has both
+    /// halves. `None` before any stats arrive.
+    fn stats_totals(&self) -> Option<(u64, u64)> {
+        if self.stats.is_empty() {
+            return None;
+        }
+        self.stats
+            .values()
+            .try_fold((0, 0), |(added, removed), stats| {
+                Some((added + stats.added?, removed + stats.removed?))
+            })
+    }
+
+    /// Counts a half that never arrived as zero, so the stats can render
+    /// when the install ends without it.
+    pub(super) fn complete_stats(&mut self) {
+        for stats in self.stats.values_mut() {
+            stats.added.get_or_insert(0);
+            stats.removed.get_or_insert(0);
+        }
+    }
+
     pub(super) fn maybe_render_context(&mut self, cwd: &str, frame: &mut Frame) {
         if self.context_rendered {
             return;

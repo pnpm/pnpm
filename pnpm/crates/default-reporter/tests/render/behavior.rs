@@ -137,7 +137,6 @@ fn aggregate_output_withholds_each_script_until_it_exits() {
     );
 }
 
-/// The bar draws downloaded packages as `↓` and reused ones as `+`.
 #[test]
 fn stats_bar_colors_downloaded_and_reused_packages() {
     let mut reporter = state(true);
