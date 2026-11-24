@@ -177,6 +177,8 @@ mod request;
 mod version_ranges;
 
 mod deprecations;
+mod engines;
+mod origins;
 mod signatures;
 
 const MAX_PATHS_COUNT: usize = 3;
@@ -207,8 +209,10 @@ pub struct AuditArgs {
     #[clap(short = 'i', long)]
     pub interactive: bool,
     /// Audit subcommand: `signatures`, which verifies registry signatures
-    /// for the installed packages, or `deprecations`, which lists the
-    /// installed packages their registry marks deprecated.
+    /// for the installed packages, `deprecations`, which lists the
+    /// installed packages their registry marks deprecated, or `engines`,
+    /// which lists the installed packages that don't support the current
+    /// Node.js version or platform.
     pub params: Vec<String>,
     #[clap(flatten)]
     pub advisories: AdvisoryFilterArgs,
@@ -397,9 +401,10 @@ impl AuditArgs {
         Ok(audit_outcome(&report, audit_level))
     }
 
-    /// `audit` takes at most one subcommand, `signatures` or `deprecations`.
+    /// `audit` takes at most one subcommand, `signatures`, `deprecations`,
+    /// or `engines`.
     async fn run_subcommand(&self, subcommand: &str, state: State) -> miette::Result<AuditOutcome> {
-        if subcommand != "signatures" && subcommand != "deprecations" {
+        if !matches!(subcommand, "signatures" | "deprecations" | "engines") {
             return Err(AuditError::UnknownSubcommand { subcommand: subcommand.to_owned() }.into());
         }
         if self.params.len() > 1 {
@@ -413,10 +418,30 @@ impl AuditArgs {
             }
             .into());
         }
-        if subcommand == "deprecations" {
-            return self.run_deprecations(state).await;
+        match subcommand {
+            "deprecations" => self.run_deprecations(state).await,
+            "engines" => self.run_engines(state).await,
+            _ => self.run_signatures(state).await,
         }
-        self.run_signatures(state).await
+    }
+
+    /// Handle `audit engines`: list the installed packages that don't
+    /// support the current Node.js version or platform. Exit code 1 (via
+    /// [`AuditOutcome::Vulnerable`]) when any doesn't.
+    async fn run_engines(&self, state: State) -> miette::Result<AuditOutcome> {
+        let include = self.dependency_options.include(state.config);
+        let lockfile_dir = state.lockfile_dir().to_path_buf();
+        let Some(incompatible) = engines::find_incompatible(&state, include, &lockfile_dir).await?
+        else {
+            return Ok(AuditOutcome::Clean);
+        };
+        let output = if self.json {
+            serde_json::to_string_pretty(&incompatible).into_diagnostic()?
+        } else {
+            engines::render_incompatible(&incompatible)
+        };
+        print_command_output(&output);
+        Ok(if incompatible.is_empty() { AuditOutcome::Clean } else { AuditOutcome::Vulnerable })
     }
 
     /// Handle `audit deprecations`: list the installed packages their

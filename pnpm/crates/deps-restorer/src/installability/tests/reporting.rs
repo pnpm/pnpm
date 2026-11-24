@@ -122,3 +122,31 @@ fn incompatible_required_peer_variants_emit_one_install_check() {
         .count();
     assert_eq!(install_checks, 1);
 }
+
+#[test]
+fn lists_the_incompatible_packages_an_install_keeps() {
+    let required = snapshot_key("required@1.0.0");
+    let optional = snapshot_key("optional@1.0.0");
+    let snapshots = HashMap::from([
+        (required.clone(), SnapshotEntry::default()),
+        (optional.clone(), SnapshotEntry { optional: true, ..Default::default() }),
+    ]);
+    let packages = HashMap::from([
+        (required.clone(), synthetic_metadata(Some(&[("node", ">=99")]), None, None, None)),
+        (optional, synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None)),
+    ]);
+    let strict = crate::installability::InstallabilityHost {
+        engine_strict: true,
+        ..host("20.10.0", "darwin", "arm64")
+    };
+
+    let incompatible = crate::installability::incompatible_required_packages(
+        &super::root_importer(&["required@1.0.0"], &["optional@1.0.0"]),
+        &snapshots,
+        &packages,
+        &strict,
+    )
+    .unwrap();
+
+    assert_eq!(incompatible.keys().collect::<Vec<_>>(), [&required]);
+}

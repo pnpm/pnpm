@@ -1,9 +1,9 @@
 use super::{
     DeprecatedPackage,
     InstalledPackage,
+    Origin,
     deprecation,
     render_deprecations,
-    shared_versions,
 };
 use pnpm_resolving_resolver_base::{
     NonDeprecatedAlternative,
@@ -25,6 +25,7 @@ fn resolved(manifest: serde_json::Value, alternative: Option<&str>) -> ResolvedP
 
 fn installed(name: &str, version: &str) -> InstalledPackage {
     InstalledPackage {
+        key: format!("{name}@{version}").parse().expect("package key"),
         name: name.to_string(),
         version: version.to_string(),
         specifier: version.to_string(),
@@ -37,15 +38,17 @@ fn package(name: &str, projects: &[&str], via: &[&str]) -> DeprecatedPackage {
         version: "1.0.0".to_string(),
         deprecated: format!("{name} is no longer maintained"),
         non_deprecated_version: None,
-        projects: projects
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
-        via: via
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
-        specifier: "1.0.0".to_string(),
+        origin: Origin {
+            projects: projects
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            via: via
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        },
+        key: format!("{name}@1.0.0").parse().expect("package key"),
     }
 }
 
@@ -98,12 +101,4 @@ fn text_output_strips_control_characters_from_lockfile_labels() {
     evil.deprecated = "no longer maintained".to_string();
     let output = render_deprecations(&[evil]);
     assert!(!output.contains('\u{1b}'), "{output:?}");
-}
-
-#[test]
-fn a_version_installed_from_two_registries_is_shared() {
-    let mut work = installed("foo", "1.0.0");
-    work.specifier = "work:1.0.0".to_string();
-    let installed = [installed("foo", "1.0.0"), work, installed("bar", "1.0.0")].into();
-    assert_eq!(shared_versions(&installed), [("foo".to_string(), "1.0.0".to_string())].into());
 }

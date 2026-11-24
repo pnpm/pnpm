@@ -221,12 +221,7 @@ impl ReporterState {
         let deprecated = &self.notices.checks.deprecated;
         let (noun, verb) =
             if deprecated.len() == 1 { ("package", "is") } else { ("packages", "are") };
-        // `pnpm audit` reads a project's lockfile, which a global install has none of.
-        let see = if self.options.scope.is_global {
-            String::new()
-        } else {
-            format!(" {}", self.see("pnpm audit deprecations"))
-        };
+        let see = self.audit_hint("pnpm audit deprecations");
         (!deprecated.is_empty()).then(|| {
             format!(
                 "{} {} {noun} {verb} deprecated: {}{see}",
@@ -260,11 +255,19 @@ impl ReporterState {
         let (noun, verb) =
             if packages.len() == 1 { ("package", "wants") } else { ("packages", "want") };
         format!(
-            "{} {} {noun} {verb} {requirement}: {}",
+            "{} {} {noun} {verb} {requirement}: {}{}",
             self.rendering.colors.red("✗"),
             packages.len(),
             list_names(packages.iter(), |label| self.package_label(label)),
+            self.audit_hint("pnpm audit engines"),
         )
+    }
+
+    /// The `see` hint for a `pnpm audit` subcommand, with a leading space.
+    /// Empty after a global install: `pnpm audit` reads a project's
+    /// lockfile, which a global install has none of.
+    fn audit_hint(&self, command: &str) -> String {
+        if self.options.scope.is_global { String::new() } else { format!(" {}", self.see(command)) }
     }
 
     fn peer_issues_line(&self) -> Option<String> {
@@ -379,7 +382,8 @@ fn pkg_label(log: &DeprecationLog) -> String {
 
 /// The declared `os`, `cpu`, and `libc` lists, such as
 /// `os darwin or linux and cpu arm64`.
-fn platform_requirement(wanted: &WantedPlatform) -> String {
+#[must_use]
+pub fn platform_requirement(wanted: &WantedPlatform) -> String {
     let fields: Vec<String> = [("os", &wanted.os), ("cpu", &wanted.cpu), ("libc", &wanted.libc)]
         .into_iter()
         .filter_map(|(field, values)| Some((field, values.as_deref()?)))
