@@ -1,18 +1,34 @@
-use std::cell::{Cell, RefCell};
-use std::cmp;
-use std::convert::TryFrom;
-use std::fs;
-use std::io::prelude::*;
-use std::io::{self, SeekFrom};
-use std::marker;
-use std::path::Path;
+use std::{
+    cell::{
+        Cell,
+        RefCell,
+    },
+    cmp,
+    convert::TryFrom,
+    fs,
+    io::{
+        self,
+        SeekFrom,
+        prelude::*,
+    },
+    marker,
+    path::Path,
+};
 
-use crate::entry::{EntryFields, EntryIo};
-use crate::error::TarError;
-use crate::header::BLOCK_SIZE;
-use crate::other;
-use crate::pax::*;
-use crate::{Entry, GnuExtSparseHeader, GnuSparseHeader, Header};
+use crate::{
+    Entry,
+    GnuSparseHeader,
+    Header,
+    agreement,
+    entry::{
+        EntryFields,
+        EntryIo,
+    },
+    error::TarError,
+    header::BLOCK_SIZE,
+    other,
+    pax::*,
+};
 
 /// A top-level representation of an archive file.
 ///
@@ -83,10 +99,8 @@ impl<R: Read> Archive<R> {
     /// corrupted.
     pub fn entries(&mut self) -> io::Result<Entries<'_, R>> {
         let me: &mut Archive<dyn Read> = self;
-        me._entries(None).map(|fields| Entries {
-            fields,
-            _ignored: marker::PhantomData,
-        })
+        me._entries(None)
+            .map(|fields| Entries { fields, _ignored: marker::PhantomData })
     }
 
     /// Unpacks the contents tarball into the specified `dst`.
@@ -184,7 +198,6 @@ impl<R: Read> Archive<R> {
     pub fn set_max_metadata_size(&mut self, max_metadata_size: Option<u64>) {
         self.inner.max_metadata_size = max_metadata_size;
     }
-
 }
 
 impl<R: Seek + Read> Archive<R> {
@@ -198,10 +211,8 @@ impl<R: Seek + Read> Archive<R> {
     pub fn entries_with_seek(&mut self) -> io::Result<Entries<'_, R>> {
         let me: &Archive<dyn Read> = self;
         let me_seekable: &Archive<dyn SeekRead> = self;
-        me._entries(Some(me_seekable)).map(|fields| Entries {
-            fields,
-            _ignored: marker::PhantomData,
-        })
+        me._entries(Some(me_seekable))
+            .map(|fields| Entries { fields, _ignored: marker::PhantomData })
     }
 }
 
@@ -216,13 +227,7 @@ impl Archive<dyn Read + '_> {
                  position 0",
             ));
         }
-        Ok(EntriesFields {
-            archive: self,
-            seekable_archive,
-            done: false,
-            next: 0,
-            raw: false,
-        })
+        Ok(EntriesFields { archive: self, seekable_archive, done: false, next: 0, raw: false })
     }
 
     fn _unpack(&mut self, dst: &Path) -> io::Result<()> {
@@ -274,10 +279,7 @@ impl<'a, R: Read> Entries<'a, R> {
     /// on account of this library, for example taking into account GNU long name
     /// or long link archive members. Raw iteration is disabled by default.
     pub fn raw(self, raw: bool) -> Entries<'a, R> {
-        Entries {
-            fields: EntriesFields { raw, ..self.fields },
-            _ignored: marker::PhantomData,
-        }
+        Entries { fields: EntriesFields { raw, ..self.fields }, _ignored: marker::PhantomData }
     }
 }
 impl<'a, R: Read> Iterator for Entries<'a, R> {
@@ -310,13 +312,17 @@ impl<'a> EntriesFields<'a> {
             // If a header is not all zeros, we have another valid header.
             // Otherwise, check if we are ignoring zeros and continue, or break as if this is the
             // end of the archive.
-            if !header.as_bytes().iter().all(|i| *i == 0) {
+            if !header
+                .as_bytes()
+                .iter()
+                .all(|i| *i == 0)
+            {
                 self.next += BLOCK_SIZE;
                 break;
             }
 
             if !self.archive.inner.ignore_zeros {
-                return Ok(None);
+                return self.end_at_zero_block();
             }
             self.next += BLOCK_SIZE;
             header_pos = self.next;
@@ -332,6 +338,7 @@ impl<'a> EntriesFields<'a> {
         if sum != cksum {
             return Err(other("archive header checksum mismatch"));
         }
+        agreement::check_header_block(&header)?;
 
         // PAX extensions describe the *next file entry*, not intermediary
         // extension headers (GNU LongName `L`, GNU LongLink `K`, PAX `x`/`g`).
@@ -343,7 +350,7 @@ impl<'a> EntriesFields<'a> {
 
         let mut pax_size: Option<u64> = None;
         if let Some(pax_extensions_ref) = pax_extensions.filter(|_| !is_extension_header) {
-            pax_size = pax_extensions_value(pax_extensions_ref, PAX_SIZE);
+            pax_size = agreement::pax_size(pax_extensions_ref)?;
 
             if let Some(pax_uid) = pax_extensions_value(pax_extensions_ref, PAX_UID) {
                 header.set_uid(pax_uid);
@@ -361,6 +368,9 @@ impl<'a> EntriesFields<'a> {
         // when parsed.
         if let Some(pax_size) = pax_size {
             size = pax_size;
+        }
+        if !is_extension_header {
+            agreement::check_entry_size(&header, size)?;
         }
         if is_extension_header {
             if let Some(limit) = self.archive.inner.max_metadata_size {
@@ -394,12 +404,24 @@ impl<'a> EntriesFields<'a> {
         let size = size
             .checked_add(BLOCK_SIZE - 1)
             .ok_or_else(|| other("size overflow"))?;
-        self.next = self
-            .next
+        self.next = self.next
             .checked_add(size & !(BLOCK_SIZE - 1))
             .ok_or_else(|| other("size overflow"))?;
 
         Ok(Some(ret.into_entry()))
+    }
+
+    /// Ends the archive at a zero block, unless data follows it.
+    ///
+    /// node-tar ends an archive only at two zero blocks in a row and parses
+    /// a header after a single one.
+    fn end_at_zero_block(&mut self) -> io::Result<Option<Entry<'a, io::Empty>>> {
+        let mut block = Vec::with_capacity(BLOCK_SIZE as usize);
+        (&self.archive.inner).take(BLOCK_SIZE).read_to_end(&mut block)?;
+        if block.iter().any(|byte| *byte != 0) {
+            return Err(other("archive has data after a single zero block"));
+        }
+        Ok(None)
     }
 
     fn next_entry(&mut self) -> io::Result<Option<Entry<'a, io::Empty>>> {
@@ -426,45 +448,120 @@ impl<'a> EntriesFields<'a> {
 
             let is_recognized_header =
                 entry.header().as_gnu().is_some() || entry.header().as_ustar().is_some();
+            let entry_type = entry.header().entry_type();
+            let is_extension_type = entry_type.is_gnu_longname()
+                || entry_type.is_gnu_longlink()
+                || entry_type.is_pax_local_extensions()
+                || entry_type.is_pax_global_extensions();
+            if is_extension_type && !is_recognized_header {
+                return Err(other("extension header in an archive header without ustar magic"));
+            }
+            let has_pending_extension =
+                gnu_longname.is_some() || gnu_longlink.is_some() || pax_extensions.is_some();
 
-            if is_recognized_header && entry.header().entry_type().is_gnu_longname() {
+            if entry_type.is_pax_global_extensions() {
+                if has_pending_extension {
+                    return Err(other(
+                        "global PAX extended header between an extension header \
+                         and the member it describes",
+                    ));
+                }
+                let mut fields = EntryFields::from(entry);
+                let records = fields.read_all()?;
+                agreement::check_pax_records(&records, true)?;
+                fields.pax_extensions = Some(records);
+                return Ok(Some(fields.into_entry()));
+            }
+
+            if is_recognized_header
+                && entry
+                    .header()
+                    .entry_type()
+                    .is_gnu_longname()
+            {
                 if gnu_longname.is_some() {
                     return Err(other(
                         "two long name entries describing \
                          the same member",
                     ));
                 }
-                gnu_longname = Some(EntryFields::from(entry).read_all()?);
+                let value = EntryFields::from(entry).read_all()?;
+                agreement::check_gnu_long_value(&value)?;
+                gnu_longname = Some(value);
                 continue;
             }
 
-            if is_recognized_header && entry.header().entry_type().is_gnu_longlink() {
+            if is_recognized_header
+                && entry
+                    .header()
+                    .entry_type()
+                    .is_gnu_longlink()
+            {
                 if gnu_longlink.is_some() {
                     return Err(other(
                         "two long name entries describing \
                          the same member",
                     ));
                 }
-                gnu_longlink = Some(EntryFields::from(entry).read_all()?);
+                let value = EntryFields::from(entry).read_all()?;
+                agreement::check_gnu_long_value(&value)?;
+                gnu_longlink = Some(value);
                 continue;
             }
 
-            if is_recognized_header && entry.header().entry_type().is_pax_local_extensions() {
+            if is_recognized_header
+                && entry
+                    .header()
+                    .entry_type()
+                    .is_pax_local_extensions()
+            {
                 if pax_extensions.is_some() {
                     return Err(other(
                         "two pax extensions entries describing \
                          the same member",
                     ));
                 }
-                pax_extensions = Some(EntryFields::from(entry).read_all()?);
+                let records = EntryFields::from(entry).read_all()?;
+                agreement::check_pax_records(&records, false)?;
+                pax_extensions = Some(records);
                 continue;
             }
 
+            let typeflag = entry.header().as_old().linkflag[0];
+            if !agreement::is_normal_fs_type(typeflag) {
+                if has_pending_extension {
+                    return Err(other(
+                        "extension header describes an entry type it does not apply to",
+                    ));
+                }
+                let mut fields = EntryFields::from(entry);
+                self.parse_sparse_header(&mut fields)?;
+                return Ok(Some(fields.into_entry()));
+            }
+
+            let has_long_and_pax_name = {
+                let pax_has = |key: &str| {
+                    pax_extensions
+                        .as_deref()
+                        .is_some_and(|records| {
+                            PaxExtensions::new(records)
+                                .any(|record| record.is_ok_and(|record| record.key() == Ok(key)))
+                        })
+                };
+                (gnu_longname.is_some() && pax_has(PAX_PATH))
+                    || (gnu_longlink.is_some() && pax_has(PAX_LINKPATH))
+            };
             let mut fields = EntryFields::from(entry);
             fields.long_pathname = gnu_longname;
             fields.long_linkname = gnu_longlink;
             fields.pax_extensions = pax_extensions;
-            self.parse_sparse_header(&mut fields)?;
+            agreement::check_resolved_entry(
+                typeflag,
+                fields.size,
+                &fields.path_bytes(),
+                fields.link_name_bytes().as_deref(),
+                has_long_and_pax_name,
+            )?;
             return Ok(Some(fields.into_entry()));
         }
     }
@@ -477,6 +574,10 @@ impl<'a> EntriesFields<'a> {
             Some(gnu) => gnu,
             None => return Err(other("sparse entry type listed but not GNU header")),
         };
+        if gnu.is_extended() {
+            // node-tar reads the extension blocks as the entry's data.
+            return Err(other("GNU sparse entries with extension headers are not supported"));
+        }
 
         // Sparse files are represented internally as a list of blocks that are
         // read. Blocks are either a bunch of 0's or they're data from the
@@ -528,41 +629,19 @@ impl<'a> EntriesFields<'a> {
                 cur = off
                     .checked_add(len)
                     .ok_or_else(|| other("more bytes listed in sparse file than u64 can hold"))?;
-                remaining = remaining.checked_sub(len).ok_or_else(|| {
-                    other(
-                        "sparse file consumed more data than the header \
+                remaining = remaining
+                    .checked_sub(len)
+                    .ok_or_else(|| {
+                        other(
+                            "sparse file consumed more data than the header \
                          listed",
-                    )
-                })?;
+                        )
+                    })?;
                 data.push(EntryIo::Data(reader.take(len)));
                 Ok(())
             };
             for block in gnu.sparse.iter() {
                 add_block(block)?
-            }
-            if gnu.is_extended() {
-                let mut ext = GnuExtSparseHeader::new();
-                ext.isextended[0] = 1;
-                let mut metadata_bytes = 0u64;
-                while ext.is_extended() {
-                    metadata_bytes = metadata_bytes.checked_add(BLOCK_SIZE)
-                        .ok_or_else(|| other("sparse metadata size overflow"))?;
-                    if let Some(limit) = self.archive.inner.max_metadata_size {
-                        if metadata_bytes > limit {
-                            return Err(other(&format!(
-                                "tar sparse metadata exceeds the {}-byte limit", limit
-                            )));
-                        }
-                    }
-                    if !try_read_all(&mut &self.archive.inner, ext.as_mut_bytes())? {
-                        return Err(other("failed to read extension"));
-                    }
-
-                    self.next += BLOCK_SIZE;
-                    for block in ext.sparse.iter() {
-                        add_block(block)?;
-                    }
-                }
             }
         }
         if cur != gnu.real_size()? {

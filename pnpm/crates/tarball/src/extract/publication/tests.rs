@@ -111,6 +111,9 @@ fn refuses_a_link_or_directory_that_escapes_the_root() {
         let mut header = tar::Header::new_gnu();
         header.set_entry_type(entry_type);
         header.set_size(0);
+        if entry_type == tar::EntryType::Symlink {
+            header.set_link_name("target").unwrap();
+        }
         let path = b"package/../../outside";
         header.as_gnu_mut().unwrap().name[..path.len()].copy_from_slice(path);
         header.set_cksum();
@@ -163,7 +166,11 @@ fn refuses_a_global_header_that_overrides_entry_sizes_or_paths() {
         let tar = global_header_tar(records);
         let error = read_publication_archive(tar.as_slice()).unwrap_err();
         assert!(
-            matches!(error, PublicationArchiveError::GlobalHeaderOverride(_)),
+            matches!(
+                &error,
+                PublicationArchiveError::Unreadable(message)
+                    if message.contains("global PAX extended header sets"),
+            ),
             "{}: {error}",
             String::from_utf8_lossy(records),
         );
