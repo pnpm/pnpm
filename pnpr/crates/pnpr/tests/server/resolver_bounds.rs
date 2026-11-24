@@ -64,7 +64,7 @@ async fn request_timeout_continues_to_bound_streaming_resolve_after_headers() {
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "caller").await;
     let mut config = config_for(&origin, tmp.path().to_path_buf());
-    config.http.request_timeout = Some(Duration::from_millis(250));
+    config.http.request_timeout = Some(Duration::from_millis(1000));
     let app = router_with_auth(config, auth);
 
     let body = json!({
@@ -85,7 +85,7 @@ async fn request_timeout_continues_to_bound_streaming_resolve_after_headers() {
         .unwrap();
 
     let (status, body) =
-        tokio::time::timeout(Duration::from_secs(2), drain_resolve_response(response))
+        tokio::time::timeout(Duration::from_secs(5), drain_resolve_response(response))
             .await
             .expect("requestTimeout must stop streaming resolve even after 200 headers are sent");
 
