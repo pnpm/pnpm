@@ -155,7 +155,7 @@ pub struct MetadataPickRequest {
     /// serving from unverified mirror shortcuts.
     pub refresh_metadata: bool,
     /// Revalidates the metadata mirror only when it is older than this, see
-    /// [`ResolutionRefreshOptions::metadata_max_age`](pnpm_resolving_resolver_base::ResolutionRefreshOptions::metadata_max_age).
+    /// [`MetadataRefresh::OlderThan`](pnpm_resolving_resolver_base::MetadataRefresh::OlderThan).
     pub metadata_max_age: Option<jiff::SignedDuration>,
     /// `true` forces this pick to use the full packument because
     /// the dependency carries `optionalDependencies`-specific
