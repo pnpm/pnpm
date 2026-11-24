@@ -139,9 +139,9 @@ impl ReporterState {
         })
     }
 
-    /// A sign for each package that arrived, `↓` for downloaded and `+`
-    /// for reused from the store, grey until the package is added, then
-    /// green. Packages are added in parallel, so the green signs scatter
+    /// A sign for each package that arrived: a grey `·` until the package
+    /// is added, then a green `↓` for downloaded or `+` for reused from the
+    /// store. Packages are added in parallel, so the green signs scatter
     /// across the bar in a fixed shuffle instead of filling it from the
     /// left. The bar ends as the green bar of the stats. Until then at
     /// least one sign stays grey, so it never looks finished early.
@@ -163,7 +163,7 @@ impl ReporterState {
         (0..chars)
             .map(|position| {
                 let sign = if position < downloaded_chars { "↓" } else { "+" };
-                if added[position] { colors.green(sign) } else { colors.grey(sign) }
+                if added[position] { colors.green(sign) } else { colors.grey("·") }
             })
             .collect()
     }

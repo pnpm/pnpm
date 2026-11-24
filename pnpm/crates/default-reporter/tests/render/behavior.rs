@@ -165,7 +165,7 @@ fn stats_bar_colors_downloaded_and_reused_packages() {
     assert_eq!(bar, format!("{downloaded}{reused}{reused}"));
 }
 
-/// Arrived packages wait in grey, and turn green once added.
+/// Arrived packages wait as a grey `·`, and turn green once added.
 #[test]
 fn live_bar_turns_green_as_packages_are_added() {
     let mut reporter = state(true);
@@ -193,21 +193,24 @@ fn live_bar_scatters_the_added_packages() {
         .lines()
         .nth(1)
         .expect("the bar follows the live line");
-    let signs: Vec<&str> = bar.split('↓').collect();
-    let green: Vec<bool> = signs[..20]
+    let plain = ["\u{1b}[32m", "\u{1b}[90m", "\u{1b}[39m"]
         .iter()
-        .map(|style| style.ends_with("\u{1b}[32m"))
+        .fold(bar.to_string(), |plain, code| plain.replace(code, ""));
+    let added: Vec<bool> = plain
+        .chars()
+        .map(|sign| sign == '↓')
         .collect();
+    assert_eq!(added.len(), 20, "{bar:?}");
     assert_eq!(
-        green
+        added
             .iter()
-            .filter(|is_green| **is_green)
+            .filter(|is_added| **is_added)
             .count(),
         10,
         "{bar:?}",
     );
-    assert_ne!(green[..10], [true; 10], "the first ten are not simply the added ones: {bar:?}");
-    assert!(bar.contains("\u{1b}[90m↓"), "pending signs are grey: {bar:?}");
+    assert_ne!(added[..10], [true; 10], "the first ten are not simply the added ones: {bar:?}");
+    assert!(bar.contains("\u{1b}[90m·"), "pending signs are grey dots: {bar:?}");
 }
 
 /// The bar turns fully green only as the stats, so it never looks done
@@ -220,5 +223,5 @@ fn live_bar_keeps_a_sign_uncolored_until_the_stats() {
         .lines()
         .nth(1)
         .expect("the bar follows the live line");
-    assert_eq!(bar, "\u{1b}[90m↓\u{1b}[39m");
+    assert_eq!(bar, "\u{1b}[90m·\u{1b}[39m");
 }
