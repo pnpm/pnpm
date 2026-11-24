@@ -68,18 +68,7 @@ pub fn remove_global_groups<Reporter: self::Reporter>(
     let _global_bin_lock = acquire_global_bin_lock(global_bin_dir)?;
 
     let groups = requested_global_groups(global_pkg_dir, params)?;
-    let removed_dirs: std::collections::BTreeSet<_> = groups
-        .iter()
-        .map(|group| group.info.install_dir.as_path())
-        .collect();
-    let links = super::skills::recorded_group_links(removed_dirs.iter().copied())?;
-    let surviving_links = if links.is_empty() {
-        None
-    } else {
-        let home = <pnpm_config::Host as pnpm_config::GetHomeDir>::home_dir()
-            .ok_or_else(|| miette::miette!("unable to determine home directory"))?;
-        Some((home, super::skills::links_of_other_groups(global_pkg_dir, &removed_dirs)?))
-    };
+    let skills = super::skills::RemovedSkillLinks::prepare(global_pkg_dir, &groups)?;
     let protected = protected_bins_for_removal(global_pkg_dir, &groups)?;
     let shims_to_restore = virtual_shims_to_restore(
         &groups,
@@ -112,11 +101,24 @@ pub fn remove_global_groups<Reporter: self::Reporter>(
     })? {
         warn_global::<Reporter>(leftover.to_string());
     }
-    if let Some((home, keep)) = surviving_links {
-        pnpm_package_manager::prune_agent_skill_links(&home, &links, &keep)
-            .wrap_err("remove links owned by the removed global packages")?;
+    complete_global_removal(&groups, &cleanup, skills)
+}
+
+fn complete_global_removal(
+    groups: &[GlobalPackageBinSnapshot],
+    cleanup: &GlobalInstallCleanup<'_>,
+    skills: Option<super::skills::RemovedSkillLinks>,
+) -> miette::Result<()> {
+    let mut cleanup_reports = cleanup_removed_global_install_dirs(groups, cleanup);
+    if let Some(skills) = skills
+        && let Err(error) = skills.prune()
+    {
+        cleanup_reports.push(ArtifactCleanupError {
+            context: "remove links owned by the removed global packages".to_string(),
+            source: io::Error::other(error.to_string()),
+        });
     }
-    removed_global_install_result(cleanup_removed_global_install_dirs(&groups, &cleanup))
+    removed_global_install_result(cleanup_reports)
 }
 
 fn protected_bins_for_removal(

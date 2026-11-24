@@ -278,12 +278,6 @@ pub(crate) fn package_choices(pending: &BTreeMap<String, Capabilities>) -> Vec<(
         .collect()
 }
 
-fn prompt_for_packages(
-    pending: &BTreeMap<String, Capabilities>,
-) -> miette::Result<Option<Vec<String>>> {
-    prompt_for_choices("Choose which packages to approve", &package_choices(pending))
-}
-
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
 #[display(r#""pnpm approve" without package arguments or --all requires an interactive terminal"#)]
 #[diagnostic(

@@ -611,3 +611,54 @@ fn the_confirmation_names_packages_without_their_dep_path() {
         "Approve @pnpm/git-skills (build, skills), @pnpm/marked-skills (skills)?",
     );
 }
+
+#[test]
+fn repository_skill_review_finds_skills_discovered_for_the_commit() {
+    let repository = "demo@git+https://example.org/demo.git";
+    let commit = format!("{repository}#abcdef1");
+    let approved = [repository.to_string()].into();
+    let review = super::skills_review::review_skills_with_options(
+        &Config::default(),
+        &approved,
+        &pending(&[(repository, &[Skills])]),
+        || {
+            Ok(pnpm_package_manager::SkillApprovalOptions {
+                skills_by_key: BTreeMap::from([(commit, vec!["guide".to_string()])]),
+                detected_dirs: Vec::new(),
+            })
+        },
+    )
+    .expect("review the skills")
+    .expect("complete the review");
+    assert_eq!(
+        review.skills_by_package,
+        BTreeMap::from([(repository.to_string(), SkillsPermission::All(true))]),
+    );
+}
+
+#[test]
+fn global_repository_selection_groups_pending_commits_before_deciding() {
+    let repository = "demo@git+https://example.org/demo.git";
+    let first_commit = format!("{repository}#abcdef1");
+    let second_commit = format!("{repository}#abcdef2");
+    let requests = pending(&[
+        (&first_commit, &[Build, Skills]),
+        (&second_commit, &[Skills]),
+        ("other@1.0.0", &[Build]),
+    ]);
+
+    let selected = [repository.to_string()].into();
+    let grouped = super::global_approvals::group_global_pending(&requests, &selected);
+
+    assert_eq!(
+        grouped,
+        pending(&[(repository, &[Build, Skills][..]), ("other@1.0.0", &[Build][..]),]),
+    );
+    assert_eq!(
+        super::decisions::decisions_by_approval(&selected, &grouped, &BTreeMap::new()),
+        BTreeMap::from([
+            (repository.to_string(), decided(Some(true), None)),
+            ("other@1.0.0".to_string(), decided(Some(false), None)),
+        ]),
+    );
+}

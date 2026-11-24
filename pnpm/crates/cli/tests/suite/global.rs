@@ -606,7 +606,7 @@ fn global_add_does_not_publish_skills_or_summary_for_failed_activation() {
             .join("beta")
             .symlink_metadata()
             .is_err(),
-        "rejected skill must stay unpublished"
+        "rejected skill must stay unpublished",
     );
     let rules = fs::read_to_string(skill_dir.join(".gitignore")).expect("read skill ignore rules");
     assert!(rules.contains("/alpha\n") && !rules.contains("/beta\n"), "{rules}");

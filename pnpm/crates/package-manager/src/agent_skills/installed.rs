@@ -1,5 +1,6 @@
 use super::{
     AgentSkillsError,
+    AgentSkillsState,
     SyncAgentSkills,
     agent_skills_dir_from_env,
     decide_sources,
@@ -25,6 +26,7 @@ use pnpm_lockfile::{
 };
 use pnpm_modules_yaml::{
     Host,
+    Modules,
     ReadModulesError,
     WriteModulesError,
 };
@@ -128,6 +130,22 @@ fn resync_agent_skills(
         let Some(lockfile) = loaded.as_ref() else { return Ok(Vec::new()) };
         lockfile
     };
+    let state = sync_installed_skills(config, workspace_root, lockfile, &modules, other_links)?;
+    let pending_dep_paths = state.pending.clone();
+    if state.update_modules(&mut modules) {
+        pnpm_modules_yaml::write_modules_manifest::<Host>(&config.modules_dir, modules)
+            .map_err(ResyncAgentSkillsError::WriteModules)?;
+    }
+    Ok(pending_dep_paths)
+}
+
+fn sync_installed_skills(
+    config: &Config,
+    workspace_root: &Path,
+    lockfile: &Lockfile,
+    modules: &Modules,
+    other_links: &BTreeSet<String>,
+) -> Result<AgentSkillsState, ResyncAgentSkillsError> {
     let target_root = config.agent_skills_target_root.as_deref().unwrap_or(workspace_root);
     let recorded = modules.linked_skills.as_deref().unwrap_or_default();
     let canonical_links;
@@ -145,7 +163,7 @@ fn resync_agent_skills(
     } else {
         (recorded, other_links)
     };
-    let state = sync_with_other_links(
+    sync_with_other_links(
         &SyncAgentSkills {
             config,
             workspace_root,
@@ -158,13 +176,7 @@ fn resync_agent_skills(
         },
         other_links,
     )
-    .map_err(ResyncAgentSkillsError::Sync)?;
-    let pending_dep_paths = state.pending.clone();
-    if state.update_modules(&mut modules) {
-        pnpm_modules_yaml::write_modules_manifest::<Host>(&config.modules_dir, modules)
-            .map_err(ResyncAgentSkillsError::WriteModules)?;
-    }
-    Ok(pending_dep_paths)
+    .map_err(ResyncAgentSkillsError::Sync)
 }
 
 /// Errors from [`skill_approval_options`].

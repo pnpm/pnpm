@@ -13,7 +13,7 @@ use super::{
         pending_builds_approved,
     },
     pending_permissions,
-    prompt_for_packages,
+    repository_scope::group_requests,
     skills_review::review_skills_with_options,
 };
 use crate::{
@@ -230,20 +230,11 @@ fn scan_global_pending_permissions(
             global_pkg_dir,
             base_config.supported_architectures.clone(),
         )?;
-        let mut pending = pending_permissions(&config)?;
-        if automatic {
-            if has_recorded_pending_skills(&config, &pending)? {
-                reconcile_global_skills(&config, global_pkg_dir, &package.install_dir)?;
-                pending = pending_permissions(&config)?;
-                if has_recorded_pending_skills(&config, &pending)? {
-                    return Err(miette::miette!(
-                        "unable to apply saved agent skill decisions for {}",
-                        package.install_dir.display(),
-                    ));
-                }
-            }
-            pending.exclude_denied_builds(&config)?;
-        }
+        let pending = if automatic {
+            pending_for_automatic_approval(&config, global_pkg_dir, &package.install_dir)?
+        } else {
+            pending_permissions(&config)?
+        };
         for (pkg, caps) in &pending.by_package {
             by_package
                 .entry(pkg.clone())
@@ -253,6 +244,26 @@ fn scan_global_pending_permissions(
         groups.push(package.install_dir);
     }
     Ok(GlobalPendingPermissions { groups, by_package })
+}
+
+fn pending_for_automatic_approval(
+    config: &Config,
+    global_pkg_dir: &Path,
+    install_dir: &Path,
+) -> miette::Result<super::PendingPermissions> {
+    let mut pending = pending_permissions(config)?;
+    if has_recorded_pending_skills(config, &pending)? {
+        reconcile_global_skills(config, global_pkg_dir, install_dir)?;
+        pending = pending_permissions(config)?;
+        if has_recorded_pending_skills(config, &pending)? {
+            let display_install_dir = install_dir.display();
+            return Err(miette::miette!(
+                "unable to apply saved agent skill decisions for {display_install_dir}",
+            ));
+        }
+    }
+    pending.exclude_denied_builds(config)?;
+    Ok(pending)
 }
 
 fn global_skill_approval_options(
@@ -314,25 +325,37 @@ impl ApproveArgs {
         if !PromptAvailability::detect(config.ci).is_available() {
             return Err(ApproveNonInteractive.into());
         }
-        let Some(selected) = prompt_for_packages(pending)? else {
-            return Ok(None);
-        };
-        let approved: BTreeSet<String> = pending
-            .keys()
-            .filter(|pkg| selected.contains(pkg))
-            .cloned()
-            .collect();
-        let Some(review) =
-            review_skills_with_options(config, &approved, pending, load_skill_options)?
-        else {
-            return Ok(None);
-        };
-        if !approved.is_empty() && !confirm(&confirmation(&approved, pending))? {
-            return Ok(None);
-        }
-        Ok(Some(Approval {
-            decisions: decisions_by_approval(&approved, pending, &review.skills_by_package),
-            skills_dirs: review.dirs,
-        }))
+        approve_global_interactively(pending, config, load_skill_options)
     }
+}
+
+fn approve_global_interactively(
+    pending: &BTreeMap<String, Capabilities>,
+    config: &Config,
+    load_skill_options: impl FnOnce() -> miette::Result<pnpm_package_manager::SkillApprovalOptions>,
+) -> miette::Result<Option<Approval>> {
+    let Some(selected) = super::repository_scope::prompt_for_packages(pending)? else {
+        return Ok(None);
+    };
+    let grouped_pending = group_global_pending(pending, &selected);
+    let approved = selected;
+    let Some(review) =
+        review_skills_with_options(config, &approved, &grouped_pending, load_skill_options)?
+    else {
+        return Ok(None);
+    };
+    if !approved.is_empty() && !confirm(&confirmation(&approved, &grouped_pending))? {
+        return Ok(None);
+    }
+    Ok(Some(Approval {
+        decisions: decisions_by_approval(&approved, &grouped_pending, &review.skills_by_package),
+        skills_dirs: review.dirs,
+    }))
+}
+
+pub(super) fn group_global_pending(
+    pending: &BTreeMap<String, Capabilities>,
+    selected: &BTreeSet<String>,
+) -> BTreeMap<String, Capabilities> {
+    group_requests(pending.clone(), selected)
 }

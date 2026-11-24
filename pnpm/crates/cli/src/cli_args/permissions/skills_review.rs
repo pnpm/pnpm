@@ -1,4 +1,7 @@
-use super::Capabilities;
+use super::{
+    Capabilities,
+    repository_scope::group_requests,
+};
 use crate::{
     cli_args::approve_builds::{
         disambiguated_labels,
@@ -55,14 +58,16 @@ pub(super) fn review_skills(
 fn collect_package_skill_decisions(
     skills_pending: &[&String],
     labels: &BTreeMap<&str, String>,
-    skills_by_key: &BTreeMap<String, Vec<String>>,
+    skills_by_key: &BTreeMap<String, BTreeSet<String>>,
 ) -> miette::Result<Option<BTreeMap<String, SkillsPermission>>> {
     let mut skills_by_package = BTreeMap::new();
     for &pkg in skills_pending {
-        let skills = skills_by_key
+        let skills: Vec<_> = skills_by_key
             .get(pkg.as_str())
+            .into_iter()
+            .flatten()
             .cloned()
-            .unwrap_or_default();
+            .collect();
         match prompt_for_package_skills(&labels[pkg.as_str()], &skills)? {
             SkillPromptOutcome::Cancelled => return Ok(None),
             SkillPromptOutcome::Undiscovered => {}
@@ -151,9 +156,10 @@ pub(super) fn review_skills_with_options(
         return Ok(Some(SkillsReview::default()));
     }
     let options = load_options()?;
+    let skills_by_key = group_requests(options.skills_by_key, approved);
     let labels = disambiguated_labels(pending.keys().map(String::as_str));
     let Some(skills_by_package) =
-        collect_package_skill_decisions(&skills_pending, &labels, &options.skills_by_key)?
+        collect_package_skill_decisions(&skills_pending, &labels, &skills_by_key)?
     else {
         return Ok(None);
     };
