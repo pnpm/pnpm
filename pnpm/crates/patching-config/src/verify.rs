@@ -1,4 +1,4 @@
-use crate::types::PatchGroupRecord;
+use crate::types::PatchGroup;
 use derive_more::{
     Display,
     Error,
@@ -6,10 +6,12 @@ use derive_more::{
 use miette::Diagnostic;
 use std::collections::HashSet;
 
-/// Iterate every configured patch key in a stable order.
-pub fn all_patch_keys(patched_dependencies: &PatchGroupRecord) -> impl Iterator<Item = &str> + '_ {
-    patched_dependencies
-        .values()
+/// Iterate every configured patch key in group order.
+pub fn all_patch_keys<'a>(
+    groups: impl IntoIterator<Item = &'a PatchGroup>,
+) -> impl Iterator<Item = &'a str> {
+    groups
+        .into_iter()
         .flat_map(|group| {
             group.exact
                 .values()
@@ -40,12 +42,12 @@ pub struct UnusedPatches {
 }
 
 /// Check that every configured patch was applied at least once.
-pub fn verify_patches(
-    patched_dependencies: &PatchGroupRecord,
-    applied_patches: &HashSet<String>,
+pub fn verify_patches<'a>(
+    groups: impl IntoIterator<Item = &'a PatchGroup>,
+    applied_patches: &HashSet<String, impl std::hash::BuildHasher>,
     allow_unused_patches: bool,
 ) -> Result<Option<UnusedPatches>, UnusedPatchError> {
-    let unused: Vec<String> = all_patch_keys(patched_dependencies)
+    let unused: Vec<String> = all_patch_keys(groups)
         .filter(|key| !applied_patches.contains(*key))
         .map(str::to_string)
         .collect();

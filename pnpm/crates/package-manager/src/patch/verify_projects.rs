@@ -41,7 +41,7 @@ pub fn verify_patches_against_project_lockfiles<Reporter: self::Reporter>(
             applied.extend(keys.into_iter().map(str::to_owned));
         }
     }
-    match pnpm_patching::verify_patches(&groups, &applied, config.allow_unused_patches)? {
+    match pnpm_patching::verify_patches(groups.values(), &applied, config.allow_unused_patches)? {
         None => Ok(()),
         Some(warning) => {
             Reporter::emit(&pnpm_reporter::LogEvent::Global(pnpm_reporter::GlobalLog {

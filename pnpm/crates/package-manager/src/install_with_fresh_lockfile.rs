@@ -108,7 +108,6 @@ use pnpm_package_manifest::{
 };
 use pnpm_reporter::{
     DeprecationLog,
-    GlobalLog,
     HookLog,
     LogEvent,
     LogLevel,
@@ -674,61 +673,6 @@ fn is_installed(
     deprecation.pkg_id
         .parse::<pnpm_lockfile::PackageKey>()
         .is_ok_and(|key| packages.contains_key(&key.without_peer()))
-}
-
-/// The importer selection the patch-usage check is scoped by.
-#[derive(Clone, Copy)]
-struct PatchUsageScope<'a> {
-    real_importer_ids: Option<&'a HashSet<String>>,
-    selected_importer_ids: Option<&'a HashSet<String>>,
-    merge_wanted_lockfile: Option<&'a Lockfile>,
-}
-
-/// Only in the fresh-lockfile path, a frozen lockfile trusts recorded
-/// patches. pnpm's importer-count gate admits an unfiltered run, or a filtered
-/// run whose root-augmented selection and previous wanted lockfile both cover
-/// the complete workspace. A first filtered install has no complete previous
-/// lockfile and skips this check.
-fn check_patch_usage<Reporter: self::Reporter>(
-    config: &Config,
-    patched_dependencies: Option<&pnpm_patching::PatchGroupRecord>,
-    applied_patches: &rustc_hash::FxHashSet<String>,
-    scope: PatchUsageScope<'_>,
-) -> Result<(), InstallWithFreshLockfileError> {
-    if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
-        return Ok(());
-    }
-    let Some(deps) = patched_dependencies else { return Ok(()) };
-    let verify = match scope.selected_importer_ids {
-        None => true,
-        Some(selected_importer_ids) => {
-            !is_partial_workspace_selection(scope.real_importer_ids, Some(selected_importer_ids))
-                && scope.merge_wanted_lockfile.is_some_and(|wanted_lockfile| {
-                    wanted_lockfile.importers.len() == selected_importer_ids.len()
-                })
-        }
-    };
-    if !verify {
-        return Ok(());
-    }
-    match pnpm_patching::verify_patches(
-        deps,
-        &applied_patches
-            .iter()
-            .cloned()
-            .collect(),
-        config.allow_unused_patches,
-    ) {
-        Ok(None) => Ok(()),
-        Ok(Some(warning)) => {
-            Reporter::emit(&LogEvent::Global(GlobalLog {
-                level: LogLevel::Warn,
-                message: warning.to_string(),
-            }));
-            Ok(())
-        }
-        Err(err) => Err(InstallWithFreshLockfileError::UnusedPatch(err)),
-    }
 }
 
 /// Hand the per-importer peer issues to the programmatic caller before the
