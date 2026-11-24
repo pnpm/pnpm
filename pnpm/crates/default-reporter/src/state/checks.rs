@@ -182,7 +182,7 @@ impl ReporterState {
         let engines = checks.unsupported_engine
             .iter()
             .flat_map(|((engine, current), by_range)| {
-                merge_ranges(by_range)
+                merge_ranges(by_range, current)
                     .into_iter()
                     .map(move |(range, packages)| {
                         (format!("{engine} {range}, not {current}"), packages)
@@ -324,12 +324,31 @@ fn platform_requirement(wanted: &WantedPlatform) -> String {
         .into_iter()
         .filter_map(|(field, values)| Some((field, values.as_deref()?)))
         .filter(|(_, values)| !values.is_empty())
-        .map(|(field, values)| format!("{field} {}", values.join(" or ")))
+        .map(|(field, values)| format!("{field} {}", platform_values(values)))
         .collect();
     if fields.is_empty() {
         return "another platform".to_string();
     }
     fields.join(" and ")
+}
+
+/// The values of one platform field. A `!value` entry rejects that value,
+/// so a list of them reads `other than a or b`. A list with plain values
+/// needs one of them, which already leaves out the rejected ones.
+fn platform_values(values: &[String]) -> String {
+    let wanted: Vec<&str> = values
+        .iter()
+        .map(String::as_str)
+        .filter(|value| !value.starts_with('!'))
+        .collect();
+    if !wanted.is_empty() {
+        return wanted.join(" or ");
+    }
+    let rejected: Vec<&str> = values
+        .iter()
+        .filter_map(|value| value.strip_prefix('!'))
+        .collect();
+    format!("other than {}", rejected.join(" or "))
 }
 
 /// At most [`MAX_LISTED`] names, each through `paint`, then a count of

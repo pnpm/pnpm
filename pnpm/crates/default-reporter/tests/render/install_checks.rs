@@ -22,12 +22,16 @@ fn install_check(message: &str, unsupported: Option<UnsupportedPackage>) -> LogE
 }
 
 fn unsupported_node(pkg_id: &str, range: &str) -> LogEvent {
+    unsupported_node_on(pkg_id, range, "26.13.0")
+}
+
+fn unsupported_node_on(pkg_id: &str, range: &str, current: &str) -> LogEvent {
     install_check(
         &format!("Unsupported engine for {pkg_id}"),
         Some(UnsupportedPackage::Engine {
             pkg_id: pkg_id.to_string(),
             wanted: EngineVersions { node: Some(range.to_string()), pnpm: None },
-            current: EngineVersions { node: Some("26.13.0".to_string()), pnpm: None },
+            current: EngineVersions { node: Some(current.to_string()), pnpm: None },
         }),
     )
 }
@@ -66,16 +70,18 @@ fn footer_lists_the_packages_that_want_another_node_version() {
 
 #[test]
 fn footer_merges_ranges_into_their_intersection() {
-    let events = vec![
-        unsupported_node("a@1.0.0", ">=12.22"),
-        unsupported_node("b@1.0.0", ">=16.0.0"),
-        unsupported_node("c@1.0.0", "^12.22.0 || ^14.17.0 || >=16.0.0"),
-        unsupported_node("d@1.0.0", "^18.0.0 || >=20.0.0"),
-        unsupported_node("e@1.0.0", "^18.18.0 || ^20.9.0 || >=21.1.0"),
-    ];
+    let events = [
+        ("a@1.0.0", ">=12.22"),
+        ("b@1.0.0", ">=16.0.0"),
+        ("c@1.0.0", "^12.22.0 || ^14.17.0 || >=16.0.0"),
+        ("d@1.0.0", "^18.0.0 || >=20.0.0"),
+        ("e@1.0.0", "^18.18.0 || ^20.9.0 || >=21.1.0"),
+    ]
+    .map(|(pkg_id, range)| unsupported_node_on(pkg_id, range, "12.0.0"))
+    .into();
     assert_eq!(
         footer(events),
-        "\n✗ 5 packages want Node.js ^18.18.0 || ^20.9.0 || >=21.1.0, not 26.13.0: \
+        "\n✗ 5 packages want Node.js ^18.18.0 || ^20.9.0 || >=21.1.0, not 12.0.0: \
          a@1.0.0, b@1.0.0, c@1.0.0 and 2 more\n",
     );
 }
@@ -108,6 +114,29 @@ fn footer_joins_adjacent_ranges() {
 }
 
 #[test]
+fn footer_keeps_an_explicit_upper_bound_out_of_a_caret_range() {
+    let events =
+        vec![unsupported_node("a@1.0.0", ">=18.0.0 <19.0.0"), unsupported_node("b@1.0.0", ">=17")];
+    assert_eq!(
+        footer(events),
+        "\n✗ 2 packages want Node.js >=18.0.0 <19.0.0, not 26.13.0: a@1.0.0 and b@1.0.0\n",
+    );
+}
+
+/// The compact `<26.0.0` would accept the running `26.0.0-rc.1`.
+#[test]
+fn footer_keeps_prerelease_bounds_that_reject_a_prerelease_node() {
+    let events = vec![
+        unsupported_node_on("a@1.0.0", ">=18 <26", "26.0.0-rc.1"),
+        unsupported_node_on("b@1.0.0", ">=20 <26", "26.0.0-rc.1"),
+    ];
+    assert_eq!(
+        footer(events),
+        "\n✗ 2 packages want Node.js >=20.0.0 <26.0.0-0, not 26.0.0-rc.1: a@1.0.0 and b@1.0.0\n",
+    );
+}
+
+#[test]
 fn footer_prints_a_line_per_range_that_has_no_version_in_common() {
     let events = vec![
         unsupported_node("a@1.0.0", ">=18 <26"),
@@ -124,14 +153,14 @@ fn footer_prints_a_line_per_range_that_has_no_version_in_common() {
 #[test]
 fn footer_prints_a_range_that_does_not_parse_on_its_own_line() {
     let events = vec![
-        unsupported_node("a@1.0.0", "not a range"),
-        unsupported_node("b@1.0.0", ">=18"),
-        unsupported_node("c@1.0.0", ">=20"),
+        unsupported_node_on("a@1.0.0", "not a range", "12.0.0"),
+        unsupported_node_on("b@1.0.0", ">=18", "12.0.0"),
+        unsupported_node_on("c@1.0.0", ">=20", "12.0.0"),
     ];
     assert_eq!(
         footer(events),
-        "\n✗ 2 packages want Node.js >=20.0.0, not 26.13.0: b@1.0.0 and c@1.0.0\n\
-         ✗ 1 package wants Node.js not a range, not 26.13.0: a@1.0.0\n",
+        "\n✗ 2 packages want Node.js >=20.0.0, not 12.0.0: b@1.0.0 and c@1.0.0\n\
+         ✗ 1 package wants Node.js not a range, not 12.0.0: a@1.0.0\n",
     );
 }
 
@@ -151,6 +180,18 @@ fn footer_lists_the_packages_that_want_another_platform() {
         "\n✗ 1 package wants another platform: odd@1.0.0\n\
          ✗ 1 package wants os darwin: fsevents@2.3.3\n\
          ✗ 1 package wants os linux or android and cpu arm64: native@1.0.0\n",
+    );
+}
+
+#[test]
+fn footer_reads_rejected_platform_values_as_exclusions() {
+    let not_darwin_or_linux = WantedPlatform {
+        os: Some(vec!["!darwin".to_string(), "!linux".to_string()]),
+        ..Default::default()
+    };
+    assert_eq!(
+        footer(vec![unsupported_platform("win-only@1.0.0", not_darwin_or_linux)]),
+        "\n✗ 1 package wants os other than darwin or linux: win-only@1.0.0\n",
     );
 }
 
