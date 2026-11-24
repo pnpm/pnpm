@@ -15,7 +15,7 @@ catalog:
   # `got` dependency, which pnpm resolves to a nonexistent local path. The
   # `@yarnpkg/nm` override keeps its transitive copy on this version too.
   '@yarnpkg/parsers': 3.1.0
-  '@yarnpkg/pnp': ^4.1.7
+  '@yarnpkg/pnp': ^4.1.8
   '@yarnpkg/shell': 4.1.3
   arg: 5.0.2
   ci-info: ^4.5.0
