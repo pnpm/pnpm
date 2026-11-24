@@ -2,12 +2,10 @@ use super::{
     FreshInputs,
     HashSet,
     InstallWithFreshLockfileError,
-    PatchUsageScope,
     Reporter,
     ResolutionPrep,
     ResolvePass,
     Resolved,
-    check_patch_usage,
     interactive_policy,
     report_peer_issues,
 };
@@ -35,17 +33,64 @@ pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'stat
     .await
     .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
     check_patch_usage::<Reporter>(
-        install.drivers.config,
+        install,
         prep.patches.record.as_deref(),
-        &workspace_result.merged_tree.applied_patches,
-        PatchUsageScope {
-            real_importer_ids: install.projects.real_ids,
-            selected_importer_ids: install.projects.selected_ids,
-            merge_wanted_lockfile: install.lockfiles.merge_wanted,
-        },
-    )?;
+        &workspace_result.merged_tree,
+    )
+}
+
+fn check_patch_usage<Report: Reporter>(
+    install: FreshInputs<'_>,
+    patches: Option<&pnpm_patching::PatchGroupRecord>,
+    tree: &pnpm_resolving_deps_resolver::ResolvedTree,
+) -> Result<(), InstallWithFreshLockfileError> {
+    let Some(patches) = patches else { return Ok(()) };
+    if !should_verify_patches(install) {
+        return Ok(());
+    }
+    let deployed_names = install.manifests.deploy_hook.then(|| {
+        tree.packages
+            .keys()
+            .filter_map(|id| pnpm_package_name::parse_dep_path_name_version(id))
+            .map(|(name, _)| name)
+            .filter(|name| patches.contains_key(*name))
+            .collect::<HashSet<&str>>()
+    });
+    let groups = patches
+        .iter()
+        .filter_map(|(name, group)| {
+            deployed_names
+                .as_ref()
+                .is_none_or(|names| names.contains(name.as_str()))
+                .then_some(group)
+        });
+    if let Some(warning) = pnpm_patching::verify_patches(
+        groups,
+        &tree.applied_patches,
+        install.drivers.config.allow_unused_patches,
+    )
+    .map_err(InstallWithFreshLockfileError::UnusedPatch)?
+    {
+        Report::emit(&pnpm_reporter::LogEvent::Global(pnpm_reporter::GlobalLog {
+            level: pnpm_reporter::LogLevel::Warn,
+            message: warning.to_string(),
+        }));
+    }
     Ok(())
 }
+
+fn should_verify_patches(install: FreshInputs<'_>) -> bool {
+    let config = install.drivers.config;
+    if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
+        return false;
+    }
+    let Some(selected) = install.projects.selected_ids else { return true };
+    !super::super::is_partial_workspace_selection(install.projects.real_ids, Some(selected))
+        && install.lockfiles.merge_wanted.is_some_and(|previous| {
+            previous.importers.len() == selected.len()
+        })
+}
+
 /// A finished resolve pass, with what the phase around it decided.
 /// Enforce the policies the pass reports against, gather the peer
 /// issues, and assemble the phase's output.

@@ -14,8 +14,6 @@ use completion::collect_resolution;
 use super::{
     FreshInputs,
     OwnedInputs,
-    PatchUsageScope,
-    check_patch_usage,
     errors::InstallWithFreshLockfileError,
     importers_consuming_linked_peers,
     manifest_transforms,

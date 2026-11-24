@@ -280,7 +280,7 @@ fn unused_patch_warns_when_allow_unused_patches_is_set() {
 }
 
 #[test]
-fn legacy_deploy_honors_allow_unused_patches_overrides() {
+fn legacy_deploy_checks_unused_patches_for_deployed_package_names() {
     let (root, workspace, npmrc_info) = setup_configured_patch_with_yaml(
         "is-positive@1.0.0",
         "is-positive@1.0.0.patch",
@@ -291,11 +291,45 @@ fn legacy_deploy_honors_allow_unused_patches_overrides() {
     fs::create_dir_all(&app).expect("create app directory");
     fs::write(
         app.join("package.json"),
-        serde_json::json!({ "name": "app", "version": "1.0.0" }).to_string(),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "aliased": "npm:is-positive@3.1.0" }
+        })
+        .to_string(),
     )
     .expect("write app manifest");
 
+    let prod_app = workspace.join("packages/prod-app");
+    fs::create_dir_all(&prod_app).expect("create production app directory");
+    fs::write(
+        prod_app.join("package.json"),
+        serde_json::json!({
+            "name": "prod-app",
+            "version": "1.0.0",
+            "dependencies": { "is-negative": "1.0.0" },
+            "devDependencies": { "is-positive": "1.0.0" }
+        })
+        .to_string(),
+    )
+    .expect("write production app manifest");
+
     pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["--filter=prod-app", "deploy", "--legacy", "--prod", "prod-deploy"])
+        .assert()
+        .success();
+    assert!(workspace.join("prod-deploy/node_modules/is-negative/package.json").is_file());
+    assert!(!workspace.join("prod-deploy/node_modules/is-positive").exists());
+    let strict =
+        pacquet(&workspace, ["--filter=app", "deploy", "--legacy", "--prod", "strict-deploy"])
+            .output()
+            .expect("deploy with a stale patch");
+    let stderr = String::from_utf8_lossy(&strict.stderr);
+    assert!(!strict.status.success());
+    assert!(
+        stderr.contains("ERR_PNPM_UNUSED_PATCH") && stderr.contains("is-positive@1.0.0"),
+        "{stderr}",
+    );
     pacquet(
         &workspace,
         [

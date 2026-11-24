@@ -105,6 +105,8 @@ Force legacy deploy implementation.
 
 By default, `pnpm deploy` will try creating a dedicated lockfile from a shared lockfile for deployment. The `--legacy` flag disables this behavior.
 
+Legacy deploy checks patch usage only for package names in the deployed dependency graph. An unmatched patch for a deployed package still triggers an unused-patch diagnostic.
+
 Since v12.4.1, the legacy implementation prefers the versions the source workspace lockfile pins, wherever they still satisfy the deployed project's ranges.
 
 Since v12.16.0, it checks the source workspace lockfile against [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) and the other resolution policies first, as `pnpm install` does, and fails if one of them rejects a locked version. [`trustLockfile`](../settings/dependency-resolution.md#trustlockfile) or `--trust-lockfile` skips that check.

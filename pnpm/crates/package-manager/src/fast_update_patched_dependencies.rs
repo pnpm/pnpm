@@ -89,7 +89,7 @@ pub(crate) fn apply_patched_update(
         let Some(applied) = applied_patch_keys(candidate, &plan.groups) else {
             return false;
         };
-        if all_patch_keys(&plan.groups).any(|key| !applied.contains(key)) {
+        if all_patch_keys(plan.groups.values()).any(|key| !applied.contains(key)) {
             return false;
         }
     }
@@ -325,7 +325,7 @@ pub(crate) fn every_configured_patch_is_applied(
     let Some(applied) = applied_patch_keys(lockfile, &groups) else {
         return false;
     };
-    !all_patch_keys(&groups).any(|key| !applied.contains(key))
+    !all_patch_keys(groups.values()).any(|key| !applied.contains(key))
 }
 
 /// The configured patches the committed lockfile leaves unused, as the
@@ -344,8 +344,8 @@ pub(crate) fn unused_patches(
     let applied = applied
         .into_iter()
         .map(str::to_string)
-        .collect();
-    pnpm_patching::verify_patches(&groups, &applied, true).ok().flatten()
+        .collect::<std::collections::HashSet<_>>();
+    pnpm_patching::verify_patches(groups.values(), &applied, true).ok().flatten()
 }
 
 #[cfg(test)]
