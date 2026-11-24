@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { git, temporaryRepo } from './git-fixture.mjs'
-import { e2eAreas, e2eFilter, isPnprPackage, parseOptions, selectPackages, smokeStandIns, trackedBase, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
+import { e2eAreas, e2eFilter, executionOptions, isPnprPackage, mappedE2eModules, parseOptions, selectPackages, smokeStandIns, trackedBase, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
 
 const script = fileURLToPath(new URL('./test-affected.mjs', import.meta.url))
+const repo = path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
 
 function repoWithOneCommit (context) {
   const repo = temporaryRepo(context, 'pnpm-test-affected-')
@@ -124,8 +127,22 @@ test('leaves crates without a module map to their own tests and smoke', () => {
   assert.deepEqual(e2eAreas(['pnpm-micro-benchmark']), [])
 })
 
+test('every mapped module is declared in the CLI suite', () => {
+  const source = fs.readFileSync(path.join(repo, 'pnpm/crates/cli/tests/suite/main.rs'), 'utf8')
+  const modules = new Set([...source.matchAll(/^mod\s+([\w]+);$/gm)].map(([, name]) => name))
+  for (const area of mappedE2eModules()) {
+    assert.ok(modules.has(area), `E2E_AREAS names ${area}, but suite/main.rs does not declare mod ${area};`)
+  }
+})
+
 test('builds an anchored nextest filter from module names', () => {
   assert.equal(e2eFilter(['add', 'install']), 'test(/^add::/) + test(/^install::/)')
+})
+
+test('forwards execution options without forwarding a run selection', () => {
+  const args = ['--no-run', '-p', 'pnpm-cli', '-E', 'test(add::)', '--profile', 'smoke', '--no-capture']
+  assert.deepEqual(executionOptions(args), ['--no-run', '--no-capture'])
+  assert.deepEqual(executionOptions(['-pfoo', '-Etest(add::)', '--package=bar', '--filter=test(a)', '--profile=smoke', '--no-run']), ['--no-run'])
 })
 
 test('reads --no-smoke', () => {

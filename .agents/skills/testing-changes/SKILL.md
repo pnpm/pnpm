@@ -33,7 +33,7 @@ For anything narrower, `pnpm test:rust` (`node pnpm/scripts/run-rust-tests.mjs`)
 
 A change to a core crate no longer has to choose between that crate's own tests and the whole CLI suite. `pnpm test:rust-affected` also runs the CLI end-to-end modules listed for the changed crate in `E2E_AREAS` in `pnpm/scripts/test-affected.mjs`. For `pnpm-lockfile` that is the `add`, `install`, `update` and related modules. The mapping is explicit because the tests spawn the CLI, so no call edge connects a test to the crate it covers. Add a module to the map when a crate's observable effects are asserted in a suite file that is missing from it.
 
-Registry-backed helpers live in `pnpm-testing-utils-registry`, not in the shared `pnpm-testing-utils` harness. Keeping `pnpr` out of the shared crate cut the static `rdeps()` fan-out for core crates. `pnpm-lockfile` went from 88 packages and 95.0% of counted test attributes to 43 packages and 77.1%. `pnpm-config` went from 95.0% to 68.8%, and `pnpr-storage` from 95.0% to 55.2%. Both harness crates are workspace-wide changes, so edits to either refuse scoping.
+Registry-backed helpers live in `pnpm-testing-utils-registry`, not in the shared `pnpm-testing-utils` harness. Keeping `pnpr` out of the shared crate narrows the static `rdeps()` fan-out for core crates. Both harness crates are workspace-wide changes, so edits to either refuse scoping.
 
 `pnpm-cli` still sits downstream of the core crates, so `rdeps()` remains wider than the targeted default. Do not use it to widen a day-to-day selection. Use the crate-to-module map and the smoke profile instead. The tradeoff between splitting the suite, sharing registry fixtures, and this mapping is tracked in [pnpm/tasks#18](https://github.com/pnpm/tasks/issues/18).
 

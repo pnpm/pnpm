@@ -58,6 +58,10 @@ export function e2eAreas (selected) {
   return [...new Set(selected.flatMap(name => E2E_AREAS[name] ?? []))].sort()
 }
 
+export function mappedE2eModules () {
+  return [...new Set(Object.values(E2E_AREAS).flat())].sort()
+}
+
 export function e2eFilter (areas) {
   return areas.map(area => `test(/^${area}::/)`).join(' + ')
 }
@@ -176,6 +180,31 @@ export function parseOptions (argv) {
   return { values, rest }
 }
 
+const SELECTION_OPTIONS = ['--filter', '--package', '--profile']
+
+/**
+ * The hand-picked nextest options that apply to every run this script makes.
+ * Package, filter, and profile choices belong to one run and are left behind.
+ */
+export function executionOptions (args) {
+  const options = []
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]
+    const name = arg.split('=', 1)[0]
+    if (SELECTION_OPTIONS.includes(name)) {
+      if (name === arg) index++
+      continue
+    }
+    if (arg === '-E' || arg === '-p') {
+      index++
+      continue
+    }
+    if (/^-[pE].+/.test(arg)) continue
+    options.push(arg)
+  }
+  return options
+}
+
 // No git ref name starts with `-`, so an operand that does is a mistyped flag.
 // Passing it on would reach `git rev-parse` and `git merge-base` as an option.
 function revision (value) {
@@ -249,11 +278,12 @@ looks like: just test-affected -- -p pnpm-cli -E 'test(catalog::)'`)
   }
 
   const runner = path.join(repo, 'pnpm/scripts/run-rust-tests.mjs')
+  const options = executionOptions(rest)
   const runs = [packages.flatMap(name => ['-p', name]).concat(rest)]
-  if (areas.length > 0) runs.push(['-p', 'pnpm-cli', '-E', e2eFilter(areas)])
+  if (areas.length > 0) runs.push(['-p', 'pnpm-cli', '-E', e2eFilter(areas), ...options])
   // A profile's default filter intersects with any other selection, so the
   // smoke entries cannot be unioned into the run above. They get their own.
-  if (smoke.length > 0) runs.push(['--profile', 'smoke', ...smoke.flatMap(name => ['-p', name])])
+  if (smoke.length > 0) runs.push(['--profile', 'smoke', ...smoke.flatMap(name => ['-p', name]), ...options])
 
   if (values.print) {
     for (const run of runs) console.log(`\nnode ${path.relative(repo, runner)} ${run.join(' ')}`)
