@@ -18,17 +18,19 @@ use super::{
 use pnpm_testing_utils::command_env::CommandTestExt;
 
 #[test]
-fn git_commit_and_tag_are_created_by_default() {
+fn git_commit_and_tag_are_created_with_untracked_files() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     init_git(&workspace);
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
     git_commit_all(&workspace, "init");
 
+    fs::write(workspace.join("scratch.txt"), "notes").expect("write untracked file");
     let output = pacquet_version(&workspace, &["patch"]);
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "v1.0.1");
     assert_eq!(git_stdout(&workspace, &["log", "-1", "--pretty=%s"]), "1.0.1");
+    assert_eq!(git_stdout(&workspace, &["status", "--porcelain"]), "?? scratch.txt");
     drop(root);
 }
 
@@ -266,10 +268,18 @@ fn unclean_working_tree_fails_unless_git_checks_are_disabled() {
     init_git(&workspace);
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
     git_commit_all(&workspace, "init");
-    fs::write(workspace.join("dirty.txt"), "x").expect("dirty the tree");
+    fs::write(workspace.join("dirty.txt"), "x").expect("write file");
+    git_stdout(&workspace, &["add", "dirty.txt"]);
 
     let output = pacquet_version(&workspace, &["patch"]);
     assert!(!output.status.success(), "an unclean tree must fail");
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("ERR_PNPM_UNCLEAN_WORKING_TREE"), "{stderr}");
+
+    git_commit_all(&workspace, "track file");
+    fs::write(workspace.join("dirty.txt"), "edited").expect("modify tracked file");
+    let output = pacquet_version(&workspace, &["patch"]);
+    assert!(!output.status.success(), "a modified tracked file must block the bump");
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_UNCLEAN_WORKING_TREE"), "{stderr}");
 
@@ -319,7 +329,8 @@ fn dry_run_skips_the_git_checks_the_lifecycle_scripts_and_the_commit() {
     init_git(&workspace);
     git_commit_all(&workspace, "init");
     let commits_before = git_stdout(&workspace, &["rev-list", "--count", "HEAD"]);
-    fs::write(workspace.join("dirty.txt"), "x").expect("dirty the tree");
+    fs::write(workspace.join("dirty.txt"), "x").expect("write file");
+    git_stdout(&workspace, &["add", "dirty.txt"]);
 
     let output = pacquet_version(&workspace, &["patch", "--dry-run"]);
 

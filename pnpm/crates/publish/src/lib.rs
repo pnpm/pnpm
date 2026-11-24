@@ -52,6 +52,7 @@ pub use oidc::{
 };
 pub use otp_env::resolve_otp_from_env;
 pub use pnpm_git_utils::{
+    are_tracked_files_clean,
     get_current_branch,
     is_git_repo,
     is_remote_history_clean,
