@@ -24,10 +24,6 @@ auditConfig:
     # and command line, or from scripts and manifests of dependencies already allowed
     # to run code, so a crash gives an attacker nothing new.
     - GHSA-vfj7-8cjw-p6xm
-    # GHSA-ch52-4w7c-c8xp: http-cache-semantics max-stale leaks other users'
-    # responses from a shared cache. No patched release exists. make-fetch-happen
-    # uses it for a private, single-user client cache, which has no other users.
-    - GHSA-ch52-4w7c-c8xp
     # GHSA-hp3w-g68c-fv3c: sprintf-js DoS through unbounded precision specifiers.
     # No patched release exists. It is reached only through argparse 1, which
     # formats its own help text with it, never attacker-controlled formats.
