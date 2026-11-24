@@ -224,7 +224,6 @@ fn stream_prefixes_recursive_script_output_with_the_project() {
     assert_eq!(
         sorted_lines(&output.stdout),
         [
-            "Scope: all 2 workspace projects",
             "project-1 test$ echo OK",
             "project-1 test: Done",
             "project-1 test: OK",
@@ -387,7 +386,6 @@ fn reporter_hide_prefix_drops_the_prefix_from_streamed_script_output() {
         [
             "OK",
             "OK",
-            "Scope: all 2 workspace projects",
             "project-1 test$ echo OK",
             "project-1 test: Done",
             "project-2 test$ echo OK",
@@ -417,7 +415,6 @@ fn parallel_implies_stream() {
     assert_eq!(
         sorted_lines(&output.stdout),
         [
-            "Scope: all 2 workspace projects",
             "project-1 test$ echo OK",
             "project-1 test: Done",
             "project-1 test: OK",
@@ -447,7 +444,7 @@ fn recursive_run_inherits_stdio_without_stream() {
         .output()
         .expect("run test");
     assert!(output.status.success(), "recursive run failed: {output:?}");
-    assert_eq!(sorted_lines(&output.stdout), ["OK", "OK", "Scope: all 2 workspace projects"]);
+    assert_eq!(sorted_lines(&output.stdout), ["OK", "OK"]);
 
     drop(root);
 }
@@ -471,7 +468,6 @@ fn recursive_run_pipes_stdio_when_tasks_can_interleave() {
     assert_eq!(
         sorted_lines(&output.stdout),
         [
-            "Scope: all 2 workspace projects",
             "project-1 test$ echo OK",
             "project-1 test: Done",
             "project-1 test: OK",

@@ -28,14 +28,6 @@ fn pretty_bytes_truncates_without_floating_point_drift() {
 }
 
 #[test]
-fn importing_done_appends_done_suffix() {
-    let mut reporter = state(false);
-    let frame =
-        render(&mut reporter, vec![progress("resolved"), progress("imported"), importing_done()]);
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 1, done");
-}
-
-#[test]
 fn stats_bar_is_colored_when_enabled() {
     let mut reporter = state(true);
     let frame = render(
@@ -83,8 +75,7 @@ fn full_install_frame_orders_blocks_like_pnpm() {
     );
     assert_eq!(
         frame,
-        "Packages: +1\n+\n\ndependencies:\n+ foo 1.0.0\n\n\
-         Progress: resolved 1, reused 1, downloaded 0, added 1, done\n\
+        "Packages: +1 (100% reused)\n+\n\ndependencies:\n+ foo 1.0.0\n\n\
          Done in 1.2s using pnpm v0.0.1",
     );
 }
@@ -137,4 +128,32 @@ fn aggregate_output_withholds_each_script_until_it_exits() {
             "packages/foo postinstall$ node foo\npackages/foo postinstall: foo I\npackages/foo postinstall: foo II\npackages/foo postinstall: Done",
         ],
     );
+}
+
+#[test]
+fn stats_bar_colors_downloaded_and_reused_packages() {
+    let mut reporter = state(true);
+    let frame = render(
+        &mut reporter,
+        vec![
+            progress("fetched"),
+            progress("found_in_store"),
+            progress("found_in_store"),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 3 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+            }),
+            importing_done(),
+        ],
+    );
+    let mut lines = frame.lines();
+    assert_eq!(lines.next(), Some("Packages: \u{1b}[32m+3\u{1b}[39m (66% reused)"));
+    let bar = lines.next().expect("the bar follows the stats line");
+    let downloaded = "\u{1b}[32m↓\u{1b}[39m";
+    let reused = "\u{1b}[32m+\u{1b}[39m";
+    assert_eq!(bar, format!("{downloaded}{reused}{reused}"));
 }

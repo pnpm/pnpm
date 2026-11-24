@@ -88,19 +88,18 @@ fn output_of(mut command: Command) -> String {
 }
 
 #[test]
-fn install_reports_the_whole_workspace_as_its_scope() {
+fn install_reports_no_scope_for_the_whole_workspace() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } = default_workspace();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let printed = output_of(pacquet(&workspace).with_arg("install"));
-    assert!(printed.contains("Scope: all 3 workspace projects"), "output:\n{printed}");
+    assert!(!printed.contains("Scope:"), "output:\n{printed}");
 
-    // The repeat-install short-circuit is the common case, and it covers
-    // the same projects; it reports the scope rather than going quiet
-    // about what it just decided was current.
+    // The repeat-install short-circuit covers the same projects, so it
+    // stays as quiet about them.
     let printed = output_of(pacquet(&workspace).with_arg("install"));
     assert!(printed.contains("Already up to date"), "the short-circuit ran:\n{printed}");
-    assert!(printed.contains("Scope: all 3 workspace projects"), "output:\n{printed}");
+    assert!(!printed.contains("Scope:"), "output:\n{printed}");
 
     drop((mock_instance, root));
 }

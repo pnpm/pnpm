@@ -114,10 +114,20 @@ struct ProgressStats {
     imported: u64,
 }
 
+/// One project's halves of `pnpm:stats`, each `None` until it arrives.
+#[derive(Debug, Default, Clone, Copy)]
+struct ProjectStats {
+    added: Option<u64>,
+    removed: Option<u64>,
+}
+
 #[derive(Debug, Default)]
 struct ProgressEntry {
     stats: ProgressStats,
     slot: BlockSlot,
+    /// Set once a stats line counted this requester's packages. Its
+    /// progress line goes when it finishes, without a `, done` line.
+    reported: bool,
     /// Set once the `, done` line is rendered. Like pnpm's `takeWhile`
     /// on `importingDone$`, later progress events for the requester are
     /// dropped instead of starting a new line.
@@ -234,12 +244,16 @@ struct InstallProgress {
     import_method: Option<PackageImportMethod>,
     context_slot: BlockSlot,
     context_rendered: bool,
-    stats_added: Option<u64>,
-    stats_removed: Option<u64>,
+    /// The `pnpm:stats` of each project the install reports on, keyed by
+    /// prefix: the current one, and each one that reported progress.
+    stats: BTreeMap<String, ProjectStats>,
     stats_slot: BlockSlot,
     /// The stats reported no package added or removed. "Already up to
     /// date" waits for the summary: a manifest edit can still change it.
     no_package_changed: bool,
+    /// Some stats line showed an added or removed package, which a later
+    /// round without changes does not undo.
+    package_changed: bool,
 }
 
 /// [`PackageDiff`]s keyed by [`diff_key`], then by sign and name.

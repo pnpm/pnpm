@@ -21,19 +21,22 @@ use super::{
     zoom_out,
 };
 
+use std::fmt::Write as _;
+
 impl ReporterState {
     // --- scope ------------------------------------------------------------
 
     /// pnpm's `reportScope`: how many workspace projects the command
-    /// selected. Silent for a command that doesn't report scope, and for a
+    /// selected. Silent for a command that doesn't report scope, for a
     /// single selected project, where the answer is the directory the
-    /// user is already standing in.
+    /// user is already standing in, and when every project was selected,
+    /// which the user did not have to ask for.
     pub(super) fn on_scope(&mut self, log: &ScopeLog) {
         if !self.options.scope.reports_scope || log.selected == 1 {
             return;
         }
         let count = match log.total {
-            Some(total) if total == log.selected => format!("all {total}"),
+            Some(total) if total == log.selected => return,
             Some(total) => format!("{} of {total}", log.selected),
             None => log.selected.to_string(),
         };
@@ -89,29 +92,36 @@ impl ReporterState {
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
         match stage {
+            Stage::ResolutionStarted => {}
             Stage::ResolutionDone => self.flush_unused_overrides(),
-            Stage::ImportingDone => {
-                if !self.downloads.progress.contains_key(prefix) {
-                    return;
-                }
-                let msg = self.downloads.progress_message(
-                    &self.rendering,
-                    &self.options.progress,
-                    prefix,
-                    true,
-                );
-                let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
-                let mut slot = std::mem::take(&mut entry.slot);
-                self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
-                if let Some(entry) = self.downloads.progress.get_mut(prefix) {
-                    entry.slot = slot;
-                    entry.done = true;
-                }
-            }
-            _ => {}
+            Stage::ImportingStarted => self.downloads.restart_finished(prefix),
+            Stage::ImportingDone => self.finish_importing(prefix),
         }
     }
 
+    /// Ends `prefix`'s progress line with `, done`, or drops it when a
+    /// stats line already counted it, and shows the stats once every
+    /// project finished.
+    fn finish_importing(&mut self, prefix: &str) {
+        let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
+        if entry.reported {
+            entry.done = true;
+            self.display.frame.clear(&mut entry.slot);
+            return;
+        }
+        let msg =
+            self.downloads.progress_message(&self.rendering, &self.options.progress, prefix, true);
+        let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
+        let mut slot = std::mem::take(&mut entry.slot);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
+        if let Some(entry) = self.downloads.progress.get_mut(prefix) {
+            entry.slot = slot;
+            entry.done = true;
+        }
+        if self.downloads.importing_finished() {
+            self.render_stats();
+        }
+    }
     // --- big tarballs -----------------------------------------------------
 
     pub(super) fn on_fetching(&mut self, message: &FetchingProgressMessage) {
@@ -176,18 +186,17 @@ impl ReporterState {
         let prefix = match message {
             StatsMessage::Added { prefix, .. } | StatsMessage::Removed { prefix, .. } => prefix,
         };
-        if prefix != &self.rendering.cwd {
+        // Run from a workspace member, an install reports both its progress
+        // and its stats under the workspace root.
+        if prefix != &self.rendering.cwd && !self.downloads.progress.contains_key(prefix) {
             return;
         }
+        let stats = self.install.stats.entry(prefix.clone()).or_default();
         match message {
-            StatsMessage::Added { added, .. } => {
-                self.install.stats_added = Some(*added);
-            }
-            StatsMessage::Removed { removed, .. } => {
-                self.install.stats_removed = Some(*removed);
-            }
+            StatsMessage::Added { added, .. } => stats.added = Some(*added),
+            StatsMessage::Removed { removed, .. } => stats.removed = Some(*removed),
         }
-        if self.install.stats_added.is_some() && self.install.stats_removed.is_some() {
+        if self.downloads.importing_finished() {
             self.render_stats();
         }
     }
@@ -207,30 +216,57 @@ impl ReporterState {
         self.install.stats_slot = slot;
     }
 
+    /// The stats that replace the finished progress lines: a line such as
+    /// `Packages: +5 -2 (60% downloaded)`, and a bar with a sign per
+    /// package: `↓` downloaded, `+` reused from the store, `-` removed.
+    /// The line gives the larger share of downloaded and reused packages,
+    /// not their counts: resolution also fetches versions it then drops,
+    /// so a count would not match the packages added.
+    ///
+    /// Waits for both halves of every project's stats. Each line consumes
+    /// the stats and the progress it counts, so a project or an install
+    /// that finishes later gets a line of its own.
     pub(super) fn render_stats(&mut self) {
-        let added = self.install.stats_added.take().unwrap_or(0);
-        let removed = self.install.stats_removed.take().unwrap_or(0);
-        if added == 0 && removed == 0 {
-            self.install.no_package_changed = true;
-            return;
-        }
+        let Some((added, removed)) = self.install.stats_totals() else { return };
+        let requesters: Vec<String> = self.install.stats
+            .keys()
+            .cloned()
+            .collect();
+        let (downloaded, reused) = self.downloads.package_sources(&requesters);
+        let counts = StatsCounts { added, removed, downloaded, reused };
+        let changed = added > 0 || removed > 0;
+        let msg = changed.then(|| self.stats_message(counts));
+        self.downloads.mark_reported(&requesters, &mut self.display.frame);
+        self.install.stats.clear();
+        self.install.package_changed |= changed;
+        self.install.no_package_changed = !self.install.package_changed;
+        let Some(msg) = msg else { return };
+        let mut slot = std::mem::take(&mut self.install.stats_slot);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
+    }
+
+    fn stats_message(&self, counts: StatsCounts) -> String {
+        let StatsCounts { added, removed, .. } = counts;
+        let colors = &self.rendering.colors;
         let mut msg = String::from("Packages:");
         if added > 0 {
             msg.push(' ');
-            msg.push_str(&self.rendering.colors.green(&format!("+{added}")));
+            msg.push_str(&colors.green(&format!("+{added}")));
         }
         if removed > 0 {
             msg.push(' ');
-            msg.push_str(&self.rendering.colors.red(&format!("-{removed}")));
+            msg.push_str(&colors.red(&format!("-{removed}")));
+        }
+        if let Some(source) = counts.source_share() {
+            let _ = write!(msg, " ({source})");
         }
         msg.push('\n');
-        msg.push_str(&self.pluses_and_minuses(self.rendering.width, added, removed));
-        let mut slot = std::mem::take(&mut self.install.stats_slot);
-        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
-        self.install.stats_slot = slot;
+        msg.push_str(&self.pluses_and_minuses(self.rendering.width, counts));
+        msg
     }
 
-    pub(super) fn pluses_and_minuses(&self, max_width: usize, added: u64, removed: u64) -> String {
+    fn pluses_and_minuses(&self, max_width: usize, counts: StatsCounts) -> String {
+        let StatsCounts { added, removed, .. } = counts;
         if max_width == 0 {
             return String::new();
         }
@@ -250,8 +286,12 @@ impl ReporterState {
         } else {
             (added as usize, removed as usize)
         };
+        let downloaded_chars = counts.downloaded_part(added_chars);
         let mut out = String::new();
-        for _ in 0..added_chars {
+        for _ in 0..downloaded_chars {
+            out.push_str(&self.rendering.colors.green("↓"));
+        }
+        for _ in downloaded_chars..added_chars {
             out.push_str(&self.rendering.colors.green("+"));
         }
         for _ in 0..removed_chars {
@@ -262,6 +302,34 @@ impl ReporterState {
 }
 
 impl DownloadState {
+    /// Whether every project's progress line has finished, or a stats
+    /// line already counted it. True when there was none. A Python install
+    /// reports progress too, but never finishes importing, and its packages
+    /// are not in the stats.
+    pub(super) fn importing_finished(&self) -> bool {
+        self.npm_progress()
+            .all(|entry| entry.done || entry.reported)
+    }
+
+    fn npm_progress(&self) -> impl Iterator<Item = &super::ProgressEntry> {
+        self.progress
+            .iter()
+            .filter(|(requester, _)| *requester != pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER)
+            .map(|(_, entry)| entry)
+    }
+
+    /// How many packages `requesters` downloaded, and how many they reused
+    /// from the store, leaving out what an earlier stats line counted.
+    fn package_sources(&self, requesters: &[String]) -> (u64, u64) {
+        requesters
+            .iter()
+            .filter_map(|requester| self.progress.get(requester))
+            .filter(|entry| !entry.reported)
+            .fold((0, 0), |(downloaded, reused), entry| {
+                (downloaded + entry.stats.fetched, reused + entry.stats.reused)
+            })
+    }
+
     pub(super) fn progress_message(
         &self,
         rendering: &RenderingContext,
@@ -292,9 +360,98 @@ impl DownloadState {
         }
         msg
     }
+
+    /// A later install of a project that finished starts its progress
+    /// afresh. Its earlier lines stay where they are.
+    fn restart_finished(&mut self, requester: &str) {
+        if let Some(entry) = self.progress.get_mut(requester)
+            && entry.done
+        {
+            *entry = super::ProgressEntry::default();
+        }
+    }
+
+    /// Marks the progress of `requesters`, whose stats a stats line
+    /// counts, and clears the progress lines of those that finished, which
+    /// the stats line replaces. A project that has not finished yet loses
+    /// its line when it does.
+    fn mark_reported(&mut self, requesters: &[String], frame: &mut Frame) {
+        for requester in requesters {
+            let Some(entry) = self.progress.get_mut(requester) else { continue };
+            if entry.reported {
+                continue;
+            }
+            entry.reported = true;
+            if entry.done {
+                frame.clear(&mut entry.slot);
+            }
+        }
+    }
+}
+
+/// What a stats line shows: the added and removed totals, and the
+/// downloaded and reused counts of the same projects.
+#[derive(Clone, Copy)]
+struct StatsCounts {
+    added: u64,
+    removed: u64,
+    downloaded: u64,
+    reused: u64,
+}
+
+impl StatsCounts {
+    /// Where most packages came from, as `60% downloaded` or `90% reused`.
+    /// Rounded down, so 100% means every package. `None` when no package
+    /// was downloaded or reused.
+    fn source_share(self) -> Option<String> {
+        let total = self.downloaded + self.reused;
+        if total == 0 {
+            return None;
+        }
+        let (share, source) = if self.downloaded >= self.reused {
+            (self.downloaded, "downloaded")
+        } else {
+            (self.reused, "reused")
+        };
+        Some(format!("{}% {source}", share * 100 / total))
+    }
+
+    /// How many of the bar's `chars` added signs are downloaded `↓`
+    /// packages, in the share the line reports. A download keeps at
+    /// least one sign of its own. Zero when the sources are unknown.
+    fn downloaded_part(self, chars: usize) -> usize {
+        let total = self.downloaded + self.reused;
+        if total == 0 {
+            return 0;
+        }
+        let part = usize::try_from(self.downloaded * chars as u64 / total).unwrap_or(chars);
+        if self.downloaded > 0 { part.max(1).min(chars) } else { part }
+    }
 }
 
 impl InstallProgress {
+    /// The stats summed over the projects, once every project has both
+    /// halves. `None` before any stats arrive.
+    fn stats_totals(&self) -> Option<(u64, u64)> {
+        if self.stats.is_empty() {
+            return None;
+        }
+        self.stats
+            .values()
+            .try_fold((0, 0), |(added, removed), stats| {
+                Some((added + stats.added?, removed + stats.removed?))
+            })
+    }
+
+    /// Counts a half that never arrived as zero, so the stats can render
+    /// when the install ends without it.
+    pub(super) fn complete_stats(&mut self) {
+        for stats in self.stats.values_mut() {
+            stats.added.get_or_insert(0);
+            stats.removed.get_or_insert(0);
+        }
+    }
+
     pub(super) fn maybe_render_context(&mut self, cwd: &str, frame: &mut Frame) {
         if self.context_rendered {
             return;

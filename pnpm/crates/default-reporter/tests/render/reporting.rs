@@ -128,27 +128,6 @@ fn prints_progress_beginning_during_recursive_install() {
 }
 
 #[test]
-fn moves_fixed_progress_line_to_the_end() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            stage_at(CWD, Stage::ResolutionStarted),
-            progress("resolved"),
-            progress("fetched"),
-            LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: "foo".to_string(),
-                prefix: CWD.to_string(),
-            }),
-            stage_at(CWD, Stage::ResolutionDone),
-            stage_at(CWD, Stage::ImportingDone),
-        ],
-    );
-    assert_eq!(frame, "[WARN] foo\nProgress: resolved 1, reused 0, downloaded 1, added 0, done");
-}
-
-#[test]
 fn ignores_progress_after_importing_done() {
     let mut reporter = state(false);
     let frame = render(
@@ -182,6 +161,55 @@ fn stats_render_packages_line_and_bar() {
         ],
     );
     assert_eq!(frame, "Packages: +5 -2\n+++++--");
+}
+
+/// The stats replace the live progress line, so they wait for it to end.
+#[test]
+fn stats_wait_for_importing_to_finish() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            progress("resolved"),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+            }),
+        ],
+    );
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
+    let frame = render(&mut reporter, vec![stage_at(CWD, Stage::ImportingDone)]);
+    assert_eq!(frame, "Packages: +1\n+");
+}
+
+/// A Python install downloads alongside the npm install but never
+/// finishes importing, so it must not hold back the stats.
+#[test]
+fn python_downloads_do_not_hold_back_the_stats() {
+    let mut reporter = state(false);
+    let python = pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER;
+    render(
+        &mut reporter,
+        vec![
+            progress_at(python, "fetched"),
+            progress("fetched"),
+            progress("imported"),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+            }),
+        ],
+    );
+    let frame = render(&mut reporter, vec![stage_at(CWD, Stage::ImportingDone)]);
+    assert!(frame.starts_with("Packages: +1 (100% downloaded)\n↓\n"), "{frame}");
 }
 
 #[test]
@@ -584,4 +612,231 @@ fn hide_lifecycle_prefix_only_drops_it_from_output_lines() {
             "packages/foo postinstall: Done",
         ],
     );
+}
+
+#[test]
+fn append_only_progress_ends_with_the_stats() {
+    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
+    reporter.handle(&progress("resolved"));
+    let Output::Lines(lines) = reporter.handle(&progress("imported")) else {
+        panic!("a live update prints a line");
+    };
+    assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 1"]);
+    reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
+    }));
+    reporter.handle(&LogEvent::Stats(StatsLog {
+        level: LogLevel::Debug,
+        message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+    }));
+    let Output::Lines(lines) = reporter.handle(&stage_at(CWD, Stage::ImportingDone)) else {
+        panic!("importing done prints the stats");
+    };
+    assert_eq!(
+        lines,
+        vec!["Progress: resolved 1, reused 0, downloaded 0, added 1, done", "Packages: +1\n+"],
+    );
+}
+
+#[test]
+fn stats_give_the_larger_share_of_downloaded_and_reused_packages() {
+    for (statuses, expected) in [
+        (vec!["fetched", "fetched", "found_in_store"], "Packages: +3 (66% downloaded)\n↓↓+"),
+        (vec!["fetched", "found_in_store", "found_in_store"], "Packages: +3 (66% reused)\n↓++"),
+        (vec!["found_in_store"], "Packages: +3 (100% reused)\n+++"),
+        (vec!["resolved"], "Packages: +3\n+++"),
+    ] {
+        let mut reporter = state(false);
+        let mut events: Vec<LogEvent> = statuses
+            .into_iter()
+            .map(progress)
+            .collect();
+        events.extend([
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 3 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+            }),
+            stage_at(CWD, Stage::ImportingDone),
+        ]);
+        assert_eq!(render(&mut reporter, events), expected);
+    }
+}
+
+fn stats_at(prefix: &str, added: u64, removed: u64) -> Vec<LogEvent> {
+    vec![
+        LogEvent::Stats(StatsLog {
+            level: LogLevel::Debug,
+            message: StatsMessage::Added { prefix: prefix.to_string(), added },
+        }),
+        LogEvent::Stats(StatsLog {
+            level: LogLevel::Debug,
+            message: StatsMessage::Removed { prefix: prefix.to_string(), removed },
+        }),
+    ]
+}
+
+/// Run from a workspace member, an install reports its progress and its
+/// stats under the workspace root.
+#[test]
+fn stats_of_the_workspace_root_replace_the_live_line_in_a_member() {
+    let root = "/workspace";
+    let mut reporter = state(false);
+    let mut events = vec![progress_at(root, "resolved"), progress_at(root, "imported")];
+    events.extend(stats_at(root, 1, 0));
+    events.push(stage_at(root, Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +1\n+");
+}
+
+#[test]
+fn stats_of_several_projects_are_summed() {
+    let mut reporter = state(false);
+    let mut events =
+        vec![progress_at("/repo/foo", "resolved"), progress_at("/repo/bar", "resolved")];
+    events.extend(stats_at("/repo/foo", 2, 1));
+    events.extend(stats_at("/repo/bar", 3, 0));
+    events.push(stage_at("/repo/foo", Stage::ImportingDone));
+    events.push(stage_at("/repo/bar", Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +5 -1\n+++++-");
+}
+
+#[test]
+fn a_later_stats_line_counts_only_its_own_packages() {
+    let mut reporter = state(false);
+    let mut events = vec![progress_at("/repo/foo", "fetched")];
+    events.extend(stats_at("/repo/foo", 1, 0));
+    events.push(stage_at("/repo/foo", Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +1 (100% downloaded)\n↓");
+
+    let mut events = vec![
+        progress_at("/repo/bar", "found_in_store"),
+        progress_at("/repo/bar", "found_in_store"),
+        progress_at("/repo/bar", "found_in_store"),
+    ];
+    events.extend(stats_at("/repo/bar", 3, 0));
+    events.push(stage_at("/repo/bar", Stage::ImportingDone));
+    assert_eq!(
+        render(&mut reporter, events),
+        "Packages: +1 (100% downloaded)\n↓\nPackages: +3 (100% reused)\n+++",
+    );
+}
+
+#[test]
+fn a_second_install_does_not_reuse_the_stats_of_the_first() {
+    let mut reporter = state(false);
+    let mut events = vec![progress("fetched")];
+    events.extend(stats_at(CWD, 2, 1));
+    events.push(stage_at(CWD, Stage::ImportingDone));
+    render(&mut reporter, events);
+
+    let frame = render(
+        &mut reporter,
+        vec![
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
+            }),
+            summary(),
+        ],
+    );
+    assert!(frame.ends_with("Packages: +1\n+"), "{frame}");
+}
+
+#[test]
+fn a_stats_line_counts_only_the_projects_whose_stats_it_shows() {
+    let mut reporter = state(false);
+    let mut events = vec![
+        progress_at("/repo/foo", "found_in_store"),
+        progress_at("/repo/bar", "fetched"),
+        progress_at("/repo/bar", "fetched"),
+    ];
+    events.extend(stats_at("/repo/foo", 1, 0));
+    events.push(summary_at("/repo/foo"));
+    let frame = render(&mut reporter, events);
+    assert!(frame.starts_with("Packages: +1 (100% reused)\n+\n"), "{frame}");
+
+    let mut events = stats_at("/repo/bar", 2, 0);
+    events.push(stage_at("/repo/bar", Stage::ImportingDone));
+    let frame = render(&mut reporter, events);
+    assert!(frame.contains("Packages: +2 (100% downloaded)\n↓↓"), "{frame}");
+}
+
+#[test]
+fn a_later_install_of_the_same_project_counts_its_progress() {
+    let mut reporter = state(false);
+    let mut events = vec![progress("fetched")];
+    events.extend(stats_at(CWD, 1, 0));
+    events.push(stage_at(CWD, Stage::ImportingDone));
+    render(&mut reporter, events);
+
+    let mut events = vec![stage_at(CWD, Stage::ImportingStarted), progress("found_in_store")];
+    events.extend(stats_at(CWD, 1, 0));
+    events.push(stage_at(CWD, Stage::ImportingDone));
+    assert_eq!(
+        render(&mut reporter, events),
+        "Packages: +1 (100% downloaded)\n↓\nPackages: +1 (100% reused)\n+",
+    );
+}
+
+#[test]
+fn progress_after_the_stats_of_a_finished_install_is_ignored() {
+    let mut reporter = state(false);
+    let mut events = vec![progress("fetched")];
+    events.extend(stats_at(CWD, 1, 0));
+    events.push(stage_at(CWD, Stage::ImportingDone));
+    events.push(progress("fetched"));
+    assert_eq!(render(&mut reporter, events), "Packages: +1 (100% downloaded)\n↓");
+}
+
+#[test]
+fn a_round_without_changes_does_not_print_already_up_to_date() {
+    let mut reporter = state(false);
+    let mut events = vec![progress_at("/repo/foo", "fetched")];
+    events.extend(stats_at("/repo/foo", 1, 0));
+    events.push(stage_at("/repo/foo", Stage::ImportingDone));
+    events.push(progress_at("/repo/bar", "found_in_store"));
+    events.extend(stats_at("/repo/bar", 0, 0));
+    events.push(stage_at("/repo/bar", Stage::ImportingDone));
+    events.push(summary());
+    let frame = render(&mut reporter, events);
+    assert!(!frame.contains("Already up to date"), "{frame}");
+}
+
+#[test]
+fn the_summary_completes_the_stats_of_a_run_from_a_workspace_member() {
+    let mut reporter =
+        ReporterState::new("/repo/foo".to_string(), 80, Colors { enabled: false }, false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            progress_at(CWD, "fetched"),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
+            }),
+            stage_at(CWD, Stage::ImportingDone),
+            summary_at(CWD),
+        ],
+    );
+    assert!(frame.starts_with("Packages: +1 (100% downloaded)\n↓"), "{frame}");
+}
+
+#[test]
+fn a_project_that_finishes_after_the_stats_gets_its_own_line() {
+    let mut reporter = state(false);
+    let mut events = vec![progress_at("/repo/foo", "resolved")];
+    events.extend(stats_at("/repo/foo", 2, 0));
+    events.push(stage_at("/repo/foo", Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +2\n++");
+
+    let frame = render(&mut reporter, vec![progress_at("/repo/bar", "resolved")]);
+    assert!(frame.ends_with("Progress: resolved 1, reused 0, downloaded 0, added 0"), "{frame}");
+
+    let mut events = stats_at("/repo/bar", 3, 0);
+    events.push(stage_at("/repo/bar", Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +2\n++\nPackages: +3\n+++");
 }

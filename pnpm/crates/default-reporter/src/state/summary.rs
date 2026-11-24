@@ -80,9 +80,10 @@ impl ReporterState {
     }
 
     pub(super) fn on_summary(&mut self, log: &SummaryLog) {
-        if log.prefix == self.rendering.cwd
-            && (self.install.stats_added.is_some() || self.install.stats_removed.is_some())
+        if !self.install.stats.is_empty()
+            && (log.prefix == self.rendering.cwd || self.install.stats.contains_key(&log.prefix))
         {
+            self.install.complete_stats();
             self.render_stats();
         }
         if let Some(new_projects) = &log.new_projects

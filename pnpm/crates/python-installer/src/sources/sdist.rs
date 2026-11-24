@@ -42,10 +42,6 @@ use std::path::{
     PathBuf,
 };
 
-/// What the store's progress reporting calls a Python download, the
-/// same for every artifact a Python install fetches.
-const REQUESTER: &str = "Python environment";
-
 impl Registry<'_> {
     /// Build the release's source distribution, leaving the wheel it
     /// produced where a locked wheel of the same release would be: read
@@ -174,7 +170,7 @@ impl Registry<'_> {
                 id: &package_id,
             },
             store: self.store.clone(),
-            requester: REQUESTER,
+            requester: pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER,
             ignore_file_pattern: None,
             progress_reported: None,
             store_projection: ArchiveStoreProjection::RawArchive,
@@ -202,7 +198,7 @@ impl Registry<'_> {
                 id: package_id,
             },
             store: self.store.clone(),
-            requester: REQUESTER,
+            requester: pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER,
             archive_prefix: Some(sdist.root()),
             ignore_file_pattern: None,
             store_projection: ArchiveStoreProjection::RawArchive,
