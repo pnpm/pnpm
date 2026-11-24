@@ -13,7 +13,6 @@ use super::{
     RenderingContext,
     ReporterState,
     ScopeLog,
-    ShownStats,
     Stage,
     StatsMessage,
     normalize,
@@ -95,7 +94,10 @@ impl ReporterState {
         match stage {
             Stage::ResolutionDone => self.flush_unused_overrides(),
             Stage::ImportingDone => {
-                if !self.downloads.progress.contains_key(prefix) {
+                let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
+                if entry.reported {
+                    entry.done = true;
+                    self.display.frame.clear(&mut entry.slot);
                     return;
                 }
                 let msg = self.downloads.progress_message(
@@ -220,22 +222,25 @@ impl ReporterState {
     /// not their counts: resolution also fetches versions it then drops,
     /// so a count would not match the packages added.
     ///
-    /// Waits for both halves of every project's stats, and shows each
-    /// total once.
+    /// Waits for both halves of every project's stats. Each line consumes
+    /// the stats and the progress it counts, so a project or an install
+    /// that finishes later gets a line of its own.
     pub(super) fn render_stats(&mut self) {
         let Some((added, removed)) = self.install.stats_totals() else { return };
-        for slot in self.downloads.finished_slots() {
+        let changed = added > 0 || removed > 0;
+        let msg = changed.then(|| self.stats_message(added, removed));
+        for slot in self.downloads.take_reported_slots() {
             self.display.frame.clear(slot);
         }
-        let shown = ShownStats { added, removed, sources: self.downloads.package_sources() };
-        if self.install.stats_shown.replace(shown) == Some(shown) {
-            return;
-        }
-        if added == 0 && removed == 0 {
-            self.display.frame.clear(&mut self.install.stats_slot);
-            self.install.no_package_changed = true;
-            return;
-        }
+        self.install.stats.clear();
+        self.install.package_changed |= changed;
+        self.install.no_package_changed = !self.install.package_changed;
+        let Some(msg) = msg else { return };
+        let mut slot = std::mem::take(&mut self.install.stats_slot);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
+    }
+
+    fn stats_message(&self, added: u64, removed: u64) -> String {
         let colors = &self.rendering.colors;
         let mut msg = String::from("Packages:");
         if added > 0 {
@@ -251,9 +256,7 @@ impl ReporterState {
         }
         msg.push('\n');
         msg.push_str(&self.pluses_and_minuses(self.rendering.width, added, removed));
-        let mut slot = std::mem::take(&mut self.install.stats_slot);
-        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
-        self.install.stats_slot = slot;
+        msg
     }
 
     pub(super) fn pluses_and_minuses(&self, max_width: usize, added: u64, removed: u64) -> String {
@@ -320,10 +323,11 @@ impl DownloadState {
         Some(format!("{}% {source}", share * 100 / total))
     }
 
-    /// How many packages were downloaded and how many reused from the
-    /// store.
-    pub(super) fn package_sources(&self) -> (u64, u64) {
+    /// How many packages the projects no stats line counted yet
+    /// downloaded, and how many they reused from the store.
+    fn package_sources(&self) -> (u64, u64) {
         self.npm_progress()
+            .filter(|entry| !entry.reported)
             .fold((0, 0), |(downloaded, reused), entry| {
                 (downloaded + entry.stats.fetched, reused + entry.stats.reused)
             })
@@ -373,13 +377,19 @@ impl DownloadState {
         msg
     }
 
-    /// The progress lines of every finished project, which the stats
-    /// replace.
-    fn finished_slots(&mut self) -> impl Iterator<Item = &mut BlockSlot> {
+    /// Marks every project a stats line counts, and returns the progress
+    /// lines of those that finished, which it replaces. A project that has
+    /// not finished yet loses its line when it does.
+    fn take_reported_slots(&mut self) -> impl Iterator<Item = &mut BlockSlot> {
         self.progress
-            .values_mut()
-            .filter(|entry| entry.done)
-            .map(|entry| &mut entry.slot)
+            .iter_mut()
+            .filter(|(requester, entry)| {
+                *requester != pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER && !entry.reported
+            })
+            .filter_map(|(_, entry)| {
+                entry.reported = true;
+                entry.done.then_some(&mut entry.slot)
+            })
     }
 }
 

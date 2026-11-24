@@ -80,7 +80,9 @@ impl ReporterState {
     }
 
     pub(super) fn on_summary(&mut self, log: &SummaryLog) {
-        if log.prefix == self.rendering.cwd && !self.install.stats.is_empty() {
+        if !self.install.stats.is_empty()
+            && (log.prefix == self.rendering.cwd || self.install.stats.contains_key(&log.prefix))
+        {
             self.install.complete_stats();
             self.render_stats();
         }
