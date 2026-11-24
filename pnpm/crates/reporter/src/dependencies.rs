@@ -219,7 +219,18 @@ pub enum UnsupportedPackage {
         current: EngineVersions,
     },
     #[serde(rename = "ERR_PNPM_UNSUPPORTED_PLATFORM", rename_all = "camelCase")]
-    Platform { pkg_id: String },
+    Platform { pkg_id: String, wanted: WantedPlatform },
+}
+
+/// The `os`, `cpu`, and `libc` lists of a package's manifest.
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct WantedPlatform {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub os: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub libc: Option<Vec<String>>,
 }
 
 /// Versions, or version ranges, of the engines in a package's `engines`.

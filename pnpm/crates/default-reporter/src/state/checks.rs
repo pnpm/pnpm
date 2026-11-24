@@ -25,6 +25,8 @@ use super::{
     ReporterState,
     UnsupportedPackage,
     Value,
+    WantedPlatform,
+    engine_ranges::merge_ranges,
     is_strictly_newer,
 };
 
@@ -53,9 +55,11 @@ pub(super) struct ChecksState {
     /// `name@version` of every deprecated package resolution reported.
     deprecated: BTreeSet<String>,
     /// The packages that reject an engine, by the engine and its current
-    /// version, such as `Node.js 26.13.0`.
-    unsupported_engine: BTreeMap<String, BTreeSet<String>>,
-    unsupported_platform: BTreeSet<String>,
+    /// version, then by the range they declare.
+    unsupported_engine: BTreeMap<(&'static str, String), BTreeMap<String, BTreeSet<String>>>,
+    /// The packages that reject the platform, by what they want, such as
+    /// `os darwin`.
+    unsupported_platform: BTreeMap<String, BTreeSet<String>>,
     slot: BlockSlot,
     rendered: bool,
 }
@@ -90,18 +94,23 @@ impl ReporterState {
         }
         let checks = &mut self.notices.checks;
         match unsupported {
-            UnsupportedPackage::Platform { pkg_id } => {
-                checks.unsupported_platform.insert(sanitize(pkg_id));
+            UnsupportedPackage::Platform { pkg_id, wanted } => {
+                checks.unsupported_platform
+                    .entry(sanitize(&platform_requirement(wanted)))
+                    .or_default()
+                    .insert(sanitize(pkg_id));
             }
             UnsupportedPackage::Engine { pkg_id, wanted, current } => {
                 let engines = [
                     ("Node.js", &wanted.node, &current.node),
                     ("pnpm", &wanted.pnpm, &current.pnpm),
                 ];
-                for (engine, _, version) in engines.iter().filter(|(_, range, _)| range.is_some()) {
-                    let version = version.as_deref().unwrap_or_default();
+                for (engine, range, version) in engines {
+                    let Some(range) = range else { continue };
                     checks.unsupported_engine
-                        .entry(sanitize(&format!("{engine} {version}")))
+                        .entry((engine, sanitize(version.as_deref().unwrap_or_default())))
+                        .or_default()
+                        .entry(sanitize(range))
                         .or_default()
                         .insert(sanitize(pkg_id));
                 }
@@ -137,9 +146,8 @@ impl ReporterState {
         let lines: Vec<String> =
             [self.passed_line().filter(|_| shows_info), self.deprecated_line()]
                 .into_iter()
-                .chain(self.unsupported_engine_lines().map(Some))
+                .chain(self.unsupported_lines().map(Some))
                 .chain([
-                    self.unsupported_platform_line(),
                     self.peer_issues_line(),
                     self.outdated_line().filter(|_| shows_info),
                     self.resolution_skipped_line().filter(|_| shows_info),
@@ -169,22 +177,30 @@ impl ReporterState {
         })
     }
 
-    fn unsupported_engine_lines(&self) -> impl Iterator<Item = String> + '_ {
-        self.notices.checks.unsupported_engine
+    fn unsupported_lines(&self) -> impl Iterator<Item = String> + '_ {
+        let checks = &self.notices.checks;
+        let engines = checks.unsupported_engine
             .iter()
-            .map(|(engine, packages)| self.unsupported_line(packages, engine))
+            .flat_map(|((engine, current), by_range)| {
+                merge_ranges(by_range)
+                    .into_iter()
+                    .map(move |(range, packages)| {
+                        (format!("{engine} {range}, not {current}"), packages)
+                    })
+            });
+        let platforms = checks.unsupported_platform
+            .iter()
+            .map(|(requirement, packages)| (requirement.clone(), packages.clone()));
+        engines
+            .chain(platforms)
+            .map(|(requirement, packages)| self.unsupported_line(&requirement, &packages))
     }
 
-    fn unsupported_platform_line(&self) -> Option<String> {
-        let packages = &self.notices.checks.unsupported_platform;
-        (!packages.is_empty()).then(|| self.unsupported_line(packages, "this platform"))
-    }
-
-    fn unsupported_line(&self, packages: &BTreeSet<String>, host: &str) -> String {
+    fn unsupported_line(&self, requirement: &str, packages: &BTreeSet<String>) -> String {
         let (noun, verb) =
-            if packages.len() == 1 { ("package", "doesn't") } else { ("packages", "don't") };
+            if packages.len() == 1 { ("package", "wants") } else { ("packages", "want") };
         format!(
-            "{} {} {noun} {verb} support {host}: {}",
+            "{} {} {noun} {verb} {requirement}: {}",
             self.rendering.colors.red("✗"),
             packages.len(),
             list_names(packages, |label| self.package_label(label)),
@@ -299,6 +315,21 @@ fn peers_with_issues(issues_by_projects: &Value) -> impl Iterator<Item = String>
 fn pkg_label(log: &DeprecationLog) -> String {
     pnpm_text_sanitize::sanitize_inline(&format!("{}@{}", log.pkg_name, log.pkg_version))
         .into_owned()
+}
+
+/// The declared `os`, `cpu`, and `libc` lists, such as
+/// `os darwin or linux and cpu arm64`.
+fn platform_requirement(wanted: &WantedPlatform) -> String {
+    let fields: Vec<String> = [("os", &wanted.os), ("cpu", &wanted.cpu), ("libc", &wanted.libc)]
+        .into_iter()
+        .filter_map(|(field, values)| Some((field, values.as_deref()?)))
+        .filter(|(_, values)| !values.is_empty())
+        .map(|(field, values)| format!("{field} {}", values.join(" or ")))
+        .collect();
+    if fields.is_empty() {
+        return "another platform".to_string();
+    }
+    fields.join(" and ")
 }
 
 /// At most [`MAX_LISTED`] names, each through `paint`, then a count of

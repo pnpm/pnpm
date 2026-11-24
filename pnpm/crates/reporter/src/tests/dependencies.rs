@@ -40,6 +40,34 @@ fn install_check_matches_the_package_installability_warning() {
 }
 
 #[test]
+fn install_check_names_the_wanted_platform() {
+    let event = LogEvent::InstallCheck(super::InstallCheckLog {
+        level: LogLevel::Warn,
+        message: "Unsupported platform for fsevents@2.3.3".to_string(),
+        prefix: "/projects/x".to_string(),
+        unsupported: Some(super::UnsupportedPackage::Platform {
+            pkg_id: "fsevents@2.3.3".to_string(),
+            wanted: super::WantedPlatform {
+                os: Some(vec!["darwin".to_string()]),
+                ..Default::default()
+            },
+        }),
+    });
+    assert_eq!(
+        serde_json::to_value(&event).unwrap(),
+        serde_json::json!({
+            "name": "pnpm:install-check",
+            "level": "warn",
+            "message": "Unsupported platform for fsevents@2.3.3",
+            "prefix": "/projects/x",
+            "code": "ERR_PNPM_UNSUPPORTED_PLATFORM",
+            "pkgId": "fsevents@2.3.3",
+            "wanted": { "os": ["darwin"] },
+        }),
+    );
+}
+
+#[test]
 fn install_check_without_a_failed_check_has_only_the_message() {
     let event = LogEvent::InstallCheck(super::InstallCheckLog {
         level: LogLevel::Warn,

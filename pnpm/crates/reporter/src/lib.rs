@@ -30,6 +30,7 @@ pub use dependencies::{
     SkippedOptionalParent,
     SkippedOptionalReason,
     UnsupportedPackage,
+    WantedPlatform,
 };
 pub use progress::{
     ContextLog,

@@ -60,6 +60,7 @@ use pnpm_reporter::{
     UnsupportedPackage,
     UnusedOverrideLog,
     UpdateCheckLog,
+    WantedPlatform,
 };
 
 const CWD: &str = "/repo";

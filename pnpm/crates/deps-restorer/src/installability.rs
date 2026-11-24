@@ -73,6 +73,7 @@ use pnpm_reporter::{
     SkippedOptionalPackage,
     SkippedOptionalReason,
     UnsupportedPackage,
+    WantedPlatform,
 };
 
 /// Compute the [`SkippedSnapshots`] set for an install.
@@ -327,9 +328,14 @@ fn install_check_log(warn: &InstallabilityError, prefix: String) -> InstallCheck
                 pnpm: error.current.pnpm.clone(),
             },
         }),
-        InstallabilityError::Platform(error) => {
-            Some(UnsupportedPackage::Platform { pkg_id: error.package_id.clone() })
-        }
+        InstallabilityError::Platform(error) => Some(UnsupportedPackage::Platform {
+            pkg_id: error.package_id.clone(),
+            wanted: WantedPlatform {
+                os: error.wanted.os.clone(),
+                cpu: error.wanted.cpu.clone(),
+                libc: error.wanted.libc.clone(),
+            },
+        }),
         InstallabilityError::InvalidNodeVersion(_) => None,
     };
     InstallCheckLog { level: LogLevel::Warn, message: warn.to_string(), prefix, unsupported }

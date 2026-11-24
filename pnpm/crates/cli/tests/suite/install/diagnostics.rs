@@ -30,7 +30,7 @@ fn required_engine_mismatch_warns_on_fresh_and_frozen_install() {
             if reporter != "--reporter=ndjson" {
                 assert!(
                     combined.contains(
-                        "✗ 1 package doesn't support Node.js 20.0.0: incompatible-engine@",
+                        "✗ 1 package wants Node.js >=999.0.0, not 20.0.0: incompatible-engine@",
                     ),
                     "{combined}",
                 );

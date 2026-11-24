@@ -58,6 +58,7 @@ use crate::{
     SummaryLog,
     UnsupportedPackage,
     UnusedOverrideLog,
+    WantedPlatform,
 };
 
 mod behavior;

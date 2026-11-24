@@ -64,6 +64,7 @@ use pnpm_reporter::{
     UnsupportedPackage,
     UnusedOverrideLog,
     UpdateCheckLog,
+    WantedPlatform,
 };
 use serde_json::Value;
 
@@ -504,6 +505,8 @@ mod progress;
 mod summary;
 
 mod checks;
+
+mod engine_ranges;
 use checks::{
     ChecksState,
     RESOLUTION_SKIPPED,
