@@ -165,8 +165,7 @@ fn stats_bar_colors_downloaded_and_reused_packages() {
     assert_eq!(bar, format!("{downloaded}{reused}{reused}"));
 }
 
-/// Arrived packages wait in yellow, the highlighted one in grey, and turn
-/// green once added.
+/// Arrived packages wait in yellow, and turn green once added.
 #[test]
 fn live_bar_turns_green_as_packages_are_added() {
     let mut reporter = state(true);
@@ -179,7 +178,7 @@ fn live_bar_turns_green_as_packages_are_added() {
         .nth(1)
         .expect("the bar follows the live line");
     assert_eq!(bar.matches("\u{1b}[32m").count(), 1, "one added: {bar:?}");
-    assert_eq!(bar.matches("\u{1b}[90m").count(), 1, "one highlighted: {bar:?}");
+    assert_eq!(bar.matches("\u{1b}[33m").count(), 1, "one pending: {bar:?}");
 }
 
 /// Packages are added in parallel, so the green signs do not fill the bar
@@ -221,29 +220,5 @@ fn live_bar_keeps_a_sign_uncolored_until_the_stats() {
         .lines()
         .nth(1)
         .expect("the bar follows the live line");
-    assert_eq!(bar, "\u{1b}[90m↓\u{1b}[39m");
-}
-
-/// Every redraw moves the highlight one step along the uncolored signs.
-#[test]
-fn live_bar_highlight_steps_with_each_redraw() {
-    let mut reporter = state(true);
-    let highlighted = |frame: String| {
-        let bar = frame
-            .lines()
-            .nth(1)
-            .expect("the bar follows the live line")
-            .to_string();
-        bar.split("\u{1b}[90m")
-            .next()
-            .map(|before| {
-                before
-                    .chars()
-                    .filter(|sign| *sign == '↓')
-                    .count()
-            })
-    };
-    let first = highlighted(render(&mut reporter, vec![progress("fetched"), progress("fetched")]));
-    let second = highlighted(render(&mut reporter, vec![progress("resolved")]));
-    assert_eq!((first, second), (Some(0), Some(1)));
+    assert_eq!(bar, "\u{1b}[33m↓\u{1b}[39m");
 }

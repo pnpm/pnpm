@@ -298,10 +298,6 @@ struct NoticeState {
 struct DownloadState {
     progress: HashMap<String, ProgressEntry>,
     tarballs: HashMap<String, BigTarball>,
-    /// How many times the live line was drawn. It moves the highlight of
-    /// the live bar, so the bar animates with the redraws there are
-    /// anyway, at no cost of its own.
-    live_redraws: usize,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;

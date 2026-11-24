@@ -84,7 +84,6 @@ impl ReporterState {
         if self.install.stats_shown.is_some() {
             return;
         }
-        self.downloads.live_redraws += 1;
         let Some(msg) = self.live_packages_message() else { return };
         let mut slot = std::mem::take(&mut self.install.stats_slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Pinned);
@@ -139,8 +138,7 @@ impl ReporterState {
     /// green. Packages are added in parallel, so the green signs scatter
     /// across the bar in a fixed shuffle instead of filling it from the
     /// left. The bar ends as the green bar of the stats. Until then at
-    /// least one sign stays yellow, and a grey highlight steps along the
-    /// yellow signs on every redraw.
+    /// least one sign stays yellow, so it never looks finished early.
     fn live_bar(&self, max_width: usize) -> String {
         let totals = self.downloads.totals();
         let arrived = totals.fetched + totals.reused;
@@ -154,22 +152,12 @@ impl ReporterState {
         for position in shuffled_positions(chars).into_iter().take(added_chars) {
             added[position] = true;
         }
-        let pending: Vec<usize> = (0..chars)
-            .filter(|position| !added[*position])
-            .collect();
-        let highlighted = pending[self.downloads.live_redraws % pending.len()];
         let downloaded_chars = self.downloads.downloaded_part(chars);
         let colors = &self.rendering.colors;
         (0..chars)
             .map(|position| {
                 let sign = if position < downloaded_chars { "↓" } else { "+" };
-                if added[position] {
-                    colors.green(sign)
-                } else if position == highlighted {
-                    colors.grey(sign)
-                } else {
-                    colors.yellow(sign)
-                }
+                if added[position] { colors.green(sign) } else { colors.yellow(sign) }
             })
             .collect()
     }
@@ -197,10 +185,6 @@ impl ReporterState {
             }
             FetchingProgressMessage::InProgress { downloaded, package_id } => {
                 self.rewrite_tarball_block(package_id, *downloaded);
-                // Keeps the live bar moving through a long download.
-                if !self.downloads.progress.is_empty() {
-                    self.render_live_packages();
-                }
             }
         }
     }
