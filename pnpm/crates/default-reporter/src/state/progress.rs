@@ -67,6 +67,11 @@ impl ReporterState {
             | ProgressMessage::Imported { requester, .. } => requester.clone(),
         };
         let entry = self.downloads.progress.entry(requester.clone()).or_default();
+        // A stats line counted this requester's last install, so this is
+        // a later install of it.
+        if entry.done && entry.reported {
+            *entry = super::ProgressEntry::default();
+        }
         if entry.done {
             return;
         }
@@ -227,9 +232,15 @@ impl ReporterState {
     /// that finishes later gets a line of its own.
     pub(super) fn render_stats(&mut self) {
         let Some((added, removed)) = self.install.stats_totals() else { return };
+        let requesters: Vec<String> = self.install.stats
+            .keys()
+            .cloned()
+            .collect();
+        let (downloaded, reused) = self.downloads.package_sources(&requesters);
+        let counts = StatsCounts { added, removed, downloaded, reused };
         let changed = added > 0 || removed > 0;
-        let msg = changed.then(|| self.stats_message(added, removed));
-        for slot in self.downloads.take_reported_slots() {
+        let msg = changed.then(|| self.stats_message(counts));
+        for slot in self.downloads.take_reported_slots(&requesters) {
             self.display.frame.clear(slot);
         }
         self.install.stats.clear();
@@ -240,7 +251,8 @@ impl ReporterState {
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
     }
 
-    fn stats_message(&self, added: u64, removed: u64) -> String {
+    fn stats_message(&self, counts: StatsCounts) -> String {
+        let StatsCounts { added, removed, .. } = counts;
         let colors = &self.rendering.colors;
         let mut msg = String::from("Packages:");
         if added > 0 {
@@ -251,15 +263,16 @@ impl ReporterState {
             msg.push(' ');
             msg.push_str(&colors.red(&format!("-{removed}")));
         }
-        if let Some(source) = self.downloads.package_source() {
+        if let Some(source) = counts.source_share() {
             let _ = write!(msg, " ({source})");
         }
         msg.push('\n');
-        msg.push_str(&self.pluses_and_minuses(self.rendering.width, added, removed));
+        msg.push_str(&self.pluses_and_minuses(self.rendering.width, counts));
         msg
     }
 
-    pub(super) fn pluses_and_minuses(&self, max_width: usize, added: u64, removed: u64) -> String {
+    fn pluses_and_minuses(&self, max_width: usize, counts: StatsCounts) -> String {
+        let StatsCounts { added, removed, .. } = counts;
         if max_width == 0 {
             return String::new();
         }
@@ -279,7 +292,7 @@ impl ReporterState {
         } else {
             (added as usize, removed as usize)
         };
-        let downloaded_chars = self.downloads.downloaded_part(added_chars);
+        let downloaded_chars = counts.downloaded_part(added_chars);
         let mut out = String::new();
         for _ in 0..downloaded_chars {
             out.push_str(&self.rendering.colors.green("↓"));
@@ -295,11 +308,13 @@ impl ReporterState {
 }
 
 impl DownloadState {
-    /// Whether every project's progress line has finished. True when
-    /// there was none. A Python install reports progress too, but never
-    /// finishes importing, and its packages are not in the stats.
+    /// Whether every project's progress line has finished, or a stats
+    /// line already counted it. True when there was none. A Python install
+    /// reports progress too, but never finishes importing, and its packages
+    /// are not in the stats.
     pub(super) fn importing_finished(&self) -> bool {
-        self.npm_progress().all(|entry| entry.done)
+        self.npm_progress()
+            .all(|entry| entry.done || entry.reported)
     }
 
     fn npm_progress(&self) -> impl Iterator<Item = &super::ProgressEntry> {
@@ -309,41 +324,16 @@ impl DownloadState {
             .map(|(_, entry)| entry)
     }
 
-    /// Where most packages came from, as `60% downloaded` or `90% reused`.
-    /// Rounded down, so 100% means every package. `None` when no package
-    /// was downloaded or reused.
-    fn package_source(&self) -> Option<String> {
-        let (downloaded, reused) = self.package_sources();
-        let total = downloaded + reused;
-        if total == 0 {
-            return None;
-        }
-        let (share, source) =
-            if downloaded >= reused { (downloaded, "downloaded") } else { (reused, "reused") };
-        Some(format!("{}% {source}", share * 100 / total))
-    }
-
-    /// How many packages the projects no stats line counted yet
-    /// downloaded, and how many they reused from the store.
-    fn package_sources(&self) -> (u64, u64) {
-        self.npm_progress()
+    /// How many packages `requesters` downloaded, and how many they reused
+    /// from the store, leaving out what an earlier stats line counted.
+    fn package_sources(&self, requesters: &[String]) -> (u64, u64) {
+        requesters
+            .iter()
+            .filter_map(|requester| self.progress.get(requester))
             .filter(|entry| !entry.reported)
             .fold((0, 0), |(downloaded, reused), entry| {
                 (downloaded + entry.stats.fetched, reused + entry.stats.reused)
             })
-    }
-
-    /// How many of the bar's `chars` added signs are downloaded `↓`
-    /// packages, in the share the line reports. A download keeps at
-    /// least one sign of its own. Zero when the sources are unknown.
-    fn downloaded_part(&self, chars: usize) -> usize {
-        let (downloaded, reused) = self.package_sources();
-        let total = downloaded + reused;
-        if total == 0 {
-            return 0;
-        }
-        let part = usize::try_from(downloaded * chars as u64 / total).unwrap_or(chars);
-        if downloaded > 0 { part.max(1).min(chars) } else { part }
     }
 
     pub(super) fn progress_message(
@@ -377,19 +367,61 @@ impl DownloadState {
         msg
     }
 
-    /// Marks every project a stats line counts, and returns the progress
-    /// lines of those that finished, which it replaces. A project that has
-    /// not finished yet loses its line when it does.
-    fn take_reported_slots(&mut self) -> impl Iterator<Item = &mut BlockSlot> {
+    /// Marks the progress of `requesters`, whose stats a stats line
+    /// counts, and returns the progress lines of those that finished,
+    /// which it replaces. A project that has not finished yet loses its
+    /// line when it does.
+    fn take_reported_slots(
+        &mut self,
+        requesters: &[String],
+    ) -> impl Iterator<Item = &mut BlockSlot> {
         self.progress
             .iter_mut()
-            .filter(|(requester, entry)| {
-                *requester != pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER && !entry.reported
-            })
+            .filter(|(requester, entry)| requesters.contains(requester) && !entry.reported)
             .filter_map(|(_, entry)| {
                 entry.reported = true;
                 entry.done.then_some(&mut entry.slot)
             })
+    }
+}
+
+/// What a stats line shows: the added and removed totals, and the
+/// downloaded and reused counts of the same projects.
+#[derive(Clone, Copy)]
+struct StatsCounts {
+    added: u64,
+    removed: u64,
+    downloaded: u64,
+    reused: u64,
+}
+
+impl StatsCounts {
+    /// Where most packages came from, as `60% downloaded` or `90% reused`.
+    /// Rounded down, so 100% means every package. `None` when no package
+    /// was downloaded or reused.
+    fn source_share(self) -> Option<String> {
+        let total = self.downloaded + self.reused;
+        if total == 0 {
+            return None;
+        }
+        let (share, source) = if self.downloaded >= self.reused {
+            (self.downloaded, "downloaded")
+        } else {
+            (self.reused, "reused")
+        };
+        Some(format!("{}% {source}", share * 100 / total))
+    }
+
+    /// How many of the bar's `chars` added signs are downloaded `↓`
+    /// packages, in the share the line reports. A download keeps at
+    /// least one sign of its own. Zero when the sources are unknown.
+    fn downloaded_part(self, chars: usize) -> usize {
+        let total = self.downloaded + self.reused;
+        if total == 0 {
+            return 0;
+        }
+        let part = usize::try_from(self.downloaded * chars as u64 / total).unwrap_or(chars);
+        if self.downloaded > 0 { part.max(1).min(chars) } else { part }
     }
 }
 

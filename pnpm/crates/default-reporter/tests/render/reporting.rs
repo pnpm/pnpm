@@ -747,6 +747,42 @@ fn a_second_install_does_not_reuse_the_stats_of_the_first() {
 }
 
 #[test]
+fn a_stats_line_counts_only_the_projects_whose_stats_it_shows() {
+    let mut reporter = state(false);
+    let mut events = vec![
+        progress_at("/repo/foo", "found_in_store"),
+        progress_at("/repo/bar", "fetched"),
+        progress_at("/repo/bar", "fetched"),
+    ];
+    events.extend(stats_at("/repo/foo", 1, 0));
+    events.push(summary_at("/repo/foo"));
+    let frame = render(&mut reporter, events);
+    assert!(frame.starts_with("Packages: +1 (100% reused)\n+\n"), "{frame}");
+
+    let mut events = stats_at("/repo/bar", 2, 0);
+    events.push(stage_at("/repo/bar", Stage::ImportingDone));
+    let frame = render(&mut reporter, events);
+    assert!(frame.contains("Packages: +2 (100% downloaded)\n↓↓"), "{frame}");
+}
+
+#[test]
+fn a_later_install_of_the_same_project_counts_its_progress() {
+    let mut reporter = state(false);
+    let mut events = vec![progress("fetched")];
+    events.extend(stats_at(CWD, 1, 0));
+    events.push(stage_at(CWD, Stage::ImportingDone));
+    render(&mut reporter, events);
+
+    let mut events = vec![progress("found_in_store")];
+    events.extend(stats_at(CWD, 1, 0));
+    events.push(stage_at(CWD, Stage::ImportingDone));
+    assert_eq!(
+        render(&mut reporter, events),
+        "Packages: +1 (100% downloaded)\n↓\nPackages: +1 (100% reused)\n+",
+    );
+}
+
+#[test]
 fn a_round_without_changes_does_not_print_already_up_to_date() {
     let mut reporter = state(false);
     let mut events = vec![progress_at("/repo/foo", "fetched")];
