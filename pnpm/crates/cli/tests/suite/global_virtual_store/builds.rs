@@ -21,6 +21,55 @@ use super::{
 use assert_cmd::assert::OutputAssertExt;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 
+#[test]
+fn patched_bin_follows_the_package_to_a_new_global_slot() {
+    const PATCH_CONFIG: &str =
+        "patchedDependencies:\n  '@pnpm.e2e/hello-world-js-bin@1.0.0': cli.patch\n";
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin": "1.0.0" }));
+    fs::write(
+        workspace.join("cli.patch"),
+        "diff --git a/witness b/witness
+new file mode 100644
+--- /dev/null
++++ b/witness
+@@ -0,0 +1 @@
++patched
+",
+    )
+    .expect("write patch");
+    set_gvs_workspace_yaml(&workspace, PATCH_CONFIG);
+    let package = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
+    let shim = workspace.join("node_modules/.bin/hello-world-js-bin");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let first_slot = fs::canonicalize(&package).expect("resolve first slot");
+    super::assert_bin_linked(&shim);
+
+    set_gvs_workspace_yaml(
+        &workspace,
+        &format!(
+            "{PATCH_CONFIG}packageExtensions:
+  '@pnpm.e2e/hello-world-js-bin@1.0.0':
+    dependencies:
+      is-positive: 1.0.0
+"
+        ),
+    );
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_ne!(fs::canonicalize(&package).expect("resolve new slot"), first_slot);
+    assert!(package.join("witness").is_file());
+    super::assert_bin_linked(&shim);
+    drop((root, mock_instance));
+}
+
 /// TS: `GVS hashes are engine-agnostic for packages not in allowBuilds`
 /// (`globalVirtualStore.ts:132`).
 ///

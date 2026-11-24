@@ -73,6 +73,7 @@ pub(super) fn build<Reporter: self::Reporter>(
         && let Some(overlay) =
             side_effects::cached_overlay(context, snapshot_key, candidate, cache_key)
     {
+        dependency_bins::record_mutation(context, snapshot_key)?;
         slot.place_cached::<Reporter>(context, overlay)?;
         return already_placed::<Reporter>(context, snapshot_key, candidate);
     }
