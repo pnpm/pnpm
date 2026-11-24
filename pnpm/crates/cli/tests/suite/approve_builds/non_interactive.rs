@@ -77,7 +77,7 @@ fn approve_builds_and_approve_reject_ci_even_with_a_controlling_terminal() {
 }
 
 #[test]
-fn approve_named_packages_and_empty_pending_succeed_without_a_terminal() {
+fn approve_with_no_pending_requests_is_a_noop_without_a_terminal() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), r#"{"name":"app","version":"1.0.0"}"#)
         .expect("write package.json");
@@ -96,8 +96,7 @@ fn approve_named_packages_and_empty_pending_succeed_without_a_terminal() {
         .success();
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("read pnpm-workspace.yaml");
-    assert!(yaml.contains("esbuild"), "yaml:\n{yaml}");
-    assert!(yaml.contains("sharp"), "yaml:\n{yaml}");
+    assert!(yaml.is_empty(), "yaml:\n{yaml}");
 
     drop(root);
 }

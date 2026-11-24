@@ -8,7 +8,10 @@ use super::{
 use crate::cli_args::approve_builds::ApproveBuildsError;
 use indexmap::IndexSet;
 use miette::IntoDiagnostic;
-use pnpm_config::SkillsPermission;
+use pnpm_config::{
+    Config,
+    SkillsPermission,
+};
 use pnpm_modules_yaml::{
     Host,
     write_modules_manifest,
@@ -118,15 +121,29 @@ fn matching_decisions<'a>(
         .chain(repository)
 }
 
-/// Decide only the capabilities requested by matching pending selectors.
+/// Decide pending requests and allow explicit denials to revoke recorded grants.
 pub(super) fn named_approval<Reporter: self::Reporter>(
     params: &[String],
     pending: &BTreeMap<String, Capabilities>,
+    config: &Config,
 ) -> miette::Result<Option<Approval>> {
     let requests = requests_by_selector(pending);
     let pending_names: Vec<String> = requests.keys().cloned().collect();
-    let partition = partition_params(params, &pending_names);
+    let mut partition = partition_params(params, &pending_names);
     partition.reject_contradictions()?;
+    let decisions: Decisions = [(&partition.approved, true), (&partition.denied, false)]
+        .into_iter()
+        .flat_map(|(names, value)| {
+            names
+                .iter()
+                .map(move |name| (name, value))
+        })
+        .filter_map(|(name, value)| {
+            named_verdict(config, name, requests.get(name), value)
+                .map(|decision| (name.clone(), decision))
+        })
+        .collect();
+    partition.unknown.retain(|name| !decisions.contains_key(name));
     if !partition.unknown.is_empty() {
         validate_git_selectors(&partition.unknown, pending)?;
         emit_global_warning::<Reporter>(&format!(
@@ -134,26 +151,31 @@ pub(super) fn named_approval<Reporter: self::Reporter>(
             partition.unknown.join(", "),
         ));
     }
-    let decide = |names: &[String], value: bool| -> Vec<(String, PackageDecisions)> {
-        names
-            .iter()
-            .filter_map(|pkg| {
-                let capabilities = requests.get(pkg)?;
-                let decided = PackageDecisions {
-                    build: capabilities.contains(&PermissionCapability::Build).then_some(value),
-                    skills: capabilities
-                        .contains(&PermissionCapability::Skills)
-                        .then_some(SkillsPermission::All(value)),
-                };
-                Some((pkg.clone(), decided))
-            })
-            .collect()
-    };
-    let decisions: Decisions = decide(&partition.approved, true)
-        .into_iter()
-        .chain(decide(&partition.denied, false))
-        .collect();
     Ok((!decisions.is_empty()).then_some(Approval { decisions, skills_dirs: Vec::new() }))
+}
+
+/// A name can grant only what is pending. A denial can also revoke a grant
+/// recorded under that exact selector.
+fn named_verdict(
+    config: &Config,
+    name: &str,
+    capabilities: Option<&Capabilities>,
+    value: bool,
+) -> Option<PackageDecisions> {
+    let requested =
+        |capability| capabilities.is_some_and(|requests| requests.contains(&capability));
+    let build = requested(PermissionCapability::Build)
+        || (!value
+            && config.allow_builds
+                .get(name)
+                .copied()
+                .unwrap_or(false));
+    let skills = requested(PermissionCapability::Skills)
+        || (!value && config.allow_skills.get(name).is_some_and(SkillsPermission::links_any));
+    (build || skills).then_some(PackageDecisions {
+        build: build.then_some(value),
+        skills: skills.then_some(SkillsPermission::All(value)),
+    })
 }
 
 fn validate_git_selectors(

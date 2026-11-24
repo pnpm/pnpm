@@ -248,6 +248,7 @@ fn global_approve_denies_and_prunes_skill() {
 
     let config = fs::read_to_string(global_config_yaml(&pnpm_home)).expect("read global config");
     assert!(config.contains("skills: false"), "global denial should be recorded: {config}");
+    assert!(!config.contains("build:"), "the package requested only skills: {config}");
     assert!(
         !pnpm_home
             .join(".claude")
@@ -285,8 +286,13 @@ fn global_permissions_migrate_effective_policy_and_keep_both_capabilities() {
     )
     .expect("write recorded policy");
 
+    let package = "@pnpm.e2e/install-script-example";
     global_command(&workspace, &pnpm_home)
-        .with_args(["approve", "-g", "future-package"])
+        .with_args(["add", "-g", "@pnpm.e2e/install-script-example@1.0.0"])
+        .assert()
+        .success();
+    global_command(&workspace, &pnpm_home)
+        .with_args(["approve", "-g", package])
         .assert()
         .success();
 
@@ -295,7 +301,7 @@ fn global_permissions_migrate_effective_policy_and_keep_both_capabilities() {
     let permissions = &config["globalPackagesConfig"]["permissions"];
     assert_eq!(permissions["denied"], serde_json::json!({"build": false, "skills": false}));
     assert_eq!(permissions["undecided-build"]["build"], false);
-    assert_eq!(permissions["future-package"], serde_json::json!({"build": true, "skills": true}));
+    assert_eq!(permissions[package], serde_json::json!({"build": true}));
 }
 
 #[cfg(unix)]

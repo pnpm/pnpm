@@ -378,22 +378,23 @@ async fn approve_run_with_no_pending_and_no_packages_is_a_noop() {
 }
 
 #[tokio::test]
-async fn approve_run_denying_package_writes_decisions_and_exits() {
+async fn approve_run_denying_pending_skills_records_only_that_denial() {
     let dir = tempfile::tempdir().unwrap();
     let workspace_manifest = dir.path().join("pnpm-workspace.yaml");
     fs::write(&workspace_manifest, "packages:\n  - .\n").unwrap();
     let config = Config::leak(Config {
         workspace_dir: Some(dir.path().to_path_buf()),
-        modules_dir: dir.path().join("node_modules"),
-        ..Config::new()
+        ..config_awaiting(&dir, &["foo@1.0.0"])
     });
     let manifest = dir.path().join("package.json");
     fs::write(&manifest, "{}\n").unwrap();
 
-    let result = args(&["!foo"], false).run::<SilentReporter>(dir.path(), config, &manifest).await;
-    assert!(result.is_ok());
+    args(&["!foo"], false).run::<SilentReporter>(dir.path(), config, &manifest).await.unwrap();
+
     let written = fs::read_to_string(&workspace_manifest).unwrap();
-    assert!(written.contains("foo"));
+    let settings: serde_json::Value = serde_saphyr::from_str(&written).unwrap();
+    assert_eq!(settings["permissions"]["foo"], serde_json::json!({"skills": false}));
+    assert!(settings.get("allowBuilds").is_none());
 }
 
 #[test]

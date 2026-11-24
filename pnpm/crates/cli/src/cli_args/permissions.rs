@@ -232,7 +232,7 @@ impl ApproveArgs {
         prompt: PromptAvailability,
     ) -> miette::Result<Option<Approval>> {
         if !self.packages.is_empty() {
-            return named_approval::<Reporter>(&self.packages, pending);
+            return named_approval::<Reporter>(&self.packages, pending, config);
         }
         if self.all {
             return Ok(Some(Approval {
