@@ -214,9 +214,7 @@ impl RuntimeArgs {
         };
         match subcommand.as_str() {
             "set" => Ok(RuntimeCommand::Set(self.set_request()?)),
-            "unset" | "remove" | "rm" | "uninstall" | "un" => {
-                Ok(RuntimeCommand::Unset(self.unset_request()?))
-            }
+            "unset" => Ok(RuntimeCommand::Unset(self.unset_request()?)),
             _ => Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() }),
         }
     }

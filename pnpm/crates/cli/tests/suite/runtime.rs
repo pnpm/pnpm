@@ -142,7 +142,7 @@ fn unset_without_a_version_deletes_every_installed_version() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "rm", "bun", "-g"])
+        .with_args(["runtime", "unset", "bun", "-g"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
