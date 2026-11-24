@@ -51,10 +51,9 @@ pub struct LifecycleOptions {
 
 #[derive(Debug, Default, Clone)]
 pub struct ProgressOptions {
-    /// Omit the count of added packages from the live `Packages:` line.
+    /// Omit the `added` counter from dependency progress lines.
     pub hide_added_pkgs: bool,
-    /// Has no effect: install progress is one line for every project,
-    /// with no prefix. Kept so an embedder that sets it still builds.
+    /// Omit the workspace-project prefix from progress lines.
     pub hide_prefix: bool,
 }
 

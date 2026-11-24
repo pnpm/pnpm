@@ -55,7 +55,7 @@ fn progress_line_counts_each_status() {
             progress("imported"),
         ],
     );
-    assert_eq!(frame, "Packages: +1 of 2\n·+");
+    assert_eq!(frame, "Progress: resolved 3, reused 2, downloaded 0, added 1");
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn prints_progress_beginning() {
     let mut reporter = state(false);
     let frame =
         render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
-    assert_eq!(frame, "Packages: 1 resolved");
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn prints_progress_without_added_packages_stats() {
     });
     let frame =
         render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
-    assert_eq!(frame, "Packages: 1 resolved");
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0");
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn prints_all_progress_stats() {
             progress("imported"),
         ],
     );
-    assert_eq!(frame, "Packages: +1 of 2\n·+");
+    assert_eq!(frame, "Progress: resolved 1, reused 1, downloaded 1, added 1");
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn prints_progress_beginning_in_append_only_mode() {
     let Output::Lines(lines) = reporter.handle(&progress("resolved")) else {
         panic!("append-only progress must emit a line");
     };
-    assert_eq!(lines, vec!["Packages: 1 resolved"]);
+    assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 0"]);
 }
 
 #[test]
@@ -121,42 +121,10 @@ fn prints_progress_beginning_during_recursive_install() {
             progress_at(second_requester, "resolved"),
         ],
     );
-    assert_eq!(frame, "Packages: 2 resolved");
-}
-
-#[test]
-fn live_packages_line_stays_below_other_output_until_the_stats() {
-    let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![
-            stage_at(CWD, Stage::ResolutionStarted),
-            progress("resolved"),
-            progress("fetched"),
-            LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: "foo".to_string(),
-                prefix: CWD.to_string(),
-            }),
-            stage_at(CWD, Stage::ResolutionDone),
-        ],
+    assert_eq!(
+        frame,
+        "foo                                      | Progress: resolved 1, reused 0, downloaded 0, added 0\nbar                                      | Progress: resolved 1, reused 0, downloaded 0, added 0",
     );
-    assert_eq!(frame, "[WARN] foo\nPackages: 1 downloaded\n·");
-    let frame = render(
-        &mut reporter,
-        vec![
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
-            }),
-            LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
-            }),
-            stage_at(CWD, Stage::ImportingDone),
-        ],
-    );
-    assert_eq!(frame, "[WARN] foo\nPackages: +1 (100% downloaded)\n↓");
 }
 
 #[test]
@@ -173,7 +141,7 @@ fn ignores_progress_after_importing_done() {
             progress("found_in_store"),
         ],
     );
-    assert_eq!(frame, "Packages: 1 downloaded\n·");
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 1, added 0, done");
 }
 
 #[test]
@@ -213,7 +181,7 @@ fn stats_wait_for_importing_to_finish() {
             }),
         ],
     );
-    assert_eq!(frame, "Packages: 1 resolved");
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
     let frame = render(&mut reporter, vec![stage_at(CWD, Stage::ImportingDone)]);
     assert_eq!(frame, "Packages: +1\n+");
 }
@@ -241,7 +209,7 @@ fn python_downloads_do_not_hold_back_the_stats() {
         ],
     );
     let frame = render(&mut reporter, vec![stage_at(CWD, Stage::ImportingDone)]);
-    assert_eq!(frame, "Packages: +1 (100% downloaded)\n↓");
+    assert!(frame.starts_with("Packages: +1 (100% downloaded)\n↓\n"), "{frame}");
 }
 
 #[test]
@@ -492,7 +460,7 @@ fn append_only_emits_lines_not_frames() {
     let out = reporter.handle(&progress("resolved"));
     match out {
         Output::Lines(lines) => {
-            assert_eq!(lines, vec!["Packages: 1 resolved"]);
+            assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 0"]);
         }
         _ => panic!("append-only should emit Lines"),
     }
@@ -646,8 +614,6 @@ fn hide_lifecycle_prefix_only_drops_it_from_output_lines() {
     );
 }
 
-/// Append-only output prints each live update as a line without a bar,
-/// and ends with the stats and their bar.
 #[test]
 fn append_only_progress_ends_with_the_stats() {
     let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
@@ -655,7 +621,7 @@ fn append_only_progress_ends_with_the_stats() {
     let Output::Lines(lines) = reporter.handle(&progress("imported")) else {
         panic!("a live update prints a line");
     };
-    assert_eq!(lines, vec!["Packages: +1 of 1"]);
+    assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 1"]);
     reporter.handle(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
         message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
@@ -667,7 +633,10 @@ fn append_only_progress_ends_with_the_stats() {
     let Output::Lines(lines) = reporter.handle(&stage_at(CWD, Stage::ImportingDone)) else {
         panic!("importing done prints the stats");
     };
-    assert_eq!(lines, vec!["Packages: +1\n+"]);
+    assert_eq!(
+        lines,
+        vec!["Progress: resolved 1, reused 0, downloaded 0, added 1, done", "Packages: +1\n+"],
+    );
 }
 
 #[test]
@@ -733,13 +702,4 @@ fn stats_of_several_projects_are_summed() {
     events.push(stage_at("/repo/foo", Stage::ImportingDone));
     events.push(stage_at("/repo/bar", Stage::ImportingDone));
     assert_eq!(render(&mut reporter, events), "Packages: +5 -1\n+++++-");
-}
-
-/// An install from the lockfile reuses and adds packages without resolving
-/// any, and a cold install downloads them before the resolved count moves.
-#[test]
-fn live_line_counts_arrived_packages_before_any_is_added() {
-    let mut reporter = state(false);
-    assert_eq!(render(&mut reporter, vec![progress("found_in_store")]), "Packages: 1 reused\n·");
-    assert_eq!(render(&mut reporter, vec![progress("imported")]), "Packages: +1 of 1\n·");
 }

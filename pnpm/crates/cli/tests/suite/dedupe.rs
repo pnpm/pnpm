@@ -982,7 +982,10 @@ fn dedupe_check_reports_the_lockfile_diff() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     eprintln!("STDOUT:\n{stdout}");
     assert!(stderr.is_empty(), "stderr:\n{stderr}");
-    assert!(stdout.contains("Packages: 1 resolved"), "stdout:\n{stdout}");
+    assert!(
+        stdout.contains("Progress: resolved 1, reused 0, downloaded 0, added 0, done"),
+        "stdout:\n{stdout}",
+    );
     assert!(stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"), "stdout:\n{stdout}");
     assert!(stdout.contains("Dedupe --check found changes to the lockfile"), "stdout:\n{stdout}");
     assert!(

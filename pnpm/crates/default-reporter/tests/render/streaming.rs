@@ -31,7 +31,7 @@ fn prints_progress_on_first_download() {
         &mut reporter,
         vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved"), progress("fetched")],
     );
-    assert_eq!(frame, "Packages: 1 downloaded\n·");
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 1, added 0");
 }
 
 #[test]
@@ -65,39 +65,40 @@ fn prints_progress_of_big_files_download() {
     assert_eq!(
         frames,
         vec![
-            "Packages: 1 resolved".to_string(),
+            "Progress: resolved 1, reused 0, downloaded 0, added 0".to_string(),
             format!(
-                "Packages: 1 resolved\n\
+                "Progress: resolved 1, reused 0, downloaded 0, added 0\n\
                  Downloading {pkg_1}: 0.00 B/10.48 MB",
             ),
             format!(
-                "Packages: 1 resolved\n\
+                "Progress: resolved 1, reused 0, downloaded 0, added 0\n\
                  Downloading {pkg_1}: 5.76 MB/10.48 MB",
             ),
             format!(
-                "Packages: 2 resolved\n\
+                "Progress: resolved 2, reused 0, downloaded 0, added 0\n\
                  Downloading {pkg_1}: 5.76 MB/10.48 MB",
             ),
             format!(
-                "Packages: 2 resolved\n\
+                "Progress: resolved 2, reused 0, downloaded 0, added 0\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB",
             ),
             format!(
-                "Packages: 3 resolved\n\
+                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB",
             ),
             format!(
-                "Packages: 3 resolved\n\
+                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
                  Downloading {pkg_3}: 0.00 B/20.97 MB",
             ),
             format!(
-                "Packages: 3 resolved\n\
+                "Progress: resolved 3, reused 0, downloaded 0, added 0\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
                  Downloading {pkg_3}: 19.92 MB/20.97 MB",
             ),
             format!(
-                "Packages: 3 resolved\n\
+                "Downloading {pkg_1}: 10.48 MB/10.48 MB, done\n\
+                 Progress: resolved 3, reused 0, downloaded 0, added 0\n\
                  Downloading {pkg_3}: 19.92 MB/20.97 MB",
             ),
         ],
@@ -240,16 +241,4 @@ packages/foo postinstall: foo II
 packages/bar postinstall: Done
 packages/foo postinstall: Done",
     );
-}
-
-/// Append-only output cannot rewrite a download's line as it advances.
-#[test]
-fn append_only_output_prints_no_download_lines() {
-    const MIB: u64 = 1024 * 1024;
-    let pkg = "registry.npmjs.org/foo/1.0.0";
-    let mut reporter =
-        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
-    for event in [fetching_started(pkg, 10 * MIB, 1), fetching_in_progress(pkg, 10 * MIB)] {
-        assert!(matches!(reporter.handle(&event), Output::None));
-    }
 }

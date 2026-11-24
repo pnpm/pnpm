@@ -28,14 +28,6 @@ fn pretty_bytes_truncates_without_floating_point_drift() {
 }
 
 #[test]
-fn the_live_packages_line_waits_for_the_stats() {
-    let mut reporter = state(false);
-    let frame =
-        render(&mut reporter, vec![progress("resolved"), progress("imported"), importing_done()]);
-    assert_eq!(frame, "Packages: +1 of 1");
-}
-
-#[test]
 fn stats_bar_is_colored_when_enabled() {
     let mut reporter = state(true);
     let frame = render(
@@ -83,7 +75,8 @@ fn full_install_frame_orders_blocks_like_pnpm() {
     );
     assert_eq!(
         frame,
-        "Packages: +1 (100% reused)\n+\n\ndependencies:\n+ foo 1.0.0\n\nDone in 1.2s using pnpm v0.0.1",
+        "Packages: +1 (100% reused)\n+\n\ndependencies:\n+ foo 1.0.0\n\n\
+         Done in 1.2s using pnpm v0.0.1",
     );
 }
 
@@ -163,65 +156,4 @@ fn stats_bar_colors_downloaded_and_reused_packages() {
     let downloaded = "\u{1b}[32m↓\u{1b}[39m";
     let reused = "\u{1b}[32m+\u{1b}[39m";
     assert_eq!(bar, format!("{downloaded}{reused}{reused}"));
-}
-
-/// Arrived packages wait as a grey `·`, and turn green once added.
-#[test]
-fn live_bar_turns_green_as_packages_are_added() {
-    let mut reporter = state(true);
-    let frame = render(
-        &mut reporter,
-        vec![progress("fetched"), progress("found_in_store"), progress("imported")],
-    );
-    let bar = frame
-        .lines()
-        .nth(1)
-        .expect("the bar follows the live line");
-    assert_eq!(bar.matches("\u{1b}[32m").count(), 1, "one added: {bar:?}");
-    assert_eq!(bar.matches("\u{1b}[90m").count(), 1, "one pending: {bar:?}");
-}
-
-/// Packages are added in parallel, so the green signs do not fill the bar
-/// from the left.
-#[test]
-fn live_bar_scatters_the_added_packages() {
-    let mut reporter = state(true);
-    let mut events: Vec<LogEvent> = (0..20).map(|_| progress("fetched")).collect();
-    events.extend((0..10).map(|_| progress("imported")));
-    let frame = render(&mut reporter, events);
-    let bar = frame
-        .lines()
-        .nth(1)
-        .expect("the bar follows the live line");
-    let plain = ["\u{1b}[32m", "\u{1b}[90m", "\u{1b}[39m"]
-        .iter()
-        .fold(bar.to_string(), |plain, code| plain.replace(code, ""));
-    let added: Vec<bool> = plain
-        .chars()
-        .map(|sign| sign == '↓')
-        .collect();
-    assert_eq!(added.len(), 20, "{bar:?}");
-    assert_eq!(
-        added
-            .iter()
-            .filter(|is_added| **is_added)
-            .count(),
-        10,
-        "{bar:?}",
-    );
-    assert_ne!(added[..10], [true; 10], "the first ten are not simply the added ones: {bar:?}");
-    assert!(bar.contains("\u{1b}[90m·"), "pending signs are grey dots: {bar:?}");
-}
-
-/// The bar turns fully green only as the stats, so it never looks done
-/// before the install is.
-#[test]
-fn live_bar_keeps_a_sign_uncolored_until_the_stats() {
-    let mut reporter = state(true);
-    let frame = render(&mut reporter, vec![progress("fetched"), progress("imported")]);
-    let bar = frame
-        .lines()
-        .nth(1)
-        .expect("the bar follows the live line");
-    assert_eq!(bar, "\u{1b}[90m·\u{1b}[39m");
 }

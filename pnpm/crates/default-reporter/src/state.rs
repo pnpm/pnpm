@@ -124,9 +124,10 @@ struct ProjectStats {
 #[derive(Debug, Default)]
 struct ProgressEntry {
     stats: ProgressStats,
-    /// Set once importing finished. Like pnpm's `takeWhile` on
-    /// `importingDone$`, later progress events for the requester are
-    /// dropped.
+    slot: BlockSlot,
+    /// Set once the `, done` line is rendered. Like pnpm's `takeWhile`
+    /// on `importingDone$`, later progress events for the requester are
+    /// dropped instead of starting a new line.
     done: bool,
 }
 

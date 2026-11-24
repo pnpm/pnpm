@@ -9,7 +9,8 @@ use super::{
     InstallProgress,
     PackageImportMethod,
     ProgressMessage,
-    ProgressStats,
+    ProgressOptions,
+    RenderingContext,
     ReporterState,
     ScopeLog,
     Stage,
@@ -17,6 +18,7 @@ use super::{
     normalize,
     pretty_bytes,
     relative,
+    zoom_out,
 };
 
 use std::fmt::Write as _;
@@ -57,8 +59,6 @@ impl ReporterState {
 
     // --- progress ---------------------------------------------------------
 
-    /// Progress is one live `Packages:` line in the place the final stats
-    /// take: the projects that report progress are summed into it.
     pub(super) fn on_progress(&mut self, message: &ProgressMessage) {
         let requester = match message {
             ProgressMessage::Resolved { requester, .. }
@@ -66,13 +66,7 @@ impl ReporterState {
             | ProgressMessage::FoundInStore { requester, .. }
             | ProgressMessage::Imported { requester, .. } => requester.clone(),
         };
-        // Its packages are not in the stats, and it never finishes
-        // importing, so it would hold the stats back and leave signs that
-        // never turn green.
-        if requester == pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER {
-            return;
-        }
-        let entry = self.downloads.progress.entry(requester).or_default();
+        let entry = self.downloads.progress.entry(requester.clone()).or_default();
         if entry.done {
             return;
         }
@@ -82,98 +76,40 @@ impl ReporterState {
             ProgressMessage::FoundInStore { .. } => entry.stats.reused += 1,
             ProgressMessage::Imported { .. } => entry.stats.imported += 1,
         }
-        self.render_live_packages();
-    }
-
-    /// Draws the live line, until the stats replace it.
-    fn render_live_packages(&mut self) {
-        if self.install.stats_shown.is_some() {
-            return;
-        }
-        let Some(msg) = self.live_packages_message() else { return };
-        let mut slot = std::mem::take(&mut self.install.stats_slot);
+        let msg = self.downloads.progress_message(
+            &self.rendering,
+            &self.options.progress,
+            &requester,
+            false,
+        );
+        let Some(entry) = self.downloads.progress.get_mut(&requester) else { return };
+        let mut slot = std::mem::take(&mut entry.slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Pinned);
-        self.install.stats_slot = slot;
-    }
-
-    /// The live `Packages:` line, with a progress bar below it in a
-    /// terminal: see [`Self::live_bar`]. The line follows the bar:
-    /// `Packages: 58 resolved` before any package arrives, `Packages: 90
-    /// downloaded, 5 reused` while they arrive, and `Packages: +12 of 95`
-    /// once packages are added. `None` while there is nothing to count.
-    fn live_packages_message(&self) -> Option<String> {
-        let totals = self.downloads.totals();
-        let line = self.live_packages_line(totals)?;
-        // Append-only output prints each update as a new line, so a bar
-        // would repeat on every one.
-        if self.options.append_only || totals.fetched + totals.reused == 0 {
-            return Some(line);
+        if let Some(entry) = self.downloads.progress.get_mut(&requester) {
+            entry.slot = slot;
         }
-        Some(format!("{line}\n{}", self.live_bar(self.rendering.width)))
-    }
-
-    fn live_packages_line(&self, totals: ProgressStats) -> Option<String> {
-        let colors = &self.rendering.colors;
-        let arrived = totals.fetched + totals.reused;
-        if totals.imported > 0 && !self.options.progress.hide_added_pkgs {
-            let added = colors.green(&format!("+{}", totals.imported));
-            // A package added without a download or reuse event still
-            // counts, so the total never trails the added count.
-            let total = arrived.max(totals.imported);
-            return Some(format!(
-                "Packages: {added} of {}",
-                colors.cyan_bright(&total.to_string()),
-            ));
-        }
-        let counts = [(totals.fetched, "downloaded"), (totals.reused, "reused")];
-        let arriving: Vec<String> = counts
-            .into_iter()
-            .filter(|(count, _)| *count > 0)
-            .map(|(count, label)| format!("{} {label}", colors.cyan_bright(&count.to_string())))
-            .collect();
-        if !arriving.is_empty() {
-            return Some(format!("Packages: {}", arriving.join(", ")));
-        }
-        (totals.resolved > 0).then(|| {
-            format!("Packages: {} resolved", colors.cyan_bright(&totals.resolved.to_string()))
-        })
-    }
-
-    /// A sign for each package that arrived: a grey `·` until the package
-    /// is added, then a green `↓` for downloaded or `+` for reused from the
-    /// store. Packages are added in parallel, so the green signs scatter
-    /// across the bar in a fixed shuffle instead of filling it from the
-    /// left. The bar ends as the green bar of the stats. Until then at
-    /// least one sign stays grey, so it never looks finished early.
-    fn live_bar(&self, max_width: usize) -> String {
-        let totals = self.downloads.totals();
-        let arrived = totals.fetched + totals.reused;
-        if max_width == 0 || arrived == 0 {
-            return String::new();
-        }
-        let chars = usize::try_from(arrived).map_or(max_width, |arrived| arrived.min(max_width));
-        let added_chars = usize::try_from(totals.imported * chars as u64 / arrived)
-            .map_or(chars, |added| added.min(chars - 1));
-        let mut added = vec![false; chars];
-        for position in shuffled_positions(chars).into_iter().take(added_chars) {
-            added[position] = true;
-        }
-        let downloaded_chars = self.downloads.downloaded_part(chars);
-        let colors = &self.rendering.colors;
-        (0..chars)
-            .map(|position| {
-                let sign = if position < downloaded_chars { "↓" } else { "+" };
-                if added[position] { colors.green(sign) } else { colors.grey("·") }
-            })
-            .collect()
     }
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
         match stage {
             Stage::ResolutionDone => self.flush_unused_overrides(),
             Stage::ImportingDone => {
+                if !self.downloads.progress.contains_key(prefix) {
+                    return;
+                }
+                let msg = self.downloads.progress_message(
+                    &self.rendering,
+                    &self.options.progress,
+                    prefix,
+                    true,
+                );
                 let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
-                entry.done = true;
+                let mut slot = std::mem::take(&mut entry.slot);
+                self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
+                if let Some(entry) = self.downloads.progress.get_mut(prefix) {
+                    entry.slot = slot;
+                    entry.done = true;
+                }
                 if self.downloads.importing_finished() {
                     self.render_stats();
                 }
@@ -200,9 +136,7 @@ impl ReporterState {
     fn start_tarball_block(&mut self, attempt: u32, package_id: &str, size: Option<u64>) {
         const BIG_TARBALL_SIZE: u64 = 1024 * 1024 * 5;
         let Some(size) = size else { return };
-        // Append-only output cannot rewrite the line as the download
-        // advances, so it would only print where the download started.
-        if size < BIG_TARBALL_SIZE || attempt != 1 || self.options.append_only {
+        if size < BIG_TARBALL_SIZE || attempt != 1 {
             return;
         }
         let mut entry = BigTarball { size, slot: BlockSlot::default() };
@@ -214,16 +148,14 @@ impl ReporterState {
     fn rewrite_tarball_block(&mut self, package_id: &str, downloaded: u64) {
         let Some(entry) = self.downloads.tarballs.get(package_id) else { return };
         let size = entry.size;
-        if downloaded == size {
-            if let Some(mut entry) = self.downloads.tarballs.remove(package_id) {
-                self.display.frame.clear(&mut entry.slot);
-            }
-            return;
-        }
         let msg = self.downloading_message(package_id, downloaded, size);
+        // A finished download stops being rewritten in place and scrolls
+        // away with the rest of the output.
+        let placement =
+            if downloaded == size { BlockPlacement::Scrolling } else { BlockPlacement::Pinned };
         let Some(entry) = self.downloads.tarballs.get_mut(package_id) else { return };
         let mut slot = std::mem::take(&mut entry.slot);
-        self.display.frame.emit(&mut slot, msg, BlockPlacement::Pinned);
+        self.display.frame.emit(&mut slot, msg, placement);
         if let Some(entry) = self.downloads.tarballs.get_mut(package_id) {
             entry.slot = slot;
         }
@@ -235,8 +167,10 @@ impl ReporterState {
         downloaded: u64,
         size: u64,
     ) -> String {
+        let done = downloaded == size;
+        let suffix = if done { ", done" } else { "" };
         format!(
-            "Downloading {package_id}: {}/{}",
+            "Downloading {package_id}: {}/{}{suffix}",
             self.rendering.colors.cyan_bright(&pretty_bytes(downloaded)),
             self.rendering.colors.cyan_bright(&pretty_bytes(size)),
         )
@@ -278,17 +212,20 @@ impl ReporterState {
         self.install.stats_slot = slot;
     }
 
-    /// The stats an install's progress ends with: a line such as
-    /// `Packages: +5 -2 (60% downloaded)`, and a bar below it with a sign
-    /// per package: `↓` for downloaded, `+` for reused from the store, and
-    /// `-` for removed. The signs tell the sources apart without color. The line gives the larger share of
-    /// downloaded and reused packages, not their counts: resolution also
-    /// fetches versions it then drops, so a count would not match the
-    /// packages added.
+    /// The stats that replace the finished progress lines: a line such as
+    /// `Packages: +5 -2 (60% downloaded)`, and a bar with a sign per
+    /// package: `↓` downloaded, `+` reused from the store, `-` removed.
+    /// The line gives the larger share of downloaded and reused packages,
+    /// not their counts: resolution also fetches versions it then drops,
+    /// so a count would not match the packages added.
+    ///
     /// Waits for both halves of every project's stats, and shows each
     /// total once.
     pub(super) fn render_stats(&mut self) {
         let Some((added, removed)) = self.install.stats_totals() else { return };
+        for slot in self.downloads.finished_slots() {
+            self.display.frame.clear(slot);
+        }
         if self.install.stats_shown.replace((added, removed)) == Some((added, removed)) {
             return;
         }
@@ -352,27 +289,19 @@ impl ReporterState {
     }
 }
 
-/// The positions `0..len` in a fixed shuffled order: a position's place
-/// depends only on the position, so the order is the same on every redraw.
-fn shuffled_positions(len: usize) -> Vec<usize> {
-    let mut positions: Vec<usize> = (0..len).collect();
-    positions.sort_by_key(|position| scramble(*position as u64));
-    positions
-}
-
-/// splitmix64's finalizer: spreads consecutive inputs across the range.
-fn scramble(input: u64) -> u64 {
-    let mut value = input.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    value ^ (value >> 31)
-}
-
 impl DownloadState {
-    /// Whether every live progress line has finished. True when there
-    /// was none.
+    /// Whether every project's progress line has finished. True when
+    /// there was none. A Python install reports progress too, but never
+    /// finishes importing, and its packages are not in the stats.
     pub(super) fn importing_finished(&self) -> bool {
-        self.progress.values().all(|entry| entry.done)
+        self.npm_progress().all(|entry| entry.done)
+    }
+
+    fn npm_progress(&self) -> impl Iterator<Item = &super::ProgressEntry> {
+        self.progress
+            .iter()
+            .filter(|(requester, _)| *requester != pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER)
+            .map(|(_, entry)| entry)
     }
 
     /// Where most packages came from, as `60% downloaded` or `90% reused`.
@@ -392,8 +321,7 @@ impl DownloadState {
     /// How many packages were downloaded and how many reused from the
     /// store.
     fn package_sources(&self) -> (u64, u64) {
-        self.progress
-            .values()
+        self.npm_progress()
             .fold((0, 0), |(downloaded, reused), entry| {
                 (downloaded + entry.stats.fetched, reused + entry.stats.reused)
             })
@@ -412,16 +340,44 @@ impl DownloadState {
         if downloaded > 0 { part.max(1).min(chars) } else { part }
     }
 
-    /// The progress of every project, summed.
-    fn totals(&self) -> ProgressStats {
+    pub(super) fn progress_message(
+        &self,
+        rendering: &RenderingContext,
+        options: &ProgressOptions,
+        requester: &str,
+        done: bool,
+    ) -> String {
+        let stats = self.progress
+            .get(requester)
+            .map(|entry| entry.stats)
+            .unwrap_or_default();
+        let hl = |count: u64| rendering.colors.cyan_bright(&count.to_string());
+        let mut msg = format!(
+            "Progress: resolved {}, reused {}, downloaded {}",
+            hl(stats.resolved),
+            hl(stats.reused),
+            hl(stats.fetched),
+        );
+        if !options.hide_added_pkgs {
+            msg.push_str(", added ");
+            msg.push_str(&hl(stats.imported));
+        }
+        if done {
+            msg.push_str(", done");
+        }
+        if !options.hide_prefix && requester != rendering.cwd {
+            msg = zoom_out(&rendering.cwd, requester, &msg);
+        }
+        msg
+    }
+
+    /// The progress lines of every finished project, which the stats
+    /// replace.
+    fn finished_slots(&mut self) -> impl Iterator<Item = &mut BlockSlot> {
         self.progress
-            .values()
-            .fold(ProgressStats::default(), |sum, entry| ProgressStats {
-                resolved: sum.resolved + entry.stats.resolved,
-                reused: sum.reused + entry.stats.reused,
-                fetched: sum.fetched + entry.stats.fetched,
-                imported: sum.imported + entry.stats.imported,
-            })
+            .values_mut()
+            .filter(|entry| entry.done)
+            .map(|entry| &mut entry.slot)
     }
 }
 

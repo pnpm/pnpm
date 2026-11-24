@@ -513,10 +513,8 @@ fn add_progress_flag_overrides_the_disabled_setting() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "add failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
-    // The share of downloaded packages comes from progress events, so only
-    // an install that reports progress prints it.
     assert!(
-        stdout.contains("Packages: +1 ("),
+        stdout.contains("Progress:"),
         "--progress should win over `progress: false`:\n{stdout}",
     );
 

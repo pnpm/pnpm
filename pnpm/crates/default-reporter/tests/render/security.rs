@@ -23,7 +23,10 @@ fn prints_progress_beginning_for_node_modules_outside_cwd() {
         &mut reporter,
         vec![stage_at(requester, Stage::ResolutionStarted), progress_at(requester, "resolved")],
     );
-    assert_eq!(frame, "Packages: 1 resolved");
+    assert_eq!(
+        frame,
+        "foo                                      | Progress: resolved 1, reused 0, downloaded 0, added 0",
+    );
 }
 
 #[test]
@@ -40,7 +43,7 @@ fn hides_progress_prefix_for_node_modules_outside_cwd() {
         &mut reporter,
         vec![stage_at(requester, Stage::ResolutionStarted), progress_at(requester, "resolved")],
     );
-    assert_eq!(frame, "Packages: 1 resolved");
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
 }
 
 #[test]
