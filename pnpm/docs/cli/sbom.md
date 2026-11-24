@@ -95,7 +95,7 @@ Only include `dependencies` and `optionalDependencies`.
 
 ### --dev, -D
 
-Only include `devDependencies`.
+Start from the project's `devDependencies`. Include their optional dependencies unless optional dependencies are disabled.
 
 ### --no-optional
 

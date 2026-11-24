@@ -440,6 +440,23 @@ fn sbom_out_interpolates_percent_v() {
 }
 
 #[test]
+fn sbom_dev_follows_optional_dependencies_of_dev_packages() {
+    let tmp = copy_fixture("sbom-dev-optional");
+    for flags in [&["--dev"][..], &["--dev", "--optional"]] {
+        let bom = run_sbom_json(tmp.path(), "cyclonedx", flags);
+        let components = bom["components"].as_array().unwrap();
+        assert_eq!(components.len(), 2, "{flags:?}: {components:?}");
+        assert_eq!(cyclonedx_component(&bom, "build-addon")["scope"], "excluded");
+        assert_eq!(cyclonedx_component(&bom, "build-tool")["scope"], "excluded");
+    }
+
+    let bom = run_sbom_json(tmp.path(), "cyclonedx", &["--dev", "--no-optional"]);
+    let components = bom["components"].as_array().unwrap();
+    assert_eq!(components.len(), 1, "{components:?}");
+    assert_eq!(components[0]["name"], "build-tool");
+}
+
+#[test]
 fn sbom_dev_flag_excludes_prod() {
     let tmp = copy_fixture("with-dev-dependency");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--dev"]);
