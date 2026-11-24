@@ -128,7 +128,8 @@ fn unstaged_package_files(dir: &Path, root: &Path, status: &str) -> Option<HashS
                 .strip_prefix(" M ")
                 .or_else(|| record.strip_prefix("?? "))?;
             let file = root.join(path);
-            if !file.symlink_metadata().ok()?.is_file() {
+            let metadata = file.symlink_metadata().ok()?;
+            if !metadata.is_file() || pnpm_fs::is_hardlinked(&file, &metadata) {
                 return None;
             }
             let file = file.canonicalize().ok()?;

@@ -52,6 +52,23 @@ fn version_leaves_excluded_files_unstaged() {
 }
 
 #[test]
+fn version_checks_excluded_files_with_packed_hardlinks() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0","files":["entry.js"]}"#);
+    let source = workspace.join("source.txt");
+    fs::write(&source, "original").expect("write source");
+    fs::write(workspace.join(".gitignore"), "entry.js\n").expect("ignore packed hardlink in git");
+    git_commit_all(&workspace, "init");
+    fs::hard_link(&source, workspace.join("entry.js")).expect("link packed file");
+    fs::write(source, "changed").expect("edit source");
+
+    assert_unclean_working_tree(&workspace);
+    assert_eq!(manifest_version(&workspace), "1.0.0");
+    drop(root);
+}
+
+#[test]
 fn version_rejects_untracked_package_files_and_changes_to_pack_rules() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     init_git(&workspace);
