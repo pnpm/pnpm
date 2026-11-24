@@ -8,13 +8,14 @@ disallowed-methods = [
     { path = "tempfile::Builder::tempfile_in", reason = "use pnpm_fs::umask_named_tempfile_in or pnpm_fs::private_named_tempfile_in to choose the file's mode" },
     # Exiting without releasing the Windows Job Object kills whatever the command left running (pnpm/crates/executor/PROCESS_LIFETIME.md).
     { path = "std::process::exit", reason = "use pnpm_executor::exit, which releases the process-tree cleanup first" },
-    # A spawn outside the wrapper skips the lock that keeps the watchdog and the Windows Job Object in step with a running child.
-    { path = "std::process::Command::spawn", reason = "use pnpm_process::Command, which takes the spawn lock" },
-    { path = "std::process::Command::status", reason = "use pnpm_process::Command, which takes the spawn lock" },
-    { path = "std::process::Command::output", reason = "use pnpm_process::Command, which takes the spawn lock" },
-    { path = "tokio::process::Command::spawn", reason = "use pnpm_process::AsyncCommand, which takes the spawn lock" },
-    { path = "tokio::process::Command::status", reason = "use pnpm_process::AsyncCommand, which takes the spawn lock" },
-    { path = "tokio::process::Command::output", reason = "use pnpm_process::AsyncCommand, which takes the spawn lock" },
+    # A direct spawn bypasses pnpm_process::Command, the spawn point the executor follows with Windows Job Object assignment.
+    # On Unix it also skips the spawn lock that keeps the watchdog pipe out of the child.
+    { path = "std::process::Command::spawn", reason = "use pnpm_process::Command, the executor's spawn point" },
+    { path = "std::process::Command::status", reason = "use pnpm_process::Command, the executor's spawn point" },
+    { path = "std::process::Command::output", reason = "use pnpm_process::Command, the executor's spawn point" },
+    { path = "tokio::process::Command::spawn", reason = "use pnpm_process::asynchronous::Command, the executor's async spawn point" },
+    { path = "tokio::process::Command::status", reason = "use pnpm_process::asynchronous::Command, the executor's async spawn point" },
+    { path = "tokio::process::Command::output", reason = "use pnpm_process::asynchronous::Command, the executor's async spawn point" },
     # `setenv` may reallocate `environ`. A concurrent `getenv` can then read freed memory.
     # The readers of `environ` include glibc and this workspace's C dependencies. None take a Rust lock.
     { path = "std::env::set_var", reason = "pass the variable to a child through Command::env, or carry it as config" },
