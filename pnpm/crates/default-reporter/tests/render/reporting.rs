@@ -705,6 +705,24 @@ fn stats_of_several_projects_are_summed() {
 }
 
 #[test]
+fn stats_redraw_when_only_the_package_sources_change() {
+    let mut reporter = state(false);
+    let mut events = vec![progress_at("/repo/foo", "fetched")];
+    events.extend(stats_at("/repo/foo", 1, 0));
+    events.push(stage_at("/repo/foo", Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +1 (100% downloaded)\n↓");
+
+    let mut events = vec![
+        progress_at("/repo/bar", "found_in_store"),
+        progress_at("/repo/bar", "found_in_store"),
+        progress_at("/repo/bar", "found_in_store"),
+    ];
+    events.extend(stats_at("/repo/bar", 0, 0));
+    events.push(stage_at("/repo/bar", Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +1 (75% reused)\n↓");
+}
+
+#[test]
 fn a_project_that_starts_after_the_stats_shows_its_progress() {
     let mut reporter = state(false);
     let mut events = vec![progress_at("/repo/foo", "resolved")];

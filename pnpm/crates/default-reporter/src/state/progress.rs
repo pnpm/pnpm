@@ -13,6 +13,7 @@ use super::{
     RenderingContext,
     ReporterState,
     ScopeLog,
+    ShownStats,
     Stage,
     StatsMessage,
     normalize,
@@ -226,7 +227,8 @@ impl ReporterState {
         for slot in self.downloads.finished_slots() {
             self.display.frame.clear(slot);
         }
-        if self.install.stats_shown.replace((added, removed)) == Some((added, removed)) {
+        let shown = ShownStats { added, removed, sources: self.downloads.package_sources() };
+        if self.install.stats_shown.replace(shown) == Some(shown) {
             return;
         }
         if added == 0 && removed == 0 {
@@ -320,7 +322,7 @@ impl DownloadState {
 
     /// How many packages were downloaded and how many reused from the
     /// store.
-    fn package_sources(&self) -> (u64, u64) {
+    pub(super) fn package_sources(&self) -> (u64, u64) {
         self.npm_progress()
             .fold((0, 0), |(downloaded, reused), entry| {
                 (downloaded + entry.stats.fetched, reused + entry.stats.reused)

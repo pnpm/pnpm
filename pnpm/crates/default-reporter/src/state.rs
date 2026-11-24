@@ -114,6 +114,15 @@ struct ProgressStats {
     imported: u64,
 }
 
+/// The added and removed totals, and the downloaded and reused counts the
+/// share and the bar are drawn from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ShownStats {
+    added: u64,
+    removed: u64,
+    sources: (u64, u64),
+}
+
 /// One project's halves of `pnpm:stats`, each `None` until it arrives.
 #[derive(Debug, Default, Clone, Copy)]
 struct ProjectStats {
@@ -244,9 +253,9 @@ struct InstallProgress {
     /// The `pnpm:stats` of each project the install reports on, keyed by
     /// prefix: the current one, and each one that reported progress.
     stats: BTreeMap<String, ProjectStats>,
-    /// The totals the stats line last showed, so a later trigger does not
-    /// print the same line again.
-    stats_shown: Option<(u64, u64)>,
+    /// What the stats line last showed, so a later trigger does not print
+    /// the same line again.
+    stats_shown: Option<ShownStats>,
     stats_slot: BlockSlot,
     /// The stats reported no package added or removed. "Already up to
     /// date" waits for the summary: a manifest edit can still change it.
