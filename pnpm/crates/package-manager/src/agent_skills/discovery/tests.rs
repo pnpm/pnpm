@@ -198,6 +198,7 @@ fn sync_does_not_escape_skills_dir_on_backslash_traversal_dep_path() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: &root,
         hoisted_locations: None,
     })
     .unwrap();
@@ -353,6 +354,7 @@ fn unsafe_importer_ids_are_ignored_during_discovery() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: &root,
         hoisted_locations: None,
     })
     .unwrap();
@@ -395,6 +397,7 @@ fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills(
         included,
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -409,6 +412,7 @@ fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills(
         included,
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -427,6 +431,7 @@ fn hoisted_workspace_link_without_hoisted_locations_discovers_and_prunes_skills(
         included,
         linked: &approved.linked,
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -497,6 +502,7 @@ fn workspace_link_and_injected_copy_collapse_to_live_link_in_either_importer_ord
             included,
             linked: &[".agents/skills/demo-skill".to_string()],
             agent_dir: None,
+            target_root: root.as_ref(),
             hoisted_locations: None,
         })
         .unwrap();
@@ -553,6 +559,7 @@ fn distinct_local_and_registry_sources_sharing_alias_and_skill_disambiguate_with
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -631,6 +638,7 @@ fn explicit_injected_file_approval_links_when_live_link_copy_is_undecided() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -688,6 +696,7 @@ fn deep_local_paths_sharing_alias_and_skill_use_bounded_hash_filenames() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -750,6 +759,7 @@ fn revoking_descendant_link_package_inside_configured_skills_dir_prunes_symlink(
         included,
         linked: &[],
         agent_dir: None,
+        target_root: root.path(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -768,6 +778,7 @@ fn revoking_descendant_link_package_inside_configured_skills_dir_prunes_symlink(
         included,
         linked: &linked.linked,
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -829,6 +840,7 @@ fn long_sibling_skill_names_do_not_erase_colliding_local_package_labels() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();
@@ -894,6 +906,7 @@ fn parenthesized_link_dir_approval_does_not_approve_sibling_link_dir() {
         },
         linked: &[],
         agent_dir: None,
+        target_root: root.as_ref(),
         hoisted_locations: None,
     })
     .unwrap();

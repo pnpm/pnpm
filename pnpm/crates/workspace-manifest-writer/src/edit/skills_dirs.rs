@@ -91,3 +91,46 @@ fn recorded_skills_dirs(text: &str) -> Option<Vec<String>> {
 
     serde_saphyr::from_str::<SkillsDirsProbe>(text).ok()?.skills?.dirs
 }
+
+/// Upsert `globalPackagesConfig.skills.dirs` in the global `config.yaml`.
+pub(crate) fn set_global_packages_skills_dirs(manifest: &mut Manifest, dirs: &[String]) -> bool {
+    if dirs.is_empty() {
+        return remove_global_packages_skills_dirs(manifest);
+    }
+    let value = serde_json::json!(dirs);
+    super::nested::set_nested_entry(
+        manifest,
+        &["globalPackagesConfig", BLOCK],
+        DIRS,
+        (&value.to_string(), &value),
+    )
+}
+
+fn remove_global_packages_skills_dirs(manifest: &mut Manifest) -> bool {
+    let source = manifest.document.text();
+    let path = ["globalPackagesConfig", "skills"];
+    if !mapping_keys(source, &path)
+        .iter()
+        .any(|key| key == DIRS)
+    {
+        return false;
+    }
+    let new_text = remove_mapping_entries(source, &path, &[DIRS.to_string()]);
+    if mapping_keys(&new_text, &path).is_empty() {
+        let new_text =
+            remove_mapping_entries(&new_text, &["globalPackagesConfig"], &["skills".to_string()]);
+        if mapping_keys(&new_text, &["globalPackagesConfig"]).is_empty() {
+            let new_text = remove_top_level_block(&new_text, "globalPackagesConfig");
+            manifest.document.keys.retain(|key| key != "globalPackagesConfig");
+            manifest.document.set_text(new_text);
+            return true;
+        }
+        manifest.document.set_text(new_text);
+        return true;
+    }
+    if new_text == source {
+        return false;
+    }
+    manifest.document.set_text(new_text);
+    true
+}

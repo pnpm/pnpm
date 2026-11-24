@@ -23,7 +23,7 @@ pub(crate) use catalogs::{
 };
 pub(crate) use permissions::{
     remove_allow_build,
-    set_global_packages_build_permission,
+    set_global_packages_permission,
     set_permission,
 };
 pub(crate) use policies::{
@@ -37,7 +37,10 @@ pub(crate) use scanning::{
     document_root_is_inline,
     has_unsupported_inline_value,
 };
-pub(crate) use skills_dirs::set_skills_dirs;
+pub(crate) use skills_dirs::{
+    set_global_packages_skills_dirs,
+    set_skills_dirs,
+};
 pub(crate) use spacing::uses_blank_line_style;
 
 use std::{

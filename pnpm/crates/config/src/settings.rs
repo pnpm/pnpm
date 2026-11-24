@@ -1265,6 +1265,12 @@ pub struct Config {
     /// detected ones. `Some(empty)` turns agent skills off.
     pub skills_dirs: Option<Vec<String>>,
 
+    /// Root directory where agent skill directories are resolved and
+    /// created. Defaults to the workspace root. Global groups set it to the
+    /// home directory, which they share, so there an install or rebuild
+    /// records pending skills and leaves linking to the global commands.
+    pub agent_skills_target_root: Option<PathBuf>,
+
     /// Set by [`Config::disable_agent_skills`] for an install no project
     /// agent reads. Unlike `skills.dirs: []`, it is never recorded in the
     /// workspace state. Default `false`.

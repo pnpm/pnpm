@@ -1,4 +1,8 @@
-use pnpm_config::SkillsPermission;
+use pnpm_config::{
+    AllowBuild,
+    PackagePermissions,
+    SkillsPermission,
+};
 
 use super::{
     Manifest,
@@ -51,38 +55,156 @@ where
     update_allow_builds(dir, entries, false)
 }
 
-/// Record `name → bool` build decisions as
-/// `globalPackagesConfig.permissions.<name>.build` in the global
+/// Record `globalPackagesConfig.permissions` decisions in the global
 /// `config.yaml` at `path`, creating the file, its directory, and the
 /// section if absent. Preserves the rest of the document's formatting, and
 /// writes the file back only when something changed.
-pub fn set_global_packages_build_permissions<'a, Entries>(
+pub fn set_global_packages_permissions(
     path: &Path,
-    entries: Entries,
-) -> Result<(), UpdateWorkspaceManifestError>
-where
-    Entries: IntoIterator<Item = (&'a str, bool)>,
-{
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> Result<(), UpdateWorkspaceManifestError> {
     let target = ManifestTarget::root_manifest(path);
     let mut manifest = read_manifest_at(path)?;
-    let entries: Vec<(&str, bool)> = entries.into_iter().collect();
-    let mut blocks =
-        vec![vec!["globalPackagesConfig"], vec!["globalPackagesConfig", "permissions"]];
-    blocks.extend(
-        entries
-            .iter()
-            .map(|(name, _)| vec!["globalPackagesConfig", "permissions", *name]),
-    );
-    let blocks: Vec<&[&str]> = blocks
+    reject_unsupported_permission_blocks(path, &manifest, permissions)?;
+    validate_global_permission_entries_impl(path, permissions)?;
+    if !record_permission_decisions(&mut manifest, permissions) {
+        return Ok(());
+    }
+    write_permission_manifest(&target, path, manifest)
+}
+
+fn reject_unsupported_permission_blocks(
+    path: &Path,
+    manifest: &Manifest,
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let blocks = permission_block_paths(permissions);
+    let paths = blocks
         .iter()
         .map(Vec::as_slice)
-        .collect();
-    validate_allow_build_entries(&manifest, path, &entries, &blocks)?;
-    let mut changed = false;
-    for (name, value) in entries {
-        changed |= edit::set_global_packages_build_permission(&mut manifest, name, value);
+        .collect::<Vec<_>>();
+    if let Some(key) = unsupported_inline_key(manifest.document.text(), &paths) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.to_path_buf(),
+            key,
+        });
     }
-    if !changed {
+    Ok(())
+}
+
+fn permission_block_paths(
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> Vec<Vec<&str>> {
+    let mut blocks =
+        vec![vec!["globalPackagesConfig"], vec!["globalPackagesConfig", "permissions"]];
+    for name in permissions.keys() {
+        blocks.push(vec!["globalPackagesConfig", "permissions", name.as_str()]);
+    }
+    blocks
+}
+
+fn validate_global_permission_entries_impl(
+    path: &Path,
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    for (name, entry) in permissions {
+        validate_global_permission_entry(path, name, entry)?;
+    }
+    Ok(())
+}
+
+fn record_permission_decisions(
+    manifest: &mut Manifest,
+    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
+) -> bool {
+    let mut changed = false;
+    for (name, entry) in permissions {
+        if let Some(allowed) = entry.build.as_ref().and_then(AllowBuild::decided) {
+            changed |= edit::set_global_packages_permission(
+                manifest,
+                name,
+                "build",
+                &PermissionValue::Build(allowed),
+            );
+        }
+        if let Some(skills) = entry.skills.as_ref() {
+            changed |= edit::set_global_packages_permission(
+                manifest,
+                name,
+                "skills",
+                &PermissionValue::Skills(skills.clone()),
+            );
+        }
+    }
+    changed
+}
+
+fn write_permission_manifest(
+    target: &ManifestTarget,
+    path: &Path,
+    manifest: Manifest,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)
+            .map_err(|source| UpdateWorkspaceManifestError::Write {
+                path: path.to_path_buf(),
+                source,
+            })?;
+    }
+    write_or_remove_manifest(target, manifest)
+}
+
+fn validate_global_permission_entry(
+    path: &Path,
+    name: &str,
+    entry: &PackagePermissions,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    if has_control_char(name) {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path: path.to_path_buf(),
+            value: name.to_string(),
+        });
+    }
+    if let Some(SkillsPermission::Chosen(chosen)) = entry.skills.as_ref()
+        && let Some(skill) = chosen.iter().find(|skill| has_control_char(skill))
+    {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path: path.to_path_buf(),
+            value: skill.clone(),
+        });
+    }
+    Ok(())
+}
+
+/// Record `globalPackagesConfig.skills.dirs` in the global `config.yaml`.
+pub fn set_global_packages_skills_dirs(
+    path: &Path,
+    dirs: &[String],
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let target = ManifestTarget::root_manifest(path);
+    let mut manifest = read_manifest_at(path)?;
+    if let Some(key) = unsupported_inline_key(
+        manifest.document.text(),
+        &[
+            &["globalPackagesConfig"],
+            &["globalPackagesConfig", "skills"],
+            &["globalPackagesConfig", "skills", "dirs"],
+        ],
+    ) {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.to_path_buf(),
+            key,
+        });
+    }
+    for dir in dirs {
+        if has_control_char(dir) {
+            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+                path: path.to_path_buf(),
+                value: dir.clone(),
+            });
+        }
+    }
+    if !edit::set_global_packages_skills_dirs(&mut manifest, dirs) {
         return Ok(());
     }
     if let Some(dir) = path.parent() {

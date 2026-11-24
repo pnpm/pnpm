@@ -14,9 +14,11 @@ pub use installed::{
     ResyncAgentSkillsError,
     SkillApprovalError,
     SkillApprovalOptions,
+    resync_global_agent_skills,
     resync_installed_agent_skills,
     skill_approval_options,
 };
+pub use links::prune_agent_skill_links;
 pub use targets::{
     agent_skills_dir_from_env,
     detected_agent_dirs,
@@ -39,7 +41,12 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
     };
     let linked = modules.linked_skills.unwrap_or_default();
     (!linked.is_empty() || modules.has_unlinked_skills.unwrap_or(false))
-        && targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
+        && targets::targets_changed(
+            config,
+            config.agent_skills_target_root.as_deref().unwrap_or(workspace_root),
+            agent_skills_dir_from_env(),
+            &linked,
+        )
 }
 
 mod discovery;
@@ -70,10 +77,9 @@ use discovery::{
 };
 use gitignore::update_gitignores;
 use links::{
-    ensure_unoccupied,
     is_occupied,
-    materialize,
     prune,
+    reconcile_links,
 };
 use miette::Diagnostic;
 use pnpm_config::{
@@ -111,6 +117,9 @@ pub struct SyncAgentSkills<'a> {
     /// The agent skill directory of the agent running pnpm, from
     /// [`agent_skills_dir_from_env`].
     pub agent_dir: Option<&'a str>,
+    /// Root directory where skills are linked. Defaults to
+    /// `workspace_root`. Global installs pass the user home directory.
+    pub target_root: &'a Path,
     /// Where the hoisted linker placed each dep path, as recorded in
     /// `.modules.yaml`. Read only under that linker.
     pub hoisted_locations: Option<&'a BTreeMap<String, Vec<String>>>,
@@ -219,42 +228,87 @@ pub enum AgentSkillsError {
 pub fn sync_agent_skills(
     input: &SyncAgentSkills<'_>,
 ) -> Result<AgentSkillsState, AgentSkillsError> {
-    if input.config.agent_skills_disabled
-        || input.config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
-    {
-        prune(input.workspace_root, input.linked, &BTreeSet::new())?;
-        update_gitignores(input.workspace_root, &[], input.linked, &BTreeMap::new())?;
-        return Ok(AgentSkillsState::default());
+    sync_with_other_links(input, &BTreeSet::new())
+}
+
+/// What `.modules.yaml` records about the links of a previous sync.
+pub(crate) struct RecordedSkills<'a> {
+    pub linked: &'a [String],
+    pub has_unlinked_skills: bool,
+}
+
+/// [`sync_agent_skills`] for a caller that does not know the links of other
+/// global groups. Global groups share one target root, so there it leaves
+/// the links as `recorded` and records only the pending skills;
+/// [`resync_global_agent_skills`] reconciles the links after activation.
+pub(crate) fn sync_or_record_pending(
+    input: &SyncAgentSkills<'_>,
+    recorded: &RecordedSkills<'_>,
+) -> Result<AgentSkillsState, AgentSkillsError> {
+    if input.config.agent_skills_target_root.is_none() {
+        return sync_agent_skills(input);
     }
-    let sources = discover_skill_sources(input);
-    let policy =
-        SkillsPolicy::from_approvals(&input.config.allow_skills).map_err(AgentSkillsError::Policy)?;
-    let (pending_sources, approved) = decide_sources(sources, &policy);
-    let dirs = if approved.is_empty() {
+    let pending = if skills_turned_off(input.config) {
         Vec::new()
     } else {
-        targets::target_dirs(input.config, input.workspace_root, input.agent_dir)
-            .map_err(|(path, source)| AgentSkillsError::Io { path, source })?
+        sorted_dep_paths(decide_approvals(input)?.0)
     };
-    let entries =
-        if dirs.is_empty() { BTreeMap::new() } else { link_entries(input, &dirs, &approved)? };
-    let desired = desired_entries(input.workspace_root, &dirs, &entries);
-    ensure_unoccupied(
-        input.workspace_root,
-        input.linked,
-        &desired,
-        input.config.virtual_store_dir(),
-    )?;
-    prune(input.workspace_root, input.linked, &desired.keys().cloned().collect())?;
-    materialize(input.workspace_root, &desired)?;
-    update_gitignores(input.workspace_root, &dirs, input.linked, &desired)?;
-    let mut pending: Vec<String> = pending_sources
+    Ok(AgentSkillsState {
+        pending,
+        linked: recorded.linked.to_vec(),
+        has_unlinked_skills: recorded.has_unlinked_skills,
+    })
+}
+
+fn skills_turned_off(config: &Config) -> bool {
+    config.agent_skills_disabled || config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
+}
+
+/// The skill sources awaiting approval and the approved ones.
+fn decide_approvals(
+    input: &SyncAgentSkills<'_>,
+) -> Result<(Vec<SkillSource>, Vec<SkillSource>), AgentSkillsError> {
+    let policy =
+        SkillsPolicy::from_approvals(&input.config.allow_skills).map_err(AgentSkillsError::Policy)?;
+    Ok(decide_sources(discover_skill_sources(input), &policy))
+}
+
+fn sorted_dep_paths(sources: Vec<SkillSource>) -> Vec<String> {
+    let mut dep_paths: Vec<String> = sources
         .into_iter()
         .map(|source| source.dep_path)
         .collect();
-    pending.sort();
+    dep_paths.sort();
+    dep_paths
+}
+
+/// Reconcile one group while protecting links still used by other groups.
+fn sync_with_other_links(
+    input: &SyncAgentSkills<'_>,
+    other_links: &BTreeSet<String>,
+) -> Result<AgentSkillsState, AgentSkillsError> {
+    if skills_turned_off(input.config) {
+        prune(input.target_root, input.linked, other_links)?;
+        update_gitignores(input.target_root, input.linked, other_links)?;
+        return Ok(AgentSkillsState::default());
+    }
+    let (pending_sources, approved) = decide_approvals(input)?;
+    let target_root = input.target_root;
+    let dirs = if approved.is_empty() {
+        Vec::new()
+    } else {
+        targets::target_dirs(input.config, target_root, input.agent_dir)
+            .map_err(|(path, source)| AgentSkillsError::Io { path, source })?
+    };
+    let entries = if dirs.is_empty() {
+        BTreeMap::new()
+    } else {
+        link_entries(input, &dirs, &approved, other_links)?
+    };
+    let desired = desired_entries(input, &dirs, &entries);
+    reconcile_links(input, &desired, other_links)?;
     Ok(AgentSkillsState {
-        pending,
+        pending: sorted_dep_paths(pending_sources),
         linked: desired.into_keys().collect(),
         has_unlinked_skills: !approved.is_empty() && dirs.is_empty(),
     })
@@ -298,11 +352,12 @@ fn link_entries(
     input: &SyncAgentSkills<'_>,
     dirs: &[PathBuf],
     approved: &[SkillSource],
+    other_links: &BTreeSet<String>,
 ) -> Result<BTreeMap<String, PathBuf>, AgentSkillsError> {
     let by_name = skills_by_name(approved);
     let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
     for providers in by_name.values() {
-        insert_skill_entries(input, dirs, providers, &mut entries)?;
+        insert_skill_entries(input, dirs, providers, &mut entries, other_links)?;
     }
     Ok(entries
         .into_iter()
@@ -330,6 +385,7 @@ fn insert_skill_entries<'a>(
     dirs: &[PathBuf],
     providers: &[(&'a SkillSource, &'a Skill)],
     entries: &mut BTreeMap<String, (PathBuf, &'a str)>,
+    other_links: &BTreeSet<String>,
 ) -> Result<(), AgentSkillsError> {
     if providers.len() > 1 {
         for &(source, skill) in providers {
@@ -339,7 +395,7 @@ fn insert_skill_entries<'a>(
     }
     let (source, skill) = providers[0];
     let target = target_of(source, skill);
-    let name = if bare_name_free(input, dirs, &skill.name, &target) {
+    let name = if bare_name_free(input, dirs, &skill.name, &target, other_links) {
         skill.name.clone()
     } else {
         prefixed_name(source, skill)
@@ -390,14 +446,20 @@ fn bare_name_free(
     dirs: &[PathBuf],
     name: &str,
     target: &Path,
+    other_links: &BTreeSet<String>,
 ) -> bool {
     !dirs
         .iter()
         .any(|dir| {
-            let path = input.workspace_root.join(dir).join(name);
-            let recorded = input.linked
-                .iter()
-                .any(|entry| *entry == recorded_path(input.workspace_root, &path));
+            let path = dir.join(name);
+            let entry = skill_entry_path(input, &path);
+            if entry
+                .as_ref()
+                .is_some_and(|entry| other_links.contains(entry))
+            {
+                return !links::links_to(&path, target);
+            }
+            let recorded = entry.is_some_and(|entry| input.linked.contains(&entry));
             is_occupied(&path, target, recorded, input.config.virtual_store_dir())
         })
 }
@@ -425,7 +487,7 @@ fn insert_entry<'a>(
 
 /// Every entry to link, keyed by the form recorded in `.modules.yaml`.
 fn desired_entries(
-    workspace_root: &Path,
+    input: &SyncAgentSkills<'_>,
     dirs: &[PathBuf],
     entries: &BTreeMap<String, PathBuf>,
 ) -> BTreeMap<String, PathBuf> {
@@ -433,16 +495,30 @@ fn desired_entries(
         .flat_map(|dir| {
             entries
                 .iter()
-                .map(move |(name, target)| {
-                    (recorded_path(workspace_root, &dir.join(name)), target.clone())
+                .filter_map(move |(name, target)| {
+                    Some((skill_entry_path(input, &dir.join(name))?, target.clone()))
                 })
         })
         .collect()
 }
 
-pub(super) fn recorded_path(workspace_root: &Path, path: &Path) -> String {
-    let path = path.strip_prefix(workspace_root).unwrap_or(path);
-    path.to_string_lossy().replace('\\', "/")
+fn skill_entry_path(input: &SyncAgentSkills<'_>, path: &Path) -> Option<String> {
+    let entry = recorded_path(input.target_root, path)?;
+    if input.config.agent_skills_target_root.is_some() {
+        return links::canonical_recorded_entry(input.target_root, &entry);
+    }
+    Some(entry)
+}
+
+pub(super) fn recorded_path(root: &Path, path: &Path) -> Option<String> {
+    let rel = path.strip_prefix(root).ok()?;
+    if !rel
+        .components()
+        .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        return None;
+    }
+    Some(rel.to_string_lossy().replace('\\', "/"))
 }
 
 #[cfg(test)]

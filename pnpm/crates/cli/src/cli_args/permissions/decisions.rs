@@ -3,7 +3,7 @@ use super::{
     Capabilities,
     IgnoredBuildsScan,
     PermissionCapability,
-    emit_global_warning,
+    disambiguated_labels,
     partition_params,
 };
 use crate::cli_args::approve_builds::ApproveBuildsError;
@@ -23,7 +23,10 @@ use pnpm_package_name::{
     is_git_repo_dep_path,
     parse_dep_path_name_version,
 };
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{
+    Reporter,
+    emit_global_warning,
+};
 use pnpm_workspace_manifest_writer::{
     PermissionValue,
     set_permissions,
@@ -47,6 +50,19 @@ pub(crate) struct PackageDecisions {
 }
 
 pub(crate) type Decisions = BTreeMap<String, PackageDecisions>;
+
+pub(crate) fn confirmation(
+    approved: &BTreeSet<String>,
+    pending: &BTreeMap<String, Capabilities>,
+) -> String {
+    let labels = disambiguated_labels(pending.keys().map(String::as_str));
+    let packages = approved
+        .iter()
+        .map(|pkg| format!("{} ({})", labels[pkg.as_str()], capability_list(&pending[pkg])))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("Approve {packages}?")
+}
 
 /// The decisions of one approval run, plus the `skills.dirs` answer that
 /// goes with them. Recording nothing keeps the detected directories.

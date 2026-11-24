@@ -14,6 +14,7 @@ use pretty_assertions::assert_eq;
 use std::{
     collections::{
         BTreeMap,
+        BTreeSet,
         HashMap,
     },
     fmt::Write as _,
@@ -105,6 +106,7 @@ fn sync(
         included: ALL_GROUPS,
         linked,
         agent_dir,
+        target_root: root,
         hoisted_locations: None,
     })
 }
@@ -499,6 +501,7 @@ fn sync_hoisted(
         included: ALL_GROUPS,
         linked: &[],
         agent_dir: None,
+        target_root: root,
         hoisted_locations: Some(&locations),
     })
     .unwrap()
@@ -532,6 +535,7 @@ fn finds_a_dependency_recorded_under_another_peer_variant() {
     let state = sync_agent_skills(&SyncAgentSkills {
         config: &config,
         workspace_root: root.path(),
+        target_root: root.path(),
         lockfile: &lockfile,
         included: ALL_GROUPS,
         linked: &[],
@@ -556,6 +560,7 @@ fn pending_for(version: &str, recorded: &str) -> Vec<String> {
     sync_agent_skills(&SyncAgentSkills {
         config: &config,
         workspace_root: root.path(),
+        target_root: root.path(),
         lockfile: &lockfile,
         included: ALL_GROUPS,
         linked: &[],
@@ -603,6 +608,7 @@ fn a_custom_modules_dir_names_only_the_root_one() {
         included: ALL_GROUPS,
         linked: &[],
         agent_dir: None,
+        target_root: root.path(),
         hoisted_locations: Some(&locations),
     })
     .unwrap();
@@ -730,6 +736,49 @@ fn rejects_symlinked_gitignore() {
         sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
     assert!(matches!(error, AgentSkillsError::Io { .. }));
     assert_eq!(fs::read_to_string(&external_file).unwrap(), "");
+    assert!(
+        fs::symlink_metadata(target_dir.join("guide")).is_err(),
+        "no link is created that .modules.yaml would not record",
+    );
+}
+
+#[test]
+fn an_unreadable_gitignore_fails_before_linking() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    let target_dir = root.path().join(".claude/skills");
+    fs::create_dir_all(&target_dir).unwrap();
+    fs::write(target_dir.join(".gitignore"), [0xff, 0xfe]).unwrap();
+
+    let error =
+        sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
+    assert!(matches!(error, AgentSkillsError::Io { .. }));
+    assert!(fs::symlink_metadata(target_dir.join("guide")).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_failed_gitignore_write_removes_the_links_it_created() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    let target_dir = root.path().join(".claude/skills");
+    fs::create_dir_all(&target_dir).unwrap();
+    let gitignore = target_dir.join(".gitignore");
+    fs::write(&gitignore, "local\n").unwrap();
+    fs::set_permissions(&gitignore, fs::Permissions::from_mode(0o444)).unwrap();
+    if fs::OpenOptions::new()
+        .append(true)
+        .open(&gitignore)
+        .is_ok()
+    {
+        // Running as root, which writes through the mode.
+        return;
+    }
+
+    let error =
+        sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
+    assert!(matches!(error, AgentSkillsError::Io { .. }));
+    assert!(fs::symlink_metadata(target_dir.join("guide")).is_err());
 }
 
 #[test]
@@ -998,4 +1047,99 @@ fn entries_prune_and_relink_when_the_naming_changes() {
     assert_eq!(state.linked, [".claude/skills/guide"]);
     assert!(fs::symlink_metadata(skills.join("pnpm-foo-guide")).is_err());
     assert!(skills.join("guide/SKILL.md").is_file());
+}
+
+#[test]
+fn global_groups_keep_shared_links_and_each_others_ignore_rules() {
+    let (root, lockfile) =
+        workspace(&[("foo", "1.0.0", &["guide"]), ("bar", "1.0.0", &["reference"])]);
+    let home = tempfile::tempdir().expect("create home");
+    let dir = home.path().join(".claude/skills");
+    let first_config = config(&[("foo", true)], Some(&[".claude/skills"]));
+    let second_config = config(&[("foo", true), ("bar", true)], Some(&[".claude/skills"]));
+    let sync = |config, other_links: &_| {
+        super::sync_with_other_links(
+            &SyncAgentSkills {
+                config,
+                workspace_root: root.path(),
+                lockfile: &lockfile,
+                included: ALL_GROUPS,
+                linked: &[],
+                agent_dir: None,
+                target_root: home.path(),
+                hoisted_locations: None,
+            },
+            other_links,
+        )
+        .expect("sync global skills")
+    };
+    let first = sync(&first_config, &BTreeSet::new());
+    let second = sync(&second_config, &first.linked.iter().cloned().collect());
+    let guide = dir.join("guide");
+    let reference = dir.join("reference");
+    let gitignore = dir.join(".gitignore");
+    assert_eq!(second.linked, [".claude/skills/guide", ".claude/skills/reference"]);
+
+    super::prune_agent_skill_links(
+        home.path(),
+        &first.linked,
+        &second.linked.iter().cloned().collect(),
+    )
+    .expect("remove first group");
+    assert!(guide.exists());
+    assert!(reference.exists());
+    let rules = fs::read_to_string(&gitignore).expect("read ignore rules");
+    assert!(rules.contains("/guide\n") && rules.contains("/reference\n"), "{rules}");
+
+    super::prune_agent_skill_links(home.path(), &second.linked, &BTreeSet::new())
+        .expect("remove last group");
+    assert!(guide.symlink_metadata().is_err());
+    assert!(reference.symlink_metadata().is_err());
+    assert!(!gitignore.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_global_sync_without_group_links_records_pending_skills_only() {
+    let (root, lockfile) =
+        workspace(&[("foo", "1.0.0", &["guide"]), ("bar", "1.0.0", &["reference"])]);
+    let home = tempfile::tempdir().expect("create home");
+    let dir = home.path().join(".claude/skills");
+    fs::create_dir_all(&dir).expect("create the skills dir");
+    let other_copy = tempfile::tempdir().expect("create another group's copy");
+    std::os::unix::fs::symlink(other_copy.path(), dir.join("guide"))
+        .expect("link another group's skill");
+    fs::write(dir.join(".gitignore"), "# pnpm\n/guide\n").expect("write ignore rules");
+    let config = Config {
+        agent_skills_target_root: Some(home.path().to_path_buf()),
+        ..config(&[("foo", true)], Some(&[".claude/skills"]))
+    };
+    let recorded = [".claude/skills/pnpm-foo-guide".to_string()];
+
+    let state = super::sync_or_record_pending(
+        &SyncAgentSkills {
+            config: &config,
+            workspace_root: root.path(),
+            lockfile: &lockfile,
+            included: ALL_GROUPS,
+            linked: &recorded,
+            agent_dir: None,
+            target_root: home.path(),
+            hoisted_locations: None,
+        },
+        &super::RecordedSkills { linked: &recorded, has_unlinked_skills: true },
+    )
+    .expect("sync");
+
+    assert_eq!(
+        state,
+        AgentSkillsState {
+            pending: vec!["bar@1.0.0".to_string()],
+            linked: recorded.to_vec(),
+            has_unlinked_skills: true,
+        },
+    );
+    assert_eq!(fs::read_link(dir.join("guide")).expect("read link"), other_copy.path());
+    assert_eq!(fs::read_to_string(dir.join(".gitignore")).expect("read"), "# pnpm\n/guide\n");
+    assert!(fs::symlink_metadata(dir.join("pnpm-foo-guide")).is_err());
 }

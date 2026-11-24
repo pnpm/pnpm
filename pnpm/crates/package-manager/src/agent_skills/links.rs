@@ -3,7 +3,12 @@
 
 use super::{
     AgentSkillsError,
+    SyncAgentSkills,
     discovery::MAX_SKILL_DIR_DEPTH,
+    gitignore::{
+        check_gitignores_writable,
+        update_gitignores,
+    },
     targets::STANDARD_AGENT_DIRS,
 };
 use std::{
@@ -20,37 +25,118 @@ use std::{
     },
 };
 
+pub(super) fn reconcile_links(
+    input: &SyncAgentSkills<'_>,
+    desired: &BTreeMap<String, PathBuf>,
+    other_links: &BTreeSet<String>,
+) -> Result<(), AgentSkillsError> {
+    let target_root = input.target_root;
+    let mut to_write = BTreeMap::new();
+    for (entry, target) in desired {
+        if other_links.contains(entry) {
+            let path = target_root.join(entry);
+            if !links_to(&path, target) {
+                return Err(AgentSkillsError::Occupied { path });
+            }
+        } else {
+            to_write.insert(entry.clone(), target.clone());
+        }
+    }
+    ensure_unoccupied(target_root, input.linked, &to_write, input.config.virtual_store_dir())?;
+    let affected = || input.linked.iter().chain(desired.keys());
+    check_gitignores_writable(target_root, affected())?;
+    let keep = desired
+        .keys()
+        .chain(other_links)
+        .cloned()
+        .collect();
+    prune(target_root, input.linked, &keep)?;
+    let created = absent_entries(target_root, &to_write);
+    materialize(target_root, &to_write)
+        .and_then(|()| update_gitignores(target_root, affected(), &keep))
+        .inspect_err(|_| remove_created_links(target_root, &created))
+}
+
+/// The entries of `to_write` that nothing occupies yet.
+fn absent_entries<'entry>(
+    target_root: &Path,
+    to_write: &'entry BTreeMap<String, PathBuf>,
+) -> Vec<&'entry String> {
+    to_write
+        .keys()
+        .filter(|entry| fs::symlink_metadata(target_root.join(entry)).is_err())
+        .collect()
+}
+
+/// `.modules.yaml` records a sync's links only when it succeeds, so a
+/// failed sync removes the links it created, which nothing would prune.
+/// The sync's error is the one reported, so a removal error is dropped.
+fn remove_created_links(target_root: &Path, created: &[&String]) {
+    for entry in created {
+        let _ = remove_link(&target_root.join(entry));
+    }
+}
+
+/// Remove recorded links that no surviving group uses.
+pub fn prune_agent_skill_links(
+    target_root: &Path,
+    linked: &[String],
+    keep: &BTreeSet<String>,
+) -> Result<(), AgentSkillsError> {
+    let linked: Vec<_> = linked
+        .iter()
+        .filter_map(|entry| canonical_recorded_entry(target_root, entry))
+        .collect();
+    let keep = keep
+        .iter()
+        .filter_map(|entry| canonical_recorded_entry(target_root, entry))
+        .collect();
+    prune(target_root, &linked, &keep)?;
+    update_gitignores(target_root, &linked, &keep)
+}
+
 pub(super) fn prune(
-    workspace_root: &Path,
+    target_root: &Path,
     linked: &[String],
     keep: &BTreeSet<String>,
 ) -> Result<(), AgentSkillsError> {
     for entry in linked
         .iter()
         .filter(|entry| !keep.contains(*entry))
-        .filter(|entry| recorded_parent_is_within_workspace(workspace_root, entry))
+        .filter(|entry| recorded_parent_is_within_root(target_root, entry))
     {
-        let path = workspace_root.join(entry);
-        if links_to_a_package_skill(workspace_root, &path) {
+        let path = target_root.join(entry);
+        if links_to_a_package_skill(target_root, &path) {
             remove_link(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
         }
     }
     Ok(())
 }
 
-pub(super) fn recorded_parent_is_within_workspace(workspace_root: &Path, entry: &str) -> bool {
-    if !is_within_workspace(entry) {
+pub(super) fn recorded_parent_is_within_root(target_root: &Path, entry: &str) -> bool {
+    if !is_within_target_root(entry) {
         return false;
     }
     let Some(parent) = Path::new(entry).parent() else { return false };
-    let Ok(root) = dunce::canonicalize(workspace_root) else { return false };
-    let Ok(parent) = dunce::canonicalize(workspace_root.join(parent)) else { return false };
+    let Ok(root) = dunce::canonicalize(target_root) else { return false };
+    let Ok(parent) = dunce::canonicalize(target_root.join(parent)) else { return false };
     pnpm_fs::is_subdir(&root, &parent)
+}
+
+/// Identify a recorded slot by its directory, without following its link.
+pub(super) fn canonical_recorded_entry(root: &Path, entry: &str) -> Option<String> {
+    if !is_within_target_root(entry) {
+        return None;
+    }
+    let path = Path::new(entry);
+    let root = dunce::canonicalize(root).ok()?;
+    let parent = dunce::canonicalize(root.join(path.parent()?)).ok()?;
+    super::recorded_path(&root, &parent.join(path.file_name()?))
 }
 
 /// `.modules.yaml` is not trusted to name only pnpm's entries, so pnpm
 /// touches only a relative entry reached without `..`.
-pub(super) fn is_within_workspace(entry: &str) -> bool {
+pub(super) fn is_within_target_root(entry: &str) -> bool {
     Path::new(entry)
         .components()
         .all(|component| matches!(component, Component::Normal(_)))
@@ -59,7 +145,7 @@ pub(super) fn is_within_workspace(entry: &str) -> bool {
 /// Whether `path` is a link into the `skills` directory of an installed or
 /// linked package, as every link pnpm creates is, even after `node_modules`
 /// is removed.
-fn links_to_a_package_skill(workspace_root: &Path, path: &Path) -> bool {
+fn links_to_a_package_skill(target_root: &Path, path: &Path) -> bool {
     let Ok(target) = pnpm_fs::read_symlink_dir(path) else { return false };
     let components: Vec<Component<'_>> = target.components().collect();
     if components
@@ -73,12 +159,12 @@ fn links_to_a_package_skill(workspace_root: &Path, path: &Path) -> bool {
                     && is_modules_package_skill(&components[idx + 1..])
             });
     }
-    is_local_package_skill(workspace_root, path, &target)
+    is_local_package_skill(target_root, path, &target)
 }
 
-fn is_local_package_skill(workspace_root: &Path, path: &Path, target: &Path) -> bool {
+fn is_local_package_skill(target_root: &Path, path: &Path, target: &Path) -> bool {
     let Some(parent) = path.parent() else { return false };
-    let root = canonical_or_lexical(workspace_root);
+    let root = canonical_or_lexical(target_root);
     let link_parent = canonical_or_lexical(parent);
     let resolved = pnpm_fs::lexical_normalize(&link_parent.join(target));
     let parts: Vec<Component<'_>> = resolved.components().collect();
@@ -164,13 +250,13 @@ fn remove_link(path: &Path) -> io::Result<()> {
 /// by something pnpm must not replace, so a failed sync leaves the existing
 /// links in place.
 pub(super) fn ensure_unoccupied(
-    workspace_root: &Path,
+    target_root: &Path,
     linked: &[String],
     desired: &BTreeMap<String, PathBuf>,
     virtual_store_dir: &Path,
 ) -> Result<(), AgentSkillsError> {
     for (entry, target) in desired {
-        let path = workspace_root.join(entry);
+        let path = target_root.join(entry);
         if is_occupied(&path, target, linked.contains(entry), virtual_store_dir) {
             return Err(AgentSkillsError::Occupied { path });
         }
@@ -179,11 +265,11 @@ pub(super) fn ensure_unoccupied(
 }
 
 pub(super) fn materialize(
-    workspace_root: &Path,
+    target_root: &Path,
     desired: &BTreeMap<String, PathBuf>,
 ) -> Result<(), AgentSkillsError> {
     for (entry, target) in desired {
-        let path = workspace_root.join(entry);
+        let path = target_root.join(entry);
         create_link(target, &path).map_err(|source| AgentSkillsError::Io { path, source })?;
     }
     Ok(())
@@ -246,7 +332,7 @@ fn skill_path_from_modules_dir(target: &Path) -> Option<&Path> {
         .ok()
 }
 
-fn links_to(path: &Path, target: &Path) -> bool {
+pub(super) fn links_to(path: &Path, target: &Path) -> bool {
     matches!(
         (fs::canonicalize(path), fs::canonicalize(target)),
         (Ok(resolved), Ok(target)) if resolved == target,

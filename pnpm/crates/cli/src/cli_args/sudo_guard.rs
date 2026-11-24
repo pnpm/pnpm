@@ -18,9 +18,15 @@ use miette::Diagnostic;
 
 use super::cli_command::CliCommand;
 #[cfg(unix)]
-use super::config::{
-    ConfigArgs,
-    ConfigSubcommand,
+use super::{
+    config::{
+        ConfigArgs,
+        ConfigSubcommand,
+    },
+    permissions::{
+        PermissionsArgs,
+        PermissionsCommand,
+    },
 };
 
 pub(crate) fn check_sudo(command: &CliCommand) -> miette::Result<()> {
@@ -78,7 +84,12 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
         CliCommand::Setup(_) => Some("pnpm setup".to_string()),
         CliCommand::SelfUpdate(_) => Some("pnpm self-update".to_string()),
         CliCommand::Add(args) => global_write(args.target.global, "add"),
+        CliCommand::Approve(args) => global_write(args.global, "approve"),
         CliCommand::ApproveBuilds(args) => global_write(args.global, "approve-builds"),
+        CliCommand::Permissions(PermissionsArgs {
+            command: Some(PermissionsCommand::Approve(args)),
+            ..
+        }) => global_write(args.global, "permissions approve"),
         CliCommand::Remove(args) => global_write(args.global, "remove"),
         CliCommand::Runtime(args) => global_write(args.global, "runtime"),
         CliCommand::Update(args) => global_write(args.selection.global, "update"),

@@ -46,6 +46,22 @@ fn global_add_is_blocked_under_sudo() {
 }
 
 #[test]
+fn global_approvals_are_blocked_under_sudo() {
+    for (argv, operation) in [
+        (&["pnpm", "approve", "-g", "--all"][..], "pnpm approve --global"),
+        (
+            &["pnpm", "permissions", "approve", "-g", "--all"][..],
+            "pnpm permissions approve --global",
+        ),
+    ] {
+        let err = check_sudo_as(&command(argv), 0, Some("alice")).expect_err("blocked");
+        assert_eq!(err.to_string(), format!(r#"Running "{operation}" with sudo is not supported"#));
+    }
+    assert!(check_sudo_as(&command(&["pnpm", "approve", "--all"]), 0, Some("alice")).is_ok());
+    assert!(check_sudo_as(&command(&["pnpm", "permissions", "list"]), 0, Some("alice")).is_ok());
+}
+
+#[test]
 fn local_add_is_allowed_under_sudo() {
     assert!(check_sudo_as(&command(&["pnpm", "add", "foo"]), 0, Some("alice")).is_ok());
 }

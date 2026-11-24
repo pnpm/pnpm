@@ -394,6 +394,7 @@ impl CliCommand {
     pub(crate) fn is_global(&self) -> bool {
         match self {
             CliCommand::Add(args) => args.target.global,
+            CliCommand::Approve(args) => args.global,
             CliCommand::ApproveBuilds(args) => args.global,
             CliCommand::Bin(args) => args.global,
             CliCommand::Config(args) => args.flags.is_global(),
@@ -403,6 +404,9 @@ impl CliCommand {
             CliCommand::List(args) | CliCommand::Ll(args) => args.global,
             CliCommand::Outdated(args) => args.global,
             CliCommand::Peers(args) => args.global,
+            CliCommand::Permissions(args) => {
+                matches!(&args.command, Some(crate::cli_args::permissions::PermissionsCommand::Approve(args)) if args.global)
+            }
             CliCommand::Prefix(args) => args.global,
             CliCommand::Remove(args) => args.global,
             CliCommand::Root(args) => args.global,

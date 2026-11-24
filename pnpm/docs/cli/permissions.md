@@ -50,6 +50,18 @@ A `build` decision is written to `permissions` only when `pnpm-workspace.yaml` a
 
 Approve everything awaiting approval without interactive prompts.
 
+#### --global, -g
+
+Approve permissions for [globally installed packages](../global-packages.md).
+
+pnpm gathers the packages awaiting approval across every [isolated install
+group](../global-packages.md#isolated-installations), asks about them once, and
+writes the decisions to [`globalPackagesConfig.permissions`](../configuring.md#settings-for-global-packages)
+in the global `config.yaml`. Skill directory choices are written to
+`globalPackagesConfig.skills.dirs`. Only the groups that actually contain an
+approved package are then rebuilt, and approved skills are linked into agent
+skill directories under your home directory.
+
 ### pnpm permissions list
 
 Alias: `pnpm permissions`, `pnpm permissions ls`

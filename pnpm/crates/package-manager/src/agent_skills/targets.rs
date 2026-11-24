@@ -54,15 +54,15 @@ pub(crate) fn agent_skills_dir_from_lookup(
 /// `agent_dir`. Two paths to one directory count once.
 pub(super) fn target_dirs(
     config: &Config,
-    workspace_root: &Path,
+    target_root: &Path,
     agent_dir: Option<&str>,
 ) -> Result<Vec<PathBuf>, (PathBuf, io::Error)> {
     let canonical_root =
-        dunce::canonicalize(workspace_root).map_err(|error| (workspace_root.to_path_buf(), error))?;
+        dunce::canonicalize(target_root).map_err(|error| (target_root.to_path_buf(), error))?;
     let mut seen = HashSet::new();
     let mut targets = Vec::new();
-    for dir in candidate_dirs(config, workspace_root, agent_dir) {
-        if !create_dir_in_workspace(workspace_root, &dir).map_err(|error| (dir.clone(), error))? {
+    for dir in candidate_dirs(config, target_root, agent_dir) {
+        if !create_dir_in_root(target_root, &dir).map_err(|error| (dir.clone(), error))? {
             continue;
         }
         let canonical = dunce::canonicalize(&dir).map_err(|error| (dir.clone(), error))?;
@@ -82,7 +82,7 @@ pub(super) fn target_dirs(
 /// because the sync creates it.
 pub(super) fn targets_changed(
     config: &Config,
-    workspace_root: &Path,
+    target_root: &Path,
     agent_dir: Option<&str>,
     linked: &[String],
 ) -> bool {
@@ -93,29 +93,31 @@ pub(super) fn targets_changed(
         .map(Path::to_string_lossy)
         .map(|text| text.replace('\\', "/"))
         .collect();
-    let Ok(canonical_root) = dunce::canonicalize(workspace_root) else {
+    let Ok(canonical_root) = dunce::canonicalize(target_root) else {
         return true;
     };
     let mut seen = HashSet::new();
     let mut current = BTreeSet::new();
-    for dir in candidate_dirs(config, workspace_root, agent_dir) {
+    for dir in candidate_dirs(config, target_root, agent_dir) {
         let Ok(canonical) = dunce::canonicalize(&dir) else { return true };
         if !pnpm_fs::is_subdir(&canonical_root, &canonical) {
             continue;
         }
-        if seen.insert(canonical) {
-            current.insert(recorded_path(workspace_root, &dir));
+        if seen.insert(canonical)
+            && let Some(path) = recorded_path(target_root, &dir)
+        {
+            current.insert(path);
         }
     }
     previous != current
 }
 
-fn create_dir_in_workspace(workspace_root: &Path, dir: &Path) -> io::Result<bool> {
-    let Ok(rel) = dir.strip_prefix(workspace_root) else {
+fn create_dir_in_root(target_root: &Path, dir: &Path) -> io::Result<bool> {
+    let Ok(rel) = dir.strip_prefix(target_root) else {
         return Ok(false);
     };
-    let canonical_root = dunce::canonicalize(workspace_root)?;
-    let mut current = workspace_root.to_path_buf();
+    let canonical_root = dunce::canonicalize(target_root)?;
+    let mut current = target_root.to_path_buf();
     for component in rel.components() {
         let std::path::Component::Normal(part) = component else {
             return Ok(false);
@@ -176,27 +178,33 @@ fn create_and_validate_component(canonical_root: &Path, current: &Path) -> io::R
     Ok(true)
 }
 
-fn candidate_dirs(config: &Config, workspace_root: &Path, agent_dir: Option<&str>) -> Vec<PathBuf> {
+fn candidate_dirs(config: &Config, target_root: &Path, agent_dir: Option<&str>) -> Vec<PathBuf> {
     let raw_dirs: Vec<PathBuf> = if let Some(dirs) = &config.skills_dirs {
         dirs.iter()
-            .map(|dir| workspace_root.join(dir))
+            .filter_map(|dir| resolve_skills_dir(target_root, dir))
             .collect()
     } else {
-        let mut dirs = existing_agent_dirs(workspace_root);
-        dirs.extend(agent_dir.map(|dir| workspace_root.join(dir)));
+        let mut dirs = existing_agent_dirs(target_root);
+        dirs.extend(agent_dir.map(|dir| target_root.join(dir)));
         dirs
     };
     raw_dirs
         .into_iter()
-        .filter(|dir| is_contained_in_workspace(workspace_root, dir))
+        .filter(|dir| is_contained_in_workspace(target_root, dir))
         .collect()
 }
 
-fn is_contained_in_workspace(workspace_root: &Path, dir: &Path) -> bool {
-    if !pnpm_fs::is_subdir(workspace_root, dir) {
+fn resolve_skills_dir(target_root: &Path, dir: &str) -> Option<PathBuf> {
+    let path = Path::new(dir);
+    let joined = if path.is_absolute() { path.to_path_buf() } else { target_root.join(path) };
+    pnpm_fs::is_subdir(target_root, &joined).then_some(joined)
+}
+
+fn is_contained_in_workspace(target_root: &Path, dir: &Path) -> bool {
+    if !pnpm_fs::is_subdir(target_root, dir) {
         return false;
     }
-    let Ok(canonical_root) = dunce::canonicalize(workspace_root) else {
+    let Ok(canonical_root) = dunce::canonicalize(target_root) else {
         return false;
     };
     let Ok(resolved_dir) = pnpm_fs::realpath_missing(dir) else {
@@ -205,9 +213,9 @@ fn is_contained_in_workspace(workspace_root: &Path, dir: &Path) -> bool {
     pnpm_fs::is_subdir(&canonical_root, &resolved_dir)
 }
 
-/// `<workspace_root>/.<agent>/skills` for every agent directory present.
-fn existing_agent_dirs(workspace_root: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir(workspace_root) else { return Vec::new() };
+/// `<target_root>/.<agent>/skills` for every agent directory present.
+fn existing_agent_dirs(target_root: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(target_root) else { return Vec::new() };
     let mut dirs: Vec<PathBuf> = entries
         .filter_map(Result::ok)
         .filter(|entry| {
@@ -236,22 +244,22 @@ pub const STANDARD_AGENT_DIRS: &[&str] = &[
     ".github/skills",
 ];
 
-/// The `skills.dirs` candidates detection yields at `workspace_root`: the
+/// The `skills.dirs` candidates detection yields at `target_root`: the
 /// standard agent directories, any `.*/skills` directories present, and the
 /// running agent's own. Workspace-root-relative and slash-separated, the
 /// form `skills.dirs` and `.modules.yaml` record. Sorted.
 #[must_use]
-pub fn detected_agent_dirs(workspace_root: &Path) -> Vec<String> {
-    detected_agent_dirs_with_agent(workspace_root, agent_skills_dir_from_env())
+pub fn detected_agent_dirs(target_root: &Path) -> Vec<String> {
+    detected_agent_dirs_with_agent(target_root, agent_skills_dir_from_env())
 }
 
 pub(crate) fn detected_agent_dirs_with_agent(
-    workspace_root: &Path,
+    target_root: &Path,
     agent_dir: Option<&str>,
 ) -> Vec<String> {
-    let mut dirs: Vec<String> = existing_agent_dirs(workspace_root)
+    let mut dirs: Vec<String> = existing_agent_dirs(target_root)
         .iter()
-        .map(|dir| recorded_path(workspace_root, dir))
+        .filter_map(|dir| recorded_path(target_root, dir))
         .collect();
     if let Some(agent_dir) = agent_dir
         && !dirs.iter().any(|dir| dir == agent_dir)

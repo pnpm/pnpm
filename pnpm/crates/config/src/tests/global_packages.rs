@@ -180,6 +180,23 @@ fn a_global_packages_load_drops_the_build_policy_of_the_workspace_layer() {
 }
 
 #[test]
+fn a_global_packages_load_drops_the_skill_policy_of_the_workspace_layer() {
+    fake_env!();
+    let machine = Machine::with_global_config("");
+    write_file(
+        &machine.pnpm_home.path().join("pnpm-workspace.yaml"),
+        "permissions:\n  some-skills: {skills: true}\nskills:\n  dirs:\n    - .claude/skills\n",
+    );
+    set_fake_env(&[("XDG_CONFIG_HOME", machine.xdg_config_home())]);
+
+    let config =
+        global_packages_load().current::<FakeEnv>(machine.pnpm_home.path()).expect("load config");
+
+    assert!(config.allow_skills.is_empty());
+    assert_eq!(config.skills_dirs, None);
+}
+
+#[test]
 fn a_global_packages_load_keeps_the_top_level_build_policy() {
     fake_env!();
     let machine = Machine::with_global_config("dangerouslyAllowAllBuilds: true\n");

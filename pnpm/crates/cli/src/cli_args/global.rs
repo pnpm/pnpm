@@ -8,12 +8,22 @@
 
 pub mod rust;
 
+pub(crate) use build_policy::{
+    apply_global_build_policy,
+    global_approval_store,
+    warn_about_legacy_global_settings,
+};
 pub use builds::approve_global_builds;
+pub(crate) use install::global_group_config;
 pub use legacy::migrate_legacy_global_packages;
+pub(crate) use pnpm_fs::is_subdir;
+pub(crate) use pnpm_global::scan_global_packages;
 pub use remove::{
     handle_global_remove,
     remove_global_groups,
 };
+pub(crate) use skills::links_of_other_groups;
+
 pub use selectors::{
     has_pnpm_cli_dependency,
     selects_pnpm_cli,
@@ -74,11 +84,6 @@ use crate::{
     },
 };
 
-use build_policy::{
-    apply_global_build_policy,
-    global_approval_store,
-    warn_about_legacy_global_settings,
-};
 use cleanup::discard_install_dir_on_error;
 use derive_more::{
     Display,
@@ -88,7 +93,6 @@ use install::{
     GlobalInstallTarget,
     GroupActivation,
     GroupInstall,
-    global_group_config,
     run_group_install,
 };
 use miette::{
@@ -113,7 +117,6 @@ use pnpm_config::{
     check_global_bin_dir,
 };
 use pnpm_fs::{
-    is_subdir,
     remove_symlink_dir,
     symlink_dir,
 };
@@ -130,7 +133,6 @@ use pnpm_global::{
     is_global_install_subdir,
     read_direct_dependencies,
     read_installed_packages,
-    scan_global_packages,
 };
 use pnpm_lockfile::Lockfile;
 use pnpm_package_is_installable::SupportedArchitectures;
@@ -478,6 +480,8 @@ fn registries_with_default(config: &Config) -> Vec<(String, String)> {
 mod tests;
 
 mod install;
+
+mod skills;
 
 mod remove;
 

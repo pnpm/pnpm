@@ -15,9 +15,24 @@ fn run(original: Option<&str>, entries: &[(&str, bool)]) -> Option<String> {
         fs::create_dir_all(path.parent().expect("config dir")).expect("create config dir");
         fs::write(&path, text).expect("seed config.yaml");
     }
-    crate::set_global_packages_build_permissions(&path, entries.iter().copied())
+    crate::set_global_packages_permissions(&path, &build_decisions(entries))
         .expect("update succeeds");
     fs::read_to_string(&path).ok()
+}
+
+fn build_decisions(
+    entries: &[(&str, bool)],
+) -> std::collections::BTreeMap<String, pnpm_config::PackagePermissions> {
+    entries
+        .iter()
+        .map(|&(name, allowed)| {
+            let decision = pnpm_config::PackagePermissions {
+                build: Some(pnpm_config::AllowBuild::Decided(allowed)),
+                ..Default::default()
+            };
+            (name.to_string(), decision)
+        })
+        .collect()
 }
 
 #[test]
@@ -100,9 +115,11 @@ fn leaves_the_file_untouched_when_nothing_changes() {
 fn refuses_a_name_with_a_control_character() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join("config.yaml");
-    let error =
-        crate::set_global_packages_build_permissions(&path, [("evil\nstoreDir: /tmp", true)])
-            .expect_err("a newline in a name is refused");
+    let error = crate::set_global_packages_permissions(
+        &path,
+        &build_decisions(&[("evil\nstoreDir: /tmp", true)]),
+    )
+    .expect_err("a newline in a name is refused");
     assert!(
         matches!(error, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }),
         "{error:?}",
@@ -122,4 +139,27 @@ fn ends_an_unterminated_last_line_before_appending() {
             "globalPackagesConfig:\n  permissions:\n    esbuild:\n      build: true\n    sharp:\n      build: false\n",
         ),
     );
+}
+
+#[test]
+fn skill_dirs_preserve_permissions_in_flow_and_block_mappings() {
+    for original in [
+        "globalPackagesConfig: {permissions: {foo: {build: true}}}",
+        "globalPackagesConfig:\n    permissions:\n        foo:\n            build: true",
+        "globalPackagesConfig:\n    permissions: {foo: {build: true}}\n    skills:\n        dirs: [old]",
+        "globalPackagesConfig:\n  permissions: {foo: {build: true}}\n  skills: {}",
+    ] {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("config.yaml");
+        let dirs = [".claude/skills".to_string(), "skills [custom]".to_string()];
+        fs::write(&path, original).expect("seed config.yaml");
+        crate::set_global_packages_skills_dirs(&path, &dirs).expect("update skills directories");
+        let updated = fs::read_to_string(&path).expect("read config.yaml");
+        let config: serde_json::Value = serde_saphyr::from_str(&updated).expect("valid YAML");
+        let global = &config["globalPackagesConfig"];
+        assert_eq!(global["permissions"]["foo"]["build"], true, "{updated}");
+        assert_eq!(global["skills"]["dirs"], serde_json::json!(dirs), "{updated}");
+        crate::set_global_packages_skills_dirs(&path, &dirs).expect("repeat update");
+        assert_eq!(fs::read_to_string(&path).expect("read config.yaml"), updated);
+    }
 }

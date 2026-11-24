@@ -34,7 +34,10 @@ use super::{
     tag_checked_selectors,
     update_selectors,
 };
-use pnpm_config::Host;
+use pnpm_config::{
+    GetHomeDir,
+    Host,
+};
 
 /// The pnpm home a global group installs into.
 pub(super) struct GlobalInstallTarget<'a> {
@@ -304,13 +307,16 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
         global_approval_store(install.base_config, install.global_pkg_dir)?,
     )?;
 
-    let config: &'static Config = Config::leak(cfg);
+    let config: &'static Config = Config::leak(cfg.clone());
+    // The candidate may still fail global bin activation.
+    cfg.disable_agent_skills();
+    let candidate_config = Config::leak(cfg);
 
     let selectors = install.selectors
         .iter()
         .map(|selector| infer_local_package_alias(selector))
         .collect::<miette::Result<Vec<_>>>()?;
-    let state = State::init(install.install_dir.join("package.json"), config, false)
+    let state = State::init(install.install_dir.join("package.json"), candidate_config, false)
         .wrap_err("initialize the global install state")?;
     add_packages::<Reporter, _>(
         state,
@@ -325,7 +331,7 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
 
     if !install.lockfile_only {
         prompt_approve_install_builds::<Reporter>(
-            config,
+            candidate_config,
             install.install_dir,
             global_approval_store(install.base_config, install.global_pkg_dir)?,
         )
@@ -340,7 +346,7 @@ pub(super) fn group_install_state_dir(install_dir: &Path) -> PathBuf {
     install_dir.join("node_modules").join(".pnpm")
 }
 
-pub(super) fn global_group_config(
+pub(crate) fn global_group_config(
     base_config: &Config,
     install_dir: &Path,
     global_pkg_dir: &Path,
@@ -390,7 +396,9 @@ pub(super) fn global_group_config(
     cfg.extra_env.remove("NODE_OPTIONS");
     cfg.apply_global_virtual_store_node_path::<Host>();
 
-    cfg.disable_agent_skills();
+    cfg.agent_skills_target_root = Some(
+        Host::home_dir().ok_or_else(|| miette::miette!("unable to determine home directory"))?,
+    );
     apply_global_build_policy(&mut cfg, global_pkg_dir)?;
     // Don't fail the install when a dependency's build is ignored; the
     // global approval prompt (run after the install) records the ignored

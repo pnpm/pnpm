@@ -68,6 +68,7 @@ pub fn remove_global_groups<Reporter: self::Reporter>(
     let _global_bin_lock = acquire_global_bin_lock(global_bin_dir)?;
 
     let groups = requested_global_groups(global_pkg_dir, params)?;
+    let skills = super::skills::RemovedSkillLinks::prepare(global_pkg_dir, &groups)?;
     let protected = protected_bins_for_removal(global_pkg_dir, &groups)?;
     let shims_to_restore = virtual_shims_to_restore(
         &groups,
@@ -100,7 +101,24 @@ pub fn remove_global_groups<Reporter: self::Reporter>(
     })? {
         warn_global::<Reporter>(leftover.to_string());
     }
-    removed_global_install_result(cleanup_removed_global_install_dirs(&groups, &cleanup))
+    complete_global_removal(&groups, &cleanup, skills)
+}
+
+fn complete_global_removal(
+    groups: &[GlobalPackageBinSnapshot],
+    cleanup: &GlobalInstallCleanup<'_>,
+    skills: Option<super::skills::RemovedSkillLinks>,
+) -> miette::Result<()> {
+    let mut cleanup_reports = cleanup_removed_global_install_dirs(groups, cleanup);
+    if let Some(skills) = skills
+        && let Err(error) = skills.prune()
+    {
+        cleanup_reports.push(ArtifactCleanupError {
+            context: "remove links owned by the removed global packages".to_string(),
+            source: io::Error::other(error.to_string()),
+        });
+    }
+    removed_global_install_result(cleanup_reports)
 }
 
 fn protected_bins_for_removal(

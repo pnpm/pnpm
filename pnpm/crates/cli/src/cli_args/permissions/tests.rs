@@ -2,7 +2,10 @@ use super::{
     ApproveArgs,
     Capabilities,
     PromptAvailability,
-    decisions::PackageDecisions,
+    decisions::{
+        PackageDecisions,
+        confirmation,
+    },
     render_permissions,
 };
 use crate::cli_args::approve_builds::ApproveBuildsError;
@@ -39,6 +42,7 @@ fn args(packages: &[&str], all: bool) -> ApproveArgs {
             .map(ToString::to_string)
             .collect(),
         all,
+        global: false,
     }
 }
 
@@ -413,24 +417,32 @@ fn pending_builds_approved_filters_only_approved_build_requests() {
 
 #[test]
 fn prompt_for_package_skills_with_empty_skills_is_undiscovered() {
-    let outcome = super::prompt_for_package_skills("foo", &[]).unwrap();
-    assert_eq!(outcome, super::SkillPromptOutcome::Undiscovered);
+    let outcome = super::skills_review::prompt_for_package_skills("foo", &[]).unwrap();
+    assert_eq!(outcome, super::skills_review::SkillPromptOutcome::Undiscovered);
 }
 
 #[test]
 fn a_single_skill_is_approved_with_its_package_without_a_prompt() {
-    let outcome = super::prompt_for_package_skills("foo", &["guide".to_string()]).unwrap();
-    assert_eq!(outcome, super::SkillPromptOutcome::Decided(SkillsPermission::All(true)));
+    let outcome =
+        super::skills_review::prompt_for_package_skills("foo", &["guide".to_string()]).unwrap();
+    assert_eq!(
+        outcome,
+        super::skills_review::SkillPromptOutcome::Decided(SkillsPermission::All(true)),
+    );
 }
 
 #[test]
 fn review_skills_with_undiscovered_skills_leaves_package_out_of_review() {
     let approved = std::collections::BTreeSet::from(["foo".to_string()]);
     let pending = pending(&[("foo", &[Skills])]);
-    let review =
-        super::review_skills(decide_config(), Path::new("/workspace"), &approved, &pending)
-            .unwrap()
-            .unwrap();
+    let review = super::skills_review::review_skills(
+        decide_config(),
+        Path::new("/workspace"),
+        &approved,
+        &pending,
+    )
+    .unwrap()
+    .unwrap();
     assert!(review.skills_by_package.is_empty());
 }
 
@@ -476,10 +488,14 @@ fn package_choices_distinguishes_colliding_labels() {
 fn review_skills_with_no_pending_skills_returns_empty_review() {
     let approved = std::collections::BTreeSet::from(["esbuild".to_string()]);
     let pending = pending(&[("esbuild", &[Build])]);
-    let review =
-        super::review_skills(decide_config(), Path::new("/workspace"), &approved, &pending)
-            .unwrap()
-            .unwrap();
+    let review = super::skills_review::review_skills(
+        decide_config(),
+        Path::new("/workspace"),
+        &approved,
+        &pending,
+    )
+    .unwrap()
+    .unwrap();
     assert!(review.skills_by_package.is_empty());
     assert!(review.dirs.is_empty());
 }
@@ -584,4 +600,65 @@ fn a_denied_build_is_not_awaiting_approval_for_an_unnamed_run() {
     pending.exclude_denied_builds(&config).unwrap();
 
     assert_eq!(pending.by_package, self::pending(&[("drizzle-kit", &[Skills])]));
+}
+#[test]
+fn the_confirmation_names_packages_without_their_dep_path() {
+    let pending =
+        pending(&[("@pnpm/marked-skills", &[Skills]), ("@pnpm/git-skills", &[Build, Skills])]);
+
+    assert_eq!(
+        confirmation(&pending.keys().cloned().collect(), &pending),
+        "Approve @pnpm/git-skills (build, skills), @pnpm/marked-skills (skills)?",
+    );
+}
+
+#[test]
+fn repository_skill_review_finds_skills_discovered_for_the_commit() {
+    let repository = "demo@git+https://example.org/demo.git";
+    let commit = format!("{repository}#abcdef1");
+    let approved = [repository.to_string()].into();
+    let review = super::skills_review::review_skills_with_options(
+        &Config::default(),
+        &approved,
+        &pending(&[(repository, &[Skills])]),
+        || {
+            Ok(pnpm_package_manager::SkillApprovalOptions {
+                skills_by_key: BTreeMap::from([(commit, vec!["guide".to_string()])]),
+                detected_dirs: Vec::new(),
+            })
+        },
+    )
+    .expect("review the skills")
+    .expect("complete the review");
+    assert_eq!(
+        review.skills_by_package,
+        BTreeMap::from([(repository.to_string(), SkillsPermission::All(true))]),
+    );
+}
+
+#[test]
+fn global_repository_selection_groups_pending_commits_before_deciding() {
+    let repository = "demo@git+https://example.org/demo.git";
+    let first_commit = format!("{repository}#abcdef1");
+    let second_commit = format!("{repository}#abcdef2");
+    let requests = pending(&[
+        (&first_commit, &[Build, Skills]),
+        (&second_commit, &[Skills]),
+        ("other@1.0.0", &[Build]),
+    ]);
+
+    let selected = [repository.to_string()].into();
+    let grouped = super::global_approvals::group_global_pending(&requests, &selected);
+
+    assert_eq!(
+        grouped,
+        pending(&[(repository, &[Build, Skills][..]), ("other@1.0.0", &[Build][..]),]),
+    );
+    assert_eq!(
+        super::decisions::decisions_by_approval(&selected, &grouped, &BTreeMap::new()),
+        BTreeMap::from([
+            (repository.to_string(), decided(Some(true), None)),
+            ("other@1.0.0".to_string(), decided(Some(false), None)),
+        ]),
+    );
 }
