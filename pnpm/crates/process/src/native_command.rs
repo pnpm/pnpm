@@ -124,7 +124,7 @@ impl Command {
     /// caller could spawn without the lock [`Self::spawn`] takes. The second
     /// half of the answer is the group a failed spawn had already announced.
     #[cfg(unix)]
-    #[allow(clippy::disallowed_methods, reason = "the wrapper the lint points to")]
+    #[expect(clippy::disallowed_methods, reason = "the wrapper the lint points to")]
     pub fn spawn_announcing_group(
         &mut self,
         lifeline: std::os::fd::BorrowedFd<'_>,
@@ -150,7 +150,7 @@ impl Command {
         self.spawn_unlocked()
     }
 
-    #[allow(clippy::disallowed_methods, reason = "the wrapper the lint points to")]
+    #[expect(clippy::disallowed_methods, reason = "the wrapper the lint points to")]
     pub(crate) fn spawn_unlocked(&mut self) -> io::Result<Child> {
         self.inner.spawn()
     }
@@ -295,7 +295,7 @@ impl AsyncCommand {
         self
     }
 
-    #[allow(clippy::disallowed_methods, reason = "the wrapper the lint points to")]
+    #[expect(clippy::disallowed_methods, reason = "the wrapper the lint points to")]
     pub fn spawn(&mut self) -> io::Result<tokio::process::Child> {
         #[cfg(unix)]
         let _spawning = spawning();
