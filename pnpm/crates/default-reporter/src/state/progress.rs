@@ -134,11 +134,11 @@ impl ReporterState {
     }
 
     /// A sign for each package that arrived, `↓` for downloaded and `+`
-    /// for reused from the store, yellow until the package is added, then
+    /// for reused from the store, grey until the package is added, then
     /// green. Packages are added in parallel, so the green signs scatter
     /// across the bar in a fixed shuffle instead of filling it from the
     /// left. The bar ends as the green bar of the stats. Until then at
-    /// least one sign stays yellow, so it never looks finished early.
+    /// least one sign stays grey, so it never looks finished early.
     fn live_bar(&self, max_width: usize) -> String {
         let totals = self.downloads.totals();
         let arrived = totals.fetched + totals.reused;
@@ -157,7 +157,7 @@ impl ReporterState {
         (0..chars)
             .map(|position| {
                 let sign = if position < downloaded_chars { "↓" } else { "+" };
-                if added[position] { colors.green(sign) } else { colors.yellow(sign) }
+                if added[position] { colors.green(sign) } else { colors.grey(sign) }
             })
             .collect()
     }

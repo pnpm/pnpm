@@ -165,7 +165,7 @@ fn stats_bar_colors_downloaded_and_reused_packages() {
     assert_eq!(bar, format!("{downloaded}{reused}{reused}"));
 }
 
-/// Arrived packages wait in yellow, and turn green once added.
+/// Arrived packages wait in grey, and turn green once added.
 #[test]
 fn live_bar_turns_green_as_packages_are_added() {
     let mut reporter = state(true);
@@ -178,7 +178,7 @@ fn live_bar_turns_green_as_packages_are_added() {
         .nth(1)
         .expect("the bar follows the live line");
     assert_eq!(bar.matches("\u{1b}[32m").count(), 1, "one added: {bar:?}");
-    assert_eq!(bar.matches("\u{1b}[33m").count(), 1, "one pending: {bar:?}");
+    assert_eq!(bar.matches("\u{1b}[90m").count(), 1, "one pending: {bar:?}");
 }
 
 /// Packages are added in parallel, so the green signs do not fill the bar
@@ -207,7 +207,7 @@ fn live_bar_scatters_the_added_packages() {
         "{bar:?}",
     );
     assert_ne!(green[..10], [true; 10], "the first ten are not simply the added ones: {bar:?}");
-    assert!(bar.contains("\u{1b}[33m↓"), "pending signs are yellow: {bar:?}");
+    assert!(bar.contains("\u{1b}[90m↓"), "pending signs are grey: {bar:?}");
 }
 
 /// The bar turns fully green only as the stats, so it never looks done
@@ -220,5 +220,5 @@ fn live_bar_keeps_a_sign_uncolored_until_the_stats() {
         .lines()
         .nth(1)
         .expect("the bar follows the live line");
-    assert_eq!(bar, "\u{1b}[33m↓\u{1b}[39m");
+    assert_eq!(bar, "\u{1b}[90m↓\u{1b}[39m");
 }
