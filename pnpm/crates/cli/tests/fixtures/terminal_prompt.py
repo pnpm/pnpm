@@ -12,7 +12,8 @@ process = subprocess.Popen(sys.argv[1:], stdin=slave, stdout=slave, stderr=slave
 os.close(slave)
 output = bytearray()
 approved = False
-answer = os.environ.get("PNPM_TEST_MINIMUM_RELEASE_AGE_ANSWER", "y").encode()
+prompt = os.environ.get("PNPM_TEST_PROMPT_TEXT", "proceed with the install?").encode()
+answer = os.environ.get("PNPM_TEST_PROMPT_ANSWER", "y").encode()
 deadline = time.monotonic() + 60
 
 try:
@@ -30,11 +31,11 @@ try:
         if not chunk:
             break
         output.extend(chunk)
-        if not approved and b"proceed with the install?" in output:
+        if not approved and prompt in output:
             os.write(master, answer)
             approved = True
     else:
-        raise TimeoutError("interactive install did not finish within 60 seconds")
+        raise TimeoutError("interactive command did not finish within 60 seconds")
     process.wait(timeout=5)
 finally:
     if process.poll() is None:

@@ -40,7 +40,7 @@ fn approval_prints_the_version_list_once_and_persists_excludes() {
         .with_env("CI", "false")
         .without_env("GITHUB_ACTION")
         .with_arg("-c")
-        .with_arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
+        .with_arg(include_str!("../fixtures/terminal_prompt.py"))
         .with_arg(pacquet.get_program())
         .with_args([
             "add",

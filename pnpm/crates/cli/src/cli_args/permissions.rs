@@ -5,6 +5,7 @@ pub(crate) use decisions::Approval;
 pub(crate) use render::render_permissions;
 
 mod global_approvals;
+mod named_approval;
 mod repository_scope;
 mod skills_review;
 
@@ -79,9 +80,10 @@ pub enum PermissionsCommand {
 #[derive(Debug, Args)]
 pub struct ApproveArgs {
     /// Packages to approve (`<pkg>`) or deny (`!<pkg>`). A package is
-    /// approved or denied for everything it requests. With no packages, the
-    /// packages awaiting approval are chosen interactively, and for a
-    /// package whose skills are approved, which of its skills. To approve
+    /// approved or denied for everything it requests. To approve a package
+    /// with no pending request, select its permissions interactively.
+    /// With no packages, choose the pending packages interactively, then
+    /// choose which of their skills to approve. To approve
     /// a Git package across updates, select its repository in the prompt or
     /// pass `<name>@<git-url>` without a commit.
     pub packages: Vec<String>,
@@ -96,10 +98,6 @@ pub struct ApproveArgs {
 }
 
 type Capabilities = BTreeSet<PermissionCapability>;
-
-/// Every capability, for a package named before it requested any.
-const ALL_CAPABILITIES: [PermissionCapability; 2] =
-    [PermissionCapability::Build, PermissionCapability::Skills];
 
 /// What awaits approval, by the key a package is approved under.
 pub(crate) struct PendingPermissions {
@@ -150,13 +148,15 @@ pub(crate) fn pending_permissions(config: &Config) -> miette::Result<PendingPerm
     Ok(PendingPermissions { by_package, scan })
 }
 
-use self::skills_review::review_skills;
+use self::{
+    named_approval::named_approval,
+    skills_review::review_skills,
+};
 use decisions::{
     capability_list,
     clear_decided,
     decisions_by_approval,
     decisions_for_all,
-    named_decisions,
     pending_builds_approved,
     write_decisions,
 };
@@ -212,11 +212,6 @@ impl ApproveArgs {
         Box::pin(run_rebuild::<Reporter>(&rebuild_state, selection, None)).await
     }
 
-    /// The decisions of this run. When packages are named, every capability
-    /// they request (or ever will) gets the verdicts they asked for. When
-    /// `--all` is set, every pending package is approved for everything it
-    /// requests. Otherwise the run prompts, and for a package whose skills
-    /// are being approved, prompts for the skills.
     fn decide<Reporter: self::Reporter>(
         &self,
         pending: &BTreeMap<String, Capabilities>,
@@ -239,10 +234,7 @@ impl ApproveArgs {
         prompt: PromptAvailability,
     ) -> miette::Result<Option<Approval>> {
         if !self.packages.is_empty() {
-            return Ok(Some(Approval {
-                decisions: named_decisions::<Reporter>(&self.packages, pending)?,
-                skills_dirs: Vec::new(),
-            }));
+            return named_approval::<Reporter>(&self.packages, pending, prompt);
         }
         if self.all {
             return Ok(Some(Approval {

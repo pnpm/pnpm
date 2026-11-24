@@ -30,7 +30,9 @@ You can also pass package names, prefixing a name with `!` to deny it:
 pnpm approve drizzle-kit !esbuild
 ```
 
-A named package is approved or denied for everything it requests, including every skill it ships. A package that is not awaiting approval yet is decided for every capability.
+A named package is approved or denied for everything it requests, including every skill it ships. If a named package has no pending request, pnpm asks which permissions to grant in advance. Each permission starts unchecked. Leaving one unchecked preserves its current setting. Cancelling the prompt saves no decisions from the command.
+
+In CI or without an interactive terminal, naming a package to approve with no pending request fails before any decisions are saved. Set the package's [`permissions`] explicitly for unattended use, or use [`pnpm approve-builds`](./approve-builds.md) for a build decision. An explicit denial (`!<pkg>`) with no pending request still denies every capability.
 
 Each Git package appears once per repository. Press **Space** to approve its pending commits, or **R** to include future commits. Press **Enter** to save. To approve a single revision, pass its full commit selector to `pnpm approve`. `--all` approves only pending commits.
 
