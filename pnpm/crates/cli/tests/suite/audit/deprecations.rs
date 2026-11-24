@@ -129,7 +129,6 @@ fn reads_the_metadata_an_install_cached() {
     assert!(requests.is_empty(), "the audit asked the registry again: {requests:#?}");
 }
 
-/// Metadata cached more than five minutes ago is revalidated.
 #[test]
 fn revalidates_metadata_cached_long_ago() {
     let fixture = CommandTempCwd::init().add_recording_mocked_registry();
@@ -163,4 +162,30 @@ fn set_modified_under(dir: &Path, time: std::time::SystemTime) {
                 .expect("age a cached file");
         }
     }
+}
+
+#[test]
+fn names_a_workspace_project_by_its_path() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    let member = workspace.join("packages/api");
+    fs::create_dir_all(&member).expect("create the workspace project");
+    fs::write(
+        member.join("package.json"),
+        serde_json::json!({ "name": "api", "dependencies": { DEPRECATED: "1.0.0" } }).to_string(),
+    )
+    .expect("write the project's package.json");
+    fs::write(workspace.join("package.json"), r#"{"name":"root"}"#).expect("write package.json");
+    let settings = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&settings).expect("read pnpm-workspace.yaml");
+    fs::write(&settings, format!("{yaml}\npackages:\n  - packages/*\n"))
+        .expect("write pnpm-workspace.yaml");
+    install(workspace);
+
+    let output = pnpm(workspace, &["audit", "deprecations", "--json"]);
+
+    assert_failure(&output);
+    let report: serde_json::Value =
+        serde_json::from_str(&stdout(&output)).expect("the report is JSON");
+    assert_eq!(report[0]["projects"], serde_json::json!(["packages/api"]));
 }

@@ -44,6 +44,7 @@ fn package(name: &str, projects: &[&str], via: &[&str]) -> DeprecatedPackage {
             .iter()
             .map(ToString::to_string)
             .collect(),
+        specifier: "1.0.0".to_string(),
     }
 }
 
@@ -88,4 +89,12 @@ fn renders_projects_and_the_chain_of_a_subdependency() {
 #[test]
 fn renders_a_clean_result() {
     assert_eq!(render_deprecations(&[]), "No deprecated packages found");
+}
+
+#[test]
+fn text_output_strips_control_characters_from_lockfile_labels() {
+    let mut evil = package("evil\u{1b}[2J", &["packages/\u{1b}[31ma"], &[]);
+    evil.deprecated = "no longer maintained".to_string();
+    let output = render_deprecations(&[evil]);
+    assert!(!output.contains('\u{1b}'), "{output:?}");
 }

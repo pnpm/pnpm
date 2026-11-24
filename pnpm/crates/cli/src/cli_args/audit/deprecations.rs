@@ -3,11 +3,17 @@
 
 use super::{
     AuditGraph,
+    BTreeMap,
+    HashMap,
     HashSet,
     Include,
     Lockfile,
+    PackageKey,
+    PackageMetadata,
     build_audit_path_index,
+    importer_roots,
     importers::load_audited_lockfiles,
+    root_included,
     walk_reachable,
 };
 use crate::{
@@ -64,6 +70,10 @@ pub(super) struct DeprecatedPackage {
     /// declares.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(super) via: Vec<String>,
+    /// The specifier that resolves it on its registry, which tells it apart
+    /// from the same version of another registry.
+    #[serde(skip)]
+    pub(super) specifier: String,
 }
 
 /// A registry package version the lockfile records, with the specifier that
@@ -97,7 +107,8 @@ pub(super) async fn find_deprecated(
     deprecated.sort_by(|left, right| {
         (&left.name, &left.version).cmp(&(&right.name, &right.version))
     });
-    add_paths(&mut deprecated, lockfile, env_lockfile.as_ref(), include);
+    let origins = Origins { lockfile, env_lockfile: env_lockfile.as_ref(), include };
+    origins.add_to(&mut deprecated);
     Ok(Some(deprecated))
 }
 
@@ -156,29 +167,38 @@ fn collect_installed(
     out: &mut BTreeSet<InstalledPackage>,
 ) {
     for key in walk_reachable(graph, include, include.optional_dependencies) {
-        if key.suffix.prefix() == pnpm_lockfile::Prefix::Runtime {
-            continue;
-        }
-        let Some(version) = key.suffix.registry_version() else { continue };
-        let metadata_key = key.without_peer();
-        let is_directory = graph.packages
-            .get(&metadata_key)
-            .is_some_and(|package| {
-                matches!(package.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
-            });
-        if is_directory {
-            continue;
-        }
-        let specifier = match metadata_key.suffix.registry_qualified() {
-            Some((registry_name, version)) => format!("{registry_name}:{version}"),
-            None => version.to_string(),
-        };
-        out.insert(InstalledPackage {
-            name: metadata_key.name.to_string(),
-            version: version.to_string(),
-            specifier,
-        });
+        out.extend(installed_package(&key, graph.packages));
     }
+}
+
+/// The registry package `key` names, or `None` for a runtime, directory,
+/// tarball, or git package.
+fn installed_package(
+    key: &PackageKey,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+) -> Option<InstalledPackage> {
+    if key.suffix.prefix() == pnpm_lockfile::Prefix::Runtime {
+        return None;
+    }
+    let version = key.suffix.registry_version()?;
+    let metadata_key = key.without_peer();
+    let is_directory = packages
+        .get(&metadata_key)
+        .is_some_and(|package| {
+            matches!(package.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+        });
+    if is_directory {
+        return None;
+    }
+    let specifier = match metadata_key.suffix.registry_qualified() {
+        Some((registry_name, version)) => format!("{registry_name}:{version}"),
+        None => version.to_string(),
+    };
+    Some(InstalledPackage {
+        name: metadata_key.name.to_string(),
+        version: version.to_string(),
+        specifier,
+    })
 }
 
 fn deprecation(package: InstalledPackage, info: &ResolvedPackageInfo) -> Option<DeprecatedPackage> {
@@ -196,52 +216,118 @@ fn deprecation(package: InstalledPackage, info: &ResolvedPackageInfo) -> Option<
         version: package.version,
         projects: Vec::new(),
         via: Vec::new(),
+        specifier: package.specifier,
     })
 }
 
-/// Fills in the projects that declare each package and, for one no project
-/// declares, a chain of packages that brings it in. A path reads
-/// `<project>>...>name`.
-fn add_paths(
-    deprecated: &mut [DeprecatedPackage],
-    lockfile: &Lockfile,
-    env_lockfile: Option<&pnpm_lockfile::EnvLockfile>,
+/// Where the deprecated packages come from.
+struct Origins<'a> {
+    lockfile: &'a Lockfile,
+    env_lockfile: Option<&'a pnpm_lockfile::EnvLockfile>,
     include: Include,
-) {
-    let names: HashSet<String> = deprecated
-        .iter()
-        .map(|package| package.name.clone())
-        .collect();
-    let index = build_audit_path_index(lockfile, env_lockfile, &names, include);
-    for package in deprecated {
-        let Some(info) = index
-            .get(&package.name)
-            .and_then(|versions| versions.get(&package.version))
-        else {
-            continue;
-        };
-        let paths: Vec<Vec<&str>> = info.paths
-            .iter()
-            .map(|path| path.split('>').collect())
-            .collect();
-        let mut projects: Vec<String> = paths
-            .iter()
-            .filter(|segments| segments.len() == 2)
-            .map(|segments| segments[0].to_string())
-            .collect();
-        projects.sort();
-        projects.dedup();
-        if projects.is_empty()
-            && let Some(segments) = paths
-                .iter()
-                .find(|segments| segments.len() > 2)
-        {
-            package.via = segments[1..segments.len() - 1]
-                .iter()
-                .map(ToString::to_string)
-                .collect();
+}
+
+/// A package by name and the specifier that resolves it on its registry.
+type PackageIdentity = (String, String);
+
+impl Origins<'_> {
+    /// Fills in the projects that declare each package and, for one no
+    /// project declares, a chain of packages that brings it in.
+    fn add_to(&self, deprecated: &mut [DeprecatedPackage]) {
+        let declared = self.declarations();
+        for package in deprecated.iter_mut() {
+            let identity = (package.name.clone(), package.specifier.clone());
+            if let Some(projects) = declared.get(&identity) {
+                package.projects = projects.iter().cloned().collect();
+            }
         }
-        package.projects = projects;
+        self.add_chains(deprecated);
+    }
+
+    /// The projects, by their lockfile importer ID, that declare each
+    /// registry package directly.
+    fn declarations(&self) -> BTreeMap<PackageIdentity, BTreeSet<String>> {
+        let mut declared = BTreeMap::new();
+        let main = AuditGraph::main(self.lockfile, self.include.peer_edges);
+        let main_roots = self.lockfile.importers
+            .iter()
+            .flat_map(|(project, snapshot)| {
+                importer_roots(snapshot)
+                    .into_iter()
+                    .filter(|(kind, _)| root_included(*kind, self.include))
+                    .map(move |(_, edge)| (project.clone(), edge.key))
+            });
+        record_declarations(&mut declared, main_roots, main.packages);
+        if let Some(env_lockfile) = self.env_lockfile {
+            let env = AuditGraph::env(env_lockfile);
+            let env_roots = env.importers
+                .iter()
+                .flat_map(|importer| {
+                    importer.roots
+                        .iter()
+                        .map(move |(_, edge)| (importer.path_segment.clone(), edge.key.clone()))
+                });
+            record_declarations(&mut declared, env_roots, env.packages);
+        }
+        declared
+    }
+
+    /// The first chain of packages that brings in each package no project
+    /// declares. A path reads `<project>>...>name`. The path index tells
+    /// packages apart by name and version only, so a version installed
+    /// from more than one registry gets no chain rather than another's.
+    fn add_chains(&self, deprecated: &mut [DeprecatedPackage]) {
+        let names: HashSet<String> = deprecated
+            .iter()
+            .map(|package| package.name.clone())
+            .collect();
+        let index = build_audit_path_index(self.lockfile, self.env_lockfile, &names, self.include);
+        let mut registries: HashMap<(String, String), usize> = HashMap::new();
+        for package in deprecated.iter() {
+            *registries
+                .entry((package.name.clone(), package.version.clone()))
+                .or_default() += 1;
+        }
+        for package in deprecated.iter_mut().filter(|package| package.projects.is_empty()) {
+            let key = (package.name.clone(), package.version.clone());
+            if registries
+                .get(&key)
+                .copied()
+                .unwrap_or_default()
+                > 1
+            {
+                continue;
+            }
+            let chain = index
+                .get(&package.name)
+                .and_then(|versions| versions.get(&package.version))
+                .and_then(|info| {
+                    info.paths
+                        .iter()
+                        .map(|path| path.split('>').collect::<Vec<_>>())
+                        .find(|segments| segments.len() > 2)
+                });
+            if let Some(segments) = chain {
+                package.via = segments[1..segments.len() - 1]
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect();
+            }
+        }
+    }
+}
+
+fn record_declarations(
+    declared: &mut BTreeMap<PackageIdentity, BTreeSet<String>>,
+    roots: impl Iterator<Item = (String, PackageKey)>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+) {
+    for (project, key) in roots {
+        let Some(package) = installed_package(&key, packages) else { continue };
+        declared
+            .entry((package.name, package.specifier))
+            .or_default()
+            .insert(project);
     }
 }
 
@@ -260,8 +346,8 @@ pub(super) fn render_deprecations(deprecated: &[DeprecatedPackage]) -> String {
     for package in deprecated {
         lines.push(format!(
             "{} {}  {}",
-            super::bold(&package.name),
-            package.version,
+            super::bold(&sanitize_inline(&package.name)),
+            sanitize_inline(&package.version),
             where_from(package),
         ));
         lines.push(format!("  {}", package.deprecated));
@@ -276,14 +362,24 @@ pub(super) fn render_deprecations(deprecated: &[DeprecatedPackage]) -> String {
     lines.join("\n")
 }
 
+/// The projects or the chain, from the lockfile, which a contributor can
+/// edit, so with control characters removed.
 fn where_from(package: &DeprecatedPackage) -> String {
+    let clean = |label: &String| sanitize_inline(label).into_owned();
     if !package.via.is_empty() {
-        return format!("via {}", package.via.join(" > "));
+        return format!(
+            "via {}",
+            package.via
+                .iter()
+                .map(clean)
+                .collect::<Vec<_>>()
+                .join(" > "),
+        );
     }
     let listed = package.projects
         .iter()
         .take(MAX_LISTED_PROJECTS)
-        .cloned()
+        .map(clean)
         .collect::<Vec<_>>();
     let rest = package.projects.len() - listed.len();
     if rest == 0 { listed.join(", ") } else { format!("{} and {rest} more", listed.join(", ")) }
