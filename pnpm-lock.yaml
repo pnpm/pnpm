@@ -210,7 +210,7 @@ snapshots:
 					"specifier": "^4.1.8",
 					"version": "4.1.8",
 				},
-				"@yarnpkg/shell": "4.1.3",
+				"@yarnpkg/shell": "4.1.4",
 				"arg": "5.0.2",
 				"ci-info": {
 					"specifier": "^4.5.0",
@@ -3962,8 +3962,8 @@ snapshots:
 			},
 		},
 
-		"@yarnpkg/shell@4.1.3": {
-			"integrity": "sha512-5igwsHbPtSAlLdmMdKqU3atXjwhtLFQXsYAG0sn1XcPb3yF8WxxtWxN6fycBoUvFyIHFz1G0KeRefnAy8n6gdw==",
+		"@yarnpkg/shell@4.1.4": {
+			"integrity": "sha512-J7HxhBNmdt79/CVmx1BPRmQgt7MLADW1SUHI0GHVids+WG2nH7b5qaZ2jUTTdTucLeRcIh2ALokQClRWxytnLw==",
 			"engines": {"node": ">=18.12.0"},
 			"hasBin": true,
 			"peerDependencies": {
@@ -4544,7 +4544,7 @@ snapshots:
 				"@cspell/cspell-pipe": "9.8.0",
 				"@cspell/cspell-types": "9.8.0",
 				"cspell-trie-lib": "9.8.0",
-				"fast-equals": "6.4.0",
+				"fast-equals": "6.4.1",
 			},
 		},
 
@@ -5207,8 +5207,8 @@ snapshots:
 			"integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==",
 		},
 
-		"fast-equals@6.4.0": {
-			"integrity": "sha512-WueHOj7IYeH9WWwr5lZ0UaDUhG35cz7Dh2SkDMNjiinPy7Dc7CbKP+1aP5YPLjG+BQ7MA1LDxUk78exLMjDxig==",
+		"fast-equals@6.4.1": {
+			"integrity": "sha512-qHLxdeRmasP83VXLGXCyUh7D2bo2WFI/IEB+T0WSf3mwuTD2A5F+HQQmeF+UXCfuLPmqUNYcFJjwAN9JabA6+Q==",
 			"engines": {"node": ">=6.0.0"},
 		},
 

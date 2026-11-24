@@ -183,7 +183,7 @@ home = { version = "0.5.12" }
 http = { version = "1.5.0" }
 http-0-2 = { package = "http", version = "0.2.12" }
 httpdate = { version = "1.0.3" }
-hyper = { version = "1.12.0", default-features = false, features = ["http1"] }
+hyper = { version = "1.13.0", default-features = false, features = ["http1"] }
 hyper-0-14 = { package = "hyper", version = "0.14.32", default-features = false, features = ["client", "runtime"] }
 # Orders packed paths the way JavaScript's `localeCompare(b, 'en')` does, so
 # pnpm 12 and pnpm 11 write a tarball's entries in the same order. ICU4X 2.2
@@ -207,15 +207,15 @@ miette = { version = "7.6.0", features = ["fancy"] }
 libmimalloc-sys = { version = "0.1.49", features = ["extended"] }
 mimalloc = { version = "0.1.52" }
 ctor = { version = "1.0.14", default-features = false }
-napi = { version = "3.16.2", default-features = false, features = [
+napi = { version = "3.16.3", default-features = false, features = [
   "napi8",
   "object_indexmap",
   "serde-json",
   "tokio_rt",
   "async",
 ] }
-napi-build = { version = "2.6.0" }
-napi-derive = { version = "3.7.1" }
+napi-build = { version = "2.7.0" }
+napi-derive = { version = "3.7.2" }
 num_cpus = { version = "1.17.0" }
 object = { version = "0.41.0", default-features = false, features = ["read", "std"] }
 object_store = { version = "0.14.2", features = ["aws"] }
@@ -270,7 +270,7 @@ serde-saphyr = { version = "2.2.0" }
 sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2 = { version = "0.10.9" }
-sigstore-sign = { version = "0.16.0" }
+sigstore-sign = { version = "0.17.0" }
 # C2SP signed notes and tiled transparency logs, ported from Go's
 # `golang.org/x/mod/sumdb/note` and `sumdb/tlog`. Pure Rust, so the release
 # record verifier also builds for WebAssembly.
@@ -305,12 +305,12 @@ windows-sys = { version = "0.61.2", features = [
   "Win32_System_Threading",
 ] }
 yaml_serde = { version = "0.10.7" }
-yamlpatch = { version = "1.32.0" }
-yamlpath = { version = "1.32.0" }
+yamlpatch = { version = "1.33.1" }
+yamlpath = { version = "1.33.1" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.6" }
 zeroize = { version = "1.9.2" }
-zip = { version = "9.8.1", default-features = false, features = ["deflate"] }
+zip = { version = "9.8.2", default-features = false, features = ["deflate"] }
 zstd = { version = "0.14.4", default-features = false }
 zune-inflate = { version = "0.2.54" }
 
