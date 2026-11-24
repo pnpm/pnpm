@@ -33,13 +33,18 @@ pub async fn run_remove<Reporter: self::Reporter + 'static>(
 
     let mut removed_names = HashSet::new();
     let pnpm_home = pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>();
+    let matches_version =
+        |name: &str| versions.iter().any(|version| matches_node_version(name, version));
 
-    if cleanup_pnpm_home(pnpm_home.as_deref(), &versions, &mut removed_names).into_diagnostic()? {
+    if cleanup_pnpm_home(pnpm_home.as_deref(), &matches_version, &mut removed_names)
+        .into_diagnostic()?
+    {
         removed_something = true;
     }
 
     if let Some(global_bin_dir) = config.global_bin.as_deref()
-        && cleanup_bin_links(global_bin_dir, &removed_names).into_diagnostic()?
+        && cleanup_bin_links(global_bin_dir, &["node", "npm", "npx"], &removed_names)
+            .into_diagnostic()?
     {
         removed_something = true;
     }
@@ -54,7 +59,7 @@ pub async fn run_remove<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
-fn matches_node_version(actual: &str, requested: &str) -> bool {
+pub(crate) fn matches_node_version(actual: &str, requested: &str) -> bool {
     let (explicit_channel, raw_version) = match requested.split_once('/') {
         Some((channel, rest))
             if pnpm_engine_runtime_node_resolver::RELEASE_CHANNELS.contains(&channel) =>
@@ -108,7 +113,7 @@ pub fn remove_matching_global_node<Reporter: self::Reporter + 'static>(
     Ok(true)
 }
 
-fn remove_global_node_install(
+pub(crate) fn remove_global_node_install(
     global_pkg_dir: &Path,
     pkg: &pnpm_global::GlobalPackageInfo,
 ) -> std::io::Result<()> {
@@ -130,7 +135,7 @@ fn remove_global_node_install(
 
 fn cleanup_legacy_nodejs_dir(
     nodejs_dir: &Path,
-    versions: &[String],
+    matches_version: &impl Fn(&str) -> bool,
     removed_names: &mut HashSet<String>,
 ) -> std::io::Result<bool> {
     let entries = match fs::read_dir(nodejs_dir) {
@@ -144,7 +149,7 @@ fn cleanup_legacy_nodejs_dir(
             .file_name()
             .to_string_lossy()
             .into_owned();
-        if !versions.iter().any(|target_version| matches_node_version(&name, target_version)) {
+        if !matches_version(&name) {
             continue;
         }
         fs::remove_dir_all(entry.path())?;
@@ -258,12 +263,13 @@ fn cleanup_single_bin_link(
     Ok(false)
 }
 
-fn cleanup_bin_links(
+pub(crate) fn cleanup_bin_links(
     global_bin_dir: &Path,
+    bin_names: &[&str],
     removed_names: &HashSet<String>,
 ) -> std::io::Result<bool> {
     let mut removed = false;
-    for bin_name in ["node", "npm", "npx"] {
+    for &bin_name in bin_names {
         if cleanup_single_bin_link(global_bin_dir, bin_name, removed_names)? {
             removed = true;
         }
@@ -271,16 +277,16 @@ fn cleanup_bin_links(
     Ok(removed)
 }
 
-fn cleanup_pnpm_home(
+pub(crate) fn cleanup_pnpm_home(
     pnpm_home: Option<&Path>,
-    versions: &[String],
+    matches_version: &impl Fn(&str) -> bool,
     removed_names: &mut HashSet<String>,
 ) -> std::io::Result<bool> {
     let Some(pnpm_home) = pnpm_home else {
         return Ok(false);
     };
     let dir_removed =
-        cleanup_legacy_nodejs_dir(&pnpm_home.join("nodejs"), versions, removed_names)?;
+        cleanup_legacy_nodejs_dir(&pnpm_home.join("nodejs"), matches_version, removed_names)?;
     let link_removed = cleanup_nodejs_current(pnpm_home, removed_names)?;
     Ok(dir_removed || link_removed)
 }

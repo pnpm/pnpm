@@ -1,3 +1,7 @@
+pub use groups::remove_global_package_groups;
+
+mod groups;
+
 use super::{
     ArtifactCleanupError,
     CmdShimHost,
@@ -27,12 +31,8 @@ use super::{
     remove_native_shim,
     remove_symlink_dir,
     replace_global_bin_slots,
-    restore_virtual_shims,
     should_replace_existing_package,
     symlink_dir,
-    unprotected_bin_names,
-    virtual_shims_to_restore,
-    warn_global,
 };
 
 /// `pnpm remove -g`. Removes the bins, hash symlinks, and install dirs of
@@ -66,42 +66,8 @@ pub fn remove_global_groups<Reporter: self::Reporter>(
     params: &[String],
 ) -> miette::Result<()> {
     let _global_bin_lock = acquire_global_bin_lock(global_bin_dir)?;
-
     let groups = requested_global_groups(global_pkg_dir, params)?;
-    let skills = super::skills::RemovedSkillLinks::prepare(global_pkg_dir, &groups)?;
-    let protected = protected_bins_for_removal(global_pkg_dir, &groups)?;
-    let shims_to_restore = virtual_shims_to_restore(
-        &groups,
-        global_bin_dir,
-        &protected,
-        &crate::shim_dispatch::global_shims_setting(),
-    )?;
-    let affected_bin_names = unprotected_bin_names(&groups, &protected);
-    let mut bins_to_keep = protected;
-    bins_to_keep.extend(
-        shims_to_restore
-            .values()
-            .flatten()
-            .cloned(),
-    );
-    let cleanup = GlobalInstallCleanup {
-        global_pkg_dir,
-        global_bin_dir,
-        bins_to_keep: &bins_to_keep,
-        hash_to_keep: None,
-        context: "global",
-    };
-    let transaction = GlobalRemovalTransaction {
-        groups: &groups,
-        cleanup: &cleanup,
-        affected_bin_names: &affected_bin_names,
-    };
-    if let Some(leftover) = commit_global_removal::<CmdShimHost>(&transaction, || {
-        restore_virtual_shims(&shims_to_restore, global_bin_dir)
-    })? {
-        warn_global::<Reporter>(leftover.to_string());
-    }
-    complete_global_removal(&groups, &cleanup, skills)
+    groups::remove_prepared_global_groups::<Reporter>(global_pkg_dir, global_bin_dir, &groups)
 }
 
 fn complete_global_removal(

@@ -1,6 +1,13 @@
 //! `pacquet env`: the deprecated Node.js-only front end to
 //! [`super::runtime`], kept because pnpm still ships it.
 
+pub(crate) use remove::{
+    cleanup_bin_links,
+    cleanup_pnpm_home,
+    matches_node_version,
+    remove_global_node_install,
+};
+
 use super::{
     add::AddRequest,
     global::handle_global_add,

@@ -120,11 +120,19 @@ The registry answered a request for one package with the metadata of a different
 
 Check that the registry configured for the package, or for its scope, is correct. A misconfigured proxy or a registry that serves the wrong document can cause this error.
 
+## ERR_PNPM_RUNTIME_NOT_DECLARED
+
+`pnpm runtime remove <name> <version>` found no declaration of that runtime and version in the project. Run the command without a version to remove any declared version of the runtime.
+
 ## ERR_PNPM_RUNTIME_NOT_FOUND
 
 A runtime declared in [`devEngines.runtime`](./package_json.md#devenginesruntime) or `engines.runtime` with `onFail` set to `error` is not installed on the system.
 
 Install the runtime, or set `onFail` to `download` to let pnpm fetch it. To check without failing, set [`runtimeOnFail`](./settings/cli.md#runtimeonfail) to `warn` or `ignore`.
+
+## ERR_PNPM_RUNTIME_UNEXPECTED_ARGUMENT
+
+`pnpm runtime remove` received more arguments than `<name> [<version>]`. Remove the extra argument and retry.
 
 ## ERR_PNPM_TARBALL_INTEGRITY
 
