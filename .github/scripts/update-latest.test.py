@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import subprocess
+import sys
 import unittest
 
 import yaml
@@ -13,7 +14,7 @@ class TestPromotion(unittest.TestCase):
         update = next(step["run"] for step in steps if step.get("name") == "Update tag")
         record_calls = """pn() {
             if [[ $1 == dist-tag ]]; then
-                python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@"
+                "$PYTHON" -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@"
             fi
         }
         """
@@ -29,7 +30,8 @@ class TestPromotion(unittest.TestCase):
                     registry = "https://example.invalid/"
                     calls = subprocess.check_output(
                         ["bash", "-c", record_calls + update],
-                        env=dict(VERSION=version, TAG=tag, REGISTRY=registry, NPM_TOKEN="fixture"),
+                        env=dict(VERSION=version, TAG=tag, REGISTRY=registry, NPM_TOKEN="fixture",
+                                 PYTHON=sys.executable),
                         text=True,
                     )
                     self.assertCountEqual(

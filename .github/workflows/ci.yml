@@ -109,6 +109,12 @@ jobs:
       uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         install: false
+    - name: Install the YAML parser for release workflow tests
+      run: |
+        if ! /usr/bin/python3 -c 'import yaml'; then
+          sudo apt-get update
+          sudo apt-get install --yes python3-yaml
+        fi
     - name: Test CI and release publication scripts
       run: |
         .github/scripts/npm-package-publication-state.test.sh
