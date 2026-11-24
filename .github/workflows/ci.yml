@@ -69,6 +69,7 @@ jobs:
               - 'pnpm/crates/deps-restorer/src/pnp_exports.cjs.inc'
               - 'pnpr/examples/**'
               - '.github/workflows/ci.yml'
+              - '.github/workflows/update-latest.yml'
               - '.github/scripts/**'
             # Skill scripts under .agents/ ship their own *.test.sh, run by the
             # Compile & Lint job next to the publication scripts above.
@@ -108,12 +109,19 @@ jobs:
       uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         install: false
+    - name: Install the YAML parser for release workflow tests
+      run: |
+        if ! /usr/bin/python3 -c 'import yaml'; then
+          sudo apt-get update
+          sudo apt-get install --yes python3-yaml
+        fi
     - name: Test CI and release publication scripts
       run: |
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
         .github/scripts/issue-fix-intent.test.sh
         .github/scripts/docker-image-tags.test.sh
+        /usr/bin/python3 .github/scripts/update-latest.test.py
         .agents/skills/pull-requests/scripts/resolve-pr-conflicts.test.sh
         node --test .github/scripts/bump.test.mjs .github/scripts/assert-stripped.test.mjs .github/scripts/assert-windows-crt-static.test.mjs .github/scripts/update-npm-signing-keys.test.mjs
     - name: Test Cloudflare cache policy example

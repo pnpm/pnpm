@@ -244,12 +244,20 @@ jobs:
         pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
 
         MAJOR="${VERSION%%.*}"
-        pn dist-tag add "pnpm@${VERSION}" "latest-${MAJOR}" --registry="$REGISTRY"
-        pn dist-tag add "@pnpm/exe@${VERSION}" "latest-${MAJOR}" --registry="$REGISTRY"
-        if [ "$TAG" != "latest-${MAJOR}" ]; then
-          pn dist-tag add "pnpm@${VERSION}" "${TAG}" --registry="$REGISTRY"
-          pn dist-tag add "@pnpm/exe@${VERSION}" "${TAG}" --registry="$REGISTRY"
+        packages=(pnpm @pnpm/exe)
+        # The Node.js addon first shipped with pnpm 12.
+        if [ "$MAJOR" -ge 12 ]; then
+          packages+=(@pnpm/napi)
         fi
+        tags=("latest-${MAJOR}")
+        if [ "$TAG" != "latest-${MAJOR}" ]; then
+          tags+=("$TAG")
+        fi
+        for tag in "${tags[@]}"; do
+          for package in "${packages[@]}"; do
+            pn dist-tag add "${package}@${VERSION}" "$tag" --registry="$REGISTRY"
+          done
+        done
 
   # The badge follows the npm `latest` dist-tag, so it moves here, after the
   # dist-tag, rather than when the release is published: a published release
