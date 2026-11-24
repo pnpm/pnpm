@@ -1,8 +1,11 @@
 //! The gate the `progress` setting puts in front of the progress streams.
 
-use std::sync::atomic::{
-    AtomicBool,
-    Ordering,
+use std::sync::{
+    OnceLock,
+    atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 
 use pnpm_reporter::{
@@ -11,6 +14,7 @@ use pnpm_reporter::{
 };
 
 static ENABLED: AtomicBool = AtomicBool::new(true);
+static HIDE_PREFIX: OnceLock<bool> = OnceLock::new();
 
 /// Configure whether dependency and download progress is rendered. Starts
 /// enabled, as the `progress` setting defaults to.
@@ -21,6 +25,17 @@ static ENABLED: AtomicBool = AtomicBool::new(true);
 /// has been loaded.
 pub fn set_progress(progress: bool) {
     ENABLED.store(progress, Ordering::Relaxed);
+}
+
+/// Drop the project prefix from progress lines, see
+/// [`ProgressOptions::hide_prefix`](crate::state::ProgressOptions::hide_prefix).
+/// Call once before the first event.
+pub fn hide_progress_prefix() {
+    let _ = HIDE_PREFIX.set(true);
+}
+
+pub(crate) fn prefix_hidden() -> bool {
+    HIDE_PREFIX.get().is_some_and(|value| *value)
 }
 
 /// Whether `event` is one of the progress updates a disabled `progress`

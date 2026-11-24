@@ -463,6 +463,7 @@ impl CliArgs {
         anchors: &RunAnchors,
     ) {
         pnpm_default_reporter::set_progress(cfg.progress);
+        crate::cli_args::reporter::configure_progress_prefix(cfg);
         if self.output.presentation.loglevel.is_none()
             && let Some(config_loglevel) = cfg.loglevel
         {

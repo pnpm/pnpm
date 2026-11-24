@@ -144,14 +144,21 @@ impl ReporterState {
             return;
         }
         let mut entry = BigTarball { size, slot: BlockSlot::default() };
-        let msg = self.downloading_message(package_id, 0, size);
-        self.display.frame.emit(&mut entry.slot, msg, BlockPlacement::Pinned);
+        // Append-only output cannot rewrite the line, so it prints only the
+        // finished download.
+        if !self.options.append_only {
+            let msg = self.downloading_message(package_id, 0, size);
+            self.display.frame.emit(&mut entry.slot, msg, BlockPlacement::Pinned);
+        }
         self.downloads.tarballs.insert(package_id.to_string(), entry);
     }
 
     fn rewrite_tarball_block(&mut self, package_id: &str, downloaded: u64) {
         let Some(entry) = self.downloads.tarballs.get(package_id) else { return };
         let size = entry.size;
+        if self.options.append_only && downloaded != size {
+            return;
+        }
         let msg = self.downloading_message(package_id, downloaded, size);
         // A finished download stops being rewritten in place and scrolls
         // away with the rest of the output.

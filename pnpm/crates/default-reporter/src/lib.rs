@@ -31,7 +31,10 @@ pub use lifecycle_settings::{
     stream_lifecycle_output,
     summarize_scripts,
 };
-pub use progress::set_progress;
+pub use progress::{
+    hide_progress_prefix,
+    set_progress,
+};
 
 mod progress;
 
@@ -549,7 +552,7 @@ fn reporter_options(append_only: bool) -> state::ReporterOptions {
         lifecycle: lifecycle_settings::lifecycle_options(),
         progress: crate::state::ProgressOptions {
             hide_added_pkgs: HIDE_ADDED_PKGS_PROGRESS.get().is_some_and(|value| *value),
-            ..Default::default()
+            hide_prefix: progress::prefix_hidden(),
         },
         scope: crate::state::ScopeOptions {
             summary: SUMMARY_SCOPE

@@ -207,6 +207,7 @@ impl CliArgs {
         }
         config.progress = self.progress_enabled(config.progress);
         self.configure_reporter();
+        crate::cli_args::reporter::configure_progress_prefix(&config);
         if self.output.presentation.loglevel.is_none()
             && let Some(config_loglevel) = config.loglevel
         {
