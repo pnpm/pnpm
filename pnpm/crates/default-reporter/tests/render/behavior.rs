@@ -177,5 +177,42 @@ fn live_bar_turns_green_as_packages_are_added() {
         .lines()
         .nth(1)
         .expect("the bar follows the live line");
-    assert_eq!(bar, "\u{1b}[32m↓\u{1b}[39m+");
+    assert_eq!(bar, "\u{1b}[32m↓\u{1b}[39m\u{1b}[90m+\u{1b}[39m");
+}
+
+/// The bar turns fully green only as the stats, so it never looks done
+/// before the install is.
+#[test]
+fn live_bar_keeps_a_sign_uncolored_until_the_stats() {
+    let mut reporter = state(true);
+    let frame = render(&mut reporter, vec![progress("fetched"), progress("imported")]);
+    let bar = frame
+        .lines()
+        .nth(1)
+        .expect("the bar follows the live line");
+    assert_eq!(bar, "\u{1b}[90m↓\u{1b}[39m");
+}
+
+/// Every redraw moves the highlight one step along the uncolored signs.
+#[test]
+fn live_bar_highlight_steps_with_each_redraw() {
+    let mut reporter = state(true);
+    let highlighted = |frame: String| {
+        let bar = frame
+            .lines()
+            .nth(1)
+            .expect("the bar follows the live line")
+            .to_string();
+        bar.split("\u{1b}[90m")
+            .next()
+            .map(|before| {
+                before
+                    .chars()
+                    .filter(|sign| *sign == '↓')
+                    .count()
+            })
+    };
+    let first = highlighted(render(&mut reporter, vec![progress("fetched"), progress("fetched")]));
+    let second = highlighted(render(&mut reporter, vec![progress("resolved")]));
+    assert_eq!((first, second), (Some(0), Some(1)));
 }

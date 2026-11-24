@@ -76,6 +76,15 @@ impl ReporterState {
             ProgressMessage::FoundInStore { .. } => entry.stats.reused += 1,
             ProgressMessage::Imported { .. } => entry.stats.imported += 1,
         }
+        self.render_live_packages();
+    }
+
+    /// Draws the live line, until the stats replace it.
+    fn render_live_packages(&mut self) {
+        if self.install.stats_shown.is_some() {
+            return;
+        }
+        self.downloads.live_redraws += 1;
         let Some(msg) = self.live_packages_message() else { return };
         let mut slot = std::mem::take(&mut self.install.stats_slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Pinned);
@@ -128,7 +137,9 @@ impl ReporterState {
     /// A sign for each package that arrived, `↓` for downloaded and `+`
     /// for reused from the store, in the default color until the package
     /// is added, then green. The bar fills as an install moves from
-    /// fetching to adding, and ends as the green bar of the stats.
+    /// fetching to adding, and ends as the green bar of the stats. Until
+    /// then at least one sign stays uncolored, and a grey highlight steps
+    /// along the uncolored signs on every redraw.
     fn live_bar(&self, max_width: usize) -> String {
         let totals = self.downloads.totals();
         let arrived = totals.fetched + totals.reused;
@@ -137,13 +148,16 @@ impl ReporterState {
         }
         let chars = usize::try_from(arrived).map_or(max_width, |arrived| arrived.min(max_width));
         let added_chars = usize::try_from(totals.imported * chars as u64 / arrived)
-            .map_or(chars, |added| added.min(chars));
+            .map_or(chars, |added| added.min(chars - 1));
+        let highlighted = added_chars + self.downloads.live_redraws % (chars - added_chars);
         let downloaded_chars = self.downloads.downloaded_part(chars);
         (0..chars)
             .map(|index| {
                 let sign = if index < downloaded_chars { "↓" } else { "+" };
                 if index < added_chars {
                     self.rendering.colors.green(sign)
+                } else if index == highlighted {
+                    self.rendering.colors.grey(sign)
                 } else {
                     sign.to_string()
                 }
@@ -174,6 +188,10 @@ impl ReporterState {
             }
             FetchingProgressMessage::InProgress { downloaded, package_id } => {
                 self.rewrite_tarball_block(package_id, *downloaded);
+                // Keeps the live bar moving through a long download.
+                if !self.downloads.progress.is_empty() {
+                    self.render_live_packages();
+                }
             }
         }
     }
