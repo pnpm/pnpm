@@ -7076,7 +7076,6 @@ dependencies = [
  "libc",
  "libsql",
  "rustls",
- "same-file",
  "serde_json",
  "ssri",
  "sysinfo",
