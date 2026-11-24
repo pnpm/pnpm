@@ -207,8 +207,8 @@ snapshots:
 				},
 				"@yarnpkg/parsers": "3.1.0",
 				"@yarnpkg/pnp": {
-					"specifier": "^4.1.7",
-					"version": "4.1.7",
+					"specifier": "^4.1.8",
+					"version": "4.1.8",
 				},
 				"@yarnpkg/shell": "4.1.3",
 				"arg": "5.0.2",
@@ -275,7 +275,7 @@ snapshots:
 		},
 		"patchedDependencies": {
 			"@tybys/wasm-util@0.10.5": "b4720f25df1fb0342d181651d5be567d5239215aaca02dd8bbedf8d541d5bb4e",
-			"@yarnpkg/pnp@4.1.7": "5679b75f737d6a035d80ca67056cd14f6c4e45a200f902fe8a992128702605a2",
+			"@yarnpkg/pnp@4.1.8": "5679b75f737d6a035d80ca67056cd14f6c4e45a200f902fe8a992128702605a2",
 			"glob@11.1.0": "aa3a98d243db59427689bada80d8824e3e8b7cff11bf6007c528d70324791dd3",
 			"graceful-fs@^4.2.11": "68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1",
 			"minimatch@10.2.6": "c6ace05290f134922778ebb104c5c287aa2cd9095feb0e76cb93230ad45a5239",
@@ -3930,8 +3930,8 @@ snapshots:
 			},
 		},
 
-		"@yarnpkg/pnp@4.1.7": {
-			"integrity": "sha512-UhCAYCa5uOAAfw5hWbfR0A+HY2Ym8qbf2augd1rV9ytH+rjHaE+RDIXdWIpn8MIjf55X8Ws34OE8p7T3O3rPwA==",
+		"@yarnpkg/pnp@4.1.8": {
+			"integrity": "sha512-tltAZTryBa5EJx8yhx+BmZBnNWd9YERzuhCOX8elFDagly+ePD+xWUsjBRZ4i3OJwPNj3nTeSaK8xWknALYx0A==",
 			"engines": {"node": ">=18.12.0"},
 			"dependencies": {
 				"@types/node": "18.19.130",
