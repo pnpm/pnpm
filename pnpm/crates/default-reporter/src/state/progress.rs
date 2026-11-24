@@ -240,9 +240,7 @@ impl ReporterState {
         let counts = StatsCounts { added, removed, downloaded, reused };
         let changed = added > 0 || removed > 0;
         let msg = changed.then(|| self.stats_message(counts));
-        for slot in self.downloads.take_reported_slots(&requesters) {
-            self.display.frame.clear(slot);
-        }
+        self.downloads.mark_reported(&requesters, &mut self.display.frame);
         self.install.stats.clear();
         self.install.package_changed |= changed;
         self.install.no_package_changed = !self.install.package_changed;
@@ -368,20 +366,20 @@ impl DownloadState {
     }
 
     /// Marks the progress of `requesters`, whose stats a stats line
-    /// counts, and returns the progress lines of those that finished,
-    /// which it replaces. A project that has not finished yet loses its
-    /// line when it does.
-    fn take_reported_slots(
-        &mut self,
-        requesters: &[String],
-    ) -> impl Iterator<Item = &mut BlockSlot> {
-        self.progress
-            .iter_mut()
-            .filter(|(requester, entry)| requesters.contains(requester) && !entry.reported)
-            .filter_map(|(_, entry)| {
-                entry.reported = true;
-                entry.done.then_some(&mut entry.slot)
-            })
+    /// counts, and clears the progress lines of those that finished, which
+    /// the stats line replaces. A project that has not finished yet loses
+    /// its line when it does.
+    fn mark_reported(&mut self, requesters: &[String], frame: &mut Frame) {
+        for requester in requesters {
+            let Some(entry) = self.progress.get_mut(requester) else { continue };
+            if entry.reported {
+                continue;
+            }
+            entry.reported = true;
+            if entry.done {
+                frame.clear(&mut entry.slot);
+            }
+        }
     }
 }
 
