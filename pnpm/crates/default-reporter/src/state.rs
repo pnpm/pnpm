@@ -385,6 +385,7 @@ impl ReporterState {
             return Output::None;
         }
         self.handle_event(event);
+        self.refresh_live_checks(event);
         self.display.finish(self.options.append_only)
     }
 

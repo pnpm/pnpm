@@ -101,13 +101,28 @@ fn footer(reporter: &mut ReporterState, outcome: CommandOutcome) -> String {
 }
 
 #[test]
-fn a_running_script_shows_until_it_succeeds() {
+fn the_live_footer_shows_running_and_finished_scripts() {
     let mut reporter = summarizing(false);
-    let running =
-        render(&mut reporter, vec![lifecycle_script(PROJECT, "preinstall", "node install.js")]);
-    assert!(running.contains("Running..."), "{running}");
+    let running = render(
+        &mut reporter,
+        vec![
+            lifecycle_script(PROJECT, "preinstall", "node install.js"),
+            lifecycle_line(PROJECT, "preinstall", "fetched the binary"),
+        ],
+    );
+    assert_eq!(running, "\n· 1 script is running: pnpm/npm/pnpm preinstall");
     let done = render(&mut reporter, vec![lifecycle_exit(PROJECT, "preinstall", 0)]);
-    assert_eq!(done, "");
+    assert_eq!(done, "\n✓ 1 project script ran: pnpm/npm/pnpm preinstall");
+}
+
+#[test]
+fn the_final_footer_replaces_the_live_one() {
+    let mut reporter = summarizing(false);
+    render(&mut reporter, script_run(PROJECT, "preinstall", 0));
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✓ 1 project script ran: pnpm/npm/pnpm preinstall\n",
+    );
 }
 
 #[test]
@@ -134,7 +149,7 @@ fn footer_lists_built_and_cached_dependencies() {
             cache_hit("sharp", "0.33.5"),
         ],
     );
-    assert_eq!(frame, "");
+    assert!(!frame.contains("Running"), "{frame}");
     assert_eq!(
         footer(&mut reporter, CommandOutcome::Succeeded),
         "\n✓ 1 dependency was built: esbuild@0.21.5\n\
@@ -143,7 +158,7 @@ fn footer_lists_built_and_cached_dependencies() {
 }
 
 #[test]
-fn a_failed_optional_build_is_erased_and_listed_as_a_problem() {
+fn a_failed_optional_build_is_listed_as_a_problem() {
     let mut reporter = summarizing(false);
     let frame = render(
         &mut reporter,
@@ -153,7 +168,7 @@ fn a_failed_optional_build_is_erased_and_listed_as_a_problem() {
             failed_optional_build("esbuild", "0.21.5"),
         ],
     );
-    assert_eq!(frame, "");
+    assert_eq!(frame, "\n✗ 1 optional dependency failed to build and was skipped: esbuild@0.21.5");
     assert_eq!(
         footer(&mut reporter, CommandOutcome::Failed),
         "\n✗ 1 optional dependency failed to build and was skipped: esbuild@0.21.5\n",
@@ -172,14 +187,14 @@ fn a_failed_script_keeps_its_output() {
         ],
     );
     assert!(frame.contains("boom") && frame.contains("Failed in"), "{frame}");
-    assert!(matches!(reporter.flush_pending_checks(CommandOutcome::Failed), Output::None));
+    assert!(!frame.contains("is running"), "{frame}");
 }
 
 #[test]
-fn a_failed_command_prints_no_script_successes() {
+fn a_failed_command_clears_the_live_footer_of_script_successes() {
     let mut reporter = summarizing(false);
     render(&mut reporter, script_run(PROJECT, "preinstall", 0));
-    assert!(matches!(reporter.flush_pending_checks(CommandOutcome::Failed), Output::None));
+    assert_eq!(footer(&mut reporter, CommandOutcome::Failed), "");
 }
 
 #[test]

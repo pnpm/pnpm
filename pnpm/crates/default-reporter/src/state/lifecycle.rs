@@ -26,7 +26,7 @@ impl ReporterState {
     pub(super) fn on_lifecycle(&mut self, message: &LifecycleMessage) {
         self.render_approvals_before_failure(message);
         if self.options.lifecycle.summarize_scripts {
-            self.record_script_exit(message);
+            self.record_script_event(message);
         }
         let quiet = self.options.max_log_level < crate::MaxLogLevel::Info;
         if quiet
@@ -62,7 +62,8 @@ impl ReporterState {
                 start: Some(now),
             });
         let exit = matches!(message, LifecycleMessage::Exit { .. });
-        if self.erase_summarized(&key, message) {
+        if self.options.lifecycle.summarize_scripts {
+            self.collect_summarized(&key, message);
             return;
         }
         let msg = if self.scripts.entries[&key].collapsed {
@@ -78,17 +79,19 @@ impl ReporterState {
         self.scripts.slots.insert(key, slot);
     }
 
-    /// Erases the in-place block of a script the checks footer lists,
-    /// returning whether it did.
-    fn erase_summarized(&mut self, key: &str, message: &LifecycleMessage) -> bool {
-        if !self.options.lifecycle.summarize_scripts || !is_summarized_exit(message) {
-            return false;
+    /// Collects a summarized script's output without drawing it, since the
+    /// live checks footer shows it running. Only a failure that fails the
+    /// install prints, with all of its output.
+    fn collect_summarized(&mut self, key: &str, message: &LifecycleMessage) {
+        let LifecycleMessage::Exit { exit_code, optional, .. } = message else {
+            self.update_lifecycle_cache(key, message);
+            return;
+        };
+        if *exit_code != 0 && !*optional {
+            let msg = self.render_script(key, message);
+            self.display.frame.emit(&mut BlockSlot::default(), msg, BlockPlacement::Scrolling);
         }
         self.scripts.entries.remove(key);
-        if let Some(mut slot) = self.scripts.slots.remove(key) {
-            self.display.frame.clear(&mut slot);
-        }
-        true
     }
 
     fn render_approvals_before_failure(&mut self, message: &LifecycleMessage) {
@@ -311,21 +314,31 @@ impl ReporterState {
         Some(lines.join("\n"))
     }
 
-    /// Records a finished script for the checks footer: a project script
-    /// or a dependency build that succeeded. A failed optional build is
-    /// recorded from its `pnpm:skipped-optional-dependency` event.
-    fn record_script_exit(&mut self, message: &LifecycleMessage) {
-        let LifecycleMessage::Exit {
-            exit_code: 0, dep_path, stage, wd, ..
-        } = message
-        else {
-            return;
-        };
-        if is_dependency_dir(wd) {
-            self.record_dependency_built(dep_path);
+    /// Records a script for the checks footer: running from its start, and
+    /// once it succeeds, as a project script or a dependency build. A
+    /// failed optional build is recorded from its
+    /// `pnpm:skipped-optional-dependency` event.
+    fn record_script_event(&mut self, message: &LifecycleMessage) {
+        let (stage, dep_path, wd) = lifecycle_ids(message);
+        let label = if is_dependency_dir(wd) {
+            dependency_label(dep_path).to_string()
         } else {
-            let project = format_prefix(&self.rendering.cwd, wd);
-            self.record_project_script(&format!("{project} {stage}"));
+            format!("{} {stage}", format_prefix(&self.rendering.cwd, wd))
+        };
+        match message {
+            LifecycleMessage::Script { .. } => self.record_script_started(&label),
+            LifecycleMessage::Exit { exit_code, .. } => {
+                self.record_script_finished(&label);
+                if *exit_code != 0 {
+                    return;
+                }
+                if is_dependency_dir(wd) {
+                    self.record_dependency_built(&label);
+                } else {
+                    self.record_project_script(&label);
+                }
+            }
+            LifecycleMessage::Stdio { .. } => {}
         }
     }
 
@@ -404,9 +417,8 @@ fn is_dependency_dir(wd: &str) -> bool {
     contains_path(wd, "/node_modules/") || contains_path(wd, "tmp/_tmp_")
 }
 
-/// Whether the exit is one the checks footer reports in place of the
-/// script's in-place block: a success, or the failure of an optional
-/// dependency, whose block holds no output.
-fn is_summarized_exit(message: &LifecycleMessage) -> bool {
-    matches!(message, LifecycleMessage::Exit { exit_code, optional, .. } if *exit_code == 0 || *optional)
+/// `name@version` of a dependency's lockfile key, without its peer and
+/// patch suffixes.
+fn dependency_label(dep_path: &str) -> &str {
+    dep_path.split_once('(').map_or(dep_path, |(label, _)| label)
 }

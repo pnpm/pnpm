@@ -21,17 +21,19 @@ use super::{
     BlockSlot,
     DeprecationLog,
     InstallCheckLog,
+    LogEvent,
     MaxLogLevel,
     Output,
     PeerDependencyIssuesLog,
     ReporterState,
-    SideEffectsCacheHitLog,
     UnsupportedPackage,
     Value,
     WantedPlatform,
     engine_ranges::merge_ranges,
     is_strictly_newer,
 };
+
+mod scripts;
 
 /// How a command ended, which decides the footer lines it prints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,7 +60,7 @@ pub(super) struct ChecksState {
     /// `name@version` of every deprecated package resolution reported.
     deprecated: BTreeSet<String>,
     unsupported: UnsupportedPackages,
-    scripts: ScriptsRun,
+    scripts: scripts::ScriptsRun,
     slot: BlockSlot,
     rendered: bool,
 }
@@ -72,22 +74,6 @@ struct UnsupportedPackages {
     /// The packages that reject the platform, by what they want, such as
     /// `os darwin`.
     platform: BTreeMap<String, BTreeSet<String>>,
-}
-
-/// The lifecycle scripts a command summarizes, see
-/// [`LifecycleOptions::summarize_scripts`](crate::state::LifecycleOptions::summarize_scripts).
-#[derive(Default)]
-struct ScriptsRun {
-    /// `<project> <stage>` of every project script that succeeded.
-    projects: BTreeSet<String>,
-    /// `name@version` of every dependency whose scripts succeeded.
-    built: BTreeSet<String>,
-    /// `name@version` of every dependency whose build output came from
-    /// the side-effects cache.
-    cached: BTreeSet<String>,
-    /// `name@version` of every optional dependency skipped because its
-    /// build failed.
-    failed_optional: BTreeSet<String>,
 }
 
 impl ReporterState {
@@ -144,28 +130,6 @@ impl ReporterState {
         }
     }
 
-    pub(super) fn record_project_script(&mut self, label: &str) {
-        self.notices.checks.scripts.projects.insert(sanitize(label));
-    }
-
-    /// `dep_path` is the lockfile key, so its peer and patch suffixes are
-    /// dropped.
-    pub(super) fn record_dependency_built(&mut self, dep_path: &str) {
-        let label = dep_path.split_once('(').map_or(dep_path, |(label, _)| label);
-        self.notices.checks.scripts.built.insert(sanitize(label));
-    }
-
-    pub(super) fn record_failed_optional_build(&mut self, name: &str, version: &str) {
-        self.notices.checks.scripts.failed_optional.insert(sanitize(&format!("{name}@{version}")));
-    }
-
-    pub(super) fn on_side_effects_cache_hit(&mut self, log: &SideEffectsCacheHitLog) {
-        if self.options.lifecycle.summarize_scripts {
-            let label = sanitize(&format!("{}@{}", log.pkg_name, log.pkg_version));
-            self.notices.checks.scripts.cached.insert(label);
-        }
-    }
-
     /// Print the footer when the command ends, once. A command that ends
     /// without a `Done in ...` line to carry it flushes it here.
     pub fn flush_pending_checks(&mut self, outcome: CommandOutcome) -> Output {
@@ -173,11 +137,36 @@ impl ReporterState {
         self.display.finish(self.options.append_only)
     }
 
+    /// Redraws the live checks footer pinned below the progress while an
+    /// install summarizes its scripts. Only events that change the footer
+    /// redraw it. The final footer replaces it in [`Self::render_checks`].
+    pub(super) fn refresh_live_checks(&mut self, event: &LogEvent) {
+        if !self.options.lifecycle.summarize_scripts
+            || self.options.append_only
+            || self.notices.checks.rendered
+            || !changes_checks(event)
+        {
+            return;
+        }
+        let footer = self.checks_footer(CommandOutcome::Succeeded, Footer::Live);
+        let mut slot = std::mem::take(&mut self.notices.checks.slot);
+        match footer {
+            Some(footer) => {
+                self.display.frame.emit(&mut slot, format!("\n{footer}"), BlockPlacement::Pinned);
+            }
+            None => self.display.frame.clear(&mut slot),
+        }
+        self.notices.checks.slot = slot;
+    }
+
     pub(super) fn render_checks(&mut self, outcome: CommandOutcome) {
         if self.notices.checks.rendered {
             return;
         }
-        let Some(footer) = self.checks_footer(outcome) else { return };
+        let Some(footer) = self.checks_footer(outcome, Footer::Final) else {
+            self.display.frame.clear(&mut self.notices.checks.slot);
+            return;
+        };
         self.notices.checks.rendered = true;
         let mut slot = std::mem::take(&mut self.notices.checks.slot);
         // A rendered summary already ends with a blank line.
@@ -186,7 +175,7 @@ impl ReporterState {
         self.notices.checks.slot = slot;
     }
 
-    fn checks_footer(&self, outcome: CommandOutcome) -> Option<String> {
+    fn checks_footer(&self, outcome: CommandOutcome, footer: Footer) -> Option<String> {
         let shows_info = match outcome {
             CommandOutcome::Succeeded => self.options.max_log_level >= MaxLogLevel::Info,
             CommandOutcome::Failed => false,
@@ -205,6 +194,8 @@ impl ReporterState {
                 self.failed_optional_line(),
                 self.outdated_line().filter(|_| shows_info),
                 self.resolution_skipped_line().filter(|_| shows_info),
+                self.running_line()
+                    .filter(|_| footer == Footer::Live),
             ])
             .flatten()
             .collect();
@@ -259,60 +250,6 @@ impl ReporterState {
             packages.len(),
             list_names(packages, |label| self.package_label(label)),
         )
-    }
-
-    fn scripts_lines(&self) -> Vec<String> {
-        let scripts = &self.notices.checks.scripts;
-        let tick = self.rendering.colors.green("✓");
-        let mut lines = Vec::new();
-        if !scripts.projects.is_empty() {
-            let (noun, verb) = count_words(
-                &scripts.projects,
-                ("project script", "ran"),
-                ("project scripts", "ran"),
-            );
-            lines.push(format!(
-                "{tick} {} {noun} {verb}: {}",
-                scripts.projects.len(),
-                list_names(&scripts.projects, str::to_string),
-            ));
-        }
-        for (packages, one, many) in [
-            (&scripts.built, ("dependency", "was built"), ("dependencies", "were built")),
-            (
-                &scripts.cached,
-                ("dependency build", "came from the side-effects cache"),
-                ("dependency builds", "came from the side-effects cache"),
-            ),
-        ] {
-            if packages.is_empty() {
-                continue;
-            }
-            let (noun, verb) = count_words(packages, one, many);
-            lines.push(format!(
-                "{tick} {} {noun} {verb}: {}",
-                packages.len(),
-                list_names(packages, |label| self.package_label(label)),
-            ));
-        }
-        lines
-    }
-
-    fn failed_optional_line(&self) -> Option<String> {
-        let failed = &self.notices.checks.scripts.failed_optional;
-        let (noun, verb) = count_words(
-            failed,
-            ("optional dependency", "failed to build and was skipped"),
-            ("optional dependencies", "failed to build and were skipped"),
-        );
-        (!failed.is_empty()).then(|| {
-            format!(
-                "{} {} {noun} {verb}: {}",
-                self.rendering.colors.red("✗"),
-                failed.len(),
-                list_names(failed, |label| self.package_label(label)),
-            )
-        })
     }
 
     fn peer_issues_line(&self) -> Option<String> {
@@ -457,6 +394,29 @@ fn platform_values(values: &[String]) -> String {
         .filter_map(|value| value.strip_prefix('!'))
         .collect();
     format!("other than {}", rejected.join(" or "))
+}
+
+/// Which footer [`ReporterState::checks_footer`] builds: the one pinned
+/// below the progress while the command runs, or the one it ends with.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Footer {
+    Live,
+    Final,
+}
+
+/// Whether the event can change a line of the checks footer.
+fn changes_checks(event: &LogEvent) -> bool {
+    matches!(
+        event,
+        LogEvent::Lifecycle(_)
+            | LogEvent::SideEffectsCacheHit(_)
+            | LogEvent::SkippedOptionalDependency(_)
+            | LogEvent::Deprecation(_)
+            | LogEvent::InstallCheck(_)
+            | LogEvent::PeerDependencyIssues(_)
+            | LogEvent::LockfileVerification(_)
+            | LogEvent::Pnpm(_),
+    )
 }
 
 /// The noun and verb for the size of `items`: `one` for a single item,
