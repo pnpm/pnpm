@@ -62,7 +62,7 @@ pnpm audit engines
 
 Lists the installed packages that don't support the current Node.js version or platform, with what each one wants. Each package shows the projects that depend on it directly, or a chain of packages that brings it in. These are the packages an install warns about.
 
-pnpm checks the packages against the Node.js version an install uses: the [`nodeVersion`](../settings/cli.md#nodeversion) setting, the Node.js version the lockfile pins for the project, or the system Node.js. The platform includes [`supportedArchitectures`](../settings/dependency-resolution.md#supportedarchitectures). An optional dependency that an install skips is not listed. The command reads the lockfile and makes no registry requests.
+pnpm checks the packages against the Node.js version an install uses: the [`nodeVersion`](../settings/cli.md#nodeversion) setting, the Node.js version the lockfile pins for the root project, or the system Node.js. The platform includes [`supportedArchitectures`](../settings/dependency-resolution.md#supportedarchitectures). An optional dependency that an install skips is not listed. The command reads the lockfile and makes no registry requests.
 
 The command exits with code `1` if any installed package is incompatible. `--prod`, `--dev`, `--no-optional`, `--json`, and workspace filters apply to it.
 
