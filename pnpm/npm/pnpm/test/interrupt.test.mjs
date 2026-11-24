@@ -1,17 +1,52 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
+import { once } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { test } from 'node:test'
+import { URL } from 'node:url'
 
 const unix = { skip: process.platform === 'win32' && 'requires Unix signal delivery' }
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  test(`the native binary receives ${signal} sent to the wrapper PID`, {
+    skip: unix.skip || process.platform === 'os400' || typeof process.execve !== 'function',
+    timeout: 10000,
+  }, async t => {
+    const directory = writeFixture(t)
+    const binary = path.join(directory, 'pnpm-native')
+    fs.writeFileSync(binary, `#!${process.execPath}
+process.on('${signal}', () => process.exit(42))
+console.log(process.pid)
+setInterval(() => {}, 1000)
+`)
+    const child = spawn(process.execPath, [path.join(directory, 'bin', 'pnpm.mjs')], {
+      detached: true,
+      stdio: ['ignore', 'pipe', 'inherit'],
+    })
+    t.after(() => {
+      if (child.exitCode != null || child.signalCode != null) return
+      try {
+        process.kill(-child.pid, 'SIGKILL')
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error
+      }
+    })
+    const exited = once(child, 'exit')
+    const [ready] = await once(child.stdout, 'data')
+    assert.equal(Number(ready), child.pid)
+    child.kill(signal)
+    assert.deepEqual(await exited, [42, null])
+  })
+}
 
 test('an interrupt before the native binary is spawned prevents it from running', unix, t => {
   const directory = writeFixture(t)
   const preload = path.join(directory, 'interrupt.cjs')
   fs.writeFileSync(preload, `
+process.execve = undefined
 const childProcess = require('node:child_process')
 for (const method of ['spawn', 'spawnSync']) {
   const original = childProcess[method]
@@ -31,6 +66,7 @@ test('the wrapper can launch the binary without a system shell', unix, t => {
   const directory = writeFixture(t)
   const preload = path.join(directory, 'missing-shell.cjs')
   fs.writeFileSync(preload, `
+process.execve = undefined
 const childProcess = require('node:child_process')
 const original = childProcess.spawn
 childProcess.spawn = (file, ...args) => original(
