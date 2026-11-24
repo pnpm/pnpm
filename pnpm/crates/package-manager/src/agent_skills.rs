@@ -231,22 +231,68 @@ pub fn sync_agent_skills(
     sync_with_other_links(input, &BTreeSet::new())
 }
 
+/// What `.modules.yaml` records about the links of a previous sync.
+pub(crate) struct RecordedSkills<'a> {
+    pub linked: &'a [String],
+    pub has_unlinked_skills: bool,
+}
+
+/// [`sync_agent_skills`] for a caller that does not know the links of other
+/// global groups. Global groups share one target root, so there it leaves
+/// the links as `recorded` and records only the pending skills;
+/// [`resync_global_agent_skills`] reconciles the links after activation.
+pub(crate) fn sync_or_record_pending(
+    input: &SyncAgentSkills<'_>,
+    recorded: &RecordedSkills<'_>,
+) -> Result<AgentSkillsState, AgentSkillsError> {
+    if input.config.agent_skills_target_root.is_none() {
+        return sync_agent_skills(input);
+    }
+    let pending = if skills_turned_off(input.config) {
+        Vec::new()
+    } else {
+        sorted_dep_paths(decide_approvals(input)?.0)
+    };
+    Ok(AgentSkillsState {
+        pending,
+        linked: recorded.linked.to_vec(),
+        has_unlinked_skills: recorded.has_unlinked_skills,
+    })
+}
+
+fn skills_turned_off(config: &Config) -> bool {
+    config.agent_skills_disabled || config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
+}
+
+/// The skill sources awaiting approval and the approved ones.
+fn decide_approvals(
+    input: &SyncAgentSkills<'_>,
+) -> Result<(Vec<SkillSource>, Vec<SkillSource>), AgentSkillsError> {
+    let policy =
+        SkillsPolicy::from_approvals(&input.config.allow_skills).map_err(AgentSkillsError::Policy)?;
+    Ok(decide_sources(discover_skill_sources(input), &policy))
+}
+
+fn sorted_dep_paths(sources: Vec<SkillSource>) -> Vec<String> {
+    let mut dep_paths: Vec<String> = sources
+        .into_iter()
+        .map(|source| source.dep_path)
+        .collect();
+    dep_paths.sort();
+    dep_paths
+}
+
 /// Reconcile one group while protecting links still used by other groups.
 fn sync_with_other_links(
     input: &SyncAgentSkills<'_>,
     other_links: &BTreeSet<String>,
 ) -> Result<AgentSkillsState, AgentSkillsError> {
-    if input.config.agent_skills_disabled
-        || input.config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
-    {
+    if skills_turned_off(input.config) {
         prune(input.target_root, input.linked, other_links)?;
         update_gitignores(input.target_root, input.linked, other_links)?;
         return Ok(AgentSkillsState::default());
     }
-    let sources = discover_skill_sources(input);
-    let policy =
-        SkillsPolicy::from_approvals(&input.config.allow_skills).map_err(AgentSkillsError::Policy)?;
-    let (pending_sources, approved) = decide_sources(sources, &policy);
+    let (pending_sources, approved) = decide_approvals(input)?;
     let target_root = input.target_root;
     let dirs = if approved.is_empty() {
         Vec::new()
@@ -261,13 +307,8 @@ fn sync_with_other_links(
     };
     let desired = desired_entries(input, &dirs, &entries);
     reconcile_links(input, &desired, other_links)?;
-    let mut pending: Vec<String> = pending_sources
-        .into_iter()
-        .map(|source| source.dep_path)
-        .collect();
-    pending.sort();
     Ok(AgentSkillsState {
-        pending,
+        pending: sorted_dep_paths(pending_sources),
         linked: desired.into_keys().collect(),
         has_unlinked_skills: !approved.is_empty() && dirs.is_empty(),
     })

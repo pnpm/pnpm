@@ -1,6 +1,7 @@
 use super::{
     AgentSkillsError,
     AgentSkillsState,
+    RecordedSkills,
     SyncAgentSkills,
     agent_skills_dir_from_env,
     decide_sources,
@@ -8,6 +9,7 @@ use super::{
     discover_skill_sources,
     discovery::SkillSource,
     links::canonical_recorded_entry,
+    sync_or_record_pending,
     sync_with_other_links,
 };
 use crate::{
@@ -77,7 +79,7 @@ pub fn resync_global_agent_skills(
     install_dir: &Path,
     other_links: &BTreeSet<String>,
 ) -> Result<(), ResyncAgentSkillsError> {
-    resync_agent_skills(config, install_dir, None, other_links).map(drop)
+    resync_agent_skills(config, install_dir, None, Some(other_links)).map(drop)
 }
 
 /// [`resync_installed_agent_skills`] for an install rooted at
@@ -107,14 +109,14 @@ pub(crate) fn resync_agent_skills_dep_paths_at(
     workspace_root: &Path,
     current_lockfile: Option<&Lockfile>,
 ) -> Result<Vec<String>, ResyncAgentSkillsError> {
-    resync_agent_skills(config, workspace_root, current_lockfile, &BTreeSet::new())
+    resync_agent_skills(config, workspace_root, current_lockfile, None)
 }
 
 fn resync_agent_skills(
     config: &Config,
     workspace_root: &Path,
     current_lockfile: Option<&Lockfile>,
-    other_links: &BTreeSet<String>,
+    other_links: Option<&BTreeSet<String>>,
 ) -> Result<Vec<String>, ResyncAgentSkillsError> {
     let Some(mut modules) = pnpm_modules_yaml::read_modules_manifest::<Host>(&config.modules_dir)
         .map_err(ResyncAgentSkillsError::ReadModules)?
@@ -144,39 +146,53 @@ fn sync_installed_skills(
     workspace_root: &Path,
     lockfile: &Lockfile,
     modules: &Modules,
-    other_links: &BTreeSet<String>,
+    other_links: Option<&BTreeSet<String>>,
 ) -> Result<AgentSkillsState, ResyncAgentSkillsError> {
     let target_root = config.agent_skills_target_root.as_deref().unwrap_or(workspace_root);
     let recorded = modules.linked_skills.as_deref().unwrap_or_default();
-    let canonical_links;
-    let canonical_other_links;
-    let (linked, other_links) = if config.agent_skills_target_root.is_some() {
-        canonical_links = recorded
-            .iter()
-            .filter_map(|entry| canonical_recorded_entry(target_root, entry))
-            .collect::<Vec<_>>();
-        canonical_other_links = other_links
-            .iter()
-            .filter_map(|entry| canonical_recorded_entry(target_root, entry))
-            .collect();
-        (canonical_links.as_slice(), &canonical_other_links)
+    let canonical_links: Vec<String>;
+    let linked = if config.agent_skills_target_root.is_some() {
+        canonical_links = canonical_entries(target_root, recorded);
+        canonical_links.as_slice()
     } else {
-        (recorded, other_links)
+        recorded
     };
-    sync_with_other_links(
-        &SyncAgentSkills {
-            config,
-            workspace_root,
-            lockfile,
-            included: modules.included,
-            linked,
-            agent_dir: agent_skills_dir_from_env(),
-            target_root,
-            hoisted_locations: modules.hoisted_locations.as_ref(),
-        },
-        other_links,
-    )
-    .map_err(ResyncAgentSkillsError::Sync)
+    let input = SyncAgentSkills {
+        config,
+        workspace_root,
+        lockfile,
+        included: modules.included,
+        linked,
+        agent_dir: agent_skills_dir_from_env(),
+        target_root,
+        hoisted_locations: modules.hoisted_locations.as_ref(),
+    };
+    let state = match other_links {
+        Some(other_links) if config.agent_skills_target_root.is_some() => {
+            sync_with_other_links(&input, &canonical_entries(target_root, other_links))
+        }
+        Some(other_links) => sync_with_other_links(&input, other_links),
+        None => sync_or_record_pending(
+            &input,
+            &RecordedSkills {
+                linked: recorded,
+                has_unlinked_skills: modules.has_unlinked_skills.unwrap_or(false),
+            },
+        ),
+    };
+    state.map_err(ResyncAgentSkillsError::Sync)
+}
+
+/// `entries` identified by their directories, as [`canonical_recorded_entry`]
+/// does, dropping the ones outside `target_root`.
+fn canonical_entries<'entry, Canonical: FromIterator<String>>(
+    target_root: &Path,
+    entries: impl IntoIterator<Item = &'entry String>,
+) -> Canonical {
+    entries
+        .into_iter()
+        .filter_map(|entry| canonical_recorded_entry(target_root, entry))
+        .collect()
 }
 
 /// Errors from [`skill_approval_options`].

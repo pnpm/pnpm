@@ -46,8 +46,10 @@ pub(super) fn reconcile_links(
         .cloned()
         .collect();
     prune(target_root, input.linked, &keep)?;
-    materialize(target_root, &to_write)?;
-    update_gitignores(target_root, input.linked.iter().chain(desired.keys()), &keep)
+    // `.modules.yaml` records new links only after this returns, so a
+    // failing `.gitignore` update must not leave links nothing records.
+    update_gitignores(target_root, input.linked.iter().chain(desired.keys()), &keep)?;
+    materialize(target_root, &to_write)
 }
 
 /// Remove recorded links that no surviving group uses.

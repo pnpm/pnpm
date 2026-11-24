@@ -99,16 +99,20 @@ fn record_agent_skills(
     let target_root = inputs.tree.config.agent_skills_target_root
         .as_deref()
         .unwrap_or(inputs.tree.workspace_root);
-    let state = crate::sync_agent_skills(&crate::SyncAgentSkills {
-        config: inputs.tree.config,
-        workspace_root: inputs.tree.workspace_root,
-        lockfile,
-        included: inputs.tree.included,
-        linked,
-        agent_dir: crate::agent_skills_dir_from_env(),
-        target_root,
-        hoisted_locations: next_modules.hoisted_locations.as_ref(),
-    })
+    let has_unlinked_skills = next_modules.has_unlinked_skills.unwrap_or(false);
+    let state = crate::agent_skills::sync_or_record_pending(
+        &crate::SyncAgentSkills {
+            config: inputs.tree.config,
+            workspace_root: inputs.tree.workspace_root,
+            lockfile,
+            included: inputs.tree.included,
+            linked,
+            agent_dir: crate::agent_skills_dir_from_env(),
+            target_root,
+            hoisted_locations: next_modules.hoisted_locations.as_ref(),
+        },
+        &crate::agent_skills::RecordedSkills { linked, has_unlinked_skills },
+    )
     .map_err(InstallError::AgentSkills)?;
     let pending_dep_paths = state.pending.clone();
     state.update_modules(next_modules);

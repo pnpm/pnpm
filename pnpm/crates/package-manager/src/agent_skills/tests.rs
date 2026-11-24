@@ -736,6 +736,10 @@ fn rejects_symlinked_gitignore() {
         sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
     assert!(matches!(error, AgentSkillsError::Io { .. }));
     assert_eq!(fs::read_to_string(&external_file).unwrap(), "");
+    assert!(
+        fs::symlink_metadata(target_dir.join("guide")).is_err(),
+        "no link is created that .modules.yaml would not record",
+    );
 }
 
 #[test]
@@ -1053,4 +1057,50 @@ fn global_groups_keep_shared_links_and_each_others_ignore_rules() {
     assert!(guide.symlink_metadata().is_err());
     assert!(reference.symlink_metadata().is_err());
     assert!(!gitignore.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_global_sync_without_group_links_records_pending_skills_only() {
+    let (root, lockfile) =
+        workspace(&[("foo", "1.0.0", &["guide"]), ("bar", "1.0.0", &["reference"])]);
+    let home = tempfile::tempdir().expect("create home");
+    let dir = home.path().join(".claude/skills");
+    fs::create_dir_all(&dir).expect("create the skills dir");
+    let other_copy = tempfile::tempdir().expect("create another group's copy");
+    std::os::unix::fs::symlink(other_copy.path(), dir.join("guide"))
+        .expect("link another group's skill");
+    fs::write(dir.join(".gitignore"), "# pnpm\n/guide\n").expect("write ignore rules");
+    let config = Config {
+        agent_skills_target_root: Some(home.path().to_path_buf()),
+        ..config(&[("foo", true)], Some(&[".claude/skills"]))
+    };
+    let recorded = [".claude/skills/pnpm-foo-guide".to_string()];
+
+    let state = super::sync_or_record_pending(
+        &SyncAgentSkills {
+            config: &config,
+            workspace_root: root.path(),
+            lockfile: &lockfile,
+            included: ALL_GROUPS,
+            linked: &recorded,
+            agent_dir: None,
+            target_root: home.path(),
+            hoisted_locations: None,
+        },
+        &super::RecordedSkills { linked: &recorded, has_unlinked_skills: true },
+    )
+    .expect("sync");
+
+    assert_eq!(
+        state,
+        AgentSkillsState {
+            pending: vec!["bar@1.0.0".to_string()],
+            linked: recorded.to_vec(),
+            has_unlinked_skills: true,
+        },
+    );
+    assert_eq!(fs::read_link(dir.join("guide")).expect("read link"), other_copy.path());
+    assert_eq!(fs::read_to_string(dir.join(".gitignore")).expect("read"), "# pnpm\n/guide\n");
+    assert!(fs::symlink_metadata(dir.join("pnpm-foo-guide")).is_err());
 }
