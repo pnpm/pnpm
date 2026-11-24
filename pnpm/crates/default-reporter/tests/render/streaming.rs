@@ -65,39 +65,39 @@ fn prints_progress_of_big_files_download() {
     assert_eq!(
         frames,
         vec![
-            "Packages: 1 resolved".to_string(),
+            "Packages: 1 resolved\n↓".to_string(),
             format!(
-                "Packages: 1 resolved\n\
+                "Packages: 1 resolved\n↓\n\
                  Downloading {pkg_1}: 0.00 B/10.48 MB",
             ),
             format!(
-                "Packages: 1 resolved\n\
+                "Packages: 1 resolved\n↓\n\
                  Downloading {pkg_1}: 5.76 MB/10.48 MB",
             ),
             format!(
-                "Packages: 2 resolved\n\
+                "Packages: 2 resolved\n↓↓\n\
                  Downloading {pkg_1}: 5.76 MB/10.48 MB",
             ),
             format!(
-                "Packages: 2 resolved\n\
+                "Packages: 2 resolved\n↓↓\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB",
             ),
             format!(
-                "Packages: 3 resolved\n\
+                "Packages: 3 resolved\n↓↓↓\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB",
             ),
             format!(
-                "Packages: 3 resolved\n\
+                "Packages: 3 resolved\n↓↓↓\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
                  Downloading {pkg_3}: 0.00 B/20.97 MB",
             ),
             format!(
-                "Packages: 3 resolved\n\
+                "Packages: 3 resolved\n↓↓↓\n\
                  Downloading {pkg_1}: 7.34 MB/10.48 MB\n\
                  Downloading {pkg_3}: 19.92 MB/20.97 MB",
             ),
             format!(
-                "Packages: 3 resolved\n\
+                "Packages: 3 resolved\n↓↓↓\n\
                  Downloading {pkg_3}: 19.92 MB/20.97 MB",
             ),
         ],

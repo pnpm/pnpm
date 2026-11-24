@@ -32,7 +32,7 @@ fn the_live_packages_line_waits_for_the_stats() {
     let mut reporter = state(false);
     let frame =
         render(&mut reporter, vec![progress("resolved"), progress("imported"), importing_done()]);
-    assert_eq!(frame, "Packages: +1 of 1");
+    assert_eq!(frame, "Packages: +1 of 1\n↓");
 }
 
 #[test]
@@ -221,4 +221,35 @@ fn live_bar_keeps_a_sign_uncolored_until_the_stats() {
         .nth(1)
         .expect("the bar follows the live line");
     assert_eq!(bar, "\u{1b}[33m↓\u{1b}[39m");
+}
+
+/// A sign changes color twice: yellow once its package arrived, green once
+/// it is added.
+#[test]
+fn live_bar_shows_started_arrived_and_added_packages() {
+    let mut reporter = state(true);
+    let frame = render(
+        &mut reporter,
+        vec![
+            progress("resolved"),
+            progress("resolved"),
+            progress("resolved"),
+            progress("fetched"),
+            progress("fetched"),
+            progress("imported"),
+        ],
+    );
+    let bar = frame
+        .lines()
+        .nth(1)
+        .expect("the bar follows the live line");
+    assert_eq!(bar.matches("\u{1b}[32m").count(), 1, "one added: {bar:?}");
+    assert_eq!(bar.matches("\u{1b}[33m").count(), 1, "one arrived: {bar:?}");
+    assert_eq!(
+        bar.chars()
+            .filter(|sign| *sign == '↓')
+            .count(),
+        3,
+        "three packages: {bar:?}",
+    );
 }

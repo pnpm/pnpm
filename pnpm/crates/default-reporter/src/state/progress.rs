@@ -94,16 +94,19 @@ impl ReporterState {
     /// terminal: see [`Self::live_bar`]. The line follows the bar:
     /// `Packages: 58 resolved` before any package arrives, `Packages: 90
     /// downloaded, 5 reused` while they arrive, and `Packages: +12 of 95`
-    /// once packages are added. `None` while there is nothing to count.
+    /// once packages are added, 95 being the signs of the bar. `None` while there is nothing to count.
     fn live_packages_message(&self) -> Option<String> {
         let totals = self.downloads.totals();
         let line = self.live_packages_line(totals)?;
         // Append-only output prints each update as a new line, so a bar
         // would repeat on every one.
-        if self.options.append_only || totals.fetched + totals.reused == 0 {
+        // The bar's green signs show the added count, which
+        // `hide_added_pkgs` leaves out.
+        let bar = self.live_bar(self.rendering.width);
+        if self.options.append_only || self.options.progress.hide_added_pkgs || bar.is_empty() {
             return Some(line);
         }
-        Some(format!("{line}\n{}", self.live_bar(self.rendering.width)))
+        Some(format!("{line}\n{bar}"))
     }
 
     fn live_packages_line(&self, totals: ProgressStats) -> Option<String> {
@@ -111,9 +114,9 @@ impl ReporterState {
         let arrived = totals.fetched + totals.reused;
         if totals.imported > 0 && !self.options.progress.hide_added_pkgs {
             let added = colors.green(&format!("+{}", totals.imported));
-            // A package added without a download or reuse event still
-            // counts, so the total never trails the added count.
-            let total = arrived.max(totals.imported);
+            // The packages of the bar: a package added without a download
+            // or reuse event still counts.
+            let total = totals.resolved.max(arrived).max(totals.imported);
             return Some(format!(
                 "Packages: {added} of {}",
                 colors.cyan_bright(&total.to_string()),
@@ -133,33 +136,54 @@ impl ReporterState {
         })
     }
 
-    /// A sign for each package that arrived, `↓` for downloaded and `+`
-    /// for reused from the store, yellow until the package is added, then
-    /// green. Packages are added in parallel, so the green signs scatter
-    /// across the bar in a fixed shuffle instead of filling it from the
-    /// left. The bar ends as the green bar of the stats. Until then at
-    /// least one sign stays yellow, so it never looks finished early.
+    /// A sign for each package of the install, changing color twice: in
+    /// the default color once its download starts, yellow once it arrived
+    /// (`↓` downloaded, `+` reused from the store), and green once it is
+    /// added. Packages move through these in parallel, so both changes
+    /// scatter across the bar in one fixed shuffle instead of filling it
+    /// from the left, and a green sign is always one that was yellow. The
+    /// bar ends as the green bar of the stats. Until then at least one sign
+    /// stays uncolored or yellow, so it never looks finished early.
     fn live_bar(&self, max_width: usize) -> String {
-        let totals = self.downloads.totals();
-        let arrived = totals.fetched + totals.reused;
-        if max_width == 0 || arrived == 0 {
-            return String::new();
-        }
-        let chars = usize::try_from(arrived).map_or(max_width, |arrived| arrived.min(max_width));
-        let added_chars = usize::try_from(totals.imported * chars as u64 / arrived)
-            .map_or(chars, |added| added.min(chars - 1));
-        let mut added = vec![false; chars];
-        for position in shuffled_positions(chars).into_iter().take(added_chars) {
-            added[position] = true;
-        }
-        let downloaded_chars = self.downloads.downloaded_part(chars);
+        let Some(scale) = self.live_bar_scale(max_width) else { return String::new() };
+        let downloaded_chars = self.downloads.downloaded_part(scale.chars);
         let colors = &self.rendering.colors;
-        (0..chars)
-            .map(|position| {
+        sign_stages(scale)
+            .into_iter()
+            .enumerate()
+            .map(|(position, stage)| {
                 let sign = if position < downloaded_chars { "↓" } else { "+" };
-                if added[position] { colors.green(sign) } else { colors.yellow(sign) }
+                match stage {
+                    SignStage::Started => "↓".to_string(),
+                    SignStage::Arrived => colors.yellow(sign),
+                    SignStage::Added => colors.green(sign),
+                }
             })
             .collect()
+    }
+
+    /// The live bar's width and how many of its signs arrived and were
+    /// added. `None` while no package started.
+    fn live_bar_scale(&self, max_width: usize) -> Option<LiveBarScale> {
+        let totals = self.downloads.totals();
+        let arrived = totals.fetched + totals.reused;
+        let packages = totals.resolved.max(arrived).max(totals.imported);
+        if max_width == 0 || packages == 0 {
+            return None;
+        }
+        let chars = usize::try_from(packages).map_or(max_width, |packages| packages.min(max_width));
+        let scaled = |count: u64| {
+            usize::try_from(count * chars as u64 / packages)
+                .map_or(chars, |scaled| scaled.min(chars))
+        };
+        let arrived_chars = scaled(arrived);
+        Some(LiveBarScale {
+            chars,
+            arrived_chars,
+            added_chars: scaled(totals.imported)
+                .min(arrived_chars)
+                .min(chars - 1),
+        })
     }
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
@@ -344,6 +368,40 @@ impl ReporterState {
         }
         out
     }
+}
+
+/// Where a package of the live bar is: its download started, it arrived,
+/// or it was added.
+#[derive(Clone, Copy)]
+enum SignStage {
+    Started,
+    Arrived,
+    Added,
+}
+
+/// How many signs the live bar has, and how many of them arrived and were
+/// added.
+#[derive(Clone, Copy)]
+struct LiveBarScale {
+    chars: usize,
+    arrived_chars: usize,
+    added_chars: usize,
+}
+
+/// The stage of each sign. Both changes follow one fixed shuffle, so an
+/// added sign is always one that arrived.
+fn sign_stages(scale: LiveBarScale) -> Vec<SignStage> {
+    let mut stages = vec![SignStage::Started; scale.chars];
+    for (rank, position) in shuffled_positions(scale.chars).into_iter().enumerate() {
+        stages[position] = if rank < scale.added_chars {
+            SignStage::Added
+        } else if rank < scale.arrived_chars {
+            SignStage::Arrived
+        } else {
+            SignStage::Started
+        };
+    }
+    stages
 }
 
 /// The positions `0..len` in a fixed shuffled order: a position's place
