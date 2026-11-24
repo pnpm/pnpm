@@ -376,5 +376,8 @@ fn transitive_deprecations_wait_for_the_checks_footer() {
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
     };
-    assert_eq!(frame, "\n✗ 2 packages are deprecated: request@2.88.2 and uuid@3.4.0\n");
+    assert_eq!(
+        frame,
+        "\n✗ 2 packages are deprecated: request@2.88.2 and uuid@3.4.0 (see \"pnpm audit deprecations\")\n",
+    );
 }

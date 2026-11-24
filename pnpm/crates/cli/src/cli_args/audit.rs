@@ -176,6 +176,7 @@ mod report;
 mod request;
 mod version_ranges;
 
+mod deprecations;
 mod signatures;
 
 const MAX_PATHS_COUNT: usize = 3;
@@ -205,8 +206,9 @@ pub struct AuditArgs {
     /// Show vulnerabilities and select which ones to fix interactively.
     #[clap(short = 'i', long)]
     pub interactive: bool,
-    /// Audit subcommand. The only supported subcommand is `signatures`,
-    /// which verifies registry signatures for the installed packages.
+    /// Audit subcommand: `signatures`, which verifies registry signatures
+    /// for the installed packages, or `deprecations`, which lists the
+    /// installed packages their registry marks deprecated.
     pub params: Vec<String>,
     #[clap(flatten)]
     pub advisories: AdvisoryFilterArgs,
@@ -395,9 +397,9 @@ impl AuditArgs {
         Ok(audit_outcome(&report, audit_level))
     }
 
-    /// `audit` takes exactly one subcommand, `signatures`.
+    /// `audit` takes at most one subcommand, `signatures` or `deprecations`.
     async fn run_subcommand(&self, subcommand: &str, state: State) -> miette::Result<AuditOutcome> {
-        if subcommand != "signatures" {
+        if subcommand != "signatures" && subcommand != "deprecations" {
             return Err(AuditError::UnknownSubcommand { subcommand: subcommand.to_owned() }.into());
         }
         if self.params.len() > 1 {
@@ -411,7 +413,35 @@ impl AuditArgs {
             }
             .into());
         }
+        if subcommand == "deprecations" {
+            return self.run_deprecations(state).await;
+        }
         self.run_signatures(state).await
+    }
+
+    /// Handle `audit deprecations`: list the installed packages their
+    /// registry marks deprecated. Exit code 1 (via
+    /// [`AuditOutcome::Vulnerable`]) when any is.
+    async fn run_deprecations(&self, state: State) -> miette::Result<AuditOutcome> {
+        let include = self.dependency_options.include(state.config);
+        let lockfile_dir = state.lockfile_dir().to_path_buf();
+        let Some(deprecated) = deprecations::find_deprecated(
+            &state,
+            include,
+            &lockfile_dir,
+            self.ignore_registry_errors,
+        )
+        .await?
+        else {
+            return Ok(AuditOutcome::Clean);
+        };
+        let output = if self.json {
+            serde_json::to_string_pretty(&deprecated).into_diagnostic()?
+        } else {
+            deprecations::render_deprecations(&deprecated)
+        };
+        print_command_output(&output);
+        Ok(if deprecated.is_empty() { AuditOutcome::Clean } else { AuditOutcome::Vulnerable })
     }
 
     /// Fetch the audit report. `None` when the selectors matched no project,

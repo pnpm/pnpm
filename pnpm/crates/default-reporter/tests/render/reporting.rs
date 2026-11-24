@@ -521,7 +521,10 @@ fn deprecation_waits_for_the_end_of_the_command() {
     let Output::Frame(frame) = flush_checks(&mut reporter) else {
         panic!("the footer renders");
     };
-    assert_eq!(frame, "\n✗ 1 package is deprecated: express@0.14.1\n");
+    assert_eq!(
+        frame,
+        "\n✗ 1 package is deprecated: express@0.14.1 (see \"pnpm audit deprecations\")\n",
+    );
 }
 
 #[test]
@@ -533,7 +536,10 @@ fn deprecation_strips_control_characters_from_the_identifier() {
     };
     // The payload stays readable rather than being removed: without the
     // leading ESC the terminal prints it instead of acting on it.
-    assert_eq!(frame, "\n✗ 1 package is deprecated: express[2Kclean@0.14.1\n");
+    assert_eq!(
+        frame,
+        "\n✗ 1 package is deprecated: express[2Kclean@0.14.1 (see \"pnpm audit deprecations\")\n",
+    );
 }
 
 /// The event fires for every command; only the ones in pnpm's

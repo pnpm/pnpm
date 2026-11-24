@@ -42,6 +42,18 @@ A registry signs the integrity of a package's `.tgz`. When the lockfile pins tar
 
 The command exits with code `1` if any package has an invalid signature, or if a registry advertises signing keys but a package was published without a signature. Combine with `--json` to get machine-readable output.
 
+### deprecations
+
+```sh
+pnpm audit deprecations
+```
+
+Lists the installed packages that their registry marks as deprecated, with the message the publisher left. Each package shows the projects that depend on it directly, or a chain of packages that brings it in. When the package has a version that is not deprecated, the newest one is named.
+
+pnpm reads the registry metadata it caches during installation, so after an install most packages need no request. Tarball, git, and directory dependencies are skipped.
+
+The command exits with code `1` if any installed package is deprecated. `--prod`, `--dev`, `--no-optional`, `--json`, `--ignore-registry-errors`, and workspace filters apply to it.
+
 ## Options
 
 ### --audit-level &lt;severity\>

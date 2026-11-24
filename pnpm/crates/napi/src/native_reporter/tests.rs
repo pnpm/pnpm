@@ -238,7 +238,10 @@ fn checks_footer_prints_when_the_renderer_is_dropped() {
 
     drop(renderer);
 
-    assert_eq!(written(&buffer), "\n✗ 1 package is deprecated: express@0.14.1\n\n");
+    assert_eq!(
+        written(&buffer),
+        "\n✗ 1 package is deprecated: express@0.14.1 (see \"pnpm audit deprecations\")\n\n"
+    );
 }
 
 fn supply_chain_passed() -> LogEvent {
