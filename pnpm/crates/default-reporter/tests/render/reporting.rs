@@ -703,3 +703,19 @@ fn stats_of_several_projects_are_summed() {
     events.push(stage_at("/repo/bar", Stage::ImportingDone));
     assert_eq!(render(&mut reporter, events), "Packages: +5 -1\n+++++-");
 }
+
+#[test]
+fn a_project_that_starts_after_the_stats_shows_its_progress() {
+    let mut reporter = state(false);
+    let mut events = vec![progress_at("/repo/foo", "resolved")];
+    events.extend(stats_at("/repo/foo", 2, 0));
+    events.push(stage_at("/repo/foo", Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +2\n++");
+
+    let frame = render(&mut reporter, vec![progress_at("/repo/bar", "resolved")]);
+    assert!(frame.ends_with("Progress: resolved 1, reused 0, downloaded 0, added 0"), "{frame}");
+
+    let mut events = stats_at("/repo/bar", 3, 0);
+    events.push(stage_at("/repo/bar", Stage::ImportingDone));
+    assert_eq!(render(&mut reporter, events), "Packages: +5\n+++++");
+}
