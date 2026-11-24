@@ -180,27 +180,52 @@ export function parseOptions (argv) {
   return { values, rest }
 }
 
-const SELECTION_OPTIONS = ['--filter', '--package', '--profile']
+const EXECUTION_SWITCHES = new Set([
+  '--no-run',
+  '--no-capture',
+  '--nocapture',
+  '--no-fail-fast',
+  '--offline',
+  '--locked',
+  '--frozen',
+  '--verbose',
+  '--quiet',
+])
+
+const EXECUTION_VALUE_OPTIONS = new Set([
+  '--build-jobs',
+  '--color',
+  '--config',
+  '--config-file',
+  '--failure-output',
+  '--final-status-level',
+  '--jobs',
+  '--message-format',
+  '--retries',
+  '--slow-timeout',
+  '--status-level',
+  '--target-dir',
+  '--test-threads',
+])
 
 /**
- * The hand-picked nextest options that apply to every run this script makes.
- * Package, filter, and profile choices belong to one run and are left behind.
+ * The nextest options that apply to every run this script makes. Target,
+ * package, profile, and test selections belong to one run and are left behind.
  */
 export function executionOptions (args) {
   const options = []
   for (let index = 0; index < args.length; index++) {
     const arg = args[index]
     const name = arg.split('=', 1)[0]
-    if (SELECTION_OPTIONS.includes(name)) {
-      if (name === arg) index++
-      continue
+    if (EXECUTION_SWITCHES.has(name)) {
+      options.push(arg)
+    } else if (EXECUTION_VALUE_OPTIONS.has(name)) {
+      options.push(arg)
+      if (name === arg) {
+        if (index + 1 === args.length) throw new Error(`${name} needs a value`)
+        options.push(args[++index])
+      }
     }
-    if (arg === '-E' || arg === '-p') {
-      index++
-      continue
-    }
-    if (/^-[pE].+/.test(arg)) continue
-    options.push(arg)
   }
   return options
 }

@@ -145,6 +145,11 @@ test('forwards execution options without forwarding a run selection', () => {
   assert.deepEqual(executionOptions(['-pfoo', '-Etest(add::)', '--package=bar', '--filter=test(a)', '--profile=smoke', '--no-run']), ['--no-run'])
 })
 
+test('keeps target selectors and test filters out of the extra runs', () => {
+  const args = ['--lib', '--test-threads', '4', '--test', 'suite', 'catalog', '--retries=2', '--no-run']
+  assert.deepEqual(executionOptions(args), ['--test-threads', '4', '--retries=2', '--no-run'])
+})
+
 test('reads --no-smoke', () => {
   assert.equal(parseOptions([]).values.smoke, true)
   assert.equal(parseOptions(['--no-smoke']).values.smoke, false)
