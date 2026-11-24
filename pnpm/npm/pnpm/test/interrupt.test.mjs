@@ -10,20 +10,24 @@ import { URL } from 'node:url'
 
 const unix = { skip: process.platform === 'win32' && 'requires Unix signal delivery' }
 
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  test(`the native binary receives ${signal} sent to the wrapper PID`, {
+for (const [signal, target] of [['SIGINT', 'PID'], ['SIGTERM', 'PID'], ['SIGINT', 'process group']]) {
+  test(`the native binary receives one ${signal} sent to the wrapper ${target}`, {
     skip: unix.skip || process.platform === 'os400' || typeof process.execve !== 'function',
     timeout: 10000,
   }, async t => {
     const directory = writeFixture(t)
     const binary = path.join(directory, 'pnpm-native')
     fs.writeFileSync(binary, `#!${process.execPath}
-process.on('${signal}', () => process.exit(42))
-console.log(process.pid)
+let signals = 0
+process.on('${signal}', () => {
+  if (++signals === 1) setTimeout(() => process.exit(signals === 1 ? 42 : 1), 100)
+})
+console.log(JSON.stringify([process.pid, process.env.WRAPPER_TEST_VALUE]))
 setInterval(() => {}, 1000)
 `)
     const child = spawn(process.execPath, [path.join(directory, 'bin', 'pnpm.mjs')], {
       detached: true,
+      env: { ...process.env, WRAPPER_TEST_VALUE: 'inherited' },
       stdio: ['ignore', 'pipe', 'inherit'],
     })
     t.after(() => {
@@ -36,8 +40,8 @@ setInterval(() => {}, 1000)
     })
     const exited = once(child, 'exit')
     const [ready] = await once(child.stdout, 'data')
-    assert.equal(Number(ready), child.pid)
-    child.kill(signal)
+    assert.deepEqual(JSON.parse(ready), [child.pid, 'inherited'])
+    process.kill(target === 'PID' ? child.pid : -child.pid, signal)
     assert.deepEqual(await exited, [42, null])
   })
 }

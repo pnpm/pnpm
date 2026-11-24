@@ -46,7 +46,7 @@ await run(await nativeBinary())
 
 async function run (binary) {
   const args = process.argv.slice(2)
-  const env = childEnv(binary)
+  const env = childEnv(binary) ?? process.env
   // Keep the caller's PID and foreground group so both PID-directed and
   // terminal signals reach the binary exactly once.
   if (isMainThread && typeof process.execve === 'function' && !['win32', 'os400'].includes(process.platform)) {
