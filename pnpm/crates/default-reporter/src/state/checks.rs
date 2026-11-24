@@ -148,7 +148,11 @@ impl ReporterState {
         {
             return;
         }
-        let footer = self.checks_footer(CommandOutcome::Succeeded, Footer::Live);
+        self.redraw_live_checks();
+    }
+
+    fn redraw_live_checks(&mut self) {
+        let footer = self.checks_footer(CommandOutcome::Succeeded);
         let mut slot = std::mem::take(&mut self.notices.checks.slot);
         match footer {
             Some(footer) => {
@@ -163,7 +167,7 @@ impl ReporterState {
         if self.notices.checks.rendered {
             return;
         }
-        let Some(footer) = self.checks_footer(outcome, Footer::Final) else {
+        let Some(footer) = self.checks_footer(outcome) else {
             self.display.frame.clear(&mut self.notices.checks.slot);
             return;
         };
@@ -175,7 +179,7 @@ impl ReporterState {
         self.notices.checks.slot = slot;
     }
 
-    fn checks_footer(&self, outcome: CommandOutcome, footer: Footer) -> Option<String> {
+    fn checks_footer(&self, outcome: CommandOutcome) -> Option<String> {
         let shows_info = match outcome {
             CommandOutcome::Succeeded => self.options.max_log_level >= MaxLogLevel::Info,
             CommandOutcome::Failed => false,
@@ -194,8 +198,6 @@ impl ReporterState {
                 self.failed_optional_line(),
                 self.outdated_line().filter(|_| shows_info),
                 self.resolution_skipped_line().filter(|_| shows_info),
-                self.running_line()
-                    .filter(|_| footer == Footer::Live),
             ])
             .flatten()
             .collect();
@@ -394,14 +396,6 @@ fn platform_values(values: &[String]) -> String {
         .filter_map(|value| value.strip_prefix('!'))
         .collect();
     format!("other than {}", rejected.join(" or "))
-}
-
-/// Which footer [`ReporterState::checks_footer`] builds: the one pinned
-/// below the progress while the command runs, or the one it ends with.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Footer {
-    Live,
-    Final,
 }
 
 /// Whether the event can change a line of the checks footer.

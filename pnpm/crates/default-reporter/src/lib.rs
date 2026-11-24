@@ -46,6 +46,10 @@ use std::{
         LazyLock,
         Mutex,
         OnceLock,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
     time::{
         Duration,
@@ -245,6 +249,28 @@ impl Reporter for DefaultReporter {
         }
         let output = sink.state.handle(event);
         sink.write(output, is_coalesceable(event));
+        if sink.state.scripts_running() && !SCRIPTS_TICKER.swap(true, Ordering::SeqCst) {
+            std::thread::spawn(tick_scripts);
+        }
+    }
+}
+
+/// Set while the thread that animates the running scripts is alive.
+static SCRIPTS_TICKER: AtomicBool = AtomicBool::new(false);
+
+/// Redraws the spinner of the running scripts until none runs. The flag
+/// is cleared under the sink's lock, so an event that starts a script
+/// either sees the thread alive or starts a new one.
+fn tick_scripts() {
+    loop {
+        std::thread::sleep(Duration::from_millis(100));
+        let mut sink = SINK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !sink.state.scripts_running() {
+            SCRIPTS_TICKER.store(false, Ordering::SeqCst);
+            return;
+        }
+        let output = sink.state.tick_scripts();
+        sink.write(output, false);
     }
 }
 

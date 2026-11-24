@@ -326,9 +326,11 @@ impl ReporterState {
             format!("{} {stage}", format_prefix(&self.rendering.cwd, wd))
         };
         match message {
-            LifecycleMessage::Script { .. } => self.record_script_started(&label),
+            LifecycleMessage::Script { .. } => {
+                self.record_script_started(&label, is_dependency_dir(wd));
+            }
             LifecycleMessage::Exit { exit_code, .. } => {
-                self.record_script_finished(&label);
+                self.record_script_finished(&label, is_dependency_dir(wd));
                 if *exit_code != 0 {
                     return;
                 }

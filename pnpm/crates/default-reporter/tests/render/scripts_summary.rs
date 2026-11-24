@@ -110,9 +110,28 @@ fn the_live_footer_shows_running_and_finished_scripts() {
             lifecycle_line(PROJECT, "preinstall", "fetched the binary"),
         ],
     );
-    assert_eq!(running, "\n· 1 script is running: pnpm/npm/pnpm preinstall");
+    assert_eq!(running, "\n⠋ 1 project script is running: pnpm/npm/pnpm preinstall");
+    let Output::Frame(ticked) = reporter.tick_scripts() else { panic!("the spinner turns") };
+    assert_eq!(ticked, "\n⠙ 1 project script is running: pnpm/npm/pnpm preinstall");
     let done = render(&mut reporter, vec![lifecycle_exit(PROJECT, "preinstall", 0)]);
     assert_eq!(done, "\n✓ 1 project script ran: pnpm/npm/pnpm preinstall");
+}
+
+#[test]
+fn a_spinner_line_counts_finished_and_running_builds() {
+    let mut reporter = summarizing(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            dependency_script("esbuild@0.21.5"),
+            dependency_exit("esbuild@0.21.5", 0, false),
+            dependency_script("sharp@0.33.5"),
+        ],
+    );
+    assert_eq!(frame, "\n⠋ 1 dependency was built, 1 is building: sharp@0.33.5");
+    render(&mut reporter, vec![dependency_exit("sharp@0.33.5", 0, false)]);
+    assert!(!reporter.scripts_running());
+    assert!(matches!(reporter.tick_scripts(), Output::None));
 }
 
 #[test]
