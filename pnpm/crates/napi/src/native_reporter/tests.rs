@@ -240,7 +240,7 @@ fn checks_footer_prints_when_the_renderer_is_dropped() {
 
     assert_eq!(
         written(&buffer),
-        "\n✗ 1 package is deprecated: express@0.14.1 (see \"pnpm audit deprecations\")\n\n"
+        "\n✗ 1 package is deprecated: express@0.14.1 (see \"pnpm audit deprecations\")\n\n",
     );
 }
 
