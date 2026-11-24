@@ -9,18 +9,21 @@
 //! with no trailing period. A command to learn more follows in
 //! `(see "...")`.
 //!
-//! The deprecation and peer checks print nothing when they pass, as they
-//! did before the footer existed.
+//! The deprecation, peer, engine, and platform checks print nothing when
+//! they pass, as they did before the footer existed.
 
 use super::{
+    BTreeMap,
     BTreeSet,
     BlockPlacement,
     BlockSlot,
     DeprecationLog,
+    InstallCheckLog,
     MaxLogLevel,
     Output,
     PeerDependencyIssuesLog,
     ReporterState,
+    UnsupportedPackage,
     Value,
     is_strictly_newer,
 };
@@ -49,6 +52,10 @@ pub(super) struct ChecksState {
     peer_issues: Option<BTreeSet<String>>,
     /// `name@version` of every deprecated package resolution reported.
     deprecated: BTreeSet<String>,
+    /// The packages that reject an engine, by the engine and its current
+    /// version, such as `Node.js 26.13.0`.
+    unsupported_engine: BTreeMap<String, BTreeSet<String>>,
+    unsupported_platform: BTreeSet<String>,
     slot: BlockSlot,
     rendered: bool,
 }
@@ -70,6 +77,36 @@ impl ReporterState {
 
     pub(super) fn on_deprecation(&mut self, log: &DeprecationLog) {
         self.notices.checks.deprecated.insert(pkg_label(log));
+    }
+
+    pub(super) fn on_install_check(&mut self, log: &InstallCheckLog) {
+        // The package comes from the lockfile, which a contributor can edit.
+        let sanitize = |text: &str| pnpm_text_sanitize::sanitize_inline(text).into_owned();
+        let Some(unsupported) = &log.unsupported else {
+            return self.on_pnpm(log.level, &sanitize(&log.message), &log.prefix);
+        };
+        if self.options.max_log_level < MaxLogLevel::Warn {
+            return;
+        }
+        let checks = &mut self.notices.checks;
+        match unsupported {
+            UnsupportedPackage::Platform { pkg_id } => {
+                checks.unsupported_platform.insert(sanitize(pkg_id));
+            }
+            UnsupportedPackage::Engine { pkg_id, wanted, current } => {
+                let engines = [
+                    ("Node.js", &wanted.node, &current.node),
+                    ("pnpm", &wanted.pnpm, &current.pnpm),
+                ];
+                for (engine, _, version) in engines.iter().filter(|(_, range, _)| range.is_some()) {
+                    let version = version.as_deref().unwrap_or_default();
+                    checks.unsupported_engine
+                        .entry(sanitize(&format!("{engine} {version}")))
+                        .or_default()
+                        .insert(sanitize(pkg_id));
+                }
+            }
+        }
     }
 
     /// Print the footer when the command ends, once. A command that ends
@@ -97,16 +134,18 @@ impl ReporterState {
             CommandOutcome::Succeeded => self.options.max_log_level >= MaxLogLevel::Info,
             CommandOutcome::Failed => false,
         };
-        let lines: Vec<String> = [
-            self.passed_line().filter(|_| shows_info),
-            self.deprecated_line(),
-            self.peer_issues_line(),
-            self.outdated_line().filter(|_| shows_info),
-            self.resolution_skipped_line().filter(|_| shows_info),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        let lines: Vec<String> =
+            [self.passed_line().filter(|_| shows_info), self.deprecated_line()]
+                .into_iter()
+                .chain(self.unsupported_engine_lines().map(Some))
+                .chain([
+                    self.unsupported_platform_line(),
+                    self.peer_issues_line(),
+                    self.outdated_line().filter(|_| shows_info),
+                    self.resolution_skipped_line().filter(|_| shows_info),
+                ])
+                .flatten()
+                .collect();
         (!lines.is_empty()).then(|| lines.join("\n"))
     }
 
@@ -128,6 +167,28 @@ impl ReporterState {
                 list_names(deprecated, |label| self.package_label(label)),
             )
         })
+    }
+
+    fn unsupported_engine_lines(&self) -> impl Iterator<Item = String> + '_ {
+        self.notices.checks.unsupported_engine
+            .iter()
+            .map(|(engine, packages)| self.unsupported_line(packages, engine))
+    }
+
+    fn unsupported_platform_line(&self) -> Option<String> {
+        let packages = &self.notices.checks.unsupported_platform;
+        (!packages.is_empty()).then(|| self.unsupported_line(packages, "this platform"))
+    }
+
+    fn unsupported_line(&self, packages: &BTreeSet<String>, host: &str) -> String {
+        let (noun, verb) =
+            if packages.len() == 1 { ("package", "doesn't") } else { ("packages", "don't") };
+        format!(
+            "{} {} {noun} {verb} support {host}: {}",
+            self.rendering.colors.red("✗"),
+            packages.len(),
+            list_names(packages, |label| self.package_label(label)),
+        )
     }
 
     fn peer_issues_line(&self) -> Option<String> {

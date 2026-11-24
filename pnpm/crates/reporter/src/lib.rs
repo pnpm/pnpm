@@ -18,6 +18,8 @@ pub use fatal_error::FatalErrorLog;
 pub use dependencies::{
     AddedRoot,
     DependencyType,
+    EngineVersions,
+    InstallCheckLog,
     PackageManifestLog,
     PackageManifestMessage,
     RemovedRoot,
@@ -27,6 +29,7 @@ pub use dependencies::{
     SkippedOptionalPackage,
     SkippedOptionalParent,
     SkippedOptionalReason,
+    UnsupportedPackage,
 };
 pub use progress::{
     ContextLog,
@@ -178,7 +181,7 @@ pub enum LogEvent {
 
     /// Package compatibility warning (`pnpm:install-check`).
     #[serde(rename = "pnpm:install-check")]
-    InstallCheck(PnpmLog),
+    InstallCheck(InstallCheckLog),
 
     /// Bracketing events for the configurational-dependency install
     /// (`pnpm:installing-config-deps`): a `started` before any

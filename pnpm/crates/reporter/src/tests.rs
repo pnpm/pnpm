@@ -11,6 +11,7 @@ use crate::{
     DedupeCheckLog,
     DependencyType,
     DeprecationLog,
+    EngineVersions,
     Envelope,
     FetchingProgressLog,
     FetchingProgressMessage,
@@ -19,6 +20,7 @@ use crate::{
     HookLog,
     Host,
     IgnoredScriptsLog,
+    InstallCheckLog,
     LifecycleLog,
     LifecycleMessage,
     LifecycleStdio,
@@ -54,6 +56,7 @@ use crate::{
     StatsLog,
     StatsMessage,
     SummaryLog,
+    UnsupportedPackage,
     UnusedOverrideLog,
 };
 
