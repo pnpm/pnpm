@@ -121,6 +121,12 @@ fn matching_decisions<'a>(
         .chain(repository)
 }
 
+#[derive(Clone, Copy)]
+enum Verdict {
+    Grant,
+    Deny,
+}
+
 /// Decide pending requests and allow explicit denials to revoke recorded grants.
 pub(super) fn named_approval<Reporter: self::Reporter>(
     params: &[String],
@@ -131,18 +137,19 @@ pub(super) fn named_approval<Reporter: self::Reporter>(
     let pending_names: Vec<String> = requests.keys().cloned().collect();
     let mut partition = partition_params(params, &pending_names);
     partition.reject_contradictions()?;
-    let decisions: Decisions = [(&partition.approved, true), (&partition.denied, false)]
-        .into_iter()
-        .flat_map(|(names, value)| {
-            names
-                .iter()
-                .map(move |name| (name, value))
-        })
-        .filter_map(|(name, value)| {
-            named_verdict(config, name, requests.get(name), value)
-                .map(|decision| (name.clone(), decision))
-        })
-        .collect();
+    let decisions: Decisions =
+        [(&partition.approved, Verdict::Grant), (&partition.denied, Verdict::Deny)]
+            .into_iter()
+            .flat_map(|(names, verdict)| {
+                names
+                    .iter()
+                    .map(move |name| (name, verdict))
+            })
+            .filter_map(|(name, verdict)| {
+                decision_for_selector(config, name, requests.get(name), verdict)
+                    .map(|decision| (name.clone(), decision))
+            })
+            .collect();
     partition.unknown.retain(|name| !decisions.contains_key(name));
     if !partition.unknown.is_empty() {
         validate_git_selectors(&partition.unknown, pending)?;
@@ -156,26 +163,32 @@ pub(super) fn named_approval<Reporter: self::Reporter>(
 
 /// A name can grant only what is pending. A denial can also revoke a grant
 /// recorded under that exact selector.
-fn named_verdict(
+fn decision_for_selector(
     config: &Config,
     name: &str,
     capabilities: Option<&Capabilities>,
-    value: bool,
+    verdict: Verdict,
 ) -> Option<PackageDecisions> {
     let requested =
         |capability| capabilities.is_some_and(|requests| requests.contains(&capability));
-    let build = requested(PermissionCapability::Build)
-        || (!value
-            && config.allow_builds
-                .get(name)
-                .copied()
-                .unwrap_or(false));
-    let skills = requested(PermissionCapability::Skills)
-        || (!value && config.allow_skills.get(name).is_some_and(SkillsPermission::links_any));
-    (build || skills).then_some(PackageDecisions {
-        build: build.then_some(value),
-        skills: skills.then_some(SkillsPermission::All(value)),
-    })
+    let decision = match verdict {
+        Verdict::Grant => PackageDecisions {
+            build: requested(PermissionCapability::Build).then_some(true),
+            skills: requested(PermissionCapability::Skills).then_some(SkillsPermission::All(true)),
+        },
+        Verdict::Deny => PackageDecisions {
+            build: (requested(PermissionCapability::Build)
+                || config.allow_builds
+                    .get(name)
+                    .copied()
+                    .unwrap_or(false))
+            .then_some(false),
+            skills: (requested(PermissionCapability::Skills)
+                || config.allow_skills.get(name).is_some_and(SkillsPermission::links_any))
+            .then_some(SkillsPermission::All(false)),
+        },
+    };
+    (decision.build.is_some() || decision.skills.is_some()).then_some(decision)
 }
 
 fn validate_git_selectors(
