@@ -138,6 +138,7 @@ impl CliArgs {
                 stream_output: self.output.lifecycle.stream,
                 aggregate_output: self.output.lifecycle.aggregate_output,
                 hide_prefix: self.output.lifecycle.hide_prefix,
+                summarize_scripts: self.command.summarizes_scripts(),
             },
         });
         configure_max_log_level(self.output.presentation.loglevel);

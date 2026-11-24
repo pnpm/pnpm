@@ -310,6 +310,13 @@ impl ReporterState {
     /// and empty (a direct optional dependency); transitive and
     /// parent-less skips stay debug-only.
     pub(super) fn on_skipped_optional(&mut self, log: &SkippedOptionalDependencyLog) {
+        if log.reason == SkippedOptionalReason::BuildFailure
+            && self.options.lifecycle.summarize_scripts
+            && let SkippedOptionalPackage::Installed { name, version, .. } = &log.package
+        {
+            self.record_failed_optional_build(name, version);
+            return;
+        }
         if log.reason == SkippedOptionalReason::FetchFailure {
             self.on_skipped_optional_fetch_failure(log);
             return;

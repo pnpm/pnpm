@@ -480,6 +480,7 @@ impl CliArgs {
                 stream_output: cfg.stream,
                 aggregate_output: cfg.aggregate_output,
                 hide_prefix: cfg.reporter_hide_prefix.unwrap_or(false),
+                summarize_scripts: self.command.summarizes_scripts(),
             },
         });
     }

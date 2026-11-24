@@ -47,6 +47,10 @@ pub struct LifecycleOptions {
     /// `hideLifecyclePrefix`, the `$ <script>` and `Done` / `Failed`
     /// lines keep theirs.
     pub hide_prefix: bool,
+    /// Erase the output of a script that succeeded and list the scripts
+    /// in the checks footer instead. Set by the commands that install
+    /// dependencies, not by `pnpm run`, whose script output is the point.
+    pub summarize_scripts: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -88,6 +92,7 @@ impl Default for ReporterOptions {
                 stream_output: false,
                 aggregate_output: false,
                 hide_prefix: false,
+                summarize_scripts: false,
             },
             progress: crate::state::ProgressOptions { hide_added_pkgs: false, hide_prefix: false },
             scope: crate::state::ScopeOptions {

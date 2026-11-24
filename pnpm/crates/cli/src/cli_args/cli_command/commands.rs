@@ -546,6 +546,28 @@ impl CliCommand {
     }
 
     /// See [`pnpm_default_reporter::set_edits_manifests`].
+    /// Whether the command installs dependencies, so its lifecycle scripts
+    /// are summarized in the checks footer.
+    pub(crate) fn summarizes_scripts(&self) -> bool {
+        matches!(
+            self,
+            CliCommand::Install(_)
+                | CliCommand::Add(_)
+                | CliCommand::Update(_)
+                | CliCommand::Remove(_)
+                | CliCommand::Rebuild(_)
+                | CliCommand::Rb(_)
+                | CliCommand::Link(_)
+                | CliCommand::Unlink(_)
+                | CliCommand::Prune(_)
+                | CliCommand::Dedupe(_)
+                | CliCommand::Import(_)
+                | CliCommand::Fetch(_)
+                | CliCommand::Ci(_)
+                | CliCommand::Deploy(_),
+        )
+    }
+
     pub(crate) fn edits_manifests(&self) -> bool {
         matches!(self, CliCommand::Add(_) | CliCommand::Remove(_) | CliCommand::Update(_))
     }

@@ -216,3 +216,25 @@ fn unused_override_event_matches_pnpm_wire_shape() {
     assert_eq!(json["prefix"], "/projects/x");
     assert_eq!(json["selector"], "foo>bar");
 }
+
+#[test]
+fn side_effects_cache_hit_names_the_package() {
+    let event = LogEvent::SideEffectsCacheHit(super::SideEffectsCacheHitLog {
+        level: LogLevel::Debug,
+        prefix: "/projects/x".to_string(),
+        dep_path: "esbuild@0.21.5".to_string(),
+        pkg_name: "esbuild".to_string(),
+        pkg_version: "0.21.5".to_string(),
+    });
+    assert_eq!(
+        serde_json::to_value(&event).unwrap(),
+        serde_json::json!({
+            "name": "pnpm:side-effects-cache-hit",
+            "level": "debug",
+            "prefix": "/projects/x",
+            "depPath": "esbuild@0.21.5",
+            "pkgName": "esbuild",
+            "pkgVersion": "0.21.5",
+        }),
+    );
+}

@@ -1,6 +1,8 @@
 //! The checks footer an install ends with, above `Done in ...`:
 //!
 //! - a `✓` line when the lockfile passed the supply-chain policies,
+//! - `✓` lines for the lifecycle scripts an install ran or restored from
+//!   the side-effects cache,
 //! - one `✗` line per problem,
 //! - `·` lines for what the user may act on: the dependencies with newer
 //!   versions, and a skipped resolution.
@@ -23,6 +25,7 @@ use super::{
     Output,
     PeerDependencyIssuesLog,
     ReporterState,
+    SideEffectsCacheHitLog,
     UnsupportedPackage,
     Value,
     WantedPlatform,
@@ -54,14 +57,37 @@ pub(super) struct ChecksState {
     peer_issues: Option<BTreeSet<String>>,
     /// `name@version` of every deprecated package resolution reported.
     deprecated: BTreeSet<String>,
-    /// The packages that reject an engine, by the engine and its current
-    /// version, then by the range they declare.
-    unsupported_engine: BTreeMap<(&'static str, String), BTreeMap<String, BTreeSet<String>>>,
-    /// The packages that reject the platform, by what they want, such as
-    /// `os darwin`.
-    unsupported_platform: BTreeMap<String, BTreeSet<String>>,
+    unsupported: UnsupportedPackages,
+    scripts: ScriptsRun,
     slot: BlockSlot,
     rendered: bool,
+}
+
+/// The packages that do not support the host.
+#[derive(Default)]
+struct UnsupportedPackages {
+    /// The packages that reject an engine, by the engine and its current
+    /// version, then by the range they declare.
+    engine: BTreeMap<(&'static str, String), BTreeMap<String, BTreeSet<String>>>,
+    /// The packages that reject the platform, by what they want, such as
+    /// `os darwin`.
+    platform: BTreeMap<String, BTreeSet<String>>,
+}
+
+/// The lifecycle scripts a command summarizes, see
+/// [`LifecycleOptions::summarize_scripts`](crate::state::LifecycleOptions::summarize_scripts).
+#[derive(Default)]
+struct ScriptsRun {
+    /// `<project> <stage>` of every project script that succeeded.
+    projects: BTreeSet<String>,
+    /// `name@version` of every dependency whose scripts succeeded.
+    built: BTreeSet<String>,
+    /// `name@version` of every dependency whose build output came from
+    /// the side-effects cache.
+    cached: BTreeSet<String>,
+    /// `name@version` of every optional dependency skipped because its
+    /// build failed.
+    failed_optional: BTreeSet<String>,
 }
 
 impl ReporterState {
@@ -95,7 +121,7 @@ impl ReporterState {
         let checks = &mut self.notices.checks;
         match unsupported {
             UnsupportedPackage::Platform { pkg_id, wanted } => {
-                checks.unsupported_platform
+                checks.unsupported.platform
                     .entry(sanitize(&platform_requirement(wanted)))
                     .or_default()
                     .insert(sanitize(pkg_id));
@@ -107,7 +133,7 @@ impl ReporterState {
                 ];
                 for (engine, range, version) in engines {
                     let Some(range) = range else { continue };
-                    checks.unsupported_engine
+                    checks.unsupported.engine
                         .entry((engine, sanitize(version.as_deref().unwrap_or_default())))
                         .or_default()
                         .entry(sanitize(range))
@@ -115,6 +141,28 @@ impl ReporterState {
                         .insert(sanitize(pkg_id));
                 }
             }
+        }
+    }
+
+    pub(super) fn record_project_script(&mut self, label: &str) {
+        self.notices.checks.scripts.projects.insert(sanitize(label));
+    }
+
+    /// `dep_path` is the lockfile key, so its peer and patch suffixes are
+    /// dropped.
+    pub(super) fn record_dependency_built(&mut self, dep_path: &str) {
+        let label = dep_path.split_once('(').map_or(dep_path, |(label, _)| label);
+        self.notices.checks.scripts.built.insert(sanitize(label));
+    }
+
+    pub(super) fn record_failed_optional_build(&mut self, name: &str, version: &str) {
+        self.notices.checks.scripts.failed_optional.insert(sanitize(&format!("{name}@{version}")));
+    }
+
+    pub(super) fn on_side_effects_cache_hit(&mut self, log: &SideEffectsCacheHitLog) {
+        if self.options.lifecycle.summarize_scripts {
+            let label = sanitize(&format!("{}@{}", log.pkg_name, log.pkg_version));
+            self.notices.checks.scripts.cached.insert(label);
         }
     }
 
@@ -143,17 +191,23 @@ impl ReporterState {
             CommandOutcome::Succeeded => self.options.max_log_level >= MaxLogLevel::Info,
             CommandOutcome::Failed => false,
         };
-        let lines: Vec<String> =
-            [self.passed_line().filter(|_| shows_info), self.deprecated_line()]
-                .into_iter()
-                .chain(self.unsupported_lines().map(Some))
-                .chain([
-                    self.peer_issues_line(),
-                    self.outdated_line().filter(|_| shows_info),
-                    self.resolution_skipped_line().filter(|_| shows_info),
-                ])
-                .flatten()
-                .collect();
+        let scripts = self
+            .scripts_lines()
+            .into_iter()
+            .filter(|_| shows_info)
+            .map(Some);
+        let lines: Vec<String> = std::iter::once(self.passed_line().filter(|_| shows_info))
+            .chain(scripts)
+            .chain([self.deprecated_line()])
+            .chain(self.unsupported_lines().map(Some))
+            .chain([
+                self.peer_issues_line(),
+                self.failed_optional_line(),
+                self.outdated_line().filter(|_| shows_info),
+                self.resolution_skipped_line().filter(|_| shows_info),
+            ])
+            .flatten()
+            .collect();
         (!lines.is_empty()).then(|| lines.join("\n"))
     }
 
@@ -179,7 +233,7 @@ impl ReporterState {
 
     fn unsupported_lines(&self) -> impl Iterator<Item = String> + '_ {
         let checks = &self.notices.checks;
-        let engines = checks.unsupported_engine
+        let engines = checks.unsupported.engine
             .iter()
             .flat_map(|((engine, current), by_range)| {
                 merge_ranges(by_range, current)
@@ -188,7 +242,7 @@ impl ReporterState {
                         (format!("{engine} {range}, not {current}"), packages)
                     })
             });
-        let platforms = checks.unsupported_platform
+        let platforms = checks.unsupported.platform
             .iter()
             .map(|(requirement, packages)| (requirement.clone(), packages.clone()));
         engines
@@ -205,6 +259,60 @@ impl ReporterState {
             packages.len(),
             list_names(packages, |label| self.package_label(label)),
         )
+    }
+
+    fn scripts_lines(&self) -> Vec<String> {
+        let scripts = &self.notices.checks.scripts;
+        let tick = self.rendering.colors.green("✓");
+        let mut lines = Vec::new();
+        if !scripts.projects.is_empty() {
+            let (noun, verb) = count_words(
+                &scripts.projects,
+                ("project script", "ran"),
+                ("project scripts", "ran"),
+            );
+            lines.push(format!(
+                "{tick} {} {noun} {verb}: {}",
+                scripts.projects.len(),
+                list_names(&scripts.projects, str::to_string),
+            ));
+        }
+        for (packages, one, many) in [
+            (&scripts.built, ("dependency", "was built"), ("dependencies", "were built")),
+            (
+                &scripts.cached,
+                ("dependency build", "came from the side-effects cache"),
+                ("dependency builds", "came from the side-effects cache"),
+            ),
+        ] {
+            if packages.is_empty() {
+                continue;
+            }
+            let (noun, verb) = count_words(packages, one, many);
+            lines.push(format!(
+                "{tick} {} {noun} {verb}: {}",
+                packages.len(),
+                list_names(packages, |label| self.package_label(label)),
+            ));
+        }
+        lines
+    }
+
+    fn failed_optional_line(&self) -> Option<String> {
+        let failed = &self.notices.checks.scripts.failed_optional;
+        let (noun, verb) = count_words(
+            failed,
+            ("optional dependency", "failed to build and was skipped"),
+            ("optional dependencies", "failed to build and were skipped"),
+        );
+        (!failed.is_empty()).then(|| {
+            format!(
+                "{} {} {noun} {verb}: {}",
+                self.rendering.colors.red("✗"),
+                failed.len(),
+                list_names(failed, |label| self.package_label(label)),
+            )
+        })
     }
 
     fn peer_issues_line(&self) -> Option<String> {
@@ -349,6 +457,22 @@ fn platform_values(values: &[String]) -> String {
         .filter_map(|value| value.strip_prefix('!'))
         .collect();
     format!("other than {}", rejected.join(" or "))
+}
+
+/// The noun and verb for the size of `items`: `one` for a single item,
+/// `many` otherwise.
+fn count_words<'a>(
+    items: &BTreeSet<String>,
+    one: (&'a str, &'a str),
+    many: (&'a str, &'a str),
+) -> (&'a str, &'a str) {
+    if items.len() == 1 { one } else { many }
+}
+
+/// Text from a manifest or the lockfile, on one line and without control
+/// characters.
+fn sanitize(text: &str) -> String {
+    pnpm_text_sanitize::sanitize_inline(text).into_owned()
 }
 
 /// At most [`MAX_LISTED`] names, each through `paint`, then a count of

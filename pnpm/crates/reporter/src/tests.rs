@@ -46,6 +46,7 @@ use crate::{
     RequestRetryLog,
     RootLog,
     RootMessage,
+    SideEffectsCacheHitLog,
     SilentReporter,
     SkippedOptionalDependencyLog,
     SkippedOptionalPackage,

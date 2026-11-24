@@ -25,6 +25,9 @@ impl ReporterState {
 
     pub(super) fn on_lifecycle(&mut self, message: &LifecycleMessage) {
         self.render_approvals_before_failure(message);
+        if self.options.lifecycle.summarize_scripts {
+            self.record_script_exit(message);
+        }
         let quiet = self.options.max_log_level < crate::MaxLogLevel::Info;
         if quiet
             || ((self.options.append_only || self.options.lifecycle.stream_output)
@@ -35,9 +38,15 @@ impl ReporterState {
             self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
             return;
         }
+        self.render_in_place(message);
+    }
+
+    /// Renders a script as a block that later events of the same script
+    /// redraw.
+    fn render_in_place(&mut self, message: &LifecycleMessage) {
         let (stage, dep_path, wd) = lifecycle_ids(message);
         let key = format!("{stage}:{dep_path}");
-        let collapsed = contains_path(wd, "/node_modules/") || contains_path(wd, "tmp/_tmp_");
+        let collapsed = is_dependency_dir(wd);
         let running = self.rendering.format_indented_status(
             &self.rendering.colors.magenta_bright("Running..."),
         );
@@ -53,6 +62,9 @@ impl ReporterState {
                 start: Some(now),
             });
         let exit = matches!(message, LifecycleMessage::Exit { .. });
+        if self.erase_summarized(&key, message) {
+            return;
+        }
         let msg = if self.scripts.entries[&key].collapsed {
             self.render_collapsed(&key, message, dep_path, wd)
         } else {
@@ -64,6 +76,19 @@ impl ReporterState {
         let mut slot = self.scripts.slots.remove(&key).unwrap_or_default();
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.scripts.slots.insert(key, slot);
+    }
+
+    /// Erases the in-place block of a script the checks footer lists,
+    /// returning whether it did.
+    fn erase_summarized(&mut self, key: &str, message: &LifecycleMessage) -> bool {
+        if !self.options.lifecycle.summarize_scripts || !is_summarized_exit(message) {
+            return false;
+        }
+        self.scripts.entries.remove(key);
+        if let Some(mut slot) = self.scripts.slots.remove(key) {
+            self.display.frame.clear(&mut slot);
+        }
+        true
     }
 
     fn render_approvals_before_failure(&mut self, message: &LifecycleMessage) {
@@ -192,6 +217,9 @@ impl ReporterState {
         let aggregate_output = self.options.lifecycle.aggregate_output
             || self.options.max_log_level < crate::MaxLogLevel::Info;
         if !aggregate_output {
+            if self.options.lifecycle.summarize_scripts {
+                return self.stream_summarized(message);
+            }
             return Some(self.stream_lifecycle(message));
         }
         let (stage, dep_path, wd) = lifecycle_ids(message);
@@ -217,15 +245,16 @@ impl ReporterState {
     ) -> Option<String> {
         let buffered = self.scripts.buffers.remove(key).unwrap_or_default();
         let LifecycleMessage::Exit { exit_code, optional, .. } = message else { unreachable!() };
-        if (*exit_code == 0 && self.options.max_log_level < crate::MaxLogLevel::Info)
-            || (*optional && self.options.max_log_level == crate::MaxLogLevel::Error)
-        {
+        if self.options.lifecycle.summarize_scripts && *exit_code == 0 {
+            return self.summarized_success_block(&buffered);
+        }
+        if self.withholds_aggregated_exit(*exit_code, *optional) {
             return None;
         }
-        let mut lines = Vec::new();
-        for buffered in buffered {
-            lines.push(self.stream_lifecycle(&buffered));
-        }
+        let mut lines: Vec<String> = buffered
+            .iter()
+            .map(|buffered| self.stream_lifecycle(buffered))
+            .collect();
         let exit_line = self.stream_lifecycle(message);
         if *optional && self.options.max_log_level < crate::MaxLogLevel::Info {
             lines.push(format!("{exit_line} (skipped as optional)"));
@@ -233,6 +262,71 @@ impl ReporterState {
             lines.push(exit_line);
         }
         Some(lines.join("\n"))
+    }
+
+    /// Whether an aggregated script prints nothing at the configured log
+    /// level: a success below `info`, or an optional failure at `error`.
+    fn withholds_aggregated_exit(&self, exit_code: i32, optional: bool) -> bool {
+        let level = self.options.max_log_level;
+        (exit_code == 0 && level < crate::MaxLogLevel::Info)
+            || (optional && level == crate::MaxLogLevel::Error)
+    }
+
+    /// The aggregated block of a summarized script that succeeded: its
+    /// output without the exit line, or nothing when it printed none.
+    fn summarized_success_block(&mut self, buffered: &[LifecycleMessage]) -> Option<String> {
+        let printed = buffered
+            .iter()
+            .any(|event| matches!(event, LifecycleMessage::Stdio { .. }));
+        if !printed || self.options.max_log_level < crate::MaxLogLevel::Info {
+            return None;
+        }
+        let lines: Vec<String> = buffered
+            .iter()
+            .map(|buffered| self.stream_lifecycle(buffered))
+            .collect();
+        Some(lines.join("\n"))
+    }
+
+    /// The streamed rendering of a summarized script: its output as it
+    /// arrives, with the `$ <script>` line held back until the first output
+    /// line or a failure. A success prints no exit line, since the checks
+    /// footer lists it.
+    fn stream_summarized(&mut self, message: &LifecycleMessage) -> Option<String> {
+        let (stage, dep_path, wd) = lifecycle_ids(message);
+        let key = format!("{stage}\0{dep_path}\0{wd}");
+        if matches!(message, LifecycleMessage::Script { .. }) {
+            self.scripts.headers.insert(key, message.clone());
+            return None;
+        }
+        let header = self.scripts.headers.remove(&key);
+        if matches!(message, LifecycleMessage::Exit { exit_code: 0, .. }) {
+            return None;
+        }
+        let mut lines: Vec<String> = header
+            .iter()
+            .map(|header| self.stream_lifecycle(header))
+            .collect();
+        lines.push(self.stream_lifecycle(message));
+        Some(lines.join("\n"))
+    }
+
+    /// Records a finished script for the checks footer: a project script
+    /// or a dependency build that succeeded. A failed optional build is
+    /// recorded from its `pnpm:skipped-optional-dependency` event.
+    fn record_script_exit(&mut self, message: &LifecycleMessage) {
+        let LifecycleMessage::Exit {
+            exit_code: 0, dep_path, stage, wd, ..
+        } = message
+        else {
+            return;
+        };
+        if is_dependency_dir(wd) {
+            self.record_dependency_built(dep_path);
+        } else {
+            let project = format_prefix(&self.rendering.cwd, wd);
+            self.record_project_script(&format!("{project} {stage}"));
+        }
     }
 
     pub(super) fn stream_lifecycle(&mut self, message: &LifecycleMessage) -> String {
@@ -303,4 +397,16 @@ impl LifecycleState {
         let painted = COLOR_WHEEL[idx](&rendering.colors, &format_prefix(&rendering.cwd, wd));
         format!("{painted} {}", rendering.colors.cyan_bright(stage))
     }
+}
+
+/// Whether a script runs in a dependency's directory, not in a project's.
+fn is_dependency_dir(wd: &str) -> bool {
+    contains_path(wd, "/node_modules/") || contains_path(wd, "tmp/_tmp_")
+}
+
+/// Whether the exit is one the checks footer reports in place of the
+/// script's in-place block: a success, or the failure of an optional
+/// dependency, whose block holds no output.
+fn is_summarized_exit(message: &LifecycleMessage) -> bool {
+    matches!(message, LifecycleMessage::Exit { exit_code, optional, .. } if *exit_code == 0 || *optional)
 }

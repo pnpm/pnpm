@@ -25,9 +25,17 @@ pub use colors::{
     colors_enabled,
     set_color_mode,
 };
+pub use lifecycle_settings::{
+    aggregate_output,
+    hide_lifecycle_prefix,
+    stream_lifecycle_output,
+    summarize_scripts,
+};
 pub use progress::set_progress;
 
 mod progress;
+
+mod lifecycle_settings;
 
 use std::{
     io::{
@@ -69,9 +77,6 @@ static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
 static SUMMARY_SCOPE: OnceLock<SummaryScope> = OnceLock::new();
 static REPORTS_SCOPE: OnceLock<bool> = OnceLock::new();
 static HIDE_ADDED_PKGS_PROGRESS: OnceLock<bool> = OnceLock::new();
-static STREAM_LIFECYCLE_OUTPUT: OnceLock<bool> = OnceLock::new();
-static AGGREGATE_OUTPUT: OnceLock<bool> = OnceLock::new();
-static HIDE_LIFECYCLE_PREFIX: OnceLock<bool> = OnceLock::new();
 static IS_GLOBAL: OnceLock<bool> = OnceLock::new();
 static EDITS_MANIFESTS: OnceLock<bool> = OnceLock::new();
 static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
@@ -169,26 +174,6 @@ pub fn set_reports_scope(reports_scope: bool) {
 /// configured value is retained.
 pub fn set_hide_added_pkgs_progress(hide_added_pkgs_progress: bool) {
     let _ = HIDE_ADDED_PKGS_PROGRESS.set(hide_added_pkgs_progress);
-}
-
-/// Stream lifecycle script output line by line instead of collecting it
-/// into a collapsible block, pnpm's `--stream`. Call once before the
-/// first event.
-pub fn stream_lifecycle_output() {
-    let _ = STREAM_LIFECYCLE_OUTPUT.set(true);
-}
-
-/// Hold each script's streamed output until it exits, then print the run
-/// as one block, pnpm's `--aggregate-output`. Call once before the first
-/// event.
-pub fn aggregate_output() {
-    let _ = AGGREGATE_OUTPUT.set(true);
-}
-
-/// Drop the project prefix from streamed script output lines, pnpm's
-/// `--reporter-hide-prefix`. Call once before the first event.
-pub fn hide_lifecycle_prefix() {
-    let _ = HIDE_LIFECYCLE_PREFIX.set(true);
 }
 
 /// Configure whether the running command operates recursively.
@@ -535,12 +520,7 @@ fn reporter_options(append_only: bool) -> state::ReporterOptions {
     state::ReporterOptions {
         append_only,
         max_log_level: max_log_level(),
-        lifecycle: crate::state::LifecycleOptions {
-            stream_output: STREAM_LIFECYCLE_OUTPUT.get().is_some_and(|value| *value),
-            aggregate_output: AGGREGATE_OUTPUT.get().is_some_and(|value| *value),
-            hide_prefix: HIDE_LIFECYCLE_PREFIX.get().is_some_and(|value| *value),
-            ..Default::default()
-        },
+        lifecycle: lifecycle_settings::lifecycle_options(),
         progress: crate::state::ProgressOptions {
             hide_added_pkgs: HIDE_ADDED_PKGS_PROGRESS.get().is_some_and(|value| *value),
             ..Default::default()
