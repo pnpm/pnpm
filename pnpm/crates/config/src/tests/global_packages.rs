@@ -240,6 +240,10 @@ fn a_global_packages_load_ignores_workspace_env_vars_and_parent_workspaces() {
         ),
     ]);
 
+    let project = Config::default().current::<FakeEnv>(&nested_home).expect("load project config");
+    assert_eq!(project.workspace_dir.as_deref(), Some(env_workspace.path()));
+    assert_eq!(project.registry, "http://127.0.0.1:1/");
+
     let config = global_packages_load().current::<FakeEnv>(&nested_home).expect("load config");
 
     assert_eq!(config.workspace_dir, None);
