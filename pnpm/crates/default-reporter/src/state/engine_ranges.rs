@@ -65,11 +65,9 @@ pub(super) fn merge_ranges(
 }
 
 impl Group {
-    /// The compact form of the range when it still rejects `current`. Both
-    /// [`shorten`] and [`Range`] print an upper bound such as `<26` as
-    /// `<26.0.0`, which accepts the prerelease `26.0.0-rc.1` that the
-    /// declared range rejects. Such a range prints its upper bounds with
-    /// `-0`.
+    /// The compact form of the range when it still rejects `current`, or
+    /// else with `-0` upper bounds, which [`Range`] drops from a declared
+    /// bound such as `<26`.
     fn into_line(self, current: Option<&Version>) -> (String, BTreeSet<String>) {
         let rejects_current = |range: &String| {
             current.is_none_or(|current| !IncludePrereleaseRange::parse(range).satisfies(current))
