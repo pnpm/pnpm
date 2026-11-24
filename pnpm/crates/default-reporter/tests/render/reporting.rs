@@ -55,7 +55,7 @@ fn progress_line_counts_each_status() {
             progress("imported"),
         ],
     );
-    assert_eq!(frame, "Packages: +1 of 3\n↓++");
+    assert_eq!(frame, "Packages: +1 of 2\n++");
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn prints_progress_beginning() {
     let mut reporter = state(false);
     let frame =
         render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
-    assert_eq!(frame, "Packages: 1 resolved\n↓");
+    assert_eq!(frame, "Packages: 1 resolved");
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn prints_progress_beginning_during_recursive_install() {
             progress_at(second_requester, "resolved"),
         ],
     );
-    assert_eq!(frame, "Packages: 2 resolved\n↓↓");
+    assert_eq!(frame, "Packages: 2 resolved");
 }
 
 #[test]
@@ -213,7 +213,7 @@ fn stats_wait_for_importing_to_finish() {
             }),
         ],
     );
-    assert_eq!(frame, "Packages: 1 resolved\n↓");
+    assert_eq!(frame, "Packages: 1 resolved");
     let frame = render(&mut reporter, vec![stage_at(CWD, Stage::ImportingDone)]);
     assert_eq!(frame, "Packages: +1\n+");
 }
