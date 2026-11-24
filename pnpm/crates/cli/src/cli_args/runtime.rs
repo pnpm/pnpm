@@ -1,3 +1,7 @@
+use self::remove::{
+    ensure_project_runtime_matches,
+    run_remove,
+};
 use crate::{
     State,
     cli_args::{
@@ -6,6 +10,7 @@ use crate::{
             add_package,
         },
         global::handle_global_add,
+        remove::RemoveArgs,
     },
 };
 use clap::Args;
@@ -46,8 +51,8 @@ pub struct RuntimeArgs {
     #[clap(short = 'P', long = "save-prod")]
     pub save_prod: bool,
 
-    /// Subcommand and its arguments: `set <name> [<version>]`, where `<name>`
-    /// is `node`, `deno`, or `bun`.
+    /// Subcommand and its arguments: `set <name> [<version>]` or
+    /// `remove <name> [<version>]`, where `<name>` is `node`, `deno`, or `bun`.
     pub params: Vec<String>,
 }
 
@@ -84,6 +89,22 @@ pub enum RuntimeError {
         #[error(not(source))]
         version: String,
     },
+
+    #[display("Unexpected argument: {argument}")]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_UNEXPECTED_ARGUMENT))]
+    UnexpectedArgument {
+        #[error(not(source))]
+        argument: String,
+    },
+
+    #[display(r#"Cannot remove "{name}" version {version}: no matching runtime is declared in the project"#)]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_NOT_DECLARED))]
+    RuntimeNotDeclared {
+        #[error(not(source))]
+        name: String,
+        #[error(not(source))]
+        version: String,
+    },
 }
 
 #[derive(Debug)]
@@ -93,12 +114,51 @@ struct RuntimeSetRequest {
     dependency_group: DependencyGroup,
 }
 
+#[derive(Debug)]
+struct RuntimeRemoveRequest {
+    runtime_name: String,
+    version_spec: Option<String>,
+    dependency_group: DependencyGroup,
+}
+
+#[derive(Debug)]
+enum RuntimeCommand {
+    Set(RuntimeSetRequest),
+    Remove(RuntimeRemoveRequest),
+}
+
 impl RuntimeArgs {
-    /// Execute the subcommand, installing the runtime into the current
-    /// project. Mirrors pnpm's `runtime set`, which runs
-    /// `pnpm add <name>@runtime:<version>` in the project directory.
+    /// Execute the subcommand in the current project.
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let request = self.set_request()?;
+        match self.command()? {
+            RuntimeCommand::Set(request) => Self::run_set::<Reporter>(state, request).await,
+            RuntimeCommand::Remove(request) => {
+                ensure_project_runtime_matches(&state, &request)?;
+                RemoveArgs::for_runtime(request.runtime_name, request.dependency_group)
+                    .run::<Reporter>(state)
+                    .await
+            }
+        }
+    }
+
+    /// Execute the subcommand against the global packages directory.
+    pub async fn run_global<Reporter: self::Reporter + 'static>(
+        self,
+        config: &'static Config,
+        dir: &Path,
+    ) -> miette::Result<()> {
+        match self.command()? {
+            RuntimeCommand::Set(request) => {
+                Self::run_global_set::<Reporter>(config, dir, request).await
+            }
+            RuntimeCommand::Remove(request) => run_remove::<Reporter>(&request, config),
+        }
+    }
+
+    async fn run_set<Reporter: self::Reporter + 'static>(
+        state: State,
+        request: RuntimeSetRequest,
+    ) -> miette::Result<()> {
         let config = state.config;
         let prefix = state.manifest
             .path()
@@ -129,19 +189,11 @@ impl RuntimeArgs {
         Ok(())
     }
 
-    /// `pnpm runtime set <name> <version> -g`: install the runtime into the
-    /// global packages directory and link its binary into the global bin
-    /// directory. Mirrors pnpm's `runtime set … -g`, which runs
-    /// `pnpm add <name>@runtime:<version> --global` against the pnpm home
-    /// directory. `--save-dev` / `--save-prod` are ignored for a global
-    /// install, like every `pnpm add -g`, the global group always saves to
-    /// `dependencies`.
-    pub async fn run_global<Reporter: self::Reporter + 'static>(
-        self,
+    async fn run_global_set<Reporter: self::Reporter + 'static>(
         config: &'static Config,
         dir: &Path,
+        request: RuntimeSetRequest,
     ) -> miette::Result<()> {
-        let request = self.set_request()?;
         let global_request = AddRequest::from(request.package_name.as_str());
         Box::pin(handle_global_add::<Reporter>(
             config,
@@ -154,6 +206,19 @@ impl RuntimeArgs {
             dir,
         ))
         .await
+    }
+
+    fn command(&self) -> Result<RuntimeCommand, RuntimeError> {
+        let Some(subcommand) = self.params.first() else {
+            return Err(RuntimeError::NoSubcommand);
+        };
+        match subcommand.as_str() {
+            "set" => Ok(RuntimeCommand::Set(self.set_request()?)),
+            "remove" | "rm" | "uninstall" | "un" => {
+                Ok(RuntimeCommand::Remove(self.remove_request()?))
+            }
+            _ => Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() }),
+        }
     }
 
     fn set_request(&self) -> Result<RuntimeSetRequest, RuntimeError> {
@@ -195,6 +260,42 @@ impl RuntimeArgs {
             dependency_group,
         })
     }
+
+    fn remove_request(&self) -> Result<RuntimeRemoveRequest, RuntimeError> {
+        let Some(runtime_name) = self.params
+            .get(1)
+            .map(|name| name.trim())
+            .filter(|name| !name.is_empty())
+        else {
+            return Err(RuntimeError::MissingRuntimeName);
+        };
+        if !is_runtime_alias(runtime_name) {
+            return Err(RuntimeError::InvalidRuntimeName { name: runtime_name.to_string() });
+        }
+        let version_spec = self.params
+            .get(2)
+            .map(|version| version.trim())
+            .filter(|version| !version.is_empty())
+            .map(str::to_string);
+        if let Some(version) = version_spec.as_deref()
+            && version.contains(',')
+        {
+            return Err(RuntimeError::InvalidRuntimeVersion { version: version.to_string() });
+        }
+        if let Some(argument) = self.params.get(3) {
+            return Err(RuntimeError::UnexpectedArgument { argument: argument.clone() });
+        }
+        let dependency_group = if self.save_dev || !self.save_prod {
+            DependencyGroup::Dev
+        } else {
+            DependencyGroup::Prod
+        };
+        Ok(RuntimeRemoveRequest {
+            runtime_name: runtime_name.to_string(),
+            version_spec,
+            dependency_group,
+        })
+    }
 }
 
 fn runtime_shim_hint(
@@ -220,6 +321,8 @@ fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> boo
     crate::shim_dispatch::native_shim_is_installed(bin_dir, runtime_name)
         || crate::shim_dispatch::is_legacy_context_aware_shim(&bin_dir.join(runtime_name))
 }
+
+mod remove;
 
 #[cfg(test)]
 mod tests;
