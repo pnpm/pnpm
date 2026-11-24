@@ -117,6 +117,7 @@ changing the variables, rebuild the package in every project with them:
 pnpm --env-file .env.electron pm rebuild -r sqlite3
 ```
 
+With the `updateConfig` hook, drop `--env-file .env.electron`.
 [`pnpm pm`](./cli/pm.md) runs the built-in command even if `package.json`
 defines a `rebuild` script.
 
