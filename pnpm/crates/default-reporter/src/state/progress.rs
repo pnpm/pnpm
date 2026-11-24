@@ -135,11 +135,12 @@ impl ReporterState {
     }
 
     /// A sign for each package that arrived, `↓` for downloaded and `+`
-    /// for reused from the store, in the default color until the package
-    /// is added, then green. The bar fills as an install moves from
-    /// fetching to adding, and ends as the green bar of the stats. Until
-    /// then at least one sign stays uncolored, and a grey highlight steps
-    /// along the uncolored signs on every redraw.
+    /// for reused from the store, yellow until the package is added, then
+    /// green. Packages are added in parallel, so the green signs scatter
+    /// across the bar in a fixed shuffle instead of filling it from the
+    /// left. The bar ends as the green bar of the stats. Until then at
+    /// least one sign stays yellow, and a grey highlight steps along the
+    /// yellow signs on every redraw.
     fn live_bar(&self, max_width: usize) -> String {
         let totals = self.downloads.totals();
         let arrived = totals.fetched + totals.reused;
@@ -149,17 +150,25 @@ impl ReporterState {
         let chars = usize::try_from(arrived).map_or(max_width, |arrived| arrived.min(max_width));
         let added_chars = usize::try_from(totals.imported * chars as u64 / arrived)
             .map_or(chars, |added| added.min(chars - 1));
-        let highlighted = added_chars + self.downloads.live_redraws % (chars - added_chars);
+        let mut added = vec![false; chars];
+        for position in shuffled_positions(chars).into_iter().take(added_chars) {
+            added[position] = true;
+        }
+        let pending: Vec<usize> = (0..chars)
+            .filter(|position| !added[*position])
+            .collect();
+        let highlighted = pending[self.downloads.live_redraws % pending.len()];
         let downloaded_chars = self.downloads.downloaded_part(chars);
+        let colors = &self.rendering.colors;
         (0..chars)
-            .map(|index| {
-                let sign = if index < downloaded_chars { "↓" } else { "+" };
-                if index < added_chars {
-                    self.rendering.colors.green(sign)
-                } else if index == highlighted {
-                    self.rendering.colors.grey(sign)
+            .map(|position| {
+                let sign = if position < downloaded_chars { "↓" } else { "+" };
+                if added[position] {
+                    colors.green(sign)
+                } else if position == highlighted {
+                    colors.grey(sign)
                 } else {
-                    sign.to_string()
+                    colors.yellow(sign)
                 }
             })
             .collect()
@@ -351,6 +360,22 @@ impl ReporterState {
         }
         out
     }
+}
+
+/// The positions `0..len` in a fixed shuffled order: a position's place
+/// depends only on the position, so the order is the same on every redraw.
+fn shuffled_positions(len: usize) -> Vec<usize> {
+    let mut positions: Vec<usize> = (0..len).collect();
+    positions.sort_by_key(|position| scramble(*position as u64));
+    positions
+}
+
+/// splitmix64's finalizer: spreads consecutive inputs across the range.
+fn scramble(input: u64) -> u64 {
+    let mut value = input.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    value ^ (value >> 31)
 }
 
 impl DownloadState {
