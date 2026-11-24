@@ -280,6 +280,7 @@ impl WorkspaceWalk {
                 skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
                 finalized_package: self.hooks.finalized_package,
                 deprecation_log: Some(deprecation_log),
+                resolved_package: self.hooks.resolved_package,
                 manifests: pnpm_resolving_deps_resolver::ManifestTransformHooks {
                     manifest_hook: shared.hooks.manifest_hook.clone(),
                     overrides_hook: shared.hooks.overrides_hook.clone(),

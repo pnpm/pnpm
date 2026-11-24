@@ -154,6 +154,10 @@ pub(super) async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static
     let registries = std::mem::take(&mut setup.registries);
     let prep = prepare_resolution::<Reporter>(install, owned, setup, manifests).await?;
     let importer_manifests = manifests.view();
+    // `pnpm dedupe` reports each package through its resolution observer.
+    let resolved_progress = (install.execution.reports_resolved_packages()
+        && setup.completion_observer.is_none())
+    .then(|| super::resolved_progress_fn::<Reporter>(install.projects.requester.to_owned()));
     let pass = run_prepared_resolve(
         ResolutionContext {
             install,
@@ -162,6 +166,7 @@ pub(super) async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static
             prep: &prep,
             registries,
             deprecations: super::DeprecationCollector::default(),
+            resolved_progress,
         },
         importer_manifests,
     )
@@ -178,6 +183,8 @@ pub(super) struct ResolutionContext<'a, Reporter> {
     /// Every pass and the peer resolution report into it; it is emitted
     /// once resolution ends.
     deprecations: super::DeprecationCollector,
+    /// See [`super::resolved_progress_fn`].
+    resolved_progress: Option<pnpm_resolving_deps_resolver::ResolvedPackageFn>,
 }
 impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
     fn wanted_lockfile(&self) -> Option<&Lockfile> {
@@ -309,6 +316,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                 finalized_package: self.prep.early_materializer
                     .as_ref()
                     .map(crate::early_materializer::EarlyMaterializer::hook),
+                resolved_package: self.resolved_progress.clone(),
                 max_snapshots: self.setup.observer.max_snapshots,
                 cancel: self.setup.observer.cancel.clone(),
             },

@@ -84,7 +84,7 @@ use super::{
     lock_recoverable,
     manifest::{
         build_pkg_id_with_patch_hash,
-        emit_deprecation_if_needed,
+        report_created_package,
     },
     tree_ctx::TreeCtx,
     walk::{
@@ -341,7 +341,7 @@ pub(super) async fn seed_reused_node(
         register_reused_package(ctx, id, &result, current_is_optional, identity.is_leaf);
     let id = match registration {
         PackageRegistration::Created(id) => {
-            emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
+            report_created_package(ctx, &result, &id, edge.depth);
             id
         }
         PackageRegistration::Existing(id) => id,

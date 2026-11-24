@@ -151,11 +151,11 @@ use super::{
     lock_recoverable,
     manifest::{
         build_pkg_id_with_patch_hash,
-        emit_deprecation_if_needed,
         extract_children,
         extract_peer_dependencies,
         is_exotic_resolved_via,
         pkg_is_leaf,
+        report_created_package,
     },
     read_recoverable,
     reuse::{

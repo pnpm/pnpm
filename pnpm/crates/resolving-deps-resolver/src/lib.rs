@@ -108,6 +108,7 @@ pub use resolve_dependency_tree::{
     ResolutionCancel,
     ResolveDependencyTreeError,
     ResolveDependencyTreeOptions,
+    ResolvedPackageFn,
     SkippedOptionalDependency,
     SkippedOptionalDependencyParent,
     SkippedOptionalLogFn,

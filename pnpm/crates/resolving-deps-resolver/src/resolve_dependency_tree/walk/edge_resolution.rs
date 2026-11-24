@@ -25,7 +25,6 @@ use super::{
     build_pkg_id_with_patch_hash,
     current_pkg_from_lockfile,
     dependencies_named_as_peers,
-    emit_deprecation_if_needed,
     ensure_same_registry_revision,
     failed_edge::SkippedOptionalReport,
     is_exotic_resolved_via,
@@ -45,6 +44,7 @@ use super::{
     project_relative_cache_scope,
     register_shadowable_dep_names,
     reject_non_local_filesystem_subdep,
+    report_created_package,
     resolve_wanted_cached,
     resolves_children_through_catalogs,
     seed_reused_node,
@@ -371,7 +371,7 @@ pub(super) fn seed_pending(
     };
     let id = match register_seeded_package(ctx, seeded)? {
         PackageRegistration::Created(id) => {
-            emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
+            report_created_package(ctx, &result, &id, edge.depth);
             id
         }
         PackageRegistration::Existing(id) => id,

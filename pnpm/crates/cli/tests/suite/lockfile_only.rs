@@ -565,3 +565,54 @@ fn write_registry_workspace(workspace: &Path, registry: &str) {
     )
     .expect("write pnpm-workspace.yaml");
 }
+
+/// `pacquet install --lockfile-only` fetches nothing, so resolution itself
+/// reports each package it resolves, once, for the progress line.
+#[test]
+fn reports_each_resolved_package_once() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet
+        .with_args(["install", "--lockfile-only", "--reporter=ndjson"])
+        .output()
+        .expect("run pacquet install --lockfile-only");
+    _utils::assert_success(&output);
+    let mut resolved: Vec<String> = _utils::ndjson_records(&output)
+        .into_iter()
+        .filter(|record| {
+            record.get("name").and_then(serde_json::Value::as_str) == Some("pnpm:progress")
+                && record.get("status").and_then(serde_json::Value::as_str) == Some("resolved")
+        })
+        .filter_map(|record| {
+            record
+                .get("packageId")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .collect();
+    resolved.sort();
+    assert_eq!(
+        resolved,
+        ["@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"],
+        "{output:?}",
+    );
+
+    drop((root, mock_instance));
+}

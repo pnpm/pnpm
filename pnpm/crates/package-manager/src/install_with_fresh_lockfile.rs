@@ -277,6 +277,13 @@ impl FreshInstallExecution {
     pub(crate) fn fetches_into_store(self) -> bool {
         self.resolve_only == Some(ResolveOnly::FetchIntoStore)
     }
+
+    /// Whether resolution reports each package's `resolved` progress. Every
+    /// other install reports it from the paths that fetch or link the
+    /// package, and a lockfile-only run has none.
+    pub(crate) fn reports_resolved_packages(self) -> bool {
+        self.resolve_only == Some(ResolveOnly::LockfileOnly)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -614,6 +621,25 @@ fn skipped_optional_log_fn<Reporter: self::Reporter>()
             prefix: skipped.prefix,
             reason: SkippedOptionalReason::ResolutionFailure,
         }));
+    })
+}
+
+/// A `pnpm:progress` `resolved` event for each package resolution adds to
+/// the graph, once per package across the walks of an automatic dedupe.
+fn resolved_progress_fn<Reporter: self::Reporter>(
+    requester: String,
+) -> pnpm_resolving_deps_resolver::ResolvedPackageFn {
+    let reported = dashmap::DashSet::<String>::new();
+    Arc::new(move |package_id| {
+        if reported.insert(package_id.to_owned()) {
+            Reporter::emit(&LogEvent::Progress(pnpm_reporter::ProgressLog {
+                level: LogLevel::Debug,
+                message: pnpm_reporter::ProgressMessage::Resolved {
+                    package_id: package_id.to_owned(),
+                    requester: requester.clone(),
+                },
+            }));
+        }
     })
 }
 

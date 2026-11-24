@@ -38,6 +38,7 @@ pub(crate) struct WorkspaceLifecycleHooks {
     pub pnpmfile: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub read_package_log: Option<pnpm_hooks::LogFn>,
     pub finalized_package: Option<pnpm_resolving_deps_resolver::FinalizedPackageFn>,
+    pub resolved_package: Option<pnpm_resolving_deps_resolver::ResolvedPackageFn>,
     pub max_snapshots: Option<usize>,
     pub cancel: pnpm_resolving_deps_resolver::ResolutionCancel,
 }
