@@ -32,7 +32,7 @@ fn the_live_packages_line_waits_for_the_stats() {
     let mut reporter = state(false);
     let frame =
         render(&mut reporter, vec![progress("resolved"), progress("imported"), importing_done()]);
-    assert_eq!(frame, "Packages: +1 of 1 resolved\n+");
+    assert_eq!(frame, "Packages: +1 of 1 resolved");
 }
 
 #[test]
@@ -163,4 +163,19 @@ fn stats_bar_colors_downloaded_and_reused_packages() {
     let downloaded = "\u{1b}[32m↓\u{1b}[39m";
     let reused = "\u{1b}[32m+\u{1b}[39m";
     assert_eq!(bar, format!("{downloaded}{reused}{reused}"));
+}
+
+/// Arrived packages wait in the default color, and turn green once added.
+#[test]
+fn live_bar_turns_green_as_packages_are_added() {
+    let mut reporter = state(true);
+    let frame = render(
+        &mut reporter,
+        vec![progress("fetched"), progress("found_in_store"), progress("imported")],
+    );
+    let bar = frame
+        .lines()
+        .nth(1)
+        .expect("the bar follows the live line");
+    assert_eq!(bar, "\u{1b}[32m↓\u{1b}[39m+");
 }

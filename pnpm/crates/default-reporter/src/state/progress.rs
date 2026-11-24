@@ -83,32 +83,60 @@ impl ReporterState {
     }
 
     /// The live `Packages:` line, such as `Packages: +12 of 58 resolved`,
-    /// with the bar of the packages added so far below it in a terminal.
+    /// with a progress bar below it in a terminal: see [`Self::live_bar`].
     /// An install from the lockfile resolves nothing, so the resolved
     /// count is left out while it is zero. `None` while there is nothing
     /// to count.
     fn live_packages_message(&self) -> Option<String> {
         let totals = self.downloads.totals();
-        let resolved = self.rendering.colors.cyan_bright(&totals.resolved.to_string());
-        let shows_added = totals.imported > 0 && !self.options.progress.hide_added_pkgs;
-        if !shows_added {
-            return (totals.resolved > 0).then(|| format!("Packages: {resolved} resolved"));
-        }
-        let added = self.rendering.colors.green(&format!("+{}", totals.imported));
-        let line = if totals.resolved > 0 {
-            format!("Packages: {added} of {resolved} resolved")
-        } else {
-            format!("Packages: {added}")
-        };
+        let line = self.live_packages_line(totals)?;
         // Append-only output prints each update as a new line, so a bar
         // would repeat on every one.
-        if self.options.append_only {
+        if self.options.append_only || totals.fetched + totals.reused == 0 {
             return Some(line);
         }
-        Some(format!(
-            "{line}\n{}",
-            self.pluses_and_minuses(self.rendering.width, totals.imported, 0),
-        ))
+        Some(format!("{line}\n{}", self.live_bar(self.rendering.width)))
+    }
+
+    fn live_packages_line(&self, totals: ProgressStats) -> Option<String> {
+        let colors = &self.rendering.colors;
+        let resolved = colors.cyan_bright(&totals.resolved.to_string());
+        let added = colors.green(&format!("+{}", totals.imported));
+        if self.options.progress.hide_added_pkgs {
+            return (totals.resolved > 0).then(|| format!("Packages: {resolved} resolved"));
+        }
+        match (totals.resolved, totals.imported) {
+            (0, 0) if totals.fetched + totals.reused == 0 => None,
+            (0, _) => Some(format!("Packages: {added}")),
+            (_, 0) => Some(format!("Packages: {resolved} resolved")),
+            _ => Some(format!("Packages: {added} of {resolved} resolved")),
+        }
+    }
+
+    /// A sign for each package that arrived, `↓` for downloaded and `+`
+    /// for reused from the store, in the default color until the package
+    /// is added, then green. The bar fills as an install moves from
+    /// fetching to adding, and ends as the green bar of the stats.
+    fn live_bar(&self, max_width: usize) -> String {
+        let totals = self.downloads.totals();
+        let arrived = totals.fetched + totals.reused;
+        if max_width == 0 || arrived == 0 {
+            return String::new();
+        }
+        let chars = usize::try_from(arrived).map_or(max_width, |arrived| arrived.min(max_width));
+        let added_chars = usize::try_from(totals.imported * chars as u64 / arrived)
+            .map_or(chars, |added| added.min(chars));
+        let downloaded_chars = self.downloads.downloaded_part(chars);
+        (0..chars)
+            .map(|index| {
+                let sign = if index < downloaded_chars { "↓" } else { "+" };
+                if index < added_chars {
+                    self.rendering.colors.green(sign)
+                } else {
+                    sign.to_string()
+                }
+            })
+            .collect()
     }
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {

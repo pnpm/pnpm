@@ -55,7 +55,7 @@ fn progress_line_counts_each_status() {
             progress("imported"),
         ],
     );
-    assert_eq!(frame, "Packages: +1 of 3 resolved\n+");
+    assert_eq!(frame, "Packages: +1 of 3 resolved\n++");
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn prints_all_progress_stats() {
             progress("imported"),
         ],
     );
-    assert_eq!(frame, "Packages: +1 of 1 resolved\n↓");
+    assert_eq!(frame, "Packages: +1 of 1 resolved\n↓+");
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn live_packages_line_stays_below_other_output_until_the_stats() {
             stage_at(CWD, Stage::ResolutionDone),
         ],
     );
-    assert_eq!(frame, "[WARN] foo\nPackages: 1 resolved");
+    assert_eq!(frame, "[WARN] foo\nPackages: 1 resolved\n↓");
     let frame = render(
         &mut reporter,
         vec![
@@ -173,7 +173,7 @@ fn ignores_progress_after_importing_done() {
             progress("found_in_store"),
         ],
     );
-    assert_eq!(frame, "Packages: 1 resolved");
+    assert_eq!(frame, "Packages: 1 resolved\n↓");
 }
 
 #[test]
@@ -714,6 +714,6 @@ fn stats_of_several_projects_are_summed() {
 #[test]
 fn live_line_leaves_out_a_zero_resolved_count() {
     let mut reporter = state(false);
-    assert_eq!(render(&mut reporter, vec![progress("found_in_store")]), "");
+    assert_eq!(render(&mut reporter, vec![progress("found_in_store")]), "Packages: +0\n+");
     assert_eq!(render(&mut reporter, vec![progress("imported")]), "Packages: +1\n+");
 }

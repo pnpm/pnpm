@@ -31,7 +31,7 @@ fn prints_progress_on_first_download() {
         &mut reporter,
         vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved"), progress("fetched")],
     );
-    assert_eq!(frame, "Packages: 1 resolved");
+    assert_eq!(frame, "Packages: 1 resolved\n↓");
 }
 
 #[test]
