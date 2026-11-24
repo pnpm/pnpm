@@ -27,7 +27,6 @@ use pnpm_reporter::{
 };
 
 const PROJECT: &str = "/repo/pnpm/npm/pnpm";
-const ESBUILD: &str = "/repo/node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild";
 
 fn summarizing(append_only: bool) -> ReporterState {
     state_with_options(ReporterOptions {
@@ -41,7 +40,15 @@ fn script_run(wd: &str, stage: &str, exit_code: i32) -> Vec<LogEvent> {
     vec![lifecycle_script(wd, stage, "node install.js"), lifecycle_exit(wd, stage, exit_code)]
 }
 
+fn dependency_dir(dep_path: &str) -> String {
+    format!("/repo/node_modules/.pnpm/{dep_path}/node_modules/pkg")
+}
+
 fn dependency_script(dep_path: &str) -> LogEvent {
+    dependency_script_in(dep_path, &dependency_dir(dep_path))
+}
+
+fn dependency_script_in(dep_path: &str, wd: &str) -> LogEvent {
     LogEvent::Lifecycle(LifecycleLog {
         level: LogLevel::Debug,
         message: LifecycleMessage::Script {
@@ -49,12 +56,16 @@ fn dependency_script(dep_path: &str) -> LogEvent {
             optional: false,
             script: "node install.js".to_string(),
             stage: "postinstall".to_string(),
-            wd: ESBUILD.to_string(),
+            wd: wd.to_string(),
         },
     })
 }
 
 fn dependency_exit(dep_path: &str, exit_code: i32, optional: bool) -> LogEvent {
+    dependency_exit_in(dep_path, &dependency_dir(dep_path), exit_code, optional)
+}
+
+fn dependency_exit_in(dep_path: &str, wd: &str, exit_code: i32, optional: bool) -> LogEvent {
     LogEvent::Lifecycle(LifecycleLog {
         level: LogLevel::Debug,
         message: LifecycleMessage::Exit {
@@ -62,7 +73,7 @@ fn dependency_exit(dep_path: &str, exit_code: i32, optional: bool) -> LogEvent {
             exit_code,
             optional,
             stage: "postinstall".to_string(),
-            wd: ESBUILD.to_string(),
+            wd: wd.to_string(),
         },
     })
 }
@@ -326,8 +337,30 @@ fn a_skip_named_by_directory_clears_its_build() {
         &mut reporter,
         vec![
             dependency_script("esbuild@0.21.5"),
-            failed_optional_build(ESBUILD, "esbuild", "0.21.5"),
+            failed_optional_build(&dependency_dir("esbuild@0.21.5"), "esbuild", "0.21.5"),
         ],
     );
     assert!(!reporter.scripts_running());
+}
+
+/// The hoisted linker builds each copy of a package in its own directory.
+#[test]
+fn a_failed_hoisted_copy_retracts_a_copy_that_built() {
+    const FIRST: &str = "/repo/node_modules/foo";
+    const SECOND: &str = "/repo/node_modules/bar/node_modules/foo";
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script_in("foo@1.0.0", FIRST),
+            dependency_exit_in("foo@1.0.0", FIRST, 0, false),
+            dependency_script_in("foo@1.0.0", SECOND),
+            dependency_exit_in("foo@1.0.0", SECOND, 1, true),
+            failed_optional_build(SECOND, "foo", "1.0.0"),
+        ],
+    );
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✗ 1 optional dependency failed to build and was skipped: foo@1.0.0\n",
+    );
 }

@@ -19,8 +19,9 @@ use super::{
 pub(super) struct ScriptsRun {
     /// `<project> <stage>` of every project script that succeeded.
     projects: BTreeSet<String>,
-    /// `name@version` of every dependency whose scripts succeeded.
-    built: BTreeMap<String, DependencyBuild>,
+    /// `name@version` of every dependency whose scripts succeeded, by
+    /// lockfile key, since peer variants share the label.
+    built: BTreeMap<String, String>,
     /// `name@version` of every dependency whose build output came from
     /// the side-effects cache.
     cached: BTreeSet<String>,
@@ -29,26 +30,19 @@ pub(super) struct ScriptsRun {
     failed_optional: BTreeSet<String>,
     /// The project scripts running now, labeled like `projects`.
     running_projects: BTreeSet<String>,
-    /// The dependency builds running now, by lockfile key like `built`.
+    /// The dependency builds running now, by the directory their scripts
+    /// run in, since the hoisted linker builds each copy of a package.
     building: BTreeMap<String, DependencyBuild>,
+    /// The lockfile key of every directory a dependency build ran in, which
+    /// is how the skip event of a project-local build names it.
+    keys: BTreeMap<String, String>,
     /// The frame of the spinner the lines of running scripts show.
     spinner: usize,
 }
 
-/// A dependency's build, tracked by its lockfile key since peer variants
-/// share a `name@version` label.
-#[derive(Clone)]
 struct DependencyBuild {
     label: String,
-    /// The directory its scripts run in, which is how the skip event of a
-    /// project-local build names it.
-    dir: String,
-}
-
-impl DependencyBuild {
-    fn is(&self, key: &str, id: &str) -> bool {
-        key == id || self.dir == id
-    }
+    key: String,
 }
 
 /// Whether a lifecycle script belongs to a workspace project or builds a
@@ -101,8 +95,7 @@ impl ReporterState {
     }
 
     pub(in crate::state) fn record_dependency_built(&mut self, script: &RunningScript<'_>) {
-        let build = DependencyBuild { label: sanitize(script.label), dir: script.dir.to_string() };
-        self.notices.checks.scripts.built.insert(script.id.to_string(), build);
+        self.notices.checks.scripts.built.insert(script.id.to_string(), sanitize(script.label));
     }
 
     pub(in crate::state) fn record_script_started(&mut self, script: &RunningScript<'_>) {
@@ -113,8 +106,9 @@ impl ReporterState {
             }
             ScriptKind::Dependency => {
                 let build =
-                    DependencyBuild { label: sanitize(script.label), dir: script.dir.to_string() };
-                scripts.building.insert(script.id.to_string(), build);
+                    DependencyBuild { label: sanitize(script.label), key: script.id.to_string() };
+                scripts.building.insert(script.dir.to_string(), build);
+                scripts.keys.insert(script.dir.to_string(), script.id.to_string());
             }
         }
     }
@@ -126,15 +120,15 @@ impl ReporterState {
                 scripts.running_projects.remove(&sanitize(script.label));
             }
             ScriptKind::Dependency => {
-                scripts.building.remove(script.id);
+                scripts.building.remove(script.dir);
             }
         }
     }
 
-    /// A skipped package is not built, even when one of its scripts
-    /// succeeded before another failed, and none of its scripts runs on.
-    /// `id` is its lockfile key or its directory, so a peer variant that
-    /// shares its label keeps its own result.
+    /// A skipped package is not built, even when one of its scripts or
+    /// copies succeeded before another failed, and none of its scripts runs
+    /// on. `id` is its lockfile key or the directory of the failed copy, so
+    /// a peer variant that shares its label keeps its own result.
     pub(in crate::state) fn record_failed_optional_build(
         &mut self,
         id: &str,
@@ -142,8 +136,13 @@ impl ReporterState {
         version: &str,
     ) {
         let scripts = &mut self.notices.checks.scripts;
-        scripts.built.retain(|key, build| !build.is(key, id));
-        scripts.building.retain(|key, build| !build.is(key, id));
+        let key = scripts.keys
+            .get(id)
+            .map(String::as_str)
+            .unwrap_or(id)
+            .to_string();
+        scripts.built.remove(&key);
+        scripts.building.retain(|_, build| build.key != key);
         scripts.failed_optional.insert(sanitize(&format!("{name}@{version}")));
     }
 
@@ -185,8 +184,8 @@ impl ReporterState {
             str::to_string,
         );
         let built = self.script_line(
-            &labels(&scripts.built),
-            &labels(&scripts.building),
+            &labels(scripts.built.values()),
+            &labels(scripts.building.values().map(|build| &build.label)),
             &DEPENDENCY_BUILDS,
             |label| self.package_label(label),
         );
@@ -273,9 +272,6 @@ fn pick(names: &BTreeSet<String>, (one, many): (&'static str, &'static str)) -> 
     if names.len() == 1 { one } else { many }
 }
 
-fn labels(builds: &BTreeMap<String, DependencyBuild>) -> BTreeSet<String> {
-    builds
-        .values()
-        .map(|build| build.label.clone())
-        .collect()
+fn labels<'a>(labels: impl Iterator<Item = &'a String>) -> BTreeSet<String> {
+    labels.cloned().collect()
 }
