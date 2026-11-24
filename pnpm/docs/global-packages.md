@@ -300,6 +300,8 @@ This registers the package's `bin` entries so they can be invoked from anywhere.
 
 Global packages use the [global configuration](./configuring.md#global-configuration). To change a setting only for global packages, set it under [`globalPackagesConfig`](./configuring.md#settings-for-global-packages) in the global `config.yaml`.
 
+`pnpm add -g` and `pnpm update -g` do not read the caller project's `pnpm-workspace.yaml`, even when `PNPM_CONFIG_WORKSPACE_DIR` points at that project.
+
 ## Build script approval
 
 Global packages that have build scripts (e.g., `postinstall`) require approval. When you install a global package that needs to run build scripts, pnpm will prompt you to approve or deny the build interactively.

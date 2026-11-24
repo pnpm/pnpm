@@ -133,6 +133,13 @@ impl Config {
         }
     }
 
+    // Global commands must not take settings from a caller project's
+    // workspace, including one named by `PNPM_CONFIG_WORKSPACE_DIR`: a
+    // project could otherwise redirect their registry and build policy.
+    pub(super) fn limits_workspace_to_pnpm_home(&self) -> bool {
+        self.cli.command_target == crate::CommandTarget::GlobalPackages
+    }
+
     /// The workspace root the directory tree places, without reading its
     /// `pnpm-workspace.yaml`, for one this pnpm cannot read at all.
     pub(super) fn locate_workspace<Sys: EnvVarOs>(
@@ -142,7 +149,7 @@ impl Config {
         if self.ignore_workspace {
             return None;
         }
-        if self.cli.command_target == crate::CommandTarget::GlobalPackages {
+        if self.limits_workspace_to_pnpm_home() {
             return start_dir
                 .join(crate::workspace_yaml::WORKSPACE_MANIFEST_FILENAME)
                 .is_file()
