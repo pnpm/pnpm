@@ -45,7 +45,10 @@ pub(super) enum PermissionVerdict {
 
 impl PermissionVerdict {
     pub(super) fn for_capabilities(self, capabilities: &Capabilities) -> PackageDecisions {
-        let allowed = matches!(self, Self::Grant);
+        let allowed = match self {
+            Self::Grant => true,
+            Self::Deny => false,
+        };
         PackageDecisions {
             build: capabilities.contains(&PermissionCapability::Build).then_some(allowed),
             skills: capabilities
