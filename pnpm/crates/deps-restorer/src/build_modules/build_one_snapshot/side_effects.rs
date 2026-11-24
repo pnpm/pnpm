@@ -198,7 +198,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     Ok(true)
 }
 
-fn report_cache_hit<Reporter: self::Reporter>(
+pub(super) fn report_cache_hit<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     (name, version): (&str, &str),

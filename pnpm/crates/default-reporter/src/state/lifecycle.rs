@@ -8,6 +8,10 @@ use super::{
     LifecycleStdio,
     RenderingContext,
     ReporterState,
+    checks::{
+        RunningScript,
+        ScriptKind,
+    },
     contains_path,
     cut_line,
     format_prefix,
@@ -320,24 +324,25 @@ impl ReporterState {
     /// `pnpm:skipped-optional-dependency` event.
     fn record_script_event(&mut self, message: &LifecycleMessage) {
         let (stage, dep_path, wd) = lifecycle_ids(message);
-        let label = if is_dependency_dir(wd) {
-            dependency_label(dep_path).to_string()
+        let (kind, label) = if is_dependency_dir(wd) {
+            (ScriptKind::Dependency, dependency_label(dep_path).to_string())
         } else {
-            format!("{} {stage}", format_prefix(&self.rendering.cwd, wd))
+            (
+                ScriptKind::Project,
+                format!("{} {stage}", format_prefix_no_trim(&self.rendering.cwd, wd)),
+            )
         };
+        let script = RunningScript { kind, id: dep_path, label: &label };
         match message {
-            LifecycleMessage::Script { .. } => {
-                self.record_script_started(&label, is_dependency_dir(wd));
-            }
+            LifecycleMessage::Script { .. } => self.record_script_started(&script),
             LifecycleMessage::Exit { exit_code, .. } => {
-                self.record_script_finished(&label, is_dependency_dir(wd));
+                self.record_script_finished(&script);
                 if *exit_code != 0 {
                     return;
                 }
-                if is_dependency_dir(wd) {
-                    self.record_dependency_built(&label);
-                } else {
-                    self.record_project_script(&label);
+                match kind {
+                    ScriptKind::Dependency => self.record_dependency_built(&label),
+                    ScriptKind::Project => self.record_project_script(&label),
                 }
             }
             LifecycleMessage::Stdio { .. } => {}
@@ -414,7 +419,6 @@ impl LifecycleState {
     }
 }
 
-/// Whether a script runs in a dependency's directory, not in a project's.
 fn is_dependency_dir(wd: &str) -> bool {
     contains_path(wd, "/node_modules/") || contains_path(wd, "tmp/_tmp_")
 }
@@ -422,5 +426,8 @@ fn is_dependency_dir(wd: &str) -> bool {
 /// `name@version` of a dependency's lockfile key, without its peer and
 /// patch suffixes.
 fn dependency_label(dep_path: &str) -> &str {
-    dep_path.split_once('(').map_or(dep_path, |(label, _)| label)
+    dep_path
+        .split_once('(')
+        .map(|(label, _)| label)
+        .unwrap_or(dep_path)
 }

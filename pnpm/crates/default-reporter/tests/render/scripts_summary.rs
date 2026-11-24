@@ -249,3 +249,48 @@ fn quiet_output_hides_successful_script_output() {
     ];
     assert_eq!(render(&mut reporter, events), "");
 }
+
+#[test]
+fn a_skipped_optional_dependency_is_not_listed_as_built() {
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script("esbuild@0.21.5"),
+            dependency_exit("esbuild@0.21.5", 0, false),
+            dependency_script("esbuild@0.21.5"),
+            failed_optional_build("esbuild", "0.21.5"),
+        ],
+    );
+    assert!(!reporter.scripts_running());
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✗ 1 optional dependency failed to build and was skipped: esbuild@0.21.5\n",
+    );
+}
+
+#[test]
+fn peer_variants_of_a_dependency_build_separately() {
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script("foo@1.0.0(a@1.0.0)"),
+            dependency_script("foo@1.0.0(a@2.0.0)"),
+            dependency_exit("foo@1.0.0(a@1.0.0)", 0, false),
+        ],
+    );
+    assert!(reporter.scripts_running());
+    render(&mut reporter, vec![dependency_exit("foo@1.0.0(a@2.0.0)", 0, false)]);
+    assert!(!reporter.scripts_running());
+}
+
+#[test]
+fn a_failed_command_stops_the_spinner() {
+    let mut reporter = summarizing(false);
+    render(&mut reporter, vec![lifecycle_script(PROJECT, "preinstall", "node install.js")]);
+    assert!(reporter.scripts_running());
+    reporter.flush_pending_checks(CommandOutcome::Failed);
+    assert!(!reporter.scripts_running());
+    assert!(matches!(reporter.tick_scripts(), Output::None));
+}

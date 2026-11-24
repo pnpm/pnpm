@@ -14,6 +14,11 @@
 //! The deprecation, peer, engine, and platform checks print nothing when
 //! they pass, as they did before the footer existed.
 
+pub(super) use scripts::{
+    RunningScript,
+    ScriptKind,
+};
+
 use super::{
     BTreeMap,
     BTreeSet,
@@ -21,6 +26,7 @@ use super::{
     BlockSlot,
     DeprecationLog,
     InstallCheckLog,
+    LifecycleMessage,
     LogEvent,
     MaxLogLevel,
     Output,
@@ -168,6 +174,7 @@ impl ReporterState {
             return;
         }
         let Some(footer) = self.checks_footer(outcome) else {
+            self.notices.checks.rendered = true;
             self.display.frame.clear(&mut self.notices.checks.slot);
             return;
         };
@@ -402,8 +409,10 @@ fn platform_values(values: &[String]) -> String {
 fn changes_checks(event: &LogEvent) -> bool {
     matches!(
         event,
-        LogEvent::Lifecycle(_)
-            | LogEvent::SideEffectsCacheHit(_)
+        LogEvent::Lifecycle(pnpm_reporter::LifecycleLog {
+            message: LifecycleMessage::Script { .. } | LifecycleMessage::Exit { .. },
+            ..
+        }) | LogEvent::SideEffectsCacheHit(_)
             | LogEvent::SkippedOptionalDependency(_)
             | LogEvent::Deprecation(_)
             | LogEvent::InstallCheck(_)
@@ -413,8 +422,6 @@ fn changes_checks(event: &LogEvent) -> bool {
     )
 }
 
-/// The noun and verb for the size of `items`: `one` for a single item,
-/// `many` otherwise.
 fn count_words<'a>(
     items: &BTreeSet<String>,
     one: (&'a str, &'a str),
