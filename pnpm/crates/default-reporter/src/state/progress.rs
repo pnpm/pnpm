@@ -24,6 +24,27 @@ use super::{
 use std::fmt::Write as _;
 
 impl ReporterState {
+    /// Whether `event` is a high-volume progress update whose output a
+    /// renderer may drop under throttling, mirroring pnpm's
+    /// `throttleProgress`. The state is folded either way, so a later
+    /// event redraws the current counts. A big download's last update is
+    /// kept: append-only output prints that download only then.
+    #[must_use]
+    pub fn is_coalesceable(&self, event: &pnpm_reporter::LogEvent) -> bool {
+        match event {
+            pnpm_reporter::LogEvent::Progress(_) => true,
+            pnpm_reporter::LogEvent::FetchingProgress(log) => match &log.message {
+                FetchingProgressMessage::InProgress { downloaded, package_id } => {
+                    self.downloads.tarballs
+                        .get(package_id)
+                        .is_none_or(|tarball| *downloaded != tarball.size)
+                }
+                FetchingProgressMessage::Started { .. } => false,
+            },
+            _ => false,
+        }
+    }
+
     // --- scope ------------------------------------------------------------
 
     /// pnpm's `reportScope`: how many workspace projects the command
@@ -362,7 +383,8 @@ impl DownloadState {
         if done {
             msg.push_str(", done");
         }
-        if !options.hide_prefix && requester != rendering.cwd {
+        let names_a_project = requester != pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER;
+        if !(options.hide_prefix && names_a_project) && requester != rendering.cwd {
             msg = zoom_out(&rendering.cwd, requester, &msg);
         }
         msg

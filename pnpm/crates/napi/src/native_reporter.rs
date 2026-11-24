@@ -47,10 +47,7 @@ use pnpm_default_reporter::{
         ReporterState,
     },
 };
-use pnpm_reporter::{
-    FetchingProgressMessage,
-    LogEvent,
-};
+use pnpm_reporter::LogEvent;
 
 /// A JS `(chunk: string) => void` callback. Same shape as the log sink:
 /// `CalleeHandled = false`, return value discarded, never blocking.
@@ -246,14 +243,9 @@ impl NativeRenderer {
     /// approval from its `allowBuilds` option and never prompts, so there
     /// is no interactive frame to hold back for.
     pub fn handle(&mut self, event: &LogEvent) {
+        let coalesceable = self.state.is_coalesceable(event);
         let output = self.state.handle(event);
-        // Drop a high-volume progress redraw inside the throttle window.
-        // The state is already folded, so the next event that is not
-        // coalesceable (stats, the summary, the footer) renders the
-        // current counts.
-        if is_coalesceable(event)
-            && self.last_write.is_some_and(|last| last.elapsed() < self.throttle)
-        {
+        if coalesceable && self.last_write.is_some_and(|last| last.elapsed() < self.throttle) {
             return;
         }
         if self.write(output) {
@@ -339,18 +331,6 @@ fn renderer_width(
         None => 80,
     };
     width.max(1)
-}
-
-/// Whether an event is a high-volume progress update that may be dropped
-/// under throttling, mirroring pnpm's `throttleProgress`.
-fn is_coalesceable(event: &LogEvent) -> bool {
-    match event {
-        LogEvent::Progress(_) => true,
-        LogEvent::FetchingProgress(log) => {
-            matches!(log.message, FetchingProgressMessage::InProgress { .. })
-        }
-        _ => false,
-    }
 }
 
 /// An unrecognized level falls back to pnpm's own default rather than

@@ -8,10 +8,7 @@ use std::sync::{
     },
 };
 
-use pnpm_reporter::{
-    FetchingProgressMessage,
-    LogEvent,
-};
+use pnpm_reporter::LogEvent;
 
 static ENABLED: AtomicBool = AtomicBool::new(true);
 static HIDE_PREFIX: OnceLock<bool> = OnceLock::new();
@@ -44,17 +41,4 @@ pub(crate) fn prefix_hidden() -> bool {
 pub(crate) fn is_suppressed(event: &LogEvent) -> bool {
     !ENABLED.load(Ordering::Relaxed)
         && matches!(event, LogEvent::Progress(_) | LogEvent::FetchingProgress(_))
-}
-
-/// Whether an event is a high-volume progress update that may be dropped
-/// under throttling, mirroring pnpm's `throttleProgress` on the progress
-/// stream.
-pub(crate) fn is_coalesceable(event: &LogEvent) -> bool {
-    match event {
-        LogEvent::Progress(_) => true,
-        LogEvent::FetchingProgress(log) => {
-            matches!(log.message, FetchingProgressMessage::InProgress { .. })
-        }
-        _ => false,
-    }
 }

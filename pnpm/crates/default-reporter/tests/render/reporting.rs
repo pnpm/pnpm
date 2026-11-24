@@ -148,6 +148,20 @@ fn hides_the_progress_prefix_when_asked() {
 }
 
 #[test]
+fn hiding_the_progress_prefix_keeps_the_python_environment_label() {
+    let python = pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER;
+    let mut reporter = state_with_options(ReporterOptions {
+        progress: pnpm_default_reporter::state::ProgressOptions {
+            hide_prefix: true,
+            ..Default::default()
+        },
+        ..ReporterOptions::default()
+    });
+    let frame = render(&mut reporter, vec![progress_at(python, "resolved")]);
+    assert!(frame.contains(&format!("{python} ")), "{frame}");
+}
+
+#[test]
 fn ignores_progress_after_importing_done() {
     let mut reporter = state(false);
     let frame = render(

@@ -70,7 +70,6 @@ use pnpm_reporter::{
 use crate::{
     colors::Colors,
     format::visible_width,
-    progress::is_coalesceable,
     state::{
         Output,
         ReporterState,
@@ -250,8 +249,9 @@ impl Reporter for DefaultReporter {
             sink.on_prompt(log.action);
             return;
         }
+        let coalesceable = sink.state.is_coalesceable(event);
         let output = sink.state.handle(event);
-        sink.write(output, is_coalesceable(event));
+        sink.write(output, coalesceable);
         if sink.state.scripts_running() && !SCRIPTS_TICKER.swap(true, Ordering::SeqCst) {
             std::thread::spawn(tick_scripts);
         }

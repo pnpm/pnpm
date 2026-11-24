@@ -13,10 +13,46 @@ use super::{
     LogEvent,
     Output,
     Sink,
-    is_coalesceable,
     progress,
     set_progress,
 };
+use crate::{
+    colors::Colors,
+    state::{
+        ReporterOptions,
+        ReporterState,
+    },
+};
+
+fn append_only_state() -> ReporterState {
+    ReporterState::new_with_options(
+        "/repo".to_string(),
+        80,
+        Colors { enabled: false },
+        ReporterOptions { append_only: true, ..ReporterOptions::default() },
+    )
+}
+
+fn fetching_started(package_id: &str, size: u64) -> LogEvent {
+    LogEvent::FetchingProgress(FetchingProgressLog {
+        level: LogLevel::Debug,
+        message: FetchingProgressMessage::Started {
+            attempt: 1,
+            package_id: package_id.to_string(),
+            size: Some(size),
+        },
+    })
+}
+
+fn fetching_in_progress(package_id: &str, downloaded: u64) -> LogEvent {
+    LogEvent::FetchingProgress(FetchingProgressLog {
+        level: LogLevel::Debug,
+        message: FetchingProgressMessage::InProgress {
+            downloaded,
+            package_id: package_id.to_string(),
+        },
+    })
+}
 
 #[test]
 fn progress_and_in_progress_downloads_coalesce() {
@@ -34,8 +70,35 @@ fn progress_and_in_progress_downloads_coalesce() {
             package_id: "foo".to_string(),
         },
     });
-    assert!(is_coalesceable(&progress));
-    assert!(is_coalesceable(&downloading));
+    let state = append_only_state();
+    assert!(state.is_coalesceable(&progress));
+    assert!(state.is_coalesceable(&downloading));
+}
+
+/// Append-only output prints a big download only once it finishes, so
+/// the throttle that drops progress updates must not drop that line.
+#[test]
+fn a_finished_big_download_is_written_inside_the_throttle_window() {
+    const MIB: u64 = 1024 * 1024;
+    let mut sink = Sink::new();
+    sink.state = append_only_state();
+    let mut writes = Vec::new();
+    sink.write_to(Output::Lines(vec!["earlier".to_string()]), false, &mut writes);
+
+    for event in [
+        fetching_started("foo", 10 * MIB),
+        fetching_in_progress("foo", 5 * MIB),
+        fetching_in_progress("foo", 10 * MIB),
+    ] {
+        let coalesceable = sink.state.is_coalesceable(&event);
+        let output = sink.state.handle(&event);
+        sink.write_to(output, coalesceable, &mut writes);
+    }
+
+    assert_eq!(
+        String::from_utf8(writes).expect("utf8 output"),
+        "earlier\nDownloading foo: 10.48 MB/10.48 MB, done\n",
+    );
 }
 
 /// The restore is ordered ahead of the assertions: a failing one must not
@@ -78,7 +141,7 @@ fn stats_are_not_throttled() {
         level: LogLevel::Debug,
         message: StatsMessage::Added { prefix: "/repo".to_string(), added: 1 },
     });
-    assert!(!is_coalesceable(&stats));
+    assert!(!append_only_state().is_coalesceable(&stats));
 }
 
 #[test]
