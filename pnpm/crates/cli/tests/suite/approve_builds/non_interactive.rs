@@ -143,12 +143,14 @@ fn approve_selects_advance_permissions_without_changing_unselected_policy() {
     let original = "permissions:\n  example:\n    build: false\n";
     for (keys, grants_skills) in [("q", false), ("\r", false), ("j \r", true)] {
         fs::write(&settings, original).unwrap();
-        pacquet_in_terminal(&workspace)
+        let result = pacquet_in_terminal(&workspace)
             .with_env("PNPM_TEST_PROMPT_TEXT", "Provide agent skills")
             .with_env("PNPM_TEST_PROMPT_ANSWER", keys)
             .with_args(["approve", "example", "example"])
             .assert()
             .success();
+        let output = String::from_utf8_lossy(&result.get_output().stdout);
+        assert_eq!(output.contains("No permissions selected for example."), keys == "\r");
         let policy = fs::read_to_string(&settings).unwrap();
         if grants_skills {
             assert!(policy.contains("skills: true"), "{policy}");

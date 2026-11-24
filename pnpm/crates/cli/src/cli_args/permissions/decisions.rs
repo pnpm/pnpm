@@ -38,9 +38,15 @@ pub(crate) struct PackageDecisions {
     pub(crate) skills: Option<SkillsPermission>,
 }
 
-impl PackageDecisions {
-    pub(super) fn for_capabilities(capabilities: &Capabilities, allowed: bool) -> Self {
-        Self {
+pub(super) enum PermissionVerdict {
+    Grant,
+    Deny,
+}
+
+impl PermissionVerdict {
+    pub(super) fn for_capabilities(self, capabilities: &Capabilities) -> PackageDecisions {
+        let allowed = matches!(self, Self::Grant);
+        PackageDecisions {
             build: capabilities.contains(&PermissionCapability::Build).then_some(allowed),
             skills: capabilities
                 .contains(&PermissionCapability::Skills)
@@ -126,7 +132,7 @@ pub(super) fn decisions_for_all(pending: &BTreeMap<String, Capabilities>) -> Dec
     pending
         .iter()
         .map(|(pkg, capabilities)| {
-            (pkg.clone(), PackageDecisions::for_capabilities(capabilities, true))
+            (pkg.clone(), PermissionVerdict::Grant.for_capabilities(capabilities))
         })
         .collect()
 }

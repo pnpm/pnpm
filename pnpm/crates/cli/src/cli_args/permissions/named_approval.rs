@@ -4,7 +4,7 @@ use super::{
     PermissionCapability,
     decisions::{
         Decisions,
-        PackageDecisions,
+        PermissionVerdict,
     },
     partition_params,
     prompt_for_choices,
@@ -53,19 +53,21 @@ pub(super) fn named_approval<Reporter: self::Reporter>(
     let mut decisions = Decisions::new();
     for pkg in IndexSet::<_>::from_iter(partition.approved) {
         if let Some(requested) = requests.get(&pkg) {
-            decisions.insert(pkg, PackageDecisions::for_capabilities(requested, true));
+            decisions.insert(pkg, PermissionVerdict::Grant.for_capabilities(requested));
             continue;
         }
         let Some(selected) = choose_capabilities(&pkg, prompt)? else {
             return Ok(None);
         };
-        if !selected.is_empty() {
-            decisions.insert(pkg, PackageDecisions::for_capabilities(&selected, true));
+        if selected.is_empty() {
+            pnpm_diagnostics::println!("No permissions selected for {pkg}.");
+        } else {
+            decisions.insert(pkg, PermissionVerdict::Grant.for_capabilities(&selected));
         }
     }
     let all = ALL_CAPABILITIES.into_iter().collect();
     for pkg in partition.denied {
-        let decided = PackageDecisions::for_capabilities(requests.get(&pkg).unwrap_or(&all), false);
+        let decided = PermissionVerdict::Deny.for_capabilities(requests.get(&pkg).unwrap_or(&all));
         decisions.insert(pkg, decided);
     }
     Ok((!decisions.is_empty()).then_some(Approval { decisions, skills_dirs: Vec::new() }))
