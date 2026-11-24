@@ -32,7 +32,20 @@ pub(super) fn check_gitignores_writable<'entry>(
 ) -> Result<(), AgentSkillsError> {
     affected_dirs(target_root, affected)
         .into_keys()
-        .try_for_each(|dir| reject_symlinked_gitignore(&dir.join(".gitignore")))
+        .try_for_each(|dir| {
+            let path = dir.join(".gitignore");
+            reject_symlinked_gitignore(&path)?;
+            read_gitignore(&path).map(drop)
+        })
+}
+
+/// The text of the `.gitignore` at `path`, or `None` when there is none.
+fn read_gitignore(path: &Path) -> Result<Option<String>, AgentSkillsError> {
+    match fs::read_to_string(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(AgentSkillsError::Io { path: path.to_path_buf(), source }),
+    }
 }
 
 /// List the surviving links in pnpm's ignore block for each affected directory.
@@ -88,11 +101,10 @@ fn reject_symlinked_gitignore(path: &Path) -> Result<(), AgentSkillsError> {
 fn update_gitignore(path: &Path, rules: &BTreeSet<String>) -> Result<(), AgentSkillsError> {
     let io_error = |source| AgentSkillsError::Io { path: path.to_path_buf(), source };
     reject_symlinked_gitignore(path)?;
-    let existing = match fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == io::ErrorKind::NotFound && rules.is_empty() => return Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
-        Err(source) => return Err(io_error(source)),
+    let existing = match read_gitignore(path)? {
+        Some(text) => text,
+        None if rules.is_empty() => return Ok(()),
+        None => String::new(),
     };
     let updated = updated_gitignore(&existing, rules);
     if updated == existing {

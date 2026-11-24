@@ -743,11 +743,37 @@ fn rejects_symlinked_gitignore() {
 }
 
 #[test]
-fn a_failed_gitignore_update_removes_the_links_it_created() {
+fn an_unreadable_gitignore_fails_before_linking() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
     let target_dir = root.path().join(".claude/skills");
     fs::create_dir_all(&target_dir).unwrap();
     fs::write(target_dir.join(".gitignore"), [0xff, 0xfe]).unwrap();
+
+    let error =
+        sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
+    assert!(matches!(error, AgentSkillsError::Io { .. }));
+    assert!(fs::symlink_metadata(target_dir.join("guide")).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_failed_gitignore_write_removes_the_links_it_created() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    let target_dir = root.path().join(".claude/skills");
+    fs::create_dir_all(&target_dir).unwrap();
+    let gitignore = target_dir.join(".gitignore");
+    fs::write(&gitignore, "local\n").unwrap();
+    fs::set_permissions(&gitignore, fs::Permissions::from_mode(0o444)).unwrap();
+    if fs::OpenOptions::new()
+        .append(true)
+        .open(&gitignore)
+        .is_ok()
+    {
+        // Running as root, which writes through the mode.
+        return;
+    }
 
     let error =
         sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
