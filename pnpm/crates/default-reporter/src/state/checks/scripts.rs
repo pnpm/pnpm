@@ -20,7 +20,7 @@ pub(super) struct ScriptsRun {
     /// `<project> <stage>` of every project script that succeeded.
     projects: BTreeSet<String>,
     /// `name@version` of every dependency whose scripts succeeded.
-    built: BTreeSet<String>,
+    built: BTreeMap<String, DependencyBuild>,
     /// `name@version` of every dependency whose build output came from
     /// the side-effects cache.
     cached: BTreeSet<String>,
@@ -29,11 +29,26 @@ pub(super) struct ScriptsRun {
     failed_optional: BTreeSet<String>,
     /// The project scripts running now, labeled like `projects`.
     running_projects: BTreeSet<String>,
-    /// The dependency builds running now: the `name@version` label of each,
-    /// by its lockfile key, since peer variants share a label.
-    building: BTreeMap<String, String>,
+    /// The dependency builds running now, by lockfile key like `built`.
+    building: BTreeMap<String, DependencyBuild>,
     /// The frame of the spinner the lines of running scripts show.
     spinner: usize,
+}
+
+/// A dependency's build, tracked by its lockfile key since peer variants
+/// share a `name@version` label.
+#[derive(Clone)]
+struct DependencyBuild {
+    label: String,
+    /// The directory its scripts run in, which is how the skip event of a
+    /// project-local build names it.
+    dir: String,
+}
+
+impl DependencyBuild {
+    fn is(&self, key: &str, id: &str) -> bool {
+        key == id || self.dir == id
+    }
 }
 
 /// Whether a lifecycle script belongs to a workspace project or builds a
@@ -49,6 +64,8 @@ pub(in crate::state) struct RunningScript<'a> {
     pub(in crate::state) kind: ScriptKind,
     /// The lockfile key of a dependency, unused for a project script.
     pub(in crate::state) id: &'a str,
+    /// The directory the script runs in.
+    pub(in crate::state) dir: &'a str,
     /// `<project> <stage>`, or the dependency's `name@version`.
     pub(in crate::state) label: &'a str,
 }
@@ -83,8 +100,9 @@ impl ReporterState {
         self.notices.checks.scripts.projects.insert(sanitize(label));
     }
 
-    pub(in crate::state) fn record_dependency_built(&mut self, label: &str) {
-        self.notices.checks.scripts.built.insert(sanitize(label));
+    pub(in crate::state) fn record_dependency_built(&mut self, script: &RunningScript<'_>) {
+        let build = DependencyBuild { label: sanitize(script.label), dir: script.dir.to_string() };
+        self.notices.checks.scripts.built.insert(script.id.to_string(), build);
     }
 
     pub(in crate::state) fn record_script_started(&mut self, script: &RunningScript<'_>) {
@@ -94,7 +112,9 @@ impl ReporterState {
                 scripts.running_projects.insert(sanitize(script.label));
             }
             ScriptKind::Dependency => {
-                scripts.building.insert(script.id.to_string(), sanitize(script.label));
+                let build =
+                    DependencyBuild { label: sanitize(script.label), dir: script.dir.to_string() };
+                scripts.building.insert(script.id.to_string(), build);
             }
         }
     }
@@ -113,12 +133,18 @@ impl ReporterState {
 
     /// A skipped package is not built, even when one of its scripts
     /// succeeded before another failed, and none of its scripts runs on.
-    pub(in crate::state) fn record_failed_optional_build(&mut self, name: &str, version: &str) {
-        let label = sanitize(&format!("{name}@{version}"));
+    /// `id` is its lockfile key or its directory, so a peer variant that
+    /// shares its label keeps its own result.
+    pub(in crate::state) fn record_failed_optional_build(
+        &mut self,
+        id: &str,
+        name: &str,
+        version: &str,
+    ) {
         let scripts = &mut self.notices.checks.scripts;
-        scripts.built.remove(&label);
-        scripts.building.retain(|_, building| *building != label);
-        scripts.failed_optional.insert(label);
+        scripts.built.retain(|key, build| !build.is(key, id));
+        scripts.building.retain(|key, build| !build.is(key, id));
+        scripts.failed_optional.insert(sanitize(&format!("{name}@{version}")));
     }
 
     /// Whether a script runs that the live checks footer shows with a
@@ -158,13 +184,12 @@ impl ReporterState {
             &PROJECT_SCRIPTS,
             str::to_string,
         );
-        let building: BTreeSet<String> = scripts.building
-            .values()
-            .cloned()
-            .collect();
-        let built = self.script_line(&scripts.built, &building, &DEPENDENCY_BUILDS, |label| {
-            self.package_label(label)
-        });
+        let built = self.script_line(
+            &labels(&scripts.built),
+            &labels(&scripts.building),
+            &DEPENDENCY_BUILDS,
+            |label| self.package_label(label),
+        );
         let cached = (!scripts.cached.is_empty()).then(|| {
             let (noun, verb) = count_words(
                 &scripts.cached,
@@ -246,4 +271,11 @@ impl ReporterState {
 
 fn pick(names: &BTreeSet<String>, (one, many): (&'static str, &'static str)) -> &'static str {
     if names.len() == 1 { one } else { many }
+}
+
+fn labels(builds: &BTreeMap<String, DependencyBuild>) -> BTreeSet<String> {
+    builds
+        .values()
+        .map(|build| build.label.clone())
+        .collect()
 }

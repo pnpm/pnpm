@@ -332,7 +332,7 @@ impl ReporterState {
                 format!("{} {stage}", format_prefix_no_trim(&self.rendering.cwd, wd)),
             )
         };
-        let script = RunningScript { kind, id: dep_path, label: &label };
+        let script = RunningScript { kind, id: dep_path, dir: wd, label: &label };
         match message {
             LifecycleMessage::Script { .. } => self.record_script_started(&script),
             LifecycleMessage::Exit { exit_code, .. } => {
@@ -341,7 +341,7 @@ impl ReporterState {
                     return;
                 }
                 match kind {
-                    ScriptKind::Dependency => self.record_dependency_built(&label),
+                    ScriptKind::Dependency => self.record_dependency_built(&script),
                     ScriptKind::Project => self.record_project_script(&label),
                 }
             }

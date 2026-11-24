@@ -77,12 +77,14 @@ fn cache_hit(name: &str, version: &str) -> LogEvent {
     })
 }
 
-fn failed_optional_build(name: &str, version: &str) -> LogEvent {
+/// `id` is the lockfile key or the package directory, as each emitter
+/// sends it.
+fn failed_optional_build(id: &str, name: &str, version: &str) -> LogEvent {
     LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
         level: LogLevel::Debug,
         details: Some("exit code 1".to_string()),
         package: SkippedOptionalPackage::Installed {
-            id: format!("/repo/node_modules/{name}"),
+            id: id.to_string(),
             name: name.to_string(),
             version: version.to_string(),
         },
@@ -184,7 +186,7 @@ fn a_failed_optional_build_is_listed_as_a_problem() {
         vec![
             dependency_script("esbuild@0.21.5"),
             dependency_exit("esbuild@0.21.5", 1, true),
-            failed_optional_build("esbuild", "0.21.5"),
+            failed_optional_build("esbuild@0.21.5", "esbuild", "0.21.5"),
         ],
     );
     assert_eq!(frame, "\n✗ 1 optional dependency failed to build and was skipped: esbuild@0.21.5");
@@ -259,7 +261,7 @@ fn a_skipped_optional_dependency_is_not_listed_as_built() {
             dependency_script("esbuild@0.21.5"),
             dependency_exit("esbuild@0.21.5", 0, false),
             dependency_script("esbuild@0.21.5"),
-            failed_optional_build("esbuild", "0.21.5"),
+            failed_optional_build("esbuild@0.21.5", "esbuild", "0.21.5"),
         ],
     );
     assert!(!reporter.scripts_running());
@@ -293,4 +295,39 @@ fn a_failed_command_stops_the_spinner() {
     reporter.flush_pending_checks(CommandOutcome::Failed);
     assert!(!reporter.scripts_running());
     assert!(matches!(reporter.tick_scripts(), Output::None));
+}
+
+#[test]
+fn a_skipped_peer_variant_leaves_its_sibling_alone() {
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script("foo@1.0.0(a@1.0.0)"),
+            dependency_exit("foo@1.0.0(a@1.0.0)", 0, false),
+            dependency_script("foo@1.0.0(a@2.0.0)"),
+            dependency_script("foo@1.0.0(a@1.0.0)"),
+            failed_optional_build("foo@1.0.0(a@1.0.0)", "foo", "1.0.0"),
+        ],
+    );
+    assert!(reporter.scripts_running(), "the sibling variant still builds");
+    render(&mut reporter, vec![dependency_exit("foo@1.0.0(a@2.0.0)", 0, false)]);
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✓ 1 dependency was built: foo@1.0.0\n\
+         ✗ 1 optional dependency failed to build and was skipped: foo@1.0.0\n",
+    );
+}
+
+#[test]
+fn a_skip_named_by_directory_clears_its_build() {
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script("esbuild@0.21.5"),
+            failed_optional_build(ESBUILD, "esbuild", "0.21.5"),
+        ],
+    );
+    assert!(!reporter.scripts_running());
 }
