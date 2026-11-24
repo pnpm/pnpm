@@ -5,6 +5,7 @@ use super::{
     decisions::PackageDecisions,
     render_permissions,
 };
+use crate::cli_args::approve_builds::ApproveBuildsError;
 use pnpm_config::{
     Config,
     PermissionCapability::{
@@ -119,6 +120,45 @@ fn an_explicit_git_repository_selector_decides_pending_commits() {
         super::decisions::pending_builds_approved(&approval.decisions, &pending),
         vec![first, second],
     );
+}
+
+#[test]
+fn approving_a_registry_package_keeps_the_same_name_git_request_pending() {
+    let dir = tempfile::tempdir().unwrap();
+    let git = "example@git+https://example.org/project.git#1111111";
+    let config = config_awaiting(&dir, &["example@1.0.0", git]);
+    let requests = super::pending_permissions(&config).unwrap();
+    let approval = args(&["example"], false)
+        .decide::<SilentReporter>(&requests.by_package, decide_config(), dir.path())
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        approval.decisions,
+        BTreeMap::from([("example".into(), decided(None, Some(SkillsPermission::All(true))))]),
+    );
+    super::decisions::clear_decided(requests.scan, &approval.decisions).unwrap();
+    assert_eq!(
+        super::pending_permissions(&config).unwrap().by_package,
+        pending(&[(git, &[Skills])]),
+    );
+}
+
+#[test]
+fn an_unmatched_git_selector_lists_the_repository_and_each_pending_commit_once() {
+    let repo = "sample@git+https://example.org/project.git";
+    let first = format!("{repo}#1111111");
+    let second = format!("{repo}#2222222");
+    let requests = pending(&[(&first, &[Build]), (&second, &[Skills])]);
+    for invalid in ["sample", &format!("{repo}#3333333")] {
+        let error = args(&[invalid], false)
+            .decide::<SilentReporter>(&requests, decide_config(), Path::new("/workspace"))
+            .unwrap_err();
+        let Some(ApproveBuildsError::ExactSelectorRequired(selectors)) = error.downcast_ref()
+        else {
+            panic!("unexpected error: {error}");
+        };
+        assert_eq!(selectors.as_slice(), [repo, first.as_str(), second.as_str()]);
+    }
 }
 
 #[test]

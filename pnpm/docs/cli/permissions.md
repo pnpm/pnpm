@@ -40,7 +40,7 @@ To approve a Git package across updates without a prompt, pass its package name 
 pnpm approve 'example@git+https://github.com/example/project.git'
 ```
 
-This approves the requested capabilities for any commit from that repository.
+This approves the requested capabilities for any commit from that repository. If a bare name or branch selector cannot match a pending Git package, pnpm lists the valid selectors and saves no decisions.
 
 After the decision is written, pnpm rebuilds the packages approved to build and links the approved agent skills.
 

@@ -85,7 +85,7 @@ pub struct ApproveBuildsArgs {
 /// Errors specific to `approve-builds`. Codes match pnpm's
 /// `ERR_PNPM_APPROVE_BUILDS_*` set.
 #[derive(Debug, Display, Error, Diagnostic)]
-enum ApproveBuildsError {
+pub(super) enum ApproveBuildsError {
     #[display("Cannot use --all with positional arguments")]
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_ALL_WITH_ARGS))]
     AllWithArgs,
@@ -101,7 +101,7 @@ enum ApproveBuildsError {
     ContradictingArgs(#[error(not(source))] Vec<String>),
 
     #[display(
-        "Use an exact selector to approve a dependency a bare name cannot identify: {}",
+        "Use one of the following selectors for the pending dependencies: {}",
         _0.join(", ")
     )]
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_EXACT_SELECTOR_REQUIRED))]

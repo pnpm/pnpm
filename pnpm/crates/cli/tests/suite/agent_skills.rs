@@ -498,7 +498,7 @@ fn repository_approval_links_a_pending_git_skill_across_updates() {
     repo.write_file("package.json", r#"{"name":"sample","version":"1.0.0"}"#);
     let skill = "skills/sample-guide/SKILL.md";
     repo.write_file(skill, "---\nname: sample-guide\n---\nFirst revision");
-    let _ = repo.commit("first revision");
+    let commit = repo.commit("first revision");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -515,6 +515,20 @@ fn repository_approval_links_a_pending_git_skill_across_updates() {
         .success();
     assert!(pending_skills(workspace).is_some());
     let selector = format!("sample@git+{}", repo.file_url());
+    let original_settings = fs::read(&settings).unwrap();
+    let exact = format!("{selector}#{commit}");
+    for invalid in ["sample", &format!("!{selector}#main")] {
+        let rejected = pnpm(workspace)
+            .with_args(["approve", &selector, invalid])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
+        assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_EXACT_SELECTOR_REQUIRED"), "{stderr}");
+        assert!(stderr.contains(&format!("{selector},")), "{stderr}");
+        assert!(stderr.contains(&exact), "{stderr}");
+        assert_eq!(fs::read(&settings).unwrap(), original_settings);
+        assert!(pending_skills(workspace).is_some());
+    }
     let output = output_of(pnpm(workspace).with_args(["approve", &selector]));
     assert!(!output.contains("not awaiting approval"), "{output}");
     let yaml: serde_json::Value =
