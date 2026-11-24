@@ -295,6 +295,10 @@ pub struct Deprecation {
 /// [`crate::WorkspaceResolveHooks::deprecation_log`].
 pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
 
+/// Sink told the id of each package a walk adds to the graph. See
+/// [`crate::WorkspaceResolveHooks::resolved_package`].
+pub type ResolvedPackageFn = Arc<dyn Fn(&str) + Send + Sync>;
+
 /// Walk `manifest` plus the entries in `dependency_groups`, dispatch
 /// each direct dep through `resolver`, recurse on each picked
 /// package's own `dependencies`, and return a [`ResolvedTree`] that

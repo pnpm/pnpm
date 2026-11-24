@@ -99,6 +99,11 @@ pub struct WorkspaceResolveHooks {
     /// `pnpm:deprecation` debug log). `None` keeps the deprecation
     /// check but drops the notification.
     pub deprecation_log: Option<crate::DeprecationLogFn>,
+    /// Sink told about each package the walk adds to the graph, before its
+    /// dependencies resolve. A package that several walks resolve, such as
+    /// the rounds of an automatic dedupe, is reported by each. `None`
+    /// drops the notification.
+    pub resolved_package: Option<crate::ResolvedPackageFn>,
     pub manifests: crate::ManifestTransformHooks,
     pub max_snapshots: Option<usize>,
     pub cancel: crate::ResolutionCancel,

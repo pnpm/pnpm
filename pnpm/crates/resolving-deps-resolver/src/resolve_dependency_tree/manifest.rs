@@ -342,6 +342,21 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
     value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
 }
 
+/// Report a package the walk just added to the graph: tell
+/// [`crate::WorkspaceResolveHooks::resolved_package`] and emit its
+/// deprecation, if any.
+pub(super) fn report_created_package(
+    ctx: &TreeCtx,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    id: &str,
+    depth: i32,
+) {
+    if let Some(resolved_package) = ctx.workspace.hooks.resolved_package.as_ref() {
+        resolved_package(id);
+    }
+    emit_deprecation_if_needed(ctx, result, id, depth);
+}
+
 /// Emits a [`Deprecation`] when a newly-resolved package's manifest is marked
 /// deprecated and the version is not covered by `allowedDeprecatedVersions`.
 #[cfg_attr(
@@ -351,7 +366,7 @@ fn is_empty_or_absent(value: Option<&Value>) -> bool {
         reason = "`id` is copied only for a deprecated package that no policy allows, after the early returns, and callers reuse it, so an owned parameter would allocate on every call."
     )
 )]
-pub(super) fn emit_deprecation_if_needed(
+fn emit_deprecation_if_needed(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
     id: &str,
