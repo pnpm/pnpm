@@ -135,7 +135,7 @@ impl Config {
 
     // Global commands must not take settings from a caller project's
     // workspace, including one named by `PNPM_CONFIG_WORKSPACE_DIR`: a
-    // project could otherwise redirect their registry and build policy.
+    // project could otherwise redirect the user's registry and build policy.
     pub(super) fn limits_workspace_to_pnpm_home(&self) -> bool {
         self.cli.command_target == crate::CommandTarget::GlobalPackages
     }
