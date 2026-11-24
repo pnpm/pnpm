@@ -77,7 +77,7 @@ fn approve_builds_and_approve_reject_ci_even_with_a_controlling_terminal() {
 }
 
 #[test]
-fn approve_named_packages_and_empty_pending_succeed_without_a_terminal() {
+fn an_unmatched_grant_requires_a_terminal_before_any_decisions_are_written() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), r#"{"name":"app","version":"1.0.0"}"#)
         .expect("write package.json");
@@ -89,15 +89,14 @@ fn approve_named_packages_and_empty_pending_succeed_without_a_terminal() {
         .assert()
         .success();
 
-    pacquet(&workspace)
+    let result = pacquet(&workspace)
         .with_env("CI", "true")
-        .with_args(["approve", "esbuild", "!sharp"])
+        .with_args(["approve", "example", "!other-example", "-y"])
         .assert()
-        .success();
-    let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
-        .expect("read pnpm-workspace.yaml");
-    assert!(yaml.contains("esbuild"), "yaml:\n{yaml}");
-    assert!(yaml.contains("sharp"), "yaml:\n{yaml}");
+        .failure();
+    let stderr = String::from_utf8_lossy(&result.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_APPROVE_NON_INTERACTIVE"), "{stderr}");
+    assert_eq!(fs::read(workspace.join("pnpm-workspace.yaml")).unwrap(), b"");
 
     drop(root);
 }
@@ -132,5 +131,33 @@ fn dlx_skips_automatic_build_approval_prompt_in_ci_even_with_a_terminal() {
         fs::read_to_string(cache_entry.join("pnpm-workspace.yaml")).unwrap_or_default();
     assert!(!cache_yaml.contains("allowBuilds:"), "cache yaml:\n{cache_yaml}");
 
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn approve_selects_advance_permissions_without_changing_unselected_policy() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    let settings = workspace.join("pnpm-workspace.yaml");
+    let original = "permissions:\n  example:\n    build: false\n";
+    for (keys, grants_skills) in [("q", false), ("\r", false), ("j \r", true)] {
+        fs::write(&settings, original).unwrap();
+        let result = pacquet_in_terminal(&workspace)
+            .with_env("PNPM_TEST_PROMPT_TEXT", "Provide agent skills")
+            .with_env("PNPM_TEST_PROMPT_ANSWER", keys)
+            .with_args(["approve", "example", "example"])
+            .assert()
+            .success();
+        let output = String::from_utf8_lossy(&result.get_output().stdout);
+        assert_eq!(output.contains("No permissions selected for example."), keys == "\r");
+        let policy = fs::read_to_string(&settings).unwrap();
+        if grants_skills {
+            assert!(policy.contains("skills: true"), "{policy}");
+            assert!(policy.contains("build: false"), "{policy}");
+        } else {
+            assert_eq!(policy, original);
+        }
+    }
     drop(root);
 }

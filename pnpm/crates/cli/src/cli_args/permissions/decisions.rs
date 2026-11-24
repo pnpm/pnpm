@@ -1,12 +1,9 @@
 use super::{
-    ALL_CAPABILITIES,
     Capabilities,
     IgnoredBuildsScan,
     PermissionCapability,
     disambiguated_labels,
-    partition_params,
 };
-use crate::cli_args::approve_builds::ApproveBuildsError;
 use indexmap::IndexSet;
 use miette::IntoDiagnostic;
 use pnpm_config::SkillsPermission;
@@ -18,15 +15,7 @@ use pnpm_package_manager::{
     allow_build_key_from_ignored_build,
     skill_approval_key,
 };
-use pnpm_package_name::{
-    git_repo_allow_build_key_from_dep_path,
-    is_git_repo_dep_path,
-    parse_dep_path_name_version,
-};
-use pnpm_reporter::{
-    Reporter,
-    emit_global_warning,
-};
+use pnpm_package_name::git_repo_allow_build_key_from_dep_path;
 use pnpm_workspace_manifest_writer::{
     PermissionValue,
     set_permissions,
@@ -47,6 +36,26 @@ pub(crate) struct PackageDecisions {
     pub(crate) build: Option<bool>,
     /// The `skills` verdict: all, none, or the chosen skills.
     pub(crate) skills: Option<SkillsPermission>,
+}
+
+pub(super) enum PermissionVerdict {
+    Grant,
+    Deny,
+}
+
+impl PermissionVerdict {
+    pub(super) fn for_capabilities(self, capabilities: &Capabilities) -> PackageDecisions {
+        let allowed = match self {
+            Self::Grant => true,
+            Self::Deny => false,
+        };
+        PackageDecisions {
+            build: capabilities.contains(&PermissionCapability::Build).then_some(allowed),
+            skills: capabilities
+                .contains(&PermissionCapability::Skills)
+                .then_some(SkillsPermission::All(allowed)),
+        }
+    }
 }
 
 pub(crate) type Decisions = BTreeMap<String, PackageDecisions>;
@@ -120,105 +129,13 @@ fn matching_decisions<'a>(
         .chain(repository)
 }
 
-/// The decisions of `<pkg>` / `!<pkg>` arguments. A package that is not
-/// awaiting approval is decided for every capability.
-pub(super) fn named_decisions<Reporter: self::Reporter>(
-    params: &[String],
-    pending: &BTreeMap<String, Capabilities>,
-) -> miette::Result<Decisions> {
-    let requests = requests_by_selector(pending);
-    let pending_names: Vec<String> = requests.keys().cloned().collect();
-    let partition = partition_params(params, &pending_names);
-    partition.reject_contradictions()?;
-    if !partition.unknown.is_empty() {
-        validate_git_selectors(&partition.unknown, pending)?;
-        emit_global_warning::<Reporter>(&format!(
-            "The following packages are not awaiting approval: {}",
-            partition.unknown.join(", "),
-        ));
-    }
-    let decide = |names: &[String], value: bool| -> Vec<(String, PackageDecisions)> {
-        names
-            .iter()
-            .map(|pkg| {
-                let capabilities: Capabilities = requests
-                    .get(pkg)
-                    .cloned()
-                    .unwrap_or_else(|| ALL_CAPABILITIES.into_iter().collect());
-                let decided = PackageDecisions {
-                    build: capabilities.contains(&PermissionCapability::Build).then_some(value),
-                    skills: capabilities
-                        .contains(&PermissionCapability::Skills)
-                        .then_some(SkillsPermission::All(value)),
-                };
-                (pkg.clone(), decided)
-            })
-            .collect()
-    };
-    Ok(decide(&partition.approved, true)
-        .into_iter()
-        .chain(decide(&partition.denied, false))
-        .collect())
-}
-
-fn validate_git_selectors(
-    unknown: &[String],
-    pending: &BTreeMap<String, Capabilities>,
-) -> miette::Result<()> {
-    let candidates: BTreeSet<_> = unknown
-        .iter()
-        .map(|key| match key.split_once('#') {
-            Some((repo, _)) if is_git_repo_dep_path(repo) => repo,
-            _ => key.as_str(),
-        })
-        .collect();
-    let mut suggestions = BTreeSet::new();
-    for key in pending.keys() {
-        let Some(repo) = git_repo_allow_build_key_from_dep_path(key) else { continue };
-        let bare_name = parse_dep_path_name_version(key).map(|(name, _)| name);
-        if candidates.contains(repo.as_ref())
-            || bare_name.is_some_and(|name| candidates.contains(name))
-        {
-            suggestions.insert(key.clone());
-            suggestions.insert(repo.into_owned());
-        }
-    }
-    if suggestions.is_empty() {
-        return Ok(());
-    }
-    Err(ApproveBuildsError::ExactSelectorRequired(suggestions.into_iter().collect()).into())
-}
-
-fn requests_by_selector(
-    pending: &BTreeMap<String, Capabilities>,
-) -> BTreeMap<String, Capabilities> {
-    let mut requests = pending.clone();
-    for (key, capabilities) in pending {
-        if let Some(repo) = git_repo_allow_build_key_from_dep_path(key) {
-            requests
-                .entry(repo.into_owned())
-                .or_default()
-                .extend(capabilities);
-        }
-    }
-    requests
-}
-
 /// The decisions for `--all`: every capability of every pending package is
 /// approved.
 pub(super) fn decisions_for_all(pending: &BTreeMap<String, Capabilities>) -> Decisions {
     pending
         .iter()
         .map(|(pkg, capabilities)| {
-            (
-                pkg.clone(),
-                PackageDecisions {
-                    build: capabilities.contains(&PermissionCapability::Build).then_some(true),
-                    skills: capabilities
-                        .contains(&PermissionCapability::Skills)
-                        .then_some(SkillsPermission::All(true)),
-                },
-            )
+            (pkg.clone(), PermissionVerdict::Grant.for_capabilities(capabilities))
         })
         .collect()
 }

@@ -170,10 +170,12 @@ fn global_permissions_approve_records_and_links_skill() {
         "permissions:\n  '@pnpm.e2e/with-agent-skills': {skills: true}\n",
     )
     .expect("write project approval");
-    global_command(&workspace, &pnpm_home)
+    let result = global_command(&workspace, &pnpm_home)
         .with_args(["permissions", "approve", "-g", "unrelated-package"])
         .assert()
-        .success();
+        .failure();
+    let stderr = String::from_utf8_lossy(&result.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_APPROVE_NON_INTERACTIVE"), "{stderr}");
     assert!(
         pnpm_home
             .join(".claude/skills/guide")
@@ -254,8 +256,6 @@ fn global_approve_denies_and_prunes_skill() {
 #[cfg(unix)]
 #[test]
 fn global_permissions_migrate_effective_policy_and_keep_both_capabilities() {
-    use assert_cmd::assert::OutputAssertExt;
-
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let pnpm_home = root.path().join("pnpm-home");
@@ -275,10 +275,13 @@ fn global_permissions_migrate_effective_policy_and_keep_both_capabilities() {
     )
     .expect("write recorded policy");
 
-    global_command(&workspace, &pnpm_home)
-        .with_args(["approve", "-g", "future-package"])
-        .assert()
-        .success();
+    let output = run_global_prompt(
+        &workspace,
+        &pnpm_home,
+        &["approve", "-g", "future-package"],
+        ("Provide agent skills", " j \r"),
+    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stdout));
 
     let config = fs::read_to_string(config_path).expect("read global config");
     let config: serde_json::Value = serde_saphyr::from_str(&config).expect("read global policy");
@@ -380,14 +383,15 @@ fn run_global_prompt(
     workspace: &Path,
     pnpm_home: &Path,
     args: &[&str],
-    answer: &str,
+    (prompt, answer): (&str, &str),
 ) -> std::process::Output {
     without_colors(with_global_env(Command::new("python3"), workspace, pnpm_home))
         .with_env("CI", "false")
         .without_env("GITHUB_ACTION")
-        .with_env("PNPM_TEST_MINIMUM_RELEASE_AGE_ANSWER", answer)
+        .with_env("PNPM_TEST_PROMPT_TEXT", prompt)
+        .with_env("PNPM_TEST_PROMPT_ANSWER", answer)
         .with_arg("-c")
-        .with_arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
+        .with_arg(include_str!("../fixtures/terminal_prompt.py"))
         .with_arg(env!("CARGO_BIN_EXE_pnpm"))
         .with_args(args)
         .output()
@@ -2338,8 +2342,12 @@ fn global_update_approves_an_immature_version_once_across_its_resolution_passes(
     prepare_global_home(&pnpm_home, &npmrc_info);
     prepare_immature_global_update(&workspace, &pnpm_home);
 
-    let output =
-        run_global_prompt(&workspace, &pnpm_home, &["update", "-g", "--reporter=append-only"], "y");
+    let output = run_global_prompt(
+        &workspace,
+        &pnpm_home,
+        &["update", "-g", "--reporter=append-only"],
+        ("proceed with the install?", "y"),
+    );
     let stdout = String::from_utf8(output.stdout).expect("terminal output is UTF-8");
     eprintln!("{stdout}");
     assert!(output.status.success(), "{stdout}");
@@ -2371,8 +2379,12 @@ fn global_update_aborts_when_the_immature_version_is_not_approved() {
     prepare_global_home(&pnpm_home, &npmrc_info);
     prepare_immature_global_update(&workspace, &pnpm_home);
 
-    let output =
-        run_global_prompt(&workspace, &pnpm_home, &["update", "-g", "--reporter=append-only"], "n");
+    let output = run_global_prompt(
+        &workspace,
+        &pnpm_home,
+        &["update", "-g", "--reporter=append-only"],
+        ("proceed with the install?", "n"),
+    );
     let stdout = String::from_utf8(output.stdout).expect("terminal output is UTF-8");
     eprintln!("{stdout}");
     assert_eq!(output.status.code(), Some(1), "{stdout}");

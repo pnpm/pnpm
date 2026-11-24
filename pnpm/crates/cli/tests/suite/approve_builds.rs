@@ -298,15 +298,14 @@ fn pacquet(workspace: &Path) -> Command {
 }
 
 /// `pacquet` on a pseudo-terminal outside CI, where a person is there to
-/// answer for the run. The fixture answers only the `minimumReleaseAge`
-/// prompt, which none of these installs render.
+/// answer for the run.
 #[cfg(unix)]
 fn pacquet_in_terminal(workspace: &Path) -> Command {
     let pacquet = pacquet(workspace);
     Command::new("python3")
         .with_env("CI", "false")
         .with_arg("-c")
-        .with_arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
+        .with_arg(include_str!("../fixtures/terminal_prompt.py"))
         .with_arg(pacquet.get_program())
         .with_current_dir(workspace)
 }
