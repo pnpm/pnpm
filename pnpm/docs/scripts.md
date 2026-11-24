@@ -59,7 +59,9 @@ starting with `_`, `/`, or `@`, or containing `:_`).
 variables the way `npm install --build-from-source` does. Set the variables
 in the environment instead. Native addons that use `node-pre-gyp` or
 `prebuild-install`, such as `sqlite3`, read them. For example, to build
-`sqlite3` from source for Electron, put them in an env file:
+`sqlite3` from source for Electron, approve its build in
+[`allowBuilds`](./settings/build.md#allowbuilds), then put the variables in an
+env file:
 
 ```ini title=".env.electron"
 npm_config_build_from_source=true
@@ -97,15 +99,22 @@ export const hooks = {
 ```
 
 The [side-effects cache](./settings/build.md#sideeffectscache) does not include
-these variables in its key. pnpm reuses a build cached without them when they
-are set, and the other way around. List the package in
+these variables in its key, so pnpm can restore a build made with different
+values. List the package in
 [`sideEffectsCache.exclude`](./settings/build.md#sideeffectscacheexclude) so
-pnpm builds it on every install:
+pnpm never restores its build from the cache:
 
 ```yaml title="pnpm-workspace.yaml"
 sideEffectsCache:
   exclude:
     - sqlite3
+```
+
+A repeat install does not rebuild a package that is already installed. After
+changing the variables, rebuild the package with them:
+
+```sh
+pnpm --env-file .env.electron rebuild sqlite3
 ```
 
 ## Processes a script leaves running
