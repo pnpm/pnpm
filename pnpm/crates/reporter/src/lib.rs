@@ -32,6 +32,7 @@ pub use progress::{
     ContextLog,
     FetchingProgressLog,
     FetchingProgressMessage,
+    PYTHON_ENVIRONMENT_REQUESTER,
     PackageImportMethod,
     PackageImportMethodLog,
     ProgressLog,

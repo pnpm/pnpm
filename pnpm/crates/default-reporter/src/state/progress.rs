@@ -66,6 +66,12 @@ impl ReporterState {
             | ProgressMessage::FoundInStore { requester, .. }
             | ProgressMessage::Imported { requester, .. } => requester.clone(),
         };
+        // Its packages are not in the stats, and it never finishes
+        // importing, so it would hold the stats back and leave signs that
+        // never turn green.
+        if requester == pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER {
+            return;
+        }
         let entry = self.downloads.progress.entry(requester).or_default();
         if entry.done {
             return;

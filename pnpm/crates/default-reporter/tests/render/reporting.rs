@@ -218,6 +218,32 @@ fn stats_wait_for_importing_to_finish() {
     assert_eq!(frame, "Packages: +1\n+");
 }
 
+/// A Python install downloads alongside the npm install but never
+/// finishes importing, so it must not hold back the stats.
+#[test]
+fn python_downloads_do_not_hold_back_the_stats() {
+    let mut reporter = state(false);
+    let python = pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER;
+    render(
+        &mut reporter,
+        vec![
+            progress_at(python, "fetched"),
+            progress("fetched"),
+            progress("imported"),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
+            }),
+            LogEvent::Stats(StatsLog {
+                level: LogLevel::Debug,
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+            }),
+        ],
+    );
+    let frame = render(&mut reporter, vec![stage_at(CWD, Stage::ImportingDone)]);
+    assert_eq!(frame, "Packages: +1 (100% downloaded)\n↓");
+}
+
 #[test]
 fn append_only_stats_render_once_after_both_events() {
     let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);

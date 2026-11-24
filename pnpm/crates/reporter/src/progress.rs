@@ -113,10 +113,15 @@ pub struct ProgressLog {
     pub message: ProgressMessage,
 }
 
+/// The `requester` of every `pnpm:progress` event of a Python install. It
+/// is not an install root: no [`StageLog`] or `pnpm:stats` event carries it.
+pub const PYTHON_ENVIRONMENT_REQUESTER: &str = "Python environment";
+
 /// `pnpm:progress` discriminated payload.
 ///
 /// `requester` is the install root, same value as the
-/// [`StageLog::prefix`] threaded through `Install::run`.
+/// [`StageLog::prefix`] threaded through `Install::run`, or
+/// [`PYTHON_ENVIRONMENT_REQUESTER`].
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum ProgressMessage {

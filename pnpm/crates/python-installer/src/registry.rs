@@ -346,7 +346,7 @@ impl<'a> Registry<'a> {
             },
             store: self.store.clone(),
 
-            requester: "Python environment",
+            requester: pnpm_reporter::PYTHON_ENVIRONMENT_REQUESTER,
 
             archive_prefix: None,
             ignore_file_pattern: None,
