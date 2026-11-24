@@ -256,7 +256,7 @@ impl Config {
             .map(PathBuf::from);
         let workspace_yaml = if self.ignore_workspace {
             None
-        } else if self.cli.command_target == crate::CommandTarget::GlobalPackages {
+        } else if self.limits_workspace_to_pnpm_home() {
             WorkspaceSettings::read_at(start_dir, self.settings_read)?
                 .map(|settings| (start_dir.to_path_buf(), Some(settings)))
         } else if let Some(env_dir) = env_workspace_dir {

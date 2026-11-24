@@ -1356,6 +1356,40 @@ fn global_add_ignores_caller_project_npmrc_registry() {
     drop(root);
 }
 
+/// A dead registry in the env-selected workspace makes a leak fail the
+/// install instead of silently changing config.
+#[cfg(unix)]
+#[test]
+fn global_add_ignores_workspace_dir_env_from_the_caller_project() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "registry: http://127.0.0.1:1/\ntrustPolicyExclude:\n  - '@foo/touch-file-one-bin'\n",
+    )
+    .expect("poison the caller workspace with a dead registry");
+
+    global_command(&workspace, &pnpm_home)
+        .with_env("PNPM_CONFIG_WORKSPACE_DIR", &workspace)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin"])
+        .assert()
+        .success();
+
+    assert!(
+        global_bin.join("touch-file-one-bin").exists(),
+        "the global install must ignore a workspace selected by PNPM_CONFIG_WORKSPACE_DIR",
+    );
+
+    drop(npmrc_info);
+    drop(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn recursive_global_outdated_reads_each_global_install_lockfile() {

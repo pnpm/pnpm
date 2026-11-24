@@ -161,8 +161,8 @@ macro_rules! fake_env {
             }
         }
         impl EnvVarOs for FakeEnv {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
+            fn var_os(name: &str) -> Option<OsString> {
+                Self::var(name).map(OsString::from)
             }
         }
         impl GetHomeDir for FakeEnv {

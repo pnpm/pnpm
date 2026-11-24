@@ -5,6 +5,7 @@ use super::{
     GetCurrentDir,
     GetHomeDir,
     LinkProbe,
+    NPM_DEFAULT_REGISTRY,
     OsString,
     Path,
     PathBuf,
@@ -222,7 +223,10 @@ fn a_global_packages_load_ignores_workspace_env_vars_and_parent_workspaces() {
     fs::create_dir_all(&nested_home).expect("create nested pnpm home");
 
     let env_workspace = tempdir().expect("env workspace tempdir");
-    write_file(&env_workspace.path().join("pnpm-workspace.yaml"), "pnpmfile: ./evil.cjs\n");
+    write_file(
+        &env_workspace.path().join("pnpm-workspace.yaml"),
+        "pnpmfile: ./evil.cjs\nregistry: http://127.0.0.1:1/\ntrustPolicyExclude:\n  - evil@1.0.0\n",
+    );
 
     let machine = Machine::with_global_config("");
     set_fake_env(&[
@@ -236,10 +240,16 @@ fn a_global_packages_load_ignores_workspace_env_vars_and_parent_workspaces() {
         ),
     ]);
 
+    let project = Config::default().current::<FakeEnv>(&nested_home).expect("load project config");
+    assert_eq!(project.workspace_dir.as_deref(), Some(env_workspace.path()));
+    assert_eq!(project.registry, "http://127.0.0.1:1/");
+
     let config = global_packages_load().current::<FakeEnv>(&nested_home).expect("load config");
 
     assert_eq!(config.workspace_dir, None);
     assert_eq!(config.pnpmfile, None);
+    assert_eq!(config.registry, NPM_DEFAULT_REGISTRY);
+    assert_eq!(config.trust_policy_exclude, None);
 }
 
 #[test]
