@@ -480,6 +480,9 @@ mod deprecations;
 #[path = "render/install_checks.rs"]
 mod install_checks;
 
+#[path = "render/scripts_summary.rs"]
+mod scripts_summary;
+
 #[path = "render/workspace_summary.rs"]
 mod workspace_summary;
 

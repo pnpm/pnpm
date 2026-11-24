@@ -1,6 +1,8 @@
 use super::{
     super::{
         BuildModulesError,
+        LogEvent,
+        LogLevel,
         PackageKey,
         Path,
         Reporter,
@@ -11,6 +13,7 @@ use super::{
     BuildOneSnapshot,
     report_broken_slot,
 };
+use pnpm_reporter::SideEffectsCacheHitLog;
 
 /// The side-effects cache key, computed once per snapshot before the
 /// `is_built` gate. The same value is later consumed by the WRITE-path
@@ -191,7 +194,22 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
             }
         }
     }
+    report_cache_hit::<Reporter>(context, snapshot_key, named);
     Ok(true)
+}
+
+pub(super) fn report_cache_hit<Reporter: self::Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    (name, version): (&str, &str),
+) {
+    Reporter::emit(&LogEvent::SideEffectsCacheHit(SideEffectsCacheHitLog {
+        level: LogLevel::Debug,
+        prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
+        dep_path: snapshot_key.to_string(),
+        pkg_name: name.to_string(),
+        pkg_version: version.to_string(),
+    }));
 }
 /// What materializing a cached overlay into one slot left behind.
 pub(super) enum OverlayOutcome {

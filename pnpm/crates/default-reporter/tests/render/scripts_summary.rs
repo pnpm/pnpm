@@ -1,0 +1,366 @@
+use super::{
+    CWD,
+    LogEvent,
+    LogLevel,
+    MaxLogLevel,
+    Output,
+    ReporterOptions,
+    ReporterState,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+    emitted_lines,
+    lifecycle_exit,
+    lifecycle_line,
+    lifecycle_script,
+    render,
+    state_with_options,
+};
+use pnpm_default_reporter::state::{
+    CommandOutcome,
+    LifecycleOptions,
+};
+use pnpm_reporter::{
+    LifecycleLog,
+    LifecycleMessage,
+    SideEffectsCacheHitLog,
+};
+
+const PROJECT: &str = "/repo/pnpm/npm/pnpm";
+
+fn summarizing(append_only: bool) -> ReporterState {
+    state_with_options(ReporterOptions {
+        append_only,
+        lifecycle: LifecycleOptions { summarize_scripts: true, ..Default::default() },
+        ..Default::default()
+    })
+}
+
+fn script_run(wd: &str, stage: &str, exit_code: i32) -> Vec<LogEvent> {
+    vec![lifecycle_script(wd, stage, "node install.js"), lifecycle_exit(wd, stage, exit_code)]
+}
+
+fn dependency_dir(dep_path: &str) -> String {
+    format!("/repo/node_modules/.pnpm/{dep_path}/node_modules/pkg")
+}
+
+fn dependency_script(dep_path: &str) -> LogEvent {
+    dependency_script_in(dep_path, &dependency_dir(dep_path))
+}
+
+fn dependency_script_in(dep_path: &str, wd: &str) -> LogEvent {
+    LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Script {
+            dep_path: dep_path.to_string(),
+            optional: false,
+            script: "node install.js".to_string(),
+            stage: "postinstall".to_string(),
+            wd: wd.to_string(),
+        },
+    })
+}
+
+fn dependency_exit(dep_path: &str, exit_code: i32, optional: bool) -> LogEvent {
+    dependency_exit_in(dep_path, &dependency_dir(dep_path), exit_code, optional)
+}
+
+fn dependency_exit_in(dep_path: &str, wd: &str, exit_code: i32, optional: bool) -> LogEvent {
+    LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Exit {
+            dep_path: dep_path.to_string(),
+            exit_code,
+            optional,
+            stage: "postinstall".to_string(),
+            wd: wd.to_string(),
+        },
+    })
+}
+
+fn cache_hit(name: &str, version: &str) -> LogEvent {
+    LogEvent::SideEffectsCacheHit(SideEffectsCacheHitLog {
+        level: LogLevel::Debug,
+        prefix: CWD.to_string(),
+        dep_path: format!("{name}@{version}"),
+        pkg_name: name.to_string(),
+        pkg_version: version.to_string(),
+    })
+}
+
+/// `id` is the lockfile key or the package directory, as each emitter
+/// sends it.
+fn failed_optional_build(id: &str, name: &str, version: &str) -> LogEvent {
+    LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+        level: LogLevel::Debug,
+        details: Some("exit code 1".to_string()),
+        package: SkippedOptionalPackage::Installed {
+            id: id.to_string(),
+            name: name.to_string(),
+            version: version.to_string(),
+        },
+        parents: None,
+        prefix: CWD.to_string(),
+        reason: SkippedOptionalReason::BuildFailure,
+    })
+}
+
+fn footer(reporter: &mut ReporterState, outcome: CommandOutcome) -> String {
+    match reporter.flush_pending_checks(outcome) {
+        Output::Frame(frame) => frame,
+        Output::Lines(lines) => lines.join("\n"),
+        Output::None => String::new(),
+    }
+}
+
+#[test]
+fn the_live_footer_shows_running_and_finished_scripts() {
+    let mut reporter = summarizing(false);
+    let running = render(
+        &mut reporter,
+        vec![
+            lifecycle_script(PROJECT, "preinstall", "node install.js"),
+            lifecycle_line(PROJECT, "preinstall", "fetched the binary"),
+        ],
+    );
+    assert_eq!(running, "\n⠋ 1 project script is running: pnpm/npm/pnpm preinstall");
+    let Output::Frame(ticked) = reporter.tick_scripts() else { panic!("the spinner turns") };
+    assert_eq!(ticked, "\n⠙ 1 project script is running: pnpm/npm/pnpm preinstall");
+    let done = render(&mut reporter, vec![lifecycle_exit(PROJECT, "preinstall", 0)]);
+    assert_eq!(done, "\n✓ 1 project script ran: pnpm/npm/pnpm preinstall");
+}
+
+#[test]
+fn a_spinner_line_counts_finished_and_running_builds() {
+    let mut reporter = summarizing(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            dependency_script("esbuild@0.21.5"),
+            dependency_exit("esbuild@0.21.5", 0, false),
+            dependency_script("sharp@0.33.5"),
+        ],
+    );
+    assert_eq!(frame, "\n⠋ 1 dependency was built, 1 is building: sharp@0.33.5");
+    render(&mut reporter, vec![dependency_exit("sharp@0.33.5", 0, false)]);
+    assert!(!reporter.scripts_running());
+    assert!(matches!(reporter.tick_scripts(), Output::None));
+}
+
+#[test]
+fn the_final_footer_replaces_the_live_one() {
+    let mut reporter = summarizing(false);
+    render(&mut reporter, script_run(PROJECT, "preinstall", 0));
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✓ 1 project script ran: pnpm/npm/pnpm preinstall\n",
+    );
+}
+
+#[test]
+fn footer_lists_the_project_scripts_that_ran() {
+    let mut reporter = summarizing(false);
+    let mut events = script_run(PROJECT, "preinstall", 0);
+    events.extend(script_run(PROJECT, "postinstall", 0));
+    events.extend(script_run(CWD, "prepare", 0));
+    render(&mut reporter, events);
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✓ 3 project scripts ran: . prepare, pnpm/npm/pnpm postinstall and pnpm/npm/pnpm preinstall\n",
+    );
+}
+
+#[test]
+fn footer_lists_built_and_cached_dependencies() {
+    let mut reporter = summarizing(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            dependency_script("esbuild@0.21.5(typescript@5.4.5)"),
+            dependency_exit("esbuild@0.21.5(typescript@5.4.5)", 0, false),
+            cache_hit("sharp", "0.33.5"),
+        ],
+    );
+    assert!(!frame.contains("Running"), "{frame}");
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✓ 1 dependency was built: esbuild@0.21.5\n\
+         ✓ 1 dependency build came from the side-effects cache: sharp@0.33.5\n",
+    );
+}
+
+#[test]
+fn a_failed_optional_build_is_listed_as_a_problem() {
+    let mut reporter = summarizing(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            dependency_script("esbuild@0.21.5"),
+            dependency_exit("esbuild@0.21.5", 1, true),
+            failed_optional_build("esbuild@0.21.5", "esbuild", "0.21.5"),
+        ],
+    );
+    assert_eq!(frame, "\n✗ 1 optional dependency failed to build and was skipped: esbuild@0.21.5");
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Failed),
+        "\n✗ 1 optional dependency failed to build and was skipped: esbuild@0.21.5\n",
+    );
+}
+
+#[test]
+fn a_failed_script_keeps_its_output() {
+    let mut reporter = summarizing(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            lifecycle_script(PROJECT, "preinstall", "node install.js"),
+            lifecycle_line(PROJECT, "preinstall", "boom"),
+            lifecycle_exit(PROJECT, "preinstall", 1),
+        ],
+    );
+    assert!(frame.contains("boom") && frame.contains("Failed in"), "{frame}");
+    assert!(!frame.contains("is running"), "{frame}");
+}
+
+#[test]
+fn a_failed_command_clears_the_live_footer_of_script_successes() {
+    let mut reporter = summarizing(false);
+    render(&mut reporter, script_run(PROJECT, "preinstall", 0));
+    assert_eq!(footer(&mut reporter, CommandOutcome::Failed), "");
+}
+
+#[test]
+fn append_only_prints_only_script_output_and_failures() {
+    let mut reporter = summarizing(true);
+    let mut events = script_run(CWD, "prepare", 0);
+    events.extend([
+        lifecycle_script(PROJECT, "preinstall", "node install.js"),
+        lifecycle_line(PROJECT, "preinstall", "fetched the binary"),
+        lifecycle_exit(PROJECT, "preinstall", 0),
+    ]);
+    events.extend(script_run(PROJECT, "postinstall", 1));
+    assert_eq!(
+        emitted_lines(&mut reporter, events).join("\n"),
+        "pnpm/npm/pnpm preinstall$ node install.js\n\
+         pnpm/npm/pnpm preinstall: fetched the binary\n\
+         pnpm/npm/pnpm postinstall$ node install.js\n\
+         pnpm/npm/pnpm postinstall: Failed",
+    );
+}
+
+#[test]
+fn quiet_output_hides_successful_script_output() {
+    let mut reporter = state_with_options(ReporterOptions {
+        max_log_level: MaxLogLevel::Warn,
+        lifecycle: LifecycleOptions { summarize_scripts: true, ..Default::default() },
+        ..Default::default()
+    });
+    let events = vec![
+        lifecycle_script(PROJECT, "preinstall", "node install.js"),
+        lifecycle_line(PROJECT, "preinstall", "fetched the binary"),
+        lifecycle_exit(PROJECT, "preinstall", 0),
+    ];
+    assert_eq!(render(&mut reporter, events), "");
+}
+
+#[test]
+fn a_skipped_optional_dependency_is_not_listed_as_built() {
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script("esbuild@0.21.5"),
+            dependency_exit("esbuild@0.21.5", 0, false),
+            dependency_script("esbuild@0.21.5"),
+            failed_optional_build("esbuild@0.21.5", "esbuild", "0.21.5"),
+        ],
+    );
+    assert!(!reporter.scripts_running());
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✗ 1 optional dependency failed to build and was skipped: esbuild@0.21.5\n",
+    );
+}
+
+#[test]
+fn peer_variants_of_a_dependency_build_separately() {
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script("foo@1.0.0(a@1.0.0)"),
+            dependency_script("foo@1.0.0(a@2.0.0)"),
+            dependency_exit("foo@1.0.0(a@1.0.0)", 0, false),
+        ],
+    );
+    assert!(reporter.scripts_running());
+    render(&mut reporter, vec![dependency_exit("foo@1.0.0(a@2.0.0)", 0, false)]);
+    assert!(!reporter.scripts_running());
+}
+
+#[test]
+fn a_failed_command_stops_the_spinner() {
+    let mut reporter = summarizing(false);
+    render(&mut reporter, vec![lifecycle_script(PROJECT, "preinstall", "node install.js")]);
+    assert!(reporter.scripts_running());
+    reporter.flush_pending_checks(CommandOutcome::Failed);
+    assert!(!reporter.scripts_running());
+    assert!(matches!(reporter.tick_scripts(), Output::None));
+}
+
+#[test]
+fn a_skipped_peer_variant_leaves_its_sibling_alone() {
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script("foo@1.0.0(a@1.0.0)"),
+            dependency_exit("foo@1.0.0(a@1.0.0)", 0, false),
+            dependency_script("foo@1.0.0(a@2.0.0)"),
+            dependency_script("foo@1.0.0(a@1.0.0)"),
+            failed_optional_build("foo@1.0.0(a@1.0.0)", "foo", "1.0.0"),
+        ],
+    );
+    assert!(reporter.scripts_running(), "the sibling variant still builds");
+    render(&mut reporter, vec![dependency_exit("foo@1.0.0(a@2.0.0)", 0, false)]);
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✓ 1 dependency was built: foo@1.0.0\n\
+         ✗ 1 optional dependency failed to build and was skipped: foo@1.0.0\n",
+    );
+}
+
+#[test]
+fn a_skip_named_by_directory_clears_its_build() {
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script("esbuild@0.21.5"),
+            failed_optional_build(&dependency_dir("esbuild@0.21.5"), "esbuild", "0.21.5"),
+        ],
+    );
+    assert!(!reporter.scripts_running());
+}
+
+/// The hoisted linker builds each copy of a package in its own directory.
+#[test]
+fn a_failed_hoisted_copy_retracts_a_copy_that_built() {
+    const FIRST: &str = "/repo/node_modules/foo";
+    const SECOND: &str = "/repo/node_modules/bar/node_modules/foo";
+    let mut reporter = summarizing(false);
+    render(
+        &mut reporter,
+        vec![
+            dependency_script_in("foo@1.0.0", FIRST),
+            dependency_exit_in("foo@1.0.0", FIRST, 0, false),
+            dependency_script_in("foo@1.0.0", SECOND),
+            dependency_exit_in("foo@1.0.0", SECOND, 1, true),
+            failed_optional_build(SECOND, "foo", "1.0.0"),
+        ],
+    );
+    assert_eq!(
+        footer(&mut reporter, CommandOutcome::Succeeded),
+        "\n✗ 1 optional dependency failed to build and was skipped: foo@1.0.0\n",
+    );
+}

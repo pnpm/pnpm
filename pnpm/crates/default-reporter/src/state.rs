@@ -55,6 +55,7 @@ use pnpm_reporter::{
     RemovedRoot,
     RequestRetryLog,
     ScopeLog,
+    SideEffectsCacheHitLog,
     SkippedOptionalDependencyLog,
     SkippedOptionalPackage,
     SkippedOptionalReason,
@@ -284,6 +285,9 @@ struct LifecycleState {
     /// Events withheld under [`LifecycleOptions::aggregate_output`], keyed
     /// the same way [`Self::entries`] is.
     buffers: HashMap<String, Vec<LifecycleMessage>>,
+    /// The `$ <script>` line of a summarized script, withheld until the
+    /// script prints or fails, keyed the same way [`Self::buffers`] is.
+    headers: HashMap<String, LifecycleMessage>,
     slots: HashMap<String, BlockSlot>,
     colors: HashMap<String, usize>,
     color_wheel: usize,
@@ -381,6 +385,7 @@ impl ReporterState {
             return Output::None;
         }
         self.handle_event(event);
+        self.refresh_live_checks(event);
         self.display.finish(self.options.append_only)
     }
 
@@ -406,6 +411,7 @@ impl ReporterState {
             LogEvent::PendingSkills(log) => self.on_pending_skills(log),
             LogEvent::UpdateCheck(log) => self.on_update_check(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
+            LogEvent::SideEffectsCacheHit(log) => self.on_side_effects_cache_hit(log),
             LogEvent::InstallCheck(log) => self.on_install_check(log),
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
@@ -452,6 +458,12 @@ impl ReporterState {
             | LogEvent::UnusedOverride(_)
             | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,
             LogEvent::Stage(log) if log.stage == Stage::ResolutionDone => {
+                self.options.max_log_level >= MaxLogLevel::Warn
+            }
+            LogEvent::SkippedOptionalDependency(log)
+                if log.reason == SkippedOptionalReason::BuildFailure
+                    && self.options.lifecycle.summarize_scripts =>
+            {
                 self.options.max_log_level >= MaxLogLevel::Warn
             }
             LogEvent::LockfileVerification(log) => {

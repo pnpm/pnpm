@@ -920,6 +920,11 @@ fn using_side_effects_cache_skips_rebuild() {
         .iter()
         .any(|e| matches!(e, LogEvent::Lifecycle(_)));
     assert!(!any_lifecycle, "side-effects cache hit must skip lifecycle scripts: {captured:#?}");
+    let cache_hits = captured
+        .iter()
+        .filter(|e| matches!(e, LogEvent::SideEffectsCacheHit(_)))
+        .count();
+    assert_eq!(cache_hits, 1, "a cache hit is reported once: {captured:#?}");
 
     // The script was skipped, but the cached build output still has to
     // be materialized, the overlay's side-effect file must land in the

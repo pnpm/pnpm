@@ -20,11 +20,16 @@ use pnpm_lockfile::{
     SnapshotEntry,
 };
 use pnpm_patching::ExtendedPatchInfo;
-use pnpm_reporter::SilentReporter;
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use std::{
     collections::HashMap,
     fs,
     path::PathBuf,
+    sync::Mutex,
 };
 use tempfile::{
     TempDir,
@@ -78,6 +83,120 @@ fn a_failed_build_leaves_the_slot_without_its_package() {
 
     assert!(!slot.pkg_dir.exists(), "the slot must not hold the package");
     assert!(!slot.staging_dir().exists(), "the staging directory must be gone");
+}
+
+/// A build restored from the side-effects cache into a global slot is
+/// reported like one restored into a project-local slot.
+#[cfg(unix)]
+#[test]
+fn a_cached_build_is_placed_and_reported() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
+        }
+    }
+
+    let slot = PatchedSlot::new();
+    slot.stage();
+    let engine = "linux;x64;node20";
+    let snapshots = HashMap::from([(slot.pkg_key.clone(), SnapshotEntry::default())]);
+    let packages = HashMap::from([(
+        slot.pkg_key.without_peer(),
+        super::empty_side_effects::registry_package(),
+    )]);
+    let cache_key = pnpm_graph_hasher::calc_dep_state(
+        &crate::build_deps_graph(&snapshots, &packages),
+        &mut pnpm_graph_hasher::DepsStateCache::new(),
+        &slot.pkg_key,
+        &pnpm_graph_hasher::CalcDepStateOptions {
+            engine_name: engine,
+            patch_file_hash: None,
+            include_dep_graph_hash: true,
+        },
+    );
+    let manifest_blob = slot.root.path().join("manifest-blob");
+    fs::write(&manifest_blob, MANIFEST).expect("write manifest blob");
+    let built_blob = slot.root.path().join("built-blob");
+    fs::write(&built_blob, "built").expect("write built blob");
+    let overlay = HashMap::from([(
+        cache_key,
+        HashMap::from([
+            ("package.json".to_string(), manifest_blob.into()),
+            ("built.js".to_string(), built_blob.into()),
+        ])
+        .into(),
+    )]);
+    let overlays = HashMap::from([(slot.pkg_key.clone(), std::sync::Arc::new(overlay))]);
+    let requires_build = HashMap::from([(slot.pkg_key.clone(), true)]);
+    let importers = root_importers(&[("is-positive", "1.0.0")]);
+    let policy = policy_from_specs([], true);
+    let modules_dir = slot.root.path().join("node_modules");
+
+    BuildModules {
+        cache: crate::BuildCacheContext {
+            captured: None,
+            side_effects: crate::CachedSideEffects { overlays: Some(&overlays), rows: None },
+            engine_name: Some(engine),
+            read: true,
+            write: false,
+            publisher: None,
+            store: None,
+            frozen_store: false,
+        },
+        directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            layout: slot.layout,
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: &modules_dir,
+            lockfile_dir: slot.root.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: Some(&packages),
+            patches: None,
+            requires_build_by_snapshot: Some(&requires_build),
+            importers: &importers,
+            dependency_groups: None,
+            build_scope: None,
+            variations_platform: None,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            path: crate::ScriptPath { extra_bin_paths: &[], private_hoisting: false },
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                install_state_dir: None,
+            },
+        },
+        allow_build_policy: &policy,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        rebuild: None,
+    }
+    .run::<RecordingReporter>()
+    .expect("build modules must complete cleanly");
+
+    assert!(slot.pkg_dir.join("built.js").exists(), "the cached build must be placed");
+    let events = EVENTS.lock().expect("lock");
+    let cache_hits = events
+        .iter()
+        .filter(|event| matches!(event, LogEvent::SideEffectsCacheHit(_)))
+        .count();
+    assert_eq!(cache_hits, 1, "the cache hit is reported once: {events:#?}");
 }
 
 const MANIFEST: &str = r#"{"name":"is-positive","version":"1.0.0"}"#;

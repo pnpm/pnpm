@@ -1,6 +1,8 @@
 //! The checks footer an install ends with, above `Done in ...`:
 //!
 //! - a `✓` line when the lockfile passed the supply-chain policies,
+//! - `✓` lines for the lifecycle scripts an install ran or restored from
+//!   the side-effects cache,
 //! - one `✗` line per problem,
 //! - `·` lines for what the user may act on: the dependencies with newer
 //!   versions, and a skipped resolution.
@@ -12,6 +14,11 @@
 //! The deprecation, peer, engine, and platform checks print nothing when
 //! they pass, as they did before the footer existed.
 
+pub(super) use scripts::{
+    RunningScript,
+    ScriptKind,
+};
+
 use super::{
     BTreeMap,
     BTreeSet,
@@ -19,6 +26,8 @@ use super::{
     BlockSlot,
     DeprecationLog,
     InstallCheckLog,
+    LifecycleMessage,
+    LogEvent,
     MaxLogLevel,
     Output,
     PeerDependencyIssuesLog,
@@ -29,6 +38,8 @@ use super::{
     engine_ranges::merge_ranges,
     is_strictly_newer,
 };
+
+mod scripts;
 
 /// How a command ended, which decides the footer lines it prints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,14 +65,21 @@ pub(super) struct ChecksState {
     peer_issues: Option<BTreeSet<String>>,
     /// `name@version` of every deprecated package resolution reported.
     deprecated: BTreeSet<String>,
-    /// The packages that reject an engine, by the engine and its current
-    /// version, then by the range they declare.
-    unsupported_engine: BTreeMap<(&'static str, String), BTreeMap<String, BTreeSet<String>>>,
-    /// The packages that reject the platform, by what they want, such as
-    /// `os darwin`.
-    unsupported_platform: BTreeMap<String, BTreeSet<String>>,
+    unsupported: UnsupportedPackages,
+    scripts: scripts::ScriptsRun,
     slot: BlockSlot,
     rendered: bool,
+}
+
+/// The packages that do not support the host.
+#[derive(Default)]
+struct UnsupportedPackages {
+    /// The packages that reject an engine, by the engine and its current
+    /// version, then by the range they declare.
+    engine: BTreeMap<(&'static str, String), BTreeMap<String, BTreeSet<String>>>,
+    /// The packages that reject the platform, by what they want, such as
+    /// `os darwin`.
+    platform: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl ReporterState {
@@ -95,7 +113,7 @@ impl ReporterState {
         let checks = &mut self.notices.checks;
         match unsupported {
             UnsupportedPackage::Platform { pkg_id, wanted } => {
-                checks.unsupported_platform
+                checks.unsupported.platform
                     .entry(sanitize(&platform_requirement(wanted)))
                     .or_default()
                     .insert(sanitize(pkg_id));
@@ -107,7 +125,7 @@ impl ReporterState {
                 ];
                 for (engine, range, version) in engines {
                     let Some(range) = range else { continue };
-                    checks.unsupported_engine
+                    checks.unsupported.engine
                         .entry((engine, sanitize(version.as_deref().unwrap_or_default())))
                         .or_default()
                         .entry(sanitize(range))
@@ -125,11 +143,41 @@ impl ReporterState {
         self.display.finish(self.options.append_only)
     }
 
+    /// Redraws the live checks footer pinned below the progress while an
+    /// install summarizes its scripts. Only events that change the footer
+    /// redraw it. The final footer replaces it in [`Self::render_checks`].
+    pub(super) fn refresh_live_checks(&mut self, event: &LogEvent) {
+        if !self.options.lifecycle.summarize_scripts
+            || self.options.append_only
+            || self.notices.checks.rendered
+            || !changes_checks(event)
+        {
+            return;
+        }
+        self.redraw_live_checks();
+    }
+
+    fn redraw_live_checks(&mut self) {
+        let footer = self.checks_footer(CommandOutcome::Succeeded);
+        let mut slot = std::mem::take(&mut self.notices.checks.slot);
+        match footer {
+            Some(footer) => {
+                self.display.frame.emit(&mut slot, format!("\n{footer}"), BlockPlacement::Pinned);
+            }
+            None => self.display.frame.clear(&mut slot),
+        }
+        self.notices.checks.slot = slot;
+    }
+
     pub(super) fn render_checks(&mut self, outcome: CommandOutcome) {
         if self.notices.checks.rendered {
             return;
         }
-        let Some(footer) = self.checks_footer(outcome) else { return };
+        let Some(footer) = self.checks_footer(outcome) else {
+            self.notices.checks.rendered = true;
+            self.display.frame.clear(&mut self.notices.checks.slot);
+            return;
+        };
         self.notices.checks.rendered = true;
         let mut slot = std::mem::take(&mut self.notices.checks.slot);
         // A rendered summary already ends with a blank line.
@@ -143,17 +191,23 @@ impl ReporterState {
             CommandOutcome::Succeeded => self.options.max_log_level >= MaxLogLevel::Info,
             CommandOutcome::Failed => false,
         };
-        let lines: Vec<String> =
-            [self.passed_line().filter(|_| shows_info), self.deprecated_line()]
-                .into_iter()
-                .chain(self.unsupported_lines().map(Some))
-                .chain([
-                    self.peer_issues_line(),
-                    self.outdated_line().filter(|_| shows_info),
-                    self.resolution_skipped_line().filter(|_| shows_info),
-                ])
-                .flatten()
-                .collect();
+        let scripts = self
+            .scripts_lines()
+            .into_iter()
+            .filter(|_| shows_info)
+            .map(Some);
+        let lines: Vec<String> = std::iter::once(self.passed_line().filter(|_| shows_info))
+            .chain(scripts)
+            .chain([self.deprecated_line()])
+            .chain(self.unsupported_lines().map(Some))
+            .chain([
+                self.peer_issues_line(),
+                self.failed_optional_line(),
+                self.outdated_line().filter(|_| shows_info),
+                self.resolution_skipped_line().filter(|_| shows_info),
+            ])
+            .flatten()
+            .collect();
         (!lines.is_empty()).then(|| lines.join("\n"))
     }
 
@@ -172,14 +226,14 @@ impl ReporterState {
                 "{} {} {noun} {verb} deprecated: {}",
                 self.rendering.colors.red("✗"),
                 deprecated.len(),
-                list_names(deprecated, |label| self.package_label(label)),
+                list_names(deprecated.iter(), |label| self.package_label(label)),
             )
         })
     }
 
     fn unsupported_lines(&self) -> impl Iterator<Item = String> + '_ {
         let checks = &self.notices.checks;
-        let engines = checks.unsupported_engine
+        let engines = checks.unsupported.engine
             .iter()
             .flat_map(|((engine, current), by_range)| {
                 merge_ranges(by_range, current)
@@ -188,7 +242,7 @@ impl ReporterState {
                         (format!("{engine} {range}, not {current}"), packages)
                     })
             });
-        let platforms = checks.unsupported_platform
+        let platforms = checks.unsupported.platform
             .iter()
             .map(|(requirement, packages)| (requirement.clone(), packages.clone()));
         engines
@@ -203,7 +257,7 @@ impl ReporterState {
             "{} {} {noun} {verb} {requirement}: {}",
             self.rendering.colors.red("✗"),
             packages.len(),
-            list_names(packages, |label| self.package_label(label)),
+            list_names(packages.iter(), |label| self.package_label(label)),
         )
     }
 
@@ -224,7 +278,7 @@ impl ReporterState {
         Some(format!(
             "{cross} {} {noun} {verb} issues: {} {see}",
             peers.len(),
-            list_names(peers, |name| self.rendering.colors.package_name(name)),
+            list_names(peers.iter(), |name| self.rendering.colors.package_name(name)),
         ))
     }
 
@@ -240,7 +294,7 @@ impl ReporterState {
                 "{} {} {noun} {verb}: {} {}",
                 self.rendering.colors.grey("·"),
                 outdated.len(),
-                list_names(&outdated, |name| self.rendering.colors.package_name(name)),
+                list_names(outdated.iter(), |name| self.rendering.colors.package_name(name)),
                 self.see("pnpm outdated"),
             )
         })
@@ -351,15 +405,49 @@ fn platform_values(values: &[String]) -> String {
     format!("other than {}", rejected.join(" or "))
 }
 
+/// Whether the event can change a line of the checks footer.
+fn changes_checks(event: &LogEvent) -> bool {
+    matches!(
+        event,
+        LogEvent::Lifecycle(pnpm_reporter::LifecycleLog {
+            message: LifecycleMessage::Script { .. } | LifecycleMessage::Exit { .. },
+            ..
+        }) | LogEvent::SideEffectsCacheHit(_)
+            | LogEvent::SkippedOptionalDependency(_)
+            | LogEvent::Deprecation(_)
+            | LogEvent::InstallCheck(_)
+            | LogEvent::PeerDependencyIssues(_)
+            | LogEvent::LockfileVerification(_)
+            | LogEvent::Pnpm(_),
+    )
+}
+
+fn count_words<'a>(
+    items: &BTreeSet<String>,
+    one: (&'a str, &'a str),
+    many: (&'a str, &'a str),
+) -> (&'a str, &'a str) {
+    if items.len() == 1 { one } else { many }
+}
+
+/// Text from a manifest or the lockfile, on one line and without control
+/// characters.
+fn sanitize(text: &str) -> String {
+    pnpm_text_sanitize::sanitize_inline(text).into_owned()
+}
+
 /// At most [`MAX_LISTED`] names, each through `paint`, then a count of
 /// the rest.
-fn list_names(names: &BTreeSet<String>, paint: impl Fn(&str) -> String) -> String {
+fn list_names<'a>(
+    names: impl ExactSizeIterator<Item = &'a String>,
+    paint: impl Fn(&str) -> String,
+) -> String {
+    let total = names.len();
     let listed: Vec<String> = names
-        .iter()
         .take(MAX_LISTED)
         .map(|name| paint(name))
         .collect();
-    let rest = names.len() - listed.len();
+    let rest = total - listed.len();
     match listed.as_slice() {
         [] => String::new(),
         [only] => only.clone(),

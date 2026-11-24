@@ -314,6 +314,7 @@ pub(crate) struct LifecycleReporterSetup {
     pub(crate) stream_output: bool,
     pub(crate) aggregate_output: bool,
     pub(crate) hide_prefix: bool,
+    pub(crate) summarize_scripts: bool,
 }
 
 /// Seed the process-global default-reporter state that can't be recovered
@@ -332,6 +333,9 @@ pub(crate) fn configure_default_reporter(setup: &DefaultReporterSetup<'_>) {
     }
     if setup.lifecycle.hide_prefix {
         pnpm_default_reporter::hide_lifecycle_prefix();
+    }
+    if setup.lifecycle.summarize_scripts {
+        pnpm_default_reporter::summarize_scripts();
     }
     pnpm_default_reporter::set_summary_scope(setup.summary_scope);
     pnpm_default_reporter::set_reports_scope(setup.reports_scope);

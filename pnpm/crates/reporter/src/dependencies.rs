@@ -241,3 +241,15 @@ pub struct EngineVersions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pnpm: Option<String>,
 }
+
+/// `pnpm:side-effects-cache-hit` payload. `prefix` is the lockfile
+/// directory; `depPath` is the package's lockfile key.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SideEffectsCacheHitLog {
+    pub level: LogLevel,
+    pub prefix: String,
+    pub dep_path: String,
+    pub pkg_name: String,
+    pub pkg_version: String,
+}

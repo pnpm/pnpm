@@ -25,6 +25,7 @@ pub use dependencies::{
     RemovedRoot,
     RootLog,
     RootMessage,
+    SideEffectsCacheHitLog,
     SkippedOptionalDependencyLog,
     SkippedOptionalPackage,
     SkippedOptionalParent,
@@ -155,6 +156,12 @@ pub enum LogEvent {
     /// the list to remind the user they can opt in.
     #[serde(rename = "pnpm:ignored-scripts")]
     IgnoredScripts(IgnoredScriptsLog),
+
+    /// One per dependency whose build output came from the side-effects
+    /// cache, so its lifecycle scripts did not run
+    /// (`pnpm:side-effects-cache-hit`).
+    #[serde(rename = "pnpm:side-effects-cache-hit")]
+    SideEffectsCacheHit(SideEffectsCacheHitLog),
 
     /// One per install that found direct dependencies whose agent skills
     /// await approval (`pnpm:pending-skills`).

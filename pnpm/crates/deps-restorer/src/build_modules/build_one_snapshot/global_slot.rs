@@ -75,6 +75,11 @@ pub(super) fn build<Reporter: self::Reporter>(
     {
         dependency_bins::record_mutation(context, snapshot_key)?;
         slot.place_cached::<Reporter>(context, overlay)?;
+        side_effects::report_cache_hit::<Reporter>(
+            context,
+            snapshot_key,
+            (&candidate.name, &candidate.version),
+        );
         return already_placed::<Reporter>(context, snapshot_key, candidate);
     }
     build_and_place::<Reporter>(context, (snapshot_key, cache_key), candidate, (&slot, rerun))
