@@ -333,6 +333,49 @@ fn global_approve_all_retries_a_failed_rebuild() {
 }
 
 #[cfg(unix)]
+#[test]
+fn global_build_approval_links_the_skills_the_build_creates() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    fs::create_dir_all(pnpm_home.join(".claude/skills")).expect("create agent dir");
+    let config_path = global_config_yaml(&pnpm_home);
+    fs::create_dir_all(config_path.parent().expect("config parent")).expect("create config home");
+    fs::write(
+        &config_path,
+        "globalPackagesConfig:\n  permissions:\n    built-skill:\n      skills: true\n",
+    )
+    .expect("write global config");
+    let source = root.path().join("built-skill");
+    fs::create_dir_all(&source).expect("create package source");
+    fs::write(
+        source.join("package.json"),
+        r#"{"name":"built-skill","version":"1.0.0","scripts":{"install":"node build.cjs"}}"#,
+    )
+    .expect("write package manifest");
+    fs::write(
+        source.join("build.cjs"),
+        "const fs = require('node:fs'); fs.mkdirSync('skills/guide', {recursive: true}); fs.writeFileSync('skills/guide/SKILL.md', '# guide')",
+    )
+    .expect("write fixture build script");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", &format!("file:{}", source.display())])
+        .assert()
+        .success();
+    let link = pnpm_home.join(".claude/skills/guide");
+    assert!(link.symlink_metadata().is_err(), "the blocked build has not created the skill");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["approve", "-g", "--all"])
+        .assert()
+        .success();
+    assert!(link.join("SKILL.md").is_file(), "the approved skill the build created is linked");
+}
+
+#[cfg(unix)]
 fn run_global_prompt(
     workspace: &Path,
     pnpm_home: &Path,

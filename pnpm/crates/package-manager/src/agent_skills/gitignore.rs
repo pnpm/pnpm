@@ -24,22 +24,24 @@ const LEGACY_GITIGNORE_RULE: &str = "pnpm-*";
 /// The name of the `.gitignore` block that lists pnpm's entries.
 const GITIGNORE_SECTION: &str = "pnpm";
 
+/// Refuse the update [`update_gitignores`] would refuse, before any link
+/// changes: the links it would leave behind are recorded nowhere.
+pub(super) fn check_gitignores_writable<'entry>(
+    target_root: &Path,
+    affected: impl IntoIterator<Item = &'entry String>,
+) -> Result<(), AgentSkillsError> {
+    affected_dirs(target_root, affected)
+        .into_keys()
+        .try_for_each(|dir| reject_symlinked_gitignore(&dir.join(".gitignore")))
+}
+
 /// List the surviving links in pnpm's ignore block for each affected directory.
 pub(super) fn update_gitignores<'entry>(
     target_root: &Path,
     affected: impl IntoIterator<Item = &'entry String>,
     desired: &BTreeSet<String>,
 ) -> Result<(), AgentSkillsError> {
-    let mut by_dir: BTreeMap<PathBuf, BTreeSet<String>> = BTreeMap::new();
-    for entry in
-        affected.into_iter().filter(|entry| recorded_parent_is_within_root(target_root, entry))
-    {
-        if let Some(dir) = Path::new(entry).parent() {
-            by_dir
-                .entry(target_root.join(dir))
-                .or_default();
-        }
-    }
+    let mut by_dir = affected_dirs(target_root, affected);
     for entry in desired.iter().filter(|entry| recorded_parent_is_within_root(target_root, entry)) {
         let path = Path::new(entry);
         let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else { continue };
@@ -53,19 +55,39 @@ pub(super) fn update_gitignores<'entry>(
     Ok(())
 }
 
+/// The directories of the `affected` entries, each with no rules yet.
+fn affected_dirs<'entry>(
+    target_root: &Path,
+    affected: impl IntoIterator<Item = &'entry String>,
+) -> BTreeMap<PathBuf, BTreeSet<String>> {
+    affected
+        .into_iter()
+        .filter(|entry| recorded_parent_is_within_root(target_root, entry))
+        .map(Path::new)
+        .filter_map(Path::parent)
+        .map(|dir| (target_root.join(dir), BTreeSet::new()))
+        .collect()
+}
+
+fn reject_symlinked_gitignore(path: &Path) -> Result<(), AgentSkillsError> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_symlink() => Err(AgentSkillsError::Io {
+            path: path.to_path_buf(),
+            source: io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "cannot write through a symlinked .gitignore",
+            ),
+        }),
+        _ => Ok(()),
+    }
+}
+
 /// Rewrite the `# pnpm` block of the `.gitignore` at `path` to list
 /// `rules`. The file is created only when there is a rule to list, and
 /// removed when no line remains.
 fn update_gitignore(path: &Path, rules: &BTreeSet<String>) -> Result<(), AgentSkillsError> {
     let io_error = |source| AgentSkillsError::Io { path: path.to_path_buf(), source };
-    if let Ok(meta) = fs::symlink_metadata(path)
-        && meta.file_type().is_symlink()
-    {
-        return Err(io_error(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "cannot write through a symlinked .gitignore",
-        )));
-    }
+    reject_symlinked_gitignore(path)?;
     let existing = match fs::read_to_string(path) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound && rules.is_empty() => return Ok(()),

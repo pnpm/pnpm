@@ -16,14 +16,19 @@ use crate::{
 pub const GLOBAL_PACKAGES_UNSUPPORTED_KEYS: &[&str] =
     &["catalog", "catalogs", "overrides", "packageExtensions", "patchedDependencies"];
 
-/// The settings that decide which lifecycle scripts run.
+/// The settings that decide which lifecycle scripts run and which agent
+/// skills link.
 const BUILD_POLICY_KEYS: &[&str] =
     &["allowBuilds", "dangerouslyAllowAllBuilds", "permissions", "skills"];
 
-/// The build policy the layers below the workspace layer set, restored over
-/// the workspace layer's own by [`Config::apply_global_packages_layer`].
+/// The build and agent skill policy the layers below the workspace layer
+/// set, restored over the workspace layer's own by
+/// [`Config::apply_global_packages_layer`], so a caller's project cannot
+/// approve builds or skills of the global packages.
 pub(super) struct BuildPolicy {
     allow_builds: std::collections::HashMap<String, bool>,
+    allow_skills: std::collections::HashMap<String, crate::SkillsPermission>,
+    skills_dirs: Option<Vec<String>>,
     dangerously_allow_all_builds: bool,
     explicit_settings: Vec<(String, serde_json::Value)>,
 }
@@ -61,6 +66,8 @@ impl Config {
     pub(super) fn global_packages_build_policy(&self) -> Option<BuildPolicy> {
         (self.cli.command_target == CommandTarget::GlobalPackages).then(|| BuildPolicy {
             allow_builds: self.allow_builds.clone(),
+            allow_skills: self.allow_skills.clone(),
+            skills_dirs: self.skills_dirs.clone(),
             dangerously_allow_all_builds: self.dangerously_allow_all_builds,
             explicit_settings: BUILD_POLICY_KEYS
                 .iter()
@@ -78,6 +85,8 @@ impl Config {
     /// global packages directory's `pnpm-workspace.yaml` beneath every layer.
     fn restore_build_policy(&mut self, policy: BuildPolicy) {
         self.allow_builds = policy.allow_builds;
+        self.allow_skills = policy.allow_skills;
+        self.skills_dirs = policy.skills_dirs;
         self.dangerously_allow_all_builds = policy.dangerously_allow_all_builds;
         for key in BUILD_POLICY_KEYS {
             self.explicit_settings.remove(*key);

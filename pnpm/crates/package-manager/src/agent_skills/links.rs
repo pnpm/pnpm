@@ -5,7 +5,10 @@ use super::{
     AgentSkillsError,
     SyncAgentSkills,
     discovery::MAX_SKILL_DIR_DEPTH,
-    gitignore::update_gitignores,
+    gitignore::{
+        check_gitignores_writable,
+        update_gitignores,
+    },
     targets::STANDARD_AGENT_DIRS,
 };
 use std::{
@@ -40,16 +43,16 @@ pub(super) fn reconcile_links(
         }
     }
     ensure_unoccupied(target_root, input.linked, &to_write, input.config.virtual_store_dir())?;
+    let affected = || input.linked.iter().chain(desired.keys());
+    check_gitignores_writable(target_root, affected())?;
     let keep = desired
         .keys()
         .chain(other_links)
         .cloned()
         .collect();
     prune(target_root, input.linked, &keep)?;
-    // `.modules.yaml` records new links only after this returns, so a
-    // failing `.gitignore` update must not leave links nothing records.
-    update_gitignores(target_root, input.linked.iter().chain(desired.keys()), &keep)?;
-    materialize(target_root, &to_write)
+    materialize(target_root, &to_write)?;
+    update_gitignores(target_root, affected(), &keep)
 }
 
 /// Remove recorded links that no surviving group uses.

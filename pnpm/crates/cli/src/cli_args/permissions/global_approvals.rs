@@ -150,23 +150,40 @@ async fn rebuild_approved_global_groups<Reporter: self::Reporter + 'static>(
         if sync_skills {
             reconcile_global_skills(config, global_pkg_dir, &install_dir)?;
         }
-        let group_pending = pending_permissions(config)?;
-        let build_packages = pending_builds_approved(decisions, &group_pending.by_package);
-        if !build_packages.is_empty() {
-            let state = State::init(install_dir.join("package.json"), config, true)
-                .wrap_err("initialize the global approve state")?;
-            let selection = RebuildSelection {
-                names: Some(build_packages),
-                projects: Vec::new(),
-                snapshots: None,
-            };
-            Box::pin(run_rebuild::<Reporter>(&state, selection, None)).await?;
-        }
+        Box::pin(rebuild_approved_builds::<Reporter>(
+            config,
+            global_pkg_dir,
+            &install_dir,
+            decisions,
+        ))
+        .await?;
         if !build_decisions.is_empty() {
             clear_decided(get_automatically_ignored_builds(config)?, &build_decisions)?;
         }
     }
     Ok(())
+}
+
+/// Rebuild the packages of the group at `install_dir` whose builds
+/// `decisions` approve, then link the skills the builds created.
+async fn rebuild_approved_builds<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    global_pkg_dir: &Path,
+    install_dir: &Path,
+    decisions: &BTreeMap<String, PackageDecisions>,
+) -> miette::Result<()> {
+    let group_pending = pending_permissions(config)?;
+    let build_packages = pending_builds_approved(decisions, &group_pending.by_package);
+    if build_packages.is_empty() {
+        return Ok(());
+    }
+    let state = State::init(install_dir.join("package.json"), config, true)
+        .wrap_err("initialize the global approve state")?;
+    let selection =
+        RebuildSelection { names: Some(build_packages), projects: Vec::new(), snapshots: None };
+    Box::pin(run_rebuild::<Reporter>(&state, selection, None)).await?;
+    // A build can create the skills an approval already covers.
+    reconcile_global_skills(config, global_pkg_dir, install_dir)
 }
 
 fn reconcile_global_skills(
