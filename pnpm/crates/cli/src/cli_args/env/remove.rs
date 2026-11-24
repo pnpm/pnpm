@@ -182,7 +182,7 @@ fn cleanup_nodejs_current(
     let points_to_removed = fs::read_link(&nodejs_current)
         .is_ok_and(|target| is_path_in_removed_names(&target, removed_names));
     if is_dangling || points_to_removed {
-        fs::remove_file(&nodejs_current)?;
+        pnpm_fs::remove_symlink_dir(&nodejs_current)?;
         return Ok(true);
     }
     Ok(false)
