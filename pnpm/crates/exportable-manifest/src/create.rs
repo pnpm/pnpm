@@ -369,7 +369,7 @@ fn create_npm_aliased_specifier(npm_pkg_name: &str, version_selector: Option<&st
 /// Hoist whitelisted `publishConfig` keys onto the manifest root,
 /// dropping them from `publishConfig` (and removing `publishConfig`
 /// entirely once empty).
-fn override_publish_config(publish: &mut Map<String, Value>) {
+pub fn override_publish_config(publish: &mut Map<String, Value>) {
     let Some(publish_config) = publish
         .get("publishConfig")
         .and_then(Value::as_object)

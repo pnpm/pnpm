@@ -12,6 +12,7 @@ pub use create::{
     CreateExportableManifestOptions,
     create_exportable_manifest,
     finalize_exportable_manifest,
+    override_publish_config,
     prepare_exportable_manifest,
     read_readme_file,
 };

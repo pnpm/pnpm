@@ -34,6 +34,7 @@ pub use output::{
     to_pack_result_json,
 };
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
+pub use source::static_pack_sources;
 
 mod capabilities;
 mod collation;
@@ -350,25 +351,37 @@ fn packed_files_map(
     opts: &PackOptions,
     source: &PackSource,
 ) -> Result<indexmap::IndexMap<String, PathBuf>, PackError> {
-    let files = packlist_with_sources(
+    let mut files_map = package_file_sources(
+        &opts.dir,
+        opts.workspace_dir.as_deref(),
         &source.dir,
         &source.publish_manifest,
-        PacklistOptions {
-            workspace_dir: opts.workspace_dir.as_deref(),
-            bundled_dependencies_dir: Some(&opts.dir),
-        },
-    )
-    .map_err(PackError::Packlist)?;
-    let mut files_map = build_files_map(files);
+    )?;
     reject_unshipped_private_dependencies(source, &files_map)?;
-    files_map.retain(|name, _| !is_manifest_entry(name));
-    files_map.insert("package/package.json".to_string(), project_manifest_path(&source.dir));
-    inject_workspace_license(opts, &source.dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.
     for (name, _) in &opts.output.injected_files {
         files_map.shift_remove(name);
     }
+    Ok(files_map)
+}
+
+fn package_file_sources(
+    project_dir: &Path,
+    workspace_dir: Option<&Path>,
+    source_dir: &Path,
+    manifest: &Value,
+) -> Result<indexmap::IndexMap<String, PathBuf>, PackError> {
+    let files = packlist_with_sources(
+        source_dir,
+        manifest,
+        PacklistOptions { workspace_dir, bundled_dependencies_dir: Some(project_dir) },
+    )
+    .map_err(PackError::Packlist)?;
+    let mut files_map = build_files_map(files);
+    files_map.retain(|name, _| !is_manifest_entry(name));
+    files_map.insert("package/package.json".to_string(), project_manifest_path(source_dir));
+    inject_workspace_license(workspace_dir, source_dir, &mut files_map);
     Ok(files_map)
 }
 

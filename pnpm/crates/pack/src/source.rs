@@ -12,6 +12,7 @@ use std::{
 use indexmap::IndexMap;
 use pnpm_exportable_manifest::{
     PrivateWorkspaceDependencies,
+    override_publish_config,
     read_readme_file,
 };
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
@@ -27,6 +28,7 @@ use super::{
         normalize_tarball_name,
         strip_build_metadata,
     },
+    package_file_sources,
     prevent_bundled_dependencies_with_pnp,
 };
 
@@ -79,6 +81,40 @@ where
         bins,
         private_workspace_dependencies,
     })
+}
+
+/// Disk sources for a package whose file selection uses no pnpmfile hooks.
+/// Returns `None` when a packing or publishing script can generate or change those sources.
+pub fn static_pack_sources(
+    project_dir: &Path,
+    workspace_dir: Option<&Path>,
+    entry_manifest: &Value,
+) -> Result<Option<impl Iterator<Item = PathBuf>>, PackError> {
+    if ["prepublishOnly", "prepublish", "prepack", "prepare"]
+        .iter()
+        .any(|stage| entry_manifest["scripts"][stage].is_string())
+    {
+        return Ok(None);
+    }
+    let source_dir = resolve_publish_directory(project_dir, entry_manifest)?;
+    if [project_dir, &source_dir]
+        .into_iter()
+        .map(pnpm_package_manifest::project_manifest_path)
+        .any(|manifest| manifest.is_symlink())
+    {
+        return Ok(None);
+    }
+    let mut manifest = if source_dir == project_dir {
+        entry_manifest.clone()
+    } else {
+        read_manifest(&source_dir)?
+    };
+    if let Some(object) = manifest.as_object_mut() {
+        override_publish_config(object);
+    }
+    Ok(Some(
+        package_file_sources(project_dir, workspace_dir, &source_dir, &manifest)?.into_values(),
+    ))
 }
 
 /// Check the source manifest before applying publish overrides and hooks.
