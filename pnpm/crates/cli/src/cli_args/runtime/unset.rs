@@ -1,6 +1,6 @@
 use super::{
     RuntimeError,
-    RuntimeRemoveRequest,
+    RuntimeUnsetRequest,
 };
 use crate::{
     State,
@@ -29,8 +29,8 @@ use pnpm_reporter::Reporter;
 use pnpm_tool_protocol::strip_tool_protocol;
 use std::collections::HashSet;
 
-pub fn run_remove<Reporter: self::Reporter>(
-    request: &RuntimeRemoveRequest,
+pub fn run_unset<Reporter: self::Reporter>(
+    request: &RuntimeUnsetRequest,
     config: &'static Config,
 ) -> miette::Result<()> {
     let version = request.version_spec.as_deref();
@@ -54,7 +54,7 @@ pub fn run_remove<Reporter: self::Reporter>(
 }
 
 fn cleanup_legacy_runtime_artifacts(
-    request: &RuntimeRemoveRequest,
+    request: &RuntimeUnsetRequest,
     config: &'static Config,
     removed_names: &mut HashSet<String>,
 ) -> miette::Result<bool> {
@@ -82,7 +82,7 @@ fn cleanup_legacy_runtime_artifacts(
 
 pub fn ensure_project_runtime_matches(
     state: &State,
-    request: &RuntimeRemoveRequest,
+    request: &RuntimeUnsetRequest,
 ) -> miette::Result<()> {
     let Some(version) = request.version_spec.as_deref() else {
         return Ok(());

@@ -811,13 +811,13 @@ fn tasks_status_help_describes_concurrency_groups() {
 
 /// [pnpm/pnpm#16580](https://github.com/pnpm/pnpm/issues/16580)
 #[test]
-fn runtime_help_names_the_set_and_remove_subcommands() {
+fn runtime_help_names_the_set_and_unset_subcommands() {
     let error = CliArgs::try_parse_from(["pacquet", "runtime", "--help"]).unwrap_err();
     assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
     let help = error.to_string();
     eprintln!("{help}");
     assert!(help.contains("`set <name> [<version>]`"));
-    assert!(help.contains("`remove <name> [<version>]`"));
+    assert!(help.contains("`unset <name> [<version>]`"));
 }
 
 /// `--force` keeps skipping optional dependencies built for other

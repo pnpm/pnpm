@@ -88,36 +88,36 @@ pnpm runtime set bun latest -g
 
 [codename]: https://github.com/nodejs/Release/blob/main/CODENAMES.md
 
-### remove
+### unset
 
 Remove a runtime installed by `runtime set`.
 
 ```sh
-pnpm runtime remove <name> [<version>] [-g]
+pnpm runtime unset <name> [<version>] [-g]
 ```
 
 Without `-g`, pnpm removes the runtime dependency from the current project. With a version, pnpm only removes a matching declaration. With `-g`, pnpm removes the installed runtime groups from the global packages directory and unlinks their bins. For Node.js, pnpm also removes the active link when it points at a removed version.
 
-Aliases: `rm`, `uninstall`, `un`.
+Aliases: `remove`, `rm`, `uninstall`, `un`.
 
 #### Examples
 
-Remove Node.js v22 globally:
+Unset Node.js v22 globally:
 
 ```sh
-pnpm runtime remove node 22 -g
+pnpm runtime unset node 22 -g
 ```
 
-Remove all globally installed Bun versions:
+Unset all globally installed Bun versions:
 
 ```sh
-pnpm runtime rm bun -g
+pnpm runtime unset bun -g
 ```
 
-Remove Deno from the current project:
+Unset Deno from the current project:
 
 ```sh
-pnpm runtime remove deno
+pnpm runtime unset deno
 ```
 
 ## Options
