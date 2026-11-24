@@ -46,6 +46,21 @@ setInterval(() => {}, 1000)
   })
 }
 
+test('the replacement inherits blocking standard streams', {
+  skip: process.platform !== 'linux' || typeof process.execve !== 'function',
+}, t => {
+  const directory = writeFixture(t)
+  const preload = path.join(directory, 'stdio.cjs')
+  fs.writeFileSync(preload, 'void [process.stdin, process.stdout, process.stderr]')
+  fs.writeFileSync(path.join(directory, 'pnpm-native'), '#!/bin/sh\nexec cat /proc/self/fdinfo/0 /proc/self/fdinfo/1 /proc/self/fdinfo/2\n')
+
+  const result = runWrapper(directory, ['--require', preload])
+  assert.equal(result.status, 0, result.stderr)
+  const flags = Array.from(result.stdout.matchAll(/^flags:\s*([0-7]+)$/gm), match => parseInt(match[1], 8))
+  assert.equal(flags.length, 3)
+  for (const flag of flags) assert.equal(flag & fs.constants.O_NONBLOCK, 0)
+})
+
 test('an interrupt before the native binary is spawned prevents it from running', unix, t => {
   const directory = writeFixture(t)
   const preload = path.join(directory, 'interrupt.cjs')

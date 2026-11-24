@@ -27,6 +27,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { setImmediate } from 'node:timers/promises'
 import { URL } from 'node:url'
+import { getSystemErrorName } from 'node:util'
 import { isMainThread } from 'node:worker_threads'
 import { readWrapperManifest, resolveInstalledBinary, wrapperDir } from '../native-binary.mjs'
 
@@ -52,6 +53,12 @@ async function run (binary) {
   if (isMainThread && typeof process.execve === 'function' && !['win32', 'os400'].includes(process.platform)) {
     try {
       fs.accessSync(binary, fs.constants.X_OK)
+      // Node can put inherited pipes in nonblocking mode when it opens
+      // the streams. Process replacement preserves those descriptor flags.
+      for (const stream of [process.stdin, process.stdout, process.stderr]) {
+        const status = stream._handle?.setBlocking?.(true)
+        if (status < 0) throw new Error(`Could not set fd ${stream.fd} to blocking mode: ${getSystemErrorName(status)}`)
+      }
       // Some Node.js releases abort on execve failure. Let the system shell
       // report an invalid binary or missing loader when one is available.
       if (fs.existsSync(UNIX_SHELL)) {
