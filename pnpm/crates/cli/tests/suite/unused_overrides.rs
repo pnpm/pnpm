@@ -1,6 +1,9 @@
 //! Full-resolution warnings about locally declared settings that matched no dependency.
 
-use crate::_utils::pacquet_in;
+use crate::_utils::{
+    gzipped_tarball,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{
@@ -168,9 +171,10 @@ fn full_install_warns_about_unmatched_permissions_and_keeps_them() {
 fn bare_approval_for_a_tarball_warns_only_when_enabled() {
     for warn in [true, false] {
         let CommandTempCwd { pacquet, workspace, root, .. } = CommandTempCwd::init();
-        let tarball = pnpm_testing_utils::fixtures::tarball_with_manifest(
-            &serde_json::json!({"name": "example-local", "version": "1.0.0"}),
-        );
+        let tarball = gzipped_tarball(&[(
+            "package/package.json",
+            r#"{"name":"example-local","version":"1.0.0"}"#,
+        )]);
         fs::write(workspace.join("example.tgz"), tarball).expect("write tarball");
         fs::write(
             workspace.join("package.json"),
