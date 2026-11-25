@@ -203,9 +203,6 @@ fn is_symlink_removed(bin_path: &Path, removed_names: &HashSet<String>) -> std::
     if !bin_path.is_symlink() {
         return Ok(false);
     }
-    if !bin_path.exists() {
-        return Ok(true);
-    }
     let target = fs::read_link(bin_path)?;
     Ok(is_path_in_removed_names(&target, removed_names))
 }
@@ -217,7 +214,7 @@ fn is_native_shim_removed(
 ) -> std::io::Result<bool> {
     match native_shim_target(global_bin_dir, bin_name) {
         Ok(Some(ShimTarget::Installed(target))) => {
-            Ok(!target.exists() || is_path_in_removed_names(&target, removed_names))
+            Ok(is_path_in_removed_names(&target, removed_names))
         }
         Ok(None | Some(ShimTarget::Virtual(_))) => Ok(false),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),

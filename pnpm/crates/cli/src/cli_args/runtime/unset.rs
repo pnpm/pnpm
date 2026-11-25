@@ -42,19 +42,27 @@ pub fn run_unset<Reporter: self::Reporter>(
     config: &'static Config,
 ) -> miette::Result<()> {
     let version = request.version_spec.as_deref();
-    let mut removed_names = HashSet::new();
-    let removed_global =
-        remove_global_runtimes::<Reporter>(config, &request.runtime_name, version)?;
-    let removed_legacy = cleanup_legacy_runtime_artifacts(request, config, &mut removed_names)?;
-    if removed_global || removed_legacy {
-        return Ok(());
-    }
-    let runtime_name = &request.runtime_name;
-    let param = match version {
-        Some(version) => format!("{runtime_name} (version {version})"),
-        None => runtime_name.clone(),
+    let unset = || {
+        let mut removed_names = HashSet::new();
+        let removed_global =
+            remove_global_runtimes::<Reporter>(config, &request.runtime_name, version)?;
+        let removed_legacy = cleanup_legacy_runtime_artifacts(request, config, &mut removed_names)?;
+        if removed_global || removed_legacy {
+            return Ok(());
+        }
+        let runtime_name = &request.runtime_name;
+        let param = match version {
+            Some(version) => format!("{runtime_name} (version {version})"),
+            None => runtime_name.clone(),
+        };
+        Err(GlobalError::PkgNotFound { param }.into())
     };
-    Err(GlobalError::PkgNotFound { param }.into())
+
+    if let Some(global_bin_dir) = config.global_bin.as_deref().filter(|dir| dir.is_dir()) {
+        with_global_bin_lock(global_bin_dir, unset)
+    } else {
+        unset()
+    }
 }
 
 fn cleanup_legacy_runtime_artifacts(
@@ -143,20 +151,12 @@ fn remove_global_runtimes<Reporter: self::Reporter>(
     let Some(global_pkg_dir) = config.global_pkg_dir.as_deref() else {
         return Ok(false);
     };
-    let remove = || -> miette::Result<bool> {
-        let packages = select_global_runtimes(global_pkg_dir, runtime_name, version)?;
-        if packages.is_empty() {
-            return Ok(false);
-        }
-        remove_selected_global_runtimes::<Reporter>(config, global_pkg_dir, &packages)?;
-        Ok(true)
-    };
-
-    if let Some(global_bin_dir) = config.global_bin.as_deref().filter(|dir| dir.is_dir()) {
-        with_global_bin_lock(global_bin_dir, remove)
-    } else {
-        remove()
+    let packages = select_global_runtimes(global_pkg_dir, runtime_name, version)?;
+    if packages.is_empty() {
+        return Ok(false);
     }
+    remove_selected_global_runtimes::<Reporter>(config, global_pkg_dir, &packages)?;
+    Ok(true)
 }
 
 fn select_global_runtimes(
