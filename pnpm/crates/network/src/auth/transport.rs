@@ -84,7 +84,7 @@ impl AuthHeaders {
         package: &'a str,
     ) -> impl Fn(&str) -> Option<String> + 'a {
         let registry = self.http_tarball_registry(start, package);
-        crate::scoped_redirect_auth(start, move |url| {
+        scoped_redirect_auth(start, move |url| {
             if let Some(registry) = registry {
                 let target = reqwest::Url::parse(url).ok()?;
                 if within_http_registry(&target, registry) {
@@ -119,5 +119,23 @@ impl AuthHeaders {
             return None;
         }
         self.for_url_with_package(url, pkg_name)
+    }
+}
+
+/// Keep the initial authorization on same-origin redirects within its credential scope.
+pub fn scoped_redirect_auth(
+    url: &str,
+    lookup: impl Fn(&str) -> Option<String>,
+) -> impl Fn(&str) -> Option<String> {
+    let authorization = lookup(url);
+    move |target| {
+        let value = authorization.as_ref()?;
+        if target == url {
+            return Some(value.clone());
+        }
+        if reqwest::Url::parse(url).ok()?.origin() != reqwest::Url::parse(target).ok()?.origin() {
+            return None;
+        }
+        lookup(target).filter(|header| header == value)
     }
 }

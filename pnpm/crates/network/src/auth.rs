@@ -24,6 +24,7 @@ pub use redaction::{
     redact_url_credentials,
     redact_url_for_display,
 };
+pub use transport::scoped_redirect_auth;
 pub use url::{
     base64_encode,
     base64_encode_bytes,
