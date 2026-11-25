@@ -1,4 +1,8 @@
-use crate::apply::{PatchApplyError, apply_patch_to_dir, preview_patch};
+use crate::apply::{
+    PatchApplyError,
+    apply_patch_to_dir,
+    preview_patch,
+};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::tempdir;
@@ -54,7 +58,7 @@ index 9a20e1af1471b1378e27f2c97c3047811aea78ce..00000000000000000000000000000000
 ";
 
 /// A `git diff --binary` modify record whose forward and reverse blocks are
-/// both `delta` — git picks this encoding when the two versions are similar.
+/// both `delta`. Git picks this encoding when the two versions are similar.
 const BINARY_DELTA_MODIFY_PATCH: &str = "\
 diff --git a/big.bin b/big.bin
 index d88d75086be4e95d2edadda5a4361e3e64e8532f..20177a995f60ed80f133d437da00c8db3d2ab43e 100644
@@ -159,10 +163,8 @@ fn binary_modify_patch_applies_and_is_idempotent() {
 
 #[test]
 fn binary_modify_patch_rejects_wrong_preimage() {
-    // The delta section validates the base's size (and content), so a file
-    // that is neither the pre-image nor the post-image is rejected. A
-    // `literal` section carries the full post-image and decodes regardless
-    // of the base, so it cannot detect this from content alone.
+    // A file that matches neither the recorded pre-image nor the
+    // post-image is refused, whatever the block encoding.
     let dir = tempdir().expect("temp dir");
     let target = dir.path().join("big.bin");
     fs::write(&target, b"some other bytes entirely").expect("write wrong preimage");
@@ -183,8 +185,7 @@ fn binary_delta_modify_patch_applies_and_is_idempotent() {
     apply_patch_to_dir(dir.path(), &patch).expect("apply");
     assert_eq!(fs::read(&target).expect("read patched"), BIG_BIN_POSTIMAGE);
 
-    // A re-apply is a no-op: the forward delta fails against the post-image
-    // and the reverse delta decodes cleanly.
+    // A re-apply is a no-op, like the text path.
     apply_patch_to_dir(dir.path(), &patch).expect("reapply");
     assert_eq!(fs::read(&target).expect("read patched"), BIG_BIN_POSTIMAGE);
 }
@@ -245,8 +246,138 @@ fn binary_patch_preview_reports_written_paths() {
     fs::write(dir.path().join("bin.dat"), BINARY_PREIMAGE).expect("write preimage");
     let patch = write_patch(dir.path(), BINARY_CREATE_PATCH);
 
-    // Preview does not write anything.
     let preview = preview_patch(dir.path(), &patch).expect("preview");
     assert_eq!(preview.written_paths, vec!["added.bin".to_string()]);
     assert!(!dir.path().join("added.bin").exists(), "preview must not write");
+}
+
+#[test]
+fn binary_literal_modify_rejects_file_matching_neither_side() {
+    let dir = tempdir().expect("temp dir");
+    let target = dir.path().join("bin.dat");
+    fs::write(&target, b"some other bytes entirely").expect("write unrelated content");
+    let patch = write_patch(dir.path(), BINARY_MODIFY_PATCH);
+
+    let error = apply_patch_to_dir(dir.path(), &patch).expect_err("should not apply");
+    assert!(matches!(error, PatchApplyError::PatchFailed { .. }), "error: {error}");
+    assert_eq!(fs::read(&target).expect("read target"), b"some other bytes entirely");
+}
+
+/// Pre- and post-image with equal length, built by rearranging the same
+/// bytes: the case a length-only base check would confuse.
+fn equal_length_pair() -> (Vec<u8>, Vec<u8>) {
+    let mut pre: Vec<u8> = (0..512u32)
+        .map(|i| (i % 256) as u8)
+        .collect();
+    pre.extend_from_slice(b"HEAD");
+    let mut post = pre[256..].to_vec();
+    post.extend_from_slice(&pre[..256]);
+    (pre, post)
+}
+
+#[test]
+fn binary_delta_equal_length_rearrange_replay_is_noop() {
+    let (preimage, postimage) = equal_length_pair();
+    let before = tempdir().expect("before dir");
+    fs::write(before.path().join("big.bin"), &preimage).expect("write preimage");
+    let after = tempdir().expect("after dir");
+    fs::write(after.path().join("big.bin"), &postimage).expect("write postimage");
+
+    let diff = crate::diff_folders(before.path(), after.path()).expect("diff dirs");
+    assert!(diff.contains("GIT binary patch"), "git should emit a binary patch");
+
+    let dir = tempdir().expect("temp dir");
+    let target = dir.path().join("big.bin");
+    fs::write(&target, &preimage).expect("write preimage");
+    let patch = write_patch(dir.path(), &diff);
+
+    apply_patch_to_dir(dir.path(), &patch).expect("apply");
+    assert_eq!(fs::read(&target).expect("read patched"), postimage);
+
+    // The replay must resolve to already-patched, not re-arrange the
+    // already rearranged bytes again.
+    apply_patch_to_dir(dir.path(), &patch).expect("reapply");
+    assert_eq!(fs::read(&target).expect("read patched"), postimage);
+}
+
+/// A `git diff --binary` delete record that still carries the pre-image,
+/// built by mirroring [`BINARY_CREATE_PATCH`]: the forward block becomes
+/// `literal 0` and the reverse block carries the pre-image. `pnpm patch`
+/// and `pnpm patch-commit` diff with `--irreversible-delete`, so a record
+/// like this only reaches the apply side from patches authored elsewhere.
+fn binary_delete_patch_with_data() -> String {
+    BINARY_CREATE_PATCH
+        .replace(
+            "diff --git a/added.bin b/added.bin\nnew file mode 100644",
+            "diff --git a/gone.bin b/gone.bin\ndeleted file mode 100644",
+        )
+        .replace(
+            "literal 7\nOcmc~xEoVr|%mV-lAOeH{\n\nliteral 0\nHcmV?d00001",
+            "literal 0\nHcmV?d00001\n\nliteral 7\nOcmc~xEoVr|%mV-lAOeH{",
+        )
+}
+
+/// The content the forward block of [`BINARY_CREATE_PATCH`] carries.
+fn created_content() -> Vec<u8> {
+    use diffy::patch_set::{
+        ParseOptions,
+        PatchSet,
+    };
+    let file_patch = PatchSet::parse(BINARY_CREATE_PATCH, ParseOptions::gitdiff())
+        .next()
+        .expect("one record")
+        .expect("parse");
+    match file_patch.patch() {
+        diffy::patch_set::PatchKind::Binary(binary_patch) => binary_patch
+            .apply(&[])
+            .expect("decode content"),
+        diffy::patch_set::PatchKind::Text(_) => unreachable!("binary fixture"),
+    }
+}
+
+#[test]
+fn binary_delete_with_data_rejects_mismatched_preimage() {
+    let dir = tempdir().expect("temp dir");
+    let target = dir.path().join("gone.bin");
+    fs::write(&target, b"different content entirely").expect("write wrong content");
+    let patch = write_patch(dir.path(), &binary_delete_patch_with_data());
+
+    let error = apply_patch_to_dir(dir.path(), &patch).expect_err("should not delete");
+    assert!(matches!(error, PatchApplyError::PatchFailed { .. }), "error: {error}");
+    assert!(target.exists(), "mismatched file must be kept");
+}
+
+#[test]
+fn binary_delete_with_data_removes_matching_file() {
+    let dir = tempdir().expect("temp dir");
+    let target = dir.path().join("gone.bin");
+    fs::write(&target, created_content()).expect("write preimage");
+    let patch = write_patch(dir.path(), &binary_delete_patch_with_data());
+
+    apply_patch_to_dir(dir.path(), &patch).expect("apply");
+    assert!(!target.exists(), "matching file must be removed");
+}
+
+#[test]
+fn binary_manifest_record_is_previewed_for_build_decision() {
+    // The same binary record as BINARY_MODIFY_PATCH, aimed at the manifest:
+    // the preview must resolve it, the build decision reads what it adds.
+    let patch_body = BINARY_MODIFY_PATCH.replace(
+        "diff --git a/bin.dat b/bin.dat",
+        "diff --git a/package.json b/package.json",
+    );
+    let dir = tempdir().expect("temp dir");
+    fs::write(dir.path().join("package.json"), BINARY_PREIMAGE).expect("write manifest");
+    let patch = write_patch(dir.path(), &patch_body);
+
+    let preview = preview_patch(dir.path(), &patch).expect("preview");
+    assert_eq!(
+        preview.written_paths,
+        vec!["package.json".to_string()],
+        "the binary manifest record must be previewed"
+    );
+    assert_eq!(
+        preview.manifest.as_deref(),
+        Some(String::from_utf8_lossy(BINARY_POSTIMAGE).as_ref()),
+    );
 }

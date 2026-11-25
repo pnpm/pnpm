@@ -687,7 +687,9 @@ fn patch_commit_diff_dirs_emits_binary_patch_that_round_trips() {
 
     let before = tempdir().expect("before dir");
     let after = tempdir().expect("after dir");
-    let original: Vec<u8> = (0..768u32).map(|i| (i % 256) as u8).collect();
+    let original: Vec<u8> = (0..768u32)
+        .map(|i| (i % 256) as u8)
+        .collect();
     let mut patched = Vec::with_capacity(original.len() + 2);
     patched.extend_from_slice(&original[..400]);
     patched.extend_from_slice(b"\xde\xad\xbe\xefPATCHED");
@@ -704,14 +706,12 @@ fn patch_commit_diff_dirs_emits_binary_patch_that_round_trips() {
     // the after tree, byte for byte.
     let target = tempdir().expect("target dir");
     fs::write(target.path().join("asset.bin"), &original).expect("write target original");
-    fs::write(target.path().join("index.js"), "module.exports = false\n").expect("write target text");
+    fs::write(target.path().join("index.js"), "module.exports = false\n")
+        .expect("write target text");
     let patch_file = target.path().join("patch.patch");
     fs::write(&patch_file, &diff).expect("write patch file");
     apply_patch_to_dir(target.path(), &patch_file).expect("apply generated patch");
-    assert_eq!(
-        fs::read(target.path().join("asset.bin")).expect("read patched asset"),
-        patched,
-    );
+    assert_eq!(fs::read(target.path().join("asset.bin")).expect("read patched asset"), patched,);
     assert_eq!(
         fs::read(target.path().join("index.js")).expect("read patched text"),
         b"module.exports = true\n".as_slice(),

@@ -9,6 +9,7 @@ use super::{
 use diffy::patch_set::{
     FileOperation,
     FilePatch,
+    PatchKind,
 };
 use indexmap::IndexSet;
 use std::{
@@ -172,17 +173,31 @@ impl PreviewState<'_> {
     ) -> Result<(), PatchApplyError> {
         let target = self.patched_dir.join(MANIFEST_FILE_NAME);
         self.manifest_removed = false;
-        let text_patch = file_patch
-            .patch()
-            .as_text()
-            .ok_or_else(|| self.failed("binary patch is not supported".to_string()))?;
-        self.preview.manifest = Some(match tolerant::apply(&original, text_patch) {
-            Ok(updated) => updated,
-            Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => original,
-            Err(message) => {
-                return Err(self.failed(format!("apply to {}: {message}", target.display())));
+        let updated = match file_patch.patch() {
+            PatchKind::Text(text_patch) => match tolerant::apply(&original, text_patch) {
+                Ok(updated) => updated,
+                Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => original,
+                Err(message) => {
+                    return Err(self.failed(format!("apply to {}: {message}", target.display())));
+                }
+            },
+            // A binary record can touch the manifest too (a manifest with
+            // non-UTF-8 bytes, or a mixed patch). Resolving it like the
+            // real apply keeps the build decision aware of what such a
+            // patch adds, an install script included.
+            PatchKind::Binary(binary_patch) => {
+                match super::FileApply::preview_binary_manifest(binary_patch, &original) {
+                    Ok(updated) => updated,
+                    Err(message) => {
+                        return Err(self.failed(format!(
+                            "apply to {}: {message}",
+                            target.display()
+                        )));
+                    }
+                }
             }
-        });
+        };
+        self.preview.manifest = Some(updated);
         Ok(())
     }
 
