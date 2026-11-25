@@ -32,7 +32,7 @@ use pnpm_reporter::{
     SilentReporter,
     Stage,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use pnpm_workspace_state::{
     load_workspace_state,
     update_workspace_state,
@@ -913,11 +913,14 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     // lockfile write: the manifest's truncated mtime alone would read as
     // modified against itself on the next `pnpm run`.
     let validated_at = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
-    pnpm_testing_utils::fs::set_mtime(
+    pnpm_testing_utils_registry::fs::set_mtime(
         &dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
         validated_at,
     );
-    pnpm_testing_utils::fs::set_mtime(manifest.path(), validated_at + Duration::from_micros(500));
+    pnpm_testing_utils_registry::fs::set_mtime(
+        manifest.path(),
+        validated_at + Duration::from_micros(500),
+    );
     // The short-circuit probes the tree it would skip; seed the one
     // direct-dep entry the lockfile records so the probe holds. A
     // marker *file* doubles as the materialization sentinel below:

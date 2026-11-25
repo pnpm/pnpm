@@ -76,11 +76,7 @@ impl Entry {
 
 /// Middleware recording each request of the registry at `registry` in the
 /// journal, through the end of its response body.
-pub(crate) async fn track(
-    State(registry): State<String>,
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn track(State(registry): State<String>, request: Request, next: Next) -> Response {
     let index = record_start(registry, &request);
     let response = next.run(request).await;
     let status = response.status().as_u16();

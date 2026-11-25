@@ -4,7 +4,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_cargo_resolver::CRATES_IO_SOURCE;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     diagnostics::assert_diagnostic_contains,
     git_repo::GitRepoFixture,
 };

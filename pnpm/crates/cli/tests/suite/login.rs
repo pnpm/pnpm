@@ -20,7 +20,7 @@
 
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use std::fs;
 
 /// Spawn `pacquet <subcommand>` without a TTY against a classic-only registry

@@ -50,7 +50,7 @@ use pnpm_lockfile::{
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::{
+use pnpm_testing_utils_registry::fs::{
     MTIME_STEP_MS,
     backdate_existing_files,
     set_mtime,

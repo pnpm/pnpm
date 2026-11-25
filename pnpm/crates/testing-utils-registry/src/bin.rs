@@ -1,9 +1,7 @@
-use crate::{
-    command_env::CommandTestExt,
-    registry::TestRegistry,
-};
+use crate::registry::TestRegistry;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_testing_utils::command_env::CommandTestExt;
 use pnpr_fixtures::RemovedVersionField;
 use std::{
     fs,

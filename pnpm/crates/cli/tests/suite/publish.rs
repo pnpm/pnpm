@@ -12,7 +12,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils_registry::command_env::CommandTestExt;
 use serde_json::{
     Value,
     json,
@@ -847,7 +847,7 @@ fn detached_tag_publish_in_ci_preserves_git_checks() {
             "name": "test-detached-publish", "version": "1.0.0",
         }),
     );
-    pnpm_testing_utils::git_repo::init_isolated_repo(dir.path());
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(dir.path());
     for args in [
         vec!["add", "."],
         vec!["commit", "-m", "init"],
@@ -907,7 +907,7 @@ fn publish_branch_setting_allows_publishing_from_that_branch() {
         }),
     );
     fs::write(dir.path().join("pnpm-workspace.yaml"), "publishBranch: production\n").unwrap();
-    pnpm_testing_utils::git_repo::init_isolated_repo(dir.path());
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(dir.path());
     for args in
         [vec!["add", "."], vec!["commit", "-m", "init"], vec!["checkout", "-b", "production"]]
     {
@@ -942,7 +942,7 @@ fn publish_rejects_refused_head_metadata_in_ci() {
             "name": "test-refused-head", "version": "1.0.0",
         }),
     );
-    pnpm_testing_utils::git_repo::init_isolated_repo(dir.path());
+    pnpm_testing_utils_registry::git_repo::init_isolated_repo(dir.path());
     for args in [vec!["add", "."], vec!["commit", "-m", "init"], vec!["checkout", "-b", "blocked"]]
     {
         Command::new("git")

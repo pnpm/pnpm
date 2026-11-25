@@ -30,7 +30,7 @@ use pnpm_reporter::{
     Reporter,
     SilentReporter,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use pnpm_workspace_state::{
     self as workspace_state,
     NodeLinker as WorkspaceStateNodeLinker,
@@ -246,7 +246,7 @@ async fn install_writes_workspace_state() {
 
     let manifest_path = dirs.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-    pnpm_testing_utils::fs::set_mtime(
+    pnpm_testing_utils_registry::fs::set_mtime(
         manifest.path(),
         std::time::SystemTime::UNIX_EPOCH + Duration::new(1_700_000_000, 500_000),
     );

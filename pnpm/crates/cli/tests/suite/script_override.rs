@@ -5,7 +5,7 @@
 use command_extra::CommandExtra;
 
 use assert_cmd::cargo::CommandCargoExt;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     command_env::CommandTestExt,
 };
@@ -196,7 +196,7 @@ mod scripts {
     };
     use assert_cmd::cargo::CommandCargoExt;
     use command_extra::CommandExtra;
-    use pnpm_testing_utils::command_env::CommandTestExt;
+    use pnpm_testing_utils_registry::command_env::CommandTestExt;
     use std::process::Command;
 
     /// [pnpm/pnpm#14976](https://github.com/pnpm/pnpm/issues/14976)

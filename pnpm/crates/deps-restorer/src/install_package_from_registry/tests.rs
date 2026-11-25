@@ -40,7 +40,7 @@ use pnpm_store_dir::{
     StoreDir,
     StoreIndexFormat,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,

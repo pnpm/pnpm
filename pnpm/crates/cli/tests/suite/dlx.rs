@@ -4,7 +4,7 @@ use crate::_utils::{
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 
 /// Which directory flag the invocation passes; each one names the
 /// directory the bin is expected to run in.
@@ -282,7 +282,7 @@ fn dlx_installs_and_runs_packages_bin() {
 #[cfg(unix)]
 #[test]
 fn dlx_does_not_reuse_the_cache_across_node_majors() {
-    use pnpm_testing_utils::command_env::CommandTestExt;
+    use pnpm_testing_utils_registry::command_env::CommandTestExt;
     use std::{
         os::unix::fs::PermissionsExt,
         process::Command,
@@ -705,9 +705,9 @@ fn dlx_ignores_the_caller_projects_tag_setting() {
 
 fn pacquet_in(
     cwd: &std::path::Path,
-    npmrc_info: &pnpm_testing_utils::bin::AddMockedRegistry,
+    npmrc_info: &pnpm_testing_utils_registry::bin::AddMockedRegistry,
 ) -> std::process::Command {
-    use pnpm_testing_utils::command_env::CommandTestExt;
+    use pnpm_testing_utils_registry::command_env::CommandTestExt;
     std::process::Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(cwd)

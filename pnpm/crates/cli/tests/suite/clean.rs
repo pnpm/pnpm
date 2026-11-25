@@ -4,7 +4,7 @@ use assert_cmd::{
 };
 use command_extra::CommandExtra;
 use pnpm_store_dir::StoreDir;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     command_env::CommandTestExt,
 };

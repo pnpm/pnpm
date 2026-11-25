@@ -32,7 +32,7 @@ use pnpm_lockfile::{
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::set_mtime;
+use pnpm_testing_utils_registry::fs::set_mtime;
 use pnpm_workspace_state::{
     ProjectEntry,
     load_workspace_state,
@@ -566,7 +566,7 @@ fn a_moved_tree_cannot_trust_a_pnpmfile_with_an_older_mtime() {
             .into_owned(),
     ];
     update_workspace_state(dir.path(), &state).unwrap();
-    pnpm_testing_utils::fs::set_mtime_ms(&hook, state.last_validated_timestamp - 2_000);
+    pnpm_testing_utils_registry::fs::set_mtime_ms(&hook, state.last_validated_timestamp - 2_000);
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
     let projects = [(dir.path().to_path_buf(), &manifest)];
     let decision = content_check_decision(&dir, config, false, &projects);

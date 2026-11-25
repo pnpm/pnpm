@@ -1,4 +1,4 @@
-use crate::registry_activity;
+use pnpm_testing_utils::registry_activity;
 use pnpr::{
     Config,
     Ecosystem,

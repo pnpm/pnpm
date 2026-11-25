@@ -8,7 +8,7 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };
@@ -291,7 +291,7 @@ fn a_future_dated_manifest_does_not_rewrite_the_state() {
         .assert()
         .success();
     trust_recorded_stats(&workspace, mock_instance.url());
-    pnpm_testing_utils::fs::set_mtime(
+    pnpm_testing_utils_registry::fs::set_mtime(
         &workspace.join("packages/b/package.json"),
         std::time::SystemTime::now() + std::time::Duration::from_hours(1),
     );

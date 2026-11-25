@@ -74,7 +74,7 @@ use pnpm_reporter::{
     SilentReporter,
 };
 use pnpm_store_dir::VerifiedFileIntegrity;
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use std::{
     path::{
         Path,
@@ -440,7 +440,7 @@ fn touch_manifest(manifest: &PackageManifest) -> PackageManifest {
     let manifest_path = manifest.path().to_path_buf();
     let manifest_text = std::fs::read_to_string(&manifest_path).expect("read package.json");
     std::fs::write(&manifest_path, manifest_text).expect("refresh package.json mtime");
-    pnpm_testing_utils::fs::bump_mtime(&manifest_path);
+    pnpm_testing_utils_registry::fs::bump_mtime(&manifest_path);
     PackageManifest::from_path(manifest_path).expect("reload manifest")
 }
 

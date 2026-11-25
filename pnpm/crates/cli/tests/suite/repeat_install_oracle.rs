@@ -55,7 +55,7 @@ use pnpm_lockfile::{
     SnapshotEntry,
 };
 use pnpm_package_manager::prune_unreachable_packages;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     command_env::CommandTestExt,
     registry::TestRegistry,
 };
@@ -1123,7 +1123,7 @@ fn a_local_tarball_a_hook_adds_then_replaced(layout: Layout) {
         fs::create_dir_all(tarball.parent().expect("vendor dir")).expect("create vendor dir");
         fs::write(
             &tarball,
-            pnpm_testing_utils::fixtures::tarball_with_manifest(
+            pnpm_testing_utils_registry::fixtures::tarball_with_manifest(
                 &json!({ "name": "local-pkg", "version": version }),
             ),
         )

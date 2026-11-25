@@ -15,7 +15,7 @@ use crate::_utils::{
     },
 };
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     ffi::OsString,
@@ -193,7 +193,7 @@ fn exec_ends_with_a_core_dump_signal_without_dumping_core_for_pnpm() {
         "-c",
         "ulimit -c 0; kill -s ABRT $$",
     ]);
-    pnpm_testing_utils::spawn::enable_core_dumps(&mut command);
+    pnpm_testing_utils_registry::spawn::enable_core_dumps(&mut command);
     let mut process = spawn_without_terminal(command);
     let status = wait_for_shutdown(&mut process);
 
@@ -454,7 +454,7 @@ fn a_nested_run_ends_after_a_termination_when_pnpm_adopts_the_orphans() {
     let mut command = pacquet
         .with_env("PATH", path)
         .with_args(["--config.verify-deps-before-run=false", "run", "nested"]);
-    pnpm_testing_utils::spawn::as_child_subreaper(&mut command);
+    pnpm_testing_utils_registry::spawn::as_child_subreaper(&mut command);
     let mut process = spawn_without_terminal(command);
     wait_for_file(&workspace.join("started.txt"), &mut process);
     signal(&process, libc::SIGTERM);

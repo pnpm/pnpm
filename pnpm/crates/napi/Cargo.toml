@@ -62,7 +62,7 @@ napi-build = { workspace = true }
 command-extra = { workspace = true }
 mockito = { workspace = true }
 pretty_assertions = { workspace = true }
-pnpm-testing-utils = { workspace = true }
+pnpm-testing-utils-registry = { workspace = true }
 rayon = { workspace = true }
 tempfile = { workspace = true }
 

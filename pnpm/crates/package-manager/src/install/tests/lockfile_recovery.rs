@@ -41,7 +41,7 @@ use pnpm_reporter::{
     Reporter,
     SilentReporter,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use pnpm_workspace_state as workspace_state;
 use std::sync::Mutex;
 use tempfile::tempdir;
@@ -370,7 +370,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
     workspace_state::update_workspace_state(
         &dirs.project_root,
         &pnpm_workspace_state::WorkspaceState {
-            last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
+            last_validated_timestamp: pnpm_testing_utils_registry::fs::backdate_existing_files(
                 &dirs.project_root,
             ),
             projects,
@@ -549,7 +549,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
 
     let manifest_text = std::fs::read_to_string(&manifest_path).expect("read package.json");
     std::fs::write(&manifest_path, manifest_text).expect("refresh package.json mtime");
-    pnpm_testing_utils::fs::bump_mtime(&manifest_path);
+    pnpm_testing_utils_registry::fs::bump_mtime(&manifest_path);
     let touched_manifest = PackageManifest::from_path(manifest_path).expect("reload manifest");
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

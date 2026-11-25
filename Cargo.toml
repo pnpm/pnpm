@@ -38,6 +38,7 @@ pnpm-engine-runtime-node-resolver = { path = "pnpm/crates/engine-runtime-node-re
 pnpm-env-installer = { path = "pnpm/crates/env-installer" }
 pnpm-env-replace = { path = "pnpm/crates/env-replace" }
 pnpm-ffi-fs = { path = "pnpm/crates/ffi-fs" }
+pnpm-ffi-libsql = { path = "pnpm/crates/ffi-libsql" }
 pnpm-ffi-mimalloc = { path = "pnpm/crates/ffi-mimalloc" }
 pnpm-ffi-process = { path = "pnpm/crates/ffi-process" }
 pnpm-ffi-security = { path = "pnpm/crates/ffi-security" }
@@ -54,6 +55,7 @@ pnpm-registry = { path = "pnpm/crates/registry" }
 pnpm-release-notes = { path = "pnpm/crates/release-notes" }
 pnpm-tarball = { path = "pnpm/crates/tarball" }
 pnpm-testing-utils = { path = "pnpm/crates/testing-utils" }
+pnpm-testing-utils-registry = { path = "pnpm/crates/testing-utils-registry" }
 pnpm-text-sanitize = { path = "pnpm/crates/text-sanitize" }
 pnpm-text-section = { path = "pnpm/crates/text-section" }
 pnpm-release-record = { path = "pnpm/crates/release-record" }

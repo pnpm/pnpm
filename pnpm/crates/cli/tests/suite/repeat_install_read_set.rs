@@ -23,7 +23,7 @@ use crate::{
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,
@@ -127,7 +127,7 @@ const FIXTURES: &[Fixture] = &[
         name: "a local tarball dependency",
         settings: PROJECTS,
         files: || {
-            let tarball = pnpm_testing_utils::fixtures::tarball_with_manifest(
+            let tarball = pnpm_testing_utils_registry::fixtures::tarball_with_manifest(
                 &json!({ "name": "packed", "version": "1.0.0" }),
             );
             vec![

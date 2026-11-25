@@ -31,7 +31,11 @@ For anything narrower, `pnpm test:rust` (`node pnpm/scripts/run-rust-tests.mjs`)
 - **Killed runs leak fixtures.** An interrupted run abandons temp trees, each holding a per-test store. `just sweep-test-temp` clears the ones older than an hour.
 - **`known_failures` modules** hold ported tests for unimplemented behavior; `just known-failures` lists them. A failure there is expected, a pass is not.
 
-Do not reach for nextest's `rdeps()` to widen a selection. `pnpm-cli` holds a third of the workspace's tests and sits downstream of nearly every crate, so `rdeps()` on anything core selects 84% or more of the suite. Restructuring that target is [pnpm/pnpm#14984](https://github.com/pnpm/pnpm/issues/14984).
+`pnpm test:rust-affected` also runs the CLI end-to-end modules listed for the changed crate in `E2E_AREAS` in `pnpm/scripts/test-affected.mjs`. For `pnpm-lockfile` that is the `add`, `install`, `update` and related modules. The mapping is explicit because the tests spawn the CLI, so no call edge connects a test to the crate it covers. Add a module to the map when a crate's observable effects are asserted in a suite file that is missing from it.
+
+Registry-backed helpers live in `pnpm-testing-utils-registry`, not in the shared `pnpm-testing-utils` harness. Keeping `pnpr` out of the shared crate narrows the static `rdeps()` fan-out for core crates. Both harness crates are workspace-wide changes, so edits to either refuse scoping.
+
+`pnpm-cli` sits downstream of the core crates, so `rdeps()` on a core crate selects the whole CLI suite. Do not use it to widen a day-to-day selection. Use the crate-to-module map and the smoke profile instead.
 
 ## TypeScript and JavaScript
 

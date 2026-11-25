@@ -183,8 +183,14 @@ fn legacy_dispatcher_rejects_a_shim_from_another_directory() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    pnpm_testing_utils::diagnostics::assert_diagnostic_contains(&stderr, "legacy shim path");
-    pnpm_testing_utils::diagnostics::assert_diagnostic_contains(&stderr, "executing dispatcher");
+    pnpm_testing_utils_registry::diagnostics::assert_diagnostic_contains(
+        &stderr,
+        "legacy shim path",
+    );
+    pnpm_testing_utils_registry::diagnostics::assert_diagnostic_contains(
+        &stderr,
+        "executing dispatcher",
+    );
     assert!(foreign_bin.join(".pnpm-shim-v1").exists());
     assert!(fs::read(&foreign_shim).unwrap().starts_with(b"#!"));
 }

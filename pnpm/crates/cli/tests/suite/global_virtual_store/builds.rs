@@ -19,7 +19,7 @@ use super::{
     write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
-use pnpm_testing_utils::git_repo::GitRepoFixture;
+use pnpm_testing_utils_registry::git_repo::GitRepoFixture;
 
 #[test]
 fn patched_bin_follows_the_package_to_a_new_global_slot() {

@@ -1,0 +1,17 @@
+[package]
+name = "pnpm-ffi-libsql"
+version = "0.0.0"
+description = "Count the SQLite misuse reports libsql logs, from a test"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+libsql = { workspace = true }
+
+[lints]
+workspace = true

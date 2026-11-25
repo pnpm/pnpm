@@ -111,13 +111,15 @@ pnpm test:rust-affected
 
 The root `package.json` scripts (`test:rust-affected`, `test:rust`, `test:rust-smoke`, `check:rust`, `lint:rust`, `ready:rust`, `build:pnpm`) wrap the `just` recipes and node scripts this section names, and they are the way to invoke them: a task concurrency group (`concurrencyGroup` on the task and a limit under `concurrencyGroups` in `pnpm-workspace.yaml`) holds the builds and test runs of every worktree on a machine to a limit it can carry, and only a run that starts as `pnpm <script>` is counted. Override a limit for your machine with `PNPM_CONFIG_CONCURRENCY_GROUPS='{"cargo":1}'` in your environment.
 
-This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. It does not include the CLI end-to-end suite unless you changed `pnpm-cli` itself, so for a user-visible change add the suite modules for the area: `pnpm test:rust-affected -- -p pnpm-cli -E 'test(catalog::)'`. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers picking them.
+This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. For core crates it also runs the CLI end-to-end modules that assert their observable effects. The crate-to-module map lives in `E2E_AREAS` in `pnpm/scripts/test-affected.mjs`: a change to `pnpm-lockfile` runs the `add`, `install`, `update` and related modules, not the whole suite. A change to `pnpm-cli` runs its whole suite. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers extending the map and picking extra modules by hand: `pnpm test:rust-affected -- -p pnpm-cli -E 'test(catalog::)'`.
 
-When crates depend on what changed without being selected themselves, it also runs the `smoke` profile in their place: one end-to-end test per area of CLI behavior, rather than the dependents' full test sets or nothing at all. `--no-smoke` skips that, and `just smoke` runs the same set on its own.
+Registry-backed test helpers live in `pnpm-testing-utils-registry` so that `pnpr` is not a dependency of the shared `pnpm-testing-utils` harness. This narrows what `rdeps()` selects for a core crate. Both harness crates affect every crate's tests, so edits to either refuse scoping.
+
+When crates depend on what changed without being selected themselves, it also runs the `smoke` profile in their place: one end-to-end test per area of CLI behavior, rather than the dependents' full test sets or nothing at all. `--no-smoke` skips that, and `just smoke` runs the same set on its own. The smoke run is separate from the crate-to-module mapping above; the mapping is targeted depth, smoke is breadth.
 
 Scope the tests, not the rest. `just check` and `just lint` stay workspace-wide: both cost far less than the test run, and they catch the cross-crate breakage a `-p` selection hides.
 
-CI runs the full suite on Linux, macOS, and Windows for every pull request, so there is no need to reproduce it locally first. Run everything yourself when the change reaches past the crates you can name — a workspace dependency, `Cargo.lock`, `rust-toolchain.toml`, a shared crate such as `pnpm-testing-utils`, or a rename that crosses crate boundaries:
+CI runs the full suite on Linux, macOS, and Windows for every pull request, so there is no need to reproduce it locally first. Run everything yourself when the change reaches past the crates you can name — a workspace dependency, `Cargo.lock`, `rust-toolchain.toml`, a shared harness crate such as `pnpm-testing-utils` or `pnpm-testing-utils-registry`, or a rename that crosses crate boundaries:
 
 ```sh
 just ready

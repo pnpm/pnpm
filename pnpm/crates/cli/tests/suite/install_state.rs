@@ -5,7 +5,7 @@ use pnpm_modules_yaml::{
     read_modules_manifest,
     write_modules_manifest,
 };
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,

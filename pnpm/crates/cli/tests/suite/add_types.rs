@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::{
     Value,
     json,
@@ -37,7 +37,7 @@ fn serve_package(server: &mut mockito::Server, name: &str, extra: &Value) -> Vec
 }
 
 fn package_metadata(server: &mockito::Server, name: &str, extra: &Value) -> (Value, Value) {
-    let tarball = pnpm_testing_utils::fixtures::minimal_tarball(name, "1.0.0");
+    let tarball = pnpm_testing_utils_registry::fixtures::minimal_tarball(name, "1.0.0");
     let integrity = ssri::Integrity::from(tarball.as_slice()).to_string();
     let mut version = json!({
         "name": name, "version": "1.0.0",
@@ -246,7 +246,7 @@ fn installs_types_in_selected_workspace_projects_and_catalog() {
         .map(|name| {
             server
                 .mock("GET", format!("/{name}/-/package.tgz").as_str())
-                .with_body(pnpm_testing_utils::fixtures::minimal_tarball(name, "1.0.0"))
+                .with_body(pnpm_testing_utils_registry::fixtures::minimal_tarball(name, "1.0.0"))
                 .expect_at_least(1)
                 .create()
         })
@@ -348,7 +348,8 @@ fn inspects_the_requested_version_for_bundled_types() {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
         let mut server = mockito::Server::new();
         let _types = serve_package(&mut server, "@types/example", &json!({}));
-        let old_tarball = pnpm_testing_utils::fixtures::minimal_tarball("example", "1.0.0");
+        let old_tarball =
+            pnpm_testing_utils_registry::fixtures::minimal_tarball("example", "1.0.0");
         let old = json!({"name": "example", "version": "1.0.0", "dist": {
             "tarball": format!("{}/example/-/old.tgz", server.url()),
             "integrity": ssri::Integrity::from(old_tarball.as_slice()).to_string()

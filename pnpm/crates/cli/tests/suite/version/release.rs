@@ -1,5 +1,5 @@
 use super::pacquet_version_assuming_published;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::{
     Value,
     json,

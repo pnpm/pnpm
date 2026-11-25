@@ -8,7 +8,7 @@ use super::{
 };
 use assert_cmd::assert::OutputAssertExt;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
+use pnpm_testing_utils_registry::diagnostics::assert_diagnostic_contains;
 
 fn assert_conflict(args: &[&str], code: &str, setting: &str) {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

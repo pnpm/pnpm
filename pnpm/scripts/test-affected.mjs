@@ -15,9 +15,10 @@ const WORKSPACE_WIDE = [
   '.cargo/',
   '.config/nextest.toml',
   'pnpm/scripts/run-rust-tests.mjs',
-  // A dev-dependency of most crates: a change here can alter how any test in
-  // the workspace behaves, not just this crate's own.
+  // Dev-dependencies of most crates: a change here can alter how any test in
+  // the workspace behaves, not just these crates' own.
   'pnpm/crates/testing-utils/',
+  'pnpm/crates/testing-utils-registry/',
   // The packages the mocked registry serves, which nearly every end-to-end
   // install resolves against.
   'pnpr/.fixtures/',
@@ -39,6 +40,31 @@ const EXTERNAL_TEST_INPUTS = [
   { prefix: '.config/pnpm/catalog.yaml', packages: ORACLE_CONSUMERS },
   { prefix: 'pnpm-lock.yaml', packages: ORACLE_CONSUMERS },
 ]
+
+// End-to-end tests spawn the CLI, so no call edge connects a test to the crate
+// whose behavior it asserts. These module names are that edge. A change to a
+// listed crate runs the CLI modules that observe its effects, instead of
+// either the crate's own tests alone or the whole end-to-end suite.
+const E2E_AREAS = {
+  'pnpm-lockfile': ['add', 'ci_frozen_lockfile', 'current_lockfile', 'dedupe', 'import', 'install', 'lockfile_dir', 'lockfile_format_v13', 'lockfile_only', 'lockfile_resolution_settings', 'remove', 'update'],
+  'pnpm-config': ['config_dependencies', 'config_get_set', 'config_home', 'config_includes', 'env', 'env_file', 'package_configs'],
+  'pnpm-fs': ['cas_linker', 'clean', 'deploy', 'global_virtual_store', 'hoisted_node_linker', 'install', 'link'],
+  'pnpm-cargo-resolver': ['cargo_git_install', 'cargo_install'],
+  'pnpm-package-manager': ['dlx', 'exec', 'install', 'run'],
+  'pnpr-storage': ['add_jsr', 'audit', 'deprecate', 'dist_tag', 'pnpr_install', 'publish'],
+}
+
+export function e2eAreas (selected) {
+  return [...new Set(selected.flatMap(name => E2E_AREAS[name] ?? []))].sort()
+}
+
+export function mappedE2eModules () {
+  return [...new Set(Object.values(E2E_AREAS).flat())].sort()
+}
+
+export function e2eFilter (areas) {
+  return areas.map(area => `test(/^${area}::/)`).join(' + ')
+}
 
 export function workspaceWideChanges (files) {
   return files.filter(file => WORKSPACE_WIDE.some(entry =>
@@ -154,6 +180,72 @@ export function parseOptions (argv) {
   return { values, rest }
 }
 
+const EXECUTION_SWITCHES = new Set([
+  '--cargo-quiet',
+  '--cargo-verbose',
+  '--release',
+  '-r',
+  '-v',
+  '--no-run',
+  '--no-capture',
+  '--nocapture',
+  '--no-fail-fast',
+  '--offline',
+  '--locked',
+  '--frozen',
+  '--verbose',
+  '--quiet',
+])
+
+const EXECUTION_VALUE_OPTIONS = new Set([
+  '--build-jobs',
+  '--cargo-profile',
+  '-j',
+  '--target',
+  '--color',
+  '--config',
+  '--config-file',
+  '--failure-output',
+  '--final-status-level',
+  '--jobs',
+  '--message-format',
+  '--retries',
+  '--slow-timeout',
+  '--status-level',
+  '--target-dir',
+  '--test-threads',
+])
+
+/**
+ * The nextest options that apply to every run this script makes, including
+ * the build mode, so every run tests one build. Target, package, profile, and
+ * test selections belong to one run and are left behind, as do `--features`,
+ * whose names are scoped to the selected packages.
+ */
+export function executionOptions (args) {
+  const options = []
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]
+    const name = optionName(arg)
+    if (EXECUTION_SWITCHES.has(name)) {
+      options.push(arg)
+    } else if (EXECUTION_VALUE_OPTIONS.has(name)) {
+      options.push(arg)
+      if (name === arg) {
+        if (index + 1 === args.length) throw new Error(`${name} needs a value`)
+        options.push(args[++index])
+      }
+    }
+  }
+  return options
+}
+
+// `--name=value` and `-xvalue` carry their value in the same argument.
+function optionName (arg) {
+  if (arg.startsWith('--')) return arg.split('=', 1)[0]
+  return arg.startsWith('-') ? arg.slice(0, 2) : arg
+}
+
 // No git ref name starts with `-`, so an operand that does is a mistyped flag.
 // Passing it on would reach `git rev-parse` and `git merge-base` as an option.
 function revision (value) {
@@ -167,9 +259,11 @@ function main () {
     console.log(`just test-affected [options] [-- <nextest args>]
 
 Runs the tests of every crate the working tree changes. Selection is
-crate-level: a crate's whole test set runs, or none of it. When crates depend
-on what changed without being selected themselves, the smoke profile runs in
-their place, one end-to-end test per area of CLI behavior.
+crate-level: a crate's whole test set runs, or none of it. Core crates also run
+the CLI end-to-end modules that assert their observable effects, instead of
+the whole suite. When crates depend on what changed without being selected
+themselves, the smoke profile runs in their place, one end-to-end test per area
+of CLI behavior.
 
   --base <revision>  what the diff is taken against (default: origin/main,
                      or main where no remote-tracking ref exists)
@@ -211,6 +305,11 @@ looks like: just test-affected -- -p pnpm-cli -E 'test(catalog::)'`)
     console.log(left == null ? `  ${name}` : `  ${name} (${left.length} crates depend on it)`)
   }
 
+  const areas = packages.includes('pnpm-cli') ? [] : e2eAreas(packages)
+  if (areas.length > 0) {
+    console.log(`\nRunning the CLI end-to-end modules that cover those crates: ${areas.join(', ')}`)
+  }
+
   const smoke = values.smoke ? smokeStandIns(packages, unselected) : []
   if (smoke.length > 0) {
     console.log(`\nThe crates that depend on those are not selected in full. Running ${smoke.join(', ')}`)
@@ -220,10 +319,12 @@ looks like: just test-affected -- -p pnpm-cli -E 'test(catalog::)'`)
   }
 
   const runner = path.join(repo, 'pnpm/scripts/run-rust-tests.mjs')
+  const options = executionOptions(rest)
   const runs = [packages.flatMap(name => ['-p', name]).concat(rest)]
+  if (areas.length > 0) runs.push(['-p', 'pnpm-cli', '-E', e2eFilter(areas), ...options])
   // A profile's default filter intersects with any other selection, so the
   // smoke entries cannot be unioned into the run above. They get their own.
-  if (smoke.length > 0) runs.push(['--profile', 'smoke', ...smoke.flatMap(name => ['-p', name])])
+  if (smoke.length > 0) runs.push(['--profile', 'smoke', ...smoke.flatMap(name => ['-p', name]), ...options])
 
   if (values.print) {
     for (const run of runs) console.log(`\nnode ${path.relative(repo, runner)} ${run.join(' ')}`)

@@ -11,10 +11,10 @@ use crate::_utils::{
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 #[cfg(unix)]
-use pnpm_testing_utils::bin::AddMockedRegistry;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::AddMockedRegistry;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 #[cfg(unix)]
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils_registry::command_env::CommandTestExt;
 #[cfg(unix)]
 use std::path::{
     Path,

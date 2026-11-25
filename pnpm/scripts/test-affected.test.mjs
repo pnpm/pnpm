@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { git, temporaryRepo } from './git-fixture.mjs'
-import { isPnprPackage, parseOptions, selectPackages, smokeStandIns, trackedBase, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
+import { e2eAreas, e2eFilter, executionOptions, isPnprPackage, mappedE2eModules, parseOptions, selectPackages, smokeStandIns, trackedBase, unselectedDependents, workspaceWideChanges } from './test-affected.mjs'
 
 const script = fileURLToPath(new URL('./test-affected.mjs', import.meta.url))
+const repo = path.resolve(fileURLToPath(new URL('../..', import.meta.url)))
 
 function repoWithOneCommit (context) {
   const repo = temporaryRepo(context, 'pnpm-test-affected-')
@@ -74,7 +77,9 @@ test('identifies the crates that must be selected together', () => {
 })
 
 test('refuses to scope a change to the shared test harness', () => {
-  assert.deepEqual(workspaceWideChanges(['pnpm/crates/testing-utils/src/bin.rs']), ['pnpm/crates/testing-utils/src/bin.rs'])
+  assert.deepEqual(
+    workspaceWideChanges(['pnpm/crates/testing-utils/src/lib.rs', 'pnpm/crates/testing-utils-registry/src/registry.rs']),
+    ['pnpm/crates/testing-utils/src/lib.rs', 'pnpm/crates/testing-utils-registry/src/registry.rs'])
 })
 
 const graph = [
@@ -102,6 +107,54 @@ test('skips smoke tests when the CLI is selected in full', () => {
 test('skips smoke tests when nothing depends on what changed', () => {
   const selected = ['pnpm-micro-benchmark']
   assert.deepEqual(smokeStandIns(selected, unselectedDependents(selected, graph)), [])
+})
+
+test('maps a core crate to the CLI modules that observe its effects', () => {
+  assert.deepEqual(e2eAreas(['pnpm-lockfile']), [
+    'add', 'ci_frozen_lockfile', 'current_lockfile', 'dedupe', 'import',
+    'install', 'lockfile_dir', 'lockfile_format_v13', 'lockfile_only',
+    'lockfile_resolution_settings', 'remove', 'update',
+  ])
+})
+
+test('unions and deduplicates the modules for several changed crates', () => {
+  const areas = e2eAreas(['pnpm-fs', 'pnpm-lockfile'])
+  assert.ok(areas.includes('cas_linker'))
+  assert.ok(areas.includes('update'))
+  assert.equal(areas.filter(area => area === 'install').length, 1)
+})
+
+test('leaves crates without a module map to their own tests and smoke', () => {
+  assert.deepEqual(e2eAreas(['pnpm-micro-benchmark']), [])
+})
+
+test('every mapped module is declared in the CLI suite', () => {
+  const source = fs.readFileSync(path.join(repo, 'pnpm/crates/cli/tests/suite/main.rs'), 'utf8')
+  const modules = new Set([...source.matchAll(/^mod\s+(\w+);$/gm)].map(([, name]) => name))
+  for (const area of mappedE2eModules()) {
+    assert.ok(modules.has(area), `E2E_AREAS names ${area}, but suite/main.rs does not declare mod ${area};`)
+  }
+})
+
+test('builds an anchored nextest filter from module names', () => {
+  assert.equal(e2eFilter(['add', 'install']), 'test(/^add::/) + test(/^install::/)')
+})
+
+test('forwards execution options without forwarding a run selection', () => {
+  const args = ['--no-run', '-p', 'pnpm-cli', '-E', 'test(add::)', '--profile', 'smoke', '--no-capture']
+  assert.deepEqual(executionOptions(args), ['--no-run', '--no-capture'])
+  assert.deepEqual(executionOptions(['-pfoo', '-Etest(add::)', '--package=bar', '--filter=test(a)', '--profile=smoke', '--no-run']), ['--no-run'])
+})
+
+test('keeps target selectors and test filters out of the extra runs', () => {
+  const args = ['--lib', '--test-threads', '4', '--test', 'suite', 'catalog', '--retries=2', '--no-run']
+  assert.deepEqual(executionOptions(args), ['--test-threads', '4', '--retries=2', '--no-run'])
+})
+
+test('forwards the build mode so every run tests one build', () => {
+  const args = ['--release', '--cargo-profile', 'ci', '--target=x86_64-unknown-linux-gnu', '-j4', '-v', '--features', 'extra', '-F', 'more']
+  assert.deepEqual(executionOptions(args), ['--release', '--cargo-profile', 'ci', '--target=x86_64-unknown-linux-gnu', '-j4', '-v'])
+  assert.deepEqual(executionOptions(['-r', '-j', '2']), ['-r', '-j', '2'])
 })
 
 test('reads --no-smoke', () => {

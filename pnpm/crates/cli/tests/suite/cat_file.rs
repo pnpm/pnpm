@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use std::fs;
 
 #[test]
@@ -72,7 +72,7 @@ fn should_fail_on_missing_hash() {
 #[test]
 #[cfg(unix)]
 fn should_fail_on_unreadable_store_file() {
-    use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
+    use pnpm_testing_utils_registry::diagnostics::assert_diagnostic_contains;
 
     let CommandTempCwd {
         pacquet, root: _root, npmrc_info, ..
@@ -109,7 +109,7 @@ fn should_fail_on_invalid_hash_format() {
 
 #[test]
 fn should_fail_on_empty_or_short_digest() {
-    use pnpm_testing_utils::command_env::CommandTestExt;
+    use pnpm_testing_utils_registry::command_env::CommandTestExt;
 
     let CommandTempCwd {
         pacquet: _,
@@ -139,7 +139,7 @@ fn should_fail_on_empty_or_short_digest() {
 
 #[test]
 fn should_fail_on_invalid_base64() {
-    use pnpm_testing_utils::command_env::CommandTestExt;
+    use pnpm_testing_utils_registry::command_env::CommandTestExt;
 
     let CommandTempCwd { workspace, root: _root, .. } =
         CommandTempCwd::init().add_mocked_registry();

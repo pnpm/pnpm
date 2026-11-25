@@ -30,7 +30,7 @@ use pnpm_lockfile::{
     Lockfile,
     LockfileResolution,
 };
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     git_repo::GitRepoFixture,
 };
@@ -980,7 +980,7 @@ fn hoisted_subdirectory_packages_share_one_source_through_resolution_and_install
 
 #[cfg(unix)]
 fn assert_subdirectory_source_reuse(node_linker: &str) {
-    use pnpm_testing_utils::git_repo::GitCommandLog;
+    use pnpm_testing_utils_registry::git_repo::GitCommandLog;
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "shared-source");
@@ -1038,7 +1038,7 @@ fs.appendFileSync(path.join(root, '.git/config'), '\n# contaminated\n');
 #[cfg(unix)]
 #[test]
 fn aliasless_subdirectory_adds_share_one_source_while_resolving() {
-    use pnpm_testing_utils::git_repo::GitCommandLog;
+    use pnpm_testing_utils_registry::git_repo::GitCommandLog;
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "shared-source");
@@ -1134,7 +1134,7 @@ fn assert_packages_prepared_from_their_own_checkout(workspace: &Path, commit: &s
 #[cfg(unix)]
 #[test]
 fn a_tag_shared_by_many_workspace_projects_is_looked_up_once() {
-    use pnpm_testing_utils::git_repo::GitCommandLog;
+    use pnpm_testing_utils_registry::git_repo::GitCommandLog;
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let (repo, commit) = simple_repo(root.path(), "tagged", "1.0.0");
@@ -1192,7 +1192,7 @@ fn a_tag_shared_by_many_workspace_projects_is_looked_up_once() {
 #[cfg(unix)]
 #[test]
 fn lockfile_update_reuses_the_locked_commit_of_a_git_dependency_with_peers() {
-    use pnpm_testing_utils::git_repo::GitCommandLog;
+    use pnpm_testing_utils_registry::git_repo::GitCommandLog;
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "with-peer");
@@ -1253,7 +1253,7 @@ fn lockfile_update_reuses_the_locked_commit_of_a_git_dependency_with_peers() {
 #[cfg(unix)]
 #[test]
 fn lockfile_update_keeps_the_aliased_git_child_of_a_git_dependency_with_peers() {
-    use pnpm_testing_utils::git_repo::GitCommandLog;
+    use pnpm_testing_utils_registry::git_repo::GitCommandLog;
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let (hi_repo, _) = say_hi_repo(root.path());

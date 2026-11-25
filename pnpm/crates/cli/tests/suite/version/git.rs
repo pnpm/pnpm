@@ -15,7 +15,7 @@ use super::{
     write_manifest,
     write_two_package_workspace,
 };
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils_registry::command_env::CommandTestExt;
 
 #[track_caller]
 fn assert_unclean_working_tree(dir: &Path) {

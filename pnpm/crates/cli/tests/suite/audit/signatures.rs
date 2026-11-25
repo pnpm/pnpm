@@ -10,7 +10,7 @@ use super::{
     write_two_project_audit_workspace,
 };
 use command_extra::CommandExtra;
-use pnpm_testing_utils::trusted_tls_server::TrustedTlsServer;
+use pnpm_testing_utils_registry::trusted_tls_server::TrustedTlsServer;
 
 const SIGNATURE_KEYID: &str = "SHA256:test";
 

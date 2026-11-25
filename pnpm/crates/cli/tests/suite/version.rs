@@ -8,7 +8,7 @@ use crate::_utils::{
 use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,
@@ -644,7 +644,7 @@ fn version_flag_records_the_minimum_release_age_exclude_in_a_project_without_a_w
 #[test]
 fn a_global_command_does_not_record_the_minimum_release_age_exclude_in_the_project() {
     use assert_cmd::cargo::CommandCargoExt as _;
-    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    use pnpm_testing_utils_registry::command_env::CommandTestExt as _;
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -1057,7 +1057,7 @@ fn v11_switches_up_to_a_newer_pnpm_across_setting_sources_and_unknown_options() 
 #[ignore = "requires PNPM_V11_BUNDLE; run with --run-ignored all in the convergence job"]
 fn v11_switches_up_to_head_binary_from_local_registry() {
     use assert_cmd::cargo::CommandCargoExt as _;
-    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    use pnpm_testing_utils_registry::command_env::CommandTestExt as _;
     let v11_bundle = read_v11_bundle_path().expect("PNPM_V11_BUNDLE must be set");
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let head_bin_path = Command::cargo_bin("pnpm")
@@ -1142,7 +1142,7 @@ fn start_registry_with_synthetic_pnpm(
     root: &Path,
     version: &str,
     binary_bytes: &[u8],
-) -> pnpm_testing_utils::registry::TestRegistry {
+) -> pnpm_testing_utils_registry::registry::TestRegistry {
     let platform = pnpm_graph_hasher::host_platform();
     let arch = pnpm_graph_hasher::host_arch();
     let libc = pnpm_graph_hasher::host_libc();
@@ -1206,7 +1206,7 @@ fn start_registry_with_synthetic_pnpm(
 
     let storage_dir = root.join(format!("synthetic-storage-{version}"));
     pnpr_fixtures::build_storage_at(&packages_dir, &storage_dir);
-    pnpm_testing_utils::registry::TestRegistry::start_static_with_storage(&storage_dir)
+    pnpm_testing_utils_registry::registry::TestRegistry::start_static_with_storage(&storage_dir)
 }
 
 fn write_dev_engine_pin(workspace: &Path, version: &str) {
@@ -1225,7 +1225,7 @@ fn version_output(root: &Path, workspace: &Path, registry: &str) -> std::process
 
 fn version_command(root: &Path, workspace: &Path, registry: &str) -> Command {
     use assert_cmd::cargo::CommandCargoExt as _;
-    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    use pnpm_testing_utils_registry::command_env::CommandTestExt as _;
     let command = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
@@ -1236,7 +1236,7 @@ fn version_command(root: &Path, workspace: &Path, registry: &str) -> Command {
 
 fn pacquet_in(workspace: &Path) -> Command {
     use assert_cmd::cargo::CommandCargoExt as _;
-    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    use pnpm_testing_utils_registry::command_env::CommandTestExt as _;
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)

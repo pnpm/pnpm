@@ -3,7 +3,7 @@
 //! ([pnpm/pnpm#15173](https://github.com/pnpm/pnpm/issues/15173)).
 
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::json;
 use std::fs;
 

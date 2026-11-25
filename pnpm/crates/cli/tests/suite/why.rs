@@ -5,7 +5,7 @@ use crate::_utils::{
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use console::strip_ansi_codes;
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

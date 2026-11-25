@@ -2,7 +2,7 @@
 //! any test in the process opens a database.
 #![cfg(feature = "backend-libsql")]
 
-use pnpm_testing_utils::sqlite_misuse::counting_misuse_reports;
+use pnpm_ffi_libsql::counting_misuse_reports;
 
 /// A second `sqlite3_close_v2` on a freed handle reads freed memory, which
 /// aborted the libsql tests on Windows with `0xc0000005`. `SQLite` reports a

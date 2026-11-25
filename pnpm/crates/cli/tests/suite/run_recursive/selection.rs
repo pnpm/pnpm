@@ -22,7 +22,7 @@ use assert_cmd::{
     assert::OutputAssertExt,
     cargo::CommandCargoExt,
 };
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils_registry::command_env::CommandTestExt;
 
 /// A single filtered script cannot run alongside a sibling, so at a
 /// terminal it stays in pacquet's own process group: a child moved into

@@ -13,7 +13,7 @@ use crate::_utils::{
     pacquet_in,
 };
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

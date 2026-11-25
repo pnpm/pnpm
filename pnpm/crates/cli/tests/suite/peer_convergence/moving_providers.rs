@@ -8,7 +8,7 @@ use pnpm_lockfile::{
     Lockfile,
     LockfileResolution,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use serde_json::{
     Value,
     json,

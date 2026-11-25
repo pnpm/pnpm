@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_store_dir::store_index::StoreIndex;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 
 fn find_hash_fixture(store_index: &StoreIndex) -> (String, String, String) {
     let keys = store_index.keys().unwrap();

@@ -57,6 +57,11 @@ const EXEMPT: &[Exemption] = &[
         reason: "the filesystem foreign calls pnpm makes",
     },
     Exemption {
+        crate_name: "pnpm-ffi-libsql",
+        tier: Tier::Abstraction,
+        reason: "the SQLite log callback that counts misuse reports",
+    },
+    Exemption {
         crate_name: "pnpm-ffi-mimalloc",
         tier: Tier::Abstraction,
         reason: "the mimalloc option calls pnpm makes",

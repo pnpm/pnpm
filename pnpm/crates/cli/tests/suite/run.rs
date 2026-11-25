@@ -3,7 +3,7 @@ use crate::_utils::write_executable;
 use crate::_utils::write_fake_bin;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     diagnostics::assert_diagnostic_contains,
 };
@@ -939,7 +939,7 @@ fn assert_no_bail_lets_siblings_finish(workspace_concurrency: &str) {
 mod shell_emulator {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pnpm_testing_utils::bin::CommandTempCwd;
+    use pnpm_testing_utils_registry::bin::CommandTempCwd;
     use serde_json::json;
     use std::{
         fmt::Write as _,

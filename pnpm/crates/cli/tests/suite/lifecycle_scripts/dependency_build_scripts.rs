@@ -20,7 +20,7 @@ use pnpm_modules_yaml::{
     read_modules_manifest,
     write_modules_manifest,
 };
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };
@@ -243,7 +243,7 @@ fn lifecycle_scripts_run_before_linking_bins() {
     eprintln!("Checking generated bins are executable...");
     #[cfg(unix)]
     {
-        use pnpm_testing_utils::fs::is_path_executable;
+        use pnpm_testing_utils_registry::fs::is_path_executable;
         assert!(is_path_executable(&node_modules.join(".bin/cmd1")));
         assert!(is_path_executable(&node_modules.join(".bin/cmd2")));
     }
@@ -266,7 +266,7 @@ fn lifecycle_scripts_run_before_linking_bins() {
     eprintln!("Checking generated bins are executable after frozen reinstall...");
     #[cfg(unix)]
     {
-        use pnpm_testing_utils::fs::is_path_executable;
+        use pnpm_testing_utils_registry::fs::is_path_executable;
         assert!(is_path_executable(&node_modules.join(".bin/cmd1")));
         assert!(is_path_executable(&node_modules.join(".bin/cmd2")));
     }
@@ -513,7 +513,7 @@ fn bins_linked_even_if_scripts_ignored() {
     eprintln!("Checking bins are linked...");
     #[cfg(unix)]
     {
-        use pnpm_testing_utils::fs::is_path_executable;
+        use pnpm_testing_utils_registry::fs::is_path_executable;
         assert!(is_path_executable(&node_modules.join(".bin/peer-with-bin")));
     }
 
@@ -541,7 +541,7 @@ fn bins_linked_even_if_scripts_ignored() {
     eprintln!("Checking bins are linked after frozen reinstall...");
     #[cfg(unix)]
     {
-        use pnpm_testing_utils::fs::is_path_executable;
+        use pnpm_testing_utils_registry::fs::is_path_executable;
         assert!(is_path_executable(&node_modules.join(".bin/peer-with-bin")));
     }
 

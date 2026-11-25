@@ -4,7 +4,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils_registry::command_env::CommandTestExt;
 use std::{
     fs,
     path::Path,

@@ -13,7 +13,7 @@ use pnpm_reporter::{
     LogLevel,
     Reporter,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use std::sync::{
     Arc,
     Mutex,

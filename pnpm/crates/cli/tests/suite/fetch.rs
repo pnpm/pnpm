@@ -2,7 +2,7 @@ use crate::_utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,

@@ -48,7 +48,8 @@ ssri = { workspace = true }
 rustls = { workspace = true, features = ["aws-lc-rs"] }
 axum = { workspace = true, features = ["form", "json"] }
 futures-util = { workspace = true }
-pnpm-testing-utils = { workspace = true, features = ["libsql"] }
+pnpm-ffi-libsql = { workspace = true }
+pnpm-testing-utils = { workspace = true }
 pnpr-libsql = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }
 tokio = { workspace = true }

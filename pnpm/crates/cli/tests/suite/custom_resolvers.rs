@@ -11,7 +11,7 @@ use crate::_utils::{
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::{
         AddMockedRegistry,
         CommandTempCwd,
@@ -465,14 +465,14 @@ fn custom_resolver_local_tarball_without_manifest_installs_dependencies() {
         "name": "custom-local", "version": "1.0.0",
         "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
     });
-    let body = pnpm_testing_utils::fixtures::tarball_with_manifest(&manifest);
+    let body = pnpm_testing_utils_registry::fixtures::tarball_with_manifest(&manifest);
     fs::create_dir_all(workspace.join("vendor")).unwrap();
     fs::write(workspace.join("vendor/package.tgz"), &body).unwrap();
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-local":"1.0.0"}}"#)
         .unwrap();
     let resolution = serde_json::json!({
         "tarball": "file:./vendor/package.tgz",
-        "integrity": pnpm_testing_utils::fixtures::sha512_integrity(&body),
+        "integrity": pnpm_testing_utils_registry::fixtures::sha512_integrity(&body),
     });
     fs::write(
         workspace.join(".pnpmfile.cjs"),
@@ -513,13 +513,13 @@ fn custom_typed_resolver_without_manifest_installs_dependencies() {
         "name": "custom-typed", "version": "1.0.0",
         "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
     });
-    let body = pnpm_testing_utils::fixtures::tarball_with_manifest(&manifest);
+    let body = pnpm_testing_utils_registry::fixtures::tarball_with_manifest(&manifest);
     fs::create_dir_all(workspace.join("vendor")).unwrap();
     fs::write(workspace.join("vendor/package.tgz"), &body).unwrap();
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-typed":"1.0.0"}}"#)
         .unwrap();
     declare_pnpr_registry(&workspace, mock_instance.url());
-    let integrity = pnpm_testing_utils::fixtures::sha512_integrity(&body);
+    let integrity = pnpm_testing_utils_registry::fixtures::sha512_integrity(&body);
     let resolution = serde_json::json!({
         "type": "custom:vendored", "name": "custom-typed", "version": "1.0.0",
         "integrity": integrity,
@@ -731,7 +731,7 @@ fn install_git_subdirectory(fetch_body: &str) -> (TempDir, PathBuf, TestRegistry
         "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
     })
     .to_string();
-    let body = pnpm_testing_utils::fixtures::tarball_entries(&[
+    let body = pnpm_testing_utils_registry::fixtures::tarball_entries(&[
         ("repo/package.json", br#"{"name":"archive-root","version":"1.0.0"}"#),
         ("repo/packages/foo/package.json", manifest.as_bytes()),
         ("repo/packages/foo/index.js", b"module.exports = 42;"),
@@ -744,7 +744,7 @@ fn install_git_subdirectory(fetch_body: &str) -> (TempDir, PathBuf, TestRegistry
         .unwrap();
     let resolution = serde_json::json!({
         "tarball": "https://codeload.github.com/example/repo/tar.gz/0123456789abcdef0123456789abcdef01234567",
-        "integrity": pnpm_testing_utils::fixtures::sha512_integrity(&body),
+        "integrity": pnpm_testing_utils_registry::fixtures::sha512_integrity(&body),
         "path": "/packages/foo",
         "gitHosted": true,
     });
@@ -799,7 +799,7 @@ fn assert_changed_custom_integrity_reinstalls(global_virtual_store: bool) {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let serve_payload = |payload: &[u8]| {
-        let body = pnpm_testing_utils::fixtures::tarball_entries(&[
+        let body = pnpm_testing_utils_registry::fixtures::tarball_entries(&[
             ("package/package.json", br#"{"name":"dep-a","version":"1.0.0"}"#),
             ("package/payload.txt", payload),
         ]);

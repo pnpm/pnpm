@@ -20,7 +20,7 @@ use pnpm_pnpr_client::{
     PnprClientError,
     TurborepoArtifactStore,
 };
-use pnpm_testing_utils::turborepo_cache::TurborepoCache;
+use pnpm_testing_utils_registry::turborepo_cache::TurborepoCache;
 
 const AUTHORIZATION: &str = "Bearer turborepo-token";
 /// A consumer advertises every glibc floor it meets, newest first.

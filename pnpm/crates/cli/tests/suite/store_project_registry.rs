@@ -4,7 +4,7 @@ use crate::_utils::{
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
+use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     command_env::CommandTestExt,
 };

@@ -2,7 +2,7 @@
 //! manifest requires of the host before it runs code in them.
 
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::{
     Value,
     json,

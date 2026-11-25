@@ -26,7 +26,7 @@ use super::{
     snapshot_keys,
 };
 use assert_cmd::assert::OutputAssertExt;
-use pnpm_testing_utils::fs::bump_mtime;
+use pnpm_testing_utils_registry::fs::bump_mtime;
 
 /// The map records the hash bare, so replacing the parenthesized form reaches
 /// only the segments and leaves `patchedDependencies` alone.

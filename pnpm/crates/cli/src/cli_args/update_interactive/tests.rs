@@ -42,7 +42,7 @@ use pnpm_reporter::{
     SilentReporter,
 };
 use pnpm_resolving_npm_resolver::TrustEvidence;
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use serde_json::{
     Value,
     json,

@@ -10,6 +10,8 @@
 //! two `SQLite` libraries, `libsql-ffi` and `libsqlite3-sys`. Configuring one
 //! says nothing about the other.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 use libsql::ffi;
 use std::{
     ffi::{

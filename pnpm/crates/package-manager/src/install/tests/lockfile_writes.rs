@@ -29,7 +29,7 @@ use pnpm_reporter::{
     Reporter,
     SilentReporter,
 };
-use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_testing_utils_registry::registry::TestRegistry;
 use std::sync::Mutex;
 use tempfile::tempdir;
 use text_block_macros::text_block;

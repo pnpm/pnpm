@@ -5,7 +5,7 @@ use crate::_utils::lockfile_package_keys;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

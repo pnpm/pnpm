@@ -5,7 +5,7 @@ use crate::_utils::{
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use console::strip_ansi_codes;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::{
     Value,
     json,
@@ -357,7 +357,7 @@ const PKG: &str = "@pnpm.e2e/pkg-with-1-dep";
 const LEGEND: &str = "Legend: production dependency, optional only, dev only";
 
 fn setup_registry()
--> (tempfile::TempDir, std::path::PathBuf, pnpm_testing_utils::bin::AddMockedRegistry) {
+-> (tempfile::TempDir, std::path::PathBuf, pnpm_testing_utils_registry::bin::AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     (root, workspace, npmrc_info)

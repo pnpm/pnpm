@@ -39,7 +39,7 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 pnpm-resolving-npm-resolver = { workspace = true }
-pnpm-testing-utils = { workspace = true }
+pnpm-testing-utils-registry = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

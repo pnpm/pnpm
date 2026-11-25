@@ -10,7 +10,7 @@ use crate::_utils::{
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };
@@ -559,7 +559,7 @@ fn repeat_install_rewrites_registry_bins_when_extend_node_path_changes() {
     assert!(!registry_bin_sets_node_path(&workspace));
 
     set_extend_node_path(&workspace, "false", "true");
-    pnpm_testing_utils::fs::bump_mtime(&workspace.join("pnpm-workspace.yaml"));
+    pnpm_testing_utils_registry::fs::bump_mtime(&workspace.join("pnpm-workspace.yaml"));
     install(None);
     assert!(registry_bin_sets_node_path(&workspace));
 

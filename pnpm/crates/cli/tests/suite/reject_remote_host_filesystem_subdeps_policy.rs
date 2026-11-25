@@ -2,7 +2,7 @@ use std::fs;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::json;
 
 use super::reject_remote_host_filesystem_subdeps::{
@@ -485,7 +485,8 @@ fn hook_authorized_local_peer_of_a_remote_git_parent_reinstalls_with_a_lockfile(
         )
         .expect("write local manifest");
     }
-    let git_repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "git-remote");
+    let git_repo =
+        pnpm_testing_utils_registry::git_repo::GitRepoFixture::init(root.path(), "git-remote");
     git_repo.write_file(
         "package.json",
         &json!({

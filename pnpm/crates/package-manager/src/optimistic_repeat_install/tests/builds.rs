@@ -18,7 +18,7 @@ use crate::install_state::settings::current_settings;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::set_mtime_ms;
+use pnpm_testing_utils_registry::fs::set_mtime_ms;
 use pnpm_workspace_state::{
     ProjectEntry,
     WorkspaceState,

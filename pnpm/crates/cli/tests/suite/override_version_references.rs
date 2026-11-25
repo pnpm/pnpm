@@ -6,7 +6,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::Lockfile;
-use pnpm_testing_utils::bin::{
+use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
 };

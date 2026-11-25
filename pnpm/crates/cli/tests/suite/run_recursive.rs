@@ -21,7 +21,7 @@ use pnpm_cmd_shim::{
     CmdShimBatch,
     generate_cmd_shim,
 };
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils_registry::bin::CommandTempCwd;
 use serde_json::{
     Value,
     json,
