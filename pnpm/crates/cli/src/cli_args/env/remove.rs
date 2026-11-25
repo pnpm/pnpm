@@ -171,7 +171,7 @@ fn is_path_in_removed_names(target: &Path, removed_names: &HashSet<String>) -> b
 }
 
 #[derive(Clone, Copy)]
-enum DanglingCurrentCleanup {
+enum DanglingLinkCleanup {
     Remove,
     Keep,
 }
@@ -179,7 +179,7 @@ enum DanglingCurrentCleanup {
 fn cleanup_nodejs_current(
     pnpm_home: &Path,
     removed_names: &HashSet<String>,
-    dangling: DanglingCurrentCleanup,
+    dangling: DanglingLinkCleanup,
 ) -> std::io::Result<bool> {
     let nodejs_current = pnpm_home.join("nodejs_current");
     if !nodejs_current.is_symlink() {
@@ -189,8 +189,8 @@ fn cleanup_nodejs_current(
     let points_to_removed = fs::read_link(&nodejs_current)
         .is_ok_and(|target| is_path_in_removed_names(&target, removed_names));
     let should_remove_dangling = match dangling {
-        DanglingCurrentCleanup::Remove => is_dangling,
-        DanglingCurrentCleanup::Keep => false,
+        DanglingLinkCleanup::Remove => is_dangling,
+        DanglingLinkCleanup::Keep => false,
     };
     if points_to_removed || should_remove_dangling {
         pnpm_fs::remove_symlink_dir(&nodejs_current)?;
@@ -202,27 +202,39 @@ fn cleanup_nodejs_current(
 fn is_symlink_removed(
     bin_path: &Path,
     removed_names: &HashSet<String>,
-    remove_dangling: bool,
+    dangling: DanglingLinkCleanup,
 ) -> std::io::Result<bool> {
     if !bin_path.is_symlink() {
         return Ok(false);
     }
-    if !bin_path.exists() {
-        return Ok(remove_dangling);
-    }
     let target = fs::read_link(bin_path)?;
-    Ok(is_path_in_removed_names(&target, removed_names))
+    if is_path_in_removed_names(&target, removed_names) {
+        return Ok(true);
+    }
+    let should_remove_dangling = match dangling {
+        DanglingLinkCleanup::Remove => !bin_path.exists(),
+        DanglingLinkCleanup::Keep => false,
+    };
+    Ok(should_remove_dangling)
 }
 
 fn is_native_shim_removed(
     global_bin_dir: &Path,
     bin_name: &str,
     removed_names: &HashSet<String>,
-    remove_dangling: bool,
+    dangling: DanglingLinkCleanup,
 ) -> std::io::Result<bool> {
     match native_shim_target(global_bin_dir, bin_name) {
-        Ok(Some(ShimTarget::Installed(target))) => Ok((remove_dangling && !target.exists())
-            || is_path_in_removed_names(&target, removed_names)),
+        Ok(Some(ShimTarget::Installed(target))) => {
+            if is_path_in_removed_names(&target, removed_names) {
+                return Ok(true);
+            }
+            let should_remove_dangling = match dangling {
+                DanglingLinkCleanup::Remove => !target.exists(),
+                DanglingLinkCleanup::Keep => false,
+            };
+            Ok(should_remove_dangling)
+        }
         Ok(None | Some(ShimTarget::Virtual(_))) => Ok(false),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(err) => Err(err),
@@ -255,11 +267,11 @@ fn cleanup_single_bin_link(
     global_bin_dir: &Path,
     bin_name: &str,
     removed_names: &HashSet<String>,
-    remove_dangling: bool,
+    dangling: DanglingLinkCleanup,
 ) -> std::io::Result<bool> {
     let bin_path = global_bin_dir.join(bin_name);
-    let should_remove = is_symlink_removed(&bin_path, removed_names, remove_dangling)?
-        || is_native_shim_removed(global_bin_dir, bin_name, removed_names, remove_dangling)?
+    let should_remove = is_symlink_removed(&bin_path, removed_names, dangling)?
+        || is_native_shim_removed(global_bin_dir, bin_name, removed_names, dangling)?
         || is_cmd_shim_removed(global_bin_dir, bin_name, removed_names)?;
 
     if should_remove {
@@ -284,7 +296,7 @@ pub(crate) fn cleanup_bin_links(
     bin_names: &[&str],
     removed_names: &HashSet<String>,
 ) -> std::io::Result<bool> {
-    cleanup_bin_links_impl(global_bin_dir, bin_names, removed_names, true)
+    cleanup_bin_links_impl(global_bin_dir, bin_names, removed_names, DanglingLinkCleanup::Remove)
 }
 
 pub(crate) fn cleanup_bin_links_for_removed_targets(
@@ -292,18 +304,18 @@ pub(crate) fn cleanup_bin_links_for_removed_targets(
     bin_names: &[&str],
     removed_names: &HashSet<String>,
 ) -> std::io::Result<bool> {
-    cleanup_bin_links_impl(global_bin_dir, bin_names, removed_names, false)
+    cleanup_bin_links_impl(global_bin_dir, bin_names, removed_names, DanglingLinkCleanup::Keep)
 }
 
 fn cleanup_bin_links_impl(
     global_bin_dir: &Path,
     bin_names: &[&str],
     removed_names: &HashSet<String>,
-    remove_dangling: bool,
+    dangling: DanglingLinkCleanup,
 ) -> std::io::Result<bool> {
     let mut removed = false;
     for &bin_name in bin_names {
-        if cleanup_single_bin_link(global_bin_dir, bin_name, removed_names, remove_dangling)? {
+        if cleanup_single_bin_link(global_bin_dir, bin_name, removed_names, dangling)? {
             removed = true;
         }
     }
@@ -315,12 +327,7 @@ pub(crate) fn cleanup_pnpm_home(
     matches_version: &impl Fn(&str) -> bool,
     removed_names: &mut HashSet<String>,
 ) -> std::io::Result<bool> {
-    cleanup_pnpm_home_impl(
-        pnpm_home,
-        matches_version,
-        removed_names,
-        DanglingCurrentCleanup::Remove,
-    )
+    cleanup_pnpm_home_impl(pnpm_home, matches_version, removed_names, DanglingLinkCleanup::Remove)
 }
 
 /// Remove a matching legacy Node.js install and the link to it, without
@@ -330,14 +337,14 @@ pub(crate) fn cleanup_pnpm_home_without_stale_current(
     matches_version: &impl Fn(&str) -> bool,
     removed_names: &mut HashSet<String>,
 ) -> std::io::Result<bool> {
-    cleanup_pnpm_home_impl(pnpm_home, matches_version, removed_names, DanglingCurrentCleanup::Keep)
+    cleanup_pnpm_home_impl(pnpm_home, matches_version, removed_names, DanglingLinkCleanup::Keep)
 }
 
 fn cleanup_pnpm_home_impl(
     pnpm_home: Option<&Path>,
     matches_version: &impl Fn(&str) -> bool,
     removed_names: &mut HashSet<String>,
-    dangling: DanglingCurrentCleanup,
+    dangling: DanglingLinkCleanup,
 ) -> std::io::Result<bool> {
     let Some(pnpm_home) = pnpm_home else {
         return Ok(false);
