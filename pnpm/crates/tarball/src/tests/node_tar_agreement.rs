@@ -317,3 +317,27 @@ fn extracts_a_file_sized_by_a_pax_header() {
         assert_eq!(std::fs::read(&files["data.json"]).unwrap(), b"{}");
     }
 }
+
+/// Dropping repeated PAX keys takes linear time, so a header packed with
+/// distinct keys cannot stall an install.
+#[test]
+fn reads_a_pax_header_with_many_distinct_keys_quickly() {
+    let body: String = (0..100_000)
+        .map(|index| pax_record(&format!("k{index}"), "0"))
+        .collect();
+    let tar = [
+        file("package.json", MANIFEST),
+        header("PaxHeader/x", body.len() as u64, b'x'),
+        padded(body.as_bytes()),
+        header("package/index.js", 3, b'0'),
+        padded(b"abc"),
+        END.to_vec(),
+    ]
+    .concat();
+    let (_store_keep, store_dir) = tempdir_with_leaked_path();
+    let started = std::time::Instant::now();
+    let (files, _) =
+        extract_tarball_entries(&tar, crate::TarLimits::default(), store_dir, None).unwrap();
+    assert_eq!(std::fs::read(&files["index.js"]).unwrap(), b"abc");
+    assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
+}

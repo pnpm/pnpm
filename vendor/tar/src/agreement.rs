@@ -6,7 +6,10 @@
 //! rejects one such shape instead of picking a side.
 
 use std::{
-    collections::HashSet,
+    collections::{
+        HashMap,
+        HashSet,
+    },
     io,
     str,
 };
@@ -115,16 +118,19 @@ pub(crate) fn check_pax_records(payload: &[u8], global: bool) -> io::Result<()> 
 pub(crate) fn keep_last_pax_records(payload: &[u8]) -> io::Result<Vec<u8>> {
     let text = str::from_utf8(payload).map_err(|_| other("PAX extended header is not UTF-8"))?;
     let mut records = Vec::new();
+    let mut last_index = HashMap::new();
     let mut rest = text;
     while !rest.is_empty() {
         let (key, _, len) = parse_pax_record(rest)?;
-        records.retain(|(earlier, _)| *earlier != key);
+        last_index.insert(key, records.len());
         records.push((key, &rest[..len]));
         rest = &rest[len..];
     }
     Ok(records
-        .into_iter()
-        .map(|(_, record)| record)
+        .iter()
+        .enumerate()
+        .filter(|(index, (key, _))| last_index[key] == *index)
+        .map(|(_, (_, record))| *record)
         .collect::<String>()
         .into_bytes())
 }
