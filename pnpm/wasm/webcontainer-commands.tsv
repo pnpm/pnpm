@@ -56,7 +56,6 @@ stop	partial	available
 restart	partial	available
 find-hash	partial	available
 runtime	routed	host-limited
-env	routed	host-limited
 shim	routed	available
 bin	partial	available
 clean	partial	available
