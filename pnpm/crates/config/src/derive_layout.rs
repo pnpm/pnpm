@@ -255,6 +255,10 @@ impl Config {
         // so this is independent of the final `config.registry` (which
         // yaml may have overridden), the security boundary holds even
         // when the workspace points the default registry elsewhere.
+        // A workspace-selected proxy must not receive the user's cleartext credentials.
+        if self.proxy != self.package_manager_bootstrap.proxy {
+            npmrc_auth.trusted_http_registries.clear();
+        }
         std::mem::take(npmrc_auth).build_auth_headers(self)?;
 
         // Re-resolve `store_dir` against the project's volume when no

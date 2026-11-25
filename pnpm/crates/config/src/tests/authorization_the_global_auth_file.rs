@@ -176,3 +176,28 @@ pub fn a_legacy_default_registries_key_beats_the_global_auth_file() {
 
     assert_eq!(config.registry, "https://legacy-declared.example/");
 }
+
+#[test]
+fn http_tarball_auth_requires_a_user_declared_registry() {
+    let routes = "registries:\n  http://private.example/npm/: { scopes: ['@'] }\n";
+    let first = "http://private.example/npm/pkg.tgz";
+    let global = load_with_auth_file(&format!("{STORED_LOGIN}{routes}"), None);
+    let authorize = global.auth_headers.tarball_authorization(first, "pkg");
+    assert_eq!(authorize(first).as_deref(), Some("Bearer stored-token"));
+    assert_eq!(authorize("http://private.example/npm/cache/pkg.tgz"), authorize(first));
+    assert_eq!(authorize("http://private.example/npm-two/pkg.tgz"), None);
+    assert_eq!(authorize("http://private.example:8080/npm/pkg.tgz"), None);
+
+    let strict = (*global.auth_headers).clone().with_secure_transport();
+    assert_eq!(strict.tarball_authorization(first, "pkg")(first), None);
+    assert_eq!(global.auth_headers.tarball_authorization(first, "node@runtime:1")(first), None);
+    assert_eq!(authorize("http://other.example/npm/pkg.tgz"), None);
+
+    let project = load_with_auth_file(STORED_LOGIN, Some(routes));
+    assert_eq!(project.auth_headers.tarball_authorization(first, "pkg")(first), None);
+    let project_ini =
+        load_with_auth_file_and_npmrc(STORED_LOGIN, "registry=http://private.example/npm/");
+    assert_eq!(project_ini.auth_headers.tarball_authorization(first, "pkg")(first), None);
+    let https = "https://private.example/npm/pkg.tgz";
+    assert_eq!(global.auth_headers.tarball_authorization(https, "pkg")(first), None);
+}

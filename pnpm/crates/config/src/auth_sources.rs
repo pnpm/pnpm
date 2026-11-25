@@ -147,6 +147,38 @@ pub(super) fn note_declared_registries(
     }
 }
 
+fn trusted_http_registries(auth: &NpmrcAuth, global: Option<&WorkspaceSettings>) -> Vec<String> {
+    use crate::workspace_yaml::registries::{
+        Ecosystem,
+        RegistryEntry,
+    };
+
+    let ini = auth.routes.default.iter().chain(auth.routes.scoped.values());
+    let mut registries: Vec<_> = ini.collect();
+    if let Some(settings) = global {
+        registries.extend(settings.registry.iter());
+        for (key, entry) in settings.registries.iter().flatten() {
+            match entry {
+                RegistryEntry::ScopeRoute(url) => registries.push(url),
+                RegistryEntry::Declaration(declaration)
+                    if declaration.ecosystem() == Ecosystem::Npm =>
+                {
+                    registries.push(key)
+                }
+                RegistryEntry::Declaration(_) => {}
+            }
+        }
+    }
+    registries
+        .into_iter()
+        .filter(|url| {
+            url.split_once("://")
+                .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("http"))
+        })
+        .cloned()
+        .collect()
+}
+
 fn is_trusted_auth_file<Sys: GetCurrentDir>(
     project_npmrc_path: &Path,
     user_npmrc_path: Option<&Path>,
@@ -342,7 +374,10 @@ impl Config {
         npmrc_auth.move_warnings_to(self);
         let trusted_auth = merge_auth_sources(trusted_sources);
 
-        self.trust_token_helper(npmrc_auth, trusted_auth)
+        let mut sources = self.trust_token_helper(npmrc_auth, trusted_auth)?;
+        sources.npmrc_auth.trusted_http_registries =
+            trusted_http_registries(&sources.trusted_auth, global_settings);
+        Ok(sources)
     }
 
     /// A `tokenHelper` names an executable, so it is honored only from a

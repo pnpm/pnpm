@@ -942,3 +942,18 @@ pub fn a_declared_scope_route_beats_the_global_auth_file() {
         Some("https://project-org.example/"),
     );
 }
+
+#[test]
+fn http_tarball_from_the_user_npmrc_uses_only_the_user_proxy() {
+    let dir = tempdir().unwrap();
+    let user = dir.path().join("user.npmrc");
+    write_registry_auth_file(&user, "http://registry.example/npm/", "user-token");
+    let url = "http://registry.example/npm/package.tgz";
+    let direct = load_with_project_and_user("", user.clone());
+    assert_eq!(
+        direct.auth_headers.tarball_authorization(url, "package")(url).as_deref(),
+        Some("Bearer user-token")
+    );
+    let proxied = load_with_project_and_user("http-proxy=http://proxy.example", user);
+    assert_eq!(proxied.auth_headers.tarball_authorization(url, "package")(url), None);
+}

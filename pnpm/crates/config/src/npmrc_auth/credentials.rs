@@ -351,12 +351,15 @@ impl NpmrcAuth {
         }
         config.auth_tokens_by_uri = tables.auth_tokens;
         config.registry_creds_by_uri = tables.registry_creds;
-        config.auth_headers = Arc::new(AuthHeaders::from_parts_with_token_helpers(
-            tables.auth_headers,
-            tables.scoped_auth_headers,
-            tables.token_helpers,
-            tables.scoped_token_helpers,
-        ));
+        config.auth_headers = Arc::new(
+            AuthHeaders::from_parts_with_token_helpers(
+                tables.auth_headers,
+                tables.scoped_auth_headers,
+                tables.token_helpers,
+                tables.scoped_token_helpers,
+            )
+            .with_http_tarball_registries(&self.trusted_http_registries),
+        );
         Ok(())
     }
 

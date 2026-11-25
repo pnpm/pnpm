@@ -242,12 +242,21 @@ enum Container {
 
 #[tokio::test]
 async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
+    assert_http_archive_auth(&[], mockito::Matcher::Missing).await;
+}
+
+#[tokio::test]
+async fn archive_requests_authenticate_a_user_declared_http_registry() {
+    assert_http_archive_auth(&["/simple/"], mockito::Matcher::Exact("Basic secret".into())).await;
+}
+
+async fn assert_http_archive_auth(registry_paths: &[&str], expected: mockito::Matcher) {
     let mut server = mockito::Server::new_async().await;
     let address: std::net::SocketAddr = server.host_with_port().parse().unwrap();
     let request = server
-        .mock("GET", "/simple/pkg.whl")
-        .match_header("authorization", mockito::Matcher::Missing)
-        .with_body("wheel")
+        .mock("GET", "/simple/pkg.tgz")
+        .match_header("authorization", expected)
+        .with_body("archive")
         .expect(1)
         .create_async()
         .await;
@@ -268,11 +277,16 @@ async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
         &format!("https://registry.example:{}/simple/", address.port()),
         "Basic secret".to_string(),
     );
-    let url = format!("http://registry.example:{}/simple/pkg.whl", address.port());
+    let registry_urls = registry_paths
+        .iter()
+        .map(|path| format!("http://registry.example:{}{path}", address.port()))
+        .collect::<Vec<_>>();
+    let auth = auth.with_http_tarball_registries(&registry_urls);
+    let url = format!("http://registry.example:{}/simple/pkg.tgz", address.port());
     let (_guard, response, _) = crate::archive_request::request_archive::<SilentReporter>(
         &client,
         &url,
-        "python:alpha",
+        "alpha",
         &auth,
         0,
         0,
@@ -283,7 +297,7 @@ async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
     .await
     .unwrap();
     eprintln!("response={response:?}");
-    assert_eq!(response.bytes().await.unwrap(), "wheel");
+    assert_eq!(response.bytes().await.unwrap(), "archive");
     request.assert_async().await;
 }
 

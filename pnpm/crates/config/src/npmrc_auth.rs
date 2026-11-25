@@ -91,6 +91,7 @@ pub(crate) struct NpmrcAuth {
     pub proxy: NpmrcProxy,
     pub tls: NpmrcTls,
     pub routes: NpmrcRoutes,
+    pub trusted_http_registries: Vec<String>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

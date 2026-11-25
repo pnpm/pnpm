@@ -123,7 +123,7 @@ pub fn is_url_secure_for_credentials(url: &str) -> bool {
     reqwest::Url::parse(url).is_ok_and(|url| secure_transport(&url))
 }
 
-fn secure_transport(url: &reqwest::Url) -> bool {
+pub(super) fn secure_transport(url: &reqwest::Url) -> bool {
     match url.scheme() {
         "https" => true,
         "http" => url.host_str().is_some_and(is_loopback_host),
