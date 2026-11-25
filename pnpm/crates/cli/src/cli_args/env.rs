@@ -2,7 +2,7 @@
 //! [`super::runtime`], kept because pnpm still ships it.
 
 pub(crate) use remove::{
-    cleanup_bin_links,
+    cleanup_bin_links_for_removed_targets,
     cleanup_pnpm_home_without_stale_current,
     matches_node_version,
     remove_global_node_install,
