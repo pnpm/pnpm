@@ -145,3 +145,29 @@ fn link_deps_resolving_to_one_directory_share_a_slot_across_projects() {
 
     assert_eq!(slot_in("/home/user/a"), slot_in("/home/user/b"));
 }
+
+/// A `:` may appear both in a `file:` path and in a checkout path, so
+/// moving one across the boundary between them must not name the same slot.
+#[test]
+fn a_colon_cannot_move_between_a_directory_dep_and_its_checkout() {
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let slot = |dep: &str, lockfile_dir: &str| {
+        let dep = key(dep);
+        let snapshots = HashMap::from([(dep.clone(), SnapshotEntry::default())]);
+        super::super::VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            None,
+            None,
+            Some(Path::new(lockfile_dir)),
+        )
+        .slot_dir(&dep)
+    };
+
+    assert_ne!(slot("dep@file:src", "/tmp/a:/tmp/b"), slot("dep@file:src:/tmp/a", "/tmp/b"));
+}

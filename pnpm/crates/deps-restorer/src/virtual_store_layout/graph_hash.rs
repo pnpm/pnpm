@@ -106,9 +106,11 @@ fn node_id(
 /// its children, so neither the snapshot nor a package linking to it
 /// shares a slot with another project.
 ///
-/// The path is converted the way [`GvsHasher`]'s `project_scope` is.
+/// The path is converted the way [`GvsHasher`]'s `project_scope` is. It
+/// is length-prefixed because both it and the package ID may hold a `:`.
 fn local_directory_id(full_pkg_id: &str, lockfile_dir: &Path) -> String {
-    format!("{full_pkg_id}:{}", lockfile_dir.to_string_lossy())
+    let lockfile_dir = lockfile_dir.to_string_lossy();
+    format!("{}:{lockfile_dir}:{full_pkg_id}", lockfile_dir.len())
 }
 pub(super) fn child_graph_key(
     alias: &pnpm_lockfile::PkgName,
