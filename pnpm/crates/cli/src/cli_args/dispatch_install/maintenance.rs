@@ -230,7 +230,7 @@ pub(in super::super) fn runtime<'a>(
     ctx: &RunCtx<'a>,
     args: RuntimeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    if matches!(args.params.first().map(String::as_str), Some("list" | "ls")) {
+    if matches!(args.params.first().map(String::as_str), Some("list" | "ls"),) {
         return env_compatibility(ctx, EnvArgs { params: args.params });
     }
     if args.global {
