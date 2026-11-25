@@ -199,9 +199,16 @@ fn cleanup_nodejs_current(
     Ok(false)
 }
 
-fn is_symlink_removed(bin_path: &Path, removed_names: &HashSet<String>) -> std::io::Result<bool> {
+fn is_symlink_removed(
+    bin_path: &Path,
+    removed_names: &HashSet<String>,
+    remove_dangling: bool,
+) -> std::io::Result<bool> {
     if !bin_path.is_symlink() {
         return Ok(false);
+    }
+    if !bin_path.exists() {
+        return Ok(remove_dangling);
     }
     let target = fs::read_link(bin_path)?;
     Ok(is_path_in_removed_names(&target, removed_names))
@@ -211,11 +218,11 @@ fn is_native_shim_removed(
     global_bin_dir: &Path,
     bin_name: &str,
     removed_names: &HashSet<String>,
+    remove_dangling: bool,
 ) -> std::io::Result<bool> {
     match native_shim_target(global_bin_dir, bin_name) {
-        Ok(Some(ShimTarget::Installed(target))) => {
-            Ok(is_path_in_removed_names(&target, removed_names))
-        }
+        Ok(Some(ShimTarget::Installed(target))) => Ok((remove_dangling && !target.exists())
+            || is_path_in_removed_names(&target, removed_names)),
         Ok(None | Some(ShimTarget::Virtual(_))) => Ok(false),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(err) => Err(err),
@@ -248,10 +255,11 @@ fn cleanup_single_bin_link(
     global_bin_dir: &Path,
     bin_name: &str,
     removed_names: &HashSet<String>,
+    remove_dangling: bool,
 ) -> std::io::Result<bool> {
     let bin_path = global_bin_dir.join(bin_name);
-    let should_remove = is_symlink_removed(&bin_path, removed_names)?
-        || is_native_shim_removed(global_bin_dir, bin_name, removed_names)?
+    let should_remove = is_symlink_removed(&bin_path, removed_names, remove_dangling)?
+        || is_native_shim_removed(global_bin_dir, bin_name, removed_names, remove_dangling)?
         || is_cmd_shim_removed(global_bin_dir, bin_name, removed_names)?;
 
     if should_remove {
@@ -276,9 +284,26 @@ pub(crate) fn cleanup_bin_links(
     bin_names: &[&str],
     removed_names: &HashSet<String>,
 ) -> std::io::Result<bool> {
+    cleanup_bin_links_impl(global_bin_dir, bin_names, removed_names, true)
+}
+
+pub(crate) fn cleanup_bin_links_for_removed_targets(
+    global_bin_dir: &Path,
+    bin_names: &[&str],
+    removed_names: &HashSet<String>,
+) -> std::io::Result<bool> {
+    cleanup_bin_links_impl(global_bin_dir, bin_names, removed_names, false)
+}
+
+fn cleanup_bin_links_impl(
+    global_bin_dir: &Path,
+    bin_names: &[&str],
+    removed_names: &HashSet<String>,
+    remove_dangling: bool,
+) -> std::io::Result<bool> {
     let mut removed = false;
     for &bin_name in bin_names {
-        if cleanup_single_bin_link(global_bin_dir, bin_name, removed_names)? {
+        if cleanup_single_bin_link(global_bin_dir, bin_name, removed_names, remove_dangling)? {
             removed = true;
         }
     }

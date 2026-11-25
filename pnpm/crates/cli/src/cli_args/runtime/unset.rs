@@ -6,7 +6,7 @@ use crate::{
     State,
     cli_args::{
         env::{
-            cleanup_bin_links,
+            cleanup_bin_links_for_removed_targets,
             cleanup_pnpm_home_without_stale_current,
             matches_node_version,
             remove_global_node_install,
@@ -42,11 +42,17 @@ pub fn run_unset<Reporter: self::Reporter>(
     config: &'static Config,
 ) -> miette::Result<()> {
     let version = request.version_spec.as_deref();
+    let global_bin_dir = config.global_bin.as_deref().filter(|dir| dir.is_dir());
     let unset = || {
         let mut removed_names = HashSet::new();
-        let removed_global =
-            remove_global_runtimes::<Reporter>(config, &request.runtime_name, version)?;
-        let removed_legacy = cleanup_legacy_runtime_artifacts(request, config, &mut removed_names)?;
+        let removed_global = remove_global_runtimes::<Reporter>(
+            config,
+            global_bin_dir,
+            &request.runtime_name,
+            version,
+        )?;
+        let removed_legacy =
+            cleanup_legacy_runtime_artifacts(request, global_bin_dir, &mut removed_names)?;
         if removed_global || removed_legacy {
             return Ok(());
         }
@@ -58,7 +64,7 @@ pub fn run_unset<Reporter: self::Reporter>(
         Err(GlobalError::PkgNotFound { param }.into())
     };
 
-    if let Some(global_bin_dir) = config.global_bin.as_deref().filter(|dir| dir.is_dir()) {
+    if let Some(global_bin_dir) = global_bin_dir {
         with_global_bin_lock(global_bin_dir, unset)
     } else {
         unset()
@@ -67,7 +73,7 @@ pub fn run_unset<Reporter: self::Reporter>(
 
 fn cleanup_legacy_runtime_artifacts(
     request: &RuntimeUnsetRequest,
-    config: &'static Config,
+    global_bin_dir: Option<&Path>,
     removed_names: &mut HashSet<String>,
 ) -> miette::Result<bool> {
     let version = request.version_spec.as_deref();
@@ -86,7 +92,7 @@ fn cleanup_legacy_runtime_artifacts(
     }
     if removed
         && !removed_names.is_empty()
-        && let Some(global_bin_dir) = config.global_bin.as_deref().filter(|dir| dir.is_dir())
+        && let Some(global_bin_dir) = global_bin_dir
     {
         let runtime_name = request.runtime_name.as_str();
         let bin_names: &[&str] = if runtime_name == "node" {
@@ -94,7 +100,8 @@ fn cleanup_legacy_runtime_artifacts(
         } else {
             std::slice::from_ref(&runtime_name)
         };
-        removed |= cleanup_bin_links(global_bin_dir, bin_names, removed_names).into_diagnostic()?;
+        removed |= cleanup_bin_links_for_removed_targets(global_bin_dir, bin_names, removed_names)
+            .into_diagnostic()?;
     }
     Ok(removed)
 }
@@ -145,6 +152,7 @@ fn with_global_bin_lock<Output>(
 
 fn remove_global_runtimes<Reporter: self::Reporter>(
     config: &Config,
+    global_bin_dir: Option<&Path>,
     runtime_name: &str,
     version: Option<&str>,
 ) -> miette::Result<bool> {
@@ -155,7 +163,7 @@ fn remove_global_runtimes<Reporter: self::Reporter>(
     if packages.is_empty() {
         return Ok(false);
     }
-    remove_selected_global_runtimes::<Reporter>(config, global_pkg_dir, &packages)?;
+    remove_selected_global_runtimes::<Reporter>(global_pkg_dir, global_bin_dir, &packages)?;
     Ok(true)
 }
 
@@ -182,11 +190,11 @@ fn select_global_runtimes(
 }
 
 fn remove_selected_global_runtimes<Reporter: self::Reporter>(
-    config: &Config,
     global_pkg_dir: &Path,
+    global_bin_dir: Option<&Path>,
     packages: &[GlobalPackageInfo],
 ) -> miette::Result<()> {
-    if let Some(global_bin_dir) = config.global_bin.as_deref().filter(|dir| dir.is_dir()) {
+    if let Some(global_bin_dir) = global_bin_dir {
         return remove_global_package_groups_locked::<Reporter>(
             global_pkg_dir,
             global_bin_dir,
