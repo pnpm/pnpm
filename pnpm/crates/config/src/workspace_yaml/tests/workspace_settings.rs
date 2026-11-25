@@ -1186,7 +1186,7 @@ fn flat_permission_warning_option_is_unknown() {
 
 #[test]
 fn catalog_mode_and_save_target_follow_the_nested_spelling() {
-    let yaml = "catalogMode: manual\nsaveCatalogName: legacy\ncatalog: {mode: strict, saveTo: tools, entries: {mode: '1', saveTo: '2'}}";
+    let yaml = "catalogMode: manual\nsaveCatalogName: legacy\ncatalog: {mode: strict, defaultSaveTarget: tools, entries: {mode: '1', defaultSaveTarget: '2'}}";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut record = serde_json::Map::new();
     crate::collect_explicit_settings(&mut record, &settings);
@@ -1200,10 +1200,10 @@ fn catalog_mode_and_save_target_follow_the_nested_spelling() {
     let higher = serde_saphyr::from_str("catalogMode: prefer\nsaveCatalogName: shared").unwrap();
     crate::collect_explicit_settings(&mut record, &higher);
     assert_eq!(record["catalog"]["mode"], "prefer");
-    assert_eq!(record["catalog"]["saveTo"], "shared");
+    assert_eq!(record["catalog"]["defaultSaveTarget"], "shared");
 
     let flat: WorkspaceSettings =
-        serde_saphyr::from_str("catalog: {mode: '1', saveTo: '2'}").unwrap();
+        serde_saphyr::from_str("catalog: {mode: '1', defaultSaveTarget: '2'}").unwrap();
     assert_eq!(flat.catalog.unwrap().entries()["mode"], "1");
     assert!(
         serde_saphyr::from_str::<WorkspaceSettings>("catalog: {entries: {}, mode: unknown}")

@@ -1695,12 +1695,12 @@ fn add_saves_in_the_catalog_selected_by_the_nested_setting() {
     write_manifest(&workspace, "{}");
     append_workspace_yaml(
         &workspace,
-        "saveCatalogName: legacy\ncatalog: {entries: {}, saveTo: tools}\n",
+        "saveCatalogName: legacy\ncatalog: {entries: {}, defaultSaveTarget: tools}\n",
     );
     run_ok(&workspace, &["add", "--lockfile-only", &format!("{FOO}@1.0.0")]);
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:tools"));
     let yaml: serde_json::Value =
         serde_saphyr::from_str(&read(&workspace, "pnpm-workspace.yaml")).unwrap();
-    assert_eq!(yaml["catalog"]["saveTo"], "tools");
+    assert_eq!(yaml["catalog"]["defaultSaveTarget"], "tools");
     assert_eq!(yaml["catalogs"]["tools"][FOO], "1.0.0");
 }

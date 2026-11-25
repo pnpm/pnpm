@@ -42,7 +42,7 @@ impl WorkspaceSettings {
             .map(Rules::Flat);
         if let Some(DefaultCatalog::Section(section)) = &mut self.catalog {
             super::overlay_some(&mut self.catalog_mode, section.mode);
-            super::overlay_some(&mut self.save_catalog_name, section.save_to.take());
+            super::overlay_some(&mut self.save_catalog_name, section.default_save_target.take());
         }
         self.catalog = self.catalog
             .take()
@@ -53,12 +53,12 @@ impl WorkspaceSettings {
     fn mirror_catalog_options(&self, target: &mut Map<String, Value>) {
         let section = self.catalog.as_ref().and_then(MapSetting::section);
         let mode = section.and_then(|section| section.mode).or(self.catalog_mode);
-        let save_to = section
-            .and_then(|section| section.save_to.as_ref())
+        let default_save_target = section
+            .and_then(|section| section.default_save_target.as_ref())
             .or(self.save_catalog_name.as_ref());
         for (field, alias, value) in [
             ("mode", "catalogMode", mode.map(|mode| serde_json::json!(mode))),
-            ("saveTo", "saveCatalogName", save_to.cloned().map(Value::from)),
+            ("defaultSaveTarget", "saveCatalogName", default_save_target.cloned().map(Value::from)),
         ] {
             if let Some(value) = value {
                 if let Some(nested) = target

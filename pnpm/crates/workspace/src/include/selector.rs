@@ -36,7 +36,9 @@ impl SettingSlot {
             "catalog" => Some(SettingSlot::Catalog(DEFAULT_CATALOG.to_string())),
             "catalogs" => Some(SettingSlot::AllCatalogs),
             "catalog.mode" => Some(SettingSlot::Setting("catalogMode".to_string())),
-            "catalog.saveTo" => Some(SettingSlot::Setting("saveCatalogName".to_string())),
+            "catalog.defaultSaveTarget" => {
+                Some(SettingSlot::Setting("saveCatalogName".to_string()))
+            }
             "catalog.unused" => Some(SettingSlot::Setting("catalogPrune".to_string())),
             "permissions.unused" => Some(SettingSlot::Setting("permissions.unused".to_string())),
             "overrides.unused" => Some(SettingSlot::Setting("warnUnusedOverrides".to_string())),
@@ -116,7 +118,11 @@ fn add_option_slots(slots: &mut Vec<SettingSlot>, key: &str, value: &Value) {
     let (marker, options): (_, &[(&str, &str)]) = match key {
         "catalog" => (
             "entries",
-            &[("unused", "catalogPrune"), ("mode", "catalogMode"), ("saveTo", "saveCatalogName")],
+            &[
+                ("unused", "catalogPrune"),
+                ("mode", "catalogMode"),
+                ("defaultSaveTarget", "saveCatalogName"),
+            ],
         ),
         "overrides" => ("rules", &[("unused", "warnUnusedOverrides")]),
         "permissions" => ("rules", &[("unused", "permissions.unused")]),

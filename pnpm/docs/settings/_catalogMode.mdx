@@ -14,15 +14,15 @@ Controls if and how dependencies are added to the default catalog, when running 
 
 Since v12.3.0, a specifier that names a location rather than a version is never moved into a catalog: local paths, local tarballs, tarball URLs, and `workspace:<path>` ranges stay in the `package.json` that declares them. Such a specifier is resolved relative to its own project, so one catalog entry could not mean the same directory for every project referencing it.
 
-### catalog.saveTo
+### catalog.defaultSaveTarget
 
-Set `catalog.saveTo` alongside `catalog.entries` to choose where `pnpm add` saves a dependency. Use `default` for the default catalog or supply a named catalog. The command-line flags `--save-catalog` and `--save-catalog-name` take precedence.
+Set `catalog.defaultSaveTarget` alongside `catalog.entries` to choose where `pnpm add` saves a dependency. Use `default` for the default catalog or supply a named catalog. The command-line flags `--save-catalog` and `--save-catalog-name` take precedence.
 
 ```yaml title="pnpm-workspace.yaml"
 catalog:
   entries: {}
   mode: prefer
-  saveTo: tools
+  defaultSaveTarget: tools
 ```
 
-The top-level `saveCatalogName` setting continues to work. When a file sets both, `catalog.saveTo` wins. If you define the default catalog under `catalogs.default`, use the top-level settings or move its entries to `catalog.entries` before using the nested settings.
+The top-level `saveCatalogName` setting continues to work. When a file sets both, `catalog.defaultSaveTarget` wins. If you define the default catalog under `catalogs.default`, use the top-level settings or move its entries to `catalog.entries` before using the nested settings.

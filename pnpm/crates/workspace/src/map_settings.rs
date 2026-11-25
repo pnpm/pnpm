@@ -55,8 +55,8 @@ pub struct CatalogSettings<Map> {
     pub entries: Map,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<CatalogMode>,
-    #[serde(rename = "saveTo", skip_serializing_if = "Option::is_none")]
-    pub save_to: Option<String>,
+    #[serde(rename = "defaultSaveTarget", skip_serializing_if = "Option::is_none")]
+    pub default_save_target: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unused: Option<CatalogCleanup>,
 }

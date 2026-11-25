@@ -747,7 +747,7 @@ fn nested_catalog_options_need_their_own_delegations() {
     for (field, alias, value) in [
         ("unused", "catalogPrune", "prune"),
         ("mode", "catalogMode", "strict"),
-        ("saveTo", "saveCatalogName", "tools"),
+        ("defaultSaveTarget", "saveCatalogName", "tools"),
     ] {
         let fragment = format!("catalog: {{entries: {{example: '1'}}, {field}: {value}}}\n");
         let dir = workspace(&[

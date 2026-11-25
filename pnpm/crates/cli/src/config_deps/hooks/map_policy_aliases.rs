@@ -7,7 +7,7 @@ use serde_json::{
 pub(super) fn drop_cli_map_policies(config: &Config, delta: &mut Map<String, Value>) {
     for (name, marker, option, aliases) in [
         ("catalog", "entries", "mode", &["catalogMode"][..]),
-        ("catalog", "entries", "saveTo", &["saveCatalogName"][..]),
+        ("catalog", "entries", "defaultSaveTarget", &["saveCatalogName"][..]),
         ("catalog", "entries", "unused", &["catalogPrune", "cleanupUnusedCatalogs"][..]),
         ("overrides", "rules", "unused", &["warnUnusedOverrides"][..]),
     ] {

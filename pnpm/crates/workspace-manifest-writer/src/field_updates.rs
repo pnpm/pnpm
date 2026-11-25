@@ -236,7 +236,7 @@ fn edit_setting(
 ) -> Result<bool, EditManifestFieldError> {
     let option = match key {
         "catalogMode" => Some("mode"),
-        "saveCatalogName" => Some("saveTo"),
+        "saveCatalogName" => Some("defaultSaveTarget"),
         _ => None,
     };
     if let Some(option) = option

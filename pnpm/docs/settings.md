@@ -375,7 +375,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [scriptShell](./settings/other.md#scriptshell)
 * [shellEmulator](./settings/other.md#shellemulator)
 * [catalog.mode](./settings/other.md#catalogmode)
-* [catalog.saveTo](./settings/other.md#catalogsaveto)
+* [catalog.defaultSaveTarget](./settings/other.md#catalogdefaultsavetarget)
 * [catalogMode](./settings/other.md#catalogmode)
 * [ci](./settings/other.md#ci)
 * [catalog.unused](./settings/other.md#catalogentries-and-catalogunused)

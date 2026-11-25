@@ -169,7 +169,7 @@ fn catalog_alias_edits_update_nested_options_and_clear_shadowed_values() {
     for catalog in ["{ entries: {}, mode: strict }", "\n  entries: {}\n  mode: strict"] {
         fs::write(&path, format!("catalogMode: prefer\ncatalog: {catalog}\n")).unwrap();
         for (alias, option, value) in
-            [("catalogMode", "mode", "manual"), ("saveCatalogName", "saveTo", "tools")]
+            [("catalogMode", "mode", "manual"), ("saveCatalogName", "defaultSaveTarget", "tools")]
         {
             crate::update_workspace_setting(dir.path(), alias, &serde_json::json!(value)).unwrap();
             let read = || {

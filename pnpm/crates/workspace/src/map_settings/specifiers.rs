@@ -62,7 +62,7 @@ impl Section for DefaultCatalog<Specifiers> {
         Ok(Self::Section(CatalogSettings {
             entries,
             mode: policy(options.shift_remove("mode").as_deref())?,
-            save_to: options.shift_remove("saveTo"),
+            default_save_target: options.shift_remove("defaultSaveTarget"),
             unused: policy(options.shift_remove("unused").as_deref())?,
         }))
     }
