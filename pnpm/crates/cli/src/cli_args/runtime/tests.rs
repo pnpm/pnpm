@@ -42,6 +42,14 @@ fn set_request_defaults_to_dev_engines_runtime() {
 }
 
 #[test]
+fn use_alias_sets_node_runtime() {
+    let request = args(&["use", "lts"]).set_request().unwrap();
+    assert_eq!(request.runtime_name, "node");
+    assert_eq!(request.package_name, "node@runtime:lts");
+    assert_eq!(request.dependency_group, DependencyGroup::Dev);
+}
+
+#[test]
 fn set_request_saves_prod_when_save_prod_is_set() {
     let request =
         RuntimeArgs { save_prod: true, ..args(&["set", "node", "22"]) }.set_request().unwrap();

@@ -48,7 +48,6 @@ pub(super) fn route<'a>(
         CliCommand::Dlx(args) => dispatch_install::dlx(ctx, args),
         CliCommand::Create(args) => dispatch_install::create(ctx, args),
         CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
-        CliCommand::Env(args) => dispatch_install::env(ctx, args),
         CliCommand::ApproveBuilds(args) => dispatch_install::approve_builds(ctx, args),
         CliCommand::Permissions(args) => dispatch_install::permissions(ctx, args),
         CliCommand::Approve(args) => dispatch_install::approve(ctx, args),

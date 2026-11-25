@@ -3,7 +3,6 @@ pub(super) use maintenance::{
     approve_builds,
     dedupe,
     deploy,
-    env,
     fetch,
     import,
     link,
@@ -45,10 +44,6 @@ use super::{
     },
     dlx::DlxArgs,
     edit::EditArgs,
-    env::{
-        EnvArgs,
-        EnvSubcommand,
-    },
     fetch::FetchArgs,
     global,
     import::ImportArgs,

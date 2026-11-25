@@ -12,22 +12,24 @@ use std::{
 
 #[test]
 fn runtime_unknown_subcommand_runs_with_default_ndjson_and_silent_reporters() {
-    for reporter in [None, Some("--reporter=ndjson"), Some("--reporter=silent")] {
-        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    for (command_name, subcommand) in [("runtime", "unknown"), ("env", "unknown")] {
+        for reporter in [None, Some("--reporter=ndjson"), Some("--reporter=silent")] {
+            let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+            fs::write(workspace.join("package.json"), "{}").expect("write package.json");
 
-        let mut command = pacquet;
-        if let Some(reporter) = reporter {
-            command = command.with_arg(reporter);
+            let mut command = pacquet;
+            if let Some(reporter) = reporter {
+                command = command.with_arg(reporter);
+            }
+            command = command.with_arg(command_name).with_arg(subcommand);
+            let output = command.output().expect("spawn pacquet runtime alias");
+            let stderr = String::from_utf8_lossy(&output.stderr);
+
+            assert!(!output.status.success(), "unknown runtime subcommand must fail");
+            assert!(stderr.contains("ERR_PNPM_RUNTIME_UNKNOWN_SUBCOMMAND"), "stderr: {stderr}");
+
+            drop(root);
         }
-        command = command.with_arg("runtime").with_arg("unknown");
-        let output = command.output().expect("spawn pacquet runtime");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-
-        assert!(!output.status.success(), "unknown runtime subcommand must fail");
-        assert!(stderr.contains("ERR_PNPM_RUNTIME_UNKNOWN_SUBCOMMAND"), "stderr: {stderr}");
-
-        drop(root);
     }
 }
 

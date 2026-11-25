@@ -12,8 +12,6 @@ use super::{
     DedupePipeline,
     DeployArgs,
     DeployPipeline,
-    EnvArgs,
-    EnvSubcommand,
     FetchArgs,
     ImportArgs,
     InstallArgs,
@@ -240,29 +238,6 @@ pub(in super::super) fn runtime<'a>(
         let command_state = command_state.await?;
         args.run::<CliReporter>(command_state).await
     }))
-}
-
-// `pnpm env use` installs a runtime globally, so it takes the same
-// global-config load `runtime set -g` does; `pnpm env list` only queries a
-// mirror and needs no install pipeline at all.
-pub(in super::super) fn env<'a>(
-    ctx: &RunCtx<'a>,
-    args: EnvArgs,
-) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.loaders.global_packages_config)()?;
-    let dir = ctx.locations.dir;
-    Ok(match args.subcommand::<CliReporter>(config)? {
-        EnvSubcommand::Use { package_name } => {
-            Box::pin(EnvArgs::run_use::<CliReporter>(package_name, config, dir))
-        }
-        EnvSubcommand::Remove { versions } => {
-            Box::pin(EnvArgs::run_remove::<CliReporter>(versions, config, dir))
-        }
-        EnvSubcommand::List { version_spec } => Box::pin(async move {
-            pnpm_diagnostics::println!("{}", EnvArgs::run_list(version_spec, config).await?);
-            Ok(())
-        }),
-    })
 }
 
 pub(in super::super) fn permissions<'a>(

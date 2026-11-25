@@ -38,7 +38,6 @@ use super::{
     docs::DocsArgs,
     doctor::DoctorArgs,
     edit::EditArgs,
-    env::EnvArgs,
     exec::ExecArgs,
     fetch::FetchArgs,
     find_hash::FindHashArgs,

@@ -728,12 +728,12 @@ fn get_and_set_report_through_stderr_like_config_does() {
 }
 
 #[test]
-fn env_collects_its_subcommand_and_arguments() {
-    let CliCommand::Env(env) = command(&["pacquet", "env", "use", "24", "--global"]) else {
-        panic!("expected env");
+fn env_is_an_alias_for_runtime() {
+    let CliCommand::Runtime(runtime) = command(&["pacquet", "env", "use", "24", "--global"]) else {
+        panic!("expected runtime");
     };
-    assert!(env.global);
-    assert_eq!(env.params, ["use", "24"]);
+    assert!(runtime.global);
+    assert_eq!(runtime.params, ["use", "24"]);
 }
 
 #[test]

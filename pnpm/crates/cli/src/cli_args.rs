@@ -30,7 +30,6 @@ pub mod doctor;
 pub(crate) mod ecosystem_deps;
 pub mod edit;
 pub(crate) mod engine_deps;
-pub mod env;
 pub mod exec;
 pub mod fetch;
 pub mod find_hash;
