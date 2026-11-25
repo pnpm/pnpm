@@ -239,49 +239,51 @@ test('path traversal with backslashes is blocked (Windows security fix)', () => 
   }
 })
 
+test.each([
+  ['a directory entry', '5'],
+  ['a regular file entry whose path ends in /', '0'],
+])('%s with a nonzero size has no content, as in node-tar', (_, typeflag) => {
+  const hiddenEntry = createTarballWithEntry('index.js', 'hidden').subarray(0, -1024)
+  const tarBuffer = Buffer.concat([
+    createTarballWithEntry('index.js', 'benign').subarray(0, -1024),
+    createTarHeader('package/docs/', 512, typeflag),
+    createTarHeader('package/NOTES', hiddenEntry.length),
+    hiddenEntry,
+    Buffer.alloc(1024),
+  ])
+
+  const { files } = parseTarball(tarBuffer)
+
+  expect([...files.keys()]).toStrictEqual(['index.js', 'NOTES'])
+  expect(readParsedFile(tarBuffer, files.get('index.js'))).toBe('benign')
+  expect(files.get('NOTES')?.size).toBe(hiddenEntry.length)
+})
+
+test('a regular file entry whose PAX path ends in / has no content, as in node-tar', () => {
+  const paxPayload = Buffer.alloc(512)
+  paxPayload.write('22 path=package/docs/\n')
+  const nextEntry = createTarballWithEntry('index.js', 'module.exports = 1')
+  const tarBuffer = Buffer.concat([
+    createTarHeader('PaxHeader/docs', 22, 'x'),
+    paxPayload,
+    createTarHeader('package/docs', nextEntry.length - 1024),
+    nextEntry,
+  ])
+
+  const { files } = parseTarball(tarBuffer)
+
+  expect([...files.keys()]).toStrictEqual(['index.js'])
+  expect(readParsedFile(tarBuffer, files.get('index.js'))).toBe('module.exports = 1')
+})
+
+function readParsedFile (tarBuffer: Buffer, file: { offset: number, size: number } | undefined): string | undefined {
+  return file && tarBuffer.toString('utf8', file.offset, file.offset + file.size)
+}
+
 // Helper to create a minimal tarball buffer with a single entry
 function createTarballWithEntry (fileName: string, content: string): Buffer {
   const contentBytes = Buffer.from(content, 'utf8')
-
-  // Create a 512-byte header
-  const header = Buffer.alloc(512, 0)
-
-  // File name at offset 0 (max 100 chars)
-  const nameToWrite = `package/${fileName}`
-  header.write(nameToWrite, 0, Math.min(nameToWrite.length, 100), 'utf8')
-
-  // File mode at offset 100 (octal, 8 bytes) - 0644
-  header.write('0000644\0', 100, 8, 'utf8')
-
-  // UID at offset 108 (octal, 8 bytes)
-  header.write('0000000\0', 108, 8, 'utf8')
-
-  // GID at offset 116 (octal, 8 bytes)
-  header.write('0000000\0', 116, 8, 'utf8')
-
-  // File size at offset 124 (octal, 12 bytes)
-  const sizeOctal = contentBytes.length.toString(8).padStart(11, '0')
-  header.write(sizeOctal + '\0', 124, 12, 'utf8')
-
-  // Mtime at offset 136 (octal, 12 bytes)
-  header.write('00000000000\0', 136, 12, 'utf8')
-
-  // File type at offset 156 ('0' for regular file)
-  header[156] = '0'.charCodeAt(0)
-
-  // USTAR indicator at offset 257
-  header.write('ustar\0', 257, 6, 'utf8')
-  header.write('00', 263, 2, 'utf8')
-
-  // Compute checksum (offset 148, 8 bytes) - sum of all header bytes treating checksum field as spaces
-  // First, fill checksum field with spaces
-  header.fill(' ', 148, 156)
-  let checksum = 0
-  for (let i = 0; i < 512; i++) {
-    checksum += header[i]
-  }
-  const checksumOctal = checksum.toString(8).padStart(6, '0')
-  header.write(checksumOctal + '\0 ', 148, 8, 'utf8')
+  const header = createTarHeader(`package/${fileName}`, contentBytes.length)
 
   // Content block (padded to 512 bytes)
   const contentBlock = Buffer.alloc(512, 0)
@@ -291,6 +293,27 @@ function createTarballWithEntry (fileName: string, content: string): Buffer {
   const endMarker = Buffer.alloc(1024, 0)
 
   return Buffer.concat([header, contentBlock, endMarker])
+}
+
+function createTarHeader (entryPath: string, size: number, typeflag = '0'): Buffer {
+  const header = Buffer.alloc(512, 0)
+  header.write(entryPath, 0, Math.min(entryPath.length, 100), 'utf8')
+  header.write('0000644\0', 100, 8, 'utf8')
+  header.write('0000000\0', 108, 8, 'utf8')
+  header.write('0000000\0', 116, 8, 'utf8')
+  header.write(size.toString(8).padStart(11, '0') + '\0', 124, 12, 'utf8')
+  header.write('00000000000\0', 136, 12, 'utf8')
+  header[156] = typeflag.charCodeAt(0)
+  header.write('ustar\0', 257, 6, 'utf8')
+  header.write('00', 263, 2, 'utf8')
+  // The checksum is the sum of all header bytes, counting the checksum field as spaces.
+  header.fill(' ', 148, 156)
+  let checksum = 0
+  for (const byte of header) {
+    checksum += byte
+  }
+  header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'utf8')
+  return header
 }
 
 // Related issue: https://github.com/pnpm/pnpm/issues/7120

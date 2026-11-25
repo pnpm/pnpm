@@ -61,10 +61,6 @@ export function parseTarball (buffer: Buffer): IParseResult {
       fileSize = parseOctal(blockStart + FILE_SIZE_OFFSET, 12)
     }
 
-    // The total size will always be an integer number of 512 byte blocks.
-    // Also include 1 block for the header itself.
-    blockBytes = (fileSize & ~0x1ff) + (fileSize & 0x1ff ? 1024 : 512)
-
     const expectedCheckSum: number = parseOctal(blockStart + CHECKSUM_OFFSET, 8)
     const actualCheckSum: number = checkSum(blockStart)
     if (expectedCheckSum !== actualCheckSum) {
@@ -76,15 +72,20 @@ export function parseTarball (buffer: Buffer): IParseResult {
     // Mark that the first path segment has not been removed.
     pathTrimmed = false
 
+    let pathEndsWithSlash: boolean
     if (longLinkPath) {
-      fileName = longLinkPath
+      fileName = removeFirstSegment(longLinkPath)
+      pathEndsWithSlash = longLinkPath.endsWith('/')
       longLinkPath = ''
     } else if (paxHeaderPath) {
-      fileName = paxHeaderPath
+      fileName = removeFirstSegment(paxHeaderPath)
+      pathEndsWithSlash = paxHeaderPath.endsWith('/')
 
       // The PAX header only applies to the immediate next entry.
       paxHeaderPath = ''
     } else {
+      pathEndsWithSlash = nameFieldEndsWithSlash(blockStart)
+
       // The full file path is an optional prefix at offset 345, followed by the file name at offset 0, separated by a '/'.
       // Both values are terminated by a NUL if not using the full length of the field.
       prefix = parseString(blockStart + PREFIX_OFFSET, 155)
@@ -109,6 +110,19 @@ export function parseTarball (buffer: Buffer): IParseResult {
       // Replaces backslashes with forward slashes and uses POSIX path normalization to resolve ..
       fileName = path.posix.join('/', fileName.replaceAll('\\', '/')).slice(1)
     }
+
+    // node-tar, which npm uses, reads a regular file whose path ends in `/` as a directory,
+    // and reads a directory as having no content, whatever its size field says.
+    if ((fileType === 0 || fileType === ZERO) && pathEndsWithSlash) {
+      fileType = FILE_TYPE_DIRECTORY
+    }
+    if (fileType === FILE_TYPE_DIRECTORY) {
+      fileSize = 0
+    }
+
+    // The total size will always be an integer number of 512 byte blocks.
+    // Also include 1 block for the header itself.
+    blockBytes = (fileSize & ~0x1ff) + (fileSize & 0x1ff ? 1024 : 512)
 
     // Values '\0' and '0' are normal files.
     // Treat all other file types as non-existent
@@ -136,11 +150,6 @@ export function parseTarball (buffer: Buffer): IParseResult {
     case FILE_TYPE_LONGLINK: {
       // Read the long filename
       longLinkPath = buffer.toString('utf8', blockStart + 512, blockStart + 512 + fileSize).replace(/\0.*/, '')
-      // Remove the first path segment
-      const slashIndex = longLinkPath.indexOf('/')
-      if (slashIndex >= 0) {
-        longLinkPath = longLinkPath.slice(slashIndex + 1)
-      }
       break
     }
     default:
@@ -175,6 +184,17 @@ export function parseTarball (buffer: Buffer): IParseResult {
     }
 
     return sum
+  }
+
+  /**
+   * node-tar checks only the name field, not the ustar prefix, for a trailing `/`.
+   */
+  function nameFieldEndsWithSlash (offset: number): boolean {
+    let nameEnd: number = offset
+    while (nameEnd < offset + MODE_OFFSET && buffer[nameEnd] !== 0) {
+      nameEnd++
+    }
+    return nameEnd > offset && buffer[nameEnd - 1] === SLASH
   }
 
   /**
@@ -213,12 +233,10 @@ export function parseTarball (buffer: Buffer): IParseResult {
       const keyword: string = record.slice(0, equalSign)
 
       if (keyword === 'path') {
-        // Still need to trim the first path segment.
-        const slashIndex: number = record.indexOf('/', equalSign + 1)
         if (global) {
           throw new Error(`Unexpected global PAX path: ${record}`)
         }
-        paxHeaderPath = record.slice(slashIndex >= 0 ? slashIndex + 1 : equalSign + 1)
+        paxHeaderPath = record.slice(equalSign + 1)
       } else if (keyword === 'size') {
         const size: number = parseInt(record.slice(equalSign + 1), 10)
         if (isNaN(size) || size < 0) {
@@ -284,4 +302,9 @@ function clamp (index: number, len: number, defaultValue: number): number {
   index += len
   if (index >= 0) return index
   return 0
+}
+
+function removeFirstSegment (entryPath: string): string {
+  const slashIndex = entryPath.indexOf('/')
+  return slashIndex >= 0 ? entryPath.slice(slashIndex + 1) : entryPath
 }
