@@ -257,7 +257,7 @@ fn commit_streamed_temp_file(
         .filter(|meta| meta.file_type().is_file())
         .is_some_and(|meta| meta.len() == size)
         && files_have_equal_contents(tmp_path, file_path);
-    if existing_is_live || (existing_is_regular && repair_in_place(tmp_path, file_path)) {
+    if existing_is_live || (existing_is_regular && repair_in_place(tmp_path, file_path, size)) {
         let _ = fs::remove_file(tmp_path);
         return Ok(existing_meta.as_ref().and_then(pnpm_fs::file_mode::metadata_mode));
     }
@@ -279,9 +279,9 @@ fn commit_streamed_temp_file(
 /// atomic rename) when the in-place write is refused or the result
 /// fails a byte-compare against the temp, which covers a concurrent
 /// process still mid-write on the same path.
-fn repair_in_place(tmp_path: &Path, file_path: &Path) -> bool {
+fn repair_in_place(tmp_path: &Path, file_path: &Path, size: u64) -> bool {
     let Ok(mut tmp_reader) = fs::File::open(tmp_path) else { return false };
-    overwrite_file_in_place(file_path, &mut tmp_reader)
+    overwrite_file_in_place(file_path, &mut tmp_reader, size)
         && files_have_equal_contents(tmp_path, file_path)
 }
 

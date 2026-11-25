@@ -26,6 +26,30 @@ use super::{
 use pnpm_ffi_fs::FileMode;
 
 #[test]
+fn stale_repair_keeps_a_completed_blob_readable() {
+    struct ObservedSource<'a> {
+        path: &'a Path,
+        contents: &'a [u8],
+        remaining: &'a [u8],
+    }
+
+    impl io::Read for ObservedSource<'_> {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            assert_eq!(fs::read(self.path)?, self.contents);
+            self.remaining.read(buffer)
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("blob");
+    let contents = b"complete manifest";
+    fs::write(&path, contents).unwrap();
+    let mut source = ObservedSource { path: &path, contents, remaining: contents };
+    assert!(super::overwrite_file_in_place(&path, &mut source, contents.len() as u64));
+    assert_eq!(fs::read(&path).unwrap(), contents);
+}
+
+#[test]
 fn writes_a_new_file() {
     let tmp = tempdir().unwrap();
     let path = tmp.path().join("new.txt");

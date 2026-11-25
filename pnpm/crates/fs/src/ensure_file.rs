@@ -222,7 +222,7 @@ enum Repair {
     /// Temp file + `rename` over the target. Atomic, but swaps the
     /// inode, disconnecting hard-linked copies.
     Rename,
-    /// Truncate and rewrite under the same inode, healing hard-linked
+    /// Rewrite under the same inode, healing hard-linked
     /// copies; falls back to the rename when refused.
     InPlace,
 }
@@ -381,7 +381,7 @@ fn repair_file(
 ) -> Result<Option<FileMode>, EnsureFileError> {
     let mut source = content;
     let repaired = matches!(repair, Repair::InPlace)
-        && overwrite_file_in_place(file_path, &mut source)
+        && overwrite_file_in_place(file_path, &mut source, content.len() as u64)
         && file_equals_bytes(file_path, content).unwrap_or(false);
     if repaired { Ok(existing_mode) } else { write_atomic(file_path, content, mode) }
 }
