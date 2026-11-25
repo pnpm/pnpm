@@ -1,5 +1,18 @@
 <a id="cleanupunusedcatalogs"></a>
 
+### catalog.entries and catalog.unused
+
+Put the default catalog's packages under `catalog.entries` to configure cleanup alongside them.
+
+```yaml title="pnpm-workspace.yaml"
+catalog:
+  unused: prune
+  entries:
+    example-tool: ^2.0.0
+```
+
+`catalog.unused` accepts `ignore` (the default) or `prune`. Pruning covers the default catalog and all named catalogs in `catalogs`. When a file sets both `catalog.unused` and `catalogPrune`, `catalog.unused` wins.
+
 ### catalogPrune
 
 * Default: **false**

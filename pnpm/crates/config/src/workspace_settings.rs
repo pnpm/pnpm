@@ -160,7 +160,7 @@ impl Config {
             );
         }
         if let Some(permissions) = &settings.permissions {
-            self.workspace_permission_selectors.extend(permissions.keys().cloned());
+            self.workspace_permission_selectors.extend(permissions.rules().keys().cloned());
         }
     }
 

@@ -128,6 +128,7 @@ impl WorkspaceSettings {
                 }
                 error => error,
             })?;
+        settings.flatten_package_maps();
         Ok(settings)
     }
 }

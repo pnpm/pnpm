@@ -385,13 +385,6 @@ allowBuilds:
 
 :::
 
-### warnUnusedPermissions
-
-* Default: **true**
-* Type: **Boolean**
-
-When an install resolves the whole workspace dependency graph, pnpm warns about package selectors in `permissions` or `allowBuilds` that match no dependency. It keeps the decisions for future installs. The warning covers entries declared in the workspace or a locally included file. It skips entries supplied by config dependencies or added by an `updateConfig` hook.
-
 ### permissions
 
 Added in: v12.11.0
@@ -419,6 +412,22 @@ A `skills` list names the only skills of the package that pnpm links, and a skil
 `false` records a denial, so the package is not offered for approval again. [`pnpm approve`](../cli/permissions.md) writes these entries.
 
 A build decision is written to `permissions` only when the file already has a `permissions` setting. Otherwise it is written to `allowBuilds`, which older pnpm versions read too.
+
+#### permissions.rules and permissions.unused
+
+To choose how pnpm handles unmatched rules, put the package selectors under `permissions.rules` and set `permissions.unused` alongside it.
+
+```yaml title="pnpm-workspace.yaml"
+permissions:
+  unused: warn
+  rules:
+    example-tool:
+      skills: true
+```
+
+`warn` (the default) reports selectors in `permissions` or `allowBuilds` that match no dependency during a full workspace resolution. Both `warn` and `ignore` keep the permissions for future installs. The warning covers the workspace and locally included files. It skips rules supplied by config dependencies or added by an `updateConfig` hook.
+
+The flat alias `warnUnusedPermissions` accepts `true` for `warn` and `false` for `ignore`. When a file sets both, `permissions.unused` wins.
 
 ### skills.dirs
 

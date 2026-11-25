@@ -203,7 +203,7 @@ impl WorkspaceSettings {
             unsafe_perm: Some(config.unsafe_perm),
             supported_architectures: config.supported_architectures.clone(),
             ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
-            overrides: config.overrides.clone(),
+            overrides: config.overrides.clone().map(pnpm_workspace::map_settings::Rules::Flat),
             package_extensions: config.package_extensions.clone(),
             // The flattened lookup, which is the by-name form of the setting
             // whichever of the two forms the file wrote it in.
@@ -269,7 +269,7 @@ impl WorkspaceSettings {
             .collect();
         permissions.sort_unstable_keys();
         Self {
-            permissions: Some(permissions),
+            permissions: Some(pnpm_workspace::map_settings::Rules::Flat(permissions)),
             skills: Some(SkillsSettings { dirs: config.skills_dirs.clone() }),
             ..self
         }

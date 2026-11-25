@@ -236,6 +236,7 @@ fn legacy_permission_decisions(
     let Some(settings) = movable else { return BTreeMap::new() };
     let mut decisions = settings.permissions
         .clone()
+        .map(pnpm_workspace::map_settings::Rules::into_rules)
         .map(BTreeMap::from_iter)
         .unwrap_or_default();
     for (pkg, allowed) in settings.decided_build_approvals().unwrap_or_default() {
@@ -252,7 +253,7 @@ fn apply_recorded_permissions(
     let Some(recorded) = recorded.and_then(|settings| settings.permissions.as_ref()) else {
         return;
     };
-    for (pkg, recorded) in recorded {
+    for (pkg, recorded) in recorded.rules() {
         let entry = decisions.entry(pkg.clone()).or_default();
         if recorded.build
             .as_ref()

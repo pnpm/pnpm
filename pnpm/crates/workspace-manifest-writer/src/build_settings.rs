@@ -78,7 +78,8 @@ fn reject_unsupported_permission_blocks(
     manifest: &Manifest,
     permissions: &std::collections::BTreeMap<String, PackagePermissions>,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let blocks = permission_block_paths(permissions);
+    let blocks =
+        permission_block_paths(manifest.document.sections.global_permissions(), permissions);
     let paths = blocks
         .iter()
         .map(Vec::as_slice)
@@ -92,13 +93,15 @@ fn reject_unsupported_permission_blocks(
     Ok(())
 }
 
-fn permission_block_paths(
-    permissions: &std::collections::BTreeMap<String, PackagePermissions>,
-) -> Vec<Vec<&str>> {
+fn permission_block_paths<'a>(
+    path: &'static [&'static str],
+    permissions: &'a std::collections::BTreeMap<String, PackagePermissions>,
+) -> Vec<Vec<&'a str>> {
     let mut blocks =
         vec![vec!["globalPackagesConfig"], vec!["globalPackagesConfig", "permissions"]];
+    blocks.push(path.to_vec());
     for name in permissions.keys() {
-        blocks.push(vec!["globalPackagesConfig", "permissions", name.as_str()]);
+        blocks.push([path, &[name.as_str()]].concat());
     }
     blocks
 }
@@ -252,7 +255,10 @@ where
     let path = target.path.clone();
 
     let entries: Vec<(&str, bool)> = entries.into_iter().collect();
-    let blocks = permission_blocks(entries.iter().map(|(name, _)| *name));
+    let blocks = permission_blocks(
+        manifest.document.sections.permissions(),
+        entries.iter().map(|(name, _)| *name),
+    );
     let blocks: Vec<&[&str]> = blocks
         .iter()
         .map(Vec::as_slice)
@@ -340,9 +346,13 @@ where
 /// The blocks a build or permission decision for `names` may be spliced
 /// into: `allowBuilds`, `permissions`, and each named package's
 /// `permissions` entry.
-fn permission_blocks<'a>(names: impl Iterator<Item = &'a str>) -> Vec<Vec<&'a str>> {
+fn permission_blocks<'a>(
+    path: &[&'static str],
+    names: impl Iterator<Item = &'a str>,
+) -> Vec<Vec<&'a str>> {
     let mut blocks = vec![vec!["allowBuilds"], vec!["permissions"]];
-    blocks.extend(names.map(|name| vec!["permissions", name]));
+    blocks.push(path.to_vec());
+    blocks.extend(names.map(|name| [path, &[name]].concat()));
     blocks
 }
 
@@ -352,7 +362,10 @@ fn validate_permission_entries(
     path: &Path,
     entries: &[(&str, PermissionValue)],
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let blocks = permission_blocks(entries.iter().map(|(name, _)| *name));
+    let blocks = permission_blocks(
+        manifest.document.sections.permissions(),
+        entries.iter().map(|(name, _)| *name),
+    );
     let blocks: Vec<&[&str]> = blocks
         .iter()
         .map(Vec::as_slice)

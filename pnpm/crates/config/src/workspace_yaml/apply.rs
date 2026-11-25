@@ -64,6 +64,7 @@ impl WorkspaceSettings {
             )*};
         }
 
+        self.flatten_package_maps();
         identically_named_settings!(apply);
         self.apply_lockfile(config);
 
@@ -362,7 +363,8 @@ impl WorkspaceSettings {
         // [`crate::override_version_references::resolve_version_references`]
         // once the cascade knows the workspace root, whose manifest
         // carries the direct dependencies they point at.
-        if let Some(v) = self.overrides.take() {
+        if let Some(v) = self.overrides.take().map(pnpm_workspace::map_settings::Rules::into_rules)
+        {
             config.overrides = (!v.is_empty()).then_some(v);
         }
         if let Some(v) = self.package_extensions.take() {

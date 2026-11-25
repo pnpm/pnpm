@@ -15,6 +15,7 @@ pub use permissions::{
     PermissionCapability,
     SkillsSettings,
     decided_permissions,
+    deserialize_permissions,
 };
 pub(crate) use readable::{
     read_readable_settings,
@@ -527,6 +528,7 @@ mod structured_validation;
 
 mod validation;
 
+mod map_settings;
 mod permissions;
 
 mod workspace_scope;

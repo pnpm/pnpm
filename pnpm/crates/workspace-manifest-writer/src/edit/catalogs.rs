@@ -58,31 +58,44 @@ fn is_referenced(references: &CatalogReferences, pkg: &str, specs: &[&str]) -> b
 }
 
 fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogReferences) -> bool {
-    const BLOCK: &str = "catalog";
     let Some(catalog) = manifest.catalogs.default.as_ref() else { return false };
     let to_remove: Vec<String> = catalog
         .keys()
         .filter(|pkg| !is_referenced(references, pkg, &["catalog:"]))
         .cloned()
         .collect();
-    if to_remove.len() == catalog.len() {
-        manifest.document.set_text(remove_top_level_block(manifest.document.text(), BLOCK));
-        manifest.catalogs.default = None;
-        manifest.document.keys.retain(|key| key != BLOCK);
-        return true;
-    }
-    if to_remove.is_empty() || !has_removable_entries(manifest.document.text(), &[BLOCK]) {
+    let path = manifest.document.sections.catalog();
+    if path.len() > 1 && super::has_unsupported_inline_value(manifest.document.text(), path) {
         return false;
     }
-    manifest.document.set_text(remove_mapping_entries(
-        manifest.document.text(),
-        &[BLOCK],
-        &to_remove,
-    ));
+    if to_remove.len() == catalog.len() {
+        return clear_default_catalog(manifest, path);
+    }
+    if to_remove.is_empty() || !has_removable_entries(manifest.document.text(), path) {
+        return false;
+    }
+    manifest.document.set_text(remove_mapping_entries(manifest.document.text(), path, &to_remove));
     let catalog = manifest.catalogs.default.as_mut().expect("catalog presence checked above");
     for pkg in &to_remove {
         catalog.shift_remove(pkg);
     }
+    true
+}
+
+fn clear_default_catalog(manifest: &mut Manifest, path: &[&str]) -> bool {
+    if let [block, key] = path {
+        let changed = super::nested::set_nested_entry(
+            manifest,
+            &[*block],
+            key,
+            ("{}", &serde_json::json!({})),
+        );
+        manifest.catalogs.default = Some(IndexMap::new());
+        return changed;
+    }
+    manifest.document.set_text(remove_top_level_block(manifest.document.text(), "catalog"));
+    manifest.catalogs.default = None;
+    manifest.document.keys.retain(|key| key != "catalog");
     true
 }
 

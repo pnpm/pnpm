@@ -169,7 +169,7 @@ fn full_install_warns_about_unmatched_permissions_and_keeps_them() {
 
 #[test]
 fn bare_approval_for_a_tarball_warns_only_when_enabled() {
-    for warn in [true, false] {
+    for (policy, warn) in [("warn", true), ("ignore", false)] {
         let CommandTempCwd { pacquet, workspace, root, .. } = CommandTempCwd::init();
         let tarball = gzipped_tarball(&[(
             "package/package.json",
@@ -182,7 +182,7 @@ fn bare_approval_for_a_tarball_warns_only_when_enabled() {
         )
         .expect("write manifest");
         fs::write(workspace.join("pnpm-workspace.yaml"), format!(
-            "warnUnusedPermissions: {warn}\nallowBuilds:\n  example-local: true\n  'example-local@file:example.tgz': true\n",
+            "permissions: {{rules: {{}}, unused: {policy}}}\nallowBuilds:\n  example-local: true\n  'example-local@file:example.tgz': true\n",
         )).expect("write permissions");
         let output = pacquet
             .with_args(["install", "--offline"])

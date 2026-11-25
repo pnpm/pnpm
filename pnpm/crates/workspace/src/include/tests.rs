@@ -741,3 +741,35 @@ fn duplicate_placeholder_keys_in_fragment_are_rejected() {
     ]);
     assert!(matches!(error, IncludeError::ParseFragment { .. }), "{error:?}");
 }
+
+#[test]
+fn nested_catalog_pruning_needs_its_own_delegation() {
+    let fragment = "catalog: {entries: {example: '1'}, unused: prune}\n";
+    let dir = workspace(&[
+        ("pnpm-workspace.yaml", "include:\n  ./catalog.yaml: [catalog]\n"),
+        ("catalog.yaml", fragment),
+    ]);
+    assert!(
+        matches!(load(dir.path()), Err(IncludeError::SettingNotDelegated {setting, ..}) if setting == "catalogPrune"),
+    );
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "include:\n  ./catalog.yaml: [catalog, catalog.unused]\n",
+    )
+    .unwrap();
+    assert_eq!(merged(dir.path())["catalog"]["unused"].as_str(), Some("prune"));
+}
+
+#[test]
+fn relative_specifiers_in_nested_maps_are_relative_to_their_source() {
+    let dir = workspace(&[
+        ("pnpm-workspace.yaml", "include:\n  ./config/policy.yaml: '*'\n"),
+        (
+            "config/policy.yaml",
+            "catalog: {entries: {example: 'file:./pkg'}}\noverrides: {rules: {example: 'link:./pkg'}}\n",
+        ),
+    ]);
+    let settings = merged(dir.path());
+    assert_eq!(settings["catalog"]["entries"]["example"].as_str(), Some("file:config/pkg"));
+    assert_eq!(settings["overrides"]["rules"]["example"].as_str(), Some("link:config/pkg"));
+}

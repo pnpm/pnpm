@@ -35,6 +35,9 @@ impl SettingSlot {
             "" | INCLUDE_KEY => None,
             "catalog" => Some(SettingSlot::Catalog(DEFAULT_CATALOG.to_string())),
             "catalogs" => Some(SettingSlot::AllCatalogs),
+            "catalog.unused" => Some(SettingSlot::Setting("catalogPrune".to_string())),
+            "permissions.unused" => Some(SettingSlot::Setting("warnUnusedPermissions".to_string())),
+            "overrides.unused" => Some(SettingSlot::Setting("warnUnusedOverrides".to_string())),
             _ => match selector.strip_prefix("catalogs.") {
                 Some("") => None,
                 Some(name) => Some(SettingSlot::Catalog(name.to_string())),
@@ -89,7 +92,7 @@ pub fn canonical_setting_name(key: &str) -> &str {
 
 /// The slots a top-level key of a settings file defines.
 pub(super) fn defined_slots(key: &str, value: &Value) -> Vec<SettingSlot> {
-    match key {
+    let mut slots = match key {
         SCHEMA_DIRECTIVE_KEY => Vec::new(),
         "catalog" => vec![SettingSlot::Catalog(DEFAULT_CATALOG.to_string())],
         "catalogs" => match value {
@@ -102,7 +105,20 @@ pub(super) fn defined_slots(key: &str, value: &Value) -> Vec<SettingSlot> {
             _ => Vec::new(),
         },
         _ => vec![SettingSlot::Setting(canonical_setting_name(key).to_string())],
+    };
+    let policy = match key {
+        "catalog" => Some(("entries", "catalogPrune")),
+        "overrides" => Some(("rules", "warnUnusedOverrides")),
+        "permissions" => Some(("rules", "warnUnusedPermissions")),
+        _ => None,
+    };
+    if let Some((entries, policy)) = policy
+        && value.get(entries).is_some_and(Value::is_mapping)
+        && value.get("unused").is_some_and(Value::is_string)
+    {
+        slots.push(SettingSlot::Setting(policy.to_string()));
     }
+    slots
 }
 
 /// Parse the root manifest's include index.
