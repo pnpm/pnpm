@@ -41,7 +41,7 @@ pub(super) fn upgrade(
             .is_some_and(|file| {
                 file.mode == 0o644 && file.digest == format!("{:x}", Sha512::digest(&previous))
             });
-        if !generated && candidate == &plain_key {
+        if !generated {
             continue;
         }
         if pnpm_store_dir::pkg_content_mismatch(row.manifest.as_ref(), candidate).is_some() {
@@ -50,7 +50,7 @@ pub(super) fn upgrade(
         return upgrade_row(
             store,
             row,
-            generated.then_some(manifest),
+            manifest,
             super::manifest_index_key(manifest, &integrity, &package_id),
         );
     }
@@ -67,7 +67,7 @@ fn manifest_without_license(manifest: &[u8]) -> Option<Vec<u8>> {
 fn upgrade_row(
     store: &ArchiveStoreContext<'_>,
     mut row: PackageFilesIndex,
-    replacement: Option<&[u8]>,
+    manifest: &[u8],
     target: String,
 ) -> Result<Option<pnpm_fs::CasPaths>, TarballError> {
     let files = PackageFilesIndex {
@@ -83,13 +83,13 @@ fn upgrade_row(
     if !verified.passed {
         return Ok(None);
     }
-    if let Some(bytes) = replacement {
-        row.side_effects = None;
-        row.remote_side_effects_quarantine = None;
-        let written = store.dir.write_cas_file(bytes, false).map_err(TarballError::WriteCasFile)?;
-        row.files.insert("package.json".into(), written.index_entry(0o644, None));
-        verified.files_map.insert("package.json".into(), written.file);
-    }
+    row.side_effects = None;
+    row.remote_side_effects_quarantine = None;
+    let parsed = serde_json::from_slice(manifest).expect("serialized runtime manifest");
+    row.manifest = pnpm_package_manifest::normalize_bundled_manifest(&parsed);
+    let written = store.dir.write_cas_file(manifest, false).map_err(TarballError::WriteCasFile)?;
+    row.files.insert("package.json".into(), written.index_entry(0o644, None));
+    verified.files_map.insert("package.json".into(), written.file);
     if let Some(writer) = &store.index_writer {
         writer.queue(target, row);
     }
