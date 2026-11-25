@@ -21,6 +21,7 @@ pub use rebase::{
     rebase_setting,
     rebase_specifier,
 };
+pub(crate) use selector::SCHEMA_DIRECTIVE_KEY;
 pub use selector::{
     SettingSlot,
     canonical_setting_name,

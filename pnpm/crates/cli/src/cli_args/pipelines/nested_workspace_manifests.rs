@@ -15,8 +15,8 @@ use pnpm_reporter::{
     Reporter,
 };
 use pnpm_workspace::{
+    RootSettings,
     WORKSPACE_MANIFEST_FILENAME,
-    root_settings_cover,
 };
 use std::path::Path;
 
@@ -30,11 +30,18 @@ pub(super) fn report_nested_workspace_manifests<'a, Reporter: self::Reporter>(
 ) {
     let workspace_dir_normalized = pnpm_fs::lexical_normalize(workspace_dir);
     let prefix = workspace_dir.to_string_lossy().into_owned();
-    let mut relative_dirs = project_dirs
+    let nested_dirs = project_dirs
         .into_iter()
         .filter(|dir| pnpm_fs::lexical_normalize(dir) != workspace_dir_normalized)
         .filter(|dir| dir.join(WORKSPACE_MANIFEST_FILENAME).is_file())
-        .filter(|dir| !root_settings_cover(workspace_dir, dir).unwrap_or(false))
+        .collect::<Vec<_>>();
+    if nested_dirs.is_empty() {
+        return;
+    }
+    let root_settings = RootSettings::read(workspace_dir).ok();
+    let mut relative_dirs = nested_dirs
+        .into_iter()
+        .filter(|dir| !root_settings_cover(root_settings.as_ref(), dir))
         .map(|dir| pnpm_fs::relative_path(workspace_dir, dir).to_string_lossy().replace('\\', "/"))
         .collect::<Vec<_>>();
     relative_dirs.sort();
@@ -45,6 +52,13 @@ pub(super) fn report_nested_workspace_manifests<'a, Reporter: self::Reporter>(
             prefix: prefix.clone(),
         }));
     }
+}
+
+fn root_settings_cover(root_settings: Option<&RootSettings>, nested_dir: &Path) -> bool {
+    let Some(root_settings) = root_settings else {
+        return false;
+    };
+    root_settings.cover(nested_dir).unwrap_or(false)
 }
 
 fn nested_workspace_manifest_warning(relative_dir: &str) -> String {

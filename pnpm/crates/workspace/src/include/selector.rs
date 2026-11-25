@@ -72,7 +72,7 @@ impl fmt::Display for SettingSlot {
 const DEFAULT_CATALOG: &str = "default";
 
 /// Not a setting: an editor's schema association.
-const SCHEMA_DIRECTIVE_KEY: &str = "$schema";
+pub(crate) const SCHEMA_DIRECTIVE_KEY: &str = "$schema";
 
 /// The setting a spelling stands for. Spellings of one setting share one
 /// owner, so a legacy spelling cannot evade a delegation.
