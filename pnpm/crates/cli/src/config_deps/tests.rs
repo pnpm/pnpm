@@ -6,14 +6,10 @@ use super::{
     resolve_engine_version,
     run_update_config_hooks,
 };
+use crate::no_env_host::NoEnv;
 use pnpm_config::{
     Config,
-    EnvVar,
-    EnvVarOs,
-    GetCurrentDir,
-    GetHomeDir,
     Host,
-    LinkProbe,
     NodeLinker,
     PNPM_VERSION,
     TrustPolicy,
@@ -27,48 +23,10 @@ use pnpm_reporter::{
 };
 use std::{
     collections::BTreeMap,
-    ffi::OsString,
     fs,
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::Path,
     sync::Mutex,
 };
-
-/// No environment and no home directory, so the developer's own `.npmrc`
-/// and global config don't reach a test that asserts on the loaded config.
-struct NoUserConfig;
-
-impl EnvVar for NoUserConfig {
-    fn var(_: &str) -> Option<String> {
-        None
-    }
-}
-
-impl EnvVarOs for NoUserConfig {
-    fn var_os(_: &str) -> Option<OsString> {
-        None
-    }
-}
-
-impl GetHomeDir for NoUserConfig {
-    fn home_dir() -> Option<PathBuf> {
-        None
-    }
-}
-
-impl GetCurrentDir for NoUserConfig {
-    fn current_dir() -> std::io::Result<PathBuf> {
-        std::env::current_dir()
-    }
-}
-
-impl LinkProbe for NoUserConfig {
-    fn can_link_between_dirs(_: &Path, _: &Path) -> bool {
-        true
-    }
-}
 
 #[test]
 fn legacy_registries_warning_names_routes_left_unchanged() {
@@ -273,8 +231,7 @@ async fn update_config_warns_about_scope_left_on_its_registry_by_legacy_routes()
         "module.exports = { hooks: { updateConfig: (config) => ({ ...config, registries: { default: 'https://other.example/' } }) } }",
     )
     .expect("write pnpmfile");
-    let mut config =
-        Config::default().current::<NoUserConfig>(root.path()).expect("load configuration");
+    let mut config = Config::default().current::<NoEnv>(root.path()).expect("load configuration");
 
     run_update_config_hooks::<RecordingReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
