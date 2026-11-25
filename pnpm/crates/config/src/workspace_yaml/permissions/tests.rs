@@ -160,8 +160,14 @@ fn keeps_capability_decisions_for_packages_named_rules_and_unused() {
 fn rejects_mixed_or_unknown_permissions_policy() {
     for yaml in [
         "permissions: {rules: {}, unused: prune}",
-        "permissions: {rules: {}, misplaced: {build: true}}",
+        "permissions: {rules: {example: {build: true}}, misplaced: {build: true}}",
     ] {
         assert!(serde_saphyr::from_str::<WorkspaceSettings>(yaml).is_err(), "{yaml}");
     }
+}
+
+#[test]
+fn empty_rules_beside_a_package_keeps_its_permission() {
+    let config = applied("permissions: {rules: {}, example: {build: true}}");
+    assert_eq!(config.allow_builds.get("example"), Some(&true));
 }

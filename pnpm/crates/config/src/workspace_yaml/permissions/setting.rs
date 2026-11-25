@@ -44,7 +44,18 @@ pub fn deserialize_permissions<'de, Deser: Deserializer<'de>>(
 }
 
 impl Entries {
-    fn into_rules<Err: Error>(self) -> Result<Rules<PackageRules>, Err> {
+    fn disambiguate_empty_rules(&mut self) {
+        let has_package_sibling =
+            !self.packages.is_empty() || matches!(self.unused, Some(UnusedEntry::Package(_)));
+        if has_package_sibling
+            && matches!(&self.rules, Some(RuleEntry::Nested(rules)) if rules.is_empty())
+        {
+            self.rules = Some(RuleEntry::Package(PackagePermissions::default()));
+        }
+    }
+
+    fn into_rules<Err: Error>(mut self) -> Result<Rules<PackageRules>, Err> {
+        self.disambiguate_empty_rules();
         let mut packages = self.packages;
         match self.rules {
             Some(RuleEntry::Nested(rules)) => {

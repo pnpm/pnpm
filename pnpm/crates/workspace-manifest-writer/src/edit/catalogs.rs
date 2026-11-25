@@ -65,7 +65,7 @@ fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogRe
         .cloned()
         .collect();
     let path = manifest.document.sections.catalog();
-    if path.len() > 1 && super::has_unsupported_inline_value(manifest.document.text(), path) {
+    if super::scanning::unsupported_nested_map(manifest.document.text(), path) {
         return false;
     }
     if to_remove.len() == catalog.len() {

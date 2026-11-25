@@ -846,3 +846,13 @@ fn writes_nested_catalog_entries_and_preserves_the_policy_when_pruning() {
         );
     }
 }
+
+#[test]
+fn multiline_flow_sections_survive_removing_the_last_entry() {
+    let overrides = "overrides: {\n  unused: ignore,\n  rules: {example: '^1'}\n}\n";
+    assert_eq!(run_remove_overrides(Some(overrides), &["example"]).as_deref(), Some(overrides));
+
+    let catalog = "catalog: {\n  unused: prune,\n  entries: {example: '^1'}\n}\n";
+    let project = super::project(serde_json::json!({}));
+    assert_eq!(super::run_cleanup(Some(catalog), None, &[&project]).as_deref(), Some(catalog));
+}

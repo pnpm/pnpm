@@ -109,6 +109,7 @@ pub fn catalog_entries<'de, Deser: serde::Deserializer<'de>>(
 }
 
 /// The package map inside a serialized setting, in either supported form.
+#[must_use]
 pub fn package_map<'a>(
     value: &'a serde_json::Value,
     field: &str,
@@ -116,6 +117,7 @@ pub fn package_map<'a>(
     package_map_value(value, field).as_object()
 }
 
+#[must_use]
 pub fn package_map_value<'a>(value: &'a serde_json::Value, field: &str) -> &'a serde_json::Value {
     value
         .get(field)

@@ -224,7 +224,7 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     }
 
     let path = manifest.document.sections.overrides();
-    if path.len() > 1 && has_unsupported_inline_value(manifest.document.text(), path) {
+    if scanning::unsupported_nested_map(manifest.document.text(), path) {
         return false;
     }
     let overrides = manifest.overrides.as_mut().expect("the selectors are present");
