@@ -26,7 +26,7 @@ overrides:
 You may specify the package the overridden dependency belongs to by
 separating the package selector from the dependency selector with a ">", for
 example `qar@1>zoo` will only override the `zoo` dependency of `qar@1`, not for
-any other dependencies.
+any other dependencies. A selector can name only one parent.
 
 Both the parent selector and the target selector support `*` wildcard patterns on package names:
 

@@ -192,6 +192,11 @@ pub fn parse_pkg_and_parent_selector(
 ) -> Result<(Option<PackageSelector>, PackageSelector), ParseOverridesError> {
     let trimmed_selector = selector.trim();
     if let Some((parent_selector, child_selector)) = split_parent_selector(trimmed_selector) {
+        if find_parent_delimiter(child_selector).is_some() {
+            return Err(ParseOverridesError::InvalidSelector {
+                selector: child_selector.to_string(),
+            });
+        }
         Ok((Some(parse_parent_selector(parent_selector)?), parse_target_selector(child_selector)?))
     } else {
         Ok((None, parse_target_selector(trimmed_selector)?))
