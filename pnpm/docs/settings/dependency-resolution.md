@@ -36,6 +36,35 @@ overrides:
   "@mui/*>react:peer": "^17.0.0 || ^18.0.0"
 ```
 
+#### Override key syntax
+
+Tools that read `overrides` can parse each key using this [ABNF grammar](https://www.rfc-editor.org/rfc/rfc5234). The `%s` prefix marks [case-sensitive literals](https://www.rfc-editor.org/rfc/rfc7405).
+
+```abnf
+override-key = [package-selector ">"] package-selector [dependency-type]
+package-selector = package-name ["@" specifier]
+package-name = ["@" 1*name-char "/"] 1*name-char
+name-char = ALPHA / DIGIT / "-" / "_" / "." / "!" / "~" / "*" / "'" / "(" / ")"
+specifier = <possibly empty dependency specifier containing no colon>
+dependency-type = %s":prod" / %s":optional" / %s":peer"
+```
+
+Apply these rules to the decoded YAML key:
+
+1. Trim surrounding whitespace. A `>` separates parent and target when it has a preceding character other than an ASCII space, `|`, or `@`. Reject keys with more than one such separator. Trim the parent and target separately.
+2. Read a dependency type only at the end of the target. Within each package selector, the first `@` after the initial character introduces the specifier. This preserves the leading `@` of a scoped name.
+3. An unscoped name cannot start with `.`, `-`, or `_`, or equal `node_modules` or `favicon.ico` (case-insensitive). In a scoped name, the part after `/` cannot start with `.`.
+4. Keep an absent specifier distinct from an empty one. An empty specifier is valid only for a [convergence override](#convergence-overrides) on a single package name without a wildcard or dependency type.
+
+| Key | Parent | Target | Target specifier | Dependency type |
+| --- | --- | --- | --- | --- |
+| `leaf@>1` | absent | `leaf` | `>1` | absent |
+| `top@>=1>leaf:peer` | `top` with specifier `>=1` | `leaf` | absent | `peer` |
+| `@scope/*:optional` | absent | `@scope/*` | absent | `optional` |
+| `leaf@` | absent | `leaf` | empty | absent |
+
+For example, `top:peer>leaf` is invalid because the suffix is on the parent. `top>middle>leaf` is invalid because it names two parents.
+
 #### Dependency-type selectors
 
 By default, an override applies to `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`. Append a [Dependency Selector Syntax](https://docs.vlt.sh/cli/selectors) pseudo-selector to the target to restrict the override to one dependency group:
