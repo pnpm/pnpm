@@ -385,6 +385,13 @@ allowBuilds:
 
 :::
 
+### warnUnusedPermissions
+
+* Default: **true**
+* Type: **Boolean**
+
+When an install resolves the whole workspace dependency graph, pnpm warns about package selectors in `permissions` or `allowBuilds` that match no dependency. It keeps the decisions for future installs. The warning covers entries declared in the workspace or a locally included file. It skips entries supplied by config dependencies or added by an `updateConfig` hook.
+
 ### permissions
 
 Added in: v12.11.0

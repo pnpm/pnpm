@@ -295,6 +295,7 @@ pub struct WorkspaceSettings {
     pub project_scoped_optional_peers: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
     pub warn_unused_overrides: Option<bool>,
+    pub warn_unused_permissions: Option<bool>,
     pub verify_store_integrity: Option<bool>,
     pub strict_store_pkg_content_check: Option<bool>,
     pub include_workspace_root: Option<bool>,

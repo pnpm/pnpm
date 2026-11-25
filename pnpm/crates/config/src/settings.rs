@@ -935,6 +935,13 @@ pub struct Config {
     #[default = true]
     pub warn_unused_overrides: bool,
 
+    /// Warn about workspace permission selectors absent from a fully resolved graph.
+    #[default = true]
+    pub warn_unused_permissions: bool,
+
+    /// Package selectors declared in workspace-owned permission settings.
+    pub workspace_permission_selectors: BTreeSet<String>,
+
     /// Whether to verify each CAFS file's on-disk integrity before reusing it
     /// for an install. When `true` (pnpm's default), the store-index cache
     /// lookup stats each referenced file and re-hashes any whose mtime has

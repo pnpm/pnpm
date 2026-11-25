@@ -61,6 +61,7 @@ pub(super) const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "publish-wait-timeout",
     "block-exotic-subdeps",
     "warn-unused-overrides",
+    "warn-unused-permissions",
     "registry-supports-time-field",
     "reporter",
     "resolution-mode",

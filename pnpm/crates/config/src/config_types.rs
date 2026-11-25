@@ -120,6 +120,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("recursive-install", false),
     ("block-exotic-subdeps", false),
     ("warn-unused-overrides", false),
+    ("warn-unused-permissions", false),
     ("reporter", false),
     ("resolution-mode", false),
     ("resolve-peers-from-workspace-root", false),

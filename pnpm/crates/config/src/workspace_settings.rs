@@ -134,6 +134,7 @@ impl Config {
         }
         self.workspace_key_issues = settings.key_issues.clone();
         self.workspace_includes = settings.includes.take().map(Arc::new);
+        self.record_workspace_permission_selectors(&settings);
         note_declared_registries(declared_registries, &settings);
         collect_explicit_settings(&mut self.explicit_settings, &settings);
         settings.resolve_script_shell(base_dir);
@@ -145,6 +146,22 @@ impl Config {
             self.finish_project_workspace_settings::<Sys>(base_dir)?;
         }
         Ok(())
+    }
+
+    fn record_workspace_permission_selectors(&mut self, settings: &WorkspaceSettings) {
+        if self.is_owned_by_config_dependency("allowBuilds") {
+            return;
+        }
+        if let Some(builds) = &settings.allow_builds {
+            self.workspace_permission_selectors.extend(
+                builds
+                    .iter()
+                    .filter_map(|(key, value)| value.decided().map(|_| key.clone())),
+            );
+        }
+        if let Some(permissions) = &settings.permissions {
+            self.workspace_permission_selectors.extend(permissions.keys().cloned());
+        }
     }
 
     fn finish_project_workspace_settings<Sys: EnvVar + GetHomeDir>(
