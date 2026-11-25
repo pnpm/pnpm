@@ -171,3 +171,14 @@ fn empty_rules_beside_a_package_keeps_its_permission() {
     let config = applied("permissions: {rules: {}, example: {build: true}}");
     assert_eq!(config.allow_builds.get("example"), Some(&true));
 }
+
+#[test]
+fn replacing_permissions_without_a_policy_restores_warnings() {
+    for replacement in ["permissions: {rules: {}}", "permissions: {example: {skills: true}}"] {
+        let mut config = applied("permissions: {rules: {}, unused: ignore}");
+        parse("{}").apply_to(&mut config, Path::new("/workspace"));
+        assert!(!config.warn_unused_permissions);
+        parse(replacement).apply_to(&mut config, Path::new("/workspace"));
+        assert!(config.warn_unused_permissions);
+    }
+}
