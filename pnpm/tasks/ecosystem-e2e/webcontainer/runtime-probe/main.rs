@@ -11,10 +11,16 @@ mod metadata_file {
 }
 
 use rayon::prelude::*;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::{
+        Read,
+        Write,
+    },
     path::Path,
     thread,
 };
@@ -235,18 +241,27 @@ async fn check_secure_filesystem(directory: &Path) {
     pnpm_fs::write_atomic_private(&credential, b"secret").expect("private atomic write");
     let executable = directory.join("executable");
     pnpm_fs::write_atomic(&executable, b"script").expect("atomic write");
-    pnpm_fs::file_mode::set_path_permissions(&executable, pnpm_fs::FileMode::from_mode(0o755)).expect("executable permissions");
+    pnpm_fs::file_mode::set_path_permissions(&executable, pnpm_fs::FileMode::from_mode(0o755))
+        .expect("executable permissions");
     pnpm_fs::executable_access(&executable).expect("host executable access");
     assert!(pnpm_fs::executable_access(&credential).is_err());
     let linked = directory.join("linked");
     pnpm_fs::create_symlink(&credential, &linked, false).expect("WASI symlink");
     assert_eq!(std::fs::read(&linked).expect("read symlink"), b"secret");
-    assert!(pnpm_fs::file_mode::set_path_permissions(&linked, pnpm_fs::FileMode::from_mode(0o777)).is_err());
+    assert!(
+        pnpm_fs::file_mode::set_path_permissions(&linked, pnpm_fs::FileMode::from_mode(0o777))
+            .is_err()
+    );
     std::fs::remove_file(&linked).expect("remove symlink");
     std::fs::hard_link(&credential, &linked).expect("hardlink");
     assert_eq!(pnpm_fs::file_link_count(&File::open(&credential).unwrap()).unwrap(), 2);
-    assert!(pnpm_fs::overwrite_file_in_place(&credential, &mut &b"repaired"[..]));
-    assert_eq!(std::fs::read(&linked).expect("read healed hardlink"), b"repaired");
+    let repaired = b"repaired";
+    assert!(pnpm_fs::overwrite_file_in_place(
+        &credential,
+        &mut &repaired[..],
+        repaired.len() as u64
+    ));
+    assert_eq!(std::fs::read(&linked).expect("read healed hardlink"), repaired);
     let copied = directory.join("copied-credential");
     pnpm_fs::copy_file_atomic(&credential, &copied).expect("copy private file");
     assert_eq!(pnpm_fs::copy_permissions(&copied).unwrap().mode() & 0o777, 0o600);
