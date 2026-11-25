@@ -20,6 +20,7 @@ use super::{
     relocation::relocated_state,
     wanted_lockfile_file_has_content,
 };
+use crate::install_state::settings::GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION_KEY;
 
 /// The workspace-state settings the run check does not compare. Scripts always
 /// run with the default dependency groups, and with the runtime the last
@@ -146,6 +147,9 @@ fn stale_issue(check: &OptimisticRepeatInstallCheck<'_>, stale: Stale) -> String
             lockfile_conflict_issue(check.workspace_root, &lockfile_path, failure)
         }
         Stale::LocalFileDep(reason) | Stale::Content(reason) => reason.to_string(),
+        Stale::SettingChanged(GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION_KEY) => {
+            "The global virtual store layout has changed".to_string()
+        }
         Stale::SettingChanged(setting) => {
             format!("The value of the {setting} setting has changed")
         }

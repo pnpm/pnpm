@@ -1,7 +1,7 @@
 use super::{
-    gvs_layout_cache,
+    GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION,
     gvs_version_segment,
-    local_directory_scope,
+    is_local_directory,
 };
 use crate::{
     AllowBuildPolicy,
@@ -45,13 +45,8 @@ use std::{
 /// participate in every ancestor's recursive hash while keeping slots
 /// shared between projects that resolve the link to the same directory.
 ///
-/// Packages whose metadata is missing or whose resolution has no
-/// `integrity` (directory / git) are emitted with the bare
-/// `pkg_id_with_patch_hash` as their `full_pkg_id`. The frozen-
-/// lockfile install path rejects those resolutions before reaching the
-/// linker, so a stub `full_pkg_id` here is safe, the GVS hash for an
-/// install that contains one of those snapshots is irrelevant because
-/// the install will error out before consulting it.
+/// A local directory node's identity includes the lockfile directory;
+/// see [`local_directory_id`].
 pub(super) fn lockfile_to_dep_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -73,7 +68,7 @@ pub(super) fn lockfile_to_dep_graph(
         graph.insert(
             snapshot_key.to_string(),
             DepsGraphNode {
-                full_pkg_id: full_pkg_id_of(snapshot_key, packages, platform),
+                full_pkg_id: node_id(snapshot_key, packages, lockfile_dir, platform),
                 children,
             },
         );
@@ -85,6 +80,37 @@ pub(super) fn lockfile_to_dep_graph(
         );
     }
     graph
+}
+fn node_id(
+    snapshot_key: &PackageKey,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    lockfile_dir: Option<&Path>,
+    platform: &PlatformSelector,
+) -> String {
+    let full_pkg_id = full_pkg_id_of(snapshot_key, packages, platform);
+    let metadata_key = snapshot_key.without_peer();
+    let metadata = packages.and_then(|packages| packages.get(&metadata_key));
+    match lockfile_dir {
+        Some(lockfile_dir) if is_local_directory(metadata, &metadata_key.suffix) => {
+            local_directory_id(&full_pkg_id, lockfile_dir)
+        }
+        _ => full_pkg_id,
+    }
+}
+/// The identity of a snapshot taken from a local directory.
+///
+/// A directory resolution has no integrity. It is a path relative to
+/// the lockfile, so `file:dep` names a different directory in every
+/// project that depends on a directory of that name. The lockfile
+/// directory tells them apart, and every dependent hashes it through
+/// its children, so neither the snapshot nor a package linking to it
+/// shares a slot with another project.
+///
+/// The path is converted the way [`GvsHasher`]'s `project_scope` is. It
+/// is length-prefixed because both it and the package ID may hold a `:`.
+fn local_directory_id(full_pkg_id: &str, lockfile_dir: &Path) -> String {
+    let lockfile_dir = lockfile_dir.to_string_lossy();
+    format!("{}:{lockfile_dir}:{full_pkg_id}", lockfile_dir.len())
 }
 pub(super) fn child_graph_key(
     alias: &pnpm_lockfile::PkgName,
@@ -131,7 +157,7 @@ pub(super) struct GvsHasher<'h> {
     build_required_dep_paths: Option<HashSet<String>>,
     cache: DepsStateCache<String>,
     /// One conversion for the whole lockfile: the same string scopes
-    /// every local directory snapshot in it.
+    /// every snapshot in `uncached_builds`.
     ///
     /// Lossy on purpose: the TypeScript CLI hashes the same slot from a
     /// JS string, and Node decodes a path as UTF-8 with replacement, so
@@ -140,9 +166,8 @@ pub(super) struct GvsHasher<'h> {
     project_scope: Option<std::borrow::Cow<'h, str>>,
     /// The snapshots `sideEffectsCache.exclude` names, and every snapshot
     /// that depends on one. An excluded build must not reach another
-    /// project, so each takes the project's own slot just as a local
-    /// directory snapshot does, and so does a dependent, whose slot links
-    /// to it.
+    /// project, so each takes the project's own slot, and so does a
+    /// dependent, whose slot links to it.
     uncached_builds: HashSet<String>,
     /// See [`BuildGating::runs_builds`].
     runs_builds: bool,
@@ -221,7 +246,7 @@ impl<'h> GvsHasher<'h> {
     pub(super) fn fingerprint(&self, snapshots: &HashMap<PackageKey, SnapshotEntry>) -> String {
         use sha2::Digest as _;
         let mut hasher = sha2::Sha256::new();
-        write_field(&mut hasher, gvs_layout_cache::CACHE_FORMAT_VERSION);
+        hasher.update([GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION]);
         // `None` and `Some("")` are different payloads downstream, so
         // they must not collapse here.
         match self.engine {
@@ -300,13 +325,9 @@ impl<'h> GvsHasher<'h> {
         let metadata_key = snapshot_key.without_peer();
         let metadata = self.packages.and_then(|packages| packages.get(&metadata_key));
         let dep_path = snapshot_key.to_string();
-        let project_scope =
-            local_directory_scope(metadata, &metadata_key.suffix, self.project_scope.as_deref())
-                .or_else(|| {
-                    self.project_scope
-                        .as_deref()
-                        .filter(|_| self.uncached_builds.contains(&dep_path))
-                });
+        let project_scope = self.project_scope
+            .as_deref()
+            .filter(|_| self.uncached_builds.contains(&dep_path));
         let hex_digest = calc_graph_node_hash(
             &self.graph,
             &mut self.cache,
@@ -394,11 +415,6 @@ pub(super) fn create_full_pkg_id(
                 resolution,
             )
         }
-        // Directory / git / missing-metadata fall through to the bare
-        // id. The install path rejects these resolutions before the
-        // hash is consulted (see
-        // [`crate::InstallPackageBySnapshotError::UnsupportedResolution`]),
-        // so the value never actually drives a slot path on disk.
         _ => pkg_id_with_patch_hash.to_string(),
     }
 }

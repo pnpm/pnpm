@@ -47,6 +47,8 @@ Both projects symlink directly to the same location in the global virtual store.
 
 In the global virtual store, each package directory is named by the hash of its dependency graph. Two projects that use `lodash@4.17.21` with the same transitive dependency tree will point to the exact same directory. If the dependency trees differ (e.g., different peer dependencies), pnpm creates separate entries. This is conceptually similar to how [NixOS manages packages](https://nixos.org/guides/how-nix-works/) using dependency graph hashes.
 
+Each checkout gets its own directory for an injected workspace package or a local directory dependency. Packages that depend on it, directly or transitively, also get checkout-specific directories so their links resolve within that checkout.
+
 ## When to use it
 
 The global virtual store is most useful when you have multiple checkouts of the same project on disk. For example, when using [git worktrees for multi-agent development](./git-worktrees.md). In that scenario, each worktree gets a nearly free `node_modules` because all the real package content already exists in the shared store.

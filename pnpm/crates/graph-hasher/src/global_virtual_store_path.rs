@@ -56,10 +56,7 @@ use std::{
 /// the build imports. An install under `ignoreScripts` passes `false`.
 ///
 /// `project` scopes the slot to one project instead of sharing it
-/// across every project in the store. Callers pass `Some(lockfile_dir)`
-/// for a snapshot resolved from a local directory and `None` for
-/// everything else; see
-/// [`local_directory_scope`](../../../../package-manager/src/virtual_store_layout.rs).
+/// across every project in the store.
 pub fn calc_graph_node_hash<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     cache: &mut DepsStateCache<Key>,

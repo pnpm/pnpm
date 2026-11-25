@@ -74,7 +74,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     {
         return None;
     }
-    if !workspace_bins_unchanged(context) {
+    if !workspace_layout_unchanged(context) {
         return None;
     }
     let wanted_lockfile = context.lockfile?;
@@ -122,8 +122,13 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     tree_intact.then_some((wanted_lockfile, modules))
 }
 
-fn workspace_bins_unchanged(context: &FrozenTreeUpToDate<'_>) -> bool {
+fn workspace_layout_unchanged(context: &FrozenTreeUpToDate<'_>) -> bool {
     let Some(state) = context.recorded.state else { return false };
+    if state.settings.global_virtual_store_layout_version
+        != crate::install_state::settings::global_virtual_store_layout_version(context.tree.config)
+    {
+        return false;
+    }
     let bins = workspace_bins_digest(context.tree.workspace_root, context.recorded.bin_projects);
     context.recorded.projects
         .iter()

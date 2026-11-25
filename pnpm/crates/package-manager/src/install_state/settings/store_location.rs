@@ -26,6 +26,7 @@ pub(super) fn store_location_settings(
         store_dir: configured("storeDir").map(|_| recorded(config.store_dir.root())),
         global_virtual_store_dir: configured("globalVirtualStoreDir")
             .map(|_| recorded(&config.global_virtual_store_dir)),
+        global_virtual_store_layout_version: super::global_virtual_store_layout_version(config),
         virtual_store_dir_max_length: Some(config.virtual_store_dir_max_length),
         // Anchored like a configured `virtualStoreDir` without a global
         // virtual store: under one, `Config::virtual_store_dir` names the
@@ -56,6 +57,11 @@ impl SettingsComparison<'_> {
                 ) != live.virtual_store_dir_max_length.unwrap_or_else(
                     default_virtual_store_dir_max_length,
                 ),
+            ),
+            (
+                super::GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION_KEY,
+                recorded.global_virtual_store_layout_version
+                    != live.global_virtual_store_layout_version,
             ),
             ("virtualStoreDir", recorded.virtual_store_dir != live.virtual_store_dir),
         ]

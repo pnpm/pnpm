@@ -16,10 +16,6 @@ use std::{
     },
 };
 
-/// Bumped whenever the derived suffixes or this file's encoding
-/// change, so entries written by an older pnpm are never read.
-pub(super) const CACHE_FORMAT_VERSION: &str = "2";
-
 /// Generous per-snapshot ceiling on a cache file, so a preseeded one
 /// cannot make an install read an arbitrary amount before it has
 /// validated anything. A real entry is a package key plus a slot
@@ -39,7 +35,7 @@ const MAX_ENTRY_BYTES: u64 = 4096;
 /// switch between two lockfiles without re-deriving.
 fn cache_path(cache_dir: &Path, lockfile_dir: &Path) -> PathBuf {
     let mut hasher = sha2::Sha256::new();
-    hasher.update(CACHE_FORMAT_VERSION.as_bytes());
+    hasher.update([super::GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION]);
     hasher.update(lockfile_dir.to_string_lossy().as_bytes());
     cache_dir
         .join("gvs-layout")

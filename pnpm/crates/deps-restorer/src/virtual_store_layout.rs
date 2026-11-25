@@ -106,6 +106,10 @@ pub struct VirtualStoreLayout {
     staging_token: String,
 }
 
+/// Bump when global slot paths or their cached encoding change. Existing
+/// installs must relink before their workspace state can vouch for the tree.
+pub const GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION: u8 = 3;
+
 impl VirtualStoreLayout {
     pub(crate) fn relocated(&self, root: PathBuf) -> Self {
         Self { package_store_dir: root, ..self.clone() }
@@ -617,8 +621,8 @@ const LOCAL_DIRECTORY_SEGMENT: &str = "directory";
 /// Whether the snapshot is a package taken from a local directory, a
 /// `file:` directory dependency or an injected workspace package.
 ///
-/// Both the version segment and the project scope below are derived
-/// from this one answer. Deciding it twice is what lets a snapshot take
+/// Both the version segment and the node's identity in the dep graph
+/// are derived from this one answer. Deciding it twice is what lets a snapshot take
 /// the anchored segment while missing the scope, which is the collision
 /// the scope exists to prevent.
 ///
@@ -638,24 +642,6 @@ fn is_local_directory(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) -
         }
     }
     matches!(suffix.version(), VersionPart::File(_))
-}
-
-/// Extra hash input that keeps a snapshot taken from a local directory
-/// on a slot of its own. `None` for every other snapshot.
-///
-/// A directory resolution is the one resolution with no integrity: it
-/// is a path relative to the lockfile, so `file:dep` hashes identically
-/// in every project that happens to depend on a directory of that name.
-/// Sharing the slot would hand one project the files of whichever
-/// project installed first, and because the source directory is mutable
-/// the install re-imports it every time, so the projects would go on
-/// overwriting each other's dependency.
-fn local_directory_scope<'a>(
-    metadata: Option<&PackageMetadata>,
-    suffix: &PkgVerPeer,
-    lockfile_dir: Option<&'a str>,
-) -> Option<&'a str> {
-    is_local_directory(metadata, suffix).then_some(lockfile_dir).flatten()
 }
 
 #[cfg(test)]

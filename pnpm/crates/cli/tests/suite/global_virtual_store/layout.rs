@@ -19,6 +19,35 @@ use super::{
 use assert_cmd::assert::OutputAssertExt;
 
 #[test]
+fn frozen_install_relinks_a_tree_with_an_older_global_store_layout() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let link = workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep");
+    let expected = dunce::canonicalize(&link).unwrap();
+    let previous = root.path().join("previous-slot");
+    fs::create_dir(&previous).unwrap();
+    pnpm_fs::remove_symlink_dir(&link).unwrap();
+    pnpm_fs::symlink_dir(&previous, &link).unwrap();
+    let mut state = pnpm_workspace_state::load_workspace_state(&workspace).unwrap().unwrap();
+    state.settings.global_virtual_store_layout_version = None;
+    pnpm_workspace_state::update_workspace_state(&workspace, &state).unwrap();
+
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(dunce::canonicalize(&link).unwrap(), expected);
+    drop((root, npmrc_info));
+}
+
+#[test]
 fn pnp_without_symlinks_repairs_a_missing_global_virtual_store_package() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
