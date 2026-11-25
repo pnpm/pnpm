@@ -261,7 +261,11 @@ where
 /// A packument with no versions at all: either every version was
 /// unpublished, or it never had any.
 fn no_versions_error(meta: &Package, spec: &RegistryPackageSpec) -> PickPackageFromMetaError {
-    if has_unpublished_versions(meta) {
+    let unpublished = meta.time
+        .as_ref()
+        .and_then(|time| time.get("unpublished"))
+        .is_some_and(has_unpublished_versions);
+    if unpublished {
         return PickPackageFromMetaError::Unpublished { pkg_name: spec.name.clone() };
     }
     PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() }
@@ -535,10 +539,8 @@ pub fn pick_stable_cached_range_version(
     (picked == dominant).then_some(dominant)
 }
 
-fn has_unpublished_versions(meta: &Package) -> bool {
-    let Some(time) = meta.time.as_ref() else { return false };
-    let Some(unpublished) = time.get("unpublished") else { return false };
-    unpublished
+pub(crate) fn has_unpublished_versions(marker: &serde_json::Value) -> bool {
+    marker
         .get("versions")
         .and_then(serde_json::Value::as_array)
         .is_some_and(|versions| !versions.is_empty())

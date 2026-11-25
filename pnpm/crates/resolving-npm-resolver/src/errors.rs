@@ -73,6 +73,13 @@ pub enum FetchMetadataError {
         error: reqwest::Error,
     },
 
+    #[display("The package at {url} was unpublished")]
+    #[diagnostic(code(ERR_PNPM_UNPUBLISHED_PKG))]
+    Unpublished {
+        #[error(not(source))]
+        url: String,
+    },
+
     #[display("Failed to decode metadata from {url}: {error}")]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_DECODE_ERROR))]
     Decode {

@@ -88,6 +88,13 @@ pub enum ViewError {
         spec: String,
     },
 
+    #[display("No versions available for {name} because it was unpublished")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_NOT_FOUND))]
+    PackageUnpublished {
+        #[error(not(source))]
+        name: String,
+    },
+
     #[display("GET {url}: Not Found - 404")]
     #[diagnostic(code(ERR_PNPM_FETCH_404))]
     Fetch404 {
@@ -346,23 +353,25 @@ fn version_data(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageVe
         .unwrap_or_else(|| serde_json::to_value(picked).unwrap_or(Value::Null))
 }
 
-/// Map a metadata-fetch failure to the matching pnpm error. A `404`
-/// becomes [`ViewError::Fetch404`] (pnpm's `ERR_PNPM_FETCH_404`); every
-/// other failure is surfaced verbatim.
 fn map_fetch_error(
     error: pnpm_resolving_npm_resolver::FetchMetadataError,
     registry: &str,
     pkg_name: &str,
 ) -> miette::Report {
     use pnpm_resolving_npm_resolver::FetchMetadataError;
-    if let FetchMetadataError::Network { error: ref source, .. } = error
-        && source.status() == Some(reqwest::StatusCode::NOT_FOUND)
-    {
-        let url = package_endpoint_url(registry, pkg_name)
-            .unwrap_or_else(|_| format!("{registry}{pkg_name}"));
-        return ViewError::Fetch404 { url: pnpm_network::redact_url_credentials(&url) }.into();
+    match error {
+        FetchMetadataError::Network { error: ref source, .. }
+            if source.status() == Some(reqwest::StatusCode::NOT_FOUND) =>
+        {
+            let url = package_endpoint_url(registry, pkg_name)
+                .unwrap_or_else(|_| format!("{registry}{pkg_name}"));
+            ViewError::Fetch404 { url: pnpm_network::redact_url_credentials(&url) }.into()
+        }
+        FetchMetadataError::Unpublished { .. } => {
+            ViewError::PackageUnpublished { name: pkg_name.to_owned() }.into()
+        }
+        error => miette::Report::new(error),
     }
-    miette::Report::new(error)
 }
 
 #[cfg(test)]

@@ -7,6 +7,7 @@ use super::{
     MetadataCacheScope,
     PACKAGE_BODY,
     PickPackageContext,
+    PickPackageError,
     PickPackageOptions,
     RetryOpts,
     RouteRecorder,
@@ -25,7 +26,13 @@ use super::{
     to_registry_url,
     version_spec,
 };
-use crate::pick_package::metadata_cache::PackageMetaCache;
+use crate::{
+    FetchMetadataError,
+    pick_package::{
+        PickPackageResult,
+        metadata_cache::PackageMetaCache,
+    },
+};
 
 #[tokio::test]
 async fn cache_key_separates_abbreviated_from_full() {
@@ -555,16 +562,44 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
 /// fail-closed behavior is scoped to private routes only.
 #[tokio::test]
 async fn public_scope_falls_back_to_mirror_on_401() {
+    let result = pick_with_preloaded_public_mirror(401, "").await.expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+}
+
+#[tokio::test]
+async fn public_scope_does_not_fall_back_to_mirror_after_unpublish() {
+    let tombstone = r#"{
+        "_id": "acme",
+        "name": "acme",
+        "time": {
+            "unpublished": { "time": "2026-11-23T08:31:37.404Z", "versions": ["1.0.0", "1.1.0"] }
+        }
+    }"#;
+    let error = pick_with_preloaded_public_mirror(200, tombstone).await
+        .expect_err("an unpublished package must not be picked from the mirror");
+    assert!(
+        matches!(error, PickPackageError::Fetch(FetchMetadataError::Unpublished { .. })),
+        "expected the unpublished error, got: {error:?}",
+    );
+}
+
+async fn pick_with_preloaded_public_mirror(
+    status: usize,
+    body: &str,
+) -> Result<PickPackageResult, PickPackageError> {
     let mut preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     // An ETag keeps this mirror on the conditional-request path. A mirror
     // stored without one is reused while it is fresh, which would never
-    // observe this 401.
+    // observe the response.
     preloaded.etag = Some(r#""registry-etag""#.to_string());
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")
-        .with_status(401)
+        .with_status(status)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
         .create_async()
         .await;
     let registry = format!("{}/", server.url());
@@ -593,13 +628,11 @@ async fn public_scope_falls_back_to_mirror_on_401() {
             http: crate::MetadataHttpClient {
                 http_client: &http_client,
                 auth_headers: &auth_headers,
-                retry_opts: RetryOpts::default(),
+                retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
             },
         },
     };
-    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
-        .await
-        .expect("ok");
-    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry)).await;
     mock.assert_async().await;
+    result
 }

@@ -34,6 +34,10 @@ use reqwest::{
     StatusCode,
     header,
 };
+use serde::{
+    Deserialize,
+    de::IgnoredAny,
+};
 use std::time::Duration;
 
 use crate::{
@@ -44,6 +48,7 @@ use crate::{
         normalizes_to_abbreviated,
     },
     mirror::clear_meta,
+    pick_package_from_meta::has_unpublished_versions,
     registry_url::to_registry_url,
 };
 
@@ -126,6 +131,46 @@ pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
 /// A metadata body, in npm's format or, when `install_v2`, in pnpr's own.
 fn parse_metadata(body: &str, install_v2: bool) -> serde_json::Result<Package> {
     if install_v2 { pnpm_registry::parse_install_v2(body) } else { serde_json::from_str(body) }
+}
+
+/// [`parse_metadata`], with a body that fails to parse reported as
+/// [`FetchMetadataError::Unpublished`] when it is npm's record of a fully
+/// unpublished package, and as [`FetchMetadataError::Decode`] otherwise.
+fn decode_metadata(body: &str, install_v2: bool, url: &str) -> Result<Package, FetchMetadataError> {
+    parse_metadata(body, install_v2)
+        .map_err(|error| {
+            let url = redact_url_credentials(url);
+            if !install_v2 && is_unpublished_packument(body) {
+                FetchMetadataError::Unpublished { url }
+            } else {
+                FetchMetadataError::Decode { url, error }
+            }
+        })
+}
+
+/// Whether `body` is npm's record of a fully unpublished package: a
+/// non-empty `time.unpublished.versions` and neither `dist-tags` nor
+/// `versions`.
+fn is_unpublished_packument(body: &str) -> bool {
+    // Runs only after the body failed to parse as a `Package`, so it skips
+    // every field but the marker instead of building the whole document again.
+    #[derive(Deserialize)]
+    struct Packument {
+        #[serde(rename = "dist-tags")]
+        dist_tags: Option<IgnoredAny>,
+        versions: Option<IgnoredAny>,
+        time: Option<Time>,
+    }
+    #[derive(Deserialize)]
+    struct Time {
+        unpublished: Option<serde_json::Value>,
+    }
+    let Ok(packument) = serde_json::from_str::<Packument>(body) else { return false };
+    packument.dist_tags.is_none()
+        && packument.versions.is_none()
+        && packument.time
+            .and_then(|time| time.unpublished)
+            .is_some_and(|marker| has_unpublished_versions(&marker))
 }
 
 /// Whether the response is pnpr's own package document.
@@ -500,11 +545,7 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
     let task_url = url.to_string();
     let (output, elapsed) = run_decode(move || {
         let raw_body = raw_body.into_text();
-        let mut meta = parse_metadata(&raw_body, install_v2)
-            .map_err(|error| FetchMetadataError::Decode {
-                url: redact_url_credentials(&task_url),
-                error,
-            })?;
+        let mut meta = decode_metadata(&raw_body, install_v2, &task_url)?;
         // Each version's fragment is copied out of the body, so it can go
         // before `finish` writes the mirror.
         drop(raw_body);
