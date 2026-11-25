@@ -24,6 +24,7 @@ pub use redaction::{
     redact_url_credentials,
     redact_url_for_display,
 };
+pub use transport::scoped_redirect_auth;
 pub use url::{
     base64_encode,
     base64_encode_bytes,
@@ -187,7 +188,7 @@ pub struct AuthHeaders {
     /// the client-forwarded credentials above are ignored. See
     /// [`UpstreamRouteHook`].
     route_hook: Option<Arc<dyn UpstreamRouteHook>>,
-    require_secure_transport: bool,
+    transport: transport::CredentialTransport,
     /// Set iff any entry is an [`AuthEntry::TokenHelper`]. Surfaced in the
     /// [`fmt::Debug`] output (never the values) so a resolve trace shows
     /// at a glance whether any helper is configured. The lookup hot path
@@ -238,7 +239,11 @@ impl fmt::Debug for AuthHeaders {
             .field("scoped_by_scope", &self.scoped_by_scope.len())
             .field("has_token_helpers", &self.has_token_helpers)
             .field("route_hook", &self.route_hook.is_some())
-            .field("require_secure_transport", &self.require_secure_transport)
+            .field(
+                "http_tarball_registries",
+                &self.transport.http_registries().map_or(0, <[_]>::len),
+            )
+            .field("require_secure_transport", &self.transport.requires_secure_transport())
             .finish_non_exhaustive()
     }
 }
@@ -248,7 +253,7 @@ impl AuthHeaders {
     /// lookups made by shared fetchers. This restriction survives cloning.
     #[must_use]
     pub fn with_secure_transport(mut self) -> Self {
-        self.require_secure_transport = true;
+        self.transport = transport::CredentialTransport::SecureOnly;
         self
     }
 
@@ -416,7 +421,7 @@ impl AuthHeaders {
             max_parts,
             max_scoped_parts_by_scope,
             route_hook: None,
-            require_secure_transport: false,
+            transport: transport::CredentialTransport::default(),
             has_token_helpers,
             token_helpers: TokenHelpers::default(),
         }
@@ -495,24 +500,6 @@ impl AuthHeaders {
         self.for_url_with_package(url, None)
     }
 
-    /// Resolve an `Authorization` header only when `url` uses TLS or targets
-    /// the local machine. The loopback exception keeps local registry proxies
-    /// usable without exposing credentials on a network link.
-    #[must_use]
-    pub fn for_secure_url(&self, url: &str) -> Option<String> {
-        self.for_secure_url_with_package(url, None)
-    }
-
-    /// Package-aware counterpart to [`Self::for_secure_url`].
-    #[must_use]
-    pub fn for_secure_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
-        if !is_url_secure_for_credentials(url) {
-            self.record_route(url, pkg_name);
-            return None;
-        }
-        self.for_url_with_package(url, pkg_name)
-    }
-
     /// Select the deployment's headers for each hop within the original credential scope.
     pub(crate) fn managed_request_headers<'a>(
         &'a self,
@@ -521,7 +508,9 @@ impl AuthHeaders {
     ) -> Option<impl Fn(&str) -> reqwest::header::HeaderMap + 'a> {
         let hook = self.route_hook.as_ref()?;
         let origin = reqwest::Url::parse(start).ok().map(|url| url.origin());
-        let headers = if self.require_secure_transport && !is_url_secure_for_credentials(start) {
+        let headers = if self.transport.requires_secure_transport()
+            && !is_url_secure_for_credentials(start)
+        {
             reqwest::header::HeaderMap::new()
         } else {
             hook.request_headers(start, package)
@@ -702,3 +691,4 @@ mod url;
 use url::ParsedUrl;
 
 mod lookup;
+mod transport;

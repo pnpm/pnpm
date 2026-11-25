@@ -176,3 +176,80 @@ pub fn a_legacy_default_registries_key_beats_the_global_auth_file() {
 
     assert_eq!(config.registry, "https://legacy-declared.example/");
 }
+
+#[test]
+fn http_tarball_auth_requires_a_user_declared_registry() {
+    let routes = "registries:\n  http://private.example/npm/: { scopes: ['@'] }\n";
+    let first = "http://private.example/npm/pkg.tgz";
+    let global = load_with_auth_file(&format!("{STORED_LOGIN}{routes}"), None);
+    let authorize = global.auth_headers.tarball_authorization(first, "pkg");
+    assert_eq!(authorize(first).as_deref(), Some("Bearer stored-token"));
+    assert_eq!(authorize("http://private.example/npm/cache/pkg.tgz"), authorize(first));
+    assert_eq!(authorize("http://private.example/npm-two/pkg.tgz"), None);
+    assert_eq!(authorize("http://private.example:8080/npm/pkg.tgz"), None);
+
+    let strict = (*global.auth_headers).clone().with_secure_transport();
+    assert_eq!(strict.tarball_authorization(first, "pkg")(first), None);
+    assert_eq!(global.auth_headers.tarball_authorization(first, "node@runtime:1")(first), None);
+    assert_eq!(authorize("http://other.example/npm/pkg.tgz"), None);
+
+    let project = load_with_auth_file(STORED_LOGIN, Some(routes));
+    assert_eq!(project.auth_headers.tarball_authorization(first, "pkg")(first), None);
+    let project_ini =
+        load_with_auth_file_and_npmrc(STORED_LOGIN, "registry=http://private.example/npm/");
+    assert_eq!(project_ini.auth_headers.tarball_authorization(first, "pkg")(first), None);
+    let https = "https://private.example/npm/pkg.tgz";
+    assert_eq!(global.auth_headers.tarball_authorization(https, "pkg")(first), None);
+}
+
+#[test]
+fn http_tarball_auth_uses_only_effective_trusted_registry_aliases() {
+    let alias = "namedRegistries:\n  custom: http://private.example/npm/\n";
+    let first = "http://private.example/npm/pkg.tgz";
+    let accepted = load_with_auth_file(&format!("{STORED_LOGIN}{alias}"), None);
+    assert_eq!(
+        accepted.auth_headers.tarball_authorization(first, "pkg")(first).as_deref(),
+        Some("Bearer stored-token"),
+    );
+
+    for declarations in [
+        "registries:\n  http://private.example/npm/: { ecosystem: pypi }\n",
+        "registries:\n  https://canonical.example/: { prefix: custom }\n",
+    ] {
+        let config = load_with_auth_file(&format!("{STORED_LOGIN}{declarations}{alias}"), None);
+        assert_eq!(config.auth_headers.tarball_authorization(first, "pkg")(first), None);
+    }
+    let project = load_with_auth_file(STORED_LOGIN, Some(alias));
+    assert_eq!(project.auth_headers.tarball_authorization(first, "pkg")(first), None);
+}
+
+#[test]
+fn both_user_auth_files_can_declare_http_registries() {
+    fake_env!(load_with_fake_env);
+    let root = tempdir().unwrap();
+    let config_dir = root.path().join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    let user = root.path().join("user.npmrc");
+    super::write_registry_auth_file(&user, "http://first.example/", "first");
+    super::write_registry_auth_file(
+        &config_dir.join("auth.ini"),
+        "http://second.example/",
+        "second",
+    );
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", root.path().to_str().unwrap()),
+        ("PNPM_CONFIG_NPMRC_AUTH_FILE", user.to_str().unwrap()),
+    ]);
+    let project = tempdir().unwrap();
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.registry, "http://second.example/");
+    for (url, token) in [
+        ("http://first.example/pkg.tgz", "Bearer first"),
+        ("http://second.example/pkg.tgz", "Bearer second"),
+    ] {
+        assert_eq!(
+            config.auth_headers.tarball_authorization(url, "pkg")(url).as_deref(),
+            Some(token),
+        );
+    }
+}

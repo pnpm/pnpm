@@ -82,6 +82,12 @@ pub(super) fn npmrc_source<Sys: FsReadFile>(
 
 fn parse_trusted_source<Sys: EnvVar>(text: &str, dir: &Path, path: &Path) -> NpmrcAuth {
     let mut auth = NpmrcAuth::from_ini::<Sys>(text, dir);
+    auth.routes.trusted_http_registries = auth.routes.default
+        .iter()
+        .chain(auth.routes.scoped.values())
+        .filter(|url| is_http_registry(url))
+        .cloned()
+        .collect();
     auth.rescope_unscoped(&path.display().to_string());
     auth
 }
@@ -145,6 +151,50 @@ pub(super) fn note_declared_registries(
             declared.scopes.insert(scope);
         }
     }
+}
+
+fn npm_registry_urls(settings: &WorkspaceSettings) -> impl Iterator<Item = &String> {
+    use crate::workspace_yaml::registries::{
+        Ecosystem,
+        RegistryEntry,
+    };
+
+    let declared = settings.registries
+        .iter()
+        .flatten()
+        .filter_map(|(key, entry)| match entry {
+            RegistryEntry::ScopeRoute(url) => Some(url),
+            RegistryEntry::Declaration(declaration)
+                if declaration.ecosystem() == Ecosystem::Npm =>
+            {
+                Some(key)
+            }
+            RegistryEntry::Declaration(_) => None,
+        });
+    settings.registry.iter().chain(declared)
+}
+
+fn is_http_registry(url: &str) -> bool {
+    url.split_once("://")
+        .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("http"))
+}
+
+fn extend_trusted_http_registries<'a>(
+    urls: &mut Vec<String>,
+    settings: impl Iterator<Item = &'a WorkspaceSettings> + Clone,
+) {
+    if settings.clone().any(|layer| layer.named_registries.is_some()) {
+        let prefixes = WorkspaceSettings::trusted_registry_prefixes(settings.clone());
+        urls.extend(prefixes.into_values().filter(|url| is_http_registry(url)));
+    }
+    urls.extend(
+        settings
+            .flat_map(npm_registry_urls)
+            .filter(|url| is_http_registry(url))
+            .cloned(),
+    );
+    urls.sort_unstable();
+    urls.dedup();
 }
 
 fn is_trusted_auth_file<Sys: GetCurrentDir>(
@@ -239,13 +289,25 @@ impl Config {
         if self.settings_read == crate::SettingsRead::PinDecision {
             return Ok(AuthSources::none());
         }
-        let global_settings = global_settings.map(|global| self.global_auth_settings(global));
-        self.collect_auth_sources::<Sys>(
+        let auth_settings = global_settings.map(|global| self.global_auth_settings(global));
+        let mut sources = self.collect_auth_sources::<Sys>(
             start_dir,
             workspace_yaml,
-            global_settings.as_deref(),
+            auth_settings.as_deref(),
             global_config_dir,
-        )
+        )?;
+        let settings = global_settings
+            .into_iter()
+            .flat_map(|global| {
+                let section = global.machine.global_packages_config
+                    .as_deref()
+                    .filter(|_| self.cli.command_target == crate::CommandTarget::GlobalPackages);
+                std::iter::once(&global.settings).chain(section)
+            });
+        let registries = &mut sources.trusted_auth.routes.trusted_http_registries;
+        extend_trusted_http_registries(registries, settings);
+        sources.npmrc_auth.routes.trusted_http_registries.clone_from(registries);
+        Ok(sources)
     }
 
     /// The global `config.yaml` settings that name credential sources. A

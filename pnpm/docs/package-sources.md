@@ -123,6 +123,8 @@ Exotic sources are useful for development but may pose supply chain risks when u
 
 pnpm sends registry credentials for tarball downloads over HTTPS or loopback HTTP. A redirect receives credentials only within the configured registry path on the same origin.
 
+For a remote HTTP registry, declare its HTTP URL in your global `config.yaml` or user-level `.npmrc`. This permits pnpm to send matching credentials in cleartext for package tarballs under that URL. If the project overrides your proxy settings, pnpm withholds those credentials.
+
 The argument must be a fetchable URL starting with "http://" or "https://".
 
 Example:

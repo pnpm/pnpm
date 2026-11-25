@@ -194,9 +194,8 @@ async fn send_archive_request<'client>(
             http_client.acquire_for_url_with_priority(archive.package_url, options.priority).await;
         return Ok((response.await, client));
     }
-    let authorize = pnpm_network::scoped_redirect_auth(archive.package_url, |url| {
-        archive.auth_headers.for_secure_url_with_package(url, Some(archive.package_id))
-    });
+    let authorize =
+        archive.auth_headers.tarball_authorization(archive.package_url, archive.package_id);
     let mut attempt = 0;
     loop {
         let sent = http_client.scoped_get(archive.package_url, options, |request, url| {

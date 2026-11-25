@@ -351,24 +351,6 @@ impl ThrottledClient {
     }
 }
 
-/// Keep the initial authorization on same-origin redirects within its credential scope.
-pub fn scoped_redirect_auth(
-    url: &str,
-    lookup: impl Fn(&str) -> Option<String>,
-) -> impl Fn(&str) -> Option<String> {
-    let authorization = lookup(url);
-    move |target| {
-        let value = authorization.as_ref()?;
-        if target == url {
-            return Some(value.clone());
-        }
-        if reqwest::Url::parse(url).ok()?.origin() != reqwest::Url::parse(target).ok()?.origin() {
-            return None;
-        }
-        lookup(target).filter(|header| header == value)
-    }
-}
-
 pub(super) fn authorize_without_downgrade<'auth>(
     auth_headers: &'auth AuthHeaders,
     start_url: &str,

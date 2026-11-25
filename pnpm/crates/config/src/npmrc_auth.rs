@@ -144,6 +144,7 @@ pub(crate) struct NpmrcTls {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct NpmrcRoutes {
+    pub trusted_http_registries: Vec<String>,
     pub default: Option<String>,
     pub scoped: BTreeMap<String, String>,
     /// Scope→URL registry routes inferred from the `_auth` **environment
@@ -403,6 +404,7 @@ impl NpmrcProxy {
 
 impl NpmrcRoutes {
     fn merge_under(&mut self, lower: Self) {
+        self.trusted_http_registries.extend(lower.trusted_http_registries);
         self.default = self.default.take().or(lower.default);
         for (scope, registry) in lower.scoped {
             self.scoped.entry(scope).or_insert(registry);
