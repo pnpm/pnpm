@@ -259,6 +259,45 @@ fn unset_leaves_an_ordinary_package_named_like_a_runtime() {
 
 #[cfg(unix)]
 #[test]
+fn unset_does_not_remove_an_npm_shim_under_a_version_named_home_directory() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    let pnpm_home = root.path().join("22.14.0/pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    let global_bin = pnpm_home.join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let (node_link, node_install_dir) =
+        seed_global_runtime(&global_pkg_dir, "node", "22.14.0", "hash-node");
+    let (npm_link, npm_install_dir) =
+        seed_global_package(&global_pkg_dir, "npm", "10.0.0", "hash-npm", "^10.0.0");
+    let npm_bin = global_bin.join("npm");
+    let npm_target = npm_install_dir.join("node_modules/npm/bin/npm");
+    std::os::unix::fs::symlink(&npm_target, &npm_bin).unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["runtime", "unset", "node", "22.14.0", "-g"])
+        .output()
+        .expect("spawn pacquet runtime unset");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(output.status.success(), "stderr={stderr}");
+    assert!(!node_link.exists());
+    assert!(!node_install_dir.exists());
+    assert!(npm_link.exists());
+    assert!(npm_install_dir.exists());
+    assert!(
+        npm_bin
+            .symlink_metadata()
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
+    assert_eq!(fs::read_link(npm_bin).unwrap(), npm_target);
+}
+
+#[cfg(unix)]
+#[test]
 fn unset_keeps_an_unrelated_stale_node_link_when_removing_another_runtime() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
