@@ -185,7 +185,7 @@ catalog:
 
 ## Adding dependencies to a catalog
 
-[`pnpm add --save-catalog`](./cli/add.md#--save-catalog) writes the new dependency's range to the default catalog and `catalog:` to `package.json`. [`--save-catalog-name`](./cli/add.md#--save-catalog-name-catalog_name) picks a named catalog. [`catalogMode`](#catalogmode) controls whether `pnpm add` adds to the default catalog without the flag.
+[`pnpm add --save-catalog`](./cli/add.md#--save-catalog) writes the new dependency's range to the default catalog and `catalog:` to `package.json`. [`--save-catalog-name`](./cli/add.md#--save-catalog-name-catalog_name) picks a named catalog. [`catalog.mode`](#catalogmode) controls whether `pnpm add` adds to the default catalog without the flag.
 
 ## Errors
 

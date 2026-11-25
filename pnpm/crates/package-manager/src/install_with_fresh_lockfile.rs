@@ -69,6 +69,7 @@ use setup::{
 
 mod materialization;
 mod override_warnings;
+mod permission_warnings;
 use materialization::finish_resolved_install;
 
 mod errors;

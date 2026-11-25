@@ -45,7 +45,7 @@ fn check_patch_usage<Report: Reporter>(
     tree: &pnpm_resolving_deps_resolver::ResolvedTree,
 ) -> Result<(), InstallWithFreshLockfileError> {
     let Some(patches) = patches else { return Ok(()) };
-    if !should_verify_patches(install) {
+    if !covers_all_workspace_projects(install) {
         return Ok(());
     }
     let deployed_names = install.manifests.deploy_hook.then(|| {
@@ -79,7 +79,7 @@ fn check_patch_usage<Report: Reporter>(
     Ok(())
 }
 
-fn should_verify_patches(install: FreshInputs<'_>) -> bool {
+fn covers_all_workspace_projects(install: FreshInputs<'_>) -> bool {
     let config = install.drivers.config;
     if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
         return false;
@@ -102,6 +102,15 @@ pub(super) async fn collect_resolution<'m, Reporter: self::Reporter + 'static>(
 ) -> Result<Resolved<'m, Reporter>, InstallWithFreshLockfileError> {
     let workspace_result = pass.result;
     enforce_resolution_policies::<Reporter>(install, &prep, &workspace_result).await?;
+    if pass.full_resolution
+        && install.execution.save_lockfile
+        && covers_all_workspace_projects(install)
+    {
+        super::super::permission_warnings::warn_unused_permissions::<Reporter>(
+            install.drivers.config,
+            &workspace_result.merged_tree,
+        );
+    }
     let peer_issues = &workspace_result.peers.peer_dependency_issues_by_importer;
     let mut peer_issue_importer_ids: HashSet<String> = peer_issues.keys().cloned().collect();
     peer_issue_importer_ids.extend(pass.linked_peer_importers);

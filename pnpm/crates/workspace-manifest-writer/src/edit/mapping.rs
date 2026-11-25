@@ -24,7 +24,7 @@ use super::{
 /// Where a catalog's entries live (or should be created) in the manifest.
 enum Target {
     /// The top-level `catalog:` shorthand for the default catalog.
-    Shorthand,
+    Shorthand(&'static [&'static str]),
     /// A named catalog `catalogs.<name>` (including an explicit `default`).
     Named(String),
 }
@@ -33,7 +33,7 @@ impl Target {
     /// The key path of the mapping holding this catalog's entries.
     fn path(&self) -> Vec<&str> {
         match self {
-            Target::Shorthand => vec!["catalog"],
+            Target::Shorthand(path) => path.to_vec(),
             Target::Named(name) => vec!["catalogs", name],
         }
     }
@@ -51,7 +51,7 @@ pub(super) fn upsert(
 
     let existing_target = if is_default {
         if manifest.catalogs.default.is_some() {
-            Some(Target::Shorthand)
+            Some(Target::Shorthand(manifest.document.sections.catalog()))
         } else if manifest.catalogs.named
             .as_ref()
             .is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME))
@@ -153,7 +153,7 @@ fn create_target(
 
 fn target_map<'a>(catalogs: &'a CatalogEntries, target: &Target) -> &'a IndexMap<String, String> {
     match target {
-        Target::Shorthand => catalogs.default.as_ref().expect("catalog shorthand present"),
+        Target::Shorthand(_) => catalogs.default.as_ref().expect("catalog shorthand present"),
         Target::Named(name) => catalogs.named
             .as_ref()
             .expect("catalogs present")
@@ -167,7 +167,7 @@ fn target_map_mut<'a>(
     target: &Target,
 ) -> &'a mut IndexMap<String, String> {
     match target {
-        Target::Shorthand => catalogs.default.as_mut().expect("catalog shorthand present"),
+        Target::Shorthand(_) => catalogs.default.as_mut().expect("catalog shorthand present"),
         Target::Named(name) => catalogs.named
             .as_mut()
             .expect("catalogs present")

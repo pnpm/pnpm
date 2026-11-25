@@ -12,8 +12,6 @@ use super::{
 use crate::build_settings::PermissionValue;
 use pnpm_config::SkillsPermission;
 
-const BLOCK: &str = "permissions";
-
 /// Upsert `permissions.<pkg>.<capability>: <value>`, creating the block and
 /// the package entry if absent, one capability per line. Returns whether
 /// anything changed.
@@ -23,9 +21,11 @@ pub(crate) fn set_permission(
     capability: &str,
     value: &PermissionValue,
 ) -> bool {
+    let mut path = manifest.document.sections.permissions().to_vec();
+    path.push(pkg);
     set_nested_entry(
         manifest,
-        &[BLOCK, pkg],
+        &path,
         capability,
         (&render_permission_value(value), &permission_json(value)),
     )
@@ -38,9 +38,11 @@ pub(crate) fn set_global_packages_permission(
     capability: &str,
     value: &PermissionValue,
 ) -> bool {
+    let mut path = manifest.document.sections.global_permissions().to_vec();
+    path.push(pkg);
     set_nested_entry(
         manifest,
-        &["globalPackagesConfig", BLOCK, pkg],
+        &path,
         capability,
         (&render_permission_value(value), &permission_json(value)),
     )

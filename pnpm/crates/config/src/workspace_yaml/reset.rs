@@ -284,6 +284,7 @@ impl WorkspaceSettings {
     ) -> bool {
         match key {
             "permissions" => {
+                config.warn_unused_permissions = defaults.warn_unused_permissions;
                 config.allow_builds.clone_from(&defaults.allow_builds);
                 config.allow_skills.clone_from(&defaults.allow_skills);
             }

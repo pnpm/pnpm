@@ -55,6 +55,8 @@ A path is relative to the include path as written in `pnpm-workspace.yaml`, even
 
 A source is delegated either a list of settings or `'*'`.
 
+A list can delegate the unused-entry policy separately from the package map. For example, `[catalog, catalog.unused]` lets a file define default catalog entries and choose whether pnpm prunes unused entries across catalogs. A file delegated only the catalog or override policy can use `catalogPrune` or `warnUnusedOverrides`. Delegate both `permissions` and `permissions.unused` to a file that sets the permission policy. Use `catalog.mode` and `catalog.defaultSaveTarget` to delegate `catalogMode` and `saveCatalogName`. The nested form also declares the package map, even when that map is empty. The corresponding policy selectors for rules are `permissions.unused` and `overrides.unused`.
+
 A list both permits and reserves its settings. The file may define only the listed settings, and no other source may define them, even when the file omits them:
 
 ```yaml title="pnpm-workspace.yaml"

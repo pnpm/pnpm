@@ -163,3 +163,17 @@ fn skill_dirs_preserve_permissions_in_flow_and_block_mappings() {
         assert_eq!(fs::read_to_string(&path).expect("read config.yaml"), updated);
     }
 }
+
+#[test]
+fn writes_global_approvals_inside_an_existing_rules_map() {
+    let original = "globalPackagesConfig:\n  permissions: {rules: {}, unused: ignore}\n";
+    let updated = run(Some(original), &[("example", false)]).unwrap();
+    let parsed: serde_json::Value = serde_saphyr::from_str(&updated).unwrap();
+    assert_eq!(
+        parsed["globalPackagesConfig"]["permissions"],
+        serde_json::json!({
+            "rules": {"example": {"build": false}}, "unused": "ignore"
+        }),
+        "{updated}",
+    );
+}

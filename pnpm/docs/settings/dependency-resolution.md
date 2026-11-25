@@ -151,6 +151,19 @@ overrides:
   "react-dom>react:peer": "-"
 ```
 
+#### overrides.rules and overrides.unused
+
+Put selectors under `overrides.rules` to configure unused overrides alongside them. Use `rules: {}` for an empty map. Without `rules`, a key named `unused` refers to a package.
+
+```yaml title="pnpm-workspace.yaml"
+overrides:
+  unused: ignore
+  rules:
+    example-tool: ^2.0.0
+```
+
+`overrides.unused` accepts `warn` (the default) or `ignore`. The warning follows the same rules as `warnUnusedOverrides`. When a file sets both, `overrides.unused` wins.
+
 ### warnUnusedOverrides
 
 * Default: **true**

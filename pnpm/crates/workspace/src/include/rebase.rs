@@ -53,8 +53,8 @@ pub fn rebase_setting(name: &str, value: &mut Value, from_dir: &Path, to_dir: &P
         "pnpmfile" => each_string(value, &path),
         "scriptShell" => rewrite(value, &|shell| rebase_script_shell(shell, from_dir, to_dir)),
         "patchedDependencies" => each_value(value, &|entry| rewrite(entry, &path)),
-        "catalog" => each_value(value, &specifier),
-        "overrides" => each_value(value, &override_specifier),
+        "catalog" => each_package_entry(value, "entries", &specifier),
+        "overrides" => each_package_entry(value, "rules", &override_specifier),
         "catalogs" => each_value(value, &|catalog| each_value(catalog, &specifier)),
         name if PATH_SETTINGS.contains(&name) => rewrite(value, &path),
         _ => {}
@@ -142,6 +142,14 @@ fn each_string(value: &mut Value, rebase: &dyn Fn(&str) -> Option<String>) {
     match value {
         Value::Sequence(items) => items.iter_mut().for_each(|item| rewrite(item, rebase)),
         scalar => rewrite(scalar, rebase),
+    }
+}
+
+fn each_package_entry(value: &mut Value, key: &str, visit: &dyn Fn(&mut Value)) {
+    if value.get(key).is_some_and(Value::is_mapping) {
+        each_value(&mut value[key], visit);
+    } else {
+        each_value(value, visit);
     }
 }
 

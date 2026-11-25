@@ -95,7 +95,10 @@ fn resolved_settings_maps_allow_skills() {
     let resolved = WorkspaceSettings::from_resolved(&config);
     let permissions = resolved.permissions.unwrap();
     assert_eq!(
-        permissions.get("drizzle-kit").and_then(|entry| entry.skills.clone()),
+        permissions
+            .rules()
+            .get("drizzle-kit")
+            .and_then(|entry| entry.skills.clone()),
         Some(SkillsPermission::Chosen(vec!["guide".to_string()])),
     );
 }
@@ -129,7 +132,7 @@ fn names_the_unknown_capabilities() {
     settings.collect_key_issues(yaml);
     assert_eq!(settings.key_issues.unrecognized_permissions.named, ["permissions['esbuild'].mcp"]);
     assert_eq!(settings.key_issues.unrecognized_permissions.total, 1);
-    let permissions = settings.permissions.expect("permissions");
+    let permissions = settings.permissions.expect("permissions").into_rules();
     assert_eq!(permissions["esbuild"].build, Some(AllowBuild::Decided(true)));
     assert!(permissions["esbuild"].unknown.is_empty());
 }
@@ -144,4 +147,38 @@ fn decided_build_approvals_prefers_permissions() {
     );
     assert_eq!(settings.decided_skill_approvals(), Some(HashMap::new()));
     assert_eq!(parse("{}").decided_build_approvals(), None);
+}
+
+#[test]
+fn keeps_capability_decisions_for_packages_named_rules_and_unused() {
+    let config = applied("permissions: {rules: {build: false}, unused: {skills: true}}");
+    assert_eq!(config.allow_builds.get("rules"), Some(&false));
+    assert_eq!(config.allow_skills.get("unused"), Some(&SkillsPermission::All(true)));
+}
+
+#[test]
+fn rejects_mixed_or_unknown_permissions_policy() {
+    for yaml in [
+        "permissions: {rules: {}, unused: prune}",
+        "permissions: {rules: {example: {build: true}}, misplaced: {build: true}}",
+    ] {
+        assert!(serde_saphyr::from_str::<WorkspaceSettings>(yaml).is_err(), "{yaml}");
+    }
+}
+
+#[test]
+fn empty_rules_beside_a_package_keeps_its_permission() {
+    let config = applied("permissions: {rules: {}, example: {build: true}}");
+    assert_eq!(config.allow_builds.get("example"), Some(&true));
+}
+
+#[test]
+fn replacing_permissions_without_a_policy_restores_warnings() {
+    for replacement in ["permissions: {rules: {}}", "permissions: {example: {skills: true}}"] {
+        let mut config = applied("permissions: {rules: {}, unused: ignore}");
+        parse("{}").apply_to(&mut config, Path::new("/workspace"));
+        assert!(!config.warn_unused_permissions);
+        parse(replacement).apply_to(&mut config, Path::new("/workspace"));
+        assert!(config.warn_unused_permissions);
+    }
 }

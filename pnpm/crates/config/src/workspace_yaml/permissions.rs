@@ -1,3 +1,5 @@
+pub use setting::deserialize_permissions;
+
 use super::{
     AllowBuild,
     Config,
@@ -105,7 +107,7 @@ impl WorkspaceSettings {
             .map(decided_allow_builds)
             .unwrap_or_default();
         if let Some(permissions) = &self.permissions {
-            approvals.extend(decided_permissions(permissions, |entry| {
+            approvals.extend(decided_permissions(permissions.rules(), |entry| {
                 entry.build.as_ref().and_then(AllowBuild::decided)
             }));
         }
@@ -119,7 +121,7 @@ impl WorkspaceSettings {
         self.permissions
             .as_ref()
             .map(|permissions| {
-                decided_permissions(permissions, |entry| entry.skills.clone())
+                decided_permissions(permissions.rules(), |entry| entry.skills.clone())
             })
     }
 
@@ -136,7 +138,10 @@ impl WorkspaceSettings {
         if let Some(allow_builds) = self.allow_builds.take() {
             config.allow_builds = decided_allow_builds(allow_builds);
         }
-        if let Some(permissions) = self.permissions.take() {
+        if let Some(setting) = self.permissions.take() {
+            config.warn_unused_permissions = setting.section().and_then(|section| section.unused)
+                != Some(pnpm_workspace::map_settings::WarningPolicy::Ignore);
+            let permissions = setting.into_rules();
             config.allow_builds.extend(decided_permissions(&permissions, |entry| {
                 entry.build.as_ref().and_then(AllowBuild::decided)
             }));
@@ -156,6 +161,7 @@ impl WorkspaceSettings {
             return Vec::new();
         };
         let mut duplicated: Vec<String> = permissions
+            .rules()
             .iter()
             .filter(|(pkg, entry)| entry.build.is_some() && allow_builds.contains_key(*pkg))
             .map(|(pkg, _)| pkg.clone())
@@ -169,7 +175,7 @@ impl WorkspaceSettings {
     pub(super) fn take_unknown_permissions(&mut self) -> UnrecognizedSettings {
         let mut report = UnrecognizedSettings::default();
         let Some(permissions) = self.permissions.as_mut() else { return report };
-        for (pkg, entry) in permissions.iter_mut() {
+        for (pkg, entry) in permissions.rules_mut().iter_mut() {
             report.total += entry.unknown.len();
             let named = entry.unknown
                 .drain(..)
@@ -181,6 +187,8 @@ impl WorkspaceSettings {
         report
     }
 }
+
+mod setting;
 
 #[cfg(test)]
 mod tests;

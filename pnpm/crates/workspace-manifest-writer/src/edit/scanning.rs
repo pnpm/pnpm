@@ -42,6 +42,12 @@ pub(crate) fn has_unsupported_inline_value(text: &str, path: &[&str]) -> bool {
             && matches!(locate_sequence(text, path), Inline::Unsupported))
 }
 
+pub(super) fn unsupported_nested_map(text: &str, path: &[&str]) -> bool {
+    path.len() > 1
+        && (has_unsupported_inline_value(text, &path[..1])
+            || has_unsupported_inline_value(text, path))
+}
+
 /// Whether the document itself is written as a flow collection
 /// (`{ overrides: { foo: 1.0.0 } }`). Its keys are then not top-level lines
 /// at all, so neither the splices here nor a new top-level block can

@@ -30,7 +30,6 @@ const UNDOCUMENTED_SETTINGS: &[&str] = &[
     "forceLegacyDeploy",  // cli/deploy.md
     "provenance",         // cli/publish.md
     // Documented in the prose of another page, with no heading.
-    "catalog",                   // catalogs.md
     "catalogs",                  // catalogs.md
     "changedFilesIgnorePattern", // filtering.md
     "configDependencies",        // config-dependencies.md

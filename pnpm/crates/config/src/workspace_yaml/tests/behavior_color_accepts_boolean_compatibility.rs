@@ -778,7 +778,10 @@ overrides:
   'baz>qux': '-'
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    let overrides = settings.overrides.as_ref().expect("overrides parsed");
+    let overrides = settings.overrides
+        .as_ref()
+        .expect("overrides parsed")
+        .rules();
     let entries: Vec<_> = overrides
         .iter()
         .map(|(key, value)| (key.as_str(), value.as_str()))
@@ -803,7 +806,12 @@ overrides:
 fn empty_overrides_map_collapses_to_none() {
     let yaml = "overrides: {}\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert!(settings.overrides.as_ref().is_some_and(indexmap::IndexMap::is_empty));
+    assert!(
+        settings.overrides
+            .as_ref()
+            .map(pnpm_workspace::map_settings::Rules::rules)
+            .is_some_and(indexmap::IndexMap::is_empty),
+    );
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));

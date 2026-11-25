@@ -153,7 +153,7 @@ impl Config {
             && !self.hook_added_overrides.contains(selector)
     }
 
-    fn is_owned_by_config_dependency(&self, setting: &str) -> bool {
+    pub(crate) fn is_owned_by_config_dependency(&self, setting: &str) -> bool {
         self.workspace_includes
             .as_ref()
             .is_some_and(|includes| {

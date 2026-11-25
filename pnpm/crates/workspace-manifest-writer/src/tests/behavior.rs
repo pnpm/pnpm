@@ -809,3 +809,50 @@ fn minimum_release_age_exclude_falls_back_to_single_quotes_when_ambiguous_or_unq
         "packages:\n  - packages/*\nminimumReleaseAgeExclude:\n  - '@better-auth/core@1.7.3'\n",
     );
 }
+
+#[test]
+fn writes_nested_overrides_and_keeps_the_policy_after_removing_the_last_rule() {
+    for original in
+        ["overrides:\n  rules: {}\n  unused: warn\n", "overrides: {rules: {}, unused: warn}\n"]
+    {
+        let updated = run_overrides(Some(original), &overrides(&[("example", "1.0.0")])).unwrap();
+        let parsed: serde_json::Value = serde_saphyr::from_str(&updated).unwrap();
+        assert_eq!(parsed["overrides"]["rules"]["example"], "1.0.0", "{updated}");
+        let removed = run_remove_overrides(Some(&updated), &["example"]).unwrap();
+        let parsed: serde_json::Value = serde_saphyr::from_str(&removed).unwrap();
+        assert_eq!(
+            parsed["overrides"],
+            serde_json::json!({"unused": "warn", "rules": {}}),
+            "{removed}",
+        );
+    }
+}
+
+#[test]
+fn writes_nested_catalog_entries_and_preserves_the_policy_when_pruning() {
+    for original in
+        ["catalog:\n  unused: prune\n  entries: {}\n", "catalog: {unused: prune, entries: {}}\n"]
+    {
+        let updated = run(Some(original), &catalogs(&[("default", &[("example", "^1")])])).unwrap();
+        let parsed: serde_json::Value = serde_saphyr::from_str(&updated).unwrap();
+        assert_eq!(parsed["catalog"]["entries"]["example"], "^1", "{updated}");
+        let consumer = super::project(serde_json::json!({}));
+        let removed = super::run_cleanup(Some(&updated), None, &[&consumer]).unwrap();
+        let parsed: serde_json::Value = serde_saphyr::from_str(&removed).unwrap();
+        assert_eq!(
+            parsed["catalog"],
+            serde_json::json!({"unused": "prune", "entries": {}}),
+            "{removed}",
+        );
+    }
+}
+
+#[test]
+fn multiline_flow_sections_survive_removing_the_last_entry() {
+    let overrides = "overrides: {\n  unused: ignore,\n  rules: {example: '^1'}\n}\n";
+    assert_eq!(run_remove_overrides(Some(overrides), &["example"]).as_deref(), Some(overrides));
+
+    let catalog = "catalog: {\n  unused: prune,\n  entries: {example: '^1'}\n}\n";
+    let project = super::project(serde_json::json!({}));
+    assert_eq!(super::run_cleanup(Some(catalog), None, &[&project]).as_deref(), Some(catalog));
+}

@@ -415,6 +415,21 @@ A `skills` list names the only skills of the package that pnpm links, and a skil
 
 A build decision is written to `permissions` only when the file already has a `permissions` setting. Otherwise it is written to `allowBuilds`, which older pnpm versions read too.
 
+#### permissions.rules and permissions.unused
+
+To choose how pnpm handles unmatched rules, put the package selectors under `permissions.rules` and set `permissions.unused` alongside it.
+
+```yaml title="pnpm-workspace.yaml"
+permissions:
+  unused: warn
+  rules:
+    example-tool:
+      skills: true
+```
+
+`warn` (the default) reports selectors in `permissions` or `allowBuilds` that match no dependency during a full workspace resolution. Both `warn` and `ignore` keep the permissions for future installs. The warning covers the workspace and locally included files. It skips rules supplied by config dependencies or added by an `updateConfig` hook.
+
+
 ### skills.dirs
 
 Added in: v12.11.0

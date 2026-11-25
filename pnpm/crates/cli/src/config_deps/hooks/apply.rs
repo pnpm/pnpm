@@ -88,6 +88,7 @@ fn filter_hook_delta(config: &Config, mut delta: Value) -> Value {
                 && !config.cli_settings.contains(&pnpm_config::naming_cases::to_camel_case(key))
         });
         super::node_linker_aliases::drop_cli_linker_aliases(config, delta);
+        super::map_policy_aliases::drop_cli_map_policies(config, delta);
     }
     delta
 }

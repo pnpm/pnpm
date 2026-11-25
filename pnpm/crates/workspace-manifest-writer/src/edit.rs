@@ -19,6 +19,7 @@ pub(crate) use allow_builds::{
 pub(crate) use catalogs::{
     CatalogReferences,
     add_catalogs,
+    edit_catalog_option,
     remove_unused_catalogs,
 };
 pub(crate) use permissions::{
@@ -186,7 +187,17 @@ pub(crate) fn add_overrides(
         .and_then(|deps| deps.get(selector))
         .map(String::as_str)
         == Some(specifier);
-    let changed = upsert_top_level_entry(manifest, BLOCK, selector, specifier, current_matches)?;
+    let path = manifest.document.sections.overrides();
+    let changed = if path.len() > 1 {
+        nested::set_nested_entry(
+            manifest,
+            path,
+            selector,
+            (&render::render_value(specifier), &serde_json::Value::from(specifier)),
+        )
+    } else {
+        upsert_top_level_entry(manifest, BLOCK, selector, specifier, current_matches)?
+    };
     if changed {
         manifest.overrides
             .get_or_insert_with(IndexMap::new)
@@ -213,21 +224,23 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
         return false;
     }
 
-    // Emptiness is judged from the keys actually in the YAML, not the decoded
-    // map: `Manifest::parse` drops non-string override values, so the decoded
-    // map can be empty while the block still holds other entries. Deleting the
-    // whole block off the decoded map would silently drop that configuration.
-    let all_keys = override_keys_in_text(manifest.document.text());
-    let nothing_remains = all_keys
-        .iter()
-        .all(|key| present.contains(key));
-
-    if let Some(overrides) = manifest.overrides.as_mut() {
-        for selector in &present {
-            overrides.shift_remove(selector);
-        }
+    let path = manifest.document.sections.overrides();
+    if scanning::unsupported_nested_map(manifest.document.text(), path) {
+        return false;
     }
-
+    let overrides = manifest.overrides.as_mut().expect("the selectors are present");
+    for selector in &present {
+        overrides.shift_remove(selector);
+    }
+    let nothing_remains = overrides.is_empty() && manifest.non_scalar_overrides.is_empty();
+    if path.len() > 1 && nothing_remains {
+        return nested::set_nested_entry(
+            manifest,
+            &[BLOCK],
+            "rules",
+            ("{}", &serde_json::json!({})),
+        );
+    }
     if nothing_remains {
         manifest.document.set_text(remove_top_level_block(manifest.document.text(), BLOCK));
         manifest.overrides = None;
@@ -239,32 +252,11 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     // requested entries surgically, leaving every other entry (string or
     // not) as written. An inline shape neither can edit leaves the file
     // untouched rather than dropping what it cannot reserialize.
-    if has_unsupported_inline_value(manifest.document.text(), &[BLOCK]) {
+    if has_unsupported_inline_value(manifest.document.text(), path) {
         return false;
     }
-    manifest.document.set_text(remove_mapping_entries(
-        manifest.document.text(),
-        &[BLOCK],
-        &present,
-    ));
+    manifest.document.set_text(remove_mapping_entries(manifest.document.text(), path, &present));
     true
-}
-
-/// Every key under the top-level `overrides:` block as written in `text`,
-/// including non-string values that the decoded [`Manifest`] drops. Returns an
-/// empty list when the block is absent or the text does not parse.
-fn override_keys_in_text(text: &str) -> Vec<String> {
-    #[derive(serde::Deserialize)]
-    struct OnlyOverrides {
-        #[serde(default)]
-        overrides: Option<IndexMap<String, serde::de::IgnoredAny>>,
-    }
-    serde_saphyr::from_str::<OnlyOverrides>(text)
-        .ok()
-        .and_then(|parsed| parsed.overrides)
-        .map(IndexMap::into_keys)
-        .map(std::iter::Iterator::collect)
-        .unwrap_or_default()
 }
 
 /// Preserve a trailing blank line before the next block, since the

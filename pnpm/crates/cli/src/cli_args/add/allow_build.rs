@@ -90,6 +90,9 @@ pub(crate) fn apply_allow_build(
             .map(|&AllowBuildSelector { name, allowed }| (name, allowed)),
     )?;
     for AllowBuildSelector { name, allowed } in selectors {
+        if matches!(store, ApprovalStore::Workspace(_)) {
+            config.workspace_permission_selectors.insert(name.to_string());
+        }
         config.allow_builds.insert(name.to_string(), allowed);
     }
     Ok(())

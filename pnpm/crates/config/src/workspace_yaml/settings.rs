@@ -392,7 +392,9 @@ pub struct WorkspaceSettings {
     /// Map of `name[@version]` → [`PackagePermissions`]: what each package
     /// may do. Its `build` capability outranks the package's
     /// [`allow_builds`](Self::allow_builds) entry.
-    pub permissions: Option<IndexMap<String, PackagePermissions>>,
+    #[serde(default, deserialize_with = "super::deserialize_permissions")]
+    pub permissions:
+        Option<pnpm_workspace::map_settings::Rules<IndexMap<String, PackagePermissions>>>,
 
     /// `skills` from `pnpm-workspace.yaml`. See [`SkillsSettings`].
     pub skills: Option<SkillsSettings>,
@@ -404,7 +406,8 @@ pub struct WorkspaceSettings {
     /// refuses them.
     pub packages: Option<Vec<String>>,
     /// See [`Self::packages`].
-    pub catalog: Option<IndexMap<String, String>>,
+    #[serde(default, deserialize_with = "pnpm_workspace::map_settings::specifiers::catalog")]
+    pub catalog: Option<pnpm_workspace::map_settings::DefaultCatalog<IndexMap<String, String>>>,
     /// See [`Self::packages`].
     pub catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
     /// See [`Self::packages`].
@@ -593,7 +596,8 @@ pub struct WorkspaceSettings {
     ///
     /// pnpm 10+ moved `overrides` out of `package.json#pnpm` into
     /// `pnpm-workspace.yaml`. Pacquet matches that.
-    pub overrides: Option<IndexMap<String, String>>,
+    #[serde(default, deserialize_with = "pnpm_workspace::map_settings::specifiers::overrides")]
+    pub overrides: Option<pnpm_workspace::map_settings::Rules<IndexMap<String, String>>>,
 
     /// `cacheDir` from `pnpm-workspace.yaml`. Resolved against the
     /// workspace dir like the other path-valued fields. Drives

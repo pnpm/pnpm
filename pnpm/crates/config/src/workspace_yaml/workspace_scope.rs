@@ -208,6 +208,7 @@ impl WorkspaceSettings {
     /// (returned separately so merging it preserves global mirrors for other
     /// channels). Matches `inheritDlxConfig` in `@pnpm/config.reader`.
     pub(crate) fn into_dlx_local_settings(mut self) -> (Self, Option<String>) {
+        self.flatten_package_maps();
         let release_mirror = self.node_download_mirrors
             .as_mut()
             .and_then(|mirrors| mirrors.remove("release"));

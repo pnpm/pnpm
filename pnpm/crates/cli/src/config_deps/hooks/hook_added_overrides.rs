@@ -8,12 +8,15 @@ use std::collections::HashSet;
 /// Selectors are compared and recorded trimmed, the form the overrides
 /// parser gives them.
 pub(super) fn record_hook_added_overrides(config: &mut Config, input: &Value, delta: &Value) {
-    let Some(overrides) = delta.get("overrides").and_then(Value::as_object) else {
+    let Some(overrides) = delta
+        .get("overrides")
+        .and_then(|value| pnpm_workspace::map_settings::package_map(value, "rules"))
+    else {
         return;
     };
     let declared: HashSet<&str> = input
         .get("overrides")
-        .and_then(Value::as_object)
+        .and_then(|value| pnpm_workspace::map_settings::package_map(value, "rules"))
         .into_iter()
         .flat_map(serde_json::Map::keys)
         .map(|selector| selector.trim())

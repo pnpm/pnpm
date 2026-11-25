@@ -250,7 +250,7 @@ fn a_chosen_skill_name_with_flow_indicators_reads_back_as_one_name() {
     let out = run(None, &[("drizzle-kit", chosen(&[name]))]).expect("manifest written");
     let parsed: pnpm_config::WorkspaceSettings = serde_saphyr::from_str(&out).expect("valid YAML");
     assert_eq!(
-        parsed.permissions.expect("permissions")["drizzle-kit"].skills,
+        parsed.permissions.expect("permissions").rules()["drizzle-kit"].skills,
         Some(SkillsPermission::Chosen(vec![name.to_string()])),
         "{out}",
     );
@@ -300,4 +300,19 @@ fn a_flow_style_package_entry_refuses_the_write() {
     let err = crate::set_permissions(dir.path(), [("sharp", build(false))]).unwrap_err();
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
     assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
+}
+
+#[test]
+fn records_build_and_skill_permissions_inside_rules() {
+    let original = "permissions:\n  rules: {}\n  unused: ignore\n";
+    let updated =
+        run(Some(original), &[("example", build(true)), ("example", all(false))]).unwrap();
+    let parsed: serde_json::Value = serde_saphyr::from_str(&updated).unwrap();
+    assert_eq!(
+        parsed["permissions"],
+        serde_json::json!({
+            "rules": {"example": {"build": true, "skills": false}}, "unused": "ignore"
+        }),
+        "{updated}",
+    );
 }

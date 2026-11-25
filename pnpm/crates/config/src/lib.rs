@@ -165,6 +165,7 @@ pub use workspace_yaml::{
     YamlConfigTarget,
     decided_allow_builds,
     decided_permissions,
+    deserialize_permissions,
     package_configs::{
         self,
         PackageConfigsSetting,
@@ -381,6 +382,7 @@ fn collect_explicit_settings(
     settings: &WorkspaceSettings,
 ) {
     insert_set_fields(target, settings);
+    settings.mirror_map_policies(target);
     let virtual_store_type = settings.virtual_store_type.or_else(|| {
         settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global)
     });

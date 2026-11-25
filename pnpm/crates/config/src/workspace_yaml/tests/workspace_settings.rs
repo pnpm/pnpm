@@ -56,7 +56,8 @@ ignoredBuiltDependencies: [core-js]
     assert_eq!(
         settings.catalog
             .as_ref()
-            .and_then(|c| c.get("react"))
+            .map(pnpm_workspace::map_settings::DefaultCatalog::entries)
+            .and_then(|entries| entries.get("react"))
             .map(String::as_str),
         Some("^19.0.0"),
     );
@@ -1128,5 +1129,84 @@ tools:
                 "channels": null
             }
         })),
+    );
+}
+
+#[test]
+fn nested_package_maps_override_flat_policy_settings() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        "permissions: {rules: {example: {skills: false}}, unused: ignore}\nwarnUnusedOverrides: false\noverrides: {rules: {example: '1'}, unused: warn}\ncatalogPrune: true\ncatalog: {entries: {example: '2'}, unused: ignore}\n",
+    ).unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("."));
+    assert!(!config.warn_unused_permissions);
+    assert!(config.warn_unused_overrides);
+    assert!(!config.catalog_prune);
+    assert!(config.allow_skills.contains_key("example"));
+    assert_eq!(config.overrides.unwrap()["example"], "1");
+}
+
+#[test]
+fn reads_numeric_catalog_and_override_specifiers_in_both_forms() {
+    for yaml in [
+        "catalog: {example: 1.0}\noverrides: {example: 2}\n",
+        "catalog: {entries: {example: 1.0}}\noverrides: {rules: {example: 2}}\n",
+    ] {
+        let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        assert_eq!(settings.catalog.unwrap().into_entries()["example"], "1.0");
+        assert_eq!(settings.overrides.unwrap().into_rules()["example"], "2");
+    }
+}
+
+#[test]
+fn config_get_reports_the_effective_unused_policy_for_each_spelling() {
+    let nested = "catalogPrune: false\ncatalog: {entries: {}, unused: prune}\npermissions: {rules: {}, unused: ignore}\n";
+    let mut record = serde_json::Map::new();
+    let settings = serde_saphyr::from_str(nested).unwrap();
+    crate::collect_explicit_settings(&mut record, &settings);
+    assert_eq!(record["catalogPrune"], true);
+    assert!(record.get("warnUnusedPermissions").is_none());
+    let higher =
+        serde_saphyr::from_str("catalogPrune: false\npermissions: {rules: {}, unused: warn}")
+            .unwrap();
+    crate::collect_explicit_settings(&mut record, &higher);
+    assert_eq!(record["catalog"]["unused"], "ignore");
+    assert_eq!(record["permissions"]["unused"], "warn");
+}
+
+#[test]
+fn flat_permission_warning_option_is_unknown() {
+    let yaml = "warnUnusedPermissions: false";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("."));
+    assert!(config.warn_unused_permissions);
+    assert!(!crate::known_settings::is_known_setting_key("warnUnusedPermissions"));
+}
+
+#[test]
+fn catalog_mode_and_save_target_follow_the_nested_spelling() {
+    let yaml = "catalogMode: manual\nsaveCatalogName: legacy\ncatalog: {mode: strict, defaultSaveTarget: tools, entries: {mode: '1', defaultSaveTarget: '2'}}";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut record = serde_json::Map::new();
+    crate::collect_explicit_settings(&mut record, &settings);
+    assert_eq!(record["catalogMode"], "strict");
+    assert_eq!(record["saveCatalogName"], "tools");
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("."));
+    assert_eq!(config.catalog_mode, CatalogMode::Strict);
+    assert_eq!(config.save_catalog_name.as_deref(), Some("tools"));
+
+    let higher = serde_saphyr::from_str("catalogMode: prefer\nsaveCatalogName: shared").unwrap();
+    crate::collect_explicit_settings(&mut record, &higher);
+    assert_eq!(record["catalog"]["mode"], "prefer");
+    assert_eq!(record["catalog"]["defaultSaveTarget"], "shared");
+
+    let flat: WorkspaceSettings =
+        serde_saphyr::from_str("catalog: {mode: '1', defaultSaveTarget: '2'}").unwrap();
+    assert_eq!(flat.catalog.unwrap().entries()["mode"], "1");
+    assert!(
+        serde_saphyr::from_str::<WorkspaceSettings>("catalog: {entries: {}, mode: unknown}")
+            .is_err(),
     );
 }

@@ -94,7 +94,10 @@ where
 
     let entries: Vec<(&str, &str)> = entries.into_iter().collect();
     if !entries.is_empty()
-        && let Some(key) = unsupported_inline_key(manifest.document.text(), &[&["overrides"]])
+        && let Some(key) = unsupported_inline_key(
+            manifest.document.text(),
+            &[&["overrides"], manifest.document.sections.overrides()],
+        )
     {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }

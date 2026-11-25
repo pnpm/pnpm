@@ -240,3 +240,23 @@ fn the_workspace_does_not_declare_the_overrides_of_a_config_dependency() {
     );
     assert!(!config.declares_override("foo"));
 }
+
+#[test]
+fn only_workspace_owned_permissions_are_candidates_for_unused_warnings() {
+    let config = load_with_policy(
+        "configDependencies:\n  policy: 1.0.0\ninclude:\n  policy: [permissions]\n",
+        "permissions:\n  example-shared:\n    skills: true\n",
+        &[],
+    );
+    assert!(config.allow_skills.contains_key("example-shared"));
+    assert!(config.workspace_permission_selectors.is_empty());
+    let config = load(&[
+        ("pnpm-workspace.yaml", "include:\n  ./local.yaml: [allowBuilds]\n"),
+        ("local.yaml", "allowBuilds:\n  example-local: false\n"),
+    ])
+    .expect("local file loads");
+    assert_eq!(
+        config.workspace_permission_selectors.into_iter().collect::<Vec<_>>(),
+        ["example-local"],
+    );
+}

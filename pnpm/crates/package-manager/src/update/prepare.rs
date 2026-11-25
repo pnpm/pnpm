@@ -292,6 +292,7 @@ fn bare_override_entry(
     }
     let written = config.explicit_settings
         .get("overrides")
+        .and_then(|value| pnpm_workspace::map_settings::package_map(value, "rules"))
         .and_then(|overrides| overrides.get(&governing.selector))
         .and_then(serde_json::Value::as_str)
         .map(str::to_string);

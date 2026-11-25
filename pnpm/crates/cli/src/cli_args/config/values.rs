@@ -179,6 +179,7 @@ fn merge_default_catalog(result: &mut Map<String, Value>) {
     };
     let default = result
         .get("catalog")
+        .map(|catalog| pnpm_workspace::map_settings::package_map_value(catalog, "entries"))
         .or_else(|| named.get("default"))
         .cloned();
     let mut merged = Map::new();

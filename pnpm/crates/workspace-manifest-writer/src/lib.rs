@@ -288,7 +288,8 @@ fn unsupported_edit_target(
             .keys()
             .map(|name| vec!["catalogs", name.as_str()])
             .collect();
-        let mut paths: Vec<&[&str]> = vec![&["catalog"], &["catalogs"]];
+        let mut paths: Vec<&[&str]> =
+            vec![&["catalog"], manifest.document.sections.catalog(), &["catalogs"]];
         paths.extend(named.iter().map(Vec::as_slice));
         if let Some(key) = unsupported_inline_key(manifest.document.text(), &paths) {
             return Some(key);

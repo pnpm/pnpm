@@ -58,7 +58,7 @@ pub struct WorkspaceManifest {
     /// Top-level shorthand for the default catalog. Mutually exclusive
     /// with `catalogs.default`, `pnpm_catalogs_config` enforces
     /// that.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::map_settings::catalog_entries")]
     pub catalog: Option<Catalog>,
 
     /// Named catalogs. Includes a `default` key when the user opted for

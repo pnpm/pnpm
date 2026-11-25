@@ -5,6 +5,11 @@
 //! and restored when the document is written.
 
 use indexmap::IndexMap;
+use pnpm_workspace::map_settings::{
+    DefaultCatalog,
+    MapSetting,
+    Rules,
+};
 use serde::Deserialize;
 use serde_saphyr::granit_parser::{
     Scanner,
@@ -43,7 +48,52 @@ pub(crate) struct Manifest {
 }
 
 #[derive(Default)]
+pub(crate) struct MapSections {
+    catalog: bool,
+    overrides: bool,
+    permissions: bool,
+    global_permissions: bool,
+}
+
+impl MapSections {
+    fn from_data(data: &CatalogData) -> Self {
+        Self {
+            catalog: matches!(data.catalog, Some(MapSetting::Section(_))),
+            overrides: matches!(data.overrides, Some(MapSetting::Section(_))),
+            permissions: matches!(data.permissions, Some(MapSetting::Section(_))),
+            global_permissions: matches!(
+                data.global_packages_config
+                    .as_ref()
+                    .and_then(|settings| settings.permissions.as_ref()),
+                Some(MapSetting::Section(_)),
+            ),
+        }
+    }
+
+    pub(crate) fn catalog(&self) -> &'static [&'static str] {
+        if self.catalog { &["catalog", "entries"] } else { &["catalog"] }
+    }
+
+    pub(crate) fn overrides(&self) -> &'static [&'static str] {
+        if self.overrides { &["overrides", "rules"] } else { &["overrides"] }
+    }
+
+    pub(crate) fn global_permissions(&self) -> &'static [&'static str] {
+        if self.global_permissions {
+            &["globalPackagesConfig", "permissions", "rules"]
+        } else {
+            &["globalPackagesConfig", "permissions"]
+        }
+    }
+
+    pub(crate) fn permissions(&self) -> &'static [&'static str] {
+        if self.permissions { &["permissions", "rules"] } else { &["permissions"] }
+    }
+}
+
+#[derive(Default)]
 pub(crate) struct ManifestDocument {
+    pub(crate) sections: MapSections,
     text: String,
     aliases: pnpm_yaml_document_sync::ScalarAliases,
     pub(crate) keys: Vec<String>,
@@ -89,8 +139,12 @@ pub(crate) struct SecurityExceptions {
     )
 )]
 struct CatalogData {
-    #[serde(default)]
-    catalog: Option<IndexMap<String, String>>,
+    #[serde(default, deserialize_with = "pnpm_workspace::map_settings::specifiers::catalog")]
+    catalog: Option<DefaultCatalog<IndexMap<String, String>>>,
+    #[serde(default, deserialize_with = "pnpm_config::deserialize_permissions")]
+    permissions: Option<Rules<IndexMap<String, pnpm_config::PackagePermissions>>>,
+    #[serde(default, rename = "globalPackagesConfig")]
+    global_packages_config: Option<GlobalPackageSettings>,
     #[serde(default)]
     catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
     #[serde(default, rename = "configDependencies")]
@@ -100,7 +154,7 @@ struct CatalogData {
     #[serde(default, rename = "patchedDependencies")]
     patched_dependencies: Option<IndexMap<String, String>>,
     #[serde(default)]
-    overrides: Option<IndexMap<String, OverrideValue>>,
+    overrides: Option<Rules<IndexMap<String, OverrideValue>>>,
     #[serde(default, rename = "auditConfig")]
     audit_config: Option<AuditConfigData>,
     #[serde(default)]
@@ -109,6 +163,12 @@ struct CatalogData {
     minimum_release_age_exclude: Option<Vec<String>>,
     #[serde(default, rename = "trustPolicyExclude")]
     trust_policy_exclude: Option<Vec<String>>,
+}
+
+#[derive(Deserialize)]
+struct GlobalPackageSettings {
+    #[serde(default, deserialize_with = "pnpm_config::deserialize_permissions")]
+    permissions: Option<Rules<IndexMap<String, pnpm_config::PackagePermissions>>>,
 }
 
 /// The `auditConfig` slice consulted for no-op detection.
@@ -173,31 +233,23 @@ impl Manifest {
             });
         }
 
-        let top_level_keys = parse_top_level_keys(&text)?;
-        let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
-
         let data: CatalogData = serde_saphyr::from_str::<Option<CatalogData>>(&text)
             .map_err(Box::new)?
             .unwrap_or_default();
-        let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
-        let (expanded, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
-            .map_err(<serde_saphyr::Error as serde::de::Error>::custom)
-            .map_err(Box::new)?;
-
+        let sections = MapSections::from_data(&data);
+        let (overrides, non_scalar_overrides) =
+            split_overrides(data.overrides.map(Rules::into_rules));
         Ok(Manifest {
             config_dependencies: data.config_dependencies.map(clean_config_dependencies),
             allow_builds: data.allow_builds.map(clean_allow_builds),
             patched_dependencies: data.patched_dependencies,
             overrides,
             non_scalar_overrides,
-            document: crate::model::ManifestDocument {
-                text: expanded,
-                aliases,
-                keys: top_level_keys,
-                blank_lines: blank_line_style,
-                original: text,
+            document: ManifestDocument::from_source(text, sections)?,
+            catalogs: crate::model::CatalogEntries {
+                default: data.catalog.map(DefaultCatalog::into_entries),
+                named: data.catalogs,
             },
-            catalogs: crate::model::CatalogEntries { default: data.catalog, named: data.catalogs },
             exceptions: crate::model::SecurityExceptions {
                 legacy_audit_ghsas: data.audit_config.and_then(|config| config.ignore_ghsas),
                 audit: data.audit.and_then(|audit| audit.ignore),
@@ -273,6 +325,24 @@ fn split_overrides(
 }
 
 impl ManifestDocument {
+    fn from_source(text: String, sections: MapSections) -> Result<Self, Box<serde_saphyr::Error>> {
+        let top_level_keys = parse_top_level_keys(&text)?;
+        let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
+
+        let (expanded, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
+            .map_err(<serde_saphyr::Error as serde::de::Error>::custom)
+            .map_err(Box::new)?;
+
+        Ok(Self {
+            sections,
+            text: expanded,
+            aliases,
+            keys: top_level_keys,
+            blank_lines: blank_line_style,
+            original: text,
+        })
+    }
+
     pub(crate) fn text(&self) -> &str {
         &self.text
     }

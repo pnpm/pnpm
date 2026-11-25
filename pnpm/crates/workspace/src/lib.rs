@@ -10,6 +10,8 @@
 //! - `projects`, glob-expand `packages:` into [`Project`]s.
 //!   Public entry point: [`find_workspace_projects`].
 
+pub mod map_settings;
+
 pub use api::{
     EnvVarOs,
     Host,
