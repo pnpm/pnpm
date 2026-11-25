@@ -44,15 +44,15 @@ fn resolve_binary_direction(
     binary_patch: &BinaryPatch<'_>,
     bytes: &[u8],
 ) -> Option<BinaryDirection> {
-    if let Ok(post) = binary_patch.apply(bytes) {
-        if binary_patch.apply_reverse(&post).as_deref() == Ok(bytes) {
-            return Some(BinaryDirection::Forward(post));
-        }
+    if let Ok(post) = binary_patch.apply(bytes)
+        && binary_patch.apply_reverse(&post).as_deref() == Ok(bytes)
+    {
+        return Some(BinaryDirection::Forward(post));
     }
-    if let Ok(pre) = binary_patch.apply_reverse(bytes) {
-        if binary_patch.apply(&pre).as_deref() == Ok(bytes) {
-            return Some(BinaryDirection::AlreadyPatched);
-        }
+    if let Ok(pre) = binary_patch.apply_reverse(bytes)
+        && binary_patch.apply(&pre).as_deref() == Ok(bytes)
+    {
+        return Some(BinaryDirection::AlreadyPatched);
     }
     None
 }

@@ -191,7 +191,7 @@ impl PreviewState<'_> {
                     Err(message) => {
                         return Err(self.failed(format!(
                             "apply to {}: {message}",
-                            target.display()
+                            target.display(),
                         )));
                     }
                 }
