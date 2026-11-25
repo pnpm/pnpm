@@ -173,6 +173,9 @@ impl ReporterState {
         if self.notices.checks.rendered {
             return;
         }
+        if self.summary.seen {
+            self.render_summary();
+        }
         let Some(footer) = self.checks_footer(outcome) else {
             self.notices.checks.rendered = true;
             self.display.frame.clear(&mut self.notices.checks.slot);

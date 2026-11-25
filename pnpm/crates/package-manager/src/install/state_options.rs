@@ -32,6 +32,9 @@ pub(crate) struct ApplyPriorState {
     pub(crate) is_inconsistent: bool,
     /// See [`RecordedWorkspace::moved`].
     pub(crate) tree_moved: bool,
+    /// The project directories the workspace state of the previous install
+    /// recorded, if it left one.
+    pub(crate) recorded_projects: Option<HashSet<PathBuf>>,
     pub(crate) prune_direct_dependencies: bool,
 }
 

@@ -17,6 +17,7 @@ use purge::{
 
 use super::{
     Config,
+    HashSet,
     Host,
     InstallError,
     Lockfile,
@@ -54,6 +55,10 @@ pub(super) struct PreparedModulesState<'install> {
     pub(super) lockfile_verification_override:
         Option<super::LockfileVerificationOverride<'install>>,
     pub(super) tree_moved: bool,
+    /// See [`ApplyPriorState::recorded_projects`].
+    ///
+    /// [`ApplyPriorState::recorded_projects`]: crate::install::state_options::ApplyPriorState::recorded_projects
+    pub(super) recorded_projects: Option<HashSet<PathBuf>>,
 }
 
 pub(super) fn prior_hoisted_dependencies(
@@ -113,7 +118,15 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         is_inconsistent,
         lockfile_verification_override: inputs.verification.override_check,
         tree_moved: recorded.moved,
+        recorded_projects: recorded_state.map(recorded_project_dirs),
     }))
+}
+
+fn recorded_project_dirs(state: WorkspaceState) -> HashSet<PathBuf> {
+    state.projects
+        .into_keys()
+        .map(PathBuf::from)
+        .collect()
 }
 
 /// The workspace state, read once for the recorded `supportedArchitectures`

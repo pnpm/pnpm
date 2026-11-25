@@ -98,6 +98,14 @@ impl ReporterState {
     }
 
     pub(super) fn try_render_summary(&mut self) {
+        if !self.awaits_updated_manifest() {
+            self.render_summary();
+        }
+    }
+
+    /// Render the summary, if not yet rendered, whatever manifests are still
+    /// to arrive.
+    pub(super) fn render_summary(&mut self) {
         if self.summary.rendered {
             return;
         }

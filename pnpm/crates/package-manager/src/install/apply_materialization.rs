@@ -46,7 +46,10 @@ use crate::install_state::{
 };
 use std::{
     collections::HashSet,
-    path::PathBuf,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
@@ -378,19 +381,22 @@ fn install_summary(
     }
 }
 
-/// See [`SummaryLog::new_projects`]. A project had no
-/// previous install when the current lockfile has no importer for it. A
-/// previous install that had nothing to install writes `.modules.yaml`
-/// and no current lockfile, so it leaves no project new.
+/// See [`SummaryLog::new_projects`]. A project had no previous install
+/// when the current lockfile has no importer for it. A previous install
+/// that had nothing to install writes no current lockfile, so without one
+/// the projects its workspace state recorded are not new.
 fn new_projects(
     inputs: &ApplyMaterializationInputs<'_, '_>,
     installed_importer_ids: &HashSet<String>,
 ) -> Option<Vec<String>> {
     let importers = &inputs.projects.importers;
-    if inputs.prior.lockfile.is_none() && inputs.prior.metadata.is_some() {
-        return Some(Vec::new());
-    }
-    let previous_importers = inputs.prior.lockfile.as_ref().map(|lockfile| &lockfile.importers);
+    let had_previous_install =
+        |project_dir: &Path, importer_id: &str| match &inputs.prior.lockfile {
+            Some(previous) => previous.importers.contains_key(importer_id),
+            None => inputs.prior.recorded_projects
+                .as_ref()
+                .is_some_and(|recorded| recorded.contains(project_dir)),
+        };
     let new_projects = importers.manifests
         .iter()
         .filter(|(project_dir, _)| {
@@ -399,7 +405,7 @@ fn new_projects(
                 project_dir,
             );
             installed_importer_ids.contains(&importer_id)
-                && previous_importers.is_none_or(|previous| !previous.contains_key(&importer_id))
+                && !had_previous_install(project_dir, &importer_id)
         })
         .map(|(project_dir, _)| project_dir.to_string_lossy().into_owned())
         .collect();

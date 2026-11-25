@@ -188,6 +188,25 @@ impl ReporterState {
             )
     }
 
+    /// A command that edits manifests reports a project's manifest after
+    /// the summary. Until a new project's arrives, the summary cannot tell
+    /// which of its dependencies the command requested.
+    pub(super) fn awaits_updated_manifest(&self) -> bool {
+        let Some(workspace) = &self.summary.workspace else {
+            return false;
+        };
+        self.options.scope.edits_manifests
+            && workspace.new_projects
+                .iter()
+                .any(|prefix| {
+                    self.summary.manifest_diffs
+                        .get(prefix)
+                        .is_some_and(|edit| {
+                            edit.initial.is_some() && edit.updated.is_none()
+                        })
+                })
+    }
+
     pub(super) fn new_project_requests<'a>(
         &self,
         workspace: &'a WorkspaceSummary,
