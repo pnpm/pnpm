@@ -48,6 +48,12 @@ use pnpm_workspace_state::{
 };
 use std::path::Path;
 
+pub(crate) fn global_virtual_store_layout_version(config: &Config) -> Option<u8> {
+    config.enable_global_virtual_store.then_some(
+        pnpm_deps_restorer::GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION,
+    )
+}
+
 /// Whether the `supportedArchitectures` recorded by the last install
 /// matches `live` (today's CLI-merged value). Read from the workspace
 /// state for the frozen path's lockfile-up-to-date early return, whose

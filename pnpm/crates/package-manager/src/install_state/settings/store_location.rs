@@ -26,9 +26,7 @@ pub(super) fn store_location_settings(
         store_dir: configured("storeDir").map(|_| recorded(config.store_dir.root())),
         global_virtual_store_dir: configured("globalVirtualStoreDir")
             .map(|_| recorded(&config.global_virtual_store_dir)),
-        global_virtual_store_layout_version: config.enable_global_virtual_store.then_some(
-            pnpm_deps_restorer::GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION,
-        ),
+        global_virtual_store_layout_version: super::global_virtual_store_layout_version(config),
         virtual_store_dir_max_length: Some(config.virtual_store_dir_max_length),
         // Anchored like a configured `virtualStoreDir` without a global
         // virtual store: under one, `Config::virtual_store_dir` names the
