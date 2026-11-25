@@ -322,9 +322,10 @@ fn extracts_a_file_sized_by_a_pax_header() {
 /// distinct keys cannot stall an install.
 #[test]
 fn reads_a_pax_header_with_many_distinct_keys_quickly() {
-    let body: String = (0..100_000)
+    let body: String = (0..80_000)
         .map(|index| pax_record(&format!("k{index}"), "0"))
         .collect();
+    assert!(body.len() < 1024 * 1024);
     let tar = [
         file("package.json", MANIFEST),
         header("PaxHeader/x", body.len() as u64, b'x'),
@@ -340,4 +341,12 @@ fn reads_a_pax_header_with_many_distinct_keys_quickly() {
         extract_tarball_entries(&tar, crate::TarLimits::default(), store_dir, None).unwrap();
     assert_eq!(std::fs::read(&files["index.js"]).unwrap(), b"abc");
     assert!(started.elapsed() < std::time::Duration::from_secs(5), "{:?}", started.elapsed());
+}
+
+/// node-tar skips a metadata entry over 1 MiB without applying it.
+#[test]
+fn refuses_a_pax_header_node_tar_would_skip() {
+    let path = format!("package/{}.js", "a".repeat(1024 * 1024));
+    let tar = [base(), pax(b'x', &[("path", &path)]), hidden(), END.to_vec()].concat();
+    assert_refused(&tar, "exceeds the 1048576-byte limit");
 }

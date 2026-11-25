@@ -24,6 +24,10 @@ use crate::{
     },
 };
 
+/// node-tar's default `maxMetaEntrySize`. node-tar skips a larger GNU
+/// long-name, GNU long-link, or PAX entry without applying it.
+pub(crate) const NODE_TAR_MAX_META_ENTRY_SIZE: u64 = 1024 * 1024;
+
 /// `Number.MAX_SAFE_INTEGER`, the largest size node-tar reads exactly.
 const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
 

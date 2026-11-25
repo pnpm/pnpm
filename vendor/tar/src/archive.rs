@@ -203,7 +203,10 @@ impl<R: Read> Archive<R> {
 
     /// Reads two header shapes the way node-tar does instead of refusing
     /// them: a directory entry has no data whatever its size, and the last
-    /// of two PAX records with one key wins. Off by default.
+    /// of two PAX records with one key wins. Also refuses a GNU long-name,
+    /// GNU long-link, or PAX entry over 1 MiB, node-tar's default
+    /// `maxMetaEntrySize`, which node-tar skips without applying. Off by
+    /// default.
     pub fn set_read_like_node_tar(&mut self, read_like_node_tar: bool) {
         self.inner.read_like_node_tar = read_like_node_tar;
     }
@@ -385,7 +388,7 @@ impl<'a> EntriesFields<'a> {
             agreement::check_entry_size(&header, size)?;
         }
         if is_extension_header {
-            if let Some(limit) = self.archive.inner.max_metadata_size {
+            if let Some(limit) = self.metadata_size_limit() {
                 if size > limit {
                     return Err(other(&format!(
                         "tar metadata entry of {} bytes exceeds the {}-byte limit",
@@ -434,6 +437,15 @@ impl<'a> EntriesFields<'a> {
             return Err(other("archive has data after a single zero block"));
         }
         Ok(None)
+    }
+
+    fn metadata_size_limit(&self) -> Option<u64> {
+        let limit = self.archive.inner.max_metadata_size;
+        if !self.archive.inner.read_like_node_tar {
+            return limit;
+        }
+        let node_tar_limit = agreement::NODE_TAR_MAX_META_ENTRY_SIZE;
+        Some(limit.map_or(node_tar_limit, |limit| limit.min(node_tar_limit)))
     }
 
     fn keep_last_pax_records(&self, records: Vec<u8>) -> io::Result<Vec<u8>> {
