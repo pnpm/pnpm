@@ -126,6 +126,17 @@ fn range_operator_on_parent_does_not_split() {
 }
 
 #[test]
+fn rejects_a_second_parent_delimiter_before_resolving_the_value() {
+    for value in ["-", "catalog:"] {
+        let input = HashMap::from([("outer>middle@^2>leaf".to_string(), value.to_string())]);
+        assert_eq!(
+            parse_overrides(&input, &Catalogs::new()).unwrap_err(),
+            ParseOverridesError::InvalidSelector { selector: "middle@^2>leaf".to_string() },
+        );
+    }
+}
+
+#[test]
 fn rejects_invalid_selector() {
     let input = HashMap::from([("%".to_string(), "2".to_string())]);
     assert_eq!(
