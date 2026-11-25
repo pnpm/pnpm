@@ -378,17 +378,21 @@ fn install_summary(
     }
 }
 
-/// See [`SummaryLog::new_projects`]. A project had no
-/// previous install when the current lockfile has no importer for it.
+/// See [`SummaryLog::new_projects`]. A project had no previous install
+/// when the current lockfile has no importer for it. A previous install
+/// that had nothing to install writes no current lockfile, so without one
+/// the projects its workspace state proved installed are not new.
 fn new_projects(
     inputs: &ApplyMaterializationInputs<'_, '_>,
     installed_importer_ids: &HashSet<String>,
 ) -> Option<Vec<String>> {
     let importers = &inputs.projects.importers;
-    if importers.real_ids.len() < 2 {
-        return None;
-    }
-    let previous_importers = inputs.prior.lockfile.as_ref().map(|lockfile| &lockfile.importers);
+    let had_previous_install = |importer_id: &str| match &inputs.prior.lockfile {
+        Some(previous) => previous.importers.contains_key(importer_id),
+        None => inputs.prior.proven_importer_ids
+            .as_ref()
+            .is_some_and(|proven| proven.contains(importer_id)),
+    };
     let new_projects = importers.manifests
         .iter()
         .filter(|(project_dir, _)| {
@@ -396,8 +400,7 @@ fn new_projects(
                 &inputs.projects.workspace_root,
                 project_dir,
             );
-            installed_importer_ids.contains(&importer_id)
-                && previous_importers.is_none_or(|previous| !previous.contains_key(&importer_id))
+            installed_importer_ids.contains(&importer_id) && !had_previous_install(&importer_id)
         })
         .map(|(project_dir, _)| project_dir.to_string_lossy().into_owned())
         .collect();

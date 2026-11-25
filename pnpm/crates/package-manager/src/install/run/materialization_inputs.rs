@@ -163,6 +163,7 @@ impl super::RunExecution<'_> {
             metadata: modules.previous_modules_metadata,
             is_inconsistent: modules.is_inconsistent,
             tree_moved: modules.tree_moved,
+            proven_importer_ids: modules.proven_importer_ids,
             prune_direct_dependencies: self.prune_direct_dependencies(),
         }
     }

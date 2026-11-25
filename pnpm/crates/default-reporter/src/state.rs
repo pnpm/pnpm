@@ -275,7 +275,7 @@ struct SummaryState {
     other_projects: HashMap<String, DiffBuckets>,
     /// Keyed by normalized prefix.
     manifest_diffs: HashMap<String, ManifestDiff>,
-    /// Set by a `pnpm:summary` that covers a workspace of several projects.
+    /// Set by a `pnpm:summary` that lists the new projects.
     workspace: Option<WorkspaceSummary>,
     slot: BlockSlot,
     seen: bool,

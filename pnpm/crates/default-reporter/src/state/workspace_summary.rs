@@ -1,6 +1,7 @@
-//! The packages-diff summary of an install that covers a workspace of
-//! several projects. Each line is one change, merged across the projects
-//! that made it and attributed to them unless only the current project did.
+//! The packages-diff summary of an install that lists its new projects.
+//! Each line is one change, merged across the projects that made it and
+//! attributed to them unless only the current project did. A new project
+//! shows only the dependencies the command requested.
 
 use super::{
     BTreeMap,
@@ -185,6 +186,25 @@ impl ReporterState {
                     .iter()
                     .map(|(prefix, buckets)| (prefix.as_str(), buckets)),
             )
+    }
+
+    /// A command that edits manifests reports a project's manifest after
+    /// the summary. Until a new project's arrives, the summary cannot tell
+    /// which of its dependencies the command requested.
+    pub(super) fn awaits_updated_manifest(&self) -> bool {
+        let Some(workspace) = &self.summary.workspace else {
+            return false;
+        };
+        self.options.scope.edits_manifests
+            && workspace.new_projects
+                .iter()
+                .any(|prefix| {
+                    self.summary.manifest_diffs
+                        .get(prefix)
+                        .is_some_and(|edit| {
+                            edit.initial.is_some() && edit.updated.is_none()
+                        })
+                })
     }
 
     pub(super) fn new_project_requests<'a>(

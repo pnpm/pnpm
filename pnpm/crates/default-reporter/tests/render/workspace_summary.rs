@@ -155,7 +155,7 @@ fn first_workspace_install_lists_only_what_carries_information() {
             workspace_summary(&[CWD, "/repo/packages/a", "/repo/packages/b"]),
             package_manifest_updated_at(
                 "/repo/packages/a",
-                json!({ "dependencies": { "wanted": "^3.0.0" } }),
+                json!({ "dependencies": { "plain": "^1.0.0", "old": "^1.0.0", "wanted": "^3.0.0" } }),
             ),
         ],
     );
@@ -245,6 +245,48 @@ fn new_project_dependency_moved_out_of_its_declared_range_is_listed() {
         ],
     );
     assert_eq!(frame, "\ndependencies:\n+ baz 1.0.0  in packages/b\n+ foo 2.0.0  in packages/a\n");
+}
+
+/// A dependency requested again within its declared range is told apart
+/// only by the manifest after the edit, which arrives after the summary.
+#[test]
+fn new_project_dependency_requested_within_its_declared_range_is_listed() {
+    let mut reporter = editing_state();
+    let frame = render(
+        &mut reporter,
+        vec![
+            package_manifest_initial_at(CWD, json!({ "dependencies": { "foo": "^1.0.0" } })),
+            added_root_at(CWD, "foo", "1.2.0", DependencyType::Prod),
+            added_root_at(CWD, "bar", "1.0.0", DependencyType::Prod),
+            workspace_summary(&[CWD]),
+            package_manifest_updated_at(
+                CWD,
+                json!({ "dependencies": { "foo": "1.2.0", "bar": "^1.0.0" } }),
+            ),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ bar 1.0.0\n+ foo 1.2.0\n");
+}
+
+/// A command that ends without saving the manifest still prints the
+/// summary, before the checks footer.
+#[test]
+fn summary_waiting_for_a_manifest_renders_when_the_command_ends() {
+    let mut reporter = editing_state();
+    let frame = render(
+        &mut reporter,
+        vec![
+            package_manifest_initial_at(CWD, json!({ "dependencies": { "foo": "^1.0.0" } })),
+            added_root_at(CWD, "foo", "1.2.0", DependencyType::Prod),
+            added_root_at(CWD, "bar", "1.0.0", DependencyType::Prod),
+            workspace_summary(&[CWD]),
+        ],
+    );
+    assert_eq!(frame, "");
+    let Output::Frame(frame) = flush_checks(&mut reporter) else {
+        panic!("the summary should render when the command ends");
+    };
+    assert_eq!(frame, "\ndependencies:\n+ bar 1.0.0\n");
 }
 
 #[test]

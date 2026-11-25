@@ -145,3 +145,45 @@ fn workspace_update_is_one_line_per_change() {
 
     drop(fixture);
 }
+
+/// An install with nothing to install leaves no current lockfile, so the
+/// workspace state tells which projects it installed.
+#[test]
+fn install_after_one_with_nothing_to_install_keeps_new_projects_apart() {
+    let fixture = workspace_of(&["a"]);
+    let workspace = &fixture.workspace;
+    assert_eq!(install_summary(workspace), "");
+
+    let foo = serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" });
+    write_project(&workspace.join("packages/a"), "a", &foo);
+    write_project(
+        &workspace.join("packages/new"),
+        "new",
+        &serde_json::json!({ "@pnpm.e2e/bar": "100.1.0" }),
+    );
+
+    assert_eq!(install_summary(workspace), "dependencies:\n+ @pnpm.e2e/foo 100.1.0");
+
+    drop(fixture);
+}
+
+/// A filtered install proves installed only the projects it selected.
+#[test]
+fn project_left_out_of_an_install_with_nothing_to_install_is_new() {
+    let fixture = workspace_of(&["a", "b"]);
+    let workspace = &fixture.workspace;
+    pacquet_at(workspace)
+        .with_args(["install", "--filter", "a"])
+        .assert()
+        .success();
+
+    write_project(
+        &workspace.join("packages/b"),
+        "b",
+        &serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" }),
+    );
+
+    assert_eq!(install_summary(workspace), "");
+
+    drop(fixture);
+}

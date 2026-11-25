@@ -24,6 +24,16 @@ fn write_manifest(workspace: &Path, range: &str) {
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 }
 
+/// Install a project with no dependencies, so the next install of it
+/// summarizes every dependency it adds.
+fn install_empty_project(command: Command, workspace: &Path) {
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    command
+        .with_arg("install")
+        .assert()
+        .success();
+}
+
 /// The summary line that adds [`FOO`], and the footer line naming newer
 /// versions, if any.
 fn added_line_and_note(command: Command, args: &[&str]) -> (String, Option<String>) {
@@ -55,10 +65,11 @@ fn install_names_a_newer_latest_of_a_direct_dependency() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_empty_project(pacquet, &workspace);
     write_manifest(&workspace, "100.0.0");
 
     assert_eq!(
-        added_line_and_note(pacquet, &["install"]),
+        added_line_and_note(pacquet_at(&workspace), &["install"]),
         (
             format!("+ {FOO} 100.0.0"),
             Some(format!(r#"· 1 dependency has a newer version: {FOO} (see "pnpm outdated")"#)),
@@ -78,9 +89,13 @@ fn install_of_the_latest_version_names_no_newer_version() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_empty_project(pacquet, &workspace);
     write_manifest(&workspace, "^100.0.0");
 
-    assert_eq!(added_line_and_note(pacquet, &["install"]), (format!("+ {FOO} 100.1.0"), None));
+    assert_eq!(
+        added_line_and_note(pacquet_at(&workspace), &["install"]),
+        (format!("+ {FOO} 100.1.0"), None),
+    );
 
     drop((root, mock_instance));
 }
@@ -97,12 +112,12 @@ fn frozen_install_names_no_newer_version() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_empty_project(pacquet, &workspace);
     write_manifest(&workspace, "100.0.0");
-    pacquet
-        .with_arg("install")
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
-    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
     assert_eq!(
         added_line_and_note(pacquet_at(&workspace), &["install", "--frozen-lockfile"]),
