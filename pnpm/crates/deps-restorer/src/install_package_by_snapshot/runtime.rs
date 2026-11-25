@@ -1,3 +1,5 @@
+mod cached_manifest;
+
 use super::InstallPackageBySnapshotError;
 use pnpm_graph_hasher::{
     host_arch,
@@ -249,6 +251,13 @@ pub(crate) async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     // carries `name`, `version`, and `bin`, the three fields pacquet's
     // bin linking and `dlx` look at.
     let manifest_bytes = synthesize_runtime_manifest_bytes(package_key, binary)?;
+    if let Some(paths) = crate::block_in_place_if_multi_thread(|| {
+        cached_manifest::upgrade(&download.store, package_key, binary, &manifest_bytes)
+    })
+    .map_err(InstallPackageBySnapshotError::DownloadTarball)?
+    {
+        return Ok(paths);
+    }
     let fetch = BinaryArchiveFetch {
         binary,
         download,
@@ -335,8 +344,12 @@ pub fn binary_store_index_key(
     binary: &BinaryResolution,
 ) -> Result<String, InstallPackageBySnapshotError> {
     let manifest = synthesize_runtime_manifest_bytes(package_key, binary)?;
-    Ok(pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: Some(&manifest) }
-        .store_index_key(&binary.integrity.to_string(), &package_key.pkg_id()))
+    Ok(manifest_index_key(&manifest, &binary.integrity.to_string(), &package_key.pkg_id()))
+}
+
+fn manifest_index_key(manifest: &[u8], integrity: &str, package_id: &str) -> String {
+    pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: Some(manifest) }
+        .store_index_key(integrity, package_id)
 }
 /// Serialize the synthesized runtime `package.json` to bytes.
 pub(super) fn synthesize_runtime_manifest_bytes(

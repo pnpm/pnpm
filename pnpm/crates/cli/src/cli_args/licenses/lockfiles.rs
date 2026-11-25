@@ -184,34 +184,56 @@ fn sorted_licensed_dependencies(
     config: &Config,
 ) -> miette::Result<Vec<LicensedDependency>> {
     let policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
+    let selector =
+        pnpm_deps_restorer::runtime_platform_selector(config.supported_architectures.as_ref());
     let pkgs = lockfile.packages.as_ref();
     let mut dependencies = belongs_to
         .into_iter()
         .map(|(key, belongs_to)| {
-            let name = key.name.to_string();
-            let registry_name = key.suffix.registry_qualified().map(|(alias, _)| alias.to_owned());
-            let version = pkgs
-                .and_then(|packages| packages.get(&key.without_peer()))
-                .and_then(|meta| meta.version.clone())
-                .or_else(|| key.suffix.registry_version().map(ToString::to_string))
-                .unwrap_or_else(|| key.suffix.version().to_string());
-            let store_key = pkgs
-                .and_then(|packages| packages.get(&key.without_peer()))
-                .and_then(|meta| {
-                    pnpm_deps_restorer::store_index_key_for_resolution(
-                        &meta.resolution,
-                        &key.without_peer().pkg_id(),
-                        !config.ignore_scripts
-                            && policy
-                                .check(&key.without_peer().to_string())
-                                .unwrap_or(true),
-                    )
-                });
-            LicensedDependency { key, belongs_to, name, version, registry_name, store_key }
+            let bare_key = key.without_peer();
+            let metadata = pkgs.and_then(|packages| packages.get(&bare_key));
+            let store_key = if let Some(meta) = metadata {
+                let ignore_scripts = config.ignore_scripts
+                    || !policy
+                        .check(&bare_key.to_string())
+                        .unwrap_or(true);
+                pnpm_deps_restorer::resolution_cache_key(
+                    &bare_key,
+                    &meta.resolution,
+                    ignore_scripts,
+                    &selector,
+                )
+                .into_diagnostic()?
+                .value
+            } else {
+                None
+            };
+            Ok(licensed_dependency(key, belongs_to, metadata, store_key))
         })
-        .collect::<Vec<_>>();
+        .collect::<miette::Result<Vec<_>>>()?;
     dependencies.sort_by(compare_licensed_dependencies);
     Ok(dependencies)
+}
+
+fn licensed_dependency(
+    key: PackageKey,
+    belongs_to: BelongsTo,
+    metadata: Option<&pnpm_lockfile::PackageMetadata>,
+    store_key: Option<String>,
+) -> LicensedDependency {
+    let version = metadata
+        .and_then(|meta| meta.version.clone())
+        .or_else(|| key.suffix.registry_version().map(ToString::to_string))
+        .unwrap_or_else(|| key.suffix.version().to_string());
+    let registry_name = key.suffix.registry_qualified().map(|(alias, _)| alias.to_owned());
+    LicensedDependency {
+        name: key.name.to_string(),
+        key,
+        belongs_to,
+        version,
+        registry_name,
+        store_key,
+    }
 }
 
 fn compare_licensed_dependencies(

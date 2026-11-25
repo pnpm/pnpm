@@ -96,11 +96,24 @@ pub(super) fn snapshot_cache_key(
             snapshot_key: snapshot_key.to_string(),
             metadata_key: metadata_key.to_string(),
         })?;
+    resolution_cache_key(
+        &metadata_key,
+        &metadata.resolution,
+        ignore_scripts,
+        runtime_platform_selector,
+    )
+}
+
+/// The store row written by the installer for a package and target platform.
+pub fn resolution_cache_key(
+    metadata_key: &PackageKey,
+    resolution: &LockfileResolution,
+    ignore_scripts: bool,
+    runtime_platform_selector: &PlatformSelector,
+) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     let pkg_id = metadata_key.pkg_id();
-    match &metadata.resolution {
-        LockfileResolution::Tarball(t) => {
-            tarball_cache_key(t, &metadata.resolution, &pkg_id, ignore_scripts)
-        }
+    match resolution {
+        LockfileResolution::Tarball(t) => tarball_cache_key(t, resolution, &pkg_id, ignore_scripts),
         LockfileResolution::Registry(r) => Ok(SnapshotCacheKey {
             value: Some(store_index_key(&r.integrity.to_string(), &pkg_id)),
             is_git_hosted: false,
@@ -129,17 +142,13 @@ pub(super) fn snapshot_cache_key(
             // tracks `!ignore_scripts`; `derive_cache_keys` also applies
             // explicit per-package denials to match the dispatcher.
             Ok(SnapshotCacheKey {
-                value: store_index_key_for_resolution(
-                    &metadata.resolution,
-                    &pkg_id,
-                    !ignore_scripts,
-                ),
+                value: store_index_key_for_resolution(resolution, &pkg_id, !ignore_scripts),
                 is_git_hosted: true,
             })
         }
-        LockfileResolution::Binary(binary) => binary_cache_key(&metadata_key, binary),
+        LockfileResolution::Binary(binary) => binary_cache_key(metadata_key, binary),
         LockfileResolution::Variations(variations) => {
-            variant_cache_key(variations, runtime_platform_selector, &metadata_key)
+            variant_cache_key(variations, runtime_platform_selector, metadata_key)
         }
         // Custom resolutions have no built-in warm-cache key, the
         // cold path consults the pnpmfile custom fetchers, and the
@@ -149,8 +158,8 @@ pub(super) fn snapshot_cache_key(
     }
 }
 #[derive(Clone)]
-pub(super) struct SnapshotCacheKey {
-    pub(super) value: Option<String>,
+pub struct SnapshotCacheKey {
+    pub value: Option<String>,
     pub(super) is_git_hosted: bool,
 }
 /// Two snapshots agree on dependency wiring when both their

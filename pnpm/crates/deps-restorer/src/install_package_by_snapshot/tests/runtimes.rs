@@ -216,6 +216,15 @@ fn synthesize_runtime_manifest_preserves_scoped_name() {
 /// `getBinName` with `dlx_read_manifest`.
 #[tokio::test]
 async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row() {
+    assert_runtime_offline_reinstall(false).await;
+}
+
+#[tokio::test]
+async fn offline_reinstall_upgrades_a_cached_runtime_without_a_license() {
+    assert_runtime_offline_reinstall(true).await;
+}
+
+async fn assert_runtime_offline_reinstall(upgrade: bool) {
     use pnpm_store_dir::{
         SharedVerifiedFilesCache,
         StoreIndex,
@@ -343,7 +352,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         .expect("read the runtime row")
         .expect("the runtime row was persisted");
     assert!(row.files.contains_key("package.json"), "the row records the synthesized package.json");
-    let manifest = row.manifest.expect("the row records a bundled manifest");
+    let manifest = row.manifest.as_ref().expect("the row records a bundled manifest");
     assert_eq!(
         manifest
             .get("bin")
@@ -352,6 +361,21 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         Some("bin/node"),
         "the bundled manifest carries the runtime bin",
     );
+
+    if upgrade {
+        let previous = serde_json::to_vec(&serde_json::json!({
+            "name": "node", "version": "22.0.0", "bin": { "node": "bin/node" },
+        }))
+        .unwrap();
+        let previous_key = ArchiveStoreProjection::Package { append_manifest: Some(&previous) }
+            .store_index_key(&integrity.to_string(), &package_key.pkg_id());
+        let written = config.store_dir.write_cas_file(&previous, false).unwrap();
+        let mut previous_row = row;
+        previous_row.files.insert("package.json".into(), written.index_entry(0o644, None));
+        let mut index = StoreIndex::open_in(&config.store_dir).unwrap();
+        index.set(&previous_key, &previous_row).unwrap();
+        index.delete_many(&[index_key]).unwrap();
+    }
 
     // Warm reinstall, nodeRuntime.ts's `rimraf node_modules` + offline
     // reinstall. Delete the archive so the store is the only possible
@@ -406,6 +430,10 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
     .expect("warm runtime reinstall reads the store, not the network");
+    let installed: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&warm_cas_paths.cas_paths["package.json"]).unwrap())
+            .unwrap();
+    assert_eq!(installed["license"], "MIT");
     assert!(
         warm_cas_paths.cas_paths.contains_key("package.json"),
         "the warm reinstall re-materializes the manifest from the persisted row",

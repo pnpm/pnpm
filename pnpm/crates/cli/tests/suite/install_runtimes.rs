@@ -54,19 +54,6 @@ fn installs_node_deno_and_bun_then_reinstalls_them_offline() {
         .assert()
         .success();
     assert_installed(&workspace, &fixtures);
-    let output = command(&workspace)
-        .with_args(["licenses", "list", "--json"])
-        .assert()
-        .success();
-    let report: Value = serde_json::from_slice(&output.get_output().stdout).unwrap();
-    let packages = report["MIT"].as_array().expect("MIT license group");
-    for fixture in &fixtures {
-        assert!(
-            packages
-                .iter()
-                .any(|package| package["name"] == fixture.name),
-        );
-    }
     let node_root = workspace.join("node_modules/node");
     let node_extras = if host_platform() == "win32" {
         [
@@ -90,6 +77,19 @@ fn installs_node_deno_and_bun_then_reinstalls_them_offline() {
     }
 
     fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    let output = command(&workspace)
+        .with_args(["licenses", "list", "--json"])
+        .assert()
+        .success();
+    let report: Value = serde_json::from_slice(&output.get_output().stdout).unwrap();
+    let packages = report["MIT"].as_array().expect("MIT license group");
+    for fixture in &fixtures {
+        assert!(
+            packages
+                .iter()
+                .any(|package| package["name"] == fixture.name),
+        );
+    }
     command(&workspace)
         .with_args(["install", "--frozen-lockfile", "--offline"])
         .assert()
