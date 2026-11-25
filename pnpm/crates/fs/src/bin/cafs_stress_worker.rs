@@ -2,7 +2,7 @@
 //! `tests/ensure_file_stress.rs`.
 //!
 //! Reads the content payload from `argv[1]` and the target CAS path
-//! from `argv[2]`, then calls [`pnpm_fs::ensure_file`] exactly once.
+//! from `argv[2]`. An optional `--cas` selects the buffered CAS writer.
 //! Exits `0` on success, `1` on error (with the error printed to
 //! stderr).
 //!
@@ -39,12 +39,13 @@ fn main() -> ExitCode {
         }
     };
 
-    // `mode: None` lets `ensure_file` take the kernel default, which is
-    // the same set of bits a `0o644` request would survive after a
-    // typical umask. The test only inspects content, not mode, so the
-    // simplification is safe.
-    if let Err(error) = ensure_file(&target_path, &content, None) {
-        eprintln!("ensure_file failed: {error}");
+    let result = if args.next().as_deref() == Some("--cas") {
+        pnpm_fs::ensure_cas_file(&target_path, &content, None).map(drop)
+    } else {
+        ensure_file(&target_path, &content, None)
+    };
+    if let Err(error) = result {
+        eprintln!("{error}");
         return ExitCode::from(1);
     }
 

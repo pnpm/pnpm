@@ -2,6 +2,7 @@ use super::{
     EnsureFileError,
     TempFile,
     create_exclusive_temp_file,
+    ensure_cas_file,
     ensure_file,
     ensure_file_atomically,
     file_equals_bytes,
@@ -19,7 +20,6 @@ use tempfile::tempdir;
 use super::{
     EMFILE,
     ENFILE,
-    ensure_cas_file,
     retry_on_fd_pressure,
 };
 #[cfg(unix)]
@@ -33,6 +33,25 @@ fn writes_a_new_file() {
     ensure_file(&path, b"hello", None).expect("new-file write succeeds");
 
     assert_eq!(fs::read(&path).unwrap(), b"hello");
+}
+
+#[test]
+fn cold_cas_publication_keeps_the_first_complete_file() {
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("blob");
+    let content = b"complete";
+    let (staged, _) = super::stage_file(&path, content, None).unwrap();
+    assert!(!path.try_exists().unwrap());
+
+    ensure_cas_file(&path, content, None).unwrap();
+    let linked = tmp.path().join("imported");
+    fs::hard_link(&path, &linked).unwrap();
+
+    assert!(!super::publish_new_file(&staged, &path).unwrap());
+    assert_eq!(fs::read(&linked).unwrap(), content);
+    fs::write(&linked, b"changed").unwrap();
+    assert_eq!(fs::read(&path).unwrap(), b"changed");
+    assert_eq!(fs::read(staged).unwrap(), content);
 }
 
 #[test]
