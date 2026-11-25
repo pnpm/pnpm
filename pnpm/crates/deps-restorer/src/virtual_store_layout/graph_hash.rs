@@ -45,8 +45,8 @@ use std::{
 /// participate in every ancestor's recursive hash while keeping slots
 /// shared between projects that resolve the link to the same directory.
 ///
-/// Local directory nodes use their package ID. [`GvsHasher`] scopes
-/// their slots and those of their dependents to the checkout.
+/// A local directory node's identity includes the lockfile directory;
+/// see [`local_directory_id`].
 pub(super) fn lockfile_to_dep_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -68,7 +68,7 @@ pub(super) fn lockfile_to_dep_graph(
         graph.insert(
             snapshot_key.to_string(),
             DepsGraphNode {
-                full_pkg_id: full_pkg_id_of(snapshot_key, packages, platform),
+                full_pkg_id: node_id(snapshot_key, packages, lockfile_dir, platform),
                 children,
             },
         );
@@ -80,6 +80,35 @@ pub(super) fn lockfile_to_dep_graph(
         );
     }
     graph
+}
+fn node_id(
+    snapshot_key: &PackageKey,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    lockfile_dir: Option<&Path>,
+    platform: &PlatformSelector,
+) -> String {
+    let full_pkg_id = full_pkg_id_of(snapshot_key, packages, platform);
+    let metadata_key = snapshot_key.without_peer();
+    let metadata = packages.and_then(|packages| packages.get(&metadata_key));
+    match lockfile_dir {
+        Some(lockfile_dir) if is_local_directory(metadata, &metadata_key.suffix) => {
+            local_directory_id(&full_pkg_id, lockfile_dir)
+        }
+        _ => full_pkg_id,
+    }
+}
+/// The identity of a snapshot taken from a local directory.
+///
+/// A directory resolution has no integrity. It is a path relative to
+/// the lockfile, so `file:dep` names a different directory in every
+/// project that depends on a directory of that name. The lockfile
+/// directory tells them apart, and every dependent hashes it through
+/// its children, so neither the snapshot nor a package linking to it
+/// shares a slot with another project.
+///
+/// The path is converted the way [`GvsHasher`]'s `project_scope` is.
+fn local_directory_id(full_pkg_id: &str, lockfile_dir: &Path) -> String {
+    format!("{full_pkg_id}:{}", lockfile_dir.to_string_lossy())
 }
 pub(super) fn child_graph_key(
     alias: &pnpm_lockfile::PkgName,
@@ -126,15 +155,18 @@ pub(super) struct GvsHasher<'h> {
     build_required_dep_paths: Option<HashSet<String>>,
     cache: DepsStateCache<String>,
     /// One conversion for the whole lockfile: the same string scopes
-    /// every local directory snapshot in it.
+    /// every snapshot in `uncached_builds`.
     ///
     /// Lossy on purpose: the TypeScript CLI hashes the same slot from a
     /// JS string, and Node decodes a path as UTF-8 with replacement, so
     /// this is the identical input. Hashing the raw bytes instead would
     /// give the two stacks different slots for the same project.
     project_scope: Option<std::borrow::Cow<'h, str>>,
-    /// Local directories, uncached builds, and their transitive dependents.
-    project_scoped: HashSet<String>,
+    /// The snapshots `sideEffectsCache.exclude` names, and every snapshot
+    /// that depends on one. An excluded build must not reach another
+    /// project, so each takes the project's own slot, and so does a
+    /// dependent, whose slot links to it.
+    uncached_builds: HashSet<String>,
     /// See [`BuildGating::runs_builds`].
     runs_builds: bool,
     engine: Option<&'h str>,
@@ -163,14 +195,15 @@ impl<'h> GvsHasher<'h> {
         let allow_build_policy = gating.policy;
         let build_required_dep_paths =
             allow_build_policy.map(|policy| engine_gating_dep_paths(policy, snapshots, &graph));
-        let project_scoped =
-            project_scoped_dep_paths(snapshots, packages, allow_build_policy, &graph);
+        let uncached_builds = allow_build_policy
+            .map(|policy| uncached_build_dep_paths(policy, snapshots, &graph))
+            .unwrap_or_default();
         Self {
             graph,
             build_required_dep_paths,
             cache: HashMap::new(),
             project_scope: lockfile_dir.map(|dir| dir.to_string_lossy()),
-            project_scoped,
+            uncached_builds,
             runs_builds: gating.runs_builds,
             engine,
             packages,
@@ -224,7 +257,7 @@ impl<'h> GvsHasher<'h> {
         write_field(&mut hasher, self.project_scope.as_deref().unwrap_or(""));
         self.write_gating_set(&mut hasher);
         hasher.update([u8::from(self.runs_builds)]);
-        write_sorted(&mut hasher, &self.project_scoped);
+        write_sorted(&mut hasher, &self.uncached_builds);
         self.write_graph(&mut hasher);
         self.write_snapshot_extras(&mut hasher, snapshots);
         format!("{:x}", hasher.finalize())
@@ -292,7 +325,7 @@ impl<'h> GvsHasher<'h> {
         let dep_path = snapshot_key.to_string();
         let project_scope = self.project_scope
             .as_deref()
-            .filter(|_| self.project_scoped.contains(&dep_path));
+            .filter(|_| self.uncached_builds.contains(&dep_path));
         let hex_digest = calc_graph_node_hash(
             &self.graph,
             &mut self.cache,
@@ -311,23 +344,19 @@ impl<'h> GvsHasher<'h> {
         )
     }
 }
-fn project_scoped_dep_paths(
+/// The dep paths of the snapshots whose build `sideEffectsCache.exclude`
+/// keeps out of every cache, and of their transitive dependents.
+fn uncached_build_dep_paths(
+    policy: &AllowBuildPolicy,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
-    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-    policy: Option<&AllowBuildPolicy>,
     graph: &HashMap<String, DepsGraphNode<String>>,
 ) -> HashSet<String> {
-    let scoped = snapshots
+    let excluded = snapshots
         .keys()
-        .filter(|key| {
-            let metadata_key = key.without_peer();
-            let metadata = packages.and_then(|packages| packages.get(&metadata_key));
-            is_local_directory(metadata, &metadata_key.suffix)
-                || policy.is_some_and(|policy| !policy.caches_build(key))
-        })
+        .filter(|snapshot_key| !policy.caches_build(snapshot_key))
         .map(ToString::to_string)
         .collect();
-    pnpm_graph_hasher::build_required_dep_paths(graph, &scoped)
+    pnpm_graph_hasher::build_required_dep_paths(graph, &excluded)
 }
 
 /// Hash a set in an order a `HashSet` cannot vary.

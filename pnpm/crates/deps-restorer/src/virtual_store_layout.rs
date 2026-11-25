@@ -621,8 +621,8 @@ const LOCAL_DIRECTORY_SEGMENT: &str = "directory";
 /// Whether the snapshot is a package taken from a local directory, a
 /// `file:` directory dependency or an injected workspace package.
 ///
-/// Both the version segment and the project scope are derived from
-/// this one answer. Deciding it twice is what lets a snapshot take
+/// Both the version segment and the node's identity in the dep graph
+/// are derived from this one answer. Deciding it twice is what lets a snapshot take
 /// the anchored segment while missing the scope, which is the collision
 /// the scope exists to prevent.
 ///
