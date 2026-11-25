@@ -151,7 +151,7 @@ one-off that no script covers.
   crate it selects most of the workspace. The crate-to-module map in
   `pnpm/scripts/test-affected.mjs` is the narrower default for end-to-end
   coverage. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md)
-  skill has the measured fan-out and how to extend that map.
+  skill covers extending that map.
 - `pnpm test:rust-smoke` (`just smoke`) — one end-to-end test per area of CLI
   behavior, listed in the `smoke` profile in `.config/nextest.toml`.
   `test:rust-affected` runs it automatically when unselected crates depend on
