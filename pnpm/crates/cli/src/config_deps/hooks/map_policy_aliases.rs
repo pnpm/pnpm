@@ -5,33 +5,43 @@ use serde_json::{
 };
 
 pub(super) fn drop_cli_map_policies(config: &Config, delta: &mut Map<String, Value>) {
-    for (name, marker, aliases) in [
-        ("catalog", "entries", &["catalogPrune", "cleanupUnusedCatalogs"][..]),
-        ("overrides", "rules", &["warnUnusedOverrides"][..]),
+    for (name, marker, option, aliases) in [
+        ("catalog", "entries", "mode", &["catalogMode"][..]),
+        ("catalog", "entries", "saveTo", &["saveCatalogName"][..]),
+        ("catalog", "entries", "unused", &["catalogPrune", "cleanupUnusedCatalogs"][..]),
+        ("overrides", "rules", "unused", &["warnUnusedOverrides"][..]),
     ] {
         let cli_nested = config.cli_settings.contains(name)
-            && config.explicit_settings.get(name).is_some_and(|value| has_policy(value, marker));
-        if !cli_nested
-            && !aliases
+            && config.explicit_settings
+                .get(name)
+                .is_some_and(|value| has_option(value, marker, option));
+        let protected = cli_nested
+            || aliases
                 .iter()
-                .any(|alias| config.cli_settings.contains(*alias))
-        {
+                .any(|alias| config.cli_settings.contains(*alias));
+        if !protected && !delta.get(name).is_some_and(|value| has_option(value, marker, option)) {
             continue;
         }
         for alias in aliases {
             delta.remove(*alias);
         }
-        if let Some(section) = delta.get_mut(name).filter(|value| has_policy(value, marker))
-            && let Some(section) = section.as_object_mut()
-        {
-            section.remove("unused");
+        if protected {
+            drop_nested_option(delta.get_mut(name), marker, option);
         }
     }
 }
 
-fn has_policy(value: &Value, marker: &str) -> bool {
+fn drop_nested_option(section: Option<&mut Value>, marker: &str, option: &str) {
+    if let Some(section) =
+        section.filter(|value| has_option(value, marker, option)).and_then(Value::as_object_mut)
+    {
+        section.remove(option);
+    }
+}
+
+fn has_option(value: &Value, marker: &str, option: &str) -> bool {
     value.get(marker).is_some_and(Value::is_object)
-        && value.get("unused").is_some_and(Value::is_string)
+        && value.get(option).is_some_and(Value::is_string)
 }
 
 #[cfg(test)]

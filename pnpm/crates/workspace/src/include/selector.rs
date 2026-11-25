@@ -35,6 +35,8 @@ impl SettingSlot {
             "" | INCLUDE_KEY => None,
             "catalog" => Some(SettingSlot::Catalog(DEFAULT_CATALOG.to_string())),
             "catalogs" => Some(SettingSlot::AllCatalogs),
+            "catalog.mode" => Some(SettingSlot::Setting("catalogMode".to_string())),
+            "catalog.saveTo" => Some(SettingSlot::Setting("saveCatalogName".to_string())),
             "catalog.unused" => Some(SettingSlot::Setting("catalogPrune".to_string())),
             "permissions.unused" => Some(SettingSlot::Setting("permissions.unused".to_string())),
             "overrides.unused" => Some(SettingSlot::Setting("warnUnusedOverrides".to_string())),
@@ -106,19 +108,30 @@ pub(super) fn defined_slots(key: &str, value: &Value) -> Vec<SettingSlot> {
         },
         _ => vec![SettingSlot::Setting(canonical_setting_name(key).to_string())],
     };
-    let policy = match key {
-        "catalog" => Some(("entries", "catalogPrune")),
-        "overrides" => Some(("rules", "warnUnusedOverrides")),
-        "permissions" => Some(("rules", "permissions.unused")),
-        _ => None,
-    };
-    if let Some((entries, policy)) = policy
-        && value.get(entries).is_some_and(Value::is_mapping)
-        && value.get("unused").is_some_and(Value::is_string)
-    {
-        slots.push(SettingSlot::Setting(policy.to_string()));
-    }
+    add_option_slots(&mut slots, key, value);
     slots
+}
+
+fn add_option_slots(slots: &mut Vec<SettingSlot>, key: &str, value: &Value) {
+    let (marker, options): (_, &[(&str, &str)]) = match key {
+        "catalog" => (
+            "entries",
+            &[("unused", "catalogPrune"), ("mode", "catalogMode"), ("saveTo", "saveCatalogName")],
+        ),
+        "overrides" => ("rules", &[("unused", "warnUnusedOverrides")]),
+        "permissions" => ("rules", &[("unused", "permissions.unused")]),
+        _ => return,
+    };
+    if value.get(marker).is_some_and(Value::is_mapping) {
+        for &(field, alias) in options {
+            if value
+                .get(field)
+                .is_some_and(|option| key == "catalog" || option.is_string())
+            {
+                slots.push(SettingSlot::Setting(alias.to_string()));
+            }
+        }
+    }
 }
 
 /// Parse the root manifest's include index.

@@ -35,3 +35,14 @@ fn a_cli_rules_section_protects_its_policy_from_the_hook_alias() {
     drop_cli_map_policies(&config, &mut changes);
     assert_eq!(Value::Object(changes), json!({"catalogPrune": true}));
 }
+
+#[test]
+fn catalog_options_respect_cli_choices_and_supersede_hook_aliases() {
+    let config = Config { cli_settings: ["catalogMode".to_owned()].into(), ..Config::default() };
+    let mut changes = Map::from_iter([
+        ("catalog".to_owned(), json!({"mode":"strict", "saveTo":"tools", "entries":{}})),
+        ("saveCatalogName".to_owned(), Value::Null),
+    ]);
+    drop_cli_map_policies(&config, &mut changes);
+    assert_eq!(Value::Object(changes), json!({"catalog":{"entries":{}, "saveTo":"tools"}}));
+}

@@ -1688,3 +1688,19 @@ fn strict_add_without_a_version_reuses_a_matching_catalog_range() {
 
     drop((root, anchor));
 }
+
+#[test]
+fn add_saves_in_the_catalog_selected_by_the_nested_setting() {
+    let (_root, workspace, _anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        "saveCatalogName: legacy\ncatalog: {entries: {}, saveTo: tools}\n",
+    );
+    run_ok(&workspace, &["add", "--lockfile-only", &format!("{FOO}@1.0.0")]);
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:tools"));
+    let yaml: serde_json::Value =
+        serde_saphyr::from_str(&read(&workspace, "pnpm-workspace.yaml")).unwrap();
+    assert_eq!(yaml["catalog"]["saveTo"], "tools");
+    assert_eq!(yaml["catalogs"]["tools"][FOO], "1.0.0");
+}

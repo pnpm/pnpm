@@ -30,14 +30,14 @@ type Specifiers = IndexMap<String, String>;
 
 trait Section: Sized {
     const KEY: &'static str;
-    fn section<Err: Error>(map: Specifiers, unused: Option<String>) -> Result<Self, Err>;
+    fn section<Err: Error>(map: Specifiers, options: &mut Specifiers) -> Result<Self, Err>;
     fn flat(map: Specifiers) -> Self;
 }
 
 fn policy<'de, Policy: Deserialize<'de>, Err: Error>(
-    unused: Option<&'de str>,
+    value: Option<&'de str>,
 ) -> Result<Option<Policy>, Err> {
-    unused
+    value
         .map(StrDeserializer::new)
         .map(Policy::deserialize)
         .transpose()
@@ -45,8 +45,11 @@ fn policy<'de, Policy: Deserialize<'de>, Err: Error>(
 
 impl Section for Rules<Specifiers> {
     const KEY: &'static str = "rules";
-    fn section<Err: Error>(rules: Specifiers, unused: Option<String>) -> Result<Self, Err> {
-        Ok(Self::Section(RuleSettings { rules, unused: policy(unused.as_deref())? }))
+    fn section<Err: Error>(rules: Specifiers, options: &mut Specifiers) -> Result<Self, Err> {
+        Ok(Self::Section(RuleSettings {
+            rules,
+            unused: policy(options.shift_remove("unused").as_deref())?,
+        }))
     }
     fn flat(map: Specifiers) -> Self {
         Self::Flat(map)
@@ -55,8 +58,13 @@ impl Section for Rules<Specifiers> {
 
 impl Section for DefaultCatalog<Specifiers> {
     const KEY: &'static str = "entries";
-    fn section<Err: Error>(entries: Specifiers, unused: Option<String>) -> Result<Self, Err> {
-        Ok(Self::Section(CatalogSettings { entries, unused: policy(unused.as_deref())? }))
+    fn section<Err: Error>(entries: Specifiers, options: &mut Specifiers) -> Result<Self, Err> {
+        Ok(Self::Section(CatalogSettings {
+            entries,
+            mode: policy(options.shift_remove("mode").as_deref())?,
+            save_to: options.shift_remove("saveTo"),
+            unused: policy(options.shift_remove("unused").as_deref())?,
+        }))
     }
     fn flat(map: Specifiers) -> Self {
         Self::Flat(map)
@@ -91,11 +99,11 @@ impl<'de, Setting: Section> Visitor<'de> for ReadSection<Setting> {
         let Some(entries) = nested else {
             return Ok(Setting::flat(flat));
         };
-        let unused = flat.shift_remove("unused");
+        let section = Setting::section(entries, &mut flat)?;
         if !flat.is_empty() {
             return Err(Access::Error::custom("put all package specifiers inside the nested map"));
         }
-        Setting::section(entries, unused)
+        Ok(section)
     }
 }
 

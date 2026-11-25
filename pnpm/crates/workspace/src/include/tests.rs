@@ -743,21 +743,27 @@ fn duplicate_placeholder_keys_in_fragment_are_rejected() {
 }
 
 #[test]
-fn nested_catalog_pruning_needs_its_own_delegation() {
-    let fragment = "catalog: {entries: {example: '1'}, unused: prune}\n";
-    let dir = workspace(&[
-        ("pnpm-workspace.yaml", "include:\n  ./catalog.yaml: [catalog]\n"),
-        ("catalog.yaml", fragment),
-    ]);
-    assert!(
-        matches!(load(dir.path()), Err(IncludeError::SettingNotDelegated {setting, ..}) if setting == "catalogPrune"),
-    );
-    fs::write(
-        dir.path().join("pnpm-workspace.yaml"),
-        "include:\n  ./catalog.yaml: [catalog, catalog.unused]\n",
-    )
-    .unwrap();
-    assert_eq!(merged(dir.path())["catalog"]["unused"].as_str(), Some("prune"));
+fn nested_catalog_options_need_their_own_delegations() {
+    for (field, alias, value) in [
+        ("unused", "catalogPrune", "prune"),
+        ("mode", "catalogMode", "strict"),
+        ("saveTo", "saveCatalogName", "tools"),
+    ] {
+        let fragment = format!("catalog: {{entries: {{example: '1'}}, {field}: {value}}}\n");
+        let dir = workspace(&[
+            ("pnpm-workspace.yaml", "include:\n  ./catalog.yaml: [catalog]\n"),
+            ("catalog.yaml", &fragment),
+        ]);
+        assert!(
+            matches!(load(dir.path()), Err(IncludeError::SettingNotDelegated {setting, ..}) if setting == alias),
+        );
+        fs::write(
+            dir.path().join("pnpm-workspace.yaml"),
+            format!("include:\n  ./catalog.yaml: [catalog, catalog.{field}]\n"),
+        )
+        .unwrap();
+        assert_eq!(merged(dir.path())["catalog"][field].as_str(), Some(value));
+    }
 }
 
 #[test]
