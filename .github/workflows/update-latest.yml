@@ -221,7 +221,7 @@ jobs:
     environment: release
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-    - uses: garnet-org/action@673a06d87748bec49e4d8df22d371b2a3420aba4 # v2.5.2
+    - uses: garnet-org/action@7106b4f608f40dd8df44e44346066fdccbae4433 # v2.5.3
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
