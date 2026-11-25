@@ -7,11 +7,7 @@ use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::tempdir;
 
-fn write_patch(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
-    let path = dir.join("patch.patch");
-    fs::write(&path, body).expect("write patch");
-    path
-}
+use super::write_patch;
 
 /// A `git diff --binary` modify record over a small binary file, taken
 /// verbatim from git's output. The forward block is a `literal` holding the
