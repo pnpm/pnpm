@@ -79,17 +79,16 @@ fn cleanup_legacy_runtime_artifacts(
         )
         .into_diagnostic()?;
     }
-    if removed_global || removed {
-        if let Some(global_bin_dir) = config.global_bin.as_deref().filter(|dir| dir.is_dir()) {
-            let runtime_name = request.runtime_name.as_str();
-            let bin_names: &[&str] = if runtime_name == "node" {
-                &["node", "npm", "npx"]
-            } else {
-                std::slice::from_ref(&runtime_name)
-            };
-            removed |=
-                cleanup_bin_links(global_bin_dir, bin_names, removed_names).into_diagnostic()?;
-        }
+    if (removed_global || removed)
+        && let Some(global_bin_dir) = config.global_bin.as_deref().filter(|dir| dir.is_dir())
+    {
+        let runtime_name = request.runtime_name.as_str();
+        let bin_names: &[&str] = if runtime_name == "node" {
+            &["node", "npm", "npx"]
+        } else {
+            std::slice::from_ref(&runtime_name)
+        };
+        removed |= cleanup_bin_links(global_bin_dir, bin_names, removed_names).into_diagnostic()?;
     }
     Ok(removed)
 }
