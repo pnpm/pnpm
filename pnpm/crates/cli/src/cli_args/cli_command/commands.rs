@@ -27,7 +27,6 @@ use super::{
     DocsArgs,
     DoctorArgs,
     EditArgs,
-    EnvArgs,
     ExecArgs,
     FetchArgs,
     FindHashArgs,
@@ -250,10 +249,8 @@ pub enum CliCommand {
     /// Lists the packages that include the file with the specified hash.
     FindHash(FindHashArgs),
     /// Manage runtimes.
-    #[clap(visible_alias = "rt")]
+    #[clap(visible_aliases = ["rt", "env"])]
     Runtime(RuntimeArgs),
-    /// Manage Node.js versions. Deprecated in favour of `pnpm runtime`.
-    Env(EnvArgs),
     /// Manage context-aware shims for packages that are not installed
     /// globally, so a project decides which version runs.
     Shim(ShimArgs),
@@ -398,7 +395,6 @@ impl CliCommand {
             CliCommand::ApproveBuilds(args) => args.global,
             CliCommand::Bin(args) => args.global,
             CliCommand::Config(args) => args.flags.is_global(),
-            CliCommand::Env(args) => args.global,
             CliCommand::Get(args) => args.flags.is_global(),
             CliCommand::Set(args) => args.flags.is_global(),
             CliCommand::List(args) | CliCommand::Ll(args) => args.global,
@@ -585,7 +581,6 @@ impl CliCommand {
             CliCommand::Add(args) if args.target.global => SummaryScope::AllPrefixes,
             CliCommand::Remove(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Runtime(args) if args.global => SummaryScope::AllPrefixes,
-            CliCommand::Env(args) if args.global => SummaryScope::AllPrefixes,
             CliCommand::Update(args) if args.selection.global => SummaryScope::AllPrefixes,
             CliCommand::Dlx(_) | CliCommand::Create(_) => SummaryScope::AllPrefixes,
             _ => SummaryScope::CurrentPrefix,

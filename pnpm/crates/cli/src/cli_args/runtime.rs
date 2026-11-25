@@ -47,7 +47,7 @@ pub struct RuntimeArgs {
     pub save_prod: bool,
 
     /// Subcommand and its arguments: `set <name> [<version>]`, where `<name>`
-    /// is `node`, `deno`, or `bun`.
+    /// is `node`, `deno`, or `bun`. `use <version>` is an alias for `set node <version>`.
     pub params: Vec<String>,
 }
 
@@ -160,14 +160,19 @@ impl RuntimeArgs {
         let Some(subcommand) = self.params.first() else {
             return Err(RuntimeError::NoSubcommand);
         };
-        if subcommand != "set" {
+        if subcommand != "set" && subcommand != "use" {
             return Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() });
         }
-        let runtime_name = self.params
-            .get(1)
-            .map(|name| name.trim())
-            .filter(|name| !name.is_empty())
-            .ok_or(RuntimeError::MissingRuntimeName)?;
+        let (runtime_name, version_index) = if subcommand == "use" {
+            ("node", 1)
+        } else {
+            let runtime_name = self.params
+                .get(1)
+                .map(|name| name.trim())
+                .filter(|name| !name.is_empty())
+                .ok_or(RuntimeError::MissingRuntimeName)?;
+            (runtime_name, 2)
+        };
         // The runtime name is interpolated into an `add` selector, so reject
         // anything that isn't a known runtime before it can be misread as a
         // comma-separated package list or a local path by the global-add
@@ -175,7 +180,7 @@ impl RuntimeArgs {
         if !is_runtime_alias(runtime_name) {
             return Err(RuntimeError::InvalidRuntimeName { name: runtime_name.to_string() });
         }
-        let version_spec = self.params.get(2).map_or("", |version| version.trim());
+        let version_spec = self.params.get(version_index).map_or("", |version| version.trim());
         // The version is interpolated into the same `<name>@runtime:<version>`
         // selector, which the global-add pipeline splits on commas. Reject a
         // comma so `runtime set node 22,evil -g` can't smuggle in a second

@@ -435,7 +435,6 @@ pub(crate) fn should_skip_command(command: &CliCommand) -> bool {
         | CliCommand::Doctor(_)
         | CliCommand::FindHash(_)
         | CliCommand::Runtime(_)
-        | CliCommand::Env(_)
         | CliCommand::Edit(_)
         | CliCommand::Profile(_)
         | CliCommand::Token(_)

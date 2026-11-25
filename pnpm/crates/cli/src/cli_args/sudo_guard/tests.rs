@@ -160,16 +160,12 @@ fn the_top_level_set_is_gated_like_config_set() {
     assert_eq!(sudo_blocked_operation(&command(&["pnpm", "get", "store-dir"])), None);
 }
 
-/// `pnpm env use --global` installs a runtime into the home directory, the
-/// same write `pnpm runtime set --global` makes.
+/// `env` shares `runtime`'s global write policy.
 #[test]
-fn global_env_is_blocked_under_sudo() {
+fn global_env_alias_is_blocked_under_sudo() {
     assert_eq!(
-        sudo_blocked_operation(&command(&["pnpm", "env", "use", "--global", "24"])),
-        Some("pnpm env use --global".to_string()),
+        sudo_blocked_operation(&command(&["pnpm", "env", "set", "node", "24", "--global"])),
+        Some("pnpm runtime set --global".to_string()),
     );
-    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "use", "24"])), None);
-    // `env list` only queries a mirror, so it stays allowed even globally.
-    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "list"])), None);
-    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "list", "--global"])), None);
+    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "set", "node", "24"])), None);
 }
