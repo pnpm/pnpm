@@ -30,8 +30,8 @@ fn a_cli_rules_section_protects_its_policy_from_the_hook_alias() {
     };
     let mut changes = Map::from_iter([
         ("warnUnusedOverrides".to_owned(), json!(true)),
-        ("warnUnusedPermissions".to_owned(), json!(true)),
+        ("catalogPrune".to_owned(), json!(true)),
     ]);
     drop_cli_map_policies(&config, &mut changes);
-    assert_eq!(Value::Object(changes), json!({"warnUnusedPermissions": true}));
+    assert_eq!(Value::Object(changes), json!({"catalogPrune": true}));
 }

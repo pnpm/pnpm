@@ -427,7 +427,6 @@ permissions:
 
 `warn` (the default) reports selectors in `permissions` or `allowBuilds` that match no dependency during a full workspace resolution. Both `warn` and `ignore` keep the permissions for future installs. The warning covers the workspace and locally included files. It skips rules supplied by config dependencies or added by an `updateConfig` hook.
 
-The flat alias `warnUnusedPermissions` accepts `true` for `warn` and `false` for `ignore`. When a file sets both, `permissions.unused` wins.
 
 ### skills.dirs
 

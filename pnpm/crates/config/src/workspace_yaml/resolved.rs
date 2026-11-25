@@ -17,6 +17,11 @@ use super::{
     side_effects_cache_setting,
 };
 use indexmap::IndexMap;
+use pnpm_workspace::map_settings::{
+    RuleSettings,
+    Rules,
+    WarningPolicy,
+};
 
 impl TrustedSettings {
     /// Every setting at the value `config` resolved it to. See
@@ -268,8 +273,23 @@ impl WorkspaceSettings {
             })
             .collect();
         permissions.sort_unstable_keys();
+        let structured = !config.warn_unused_permissions
+            || config.explicit_settings
+                .get("permissions")
+                .and_then(|value| value.get("unused"))
+                .is_some_and(serde_json::Value::is_string);
+        let permissions = if structured {
+            let unused = if config.warn_unused_permissions {
+                WarningPolicy::Warn
+            } else {
+                WarningPolicy::Ignore
+            };
+            Rules::Section(RuleSettings { rules: permissions, unused: Some(unused) })
+        } else {
+            Rules::Flat(permissions)
+        };
         Self {
-            permissions: Some(pnpm_workspace::map_settings::Rules::Flat(permissions)),
+            permissions: Some(permissions),
             skills: Some(SkillsSettings { dirs: config.skills_dirs.clone() }),
             ..self
         }

@@ -1135,7 +1135,7 @@ tools:
 #[test]
 fn nested_package_maps_override_flat_policy_settings() {
     let settings: WorkspaceSettings = serde_saphyr::from_str(
-        "warnUnusedPermissions: true\npermissions: {rules: {example: {skills: false}}, unused: ignore}\nwarnUnusedOverrides: false\noverrides: {rules: {example: '1'}, unused: warn}\ncatalogPrune: true\ncatalog: {entries: {example: '2'}, unused: ignore}\n",
+        "permissions: {rules: {example: {skills: false}}, unused: ignore}\nwarnUnusedOverrides: false\noverrides: {rules: {example: '1'}, unused: warn}\ncatalogPrune: true\ncatalog: {entries: {example: '2'}, unused: ignore}\n",
     ).unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("."));
@@ -1160,15 +1160,26 @@ fn reads_numeric_catalog_and_override_specifiers_in_both_forms() {
 
 #[test]
 fn config_get_reports_the_effective_unused_policy_for_each_spelling() {
-    let nested = "catalogPrune: false\ncatalog: {entries: {}, unused: prune}\nwarnUnusedPermissions: true\npermissions: {rules: {}, unused: ignore}\n";
+    let nested = "catalogPrune: false\ncatalog: {entries: {}, unused: prune}\npermissions: {rules: {}, unused: ignore}\n";
     let mut record = serde_json::Map::new();
     let settings = serde_saphyr::from_str(nested).unwrap();
     crate::collect_explicit_settings(&mut record, &settings);
     assert_eq!(record["catalogPrune"], true);
-    assert_eq!(record["warnUnusedPermissions"], false);
+    assert!(record.get("warnUnusedPermissions").is_none());
     let higher =
-        serde_saphyr::from_str("catalogPrune: false\nwarnUnusedPermissions: true").unwrap();
+        serde_saphyr::from_str("catalogPrune: false\npermissions: {rules: {}, unused: warn}")
+            .unwrap();
     crate::collect_explicit_settings(&mut record, &higher);
     assert_eq!(record["catalog"]["unused"], "ignore");
     assert_eq!(record["permissions"]["unused"], "warn");
+}
+
+#[test]
+fn flat_permission_warning_option_is_unknown() {
+    let yaml = "warnUnusedPermissions: false";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("."));
+    assert!(config.warn_unused_permissions);
+    assert!(!crate::known_settings::is_known_setting_key("warnUnusedPermissions"));
 }

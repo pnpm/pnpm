@@ -48,7 +48,6 @@ const UNDOCUMENTED_SETTINGS: &[&str] = &[
     "proxy",                  // httpProxy
     "remoteSideEffectsCache", // sideEffectsCache.remote
     "updateConfig",           // update
-    "warnUnusedPermissions",  // permissions.unused
     // Replaced by allowBuilds, listed only in its migration note in settings/build.md.
     "ignoredBuiltDependencies",
     "neverBuiltDependencies",

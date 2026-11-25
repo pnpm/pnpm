@@ -62,7 +62,10 @@ fn check_setting_names(spec: &str, slots: &[SettingSlot]) -> Result<(), LoadWork
     let unknown = slots
         .iter()
         .find_map(|slot| match slot {
-            SettingSlot::Setting(name) if !is_camel_case(name) || !is_known_setting_key(name) => {
+            SettingSlot::Setting(name)
+                if name != "permissions.unused"
+                    && (!is_camel_case(name) || !is_known_setting_key(name)) =>
+            {
                 Some(name)
             }
             _ => None,

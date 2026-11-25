@@ -347,7 +347,6 @@ macro_rules! identically_named_settings {
             verify_deps_before_run,
             block_exotic_subdeps,
             warn_unused_overrides,
-            warn_unused_permissions,
             link_workspace_packages,
             save_workspace_protocol,
             inject_workspace_packages,

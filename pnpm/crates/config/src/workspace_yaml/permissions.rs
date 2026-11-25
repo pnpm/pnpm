@@ -138,9 +138,12 @@ impl WorkspaceSettings {
         if let Some(allow_builds) = self.allow_builds.take() {
             config.allow_builds = decided_allow_builds(allow_builds);
         }
-        if let Some(permissions) =
-            self.permissions.take().map(pnpm_workspace::map_settings::Rules::into_rules)
-        {
+        if let Some(setting) = self.permissions.take() {
+            if let Some(policy) = setting.section().and_then(|section| section.unused) {
+                config.warn_unused_permissions =
+                    policy == pnpm_workspace::map_settings::WarningPolicy::Warn;
+            }
+            let permissions = setting.into_rules();
             config.allow_builds.extend(decided_permissions(&permissions, |entry| {
                 entry.build.as_ref().and_then(AllowBuild::decided)
             }));

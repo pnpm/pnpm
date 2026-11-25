@@ -33,15 +33,9 @@ impl WorkspaceSettings {
     /// A config dependency's settings are compared key by key against the resolved
     /// settings and the environment, using the same keys for both spellings.
     pub(super) fn flatten_package_maps(&mut self) {
-        self.warn_unused_permissions =
-            warn_unused(self.permissions.as_ref(), self.warn_unused_permissions);
         self.warn_unused_overrides =
             warn_unused(self.overrides.as_ref(), self.warn_unused_overrides);
         self.catalog_prune = self.prune_catalog();
-        self.permissions = self.permissions
-            .take()
-            .map(Rules::into_rules)
-            .map(Rules::Flat);
         self.overrides = self.overrides
             .take()
             .map(Rules::into_rules)
@@ -54,13 +48,6 @@ impl WorkspaceSettings {
 
     pub(crate) fn mirror_map_policies(&self, target: &mut Map<String, Value>) {
         for (name, marker, key, mode, enabled) in [
-            (
-                "permissions",
-                "rules",
-                "warnUnusedPermissions",
-                "warn",
-                warn_unused(self.permissions.as_ref(), self.warn_unused_permissions),
-            ),
             (
                 "overrides",
                 "rules",

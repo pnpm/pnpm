@@ -7,7 +7,6 @@ use serde_json::{
 pub(super) fn drop_cli_map_policies(config: &Config, delta: &mut Map<String, Value>) {
     for (name, marker, aliases) in [
         ("catalog", "entries", &["catalogPrune", "cleanupUnusedCatalogs"][..]),
-        ("permissions", "rules", &["warnUnusedPermissions"][..]),
         ("overrides", "rules", &["warnUnusedOverrides"][..]),
     ] {
         let cli_nested = config.cli_settings.contains(name)

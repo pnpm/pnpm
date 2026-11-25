@@ -36,7 +36,7 @@ impl SettingSlot {
             "catalog" => Some(SettingSlot::Catalog(DEFAULT_CATALOG.to_string())),
             "catalogs" => Some(SettingSlot::AllCatalogs),
             "catalog.unused" => Some(SettingSlot::Setting("catalogPrune".to_string())),
-            "permissions.unused" => Some(SettingSlot::Setting("warnUnusedPermissions".to_string())),
+            "permissions.unused" => Some(SettingSlot::Setting("permissions.unused".to_string())),
             "overrides.unused" => Some(SettingSlot::Setting("warnUnusedOverrides".to_string())),
             _ => match selector.strip_prefix("catalogs.") {
                 Some("") => None,
@@ -109,7 +109,7 @@ pub(super) fn defined_slots(key: &str, value: &Value) -> Vec<SettingSlot> {
     let policy = match key {
         "catalog" => Some(("entries", "catalogPrune")),
         "overrides" => Some(("rules", "warnUnusedOverrides")),
-        "permissions" => Some(("rules", "warnUnusedPermissions")),
+        "permissions" => Some(("rules", "permissions.unused")),
         _ => None,
     };
     if let Some((entries, policy)) = policy
