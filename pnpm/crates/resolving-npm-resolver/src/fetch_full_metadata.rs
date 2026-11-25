@@ -34,6 +34,10 @@ use reqwest::{
     StatusCode,
     header,
 };
+use serde::{
+    Deserialize,
+    de::IgnoredAny,
+};
 use std::time::Duration;
 
 use crate::{
@@ -147,11 +151,27 @@ fn decode_metadata(body: &str, install_v2: bool, url: &str) -> Result<Package, F
 /// Whether `body` is npm's record of a fully unpublished package: a
 /// non-empty `time.unpublished.versions` and neither `dist-tags` nor
 /// `versions`.
+///
+/// Runs only after the body failed to parse as a [`Package`], so it skips
+/// every field but the marker instead of building the whole document again.
 fn is_unpublished_packument(body: &str) -> bool {
-    let Ok(packument) = serde_json::from_str::<serde_json::Value>(body) else { return false };
-    packument.get("dist-tags").is_none()
-        && packument.get("versions").is_none()
-        && packument.pointer("/time/unpublished").is_some_and(has_unpublished_versions)
+    #[derive(Deserialize)]
+    struct Packument {
+        #[serde(rename = "dist-tags")]
+        dist_tags: Option<IgnoredAny>,
+        versions: Option<IgnoredAny>,
+        time: Option<Time>,
+    }
+    #[derive(Deserialize)]
+    struct Time {
+        unpublished: Option<serde_json::Value>,
+    }
+    let Ok(packument) = serde_json::from_str::<Packument>(body) else { return false };
+    packument.dist_tags.is_none()
+        && packument.versions.is_none()
+        && packument.time
+            .and_then(|time| time.unpublished)
+            .is_some_and(|marker| has_unpublished_versions(&marker))
 }
 
 /// Whether the response is pnpr's own package document.
