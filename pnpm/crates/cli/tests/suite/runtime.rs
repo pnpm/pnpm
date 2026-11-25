@@ -1,9 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
-    bin::CommandTempCwd,
-    command_env::CommandTestExt,
-};
+use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,
