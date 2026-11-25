@@ -711,7 +711,7 @@ fn patch_commit_diff_dirs_emits_binary_patch_that_round_trips() {
     let patch_file = target.path().join("patch.patch");
     fs::write(&patch_file, &diff).expect("write patch file");
     apply_patch_to_dir(target.path(), &patch_file).expect("apply generated patch");
-    assert_eq!(fs::read(target.path().join("asset.bin")).expect("read patched asset"), patched,);
+    assert_eq!(fs::read(target.path().join("asset.bin")).expect("read patched asset"), patched);
     assert_eq!(
         fs::read(target.path().join("index.js")).expect("read patched text"),
         b"module.exports = true\n".as_slice(),

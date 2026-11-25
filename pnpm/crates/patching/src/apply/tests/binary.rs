@@ -74,10 +74,10 @@ UcmeBXYhc?jfpOsk#)%UO03oym8~^|S
 /// 768 bytes of the byte pattern the delta patch was authored against.
 const BIG_BIN_PREIMAGE: &[u8] = &{
     let mut bytes = [0u8; 768];
-    let mut i = 0;
-    while i < 768 {
-        bytes[i] = (i % 256) as u8;
-        i += 1;
+    let mut index = 0;
+    while index < 768 {
+        bytes[index] = (index % 256) as u8;
+        index += 1;
     }
     bytes
 };
@@ -88,20 +88,20 @@ const BIG_BIN_INJECTED: &[u8] = b"\xde\xad\xbe\xefPATCHED";
 
 const BIG_BIN_POSTIMAGE: &[u8] = &{
     let mut bytes = [0u8; 779];
-    let mut i = 0;
-    while i < 400 {
-        bytes[i] = (i % 256) as u8;
-        i += 1;
+    let mut index = 0;
+    while index < 400 {
+        bytes[index] = (index % 256) as u8;
+        index += 1;
     }
-    let mut j = 0;
-    while j < 11 {
-        bytes[400 + j] = BIG_BIN_INJECTED[j];
-        j += 1;
+    let mut index = 0;
+    while index < 11 {
+        bytes[400 + index] = BIG_BIN_INJECTED[index];
+        index += 1;
     }
-    let mut k = 0;
-    while k < 368 {
-        bytes[411 + k] = ((400 + k) % 256) as u8;
-        k += 1;
+    let mut index = 0;
+    while index < 368 {
+        bytes[411 + index] = ((400 + index) % 256) as u8;
+        index += 1;
     }
     bytes
 };
@@ -124,20 +124,20 @@ NcmZo+YhYWz3;+g^0ki-B
 
 const RENAME_PREIMAGE: &[u8] = &{
     let mut bytes = [0u8; 768];
-    let mut i = 0;
-    while i < 768 {
-        bytes[i] = (i % 256) as u8;
-        i += 1;
+    let mut index = 0;
+    while index < 768 {
+        bytes[index] = (index % 256) as u8;
+        index += 1;
     }
     bytes
 };
 
 const RENAME_POSTIMAGE: &[u8] = &{
     let mut bytes = [0u8; 772];
-    let mut i = 0;
-    while i < 768 {
-        bytes[i] = (i % 256) as u8;
-        i += 1;
+    let mut index = 0;
+    while index < 768 {
+        bytes[index] = (index % 256) as u8;
+        index += 1;
     }
     bytes[768] = b't';
     bytes[769] = b'a';
@@ -199,7 +199,6 @@ fn binary_create_patch_creates_file_without_clobbering() {
     let target = dir.path().join("added.bin");
     assert_eq!(fs::read(&target).expect("read created"), BINARY_CREATED);
 
-    // Re-apply on the created file is a no-op.
     apply_patch_to_dir(dir.path(), &patch).expect("reapply");
     assert_eq!(fs::read(&target).expect("read created"), BINARY_CREATED);
 
@@ -374,7 +373,7 @@ fn binary_manifest_record_is_previewed_for_build_decision() {
     assert_eq!(
         preview.written_paths,
         vec!["package.json".to_string()],
-        "the binary manifest record must be previewed"
+        "the binary manifest record must be previewed",
     );
     assert_eq!(
         preview.manifest.as_deref(),
