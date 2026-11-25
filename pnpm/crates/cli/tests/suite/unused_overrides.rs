@@ -141,7 +141,7 @@ fn full_install_warns_about_unmatched_permissions_and_keeps_them() {
     write_fixture(
         &workspace,
         &format!(
-            "permissions:\n  '{PROD_DEP}@99.0.0 || 100.0.0':\n    build: true\n  example-skills:\n    skills: false\n",
+            "permissions:\n  '{PROD_DEP}@99.0.0 || 100.0.0':\n    build: true\n  '{DEV_DEP}@ 100.0.0':\n    build: false\n  '//example-user:example-secret@example.invalid/item?private=yes':\n    build: false\n  example-skills:\n    skills: false\n",
         ),
     );
     fs::write(
@@ -154,10 +154,43 @@ fn full_install_warns_about_unmatched_permissions_and_keeps_them() {
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(
-        stdout.contains("permissions matched no dependency: example-future, example-skills."),
+        stdout.contains("permissions matched no dependency: https://example.invalid/item, example-future, example-skills."),
         "{stdout}",
     );
+    assert!(!stdout.contains("example-secret"));
+    assert!(!stdout.contains("private=yes"));
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml");
     assert!(yaml.contains("example-future"));
     drop((root, mock_instance));
+}
+
+#[test]
+fn bare_approval_for_a_tarball_warns_only_when_enabled() {
+    for warn in [true, false] {
+        let CommandTempCwd { pacquet, workspace, root, .. } = CommandTempCwd::init();
+        let tarball = pnpm_testing_utils::fixtures::tarball_with_manifest(
+            &serde_json::json!({"name": "example-local", "version": "1.0.0"}),
+        );
+        fs::write(workspace.join("example.tgz"), tarball).expect("write tarball");
+        fs::write(
+            workspace.join("package.json"),
+            r#"{"dependencies":{"example-local":"file:example.tgz"}}"#,
+        )
+        .expect("write manifest");
+        fs::write(workspace.join("pnpm-workspace.yaml"), format!(
+            "warnUnusedPermissions: {warn}\nallowBuilds:\n  example-local: true\n  'example-local@file:example.tgz': true\n",
+        )).expect("write permissions");
+        let output = pacquet
+            .with_args(["install", "--offline"])
+            .assert()
+            .success();
+        let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+        assert_eq!(
+            stdout.contains("permissions matched no dependency: example-local."),
+            warn,
+            "{stdout}",
+        );
+        assert!(!stdout.contains("example-local@file:example.tgz."), "{stdout}");
+        drop(root);
+    }
 }
