@@ -255,3 +255,28 @@ fn extracts_an_archive_with_pax_paths_and_empty_directories() {
         extract_tarball_entries(&tar, crate::TarLimits::default(), store_dir, None).unwrap();
     assert_eq!(std::fs::read(&files["lib/index.js"]).unwrap(), b"abc");
 }
+
+#[test]
+fn extracts_a_file_sized_by_a_pax_header() {
+    let tar = [
+        file("package.json", MANIFEST),
+        pax(b'x', &[("size", "2")]),
+        header("package/data.json", 0, b'0'),
+        padded(b"{}"),
+        END.to_vec(),
+    ]
+    .concat();
+    let (_store_keep, store_dir) = tempdir_with_leaked_path();
+    let (eager, _) =
+        extract_tarball_entries(&tar, crate::TarLimits::default(), store_dir, None).unwrap();
+    let (streamed, _) = stream_extract_gzipped_tarball(
+        &gzip_bytes(&tar),
+        crate::TarLimits::default(),
+        store_dir,
+        None,
+    )
+    .unwrap();
+    for files in [&eager, &streamed] {
+        assert_eq!(std::fs::read(&files["data.json"]).unwrap(), b"{}");
+    }
+}

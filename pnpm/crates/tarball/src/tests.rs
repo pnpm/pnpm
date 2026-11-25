@@ -513,10 +513,6 @@ fn tar_with_root_level_entries() -> Vec<u8> {
     ])
 }
 
-/// Build an uncompressed tar carrying `entries` in order, each written
-/// verbatim as a regular file, so a caller can shape an archive that
-/// omits the top-level directory a published tarball wraps its payload
-/// in, or that carries an entry beside it at the archive root.
 /// One `<length> <key>=<value>\n` PAX extended header record.
 fn pax_record(key: &str, value: &str) -> String {
     let body = format!(" {key}={value}\n");
@@ -527,6 +523,10 @@ fn pax_record(key: &str, value: &str) -> String {
     format!("{len}{body}")
 }
 
+/// Build an uncompressed tar carrying `entries` in order, each written
+/// verbatim as a regular file, so a caller can shape an archive that
+/// omits the top-level directory a published tarball wraps its payload
+/// in, or that carries an entry beside it at the archive root.
 fn tar_with_entries(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut builder = tar::Builder::new(Vec::new());
     for (path, body) in entries {

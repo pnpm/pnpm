@@ -381,10 +381,7 @@ fn read_bundled_manifest_streaming(
         if !is_manifest {
             continue;
         }
-        let file_size = entry
-            .header()
-            .size()
-            .map_err(TarballError::ReadTarballEntries)?;
+        let file_size = entry.size();
         if file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
             return Err(oversized_manifest_error(file_size));
         }
