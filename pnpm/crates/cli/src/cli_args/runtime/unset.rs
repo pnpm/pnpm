@@ -43,14 +43,9 @@ pub fn run_unset<Reporter: self::Reporter>(
 ) -> miette::Result<()> {
     let version = request.version_spec.as_deref();
     let mut removed_names = HashSet::new();
-    let removed_global = remove_global_runtimes::<Reporter>(
-        config,
-        &request.runtime_name,
-        version,
-        &mut removed_names,
-    )?;
-    let removed_legacy =
-        cleanup_legacy_runtime_artifacts(request, config, removed_global, &mut removed_names)?;
+    let removed_global =
+        remove_global_runtimes::<Reporter>(config, &request.runtime_name, version)?;
+    let removed_legacy = cleanup_legacy_runtime_artifacts(request, config, &mut removed_names)?;
     if removed_global || removed_legacy {
         return Ok(());
     }
@@ -65,7 +60,6 @@ pub fn run_unset<Reporter: self::Reporter>(
 fn cleanup_legacy_runtime_artifacts(
     request: &RuntimeUnsetRequest,
     config: &'static Config,
-    removed_global: bool,
     removed_names: &mut HashSet<String>,
 ) -> miette::Result<bool> {
     let version = request.version_spec.as_deref();
@@ -82,7 +76,8 @@ fn cleanup_legacy_runtime_artifacts(
         )
         .into_diagnostic()?;
     }
-    if (removed_global || removed)
+    if removed
+        && !removed_names.is_empty()
         && let Some(global_bin_dir) = config.global_bin.as_deref().filter(|dir| dir.is_dir())
     {
         let runtime_name = request.runtime_name.as_str();
@@ -144,14 +139,12 @@ fn remove_global_runtimes<Reporter: self::Reporter>(
     config: &Config,
     runtime_name: &str,
     version: Option<&str>,
-    removed_names: &mut HashSet<String>,
 ) -> miette::Result<bool> {
     let Some(global_pkg_dir) = config.global_pkg_dir.as_deref() else {
         return Ok(false);
     };
-    let mut remove = || -> miette::Result<bool> {
-        let packages =
-            select_global_runtimes(global_pkg_dir, runtime_name, version, removed_names)?;
+    let remove = || -> miette::Result<bool> {
+        let packages = select_global_runtimes(global_pkg_dir, runtime_name, version)?;
         if packages.is_empty() {
             return Ok(false);
         }
@@ -170,7 +163,6 @@ fn select_global_runtimes(
     global_pkg_dir: &Path,
     runtime_name: &str,
     version: Option<&str>,
-    removed_names: &mut HashSet<String>,
 ) -> miette::Result<Vec<GlobalPackageInfo>> {
     let packages = scan_global_packages(global_pkg_dir)
         .into_diagnostic()?
@@ -186,11 +178,6 @@ fn select_global_runtimes(
             })
         })
         .collect::<Vec<GlobalPackageInfo>>();
-    for pkg in &packages {
-        if let Some(installed) = installed_versions(&pkg.install_dir).get(runtime_name) {
-            removed_names.insert(installed.clone());
-        }
-    }
     Ok(packages)
 }
 
