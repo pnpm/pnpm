@@ -162,3 +162,59 @@ fn a_frozen_install_keeps_the_moved_packages_and_the_recorded_routes() {
 
     drop((root, anchor, new));
 }
+
+#[test]
+fn a_filtered_install_handles_moved_routes_for_its_selected_project() {
+    let (root, workspace, anchor) = setup();
+    append_workspace_yaml_key(&workspace, "packages", "['projects/*']");
+    let new = TestRegistry::start_with_public_url(anchor.mock_instance.server_url());
+    route_scope(&workspace, anchor.mock_instance.url());
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    for project in ["first", "second"] {
+        let dir = workspace.join("projects").join(project);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("package.json"),
+            format!(r#"{{"name":"{project}","dependencies":{{"{PARENT}":"100.0.0"}}}}"#),
+        )
+        .unwrap();
+    }
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    route_scope(&workspace, new.url());
+    let check = |project: &str| {
+        pacquet_in(&workspace)
+            .with_args([
+                "--filter",
+                project,
+                "--config.verify-deps-before-run=error",
+                "exec",
+                "node",
+                "--version",
+            ])
+            .assert()
+    };
+    check("first").failure();
+    pacquet_in(&workspace)
+        .with_args(["--filter", "first", "install"])
+        .assert()
+        .success();
+    check("first").success();
+    check("second").failure();
+    pacquet_in(&workspace)
+        .with_args([
+            "--filter",
+            "second",
+            "--config.verify-deps-before-run=install",
+            "exec",
+            "node",
+            "--version",
+        ])
+        .assert()
+        .success();
+    check("second").success();
+    check("first").success();
+    drop((root, anchor, new));
+}

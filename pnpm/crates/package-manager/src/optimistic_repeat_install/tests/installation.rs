@@ -603,6 +603,10 @@ fn run_checks_registry_routes_when_its_install_can_resolve_the_whole_lockfile() 
         if filtered {
             config.filter.push(".".into());
         }
+        let mut state = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
+        state.settings.installed_registry_routes =
+            Some(crate::install_state::settings::recorded_registry_routes(&config));
+        pnpm_workspace_state::update_workspace_state(dir.path(), &state).unwrap();
         let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
         let projects = [(dir.path().to_path_buf(), &manifest)];
         let status = super::workspace_deps_status_for_selected(
