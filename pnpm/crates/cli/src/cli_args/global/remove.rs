@@ -1,7 +1,4 @@
-pub use groups::{
-    remove_global_package_groups,
-    remove_global_package_groups_locked,
-};
+pub use groups::remove_global_package_groups_locked;
 
 mod groups;
 

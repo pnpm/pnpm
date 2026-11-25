@@ -12,7 +12,6 @@ use crate::{
         CmdShimHost,
         GlobalPackageInfo,
         Reporter,
-        acquire_global_bin_lock,
         restore_virtual_shims,
         unprotected_bin_names,
         virtual_shims_to_restore,
@@ -21,15 +20,6 @@ use crate::{
     shim_dispatch::global_shims_setting,
 };
 use std::path::Path;
-
-pub fn remove_global_package_groups<Reporter: self::Reporter>(
-    global_pkg_dir: &Path,
-    global_bin_dir: &Path,
-    packages: &[GlobalPackageInfo],
-) -> miette::Result<()> {
-    let _global_bin_lock = acquire_global_bin_lock(global_bin_dir)?;
-    remove_global_package_groups_locked::<Reporter>(global_pkg_dir, global_bin_dir, packages)
-}
 
 /// Remove selected groups while the caller holds the global bin lock, so
 /// another process cannot replace a selected hash link during the removal.

@@ -1,6 +1,9 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use serde_json::json;
 use std::{
     fs,
@@ -8,6 +11,7 @@ use std::{
         Path,
         PathBuf,
     },
+    process::Command,
 };
 
 #[test]
@@ -60,18 +64,23 @@ fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
 
 #[test]
 fn unset_removes_a_caret_declared_runtime_by_major_version() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let version = "22.14.0";
     let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
     let pnpm_home = root.path().join("pnpm-home");
     configure_node_runtime(&root, &workspace, &server);
+    let command = || {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_env("PNPM_HOME", &pnpm_home)
+            .with_env("XDG_STATE_HOME", root.path().join("state"))
+            .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+    };
 
-    let output = pacquet
-        .clone()
-        .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+    let output = command()
         .with_args(["runtime", "set", "node", version])
         .output()
         .expect("spawn pacquet runtime set");
@@ -86,10 +95,7 @@ fn unset_removes_a_caret_declared_runtime_by_major_version() {
         "set should save a caret range: {manifest}",
     );
 
-    let output = pacquet
-        .with_env("PNPM_HOME", &pnpm_home)
-        .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+    let output = command()
         .with_args(["runtime", "unset", "node", "22"])
         .output()
         .expect("spawn pacquet runtime unset");
