@@ -188,7 +188,11 @@ fn cleanup_nodejs_current(
     let is_dangling = !nodejs_current.exists();
     let points_to_removed = fs::read_link(&nodejs_current)
         .is_ok_and(|target| is_path_in_removed_names(&target, removed_names));
-    if points_to_removed || (matches!(dangling, DanglingCurrentCleanup::Remove) && is_dangling) {
+    let should_remove_dangling = match dangling {
+        DanglingCurrentCleanup::Remove => is_dangling,
+        DanglingCurrentCleanup::Keep => false,
+    };
+    if points_to_removed || should_remove_dangling {
         pnpm_fs::remove_symlink_dir(&nodejs_current)?;
         return Ok(true);
     }
