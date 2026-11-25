@@ -83,6 +83,7 @@ fn upgrade_row(
     if !verified.passed {
         return Ok(None);
     }
+    let Some(writer) = &store.index_writer else { return Ok(Some(verified.files_map)) };
     row.side_effects = None;
     row.remote_side_effects_quarantine = None;
     let parsed = serde_json::from_slice(manifest).expect("serialized runtime manifest");
@@ -90,8 +91,6 @@ fn upgrade_row(
     let written = store.dir.write_cas_file(manifest, false).map_err(TarballError::WriteCasFile)?;
     row.files.insert("package.json".into(), written.index_entry(0o644, None));
     verified.files_map.insert("package.json".into(), written.file);
-    if let Some(writer) = &store.index_writer {
-        writer.queue(target, row);
-    }
+    writer.queue(target, row);
     Ok(Some(verified.files_map))
 }

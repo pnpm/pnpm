@@ -216,15 +216,29 @@ fn synthesize_runtime_manifest_preserves_scoped_name() {
 /// `getBinName` with `dlx_read_manifest`.
 #[tokio::test]
 async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row() {
-    assert_runtime_offline_reinstall(false).await;
+    assert_runtime_offline_reinstall(None).await;
 }
 
 #[tokio::test]
 async fn offline_reinstall_upgrades_a_cached_runtime_without_a_license() {
-    assert_runtime_offline_reinstall(true).await;
+    for key in [LegacyRuntimeKey::Manifest, LegacyRuntimeKey::Plain] {
+        assert_runtime_offline_reinstall(Some(key)).await;
+    }
 }
 
-async fn assert_runtime_offline_reinstall(upgrade: bool) {
+#[tokio::test]
+async fn frozen_runtime_cache_reuses_its_seeded_manifest() {
+    assert_runtime_offline_reinstall(Some(LegacyRuntimeKey::FrozenManifest)).await;
+}
+
+#[derive(Clone, Copy)]
+enum LegacyRuntimeKey {
+    Manifest,
+    Plain,
+    FrozenManifest,
+}
+
+async fn assert_runtime_offline_reinstall(legacy_key: Option<LegacyRuntimeKey>) {
     use pnpm_store_dir::{
         SharedVerifiedFilesCache,
         StoreIndex,
@@ -362,19 +376,29 @@ async fn assert_runtime_offline_reinstall(upgrade: bool) {
         "the bundled manifest carries the runtime bin",
     );
 
-    if upgrade {
+    if let Some(legacy_key) = legacy_key {
         let previous = serde_json::to_vec(&serde_json::json!({
             "name": "node", "version": "22.0.0", "bin": { "node": "bin/node" },
         }))
         .unwrap();
-        let previous_key = ArchiveStoreProjection::Package { append_manifest: Some(&previous) }
-            .store_index_key(&integrity.to_string(), &package_key.pkg_id());
+        let previous_key = match legacy_key {
+            LegacyRuntimeKey::Manifest | LegacyRuntimeKey::FrozenManifest => {
+                ArchiveStoreProjection::Package { append_manifest: Some(&previous) }
+                    .store_index_key(&integrity.to_string(), &package_key.pkg_id())
+            }
+            LegacyRuntimeKey::Plain => {
+                pnpm_store_dir::store_index_key(&integrity.to_string(), &package_key.pkg_id())
+            }
+        };
         let written = config.store_dir.write_cas_file(&previous, false).unwrap();
         let mut previous_row = row;
         previous_row.files.insert("package.json".into(), written.index_entry(0o644, None));
         let mut index = StoreIndex::open_in(&config.store_dir).unwrap();
         index.set(&previous_key, &previous_row).unwrap();
-        index.delete_many(&[index_key]).unwrap();
+        index
+            .delete_many(std::slice::from_ref(&index_key))
+            .unwrap();
+        std::fs::remove_file(&cold_cas_paths.cas_paths["package.json"]).unwrap();
     }
 
     // Warm reinstall, nodeRuntime.ts's `rimraf node_modules` + offline
@@ -385,11 +409,14 @@ async fn assert_runtime_offline_reinstall(upgrade: bool) {
     let warm_index = StoreIndex::shared_readonly_in(&config.store_dir);
     let warm_verified = SharedVerifiedFilesCache::default();
     let warm_logged = AtomicU8::new(0);
+    let frozen = matches!(legacy_key, Some(LegacyRuntimeKey::FrozenManifest));
+    let (warm_writer, warm_task) = StoreIndexWriter::spawn(&config.store_dir);
+
     let warm_cas_paths = super::super::InstallPackageBySnapshot {
         fetching: crate::SnapshotFetchContext {
             http_client: &pnpm_network::ThrottledClient::default(),
             store_index: warm_index.as_ref(),
-            store_index_writer: None,
+            store_index_writer: (!frozen).then_some(&warm_writer),
             prefetched_cas_paths: None,
             tarball_mem_cache: None,
             progress_reported: None,
@@ -433,7 +460,22 @@ async fn assert_runtime_offline_reinstall(upgrade: bool) {
     let installed: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&warm_cas_paths.cas_paths["package.json"]).unwrap())
             .unwrap();
-    assert_eq!(installed["license"], "MIT");
+    drop(warm_writer);
+    warm_task.await.unwrap().unwrap();
+    if frozen {
+        assert!(installed.get("license").is_none());
+        assert!(!cold_cas_paths.cas_paths["package.json"].exists());
+    } else {
+        assert_eq!(installed["license"], "MIT");
+        assert!(
+            StoreIndex::open_in(&config.store_dir)
+                .unwrap()
+                .get(&index_key)
+                .unwrap()
+                .is_some(),
+        );
+    }
+
     assert!(
         warm_cas_paths.cas_paths.contains_key("package.json"),
         "the warm reinstall re-materializes the manifest from the persisted row",
