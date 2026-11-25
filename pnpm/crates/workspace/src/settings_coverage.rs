@@ -34,8 +34,8 @@ impl RootSettings {
     /// under `nested_dir`, so an install of the outer workspace loses none of
     /// them.
     ///
-    /// The nested manifest is read with its local includes merged in. Keys in
-    /// [`NON_SETTING_KEYS`] are left out. A mapping covers another when it has
+    /// The nested manifest is read with its local includes merged in.
+    /// `packages` and `$schema` are left out. A mapping covers another when it has
     /// each of its keys with a covering value, a list when it holds each of its
     /// items, and any other value when it is equal. A nested manifest that is
     /// not a mapping, or that includes a config dependency that is not
