@@ -16,7 +16,7 @@ impl AuthHeaders {
     /// package-scope credentials when `pkg_name` is scoped.
     #[must_use]
     pub fn for_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
-        if self.require_secure_transport && !is_url_secure_for_credentials(url) {
+        if self.transport.requires_secure_transport() && !is_url_secure_for_credentials(url) {
             return None;
         }
         if let Some(hook) = &self.route_hook {

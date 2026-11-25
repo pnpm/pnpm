@@ -154,23 +154,22 @@ fn trusted_http_registries(auth: &NpmrcAuth, global: Option<&WorkspaceSettings>)
     };
 
     let ini = auth.routes.default.iter().chain(auth.routes.scoped.values());
-    let mut registries: Vec<_> = ini.collect();
-    if let Some(settings) = global {
-        registries.extend(settings.registry.iter());
-        for (key, entry) in settings.registries.iter().flatten() {
-            match entry {
-                RegistryEntry::ScopeRoute(url) => registries.push(url),
-                RegistryEntry::Declaration(declaration)
-                    if declaration.ecosystem() == Ecosystem::Npm =>
-                {
-                    registries.push(key)
-                }
-                RegistryEntry::Declaration(_) => {}
-            }
-        }
-    }
-    registries
+    let default = global.and_then(|settings| settings.registry.as_ref());
+    let entries = global.and_then(|settings| settings.registries.as_ref());
+    let declared = entries
         .into_iter()
+        .flatten()
+        .filter_map(|(key, entry)| match entry {
+            RegistryEntry::ScopeRoute(url) => Some(url),
+            RegistryEntry::Declaration(declaration)
+                if declaration.ecosystem() == Ecosystem::Npm =>
+            {
+                Some(key)
+            }
+            RegistryEntry::Declaration(_) => None,
+        });
+    ini.chain(default)
+        .chain(declared)
         .filter(|url| {
             url.split_once("://")
                 .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("http"))
@@ -272,12 +271,15 @@ impl Config {
             return Ok(AuthSources::none());
         }
         let global_settings = global_settings.map(|global| self.global_auth_settings(global));
-        self.collect_auth_sources::<Sys>(
+        let mut sources = self.collect_auth_sources::<Sys>(
             start_dir,
             workspace_yaml,
             global_settings.as_deref(),
             global_config_dir,
-        )
+        )?;
+        sources.npmrc_auth.routes.trusted_http_registries =
+            trusted_http_registries(&sources.trusted_auth, global_settings.as_deref());
+        Ok(sources)
     }
 
     /// The global `config.yaml` settings that name credential sources. A
@@ -374,10 +376,7 @@ impl Config {
         npmrc_auth.move_warnings_to(self);
         let trusted_auth = merge_auth_sources(trusted_sources);
 
-        let mut sources = self.trust_token_helper(npmrc_auth, trusted_auth)?;
-        sources.npmrc_auth.trusted_http_registries =
-            trusted_http_registries(&sources.trusted_auth, global_settings);
-        Ok(sources)
+        self.trust_token_helper(npmrc_auth, trusted_auth)
     }
 
     /// A `tokenHelper` names an executable, so it is honored only from a

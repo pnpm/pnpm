@@ -358,7 +358,7 @@ impl NpmrcAuth {
                 tables.token_helpers,
                 tables.scoped_token_helpers,
             )
-            .with_http_tarball_registries(&self.trusted_http_registries),
+            .with_http_tarball_registries(&self.routes.trusted_http_registries),
         );
         Ok(())
     }
