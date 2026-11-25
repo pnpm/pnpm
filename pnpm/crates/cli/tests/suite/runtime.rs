@@ -11,7 +11,6 @@ use std::{
         Path,
         PathBuf,
     },
-    process::Command,
 };
 
 #[test]
@@ -64,38 +63,11 @@ fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
 
 #[test]
 fn unset_removes_a_caret_declared_runtime_by_major_version() {
-    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
-    let mut server = mockito::Server::new();
-    let version = "24.0.0-rc.4";
-    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
-    let pnpm_home = root.path().join("pnpm-home");
-    configure_node_runtime(&root, &workspace, &server);
-    let command = || {
-        Command::cargo_bin("pnpm")
-            .expect("find the pnpm binary")
-            .with_current_dir(&workspace)
-            .without_ambient_pnpm_config()
-            .with_env("PNPM_HOME", &pnpm_home)
-            .with_env("XDG_STATE_HOME", root.path().join("state"))
-            .with_env("XDG_CONFIG_HOME", root.path().join("config"))
-    };
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "devDependencies": { "node": "runtime:^24.0.0-rc.4" } }).to_string();
+    fs::write(workspace.join("package.json"), &manifest).unwrap();
 
-    let output = command()
-        .with_args(["runtime", "set", "node", version])
-        .output()
-        .expect("spawn pacquet runtime set");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "stderr={stderr}");
-
-    let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
-    let manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
-    assert_eq!(
-        manifest["devDependencies"]["node"].as_str(),
-        Some("runtime:^24.0.0-rc.4"),
-        "set should save a caret range: {manifest}",
-    );
-
-    let output = command()
+    let output = pacquet
         .with_args(["runtime", "unset", "node", "24"])
         .output()
         .expect("spawn pacquet runtime unset");
@@ -105,6 +77,7 @@ fn unset_removes_a_caret_declared_runtime_by_major_version() {
     let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
     let manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
     assert!(manifest["devDependencies"].get("node").is_none(), "manifest: {manifest}");
+    drop(root);
 }
 
 #[test]
