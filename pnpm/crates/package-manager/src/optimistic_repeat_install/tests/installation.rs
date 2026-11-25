@@ -587,6 +587,42 @@ fn returns_skipped_when_a_scope_moves_to_another_registry() {
         Decision::Skipped { reason } if reason.contains("settings"),
     ));
 }
+#[test]
+fn run_checks_registry_routes_when_its_install_can_resolve_the_whole_lockfile() {
+    for (ci, filtered, shared_lockfile, expects_drift) in [
+        (true, false, true, false),
+        (false, true, true, false),
+        (false, true, false, true),
+        (false, false, true, true),
+    ] {
+        let (dir, config) = super::setup_content_check_project();
+        let mut config = config.clone();
+        config.ci = ci;
+        config.shared_workspace_lockfile = shared_lockfile;
+        config.registries_by_scope.insert("@example".into(), "https://registry.example/".into());
+        if filtered {
+            config.filter.push(".".into());
+        }
+        let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+        let projects = [(dir.path().to_path_buf(), &manifest)];
+        let status = super::workspace_deps_status_for_selected(
+            &dir,
+            config.leak(),
+            &projects,
+            &[dir.path()],
+        );
+        let expected = if expects_drift {
+            super::RunDepsStatus::Outdated {
+                issue: "The value of the registryRoutes setting has changed".into(),
+                install_args: Vec::new(),
+            }
+        } else {
+            super::RunDepsStatus::UpToDate
+        };
+        assert_eq!(status, expected);
+    }
+}
+
 /// Drift in `minimumReleaseAgeIgnoreMissingTime` invalidates the cached
 /// state. pnpm resolves it to a concrete `true` default and records it,
 /// so pacquet records and compares it too.

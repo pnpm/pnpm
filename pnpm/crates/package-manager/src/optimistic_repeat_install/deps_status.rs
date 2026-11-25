@@ -104,10 +104,7 @@ pub fn check_deps_status_before_run(
     } else {
         Scope::Selected(selected_project_dirs)
     };
-    let mut ignored_settings = RUN_IGNORED_SETTINGS.to_vec();
-    if install_would_run_frozen(check) {
-        ignored_settings.push("autoDedupe");
-    }
+    let ignored_settings = run_ignored_settings(check, scope);
     let policy = GatePolicy {
         gate: Gate::Run,
         ignored_settings: &ignored_settings,
@@ -121,6 +118,22 @@ pub fn check_deps_status_before_run(
         Ok(()) => RunDepsStatus::UpToDate,
         Err(stale) => outdated(stale_issue(check, stale)),
     }
+}
+
+fn run_ignored_settings(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    scope: Scope<'_>,
+) -> Vec<&'static str> {
+    let mut ignored_settings = RUN_IGNORED_SETTINGS.to_vec();
+    let frozen = install_would_run_frozen(check);
+    if frozen {
+        ignored_settings.push("autoDedupe");
+    }
+    // Only a full resolution can replace the recorded routes of every plain key.
+    if frozen || (matches!(scope, Scope::Selected(_)) && check.config.shares_one_lockfile()) {
+        ignored_settings.push("registryRoutes");
+    }
+    ignored_settings
 }
 
 /// pnpm's issue wording for a [`Stale`] verdict.

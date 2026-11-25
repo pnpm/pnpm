@@ -142,6 +142,12 @@ fn a_frozen_install_keeps_the_moved_packages_and_the_recorded_routes() {
         .assert()
         .success();
 
+    pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_CI", "true")
+        .with_args(["--config.verify-deps-before-run=error", "exec", "node", "--version"])
+        .assert()
+        .success();
+
     assert_eq!(
         fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read lockfile"),
         written,
