@@ -1261,3 +1261,14 @@ fn stable_cached_range_proves_a_version_resolved_higher_in_the_chain() {
         Some("1.1.0"),
     );
 }
+
+#[test]
+fn release_age_exclusion_preserves_the_registry_build_key() {
+    let version = "1.0.0-rc.1+build.7";
+    let mut pkg = make_package("fixture", &[(version, None)], &[("latest", version)]);
+    pkg.time = Some(make_time_map(&[(version, "2025-02-01T00:00:00Z")]));
+    let cutoff = parse_iso("2025-01-01T00:00:00Z");
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, Some(&["1.0.0-rc.1".into()]));
+    assert!(filtered.versions.contains_key(version));
+    assert_eq!(filtered.dist_tag("latest"), Some(version));
+}

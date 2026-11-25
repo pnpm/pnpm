@@ -288,3 +288,22 @@ fn policy_matches_prerelease_versions_without_build_metadata() {
     let policy = create_package_version_policy(["fixture@2.0.0-rc.1+ci.4"]).unwrap();
     assert_eq!(policy.matches("fixture"), PolicyMatch::ExactVersions(vec!["2.0.0-rc.1".into()]));
 }
+
+#[test]
+fn prune_matches_resolved_versions_that_retain_metadata() {
+    let specs = ["fixture@1.0.0+requested".to_string(), "fixture@2.0.0".to_string()];
+    let resolved = [(
+        "fixture".to_string(),
+        ["1.0.0+registry".to_string(), "2.0.0+invalid!".to_string()].into(),
+    )]
+    .into();
+    assert_eq!(crate::drop_unresolved_package_version_specs(&specs, &resolved), specs[..1]);
+}
+
+#[test]
+fn policy_compares_metadata_on_both_sides_and_keeps_prereleases_distinct() {
+    let policy = create_package_version_policy(["fixture@1.0.0-rc.1+requested"]).unwrap();
+    assert!(policy.matches_version("fixture", "1.0.0-rc.1+registry"));
+    assert!(!policy.matches_version("fixture", "1.0.0+registry"));
+    assert!(!policy.matches_version("fixture", "1.0.0-rc.1+invalid!"));
+}

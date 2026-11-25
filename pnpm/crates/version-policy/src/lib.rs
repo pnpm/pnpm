@@ -48,6 +48,24 @@ pub enum VersionPolicyError {
     },
 }
 
+/// The version key for policy comparisons. Opaque dependency sources stay exact.
+#[must_use]
+pub fn policy_version_key(version: &str) -> &str {
+    match version.split_once('+') {
+        Some((base, _)) if Version::parse(version).is_ok() => base,
+        _ => version,
+    }
+}
+
+/// Whether a registry version matches one of the normalized exact policy versions.
+#[must_use]
+pub fn lists_policy_version(versions: &[String], version: &str) -> bool {
+    let key = policy_version_key(version);
+    versions
+        .iter()
+        .any(|exact| exact == key)
+}
+
 /// Expand one spec into its `name` / `name@version` literal strings.
 ///
 /// A pattern like `is-*` lands in the output as a literal string and never
@@ -190,7 +208,16 @@ fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Optio
     let kept: Vec<&str> = parsed.exact_versions
         .iter()
         .map(String::as_str)
-        .filter(|version| resolved_versions.contains(*version))
+        .filter(|version| {
+            if resolved_versions.contains(*version) {
+                return true;
+            }
+            let prefix = format!("{version}+");
+            resolved_versions
+                .range(prefix.clone()..)
+                .take_while(|resolved| resolved.starts_with(&prefix))
+                .any(|resolved| policy_version_key(resolved) == *version)
+        })
         .collect();
     if kept.is_empty() {
         return None;
@@ -257,6 +284,21 @@ struct VersionPolicyRule {
 }
 
 impl PackageVersionPolicy {
+    /// Whether a bare-name, wildcard, or exact-version rule covers this release.
+    #[must_use]
+    pub fn matches_version(&self, name: &str, version: &str) -> bool {
+        let key = policy_version_key(version);
+        self.rules
+            .iter()
+            .any(|rule| {
+                rule.name_matcher.matches(name)
+                    && (rule.exact_versions.is_empty()
+                        || rule.exact_versions
+                            .iter()
+                            .any(|exact| exact == key))
+            })
+    }
+
     /// Evaluate the policy against a package name, merging the exact
     /// versions of all matching `name@version[...]` rules.
     ///

@@ -646,14 +646,7 @@ fn render_fetch_metadata_error(error: &crate::FetchMetadataError) -> String {
 }
 
 fn is_excluded(policy: Option<&PackageVersionPolicy>, name: &PkgName, version: &str) -> bool {
-    let Some(policy) = policy else { return false };
-    match policy.matches(&name.to_string()) {
-        pnpm_version_policy::PolicyMatch::No => false,
-        pnpm_version_policy::PolicyMatch::AnyVersion => true,
-        pnpm_version_policy::PolicyMatch::ExactVersions(versions) => versions
-            .iter()
-            .any(|exact| exact == version),
-    }
+    policy.is_some_and(|policy| policy.matches_version(&name.to_string(), version))
 }
 
 fn uncheckable(policy: &str, why: &str) -> String {
