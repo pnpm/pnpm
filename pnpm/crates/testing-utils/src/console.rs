@@ -78,7 +78,7 @@ impl PrivateConsole {
         use windows_sys::Win32::{
             System::Console::GetConsoleWindow,
             UI::WindowsAndMessaging::{
-                PostMessageW,
+                SendMessageW,
                 WM_CLOSE,
             },
         };
@@ -88,10 +88,9 @@ impl PrivateConsole {
         assert!(!window.is_null(), "the private console has a window");
         drop(self);
         // SAFETY: the window is the console's, which stays alive while the
-        // processes still attached to it hold it open, and posting to a
-        // window that has closed meanwhile only fails.
-        let posted = unsafe { PostMessageW(window, WM_CLOSE, 0, 0) };
-        assert_ne!(posted, 0, "PostMessageW: {}", std::io::Error::last_os_error());
+        // processes still attached to it hold it open. The synchronous send
+        // waits until the console host has processed the close request.
+        unsafe { SendMessageW(window, WM_CLOSE, 0, 0) };
     }
 }
 
