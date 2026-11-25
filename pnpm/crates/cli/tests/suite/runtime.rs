@@ -223,6 +223,8 @@ fn unset_preserves_an_unrelated_dangling_npm_link_during_legacy_cleanup() {
     fs::create_dir_all(&legacy_version_dir).unwrap();
     let global_bin = pnpm_home.join("bin");
     fs::create_dir_all(&global_bin).unwrap();
+    let node_link = global_bin.join("node");
+    std::os::unix::fs::symlink(legacy_version_dir.join("bin/node"), &node_link).unwrap();
     let npm_link = global_bin.join("npm");
     let unrelated_target = root.path().join("other-global-install/npm/bin/npm");
     std::os::unix::fs::symlink(&unrelated_target, &npm_link).unwrap();
@@ -236,6 +238,7 @@ fn unset_preserves_an_unrelated_dangling_npm_link_during_legacy_cleanup() {
 
     assert!(output.status.success(), "stderr={stderr}");
     assert!(!legacy_version_dir.exists());
+    assert!(node_link.symlink_metadata().is_err());
     assert!(
         npm_link
             .symlink_metadata()
