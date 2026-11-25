@@ -171,35 +171,10 @@ pub fn ensure_file(
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
     mode: Option<FileMode>,
 ) -> Result<(), EnsureFileError> {
-    let lock = cas_write_lock(file_path);
-    let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-
-    let creation = FileCreation::new(file_path.parent().unwrap_or_else(|| Path::new(".")), mode);
-    match creation.open(file_path) {
-        Ok(mut file) => {
-            #[cfg(unix)]
-            creation
-                .grant(&file)
-                .map_err(|error| EnsureFileError::WriteFile {
-                    file_path: file_path.to_path_buf(),
-                    error,
-                })?;
-            file.write_all(content)
-                .map_err(|error| EnsureFileError::WriteFile {
-                    file_path: file_path.to_path_buf(),
-                    error,
-                })
-        }
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            verify_or_rewrite(file_path, content, mode, Repair::Rename).map(drop)
-        }
-        Err(error) => {
-            Err(EnsureFileError::CreateFile { file_path: file_path.to_path_buf(), error })
-        }
-    }
+    ensure(file_path, content, mode, Repair::Rename).map(drop)
 }
 
-/// Publish a complete CAS blob at a vacant path. When the
+/// [`ensure_file`] with the repair strategy CAS blobs need: when the
 /// existing file's bytes mismatch, overwrite it in place first, keeping
 /// the inode so the hard links to it from other projects'
 /// `node_modules` are healed by the same write (pnpm/pnpm#3445). The
@@ -223,9 +198,7 @@ pub fn ensure_cas_file(
     #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
     mode: Option<FileMode>,
 ) -> Result<Option<FileMode>, EnsureFileError> {
-    let lock = cas_write_lock(file_path);
-    let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    verify_or_rewrite(file_path, content, mode, Repair::InPlace)
+    ensure(file_path, content, mode, Repair::InPlace)
 }
 
 /// [`ensure_file`] for a file other programs read as-is: a new file is
@@ -243,15 +216,54 @@ pub fn ensure_file_atomically(
     verify_or_rewrite(file_path, content, mode, Repair::Rename).map(drop)
 }
 
-/// How [`verify_or_rewrite`] repairs an existing file whose bytes mismatch.
+/// How [`ensure`] repairs an existing file whose bytes mismatch.
 #[derive(Clone, Copy)]
 enum Repair {
     /// Temp file + `rename` over the target. Atomic, but swaps the
     /// inode, disconnecting hard-linked copies.
     Rename,
-    /// Truncate and rewrite under the same inode, healing hard-linked
+    /// Rewrite under the same inode, healing hard-linked
     /// copies; falls back to the rename when refused.
     InPlace,
+}
+
+fn ensure(
+    file_path: &Path,
+    content: &[u8],
+    mode: Option<FileMode>,
+    repair: Repair,
+) -> Result<Option<FileMode>, EnsureFileError> {
+    // See the "Process-local per-path mutex" bullet above and
+    // [`cas_write_lock`] for the rationale.
+    let lock = cas_write_lock(file_path);
+    let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    let creation = FileCreation::new(file_path.parent().unwrap_or_else(|| Path::new(".")), mode);
+    match creation.open(file_path) {
+        Ok(mut file) => {
+            #[cfg(unix)]
+            let created_mode = creation
+                .grant(&file)
+                .map_err(|error| EnsureFileError::WriteFile {
+                    file_path: file_path.to_path_buf(),
+                    error,
+                })?;
+            #[cfg(not(unix))]
+            let created_mode = None;
+            file.write_all(content)
+                .map(|()| created_mode)
+                .map_err(|error| EnsureFileError::WriteFile {
+                    file_path: file_path.to_path_buf(),
+                    error,
+                })
+        }
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            verify_or_rewrite(file_path, content, mode, repair)
+        }
+        Err(error) => {
+            Err(EnsureFileError::CreateFile { file_path: file_path.to_path_buf(), error })
+        }
+    }
 }
 
 /// Borrow the process-local write mutex for `file_path`.
@@ -295,8 +307,31 @@ const _: () = assert!(
 static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
     [const { Mutex::new(()) }; NUM_CAS_LOCK_STRIPES];
 
-/// Compare regular files before repairing them. Replace non-regular directory
-/// entries by rename so verification and repair never follow a known symlink.
+/// Re-read an already-present CAS file and byte-compare with `content`.
+/// If they match we're done; if not, recover the torn blob by writing a
+/// fresh temp file and renaming it over the target.
+///
+/// Uses `symlink_metadata` (not `metadata`) first to reject the
+/// non-regular-file cases, symlinks in particular. On Unix,
+/// `open(O_CREAT|O_EXCL)` returns `EEXIST` even when the dirent is
+/// a symlink (POSIX `open` does not follow symlinks under `O_EXCL`),
+/// so a tampered / backed-up-and-restored store could route a symlinked
+/// dirent into this function. If we fell through directly to `fs::read`
+/// (which *does* follow symlinks), a symlink pointing at a file with
+/// matching bytes would silently return `Ok(())` without ever
+/// materialising a real CAS blob at `file_path`, and downstream
+/// `fs::hard_link` on that path would hardlink the symlink itself
+/// rather than the target. Scrub instead: [`write_atomic`]'s `rename`
+/// atomically replaces the symlink (or any other non-regular dirent
+/// that `rename` can overwrite) with a real regular file. Pacquet's
+/// CAS linking path is strict about file-type, so the guard is worth
+/// adding here.
+///
+/// A `NotFound` on either syscall means the dirent disappeared
+/// between our `create_new` attempt and the metadata / read call,
+/// another process cleaned it up (unusual, but possible in shared-
+/// store setups). Fall through to the atomic-write path, which will
+/// re-create it.
 fn verify_or_rewrite(
     file_path: &Path,
     content: &[u8],
@@ -304,46 +339,34 @@ fn verify_or_rewrite(
     repair: Repair,
 ) -> Result<Option<FileMode>, EnsureFileError> {
     let rewrite = || write_atomic(file_path, content, mode);
-    loop {
-        match inspect_file(file_path, content) {
-            Ok(FileContents::Match(mode)) => return Ok(mode),
-            Ok(FileContents::Mismatch(existing_mode)) => {
-                return repair_file(file_path, content, mode, repair, existing_mode);
-            }
-            Ok(FileContents::NonRegular) => return rewrite(),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => {
-                return Err(EnsureFileError::ReadFile { file_path: file_path.to_owned(), error });
-            }
-        }
-        if matches!(repair, Repair::Rename) {
-            return rewrite();
-        }
-        let (tmp_path, created_mode) = stage_file(file_path, content, mode)?;
-        if publish_new_file(&tmp_path, file_path)? {
-            return Ok(created_mode);
-        }
-        let _ = fs::remove_file(tmp_path);
+    let read_error =
+        |error| EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error };
+    let meta = match fs::symlink_metadata(file_path) {
+        Ok(meta) if meta.file_type().is_file() => meta,
+        // Symlink, directory, fifo, socket, block/char device,
+        // not a regular CAS blob. Scrub via atomic rewrite.
+        Ok(_) => return rewrite(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return rewrite(),
+        Err(error) => return Err(read_error(error)),
+    };
+    let existing_mode = crate::file_mode::metadata_mode(&meta);
+    match bytes_match(file_path, content, &meta) {
+        Ok(true) => Ok(existing_mode),
+        Ok(false) => repair_file(file_path, content, mode, repair, existing_mode),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => rewrite(),
+        Err(error) => Err(read_error(error)),
     }
 }
 
-enum FileContents {
-    Match(Option<FileMode>),
-    Mismatch(Option<FileMode>),
-    NonRegular,
-}
-
-fn inspect_file(file_path: &Path, content: &[u8]) -> io::Result<FileContents> {
-    let meta = fs::symlink_metadata(file_path)?;
-    if !meta.is_file() {
-        return Ok(FileContents::NonRegular);
+/// Whether the regular file `meta` describes holds `content`.
+fn bytes_match(file_path: &Path, content: &[u8], meta: &fs::Metadata) -> io::Result<bool> {
+    // Cheap size-mismatch reject before we read a single byte,
+    // a CAS file whose length doesn't match the buffer we were
+    // about to write cannot possibly have matching contents.
+    if meta.len() != content.len() as u64 {
+        return Ok(false);
     }
-    let mode = crate::file_mode::metadata_mode(&meta);
-    if meta.len() == content.len() as u64 && file_equals_bytes(file_path, content)? {
-        Ok(FileContents::Match(mode))
-    } else {
-        Ok(FileContents::Mismatch(mode))
-    }
+    file_equals_bytes(file_path, content)
 }
 
 /// Repair a corrupt regular file at `file_path` per the caller's
@@ -358,7 +381,7 @@ fn repair_file(
 ) -> Result<Option<FileMode>, EnsureFileError> {
     let mut source = content;
     let repaired = matches!(repair, Repair::InPlace)
-        && overwrite_file_in_place(file_path, &mut source)
+        && overwrite_file_in_place(file_path, &mut source, content.len() as u64)
         && file_equals_bytes(file_path, content).unwrap_or(false);
     if repaired { Ok(existing_mode) } else { write_atomic(file_path, content, mode) }
 }
@@ -426,23 +449,6 @@ fn write_atomic(
     content: &[u8],
     mode: Option<FileMode>,
 ) -> Result<Option<FileMode>, EnsureFileError> {
-    let (tmp_path, created_mode) = stage_file(file_path, content, mode)?;
-    if let Err(error) = rename_with_retry(&tmp_path, file_path) {
-        let _ = fs::remove_file(&tmp_path);
-        return Err(EnsureFileError::RenameFile {
-            tmp_path,
-            file_path: file_path.to_path_buf(),
-            error,
-        });
-    }
-    Ok(created_mode)
-}
-
-fn stage_file(
-    file_path: &Path,
-    content: &[u8],
-    mode: Option<FileMode>,
-) -> Result<(PathBuf, Option<FileMode>), EnsureFileError> {
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
     let name = file_path
         .file_name()
@@ -466,30 +472,15 @@ fn stage_file(
     // dirty buffers before the rename commits the dirent change.
     drop(file);
 
-    Ok((tmp_path, created_mode))
-}
-
-/// Move a completed temporary file into a vacant path. If another writer
-/// published first, return `false` and leave the temporary file with the caller.
-/// On other errors, discard the temporary file.
-pub fn publish_new_file(tmp_path: &Path, file_path: &Path) -> Result<bool, EnsureFileError> {
-    crate::retry::retry_transient_file_locks(|| {
-        let mut path = tempfile::TempPath::try_from_path(tmp_path)?;
-        path.disable_cleanup(true);
-        match path.persist_noclobber(file_path) {
-            Ok(()) => Ok(true),
-            Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => Ok(false),
-            Err(error) => Err(error.error),
-        }
-    })
-    .map_err(|error| {
-        let _ = fs::remove_file(tmp_path);
-        EnsureFileError::RenameFile {
-            tmp_path: tmp_path.to_owned(),
-            file_path: file_path.to_owned(),
+    if let Err(error) = rename_with_retry(&tmp_path, file_path) {
+        let _ = fs::remove_file(&tmp_path);
+        return Err(EnsureFileError::RenameFile {
+            tmp_path,
+            file_path: file_path.to_path_buf(),
             error,
-        }
-    })
+        });
+    }
+    Ok(created_mode)
 }
 
 /// A file [`create_exclusive_temp_file`] created and opened.

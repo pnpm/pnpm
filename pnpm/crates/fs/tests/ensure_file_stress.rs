@@ -107,30 +107,6 @@ fn multi_process_concurrent_writes_converge_on_correct_content() {
     );
 }
 
-#[cfg(unix)]
-#[test]
-fn interrupted_cold_cas_write_leaves_the_final_path_vacant() {
-    let tmp = tempdir().unwrap();
-    let source = tmp.path().join("source");
-    let target = tmp.path().join("target");
-    fs::write(&source, vec![42; CONTENT_SIZE]).unwrap();
-
-    // Deliver EFBIG after a partial write in the child only.
-    let output = Command::new("sh")
-        .with_args(["-c", r#"ulimit -f 1 && trap '' XFSZ && exec "$@""#, "sh", WORKER_BIN])
-        .with_arg(&source)
-        .with_arg(&target)
-        .with_arg("--cas")
-        // The file-size limit would also truncate the child's LLVM coverage profile.
-        .with_env("LLVM_PROFILE_FILE", "/dev/null")
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(1), "{output:?}");
-    assert!(String::from_utf8_lossy(&output.stderr).contains("Failed to write to file"));
-    assert!(!target.try_exists().unwrap());
-    assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 1);
-}
-
 /// A pre-seeded corrupt blob at the target path doesn't wedge the
 /// store: every concurrent writer still returns success, and the
 /// final on-disk content matches the buffer the workers were trying

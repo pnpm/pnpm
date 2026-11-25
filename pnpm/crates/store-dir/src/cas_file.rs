@@ -22,7 +22,6 @@ use pnpm_fs::{
         is_executable,
     },
     overwrite_file_in_place,
-    publish_new_file,
     rename_with_retry,
 };
 use sha2::{
@@ -248,15 +247,19 @@ fn commit_streamed_temp_file(
     let lock = cas_write_lock(file_path);
     let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
-    let Some(existing_meta) = publish_or_inspect(tmp_path, file_path)? else {
-        return Ok(tmp_mode);
-    };
-    if existing_meta.is_file()
-        && ((existing_meta.len() == size && files_have_equal_contents(tmp_path, file_path))
-            || repair_in_place(tmp_path, file_path))
-    {
+    let existing_meta = fs::symlink_metadata(file_path).ok();
+    let existing_is_regular = existing_meta
+        .as_ref()
+        .map(fs::Metadata::file_type)
+        .is_some_and(|file_type| file_type.is_file());
+    let existing_is_live = existing_meta
+        .as_ref()
+        .filter(|meta| meta.file_type().is_file())
+        .is_some_and(|meta| meta.len() == size)
+        && files_have_equal_contents(tmp_path, file_path);
+    if existing_is_live || (existing_is_regular && repair_in_place(tmp_path, file_path, size)) {
         let _ = fs::remove_file(tmp_path);
-        return Ok(pnpm_fs::file_mode::metadata_mode(&existing_meta));
+        return Ok(existing_meta.as_ref().and_then(pnpm_fs::file_mode::metadata_mode));
     }
     if let Err(error) = rename_with_retry(tmp_path, file_path) {
         let _ = fs::remove_file(tmp_path);
@@ -269,28 +272,6 @@ fn commit_streamed_temp_file(
     Ok(tmp_mode)
 }
 
-fn publish_or_inspect(
-    tmp_path: &Path,
-    file_path: &Path,
-) -> Result<Option<fs::Metadata>, WriteCasFileFromReaderError> {
-    loop {
-        match fs::symlink_metadata(file_path) {
-            Ok(meta) => return Ok(Some(meta)),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => {
-                let _ = fs::remove_file(tmp_path);
-                return Err(write_cas_error(EnsureFileError::ReadFile {
-                    file_path: file_path.to_owned(),
-                    error,
-                }));
-            }
-        }
-        if publish_new_file(tmp_path, file_path).map_err(write_cas_error)? {
-            return Ok(None);
-        }
-    }
-}
-
 /// Overwrite the corrupt regular file at `file_path` in place with the
 /// bytes just streamed into `tmp_path`, keeping the inode so hard links
 /// to it from other projects' `node_modules` are healed by the same
@@ -298,9 +279,9 @@ fn publish_or_inspect(
 /// atomic rename) when the in-place write is refused or the result
 /// fails a byte-compare against the temp, which covers a concurrent
 /// process still mid-write on the same path.
-fn repair_in_place(tmp_path: &Path, file_path: &Path) -> bool {
+fn repair_in_place(tmp_path: &Path, file_path: &Path, size: u64) -> bool {
     let Ok(mut tmp_reader) = fs::File::open(tmp_path) else { return false };
-    overwrite_file_in_place(file_path, &mut tmp_reader)
+    overwrite_file_in_place(file_path, &mut tmp_reader, size)
         && files_have_equal_contents(tmp_path, file_path)
 }
 

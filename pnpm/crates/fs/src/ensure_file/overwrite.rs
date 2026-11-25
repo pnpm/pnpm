@@ -8,10 +8,7 @@ use std::{
         self,
         File,
     },
-    io::{
-        self,
-        Seek,
-    },
+    io,
     path::Path,
 };
 
@@ -41,7 +38,7 @@ use std::{
 /// corrupt, and a failed integrity check re-triggers this repair, so
 /// the trade is a brief torn-read window for healing every hard-linked
 /// copy at once.
-pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> bool {
+pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read, size: u64) -> bool {
     // A write-protected file refuses the write open, and on Windows that
     // refusal would first spend the transient-lock retry budget.
     #[cfg_attr(
@@ -74,10 +71,11 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
     let Ok(mut file) = open_for_overwrite(file_path) else {
         return false;
     };
+    // A concurrent writer may have finished since the mismatch was observed.
+    // Keep its complete bytes readable while copying the same CAS content.
     same_file(&file, &expected)
-        && file.set_len(0).is_ok()
-        && file.rewind().is_ok()
-        && io::copy(reader, &mut file).is_ok()
+        && io::copy(reader, &mut file).is_ok_and(|written| written == size)
+        && file.set_len(size).is_ok()
 }
 
 /// Whether the opened handle is the same regular file `expected`

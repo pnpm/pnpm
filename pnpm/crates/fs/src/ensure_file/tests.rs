@@ -2,7 +2,6 @@ use super::{
     EnsureFileError,
     TempFile,
     create_exclusive_temp_file,
-    ensure_cas_file,
     ensure_file,
     ensure_file_atomically,
     file_equals_bytes,
@@ -20,10 +19,35 @@ use tempfile::tempdir;
 use super::{
     EMFILE,
     ENFILE,
+    ensure_cas_file,
     retry_on_fd_pressure,
 };
 #[cfg(unix)]
 use pnpm_ffi_fs::FileMode;
+
+#[test]
+fn stale_repair_keeps_a_completed_blob_readable() {
+    struct ObservedSource<'a> {
+        path: &'a Path,
+        contents: &'a [u8],
+        remaining: &'a [u8],
+    }
+
+    impl io::Read for ObservedSource<'_> {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            assert_eq!(fs::read(self.path)?, self.contents);
+            self.remaining.read(buffer)
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("blob");
+    let contents = b"complete manifest";
+    fs::write(&path, contents).unwrap();
+    let mut source = ObservedSource { path: &path, contents, remaining: contents };
+    assert!(super::overwrite_file_in_place(&path, &mut source, contents.len() as u64));
+    assert_eq!(fs::read(&path).unwrap(), contents);
+}
 
 #[test]
 fn writes_a_new_file() {
@@ -33,25 +57,6 @@ fn writes_a_new_file() {
     ensure_file(&path, b"hello", None).expect("new-file write succeeds");
 
     assert_eq!(fs::read(&path).unwrap(), b"hello");
-}
-
-#[test]
-fn cold_cas_publication_keeps_the_first_complete_file() {
-    let tmp = tempdir().unwrap();
-    let path = tmp.path().join("blob");
-    let content = b"complete";
-    let (staged, _) = super::stage_file(&path, content, None).unwrap();
-    assert!(!path.try_exists().unwrap());
-
-    ensure_cas_file(&path, content, None).unwrap();
-    let linked = tmp.path().join("imported");
-    fs::hard_link(&path, &linked).unwrap();
-
-    assert!(!super::publish_new_file(&staged, &path).unwrap());
-    assert_eq!(fs::read(&linked).unwrap(), content);
-    fs::write(&linked, b"changed").unwrap();
-    assert_eq!(fs::read(&path).unwrap(), b"changed");
-    assert_eq!(fs::read(staged).unwrap(), content);
 }
 
 #[test]
