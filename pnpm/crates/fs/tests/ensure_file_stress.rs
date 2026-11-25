@@ -121,6 +121,8 @@ fn interrupted_cold_cas_write_leaves_the_final_path_vacant() {
         .with_arg(&source)
         .with_arg(&target)
         .with_arg("--cas")
+        // The file-size limit would also truncate the child's LLVM coverage profile.
+        .with_env("LLVM_PROFILE_FILE", "/dev/null")
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(1), "{output:?}");
