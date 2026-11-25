@@ -4,6 +4,7 @@ use super::{
     validate_gh_actions_env_file_values,
     write_gh_actions_env_files,
 };
+use crate::no_env_host::NoEnv;
 use pnpm_config::EnvVarOs;
 use pnpm_reporter::{
     LogEvent,
@@ -21,13 +22,6 @@ use std::{
         OnceLock,
     },
 };
-
-struct NoEnv;
-impl EnvVarOs for NoEnv {
-    fn var_os(_name: &str) -> Option<OsString> {
-        None
-    }
-}
 
 /// The `GITHUB_ENV` path is never opened by the tests using this fake.
 struct InGitHubActions;
