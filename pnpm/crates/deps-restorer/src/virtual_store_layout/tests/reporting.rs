@@ -1,10 +1,25 @@
-use super::package_metadata;
+use super::{
+    make_config,
+    package_metadata,
+};
 use pnpm_lockfile::{
     LockfileResolution,
     PackageKey,
+    SnapshotEntry,
     TarballResolution,
 };
-use pretty_assertions::assert_eq;
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
+use std::{
+    collections::HashMap,
+    ffi::OsStr,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// A lockfile that keeps a `file:` snapshot but drops or mismatches its
 /// `packages:` entry leaves no resolution to read. The segment and the
@@ -14,12 +29,8 @@ use pretty_assertions::assert_eq;
 #[test]
 fn a_file_snapshot_without_metadata_is_still_scoped() {
     let dir_dep: PackageKey = "b@file:packages/b".parse().unwrap();
-
-    assert_eq!(super::super::gvs_version_segment(None, &dir_dep.suffix), "directory");
-    assert!(super::super::is_local_directory(None, &dir_dep.suffix));
-
-    // The same holds when the entry is present but carries neither a
-    // directory resolution nor a version to fall back on.
+    // Present, but with neither a directory resolution nor a version to
+    // fall back on.
     let bare = package_metadata(
         LockfileResolution::Tarball(TarballResolution {
             tarball: "file:packages/b".to_string(),
@@ -30,6 +41,27 @@ fn a_file_snapshot_without_metadata_is_still_scoped() {
         }),
         None,
     );
-    assert_eq!(super::super::gvs_version_segment(Some(&bare), &dir_dep.suffix), "directory");
-    assert!(super::super::is_local_directory(Some(&bare), &dir_dep.suffix));
+    let snapshots = HashMap::from([(dir_dep.clone(), SnapshotEntry::default())]);
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+
+    for packages in [None, Some(HashMap::from([(dir_dep.without_peer(), bare)]))] {
+        let slot_in = |lockfile_dir: &str| {
+            super::super::VirtualStoreLayout::new(
+                &config,
+                None,
+                Some(&snapshots),
+                packages.as_ref(),
+                None,
+                Some(Path::new(lockfile_dir)),
+            )
+            .slot_dir(&dir_dep)
+        };
+        let slot = slot_in("/home/user/a");
+        assert_ne!(slot, slot_in("/home/user/b"));
+        assert_eq!(slot.parent().and_then(Path::file_name), Some(OsStr::new("directory")));
+    }
 }

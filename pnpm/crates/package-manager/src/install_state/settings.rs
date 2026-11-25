@@ -48,6 +48,10 @@ use pnpm_workspace_state::{
 };
 use std::path::Path;
 
+/// The workspace-state key of [`global_virtual_store_layout_version`]. It is
+/// not a setting a user can name, so a message words it separately.
+pub(crate) const GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION_KEY: &str = "globalVirtualStoreLayoutVersion";
+
 pub(crate) fn global_virtual_store_layout_version(config: &Config) -> Option<u8> {
     config.enable_global_virtual_store.then_some(
         pnpm_deps_restorer::GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION,

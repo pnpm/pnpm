@@ -98,3 +98,28 @@ fn returns_up_to_date_when_recorded_global_virtual_store_is_explicit_off() {
     );
     assert_eq!(decision, Decision::UpToDate);
 }
+
+/// The layout version is not a setting, so the run check must not word
+/// its drift as one.
+#[test]
+fn run_check_reports_an_older_global_virtual_store_layout_without_naming_a_setting() {
+    let (dir, config) = super::setup_content_check_project();
+    let mut config = config.clone();
+    config.enable_global_virtual_store = true;
+    let config = config.leak();
+    let mut state = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
+    state.settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    state.settings.global_virtual_store_layout_version = None;
+    pnpm_workspace_state::update_workspace_state(dir.path(), &state).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let projects = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(
+        super::workspace_deps_status(&dir, config, &projects),
+        super::RunDepsStatus::Outdated {
+            issue: "The global virtual store layout has changed".to_string(),
+            install_args: Vec::new(),
+        },
+    );
+}

@@ -59,7 +59,7 @@ impl SettingsComparison<'_> {
                 ),
             ),
             (
-                "globalVirtualStoreLayoutVersion",
+                super::GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION_KEY,
                 recorded.global_virtual_store_layout_version
                     != live.global_virtual_store_layout_version,
             ),
