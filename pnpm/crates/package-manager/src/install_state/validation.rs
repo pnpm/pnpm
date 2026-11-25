@@ -419,8 +419,8 @@ fn shared_inputs_match(
             .get(&*path.to_string_lossy())
             .map(|signature| signature.digest.clone())
     };
-    // Only a resolving install records `autoDedupe` and `registryRoutes`,
-    // and only a verifying one `registryPrefixes`; none shapes a tree. Empty
+    // Only a resolving install records `autoDedupe`, and only a verifying
+    // one `registryPrefixes`. Neither shapes a tree. Empty
     // maps and `enableGlobalVirtualStore: false` match their omitted
     // defaults.
     let settings = |state: &WorkspaceState| {
@@ -428,7 +428,9 @@ fn shared_inputs_match(
         settings.auto_dedupe = None;
         settings.registry_prefixes = None;
         settings.default_registry = None;
-        settings.registry_routes = None;
+        if let Some(routes) = settings.installed_registry_routes.take() {
+            settings.registry_routes = Some(routes);
+        }
         if settings.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
             settings.allow_builds = None;
         }

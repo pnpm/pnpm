@@ -1,4 +1,7 @@
-use super::Config;
+use super::{
+    Config,
+    SettingsComparison,
+};
 use std::collections::BTreeMap;
 
 /// The `registryPrefixes` an install that verified the lockfile's keys
@@ -36,6 +39,17 @@ pub(crate) fn records_registry_keys_of(
 ) -> bool {
     settings.registry_prefixes == recorded_registry_prefixes(config)
         && settings.default_registry == recorded_default_registry(config)
+}
+
+impl SettingsComparison<'_> {
+    pub(super) fn registry_routes_differ(&self) -> bool {
+        let live = self.live.registry_routes.as_ref();
+        match self.recorded.installed_registry_routes.as_ref() {
+            Some(installed) if Some(installed) != live => true,
+            Some(_) if self.ignored.contains(&"registryRoutes") => false,
+            _ => self.recorded.registry_routes.as_ref() != live,
+        }
+    }
 }
 
 /// The scope routes an install resolves plain keys through, as

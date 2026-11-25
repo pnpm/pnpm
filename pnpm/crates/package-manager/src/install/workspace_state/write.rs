@@ -83,6 +83,9 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
             crate::install_state::recorded_default_registry(write.config);
     }
     state.settings.registry_routes.clone_from(&write.carried.registry_routes);
+    if state.settings.installed_registry_routes == state.settings.registry_routes {
+        state.settings.installed_registry_routes = None;
+    }
     if let Some(kept) = write.carried.kept_settings {
         carry_run_ignored_settings(&mut state.settings, kept);
     }
@@ -104,6 +107,7 @@ fn carry_run_ignored_settings(
     settings: &mut WorkspaceStateSettings,
     kept: &WorkspaceStateSettings,
 ) {
+    settings.installed_registry_routes.clone_from(&kept.installed_registry_routes);
     settings.dev = kept.dev;
     settings.optional = kept.optional;
     settings.production = kept.production;

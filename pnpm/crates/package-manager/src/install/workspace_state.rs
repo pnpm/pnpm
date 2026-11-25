@@ -304,7 +304,7 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     state.settings.auto_dedupe = None;
     state.settings.registry_prefixes = None;
     state.settings.default_registry = None;
-    state.settings.registry_routes = None;
+    state.settings.installed_registry_routes = state.settings.registry_routes.take();
     if node_linker == NodeLinker::Hoisted {
         record_hoisted_modules_dirs(
             &mut state.projects,

@@ -408,6 +408,10 @@ pub struct WorkspaceStateSettings {
     /// every unscoped package again on each switch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registry_routes: Option<BTreeMap<String, String>>,
+    /// The scope routes used by the install that validated the recorded projects,
+    /// when they differ from [`Self::registry_routes`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installed_registry_routes: Option<BTreeMap<String, String>>,
     /// `runtime`, recorded only while it is off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<bool>,

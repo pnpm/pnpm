@@ -312,6 +312,8 @@ Changing [`trustLockfile`](./dependency-resolution.md#trustlockfile) alone does 
 
 When the command is filtered, for example `pnpm --filter foo run build`, the check covers the selected projects and the workspace projects they depend on, and the install it runs is filtered the same way.
 
+After a frozen or filtered install has handled a scope registry change for the selected projects, the next command can reuse that install. Run an unfiltered `pnpm install --no-frozen-lockfile` to resolve dependencies under the new registry settings.
+
 ### strictDepBuilds
 
 * Default: **true**

@@ -68,6 +68,7 @@ pub(crate) fn held_projects_match_lockfile(
     held: &[&ManifestStat<'_>],
     current: &CurrentLockfile<'_>,
 ) -> Result<(), Stale> {
+    require_recorded_registry_routes(state, held)?;
     let lockfile = check.lockfile
         .get()
         .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
@@ -104,6 +105,24 @@ pub(crate) fn held_projects_match_lockfile(
         }
     };
     check_projects_content(check, wanted, held).map_err(Stale::Content)
+}
+
+fn require_recorded_registry_routes(
+    state: &WorkspaceState,
+    held: &[&ManifestStat<'_>],
+) -> Result<(), Stale> {
+    // A plain lockfile key cannot prove which registry an unrecorded project used.
+    if state.settings.installed_registry_routes.is_some()
+        && held
+            .iter()
+            .any(|stat| {
+                stat.status == ProjectStatus::Unrecorded
+                    && super::manifest_has_runtime_deps(stat.manifest)
+            })
+    {
+        return Err(Stale::SettingChanged("registryRoutes"));
+    }
+    Ok(())
 }
 
 /// The current lockfile records what `wanted` materializes for each `held`
