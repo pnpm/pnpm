@@ -401,6 +401,11 @@ fn runtime_and_env_list_use_and_remove_support_leading_v_and_prerelease_channels
         "stdout={}",
         String::from_utf8_lossy(&runtime_list_out.stdout),
     );
+    assert!(
+        String::from_utf8_lossy(&runtime_list_out.stdout).contains("node 22.0.0-rc.1"),
+        "stdout={}",
+        String::from_utf8_lossy(&runtime_list_out.stdout),
+    );
     for runtime_version in ["deno 2.0.0", "bun 1.0.0"] {
         assert!(
             String::from_utf8_lossy(&runtime_list_out.stdout).contains(runtime_version),
