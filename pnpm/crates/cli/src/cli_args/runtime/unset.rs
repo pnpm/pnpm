@@ -20,7 +20,10 @@ use crate::{
 };
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_engine_runtime_node_resolver::strip_leading_v;
+use pnpm_engine_runtime_node_resolver::{
+    RELEASE_CHANNELS,
+    strip_leading_v,
+};
 use pnpm_global::{
     GlobalPackageInfo,
     installed_versions,
@@ -129,10 +132,10 @@ pub fn ensure_project_runtime_matches(
     Ok(())
 }
 
-fn with_global_bin_lock<T>(
+fn with_global_bin_lock<Output>(
     global_bin_dir: &Path,
-    action: impl FnOnce() -> miette::Result<T>,
-) -> miette::Result<T> {
+    action: impl FnOnce() -> miette::Result<Output>,
+) -> miette::Result<Output> {
     let _lock = acquire_global_bin_lock(global_bin_dir)?;
     action()
 }
@@ -223,7 +226,7 @@ fn runtime_version_matches(runtime_name: &str, actual: &str, requested: &str) ->
 
 fn runtime_selector_matches(runtime_name: &str, actual: &str, requested: &str) -> bool {
     if runtime_name == "node" {
-        return matches_node_version(actual, requested);
+        return matches_node_selector(actual, requested);
     }
     let requested = strip_leading_v(requested.trim());
     if requested.is_empty() {
@@ -231,6 +234,32 @@ fn runtime_selector_matches(runtime_name: &str, actual: &str, requested: &str) -
     }
     let actual = strip_leading_v(actual.trim());
     actual == requested || actual.starts_with(&format!("{requested}."))
+}
+
+fn matches_node_selector(actual: &str, requested: &str) -> bool {
+    if let Some((channel, version)) = actual.split_once('/') {
+        return matches_node_channel_version(channel, version, requested);
+    }
+    matches_node_version(actual, requested)
+}
+
+fn matches_node_channel_version(channel: &str, version: &str, requested: &str) -> bool {
+    if !RELEASE_CHANNELS.contains(&channel) {
+        return false;
+    }
+    let (requested_channel, raw_version) = match requested.split_once('/') {
+        Some((requested_channel, rest)) if RELEASE_CHANNELS.contains(&requested_channel) => {
+            (Some(requested_channel), rest)
+        }
+        Some(_) => return false,
+        None => (None, requested),
+    };
+    if requested_channel.is_some_and(|requested| requested != channel) {
+        return false;
+    }
+    let requested = strip_leading_v(raw_version.trim());
+    let version = strip_leading_v(version.trim());
+    !requested.is_empty() && (version == requested || version.starts_with(&format!("{requested}.")))
 }
 
 #[cfg(test)]
