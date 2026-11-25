@@ -640,24 +640,6 @@ fn is_local_directory(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) -
     matches!(suffix.version(), VersionPart::File(_))
 }
 
-/// Extra hash input that keeps a snapshot taken from a local directory
-/// on a slot of its own. `None` for every other snapshot.
-///
-/// A directory resolution is the one resolution with no integrity: it
-/// is a path relative to the lockfile, so `file:dep` hashes identically
-/// in every project that happens to depend on a directory of that name.
-/// Sharing the slot would hand one project the files of whichever
-/// project installed first, and because the source directory is mutable
-/// the install re-imports it every time, so the projects would go on
-/// overwriting each other's dependency.
-fn local_directory_scope<'a>(
-    metadata: Option<&PackageMetadata>,
-    suffix: &PkgVerPeer,
-    lockfile_dir: Option<&'a str>,
-) -> Option<&'a str> {
-    is_local_directory(metadata, suffix).then_some(lockfile_dir).flatten()
-}
-
 #[cfg(test)]
 mod tests;
 

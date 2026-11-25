@@ -16,10 +16,7 @@ fn a_file_snapshot_without_metadata_is_still_scoped() {
     let dir_dep: PackageKey = "b@file:packages/b".parse().unwrap();
 
     assert_eq!(super::super::gvs_version_segment(None, &dir_dep.suffix), "directory");
-    assert_eq!(
-        super::super::local_directory_scope(None, &dir_dep.suffix, Some("/home/user/a")),
-        Some("/home/user/a"),
-    );
+    assert!(super::super::is_local_directory(None, &dir_dep.suffix));
 
     // The same holds when the entry is present but carries neither a
     // directory resolution nor a version to fall back on.
@@ -34,8 +31,5 @@ fn a_file_snapshot_without_metadata_is_still_scoped() {
         None,
     );
     assert_eq!(super::super::gvs_version_segment(Some(&bare), &dir_dep.suffix), "directory");
-    assert_eq!(
-        super::super::local_directory_scope(Some(&bare), &dir_dep.suffix, Some("/home/user/a")),
-        Some("/home/user/a"),
-    );
+    assert!(super::super::is_local_directory(Some(&bare), &dir_dep.suffix));
 }

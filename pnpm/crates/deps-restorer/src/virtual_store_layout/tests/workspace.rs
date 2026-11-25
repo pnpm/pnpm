@@ -1,7 +1,11 @@
 use super::{
     super::VirtualStoreLayout,
+    alias,
+    depends_on,
+    key,
     make_config,
     package_metadata,
+    plain,
     snapshot_with_link,
 };
 use pnpm_lockfile::{
@@ -29,12 +33,35 @@ use std::{
 /// the lockfile directory tells their slots apart.
 #[test]
 fn directory_deps_get_a_slot_per_project() {
-    let key: PackageKey = "dep@file:dep".parse().unwrap();
-    let mut snapshots = HashMap::new();
-    snapshots.insert(key.clone(), SnapshotEntry::default());
+    let directory = key("dep@file:dep");
+    let consumer = key("consumer@1.0.0(dep@file:dep)");
+    let ancestor = key("ancestor@1.0.0");
+    let shared = key("shared@1.0.0");
+    let snapshots = HashMap::from([
+        (directory.clone(), SnapshotEntry::default()),
+        (
+            consumer.clone(),
+            SnapshotEntry {
+                dependencies: Some(HashMap::from([(alias("dep"), plain("file:dep"))])),
+                ..Default::default()
+            },
+        ),
+        (
+            ancestor.clone(),
+            SnapshotEntry {
+                dependencies: Some(HashMap::from([(
+                    alias("consumer"),
+                    plain("1.0.0(dep@file:dep)"),
+                )])),
+                ..Default::default()
+            },
+        ),
+        (shared.clone(), depends_on("leaf")),
+        (key("leaf@1.0.0"), SnapshotEntry::default()),
+    ]);
     let mut packages = HashMap::new();
     packages.insert(
-        key.without_peer(),
+        directory.without_peer(),
         package_metadata(
             LockfileResolution::Directory(DirectoryResolution { directory: "dep".to_string() }),
             None,
@@ -46,7 +73,7 @@ fn directory_deps_get_a_slot_per_project() {
         PathBuf::from("/tmp/proj/node_modules/.pnpm"),
         PathBuf::from("/tmp/store/links"),
     );
-    let slot_in = |lockfile_dir: &str| {
+    let layout_in = |lockfile_dir: &str| {
         super::super::VirtualStoreLayout::new(
             &config,
             None,
@@ -55,12 +82,15 @@ fn directory_deps_get_a_slot_per_project() {
             None,
             Some(Path::new(lockfile_dir)),
         )
-        .slot_dir(&key)
     };
 
-    let in_project_a = slot_in("/home/user/a");
-    let in_project_b = slot_in("/home/user/b");
-    assert_ne!(in_project_a, in_project_b);
+    let first = layout_in("/home/user/a");
+    let second = layout_in("/home/user/b");
+    for scoped in [&directory, &consumer, &ancestor] {
+        assert_ne!(first.slot_dir(scoped), second.slot_dir(scoped));
+    }
+    assert_eq!(first.slot_dir(&shared), second.slot_dir(&shared));
+    let in_project_a = first.slot_dir(&directory);
     // The slot is `<root>/@/dep/<version>/<hash>`, so the version segment is
     // the hash directory's parent. Compared as a component rather than a
     // substring: the separator is native, `\` on Windows.

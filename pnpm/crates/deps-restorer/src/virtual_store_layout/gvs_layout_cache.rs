@@ -18,7 +18,7 @@ use std::{
 
 /// Bumped whenever the derived suffixes or this file's encoding
 /// change, so entries written by an older pnpm are never read.
-pub(super) const CACHE_FORMAT_VERSION: &str = "2";
+pub(super) const CACHE_FORMAT_VERSION: &str = "3";
 
 /// Generous per-snapshot ceiling on a cache file, so a preseeded one
 /// cannot make an install read an arbitrary amount before it has

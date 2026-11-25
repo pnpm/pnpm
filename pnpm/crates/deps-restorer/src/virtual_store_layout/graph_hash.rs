@@ -1,7 +1,7 @@
 use super::{
     gvs_layout_cache,
     gvs_version_segment,
-    local_directory_scope,
+    is_local_directory,
 };
 use crate::{
     AllowBuildPolicy,
@@ -45,13 +45,8 @@ use std::{
 /// participate in every ancestor's recursive hash while keeping slots
 /// shared between projects that resolve the link to the same directory.
 ///
-/// Packages whose metadata is missing or whose resolution has no
-/// `integrity` (directory / git) are emitted with the bare
-/// `pkg_id_with_patch_hash` as their `full_pkg_id`. The frozen-
-/// lockfile install path rejects those resolutions before reaching the
-/// linker, so a stub `full_pkg_id` here is safe, the GVS hash for an
-/// install that contains one of those snapshots is irrelevant because
-/// the install will error out before consulting it.
+/// Local directory nodes use their package ID. [`GvsHasher`] scopes
+/// their slots and those of their dependents to the checkout.
 pub(super) fn lockfile_to_dep_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -138,12 +133,8 @@ pub(super) struct GvsHasher<'h> {
     /// this is the identical input. Hashing the raw bytes instead would
     /// give the two stacks different slots for the same project.
     project_scope: Option<std::borrow::Cow<'h, str>>,
-    /// The snapshots `sideEffectsCache.exclude` names, and every snapshot
-    /// that depends on one. An excluded build must not reach another
-    /// project, so each takes the project's own slot just as a local
-    /// directory snapshot does, and so does a dependent, whose slot links
-    /// to it.
-    uncached_builds: HashSet<String>,
+    /// Local directories, uncached builds, and their transitive dependents.
+    project_scoped: HashSet<String>,
     /// See [`BuildGating::runs_builds`].
     runs_builds: bool,
     engine: Option<&'h str>,
@@ -172,15 +163,14 @@ impl<'h> GvsHasher<'h> {
         let allow_build_policy = gating.policy;
         let build_required_dep_paths =
             allow_build_policy.map(|policy| engine_gating_dep_paths(policy, snapshots, &graph));
-        let uncached_builds = allow_build_policy
-            .map(|policy| uncached_build_dep_paths(policy, snapshots, &graph))
-            .unwrap_or_default();
+        let project_scoped =
+            project_scoped_dep_paths(snapshots, packages, allow_build_policy, &graph);
         Self {
             graph,
             build_required_dep_paths,
             cache: HashMap::new(),
             project_scope: lockfile_dir.map(|dir| dir.to_string_lossy()),
-            uncached_builds,
+            project_scoped,
             runs_builds: gating.runs_builds,
             engine,
             packages,
@@ -234,7 +224,7 @@ impl<'h> GvsHasher<'h> {
         write_field(&mut hasher, self.project_scope.as_deref().unwrap_or(""));
         self.write_gating_set(&mut hasher);
         hasher.update([u8::from(self.runs_builds)]);
-        write_sorted(&mut hasher, &self.uncached_builds);
+        write_sorted(&mut hasher, &self.project_scoped);
         self.write_graph(&mut hasher);
         self.write_snapshot_extras(&mut hasher, snapshots);
         format!("{:x}", hasher.finalize())
@@ -300,13 +290,9 @@ impl<'h> GvsHasher<'h> {
         let metadata_key = snapshot_key.without_peer();
         let metadata = self.packages.and_then(|packages| packages.get(&metadata_key));
         let dep_path = snapshot_key.to_string();
-        let project_scope =
-            local_directory_scope(metadata, &metadata_key.suffix, self.project_scope.as_deref())
-                .or_else(|| {
-                    self.project_scope
-                        .as_deref()
-                        .filter(|_| self.uncached_builds.contains(&dep_path))
-                });
+        let project_scope = self.project_scope
+            .as_deref()
+            .filter(|_| self.project_scoped.contains(&dep_path));
         let hex_digest = calc_graph_node_hash(
             &self.graph,
             &mut self.cache,
@@ -325,19 +311,23 @@ impl<'h> GvsHasher<'h> {
         )
     }
 }
-/// The dep paths of the snapshots whose build `sideEffectsCache.exclude`
-/// keeps out of every cache, and of their transitive dependents.
-fn uncached_build_dep_paths(
-    policy: &AllowBuildPolicy,
+fn project_scoped_dep_paths(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    policy: Option<&AllowBuildPolicy>,
     graph: &HashMap<String, DepsGraphNode<String>>,
 ) -> HashSet<String> {
-    let excluded = snapshots
+    let scoped = snapshots
         .keys()
-        .filter(|snapshot_key| !policy.caches_build(snapshot_key))
+        .filter(|key| {
+            let metadata_key = key.without_peer();
+            let metadata = packages.and_then(|packages| packages.get(&metadata_key));
+            is_local_directory(metadata, &metadata_key.suffix)
+                || policy.is_some_and(|policy| !policy.caches_build(key))
+        })
         .map(ToString::to_string)
         .collect();
-    pnpm_graph_hasher::build_required_dep_paths(graph, &excluded)
+    pnpm_graph_hasher::build_required_dep_paths(graph, &scoped)
 }
 
 /// Hash a set in an order a `HashSet` cannot vary.
@@ -394,11 +384,6 @@ pub(super) fn create_full_pkg_id(
                 resolution,
             )
         }
-        // Directory / git / missing-metadata fall through to the bare
-        // id. The install path rejects these resolutions before the
-        // hash is consulted (see
-        // [`crate::InstallPackageBySnapshotError::UnsupportedResolution`]),
-        // so the value never actually drives a slot path on disk.
         _ => pkg_id_with_patch_hash.to_string(),
     }
 }
