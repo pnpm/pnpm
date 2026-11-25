@@ -413,7 +413,7 @@ minimumReleaseAgeExclude:
 - '@myorg/*'
 ```
 
-You may also exempt specific versions (or a list of specific versions using a disjunction with `||`). This allows pinning exceptions to mature-time rules:
+You may also exempt specific versions (or a list of specific versions using a disjunction with `||`). Exact versions ignore SemVer build metadata. For example, an exception for `1.0.0-rc.1+build.7` matches `1.0.0-rc.1`.
 
 ```yaml title="pnpm-workspace.yaml"
 minimumReleaseAge: 1440
@@ -492,7 +492,7 @@ The check also covers the pnpm version a project pins in `packageManager` or `de
 * Default: **[]**
 * Type: **string[]**
 
-A list of package selectors that should be excluded from the trust policy check. This allows you to install specific packages or versions even if they don't satisfy the `trustPolicy` requirement.
+A list of package selectors that should be excluded from the trust policy check. This allows you to install specific packages or versions even if they don't satisfy the `trustPolicy` requirement. Exact versions ignore SemVer build metadata.
 
 For example:
 

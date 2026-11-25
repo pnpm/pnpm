@@ -14,7 +14,10 @@ use super::{
     expand_package_version_spec,
     get_pkg_id_with_patch_hash,
 };
-use pnpm_config::SkillsPermission;
+use pnpm_config::{
+    SkillsPermission,
+    version_policy::policy_version_key,
+};
 
 /// Whether `version` (the peer-free version half of a dep path) names a local
 /// directory (`link:` or non-tarball `file:`).
@@ -138,9 +141,9 @@ impl SkillsPolicy {
         let git_repo_key = git_repo_key.as_deref();
         let (name, version) = parse_dep_path_name_version(&normalized_dep_path)
             .unwrap_or((normalized_dep_path.as_str(), ""));
-        let name_at_version = format!("{name}@{version}");
+        let name_at_version = format!("{name}@{}", policy_version_key(version));
         let denial_name_at_version =
-            format!("{name}@{}", registry_version(version).unwrap_or(version));
+            format!("{name}@{}", policy_version_key(registry_version(version).unwrap_or(version)));
 
         let matches = [
             self.dep_paths.get(&normalized_dep_path),

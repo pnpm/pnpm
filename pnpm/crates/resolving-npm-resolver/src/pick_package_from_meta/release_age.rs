@@ -126,9 +126,7 @@ pub(super) fn filter_pkg_metadata_by_publish_date_uncached(
                 .and_then(parse_packument_timestamp)
                 .is_some_and(|date| date <= cutoff);
             let trusted = trusted_versions.is_some_and(|allow| {
-                allow
-                    .iter()
-                    .any(|allowed| allowed == version)
+                pnpm_version_policy::lists_policy_version(allow, version)
             });
             mature || trusted
         },

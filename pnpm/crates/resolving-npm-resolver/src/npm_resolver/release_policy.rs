@@ -42,15 +42,7 @@ fn policy_trusts(
     version: &str,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
-    use pnpm_version_policy::PolicyMatch;
-    let Some(policy) = published_by_exclude else { return false };
-    match policy.matches(&meta.name) {
-        PolicyMatch::AnyVersion => true,
-        PolicyMatch::ExactVersions(versions) => versions
-            .iter()
-            .any(|exact| exact == version),
-        PolicyMatch::No => false,
-    }
+    published_by_exclude.is_some_and(|policy| policy.matches_version(&meta.name, version))
 }
 
 /// Whether the cutoff has positive evidence that `version` is too new.
@@ -121,19 +113,9 @@ pub fn detect_min_release_age_violation(
 ) -> Option<ResolutionPolicyViolation> {
     let cutoff = published_by?;
     let timestamp = published_at?;
-    if let Some(policy) = published_by_exclude {
-        use pnpm_version_policy::PolicyMatch;
-        match policy.matches(&name.to_string()) {
-            PolicyMatch::AnyVersion => return None,
-            PolicyMatch::ExactVersions(versions)
-                if versions
-                    .iter()
-                    .any(|exact| exact == version) =>
-            {
-                return None;
-            }
-            _ => {}
-        }
+    if published_by_exclude.is_some_and(|policy| policy.matches_version(&name.to_string(), version))
+    {
+        return None;
     }
     let parsed = parse_packument_timestamp(timestamp)?;
     if parsed <= cutoff {

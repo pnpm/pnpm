@@ -22,6 +22,10 @@ use super::{
     parse_name_version_from_key,
     remove_suffix,
 };
+use pnpm_config::version_policy::{
+    lists_policy_version,
+    policy_version_key,
+};
 use pnpm_package_name::is_git_repo_dep_path;
 
 /// Build policy derived from `allowBuilds` and
@@ -154,11 +158,7 @@ impl AllowBuildPolicy {
             PolicyMatch::ExactVersions(versions) => !snapshot_key.suffix
                 .version_semver()
                 .or_else(|| snapshot_key.suffix.registry_qualified().map(|(_, version)| version))
-                .is_some_and(|version| {
-                    versions
-                        .iter()
-                        .any(|exact| exact == &version.to_string())
-                }),
+                .is_some_and(|version| lists_policy_version(&versions, &version.to_string())),
         }
     }
 
@@ -188,7 +188,10 @@ impl AllowBuildPolicy {
         let (name, version) = parse_name_version_from_key(&normalized_dep_path);
         // A `name@version` denial also blocks the same version from a named
         // registry. Approvals stay registry-exact, see below.
-        let name_at_version = format!("{name}@{}", registry_version(&version).unwrap_or(&version));
+        let name_at_version = format!(
+            "{name}@{}",
+            policy_version_key(registry_version(&version).unwrap_or(&version)),
+        );
         if self.denies(&normalized_dep_path, git_repo_key, (&name, &name_at_version)) {
             return Some(false);
         }

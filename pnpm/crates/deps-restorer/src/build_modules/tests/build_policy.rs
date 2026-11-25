@@ -1124,3 +1124,24 @@ fn side_effects_cache_exclude_rejects_an_invalid_version_union() {
     };
     assert!(AllowBuildPolicy::from_config(&config).is_err());
 }
+
+#[test]
+fn build_denial_with_metadata_matches_only_the_pinned_version() {
+    let policy = policy_from_specs([("fixture@1.0.0+build.7", false)], true);
+    assert_eq!(policy.check("fixture@1.0.0"), Some(false));
+    assert_eq!(policy.check("fixture@1.0.1"), Some(true));
+}
+
+#[test]
+fn retained_build_metadata_matches_build_and_cache_denials() {
+    let config = Config {
+        side_effects_cache_exclude: Some(vec!["fixture@1.0.0+requested".into()]),
+        ..Config::default()
+    };
+    let cache = AllowBuildPolicy::from_config(&config).unwrap();
+    let builds = policy_from_specs([("fixture@1.0.0+requested", false)], true);
+    for key in ["fixture@1.0.0+registry", "fixture@work:1.0.0+registry"] {
+        assert_eq!(builds.check(key), Some(false));
+        assert!(!cache.caches_build(&key.parse().unwrap()));
+    }
+}

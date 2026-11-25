@@ -262,3 +262,12 @@ fn deterministic_collapsed_key_merge_regardless_of_input_order() {
     ]);
     assert_eq!(policy_a.check("foo@2.0.0"), policy_b.check("foo@2.0.0"));
 }
+
+#[test]
+fn versioned_skill_decisions_match_retained_registry_metadata() {
+    let denied = policy(&[("fixture@1.0.0", SkillsPermission::All(false))]);
+    let allowed = policy(&[("fixture@1.0.0", SkillsPermission::All(true))]);
+    assert_eq!(denied.check("fixture@work:1.0.0+ci"), Some(SkillsPermission::All(false)));
+    assert_eq!(allowed.check("fixture@1.0.0+ci"), Some(SkillsPermission::All(true)));
+    assert_eq!(allowed.check("fixture@work:1.0.0+ci"), None);
+}

@@ -25,10 +25,7 @@ use pnpm_registry::{
     VersionTrustMetadata,
 };
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
-use pnpm_version_policy::{
-    PackageVersionPolicy,
-    PolicyMatch,
-};
+use pnpm_version_policy::PackageVersionPolicy;
 
 use crate::pick_package::{
     SkippedTimeCheck,
@@ -237,13 +234,7 @@ fn is_trust_excluded(
     version: &str,
     exclude: Option<&PackageVersionPolicy>,
 ) -> bool {
-    match exclude.map(|exclude| exclude.matches(meta.package_name())) {
-        Some(PolicyMatch::AnyVersion) => true,
-        Some(PolicyMatch::ExactVersions(versions)) => versions
-            .iter()
-            .any(|exact| exact == version),
-        Some(PolicyMatch::No) | None => false,
-    }
+    exclude.is_some_and(|policy| policy.matches_version(meta.package_name(), version))
 }
 
 /// Map a [`TrustEvidence`] rank to its numeric weight. "No evidence"
