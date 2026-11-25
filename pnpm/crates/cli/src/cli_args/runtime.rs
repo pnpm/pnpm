@@ -105,6 +105,13 @@ pub enum RuntimeError {
         #[error(not(source))]
         version: String,
     },
+
+    #[display(r#"Cannot unset "{name}": "{name}" is not declared as a runtime in the project"#)]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_NOT_DECLARED))]
+    NotARuntimeDependency {
+        #[error(not(source))]
+        name: String,
+    },
 }
 
 #[derive(Debug)]

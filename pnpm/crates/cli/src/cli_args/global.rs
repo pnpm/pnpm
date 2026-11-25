@@ -22,6 +22,7 @@ pub use remove::{
     handle_global_remove,
     remove_global_groups,
     remove_global_package_groups,
+    remove_global_package_groups_locked,
 };
 pub(crate) use skills::links_of_other_groups;
 

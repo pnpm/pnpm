@@ -59,6 +59,67 @@ fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
 }
 
 #[test]
+fn unset_removes_a_caret_declared_runtime_by_major_version() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let version = "22.14.0";
+    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let pnpm_home = root.path().join("pnpm-home");
+    configure_node_runtime(&root, &workspace, &server);
+
+    let output = pacquet
+        .clone()
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_args(["runtime", "set", "node", version])
+        .output()
+        .expect("spawn pacquet runtime set");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr={stderr}");
+
+    let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+    assert_eq!(
+        manifest["devDependencies"]["node"].as_str(),
+        Some("runtime:^22.14.0"),
+        "set should save a caret range: {manifest}",
+    );
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+        .with_args(["runtime", "unset", "node", "22"])
+        .output()
+        .expect("spawn pacquet runtime unset");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr={stderr}");
+
+    let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+    assert!(manifest["devDependencies"].get("node").is_none(), "manifest: {manifest}");
+}
+
+#[test]
+fn unset_leaves_an_ordinary_project_dependency_named_like_a_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "devDependencies": { "node": "^22.0.0" } }).to_string();
+    fs::write(workspace.join("package.json"), &manifest).unwrap();
+
+    let output = pacquet
+        .with_args(["runtime", "unset", "node"])
+        .output()
+        .expect("spawn pacquet runtime unset");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_RUNTIME_NOT_DECLARED"), "stderr={stderr}");
+    assert_eq!(fs::read_to_string(workspace.join("package.json")).unwrap(), manifest);
+    drop(root);
+}
+
+#[test]
 fn unset_deletes_a_matching_global_runtime_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
@@ -195,6 +256,77 @@ fn unset_fails_when_the_runtime_is_not_installed() {
 }
 
 #[test]
+fn unset_leaves_an_ordinary_package_named_like_a_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    let global_bin = pnpm_home.join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let (link, install_dir) =
+        seed_global_package(&global_pkg_dir, "bun", "1.2.0", "hash-bun", "^1.2.0");
+    fs::write(global_bin.join("bun"), "shim").unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["runtime", "unset", "bun", "-g"])
+        .output()
+        .expect("spawn pacquet runtime unset");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_GLOBAL_PKG_NOT_FOUND"), "stderr={stderr}");
+    assert!(link.exists());
+    assert!(install_dir.exists());
+    assert!(global_bin.join("bun").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn unset_keeps_an_unrelated_stale_node_link_when_removing_another_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home).unwrap();
+    let current = pnpm_home.join("nodejs_current");
+    std::os::unix::fs::symlink(pnpm_home.join("nodejs/18.12.1/bin/node"), &current).unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["runtime", "unset", "bun", "-g"])
+        .output()
+        .expect("spawn pacquet runtime unset");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_GLOBAL_PKG_NOT_FOUND"), "stderr={stderr}");
+    assert!(current.symlink_metadata().is_ok());
+}
+
+#[cfg(unix)]
+#[test]
+fn unset_fails_when_only_a_stale_global_bin_link_exists() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let stale_link = global_bin.join("bun");
+    std::os::unix::fs::symlink(root.path().join("missing-bun-install"), &stale_link).unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["runtime", "unset", "bun", "-g"])
+        .output()
+        .expect("spawn pacquet runtime unset");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_GLOBAL_PKG_NOT_FOUND"), "stderr={stderr}");
+    assert!(stale_link.symlink_metadata().is_ok());
+}
+
+#[test]
 fn unset_rejects_an_unsupported_runtime_name() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
@@ -217,25 +349,35 @@ fn seed_global_runtime(
     version: &str,
     hash: &str,
 ) -> (PathBuf, PathBuf) {
+    seed_global_package(global_pkg_dir, runtime_name, version, hash, &format!("runtime:{version}"))
+}
+
+fn seed_global_package(
+    global_pkg_dir: &Path,
+    package_name: &str,
+    version: &str,
+    hash: &str,
+    specifier: &str,
+) -> (PathBuf, PathBuf) {
     let install_dir = global_pkg_dir.join(format!("install-{hash}"));
-    let runtime_dir = install_dir.join("node_modules").join(runtime_name);
-    fs::create_dir_all(runtime_dir.join("bin")).unwrap();
+    let package_dir = install_dir.join("node_modules").join(package_name);
+    fs::create_dir_all(package_dir.join("bin")).unwrap();
     fs::write(
         install_dir.join("package.json"),
-        json!({ "dependencies": { runtime_name: format!("runtime:{version}") } }).to_string(),
+        json!({ "dependencies": { package_name: specifier } }).to_string(),
     )
     .unwrap();
     fs::write(
-        runtime_dir.join("package.json"),
+        package_dir.join("package.json"),
         json!({
-            "name": runtime_name,
+            "name": package_name,
             "version": version,
-            "bin": { runtime_name: format!("bin/{runtime_name}") },
+            "bin": { package_name: format!("bin/{package_name}") },
         })
         .to_string(),
     )
     .unwrap();
-    fs::write(runtime_dir.join("bin").join(runtime_name), "runtime").unwrap();
+    fs::write(package_dir.join("bin").join(package_name), "runtime").unwrap();
     let link = global_pkg_dir.join(hash);
     pnpm_fs::symlink_dir(&install_dir, &link).unwrap();
     (link, install_dir)
@@ -247,9 +389,10 @@ fn configure_node_runtime(root: &tempfile::TempDir, workspace: &Path, server: &m
     fs::write(
         config_dir.join("config.yaml"),
         format!(
-            "storeDir: {}\ncacheDir: {}\nnodeDownloadMirrors:\n  rc: '{}/'\n",
+            "storeDir: {}\ncacheDir: {}\nnodeDownloadMirrors:\n  release: '{}/'\n  rc: '{}/'\n",
             root.path().join("store").display(),
             root.path().join("cache").display(),
+            server.url(),
             server.url(),
         ),
     )
