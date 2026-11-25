@@ -1,18 +1,16 @@
+#[cfg(unix)]
+use super::remove::cleanup_pnpm_home_without_stale_current;
 use super::{
     EnvArgs,
     EnvError,
     EnvSubcommand,
-    remove::{
-        cleanup_pnpm_home_without_stale_current,
-        remove_matching_global_node,
-    },
+    remove::remove_matching_global_node,
 };
 use pnpm_config::Config;
 use pnpm_reporter::SilentReporter;
-use std::{
-    collections::HashSet,
-    path::PathBuf,
-};
+#[cfg(unix)]
+use std::collections::HashSet;
+use std::path::PathBuf;
 
 /// A config that looks like a standalone-script pnpm install: it has a
 /// global bin directory to link a runtime into.
