@@ -17,15 +17,15 @@ impl Default for CredentialTransport {
 }
 
 impl CredentialTransport {
-    pub(super) fn http_registry_count(&self) -> usize {
+    pub(super) fn http_registries(&self) -> Option<&[reqwest::Url]> {
         match self {
-            Self::Registry(registries) => registries.len(),
-            Self::SecureOnly => 0,
+            Self::Registry(registries) => Some(registries),
+            Self::SecureOnly => None,
         }
     }
 
     pub(super) fn requires_secure_transport(&self) -> bool {
-        matches!(self, Self::SecureOnly)
+        self.http_registries().is_none()
     }
 }
 
@@ -104,7 +104,7 @@ impl AuthHeaders {
     }
 
     fn http_tarball_registry(&self, start: &str, package: &str) -> Option<&reqwest::Url> {
-        let CredentialTransport::Registry(registries) = &self.transport else { return None };
+        let registries = self.transport.http_registries()?;
         if registries.is_empty() || self.route_hook.is_some() || package.contains("@runtime:") {
             return None;
         }

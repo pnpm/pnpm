@@ -239,7 +239,10 @@ impl fmt::Debug for AuthHeaders {
             .field("scoped_by_scope", &self.scoped_by_scope.len())
             .field("has_token_helpers", &self.has_token_helpers)
             .field("route_hook", &self.route_hook.is_some())
-            .field("http_tarball_registries", &self.transport.http_registry_count())
+            .field(
+                "http_tarball_registries",
+                &self.transport.http_registries().map_or(0, <[_]>::len),
+            )
             .field("require_secure_transport", &self.transport.requires_secure_transport())
             .finish_non_exhaustive()
     }
