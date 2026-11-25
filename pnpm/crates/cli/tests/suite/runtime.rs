@@ -213,6 +213,39 @@ fn unset_cleans_up_the_active_legacy_node_link() {
     assert!(!active_link.exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn unset_preserves_an_unrelated_dangling_npm_link_during_legacy_cleanup() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    let pnpm_home = root.path().join("pnpm-home");
+    let legacy_version_dir = pnpm_home.join("nodejs/22.14.0");
+    fs::create_dir_all(&legacy_version_dir).unwrap();
+    let global_bin = pnpm_home.join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let npm_link = global_bin.join("npm");
+    let unrelated_target = root.path().join("other-global-install/npm/bin/npm");
+    std::os::unix::fs::symlink(&unrelated_target, &npm_link).unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["runtime", "unset", "node", "22.14", "-g"])
+        .output()
+        .expect("spawn pacquet runtime unset");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(output.status.success(), "stderr={stderr}");
+    assert!(!legacy_version_dir.exists());
+    assert!(
+        npm_link
+            .symlink_metadata()
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
+    assert_eq!(fs::read_link(npm_link).unwrap(), unrelated_target);
+}
+
 #[test]
 fn unset_fails_when_the_runtime_is_not_installed() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
