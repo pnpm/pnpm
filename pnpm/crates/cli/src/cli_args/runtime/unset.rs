@@ -240,7 +240,7 @@ fn matches_node_selector(actual: &str, requested: &str) -> bool {
     if let Some((channel, version)) = actual.split_once('/') {
         return matches_node_channel_version(channel, version, requested);
     }
-    matches_node_version(actual, requested)
+    matches_node_version(strip_leading_v(actual), requested)
 }
 
 fn matches_node_channel_version(channel: &str, version: &str, requested: &str) -> bool {

@@ -18,6 +18,7 @@ fn version_matches_an_exact_or_prefix_version() {
 fn node_version_matches_a_release_channel_and_a_leading_v() {
     assert!(runtime_version_matches("node", "22.0.0-rc.4", "rc/22.0.0-rc.4"));
     assert!(runtime_version_matches("node", "22.14.0", "v22"));
+    assert!(runtime_version_matches("node", "v22.14.0", "22.14.0"));
     assert!(!runtime_version_matches("node", "22.0.0", "lts/18"));
 }
 
