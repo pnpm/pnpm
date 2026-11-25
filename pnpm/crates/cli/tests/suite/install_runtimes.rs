@@ -77,6 +77,19 @@ fn installs_node_deno_and_bun_then_reinstalls_them_offline() {
     }
 
     fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    let output = command(&workspace)
+        .with_args(["licenses", "list", "--json"])
+        .assert()
+        .success();
+    let report: Value = serde_json::from_slice(&output.get_output().stdout).unwrap();
+    let packages = report["MIT"].as_array().expect("MIT license group");
+    for fixture in &fixtures {
+        assert!(
+            packages
+                .iter()
+                .any(|package| package["name"] == fixture.name),
+        );
+    }
     command(&workspace)
         .with_args(["install", "--frozen-lockfile", "--offline"])
         .assert()
@@ -1406,13 +1419,12 @@ fn write_devengines_manifest(workspace: &Path, version: &str, on_fail: Option<&s
 
 fn assert_installed(workspace: &Path, fixtures: &[RuntimeFixture]) {
     for fixture in fixtures {
-        assert!(
-            workspace
-                .join("node_modules")
-                .join(fixture.name)
-                .join("package.json")
-                .exists(),
-        );
+        let manifest_path = workspace
+            .join("node_modules")
+            .join(fixture.name)
+            .join("package.json");
+        let manifest: Value = serde_json::from_slice(&fs::read(manifest_path).unwrap()).unwrap();
+        assert_eq!(manifest["license"], "MIT", "license for {}", fixture.name);
         let bin_dir = workspace.join("node_modules/.bin");
         assert!(
             [

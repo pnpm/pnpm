@@ -1,3 +1,5 @@
+mod cached_manifest;
+
 use super::InstallPackageBySnapshotError;
 use pnpm_graph_hasher::{
     host_arch,
@@ -7,10 +9,10 @@ use pnpm_graph_hasher::{
 use pnpm_lockfile::{
     BinaryArchive,
     BinaryResolution,
-    BinarySpec,
     LockfileResolution,
     PackageKey,
     PlatformSelector,
+    Prefix,
     select_platform_variant,
 };
 use pnpm_package_is_installable::{
@@ -249,6 +251,13 @@ pub(crate) async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     // carries `name`, `version`, and `bin`, the three fields pacquet's
     // bin linking and `dlx` look at.
     let manifest_bytes = synthesize_runtime_manifest_bytes(package_key, binary)?;
+    if let Some(paths) = crate::block_in_place_if_multi_thread(|| {
+        cached_manifest::upgrade(&download.store, package_key, binary, &manifest_bytes)
+    })
+    .map_err(InstallPackageBySnapshotError::DownloadTarball)?
+    {
+        return Ok(paths);
+    }
     let fetch = BinaryArchiveFetch {
         binary,
         download,
@@ -335,35 +344,30 @@ pub fn binary_store_index_key(
     binary: &BinaryResolution,
 ) -> Result<String, InstallPackageBySnapshotError> {
     let manifest = synthesize_runtime_manifest_bytes(package_key, binary)?;
-    Ok(pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: Some(&manifest) }
-        .store_index_key(&binary.integrity.to_string(), &package_key.pkg_id()))
+    Ok(manifest_index_key(&manifest, &binary.integrity.to_string(), &package_key.pkg_id()))
+}
+
+fn manifest_index_key(manifest: &[u8], integrity: &str, package_id: &str) -> String {
+    pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: Some(manifest) }
+        .store_index_key(integrity, package_id)
 }
 /// Serialize the synthesized runtime `package.json` to bytes.
-///
-/// `serde_json::to_vec` writes a single-line UTF-8 blob. The bytes go
-/// straight into the CAS, where they're addressed by the SHA-512 of their
-/// content; two runtime archives whose `(name, version, bin)`
-/// triple happens to match share the same blob.
 pub(super) fn synthesize_runtime_manifest_bytes(
     package_key: &PackageKey,
     binary: &BinaryResolution,
 ) -> Result<Vec<u8>, InstallPackageBySnapshotError> {
-    let bin_value = match &binary.bin {
-        BinarySpec::Single(path) => serde_json::Value::String(path.clone()),
-        BinarySpec::Map(map) => {
-            let mut obj = serde_json::Map::with_capacity(map.len());
-            for (name, path) in map {
-                obj.insert(name.clone(), serde_json::Value::String(path.clone()));
-            }
-            serde_json::Value::Object(obj)
-        }
-    };
     let stripped = package_key.without_peer();
-    let manifest = serde_json::json!({
-        "name": stripped.name.to_string(),
+    let name = stripped.name.to_string();
+    let mut manifest = serde_json::json!({
+        "name": name,
         "version": stripped.suffix.version().to_string(),
-        "bin": bin_value,
+        "bin": binary.bin,
     });
+    if stripped.suffix.prefix() == Prefix::Runtime
+        && matches!(name.as_str(), "node" | "deno" | "bun")
+    {
+        manifest["license"] = serde_json::json!("MIT");
+    }
     serde_json::to_vec(&manifest)
         .map_err(|error| InstallPackageBySnapshotError::SynthesizeRuntimeManifest {
             package_key: package_key.to_string(),

@@ -25,6 +25,8 @@ The command requires a `pnpm-lock.yaml` file. A workspace project not yet
 recorded in the lockfile has no licenses to list. When no licenses match, text
 output says `No licenses in packages found` and `--json` outputs `{}`.
 
+For downloaded Node.js, Deno, and Bun runtimes, the command reports the runtime project's declared MIT license. Bundled third-party components may have their own licenses. If a frozen store contains an older runtime manifest without a license, reinstall the runtime with store writes enabled to update it.
+
 When `node_modules` is absent, pnpm reads package metadata and license files from
 the configured store. Run `pnpm fetch` to populate the store from the lockfile.
 Packages missing from both the installation and the store are reported with an

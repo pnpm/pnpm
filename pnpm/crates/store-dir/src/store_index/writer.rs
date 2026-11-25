@@ -114,6 +114,12 @@ enum WriteErrorPolicy {
 }
 
 impl StoreIndexWriter {
+    /// Whether this writer persists changes to the store.
+    #[must_use]
+    pub const fn is_enabled(&self) -> bool {
+        !self.disabled
+    }
+
     /// Spawn the batched writer task. Returns the handle producers push
     /// rows to, and a [`JoinHandle`][tokio::task::JoinHandle] the caller
     /// must `await` after dropping the last `Arc` to the handle so the

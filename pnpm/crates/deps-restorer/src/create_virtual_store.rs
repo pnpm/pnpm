@@ -1,4 +1,8 @@
 pub(crate) mod cas;
+pub use cache_keys::{
+    SnapshotCacheKey,
+    resolution_cache_key,
+};
 pub(crate) use cache_keys::{
     dir_clone_cacheable,
     package_content_changed,
@@ -33,7 +37,6 @@ use slot_linking::LinkSlotsParallel;
 mod cache_keys;
 mod runtime_archives;
 use cache_keys::{
-    SnapshotCacheKey,
     derive_cache_keys,
     integrity_equal,
     prefetch_keys,
