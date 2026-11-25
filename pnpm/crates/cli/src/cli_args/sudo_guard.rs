@@ -93,9 +93,21 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
         CliCommand::Remove(args) => global_write(args.global, "remove"),
         CliCommand::Runtime(args)
             if args.global
-                && matches!(args.params.first().map(String::as_str), Some("list" | "ls")) =>
+                && matches!(args.params.first().map(String::as_str), Some("list" | "ls"),) =>
         {
             None
+        }
+        CliCommand::Runtime(args)
+            if args.global
+                && matches!(args.params.first().map(String::as_str), Some("set" | "use"),) =>
+        {
+            global_write(true, "runtime set")
+        }
+        CliCommand::Runtime(args)
+            if args.global
+                && matches!(args.params.first().map(String::as_str), Some("unset" | "remove"),) =>
+        {
+            global_write(true, "runtime unset")
         }
         CliCommand::Runtime(args) => global_write(args.global, "runtime"),
         CliCommand::Update(args) => global_write(args.selection.global, "update"),

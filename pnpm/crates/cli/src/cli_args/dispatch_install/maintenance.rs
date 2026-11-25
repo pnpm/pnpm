@@ -232,7 +232,7 @@ pub(in super::super) fn runtime<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     if matches!(
         args.params.first().map(String::as_str),
-        Some("list" | "ls" | "remove" | "rm" | "uninstall" | "un",)
+        Some("list" | "ls" | "remove" | "rm" | "uninstall" | "un"),
     ) {
         return env_compatibility(
             ctx,
