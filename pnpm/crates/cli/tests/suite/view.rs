@@ -309,6 +309,53 @@ fn json_flag_prints_errors_to_stdout_for_all_aliases() {
 }
 
 #[test]
+fn info_json_reports_unpublished_package_as_not_found() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let mock = server
+        .mock("GET", "/removed-package")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            serde_json::json!({
+                "name": "removed-package",
+                "time": {
+                    "unpublished": {
+                        "time": "2025-02-01T00:00:00.000Z",
+                        "versions": ["1.0.0"]
+                    }
+                }
+            })
+            .to_string(),
+        )
+        .expect(2)
+        .create();
+    let auth_file = empty_auth_file(root.path());
+
+    for specifier in ["removed-package", "removed-package@1.0.0"] {
+        let output = pacquet_at(&workspace)
+            .with_env("PNPM_CONFIG_FETCH_RETRIES", "0")
+            .with_arg("--npmrc-auth-file")
+            .with_arg(&auth_file)
+            .with_args(["info", specifier, "--registry", &server.url(), "--json"])
+            .output()
+            .expect("spawn pnpm info");
+
+        assert_eq!(output.status.code(), Some(1), "{specifier} must exit with code 1");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
+            panic!("stdout for {specifier} must be a JSON error envelope: {error}: {stdout}")
+        });
+        assert_eq!(parsed["error"]["code"], "ERR_PNPM_PACKAGE_NOT_FOUND", "{specifier}: {stdout}");
+        let message = parsed["error"]["message"].as_str().expect("error message must be a string");
+        assert!(message.contains("unpublished"), "{specifier}: {message}");
+        assert!(message.contains("removed-package"), "{specifier}: {message}");
+    }
+    mock.assert();
+    drop((root, server));
+}
+
+#[test]
 fn no_matching_version_errors() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();

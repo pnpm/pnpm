@@ -172,17 +172,15 @@ impl PickState<'_> {
     /// The mirror a failed fetch may fall back to, when
     /// [`fetch_failure_falls_back`] allows it. The fallback reads only the
     /// scoped mirror `pkg_mirror` already points at.
-    ///
-    /// The fetcher already saved a 200 to disk before it returned (when it
-    /// returned Ok). If it returned Err, an existing mirror is good enough
-    /// to pick from, even if the latest sync failed.
     async fn disk_fallback(
         &self,
         error: &FetchMetadataError,
         disk_meta: Option<Arc<Package>>,
     ) -> Option<Arc<Package>> {
         let public_scope = matches!(self.scope, MetadataCacheScope::Public);
-        if !fetch_failure_falls_back(public_scope, error.is_access_denied()) {
+        if matches!(error, FetchMetadataError::Unpublished { .. })
+            || !fetch_failure_falls_back(public_scope, error.is_access_denied())
+        {
             return None;
         }
         match disk_meta {

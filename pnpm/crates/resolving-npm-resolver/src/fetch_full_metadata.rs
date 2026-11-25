@@ -44,6 +44,7 @@ use crate::{
         normalizes_to_abbreviated,
     },
     mirror::clear_meta,
+    pick_package_from_meta::has_unpublished_versions,
     registry_url::to_registry_url,
 };
 
@@ -126,6 +127,13 @@ pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
 /// A metadata body, in npm's format or, when `install_v2`, in pnpr's own.
 fn parse_metadata(body: &str, install_v2: bool) -> serde_json::Result<Package> {
     if install_v2 { pnpm_registry::parse_install_v2(body) } else { serde_json::from_str(body) }
+}
+
+fn is_unpublished_packument(body: &str) -> bool {
+    let Ok(packument) = serde_json::from_str::<serde_json::Value>(body) else { return false };
+    packument.get("dist-tags").is_none()
+        && packument.get("versions").is_none()
+        && packument.pointer("/time/unpublished").is_some_and(has_unpublished_versions)
 }
 
 /// Whether the response is pnpr's own package document.
@@ -501,9 +509,13 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
     let (output, elapsed) = run_decode(move || {
         let raw_body = raw_body.into_text();
         let mut meta = parse_metadata(&raw_body, install_v2)
-            .map_err(|error| FetchMetadataError::Decode {
-                url: redact_url_credentials(&task_url),
-                error,
+            .map_err(|error| {
+                let url = redact_url_credentials(&task_url);
+                if !install_v2 && is_unpublished_packument(&raw_body) {
+                    FetchMetadataError::Unpublished { url }
+                } else {
+                    FetchMetadataError::Decode { url, error }
+                }
             })?;
         // Each version's fragment is copied out of the body, so it can go
         // before `finish` writes the mirror.

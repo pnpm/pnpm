@@ -11,6 +11,7 @@ use super::{
     FetchFullMetadataOptions,
     FetchFullMetadataOutcome,
     fetch_full_metadata,
+    is_unpublished_packument,
     metadata_response_is_uncacheable,
     warn_if_request_is_slow,
 };
@@ -822,6 +823,10 @@ async fn fetch_full_metadata_decodes_zstd_packuments() {
 const FULL_DOC_WITH_INSTALL_IRRELEVANT_FIELDS: &str = r#"{
     "name": "acme",
     "dist-tags": { "latest": "1.0.0" },
+    "time": {
+        "1.0.0": "2025-03-01T00:00:00.000Z",
+        "unpublished": { "time": "2025-02-01T00:00:00.000Z", "versions": ["0.1.0"] }
+    },
     "versions": {
         "1.0.0": {
             "name": "acme",
@@ -877,6 +882,58 @@ async fn only_an_abbreviated_request_answered_with_the_full_document_is_normaliz
             Some("^1.0.0"),
         );
         mock.assert_async().await;
+    }
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_reports_unpublished_without_retrying() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{
+            "name": "acme",
+            "time": { "unpublished": { "time": "2025-02-01T00:00:00.000Z", "versions": ["1.0.0"] } }
+        }"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: fast_retry_opts(),
+        },
+    };
+
+    let error = fetch_full_metadata("acme", &opts).await.expect_err("package was unpublished");
+    assert!(
+        matches!(error, super::FetchMetadataError::Unpublished { .. }),
+        "expected Unpublished variant, got: {error:?}",
+    );
+    mock.assert_async().await;
+}
+
+#[test]
+fn incomplete_metadata_is_not_unpublished_without_the_exact_marker_shape() {
+    for body in [
+        r#"{"name":"acme"}"#,
+        r#"{"name":"acme","time":{"unpublished":null}}"#,
+        r#"{"name":"acme","time":{"unpublished":{}}}"#,
+        r#"{"name":"acme","time":{"unpublished":{"versions":[]}}}"#,
+        r#"{"name":"acme","time":{"unpublished":{"versions":["1.0.0"]}},"versions":{}}"#,
+        r#"{"name":"acme","time":{"unpublished":{"versions":["1.0.0"]}},"dist-tags":{}}"#,
+    ] {
+        assert!(!is_unpublished_packument(body), "unexpected unpublish record: {body}");
     }
 }
 
