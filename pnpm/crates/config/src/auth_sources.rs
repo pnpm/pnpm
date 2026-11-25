@@ -82,6 +82,12 @@ pub(super) fn npmrc_source<Sys: FsReadFile>(
 
 fn parse_trusted_source<Sys: EnvVar>(text: &str, dir: &Path, path: &Path) -> NpmrcAuth {
     let mut auth = NpmrcAuth::from_ini::<Sys>(text, dir);
+    auth.routes.trusted_http_registries = auth.routes.default
+        .iter()
+        .chain(auth.routes.scoped.values())
+        .filter(|url| is_http_registry(url))
+        .cloned()
+        .collect();
     auth.rescope_unscoped(&path.display().to_string());
     auth
 }
@@ -168,20 +174,27 @@ fn npm_registry_urls(settings: &WorkspaceSettings) -> impl Iterator<Item = &Stri
     settings.registry.iter().chain(declared)
 }
 
-fn trusted_http_registries<'a>(
-    auth: &'a NpmrcAuth,
-    settings: impl Iterator<Item = &'a WorkspaceSettings>,
-) -> Vec<String> {
-    auth.routes.default
-        .iter()
-        .chain(auth.routes.scoped.values())
-        .chain(settings.flat_map(npm_registry_urls))
-        .filter(|url| {
-            url.split_once("://")
-                .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("http"))
-        })
-        .cloned()
-        .collect()
+fn is_http_registry(url: &str) -> bool {
+    url.split_once("://")
+        .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("http"))
+}
+
+fn extend_trusted_http_registries<'a>(
+    urls: &mut Vec<String>,
+    settings: impl Iterator<Item = &'a WorkspaceSettings> + Clone,
+) {
+    if settings.clone().any(|layer| layer.named_registries.is_some()) {
+        let prefixes = WorkspaceSettings::trusted_registry_prefixes(settings.clone());
+        urls.extend(prefixes.into_values().filter(|url| is_http_registry(url)));
+    }
+    urls.extend(
+        settings
+            .flat_map(npm_registry_urls)
+            .filter(|url| is_http_registry(url))
+            .cloned(),
+    );
+    urls.sort_unstable();
+    urls.dedup();
 }
 
 fn is_trusted_auth_file<Sys: GetCurrentDir>(
@@ -291,9 +304,9 @@ impl Config {
                     .filter(|_| self.cli.command_target == crate::CommandTarget::GlobalPackages);
                 std::iter::once(&global.settings).chain(section)
             });
-        let registries = trusted_http_registries(&sources.trusted_auth, settings);
-        sources.trusted_auth.routes.trusted_http_registries.clone_from(&registries);
-        sources.npmrc_auth.routes.trusted_http_registries = registries;
+        let registries = &mut sources.trusted_auth.routes.trusted_http_registries;
+        extend_trusted_http_registries(registries, settings);
+        sources.npmrc_auth.routes.trusted_http_registries.clone_from(registries);
         Ok(sources)
     }
 

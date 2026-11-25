@@ -179,6 +179,24 @@ impl WorkspaceSettings {
         }
     }
 
+    pub(crate) fn trusted_registry_prefixes<'a>(
+        layers: impl Iterator<Item = &'a Self>,
+    ) -> std::collections::BTreeMap<String, String> {
+        let mut config = Config::default();
+        for layer in layers {
+            let mut routes = Self {
+                registries: layer.registries.clone(),
+                named_registries: layer.named_registries.clone(),
+                ..Self::default()
+            };
+            routes.apply_registry_declarations(&mut config);
+            if let Some(named) = routes.named_registries {
+                apply_registry_aliases(&mut config, named, |_| {});
+            }
+        }
+        config.registries_by_prefix
+    }
+
     /// Registry endpoints, their credentials, and the caches keyed by them.
     pub(super) fn apply_registry_settings(&mut self, config: &mut Config) {
         self.apply_tls_to(&mut config.tls);
@@ -275,20 +293,13 @@ impl WorkspaceSettings {
                 r#"Both the "registries" and "namedRegistries" settings declare registry prefixes. The deprecated "namedRegistries" setting is only read for prefixes "registries" does not declare."#,
             );
         }
-        for (name, registry) in named {
-            // An alias addressing a URL `registries` serves to another
-            // ecosystem would put that URL in two roles, which the entries
-            // themselves cannot express and nothing downstream expects.
-            if registries::serves_another_ecosystem(&config.indexes_by_ecosystem, &registry) {
-                tracing::warn!(
-                    target: "pacquet::config",
-                    prefix = name,
-                    r#"The deprecated "namedRegistries" setting addresses a registry that "registries" declares an index of another ecosystem. The prefix is not declared."#,
-                );
-                continue;
-            }
-            config.registries_by_prefix.entry(name).or_insert(registry);
-        }
+        apply_registry_aliases(config, named, |name| {
+            tracing::warn!(
+                target: "pacquet::config",
+                prefix = name,
+                r#"The deprecated "namedRegistries" setting addresses a registry that "registries" declares an index of another ecosystem. The prefix is not declared."#,
+            );
+        });
     }
 
     /// Settings describing the projects themselves: hooks, patches, build
@@ -485,5 +496,19 @@ impl WorkspaceSettings {
             }
         }
         *proxy_config = keys.resolve();
+    }
+}
+
+fn apply_registry_aliases(
+    config: &mut Config,
+    named: std::collections::BTreeMap<String, String>,
+    on_ecosystem_conflict: impl Fn(&str),
+) {
+    for (name, registry) in named {
+        if registries::serves_another_ecosystem(&config.indexes_by_ecosystem, &registry) {
+            on_ecosystem_conflict(&name);
+        } else {
+            config.registries_by_prefix.entry(name).or_insert(registry);
+        }
     }
 }

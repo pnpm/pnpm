@@ -404,6 +404,7 @@ impl NpmrcProxy {
 
 impl NpmrcRoutes {
     fn merge_under(&mut self, lower: Self) {
+        self.trusted_http_registries.extend(lower.trusted_http_registries);
         self.default = self.default.take().or(lower.default);
         for (scope, registry) in lower.scoped {
             self.scoped.entry(scope).or_insert(registry);
