@@ -410,13 +410,14 @@ async fn assert_runtime_offline_reinstall(legacy_key: Option<LegacyRuntimeKey>) 
     let warm_verified = SharedVerifiedFilesCache::default();
     let warm_logged = AtomicU8::new(0);
     let frozen = matches!(legacy_key, Some(LegacyRuntimeKey::FrozenManifest));
-    let (warm_writer, warm_task) = StoreIndexWriter::spawn(&config.store_dir);
+    let (warm_writer, warm_task) =
+        StoreIndexWriter::spawn_for(&config.store_dir, frozen, config.store_index_format);
 
     let warm_cas_paths = super::super::InstallPackageBySnapshot {
         fetching: crate::SnapshotFetchContext {
             http_client: &pnpm_network::ThrottledClient::default(),
             store_index: warm_index.as_ref(),
-            store_index_writer: (!frozen).then_some(&warm_writer),
+            store_index_writer: Some(&warm_writer),
             prefetched_cas_paths: None,
             tarball_mem_cache: None,
             progress_reported: None,

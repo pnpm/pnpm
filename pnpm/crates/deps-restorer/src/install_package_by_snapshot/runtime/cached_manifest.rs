@@ -83,7 +83,9 @@ fn upgrade_row(
     if !verified.passed {
         return Ok(None);
     }
-    let Some(writer) = &store.index_writer else { return Ok(Some(verified.files_map)) };
+    let Some(writer) = store.index_writer.as_ref().filter(|writer| writer.is_enabled()) else {
+        return Ok(Some(verified.files_map));
+    };
     row.side_effects = None;
     row.remote_side_effects_quarantine = None;
     let parsed = serde_json::from_slice(manifest).expect("serialized runtime manifest");
