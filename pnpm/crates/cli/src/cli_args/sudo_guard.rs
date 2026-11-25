@@ -91,13 +91,7 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
             ..
         }) => global_write(args.global, "permissions approve"),
         CliCommand::Remove(args) => global_write(args.global, "remove"),
-        CliCommand::Runtime(args)
-            if args.global
-                && matches!(args.params.first().map(String::as_str), Some("list" | "ls"),) =>
-        {
-            None
-        }
-        CliCommand::Runtime(args) => global_write(args.global, "runtime"),
+        CliCommand::Runtime(args) => runtime_sudo_blocked_operation(args),
         CliCommand::Update(args) => global_write(args.selection.global, "update"),
         // `pnpm link` with no arguments links the current project into the
         // global directory.
@@ -131,6 +125,14 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
         }
         _ => None,
     }
+}
+
+#[cfg(unix)]
+fn runtime_sudo_blocked_operation(args: &super::runtime::RuntimeArgs) -> Option<String> {
+    if matches!(args.params.first().map(String::as_str), Some("list" | "ls")) {
+        return None;
+    }
+    args.global.then(|| "pnpm runtime --global".to_string())
 }
 
 #[cfg(all(test, unix))]
