@@ -130,11 +130,7 @@ fn absorb_spec(
         return;
     }
     let Some(existing) = slot else { return };
-    for version in exact_versions {
-        if !existing.contains(&version) {
-            existing.push(version);
-        }
-    }
+    existing.extend(exact_versions);
 }
 
 /// One package's canonical entry: the bare name, or `name@v1 || v2` with the
@@ -145,6 +141,7 @@ fn render_merged_spec(name: String, versions: Option<Vec<String>>) -> String {
         (Ok(left), Ok(right)) => left.cmp(&right),
         _ => left.cmp(right),
     });
+    versions.dedup();
     format!("{name}@{}", versions.join(" || "))
 }
 
@@ -369,7 +366,8 @@ fn parse_exact_versions_union(versions_str: &str) -> Option<Vec<String>> {
     let mut out: Vec<String> = Vec::new();
     for raw in versions_str.split("||") {
         let trimmed = raw.trim();
-        let version = Version::parse(trimmed).ok()?;
+        let mut version = Version::parse(trimmed).ok()?;
+        version.build.clear();
         out.push(version.to_string());
     }
     Some(out)

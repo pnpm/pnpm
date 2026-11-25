@@ -219,7 +219,7 @@ fn create_policy_version_union_unscoped() {
 
 #[test]
 fn create_policy_version_union_scoped() {
-    let policy = create_package_version_policy(["@scope/pkg@1.0.0 || 1.0.1"]).unwrap();
+    let policy = create_package_version_policy(["@scope/pkg@1.0.0+build.1 || 1.0.1"]).unwrap();
     assert_eq!(
         policy.matches("@scope/pkg"),
         PolicyMatch::ExactVersions(vec!["1.0.0".to_string(), "1.0.1".to_string()]),
@@ -267,4 +267,18 @@ fn merge_bare_name_absorbs_version_specific_entries() {
 fn merge_handles_union_and_separate_entries_for_the_same_package() {
     let merged = merge_package_version_specs(["foo@1.0.0 || 2.0.0", "foo@1.5.0"]).unwrap();
     assert_eq!(merged, vec!["foo@1.0.0 || 1.5.0 || 2.0.0".to_string()]);
+}
+
+#[test]
+fn prune_keeps_a_resolved_prerelease_with_build_metadata() {
+    let specs = ["fixture@1.2.0-rc.1+build.7".to_string()];
+    let resolved = [("fixture".to_string(), ["1.2.0-rc.1".to_string()].into())].into();
+    assert_eq!(crate::drop_unresolved_package_version_specs(&specs, &resolved), specs);
+}
+
+#[test]
+fn merge_deduplicates_build_metadata_within_and_across_rules() {
+    let merged =
+        merge_package_version_specs(["fixture@1.0.0+a || 1.0.0+b", "fixture@1.0.0"]).unwrap();
+    assert_eq!(merged, ["fixture@1.0.0"]);
 }
