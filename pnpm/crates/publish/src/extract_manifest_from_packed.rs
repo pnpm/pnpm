@@ -50,6 +50,7 @@ pub fn extract_manifest_from_packed(
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
     archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let entries = archive.entries().map_err(read_err)?;
 
     for entry in entries {
@@ -88,6 +89,7 @@ pub fn extract_publish_manifest_from_packed(
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
     archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let PackedEntries { manifest_text, readme } =
         scan_packed_entries(&mut archive).map_err(read_err)?;
 

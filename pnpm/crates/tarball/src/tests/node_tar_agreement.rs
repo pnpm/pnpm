@@ -1,6 +1,6 @@
-//! Archives that node-tar, which npm reads packages with, would read
-//! differently from this crate must fail to extract on the eager and the
-//! streaming path.
+//! Archives whose headers node-tar, which npm reads packages with, could
+//! read differently from this crate. The eager and the streaming path must
+//! either read them as node-tar does or refuse them.
 
 use super::{
     extract_tarball_entries,
@@ -80,17 +80,70 @@ fn assert_refused(tar: &[u8], expected: &str) {
     }
 }
 
-#[test]
-fn refuses_a_directory_with_a_size() {
-    let tar = [
+fn sized_directory_tar() -> Vec<u8> {
+    [
         base(),
         header("package/docs/", 512, b'5'),
         header("package/NOTES", 1024, b'0'),
         hidden(),
         END.to_vec(),
     ]
-    .concat();
-    assert_refused(&tar, "cannot hold data but has a nonzero size");
+    .concat()
+}
+
+fn duplicate_pax_size_tar(first: &str, last: &str) -> Vec<u8> {
+    [
+        base(),
+        pax(b'x', &[("size", first), ("size", last)]),
+        header("package/NOTES", 1536, b'0'),
+        vec![b'N'; 512],
+        hidden(),
+        END.to_vec(),
+    ]
+    .concat()
+}
+
+#[track_caller]
+fn assert_index_js(tar: &[u8], expected: &[u8]) {
+    let (_store_keep, store_dir) = tempdir_with_leaked_path();
+    let (eager, _) =
+        extract_tarball_entries(tar, crate::TarLimits::default(), store_dir, None).unwrap();
+    let (streamed, _) = stream_extract_gzipped_tarball(
+        &gzip_bytes(tar),
+        crate::TarLimits::default(),
+        store_dir,
+        None,
+    )
+    .unwrap();
+    for files in [&eager, &streamed] {
+        assert_eq!(std::fs::read(&files["index.js"]).unwrap(), expected);
+    }
+}
+
+#[test]
+fn reads_a_sized_directory_as_empty() {
+    assert_index_js(&sized_directory_tar(), b"module.exports = 'benign';\n");
+}
+
+#[test]
+fn lets_the_last_duplicate_pax_record_win() {
+    assert_index_js(&duplicate_pax_size_tar("512", "1536"), b"module.exports = 'benign';\n");
+    assert_index_js(&duplicate_pax_size_tar("1536", "512"), b"module.exports = 'DIFFERENT';\n");
+}
+
+#[test]
+fn refuses_both_shapes_unless_reading_like_node_tar() {
+    for (tar, expected) in [
+        (sized_directory_tar(), "cannot hold data but has a nonzero size"),
+        (duplicate_pax_size_tar("512", "1536"), "sets `size` more than once"),
+    ] {
+        let error = tar::Archive::new(tar.as_slice())
+            .entries()
+            .unwrap()
+            .find_map(Result::err)
+            .expect("the archive was read");
+        assert!(error.to_string().contains(expected), "{error}");
+    }
 }
 
 #[test]
@@ -103,22 +156,6 @@ fn refuses_a_link_or_device_with_a_size() {
         }
         let tar = [base(), link, hidden(), END.to_vec()].concat();
         assert_refused(&tar, "cannot hold data but has a nonzero size");
-    }
-}
-
-#[test]
-fn refuses_duplicate_pax_records() {
-    for sizes in [["512", "1536"], ["1536", "512"]] {
-        let tar = [
-            base(),
-            pax(b'x', &[("size", sizes[0]), ("size", sizes[1])]),
-            header("package/NOTES", 1536, b'0'),
-            vec![b'N'; 512],
-            hidden(),
-            END.to_vec(),
-        ]
-        .concat();
-        assert_refused(&tar, "sets `size` more than once");
     }
 }
 

@@ -458,6 +458,7 @@ pub(crate) fn extract_entry(tarball: &[u8], entry_name: &str) -> Option<String> 
     };
     let mut archive = Archive::new(reader.take(MAX_TARBALL_BYTES));
     archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;
         if entry.path().ok()?.to_str() == Some(entry_name) {

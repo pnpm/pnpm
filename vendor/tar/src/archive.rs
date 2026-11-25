@@ -47,6 +47,7 @@ pub struct ArchiveInner<R: ?Sized> {
     overwrite: bool,
     ignore_zeros: bool,
     max_metadata_size: Option<u64>,
+    read_like_node_tar: bool,
     obj: RefCell<R>,
 }
 
@@ -80,6 +81,7 @@ impl<R: Read> Archive<R> {
                 overwrite: true,
                 ignore_zeros: false,
                 max_metadata_size: None,
+                read_like_node_tar: false,
                 obj: RefCell::new(obj),
                 pos: Cell::new(0),
             },
@@ -197,6 +199,13 @@ impl<R: Read> Archive<R> {
     /// extension before it is buffered. `None` leaves metadata unrestricted.
     pub fn set_max_metadata_size(&mut self, max_metadata_size: Option<u64>) {
         self.inner.max_metadata_size = max_metadata_size;
+    }
+
+    /// Reads two header shapes the way node-tar does instead of refusing
+    /// them: a directory entry has no data whatever its size, and the last
+    /// of two PAX records with one key wins. Off by default.
+    pub fn set_read_like_node_tar(&mut self, read_like_node_tar: bool) {
+        self.inner.read_like_node_tar = read_like_node_tar;
     }
 }
 
@@ -370,6 +379,9 @@ impl<'a> EntriesFields<'a> {
             size = pax_size;
         }
         if !is_extension_header {
+            if self.archive.inner.read_like_node_tar && header.entry_type().is_dir() {
+                size = 0;
+            }
             agreement::check_entry_size(&header, size)?;
         }
         if is_extension_header {
@@ -424,6 +436,14 @@ impl<'a> EntriesFields<'a> {
         Ok(None)
     }
 
+    fn keep_last_pax_records(&self, records: Vec<u8>) -> io::Result<Vec<u8>> {
+        if self.archive.inner.read_like_node_tar {
+            agreement::keep_last_pax_records(&records)
+        } else {
+            Ok(records)
+        }
+    }
+
     fn next_entry(&mut self) -> io::Result<Option<Entry<'a, io::Empty>>> {
         if self.raw {
             return self.next_entry_raw(None);
@@ -468,6 +488,7 @@ impl<'a> EntriesFields<'a> {
                 }
                 let mut fields = EntryFields::from(entry);
                 let records = fields.read_all()?;
+                let records = self.keep_last_pax_records(records)?;
                 agreement::check_pax_records(&records, true)?;
                 fields.pax_extensions = Some(records);
                 return Ok(Some(fields.into_entry()));
@@ -522,6 +543,7 @@ impl<'a> EntriesFields<'a> {
                     ));
                 }
                 let records = EntryFields::from(entry).read_all()?;
+                let records = self.keep_last_pax_records(records)?;
                 agreement::check_pax_records(&records, false)?;
                 pax_extensions = Some(records);
                 continue;

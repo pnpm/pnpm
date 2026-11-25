@@ -361,6 +361,7 @@ fn walk_tar_stream(
 ) -> Result<ExtractedEntries, TarballError> {
     let mut archive = Archive::new(reader);
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let mut extract = StreamingExtract::new(store_dir);
 
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {

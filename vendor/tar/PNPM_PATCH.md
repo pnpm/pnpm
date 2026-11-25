@@ -22,6 +22,8 @@ Yarn, and Bun use, would read differently from this crate. Each check there
 documents the disagreement it closes. Entry iteration calls them from
 `src/archive.rs` and `Header::entry_size`.
 Upstream tests that build those shapes now fail on purpose.
+`Archive::set_read_like_node_tar(true)` reads two of the shapes as node-tar
+does instead: a sized directory and a repeated PAX key.
 
 `EntryType::is_file` also counts contiguous files, which node-tar extracts as
 regular files.

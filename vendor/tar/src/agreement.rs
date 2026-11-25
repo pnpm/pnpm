@@ -110,6 +110,25 @@ pub(crate) fn check_pax_records(payload: &[u8], global: bool) -> io::Result<()> 
     Ok(())
 }
 
+/// Drops every PAX record that a later record with the same key
+/// overrides, as node-tar does.
+pub(crate) fn keep_last_pax_records(payload: &[u8]) -> io::Result<Vec<u8>> {
+    let text = str::from_utf8(payload).map_err(|_| other("PAX extended header is not UTF-8"))?;
+    let mut records = Vec::new();
+    let mut rest = text;
+    while !rest.is_empty() {
+        let (key, _, len) = parse_pax_record(rest)?;
+        records.retain(|(earlier, _)| *earlier != key);
+        records.push((key, &rest[..len]));
+        rest = &rest[len..];
+    }
+    Ok(records
+        .into_iter()
+        .map(|(_, record)| record)
+        .collect::<String>()
+        .into_bytes())
+}
+
 /// Parses the first `<length> <key>=<value>\n` record of `text`, returning
 /// its key, its value, and its length in bytes.
 ///

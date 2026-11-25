@@ -76,6 +76,7 @@ fn read_tarball_contents(
     let tar_bytes = maybe_gunzip(tarball_data)?;
     let mut archive = tar::Archive::new(tar_bytes.as_slice());
     archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let mut contents = FileSummary::default();
     let mut manifest_text: Option<String> = None;
 

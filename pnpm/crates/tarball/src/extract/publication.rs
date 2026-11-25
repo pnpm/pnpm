@@ -106,6 +106,7 @@ fn read_publication_archive_within(
 ) -> Result<PublicationArchive, PublicationArchiveError> {
     let mut archive = tar::Archive::new(tar);
     archive.set_max_metadata_size(Some(MAX_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let mut scan = PublicationScan { path_bytes_left: path_bytes_limit, ..Default::default() };
     let entries = archive.entries().map_err(|err| unreadable(&err))?;
     for (index, entry) in entries.enumerate() {
