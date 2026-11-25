@@ -28,6 +28,16 @@ pub fn remove_global_package_groups<Reporter: self::Reporter>(
     packages: &[GlobalPackageInfo],
 ) -> miette::Result<()> {
     let _global_bin_lock = acquire_global_bin_lock(global_bin_dir)?;
+    remove_global_package_groups_locked::<Reporter>(global_pkg_dir, global_bin_dir, packages)
+}
+
+/// Remove selected groups while the caller holds the global bin lock, so
+/// another process cannot replace a selected hash link during the removal.
+pub fn remove_global_package_groups_locked<Reporter: self::Reporter>(
+    global_pkg_dir: &Path,
+    global_bin_dir: &Path,
+    packages: &[GlobalPackageInfo],
+) -> miette::Result<()> {
     let groups = packages
         .iter()
         .cloned()

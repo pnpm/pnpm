@@ -2,11 +2,17 @@ use super::{
     EnvArgs,
     EnvError,
     EnvSubcommand,
-    remove::remove_matching_global_node,
+    remove::{
+        cleanup_pnpm_home_without_stale_current,
+        remove_matching_global_node,
+    },
 };
 use pnpm_config::Config;
 use pnpm_reporter::SilentReporter;
-use std::path::PathBuf;
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+};
 
 /// A config that looks like a standalone-script pnpm install: it has a
 /// global bin directory to link a runtime into.
@@ -104,6 +110,24 @@ fn remove_deletes_a_global_node_package_without_a_bin_dir() {
     assert!(removed);
     assert!(hash_link.symlink_metadata().is_err());
     assert!(!install_dir.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn runtime_cleanup_keeps_a_dangling_current_link_that_matches_nothing() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home = root.path().join("pnpm-home");
+    std::fs::create_dir_all(&pnpm_home).unwrap();
+    let current = pnpm_home.join("nodejs_current");
+    std::os::unix::fs::symlink(pnpm_home.join("nodejs/18.12.1/bin/node"), &current).unwrap();
+    let mut removed_names = HashSet::new();
+
+    let removed =
+        cleanup_pnpm_home_without_stale_current(Some(&pnpm_home), &|_| false, &mut removed_names)
+            .unwrap();
+
+    assert!(!removed);
+    assert!(current.symlink_metadata().is_ok());
 }
 
 #[test]

@@ -270,6 +270,51 @@ fn project_runtime_rejects_a_different_version() {
 }
 
 #[test]
+fn project_runtime_matches_a_caret_range_when_unset_by_major_version() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "devDependencies": { "node": "runtime:^22.14.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let config = Config::new().leak();
+    let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+    let request = args(&["unset", "node", "22"]).unset_request().unwrap();
+
+    ensure_project_runtime_matches(&state, &request).unwrap();
+}
+
+#[test]
+fn local_unset_rejects_an_ordinary_dependency() {
+    for version in [None, Some("22")] {
+        let dir = tempdir().unwrap();
+        fs::write(
+            dir.path().join("package.json"),
+            serde_json::json!({
+                "devDependencies": { "node": "^22.0.0" },
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let config = Config::new().leak();
+        let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+        let params = match version {
+            Some(version) => vec!["unset", "node", version],
+            None => vec!["unset", "node"],
+        };
+        let request = args(&params).unset_request().unwrap();
+
+        assert_eq!(
+            ensure_project_runtime_matches(&state, &request).unwrap_err().to_string(),
+            RuntimeError::NotARuntimeDependency { name: "node".to_string() }.to_string(),
+        );
+    }
+}
+
+#[test]
 fn local_runtime_suggests_the_explicit_shim_command() {
     let dir = tempdir().unwrap();
     let config = Config { global_bin: Some(dir.path().to_path_buf()), ..Config::default() };

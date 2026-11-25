@@ -170,9 +170,16 @@ fn is_path_in_removed_names(target: &Path, removed_names: &HashSet<String>) -> b
         })
 }
 
+#[derive(Clone, Copy)]
+enum DanglingCurrentCleanup {
+    Remove,
+    Keep,
+}
+
 fn cleanup_nodejs_current(
     pnpm_home: &Path,
     removed_names: &HashSet<String>,
+    dangling: DanglingCurrentCleanup,
 ) -> std::io::Result<bool> {
     let nodejs_current = pnpm_home.join("nodejs_current");
     if !nodejs_current.is_symlink() {
@@ -181,7 +188,7 @@ fn cleanup_nodejs_current(
     let is_dangling = !nodejs_current.exists();
     let points_to_removed = fs::read_link(&nodejs_current)
         .is_ok_and(|target| is_path_in_removed_names(&target, removed_names));
-    if is_dangling || points_to_removed {
+    if points_to_removed || (matches!(dangling, DanglingCurrentCleanup::Remove) && is_dangling) {
         pnpm_fs::remove_symlink_dir(&nodejs_current)?;
         return Ok(true);
     }
@@ -282,11 +289,35 @@ pub(crate) fn cleanup_pnpm_home(
     matches_version: &impl Fn(&str) -> bool,
     removed_names: &mut HashSet<String>,
 ) -> std::io::Result<bool> {
+    cleanup_pnpm_home_impl(
+        pnpm_home,
+        matches_version,
+        removed_names,
+        DanglingCurrentCleanup::Remove,
+    )
+}
+
+/// Remove a matching legacy Node.js install and the link to it, without
+/// treating an unrelated dangling link as a match.
+pub(crate) fn cleanup_pnpm_home_without_stale_current(
+    pnpm_home: Option<&Path>,
+    matches_version: &impl Fn(&str) -> bool,
+    removed_names: &mut HashSet<String>,
+) -> std::io::Result<bool> {
+    cleanup_pnpm_home_impl(pnpm_home, matches_version, removed_names, DanglingCurrentCleanup::Keep)
+}
+
+fn cleanup_pnpm_home_impl(
+    pnpm_home: Option<&Path>,
+    matches_version: &impl Fn(&str) -> bool,
+    removed_names: &mut HashSet<String>,
+    dangling: DanglingCurrentCleanup,
+) -> std::io::Result<bool> {
     let Some(pnpm_home) = pnpm_home else {
         return Ok(false);
     };
     let dir_removed =
         cleanup_legacy_nodejs_dir(&pnpm_home.join("nodejs"), matches_version, removed_names)?;
-    let link_removed = cleanup_nodejs_current(pnpm_home, removed_names)?;
+    let link_removed = cleanup_nodejs_current(pnpm_home, removed_names, dangling)?;
     Ok(dir_removed || link_removed)
 }

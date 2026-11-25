@@ -4,6 +4,7 @@
 pub(crate) use remove::{
     cleanup_bin_links,
     cleanup_pnpm_home,
+    cleanup_pnpm_home_without_stale_current,
     matches_node_version,
     remove_global_node_install,
 };

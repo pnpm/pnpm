@@ -122,7 +122,7 @@ Check that the registry configured for the package, or for its scope, is correct
 
 ## ERR_PNPM_RUNTIME_NOT_DECLARED
 
-`pnpm runtime unset <name> <version>` found no declaration of that runtime and version in the project. Run the command without a version to unset any declared version of the runtime.
+`pnpm runtime unset <name> <version>` found no declaration of that runtime and version in the project. Run the command without a version to unset any declared version of the runtime. The command also rejects a dependency with the same name that is not declared with the `runtime:` or `tool:` protocol.
 
 ## ERR_PNPM_RUNTIME_NOT_FOUND
 
