@@ -242,11 +242,11 @@ test('path traversal with backslashes is blocked (Windows security fix)', () => 
 test.each([
   ['a directory entry', '5'],
   ['a regular file entry whose path ends in /', '0'],
-])('%s with a nonzero size has no content, as in node-tar', (_, typeflag) => {
+])('%s with a nonzero size has no content, as in node-tar', (_, entryType) => {
   const hiddenEntry = createTarballWithEntry('index.js', 'hidden').subarray(0, -1024)
   const tarBuffer = Buffer.concat([
     createTarballWithEntry('index.js', 'benign').subarray(0, -1024),
-    createTarHeader('package/docs/', 512, typeflag),
+    createTarHeader('package/docs/', 512, entryType),
     createTarHeader('package/NOTES', hiddenEntry.length),
     hiddenEntry,
     Buffer.alloc(1024),
@@ -295,7 +295,7 @@ function createTarballWithEntry (fileName: string, content: string): Buffer {
   return Buffer.concat([header, contentBlock, endMarker])
 }
 
-function createTarHeader (entryPath: string, size: number, typeflag = '0'): Buffer {
+function createTarHeader (entryPath: string, size: number, entryType = '0'): Buffer {
   const header = Buffer.alloc(512, 0)
   header.write(entryPath, 0, Math.min(entryPath.length, 100), 'utf8')
   header.write('0000644\0', 100, 8, 'utf8')
@@ -303,7 +303,7 @@ function createTarHeader (entryPath: string, size: number, typeflag = '0'): Buff
   header.write('0000000\0', 116, 8, 'utf8')
   header.write(size.toString(8).padStart(11, '0') + '\0', 124, 12, 'utf8')
   header.write('00000000000\0', 136, 12, 'utf8')
-  header[156] = typeflag.charCodeAt(0)
+  header[156] = entryType.charCodeAt(0)
   header.write('ustar\0', 257, 6, 'utf8')
   header.write('00', 263, 2, 'utf8')
   // The checksum is the sum of all header bytes, counting the checksum field as spaces.
