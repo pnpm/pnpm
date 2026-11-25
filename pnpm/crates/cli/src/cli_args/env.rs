@@ -4,7 +4,6 @@
 use super::{
     add::AddRequest,
     global::handle_global_add,
-    registry_client::build_registry_client,
 };
 use clap::Args;
 use derive_more::{
@@ -12,15 +11,7 @@ use derive_more::{
     Error,
 };
 use miette::Diagnostic;
-use pnpm_config::{
-    Config,
-    Tool,
-};
-use pnpm_engine_runtime_node_resolver::{
-    get_node_mirror,
-    parse_node_specifier,
-    resolve_node_versions_with_auth,
-};
+use pnpm_config::Config;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{
     Reporter,
@@ -184,35 +175,6 @@ impl EnvArgs {
             dir,
         ))
         .await
-    }
-
-    /// Oldest first, so the newest version ends up next to the prompt.
-    ///
-    /// An absent selector reads as the empty one, which the mirror
-    /// resolver treats as `latest`, a bare `pnpm env list` prints the
-    /// newest version alone, not the whole index. Verified against the
-    /// TypeScript CLI, which passes `''` rather than `undefined`.
-    pub async fn run_list(version_spec: Option<String>, config: &Config) -> miette::Result<String> {
-        let specifier = parse_node_specifier(version_spec.as_deref().unwrap_or_default())
-            .map_err(miette::Report::new)?;
-        let channels = config.tool_channel_mirrors(Tool::Node);
-        let mirror = get_node_mirror(
-            config.tool_mirror(Tool::Node),
-            channels.get(&specifier.release_channel).map(String::as_str),
-            Some(&config.node_download_mirrors),
-            &specifier.release_channel,
-        );
-        let http_client = build_registry_client(config)?;
-        let mut versions = resolve_node_versions_with_auth(
-            &http_client,
-            &config.auth_headers,
-            Some(specifier.version_specifier.as_str()),
-            Some(&mirror),
-        )
-        .await
-        .map_err(miette::Report::new)?;
-        versions.reverse();
-        Ok(versions.join("\n"))
     }
 
     pub async fn run_remove<Reporter: self::Reporter + 'static>(

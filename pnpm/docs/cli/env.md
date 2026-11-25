@@ -9,6 +9,8 @@ title: "pnpm env <cmd>"
 
 :::
 
+`pnpm env list` is an alias for [`pnpm runtime list`](./runtime.md).
+
 Manages the Node.js environment.
 
 ## Commands

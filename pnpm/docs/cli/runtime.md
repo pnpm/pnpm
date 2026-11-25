@@ -9,6 +9,16 @@ Alias: `rt`
 
 ## Commands
 
+### list
+
+List Node.js releases matching an optional version selector. Without a selector, pnpm lists the newest release.
+
+```sh
+pnpm runtime list [<version>]
+```
+
+`pnpm env list` is an alias for this command.
+
 ### set
 
 Install the specified version of a runtime.

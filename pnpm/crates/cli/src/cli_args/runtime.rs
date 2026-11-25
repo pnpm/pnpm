@@ -17,6 +17,12 @@ use miette::Diagnostic;
 use pnpm_config::{
     Config,
     GlobalShims,
+    Tool,
+};
+use pnpm_engine_runtime_node_resolver::{
+    get_node_mirror,
+    parse_node_specifier,
+    resolve_node_versions_with_auth,
 };
 use pnpm_package_manifest::{
     DependencyGroup,
@@ -46,8 +52,12 @@ pub struct RuntimeArgs {
     #[clap(short = 'P', long = "save-prod")]
     pub save_prod: bool,
 
+    /// Accepted for compatibility with `pnpm env`.
+    #[clap(long, hide = true)]
+    pub remote: bool,
+
     /// Subcommand and its arguments: `set <name> [<version>]`, where `<name>`
-    /// is `node`, `deno`, or `bun`.
+    /// is `node`, `deno`, or `bun`; `list [<version>]` lists matching Node.js releases.
     pub params: Vec<String>,
 }
 
@@ -94,6 +104,34 @@ struct RuntimeSetRequest {
 }
 
 impl RuntimeArgs {
+    /// List matching Node.js releases.
+    pub async fn run_list(
+        version_spec: Option<String>,
+        config: &'static Config,
+    ) -> miette::Result<()> {
+        let specifier = parse_node_specifier(version_spec.as_deref().unwrap_or_default())
+            .map_err(miette::Report::new)?;
+        let channels = config.tool_channel_mirrors(Tool::Node);
+        let mirror = get_node_mirror(
+            config.tool_mirror(Tool::Node),
+            channels.get(&specifier.release_channel).map(String::as_str),
+            Some(&config.node_download_mirrors),
+            &specifier.release_channel,
+        );
+        let http_client = super::registry_client::build_registry_client(config)?;
+        let mut versions = resolve_node_versions_with_auth(
+            &http_client,
+            &config.auth_headers,
+            Some(specifier.version_specifier.as_str()),
+            Some(&mirror),
+        )
+        .await
+        .map_err(miette::Report::new)?;
+        versions.reverse();
+        pnpm_diagnostics::println!("{}", versions.join("\n"));
+        Ok(())
+    }
+
     /// Execute the subcommand, installing the runtime into the current
     /// project. Mirrors pnpm's `runtime set`, which runs
     /// `pnpm add <name>@runtime:<version>` in the project directory.

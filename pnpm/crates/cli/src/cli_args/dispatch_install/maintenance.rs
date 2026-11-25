@@ -230,6 +230,15 @@ pub(in super::super) fn runtime<'a>(
     ctx: &RunCtx<'a>,
     args: RuntimeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
+    if matches!(args.params.first().map(String::as_str), Some("list" | "ls"),) {
+        let version_spec = args.params
+            .get(1)
+            .map(|version| version.trim())
+            .filter(|version| !version.is_empty())
+            .map(ToOwned::to_owned);
+        let config = (ctx.loaders.global_packages_config)()?;
+        return Ok(Box::pin(RuntimeArgs::run_list(version_spec, config)));
+    }
     if args.global {
         let config = (ctx.loaders.global_packages_config)()?;
         let dir = ctx.locations.dir;
@@ -258,10 +267,9 @@ pub(in super::super) fn env<'a>(
         EnvSubcommand::Remove { versions } => {
             Box::pin(EnvArgs::run_remove::<CliReporter>(versions, config, dir))
         }
-        EnvSubcommand::List { version_spec } => Box::pin(async move {
-            pnpm_diagnostics::println!("{}", EnvArgs::run_list(version_spec, config).await?);
-            Ok(())
-        }),
+        EnvSubcommand::List { version_spec } => {
+            Box::pin(async move { RuntimeArgs::run_list(version_spec, config).await })
+        }
     })
 }
 

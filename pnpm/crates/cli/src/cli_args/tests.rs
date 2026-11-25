@@ -247,6 +247,19 @@ fn runtime_alias_and_flags_parse() {
 }
 
 #[test]
+fn runtime_and_env_list_parse() {
+    let CliCommand::Runtime(runtime) = command(&["pacquet", "runtime", "list", "rc/24"]) else {
+        panic!("expected runtime");
+    };
+    assert_eq!(runtime.params, ["list", "rc/24"]);
+
+    let CliCommand::Env(env) = command(&["pacquet", "env", "list", "rc/24"]) else {
+        panic!("expected env");
+    };
+    assert_eq!(env.params, ["list", "rc/24"]);
+}
+
+#[test]
 fn version_message_short_flag_is_an_alias_of_message() {
     let short = version_args(&["pacquet", "version", "patch", "-m", "release %s"]);
     let long = version_args(&["pacquet", "version", "patch", "--message", "release %s"]);

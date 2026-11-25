@@ -1,8 +1,7 @@
 //! `pnpm env`: the deprecated Node.js front end to `pnpm runtime`.
 //!
-//! Only the paths that stop before the network are covered here; `env use`
-//! and `env list` reach the Node.js mirror, which the mocked registry does
-//! not serve.
+//! The list and use commands reach the Node.js mirror, which the mocked
+//! registry serves in the corresponding integration case below.
 
 use command_extra::CommandExtra;
 use pnpm_testing_utils_registry::bin::CommandTempCwd;
@@ -339,12 +338,15 @@ fn remove_deletes_a_global_node_package_when_the_global_bin_is_not_on_path() {
 
 #[cfg(unix)]
 #[test]
-fn env_list_use_and_remove_support_leading_v_and_prerelease_channels() {
+fn runtime_and_env_list_use_and_remove_support_leading_v_and_prerelease_channels() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let mut server = mockito::Server::new();
     let version = "22.0.0-rc.1";
-    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let _mocks = [
+        crate::install_runtimes::mock_node_release(&mut server, version),
+        crate::install_runtimes::mock_node_release(&mut server, version),
+    ];
 
     let pnpm_home = root.path().join("pnpm_home");
     let global_bin = pnpm_home.join("bin");
@@ -371,6 +373,19 @@ fn env_list_use_and_remove_support_leading_v_and_prerelease_channels() {
             .output()
             .expect("run pacquet env")
     };
+
+    let runtime_list_out = run(&["runtime", "list", "v22.0.0-rc.1"]);
+    assert!(
+        runtime_list_out.status.success(),
+        "stdout={} stderr={}",
+        String::from_utf8_lossy(&runtime_list_out.stdout),
+        String::from_utf8_lossy(&runtime_list_out.stderr),
+    );
+    assert!(
+        String::from_utf8_lossy(&runtime_list_out.stdout).contains("22.0.0-rc.1"),
+        "stdout={}",
+        String::from_utf8_lossy(&runtime_list_out.stdout),
+    );
 
     let list_out = run(&["env", "list", "--remote", "v22.0.0-rc.1"]);
     assert!(
