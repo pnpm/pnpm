@@ -361,6 +361,7 @@ fn walk_tar_stream(
 ) -> Result<ExtractedEntries, TarballError> {
     let mut archive = Archive::new(reader);
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let mut extract = StreamingExtract::new(store_dir);
 
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
@@ -402,10 +403,7 @@ pub(super) fn entry_meta<Source: Read>(
         .header()
         .mode()
         .map_err(TarballError::ReadTarballEntries)?;
-    let size = entry
-        .header()
-        .size()
-        .map_err(TarballError::ReadTarballEntries)?;
+    let size = entry.size();
     let cleaned_path = {
         let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
         clean_archive_entry_path(&entry_path.to_string_lossy())?
@@ -474,10 +472,7 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
             message.to_string(),
         ))
     };
-    let file_size = entry
-        .header()
-        .size()
-        .map_err(TarballError::ReadTarballEntries)?;
+    let file_size = entry.size();
     let data_offset = usize::try_from(entry.raw_file_position())
         .map_err(|_| invalid("tar entry file offset does not fit in usize"))?;
     let size = usize::try_from(file_size)

@@ -39,18 +39,43 @@
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 
-use std::io::{Error, ErrorKind};
+use std::io::{
+    Error,
+    ErrorKind,
+};
 
-pub use crate::archive::{Archive, Entries};
-pub use crate::builder::{Builder, EntryWriter};
-pub use crate::entry::{Entry, Unpacked};
-pub use crate::entry_type::EntryType;
-pub use crate::header::GnuExtSparseHeader;
 #[cfg(all(any(unix, windows), not(target_arch = "wasm32")))]
 pub use crate::header::DETERMINISTIC_TIMESTAMP;
-pub use crate::header::{GnuHeader, GnuSparseHeader, Header, HeaderMode, OldHeader, UstarHeader};
-pub use crate::pax::{PaxExtension, PaxExtensions};
+pub use crate::{
+    archive::{
+        Archive,
+        Entries,
+    },
+    builder::{
+        Builder,
+        EntryWriter,
+    },
+    entry::{
+        Entry,
+        Unpacked,
+    },
+    entry_type::EntryType,
+    header::{
+        GnuExtSparseHeader,
+        GnuHeader,
+        GnuSparseHeader,
+        Header,
+        HeaderMode,
+        OldHeader,
+        UstarHeader,
+    },
+    pax::{
+        PaxExtension,
+        PaxExtensions,
+    },
+};
 
+mod agreement;
 mod archive;
 mod builder;
 mod entry;

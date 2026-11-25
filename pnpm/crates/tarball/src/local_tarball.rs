@@ -340,6 +340,7 @@ pub(crate) fn read_bundled_manifest(
 ) -> Result<(Option<serde_json::Value>, bool), TarballError> {
     let mut archive = Archive::new(Cursor::new(tar_data));
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let mut payload = None;
     for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
@@ -368,6 +369,7 @@ fn read_bundled_manifest_streaming(
 ) -> Result<(Option<serde_json::Value>, bool), TarballError> {
     let mut archive = Archive::new(reader);
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let mut payload: Option<Vec<u8>> = None;
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
         let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
@@ -381,10 +383,7 @@ fn read_bundled_manifest_streaming(
         if !is_manifest {
             continue;
         }
-        let file_size = entry
-            .header()
-            .size()
-            .map_err(TarballError::ReadTarballEntries)?;
+        let file_size = entry.size();
         if file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
             return Err(oversized_manifest_error(file_size));
         }

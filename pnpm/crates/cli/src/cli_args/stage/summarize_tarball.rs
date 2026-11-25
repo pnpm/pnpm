@@ -76,6 +76,7 @@ fn read_tarball_contents(
     let tar_bytes = maybe_gunzip(tarball_data)?;
     let mut archive = tar::Archive::new(tar_bytes.as_slice());
     archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let mut contents = FileSummary::default();
     let mut manifest_text: Option<String> = None;
 
@@ -87,7 +88,7 @@ fn read_tarball_contents(
         let mut entry = entry.into_diagnostic().wrap_err("read a staged tarball entry")?;
         let path = String::from_utf8_lossy(&entry.path_bytes()).into_owned();
         if include_summary && entry.header().entry_type().is_file() {
-            contents.push_file(&path, entry.header().size().unwrap_or(0));
+            contents.push_file(&path, entry.size());
         }
         if path == "package/package.json" {
             manifest_text = Some(read_entry_text(&mut entry)?);

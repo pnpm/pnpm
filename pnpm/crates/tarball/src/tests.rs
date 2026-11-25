@@ -513,6 +513,16 @@ fn tar_with_root_level_entries() -> Vec<u8> {
     ])
 }
 
+/// One `<length> <key>=<value>\n` PAX extended header record.
+fn pax_record(key: &str, value: &str) -> String {
+    let body = format!(" {key}={value}\n");
+    let mut len = body.len();
+    while len != body.len() + len.to_string().len() {
+        len = body.len() + len.to_string().len();
+    }
+    format!("{len}{body}")
+}
+
 /// Build an uncompressed tar carrying `entries` in order, each written
 /// verbatim as a regular file, so a caller can shape an archive that
 /// omits the top-level directory a published tarball wraps its payload
@@ -549,6 +559,8 @@ mod files;
 mod security;
 
 mod manifests;
+
+mod node_tar_agreement;
 
 mod lockfile;
 

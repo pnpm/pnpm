@@ -279,11 +279,12 @@ async fn an_empty_body_is_not_an_archive() {
     assert!(matches!(error, TarballError::ReadTarballEntries(_)), "got {error:?}");
 }
 
-/// A tar whose only entry is a skipped one with a body of `len` bytes.
+/// A tar whose only entry is a skipped GNU dump directory with a body of
+/// `len` bytes.
 fn tar_with_skipped_entry(len: usize) -> Vec<u8> {
     let mut builder = tar::Builder::new(Vec::new());
     let mut header = tar::Header::new_gnu();
-    header.set_entry_type(tar::EntryType::Char);
+    header.set_entry_type(tar::EntryType::new(b'D'));
     header.set_size(len as u64);
     header.set_mode(0o644);
     header.set_cksum();

@@ -338,6 +338,7 @@ impl TarScanState {
 fn inspect_tar_entries(reader: impl std::io::Read) -> Option<TarInspection> {
     let mut archive = tar::Archive::new(TarStreamReader { inner: reader, unexpected_eof: false });
     archive.set_max_metadata_size(Some(TAR_SCAN_MAX_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let mut state = TarScanState::default();
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;

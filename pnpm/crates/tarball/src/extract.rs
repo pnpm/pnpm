@@ -251,6 +251,7 @@ fn collect_pending_tar_entries<'a>(
     let budget = TarBudget::new(limits);
     let mut archive = Archive::new(Cursor::new(tar_data));
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
+    archive.set_read_like_node_tar(true);
     let entries = archive
         .entries_with_seek()
         .map_err(TarballError::ReadTarballEntries)?

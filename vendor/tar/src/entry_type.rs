@@ -124,9 +124,12 @@ impl EntryType {
         EntryType::Continuous
     }
 
-    /// Returns whether this type represents a regular file.
+    /// Returns whether this type represents a regular or contiguous file.
+    ///
+    /// node-tar, GNU tar, and Python extract a contiguous file as a regular
+    /// one.
     pub fn is_file(&self) -> bool {
-        self == &EntryType::Regular
+        self == &EntryType::Regular || self == &EntryType::Continuous
     }
 
     /// Returns whether this type represents a hard link.

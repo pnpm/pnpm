@@ -791,9 +791,11 @@ fn tar_metadata_limits_preserve_long_names_and_pax_paths() {
     builder
         .append_data(&mut header, &long_path, &b"hello"[..])
         .unwrap();
-    builder
-        .append_pax_extensions([("path", pax_path.as_bytes())])
-        .unwrap();
+    let record = super::pax_record("path", &pax_path);
+    let mut pax = tar::Header::new_ustar();
+    pax.set_entry_type(tar::EntryType::XHeader);
+    pax.set_size(record.len() as u64);
+    builder.append_data(&mut pax, "PaxHeader/short.js", record.as_bytes()).unwrap();
     builder
         .append_data(&mut header, "package/short.js", &b"hello"[..])
         .unwrap();
@@ -845,7 +847,7 @@ fn tar_metadata_limits_preserve_gnu_sparse_reading() {
 }
 
 #[test]
-fn tar_metadata_limits_bound_sparse_extension_chains() {
+fn refuses_gnu_sparse_extension_chains() {
     let mut header = tar::Header::new_gnu();
     header.set_path("sparse.bin").unwrap();
     header.set_size(0);
@@ -857,13 +859,9 @@ fn tar_metadata_limits_bound_sparse_extension_chains() {
     let mut extension = tar::GnuExtSparseHeader::new();
     extension.sparse[0].set_offset(1);
     extension.sparse[0].set_length(0);
-    extension.set_is_extended(true);
     let mut tarball = header.as_bytes().to_vec();
     tarball.extend_from_slice(extension.as_bytes());
-    extension.set_is_extended(false);
-    tarball.extend_from_slice(extension.as_bytes());
     let mut archive = tar::Archive::new(tarball.as_slice());
-    archive.set_max_metadata_size(Some(512));
     let error = archive
         .entries()
         .unwrap()
@@ -871,16 +869,7 @@ fn tar_metadata_limits_bound_sparse_extension_chains() {
         .unwrap()
         .err()
         .unwrap();
-    assert!(error.to_string().contains("sparse metadata exceeds"));
-    let mut archive = tar::Archive::new(tarball.as_slice());
-    archive.set_max_metadata_size(Some(1024));
-    let entry = archive
-        .entries()
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap();
-    assert_eq!(entry.size(), 1);
+    assert!(error.to_string().contains("GNU sparse entries with extension headers"));
 }
 
 #[test]
