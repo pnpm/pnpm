@@ -98,7 +98,7 @@ pub(super) fn dangerously_allow_all_builds() {
 }
 #[test]
 fn explicit_deny_outranks_dangerously_allow_all_builds() {
-    let policy = policy_from_specs([("denied", false), ("pinned@1.0.0+build.7", false)], true);
+    let policy = policy_from_specs([("denied", false), ("pinned@1.0.0", false)], true);
     assert_eq!(policy.check("denied@1.0.0"), Some(false));
     assert_eq!(policy.check("denied@1.0.0(peer@2.0.0)"), Some(false));
     assert_eq!(policy.check("pinned@1.0.0"), Some(false));
@@ -1123,4 +1123,11 @@ fn side_effects_cache_exclude_rejects_an_invalid_version_union() {
         ..Config::default()
     };
     assert!(AllowBuildPolicy::from_config(&config).is_err());
+}
+
+#[test]
+fn build_denial_with_metadata_matches_only_the_pinned_version() {
+    let policy = policy_from_specs([("fixture@1.0.0+build.7", false)], true);
+    assert_eq!(policy.check("fixture@1.0.0"), Some(false));
+    assert_eq!(policy.check("fixture@1.0.1"), Some(true));
 }

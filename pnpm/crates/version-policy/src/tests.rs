@@ -219,7 +219,7 @@ fn create_policy_version_union_unscoped() {
 
 #[test]
 fn create_policy_version_union_scoped() {
-    let policy = create_package_version_policy(["@scope/pkg@1.0.0+build.1 || 1.0.1"]).unwrap();
+    let policy = create_package_version_policy(["@scope/pkg@1.0.0 || 1.0.1"]).unwrap();
     assert_eq!(
         policy.matches("@scope/pkg"),
         PolicyMatch::ExactVersions(vec!["1.0.0".to_string(), "1.0.1".to_string()]),
@@ -281,4 +281,10 @@ fn merge_deduplicates_build_metadata_within_and_across_rules() {
     let merged =
         merge_package_version_specs(["fixture@1.0.0+a || 1.0.0+b", "fixture@1.0.0"]).unwrap();
     assert_eq!(merged, ["fixture@1.0.0"]);
+}
+
+#[test]
+fn policy_matches_prerelease_versions_without_build_metadata() {
+    let policy = create_package_version_policy(["fixture@2.0.0-rc.1+ci.4"]).unwrap();
+    assert_eq!(policy.matches("fixture"), PolicyMatch::ExactVersions(vec!["2.0.0-rc.1".into()]));
 }
