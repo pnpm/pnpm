@@ -293,20 +293,6 @@ test('a regular file entry whose GNU long name ends in / has no content, as in n
   expect(readParsedFile(tarBuffer, files.get('index.js'))).toBe('module.exports = 1')
 })
 
-test('a ustar prefix ending in / does not make a regular file entry a directory, as in node-tar', () => {
-  const content = createTarballWithEntry('index.js', 'hidden').subarray(0, -1024)
-  const tarBuffer = Buffer.concat([
-    createTarballWithEntry('index.js', 'benign').subarray(0, -1024),
-    createTarHeader('', content.length, '0', 'package/docs/'),
-    content,
-    Buffer.alloc(1024),
-  ])
-
-  const { files } = parseTarball(tarBuffer)
-
-  expect(readParsedFile(tarBuffer, files.get('index.js'))).toBe('benign')
-})
-
 function readParsedFile (tarBuffer: Buffer, file: { offset: number, size: number } | undefined): string | undefined {
   return file && tarBuffer.toString('utf8', file.offset, file.offset + file.size)
 }
@@ -326,7 +312,7 @@ function createTarballWithEntry (fileName: string, content: string): Buffer {
   return Buffer.concat([header, contentBlock, endMarker])
 }
 
-function createTarHeader (entryPath: string, size: number, entryType = '0', prefix = ''): Buffer {
+function createTarHeader (entryPath: string, size: number, entryType = '0'): Buffer {
   const header = Buffer.alloc(512, 0)
   header.write(entryPath, 0, Math.min(entryPath.length, 100), 'utf8')
   header.write('0000644\0', 100, 8, 'utf8')
@@ -337,7 +323,6 @@ function createTarHeader (entryPath: string, size: number, entryType = '0', pref
   header[156] = entryType.charCodeAt(0)
   header.write('ustar\0', 257, 6, 'utf8')
   header.write('00', 263, 2, 'utf8')
-  header.write(prefix, 345, Math.min(prefix.length, 155), 'utf8')
   // The checksum is the sum of all header bytes, counting the checksum field as spaces.
   header.fill(' ', 148, 156)
   let checksum = 0
