@@ -24,7 +24,7 @@ const LOCKFILE: &str = "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: t
 
 #[test]
 fn queries_do_not_create_a_manifest() {
-    for args in [&["why", "foo"][..], &["outdated"]] {
+    for args in [&["why", "foo"][..], &["outdated"], &["rt", "ls"]] {
         let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
         pacquet
             .with_args(args)
@@ -38,7 +38,6 @@ fn queries_do_not_create_a_manifest() {
 #[test]
 fn rejected_commands_do_not_create_a_manifest() {
     let cases: &[(&[&str], &str)] = &[
-        (&["rt", "ls"], "ERR_PNPM_RUNTIME_UNKNOWN_SUBCOMMAND"),
         (&["rt"], "ERR_PNPM_RUNTIME_NO_SUBCOMMAND"),
         (&["rt", "set"], "ERR_PNPM_MISSING_RUNTIME_NAME"),
         (&["rt", "set", "python"], "ERR_PNPM_INVALID_RUNTIME_NAME"),
