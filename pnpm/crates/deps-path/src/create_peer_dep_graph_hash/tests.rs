@@ -51,3 +51,16 @@ fn long_body_is_replaced_with_short_hash() {
     assert_eq!(body.len(), 32);
     assert!(body.chars().all(|c| c.is_ascii_hexdigit()));
 }
+
+#[test]
+fn file_provider_with_parentheses_uses_a_hash() {
+    let peer = PeerId::DepPath("example@file:vendor/left(".into());
+    let suffix = create_peer_dep_graph_hash(&[peer], 1000);
+    let digest = suffix
+        .strip_prefix('(')
+        .unwrap()
+        .strip_suffix(')')
+        .unwrap();
+    assert_eq!(digest.len(), 32);
+    assert!(digest.bytes().all(|byte| byte.is_ascii_hexdigit()), "{suffix}");
+}

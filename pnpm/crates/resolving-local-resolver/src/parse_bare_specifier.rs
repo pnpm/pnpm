@@ -150,28 +150,25 @@ fn from_local(
     let (fetch_spec, normalized_bare_specifier) =
         fetched_and_normalized(&spec, project_dir, protocol);
 
-    let copy_shaped = protocol == "file:";
-
-    let dependency_path = if copy_shaped {
-        normalize_relative_or_absolute(lockfile_dir, &fetch_spec, &spec, opts)
+    let (dependency_path, id) = if protocol == "file:" {
+        let path = normalize_relative_or_absolute(lockfile_dir, &fetch_spec, &spec, opts);
+        let id = match kind {
+            LocalSpecKind::Directory => PkgResolutionId::file_directory(&path),
+            LocalSpecKind::File => PkgResolutionId::from(format!("file:{path}")),
+        };
+        (path, id)
     } else {
-        forward_slashes(fetch_spec.display().to_string())
+        let path = normalize_relative_or_absolute(project_dir, &fetch_spec, &spec, opts);
+        (
+            forward_slashes(fetch_spec.display().to_string()),
+            PkgResolutionId::from(format!("link:{path}")),
+        )
     };
-
-    let id_base = if !copy_shaped
-        && (matches!(kind, LocalSpecKind::Directory) || project_dir == lockfile_dir)
-    {
-        project_dir
-    } else {
-        lockfile_dir
-    };
-    let id_value =
-        format!("{protocol}{}", normalize_relative_or_absolute(id_base, &fetch_spec, &spec, opts));
 
     LocalPackageSpec {
         dependency_path,
         fetch_spec,
-        id: PkgResolutionId::from(id_value),
+        id,
         kind,
         normalized_bare_specifier,
         resolved_via: resolved_via(bare),

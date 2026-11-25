@@ -330,3 +330,14 @@ fn reserved_prefixes_do_not_parse_as_registry_qualified() {
     assert_eq!(opaque.registry_qualified(), None);
     assert_eq!(opaque.version(), &VersionPart::NonSemver("work:not-semver".to_string()));
 }
+
+#[test]
+fn file_directory_parentheses_round_trip_with_peer_groups() {
+    for path in ["vendor/(kit)/", "vendor/(kit)/component", "vendor/left(/", "vendor/right)/"] {
+        let key = format!("file:{path}(patch_hash=abc)(@example/peer@1.0.0)");
+        let parsed: PkgVerPeer = key.parse().unwrap();
+        assert_eq!(parsed.version(), &VersionPart::File(path.to_string()));
+        assert_eq!(parsed.peer(), "(patch_hash=abc)(@example/peer@1.0.0)");
+        assert_eq!(parsed.to_string(), key);
+    }
+}

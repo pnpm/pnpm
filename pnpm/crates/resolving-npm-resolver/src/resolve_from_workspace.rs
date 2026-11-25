@@ -275,18 +275,18 @@ pub(crate) fn resolve_from_local_package(
 ) -> ResolveResult {
     let local_dir = resolve_workspace_package_dir(&local_package.root_dir, &local_package.manifest);
 
-    let (id_text, directory) = if hard_link_local_packages {
+    let (id, directory) = if hard_link_local_packages {
         let relative_to_lockfile = forward_slashes(relative_path(lockfile_dir, &local_dir));
-        let id = format!("file:{relative_to_lockfile}");
+        let id = PkgResolutionId::file_directory(&relative_to_lockfile);
         (id, relative_to_lockfile)
     } else {
         let relative_to_project = forward_slashes(relative_path(project_dir, &local_dir));
-        let id = format!("link:{relative_to_project}");
+        let id = PkgResolutionId::from(format!("link:{relative_to_project}"));
         (id, relative_to_project)
     };
 
     ResolveResult {
-        id: PkgResolutionId::from(id_text),
+        id,
         resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: "workspace".to_string(),
         normalized_bare_specifier: saved_specifier.calc_specifier

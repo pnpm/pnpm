@@ -51,6 +51,13 @@ use crate::{
 pub struct PkgResolutionId(String);
 
 impl PkgResolutionId {
+    /// A trailing slash separates a directory name ending in a parenthesis from peer suffixes.
+    #[must_use]
+    pub fn file_directory(path: &str) -> Self {
+        let separator = if path.ends_with(['(', ')']) { "/" } else { "" };
+        Self(format!("file:{path}{separator}"))
+    }
+
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
