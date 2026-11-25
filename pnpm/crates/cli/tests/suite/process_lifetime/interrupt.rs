@@ -65,7 +65,7 @@ fn survivors(event: Event, under_pnpm: bool) -> Vec<bool> {
         launcher_directly(&workspace, &args)
     };
     #[cfg(windows)]
-    let mut session = Session::start(command, &workspace);
+    let mut session = Session::start(command, &workspace, event);
     #[cfg(unix)]
     let mut session = Session::start(&command, &workspace);
     session.deliver(event);
@@ -76,40 +76,78 @@ fn survivors(event: Event, under_pnpm: bool) -> Vec<bool> {
     survivors
 }
 
+fn wrap_command(wrapper: Command, command: &Command, workspace: &Path) -> Command {
+    let wrapper = wrapper
+        .with_current_dir(workspace)
+        .with_arg(command.get_program())
+        .with_args(command.get_args());
+    command
+        .get_envs()
+        .fold(wrapper, |wrapper, (name, value)| match value {
+            Some(value) => wrapper.with_env(name, value),
+            None => wrapper.without_env(name),
+        })
+}
+
 /// The command running on a private console.
 #[cfg(windows)]
 struct Session {
     console: Option<PrivateConsole>,
+    output: Option<std::thread::JoinHandle<std::io::Result<u64>>>,
     command: Child,
 }
 
 #[cfg(windows)]
 impl Session {
-    fn start(command: Command, workspace: &Path) -> Self {
-        let console = PrivateConsole::attach();
+    fn start(command: Command, workspace: &Path, event: Event) -> Self {
+        let (console, command) = match event {
+            Event::CtrlC => (
+                Some(PrivateConsole::attach()),
+                command
+                    .with_stdin(Stdio::null())
+                    .with_stdout(Stdio::null()),
+            ),
+            Event::Close => {
+                // Closing a headless console's input pipe delivers CTRL_CLOSE_EVENT
+                // even on a runner with no interactive desktop.
+                let host = Command::new("conhost.exe").with_args(["--headless", "--"]);
+                let host = wrap_command(host, &command, workspace)
+                    .with_stdin(Stdio::piped())
+                    .with_stdout(Stdio::piped());
+                (None, host)
+            }
+        };
         let mut command = command
-            .with_stdin(Stdio::null())
-            .with_stdout(Stdio::null())
             .with_stderr(Stdio::null())
             .spawn()
             .expect("spawn the command");
+        let output = command.stdout
+            .take()
+            .map(|mut pipe| {
+                std::thread::spawn(move || std::io::copy(&mut pipe, &mut std::io::sink()))
+            });
         wait_for_start(&workspace.join("started.txt"), &mut command);
-        Self { console: Some(console), command }
+        Self { console, output, command }
     }
 
     fn deliver(&mut self, event: Event) {
-        let console = self.console.take().expect("the console is still open");
         match event {
-            Event::CtrlC => {
-                console.press_ctrl_c();
-                self.console = Some(console);
-            }
-            Event::Close => console.close(),
+            Event::CtrlC => self.console
+                .as_ref()
+                .expect("private console")
+                .press_ctrl_c(),
+            Event::Close => drop(self.command.stdin.take().expect("headless console input")),
         }
     }
 
     fn wait_for_command(&mut self) {
         wait_for_exit(&mut self.command);
+        if let Some(output) = self.output.take() {
+            output
+                .join()
+                .expect("join console reader")
+                .expect("drain console output");
+        }
     }
 }
 
@@ -145,17 +183,8 @@ impl Session {
     fn start(command: &Command, workspace: &Path) -> Self {
         let script = workspace.join("shell.js");
         std::fs::write(&script, SHELL).expect("write shell.js");
-        let mut shell = Command::new(super::node_executable())
-            .with_current_dir(workspace)
-            .with_arg(script)
-            .with_arg(command.get_program())
-            .with_args(command.get_args());
-        shell = command
-            .get_envs()
-            .fold(shell, |shell, (name, value)| match value {
-                Some(value) => shell.with_env(name, value),
-                None => shell.without_env(name),
-            });
+        let shell = Command::new(super::node_executable()).with_arg(script);
+        let shell = wrap_command(shell, command, workspace);
         let terminal = Terminal::open();
         let mut shell = terminal.spawn_foreground(shell);
         wait_for_start(&workspace.join("started.txt"), &mut shell);
