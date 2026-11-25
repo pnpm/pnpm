@@ -301,6 +301,8 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enable_global_virtual_store: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub global_virtual_store_layout_version: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclude_links_from_lockfile: Option<bool>,
     /// `extendNodePath`, recorded only while it is off. It decides the
     /// `NODE_PATH` the bin shims set.

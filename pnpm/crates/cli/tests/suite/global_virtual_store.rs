@@ -702,6 +702,19 @@ fn injected_local_packages_work_with_global_virtual_store() {
         "the injected copy must carry the source project's files",
     );
 
+    let mut state = pnpm_workspace_state::load_workspace_state(&workspace).unwrap().unwrap();
+    let version = state.settings.global_virtual_store_layout_version.take().unwrap();
+    pnpm_workspace_state::update_workspace_state(&workspace, &state).unwrap();
+    fs::write(workspace.join("project-1/added.js"), "").unwrap();
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(resolved.join("added.js").exists(), "an old layout must be rematerialized");
+    let state = pnpm_workspace_state::load_workspace_state(&workspace).unwrap().unwrap();
+    assert_eq!(state.settings.global_virtual_store_layout_version, Some(version));
+
     drop((root, mock_instance));
 }
 

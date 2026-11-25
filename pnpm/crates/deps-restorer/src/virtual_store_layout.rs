@@ -106,6 +106,10 @@ pub struct VirtualStoreLayout {
     staging_token: String,
 }
 
+/// Bump when global slot paths or their cached encoding change. Existing
+/// installs must relink before their workspace state can vouch for the tree.
+pub const GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION: u8 = 3;
+
 impl VirtualStoreLayout {
     pub(crate) fn relocated(&self, root: PathBuf) -> Self {
         Self { package_store_dir: root, ..self.clone() }

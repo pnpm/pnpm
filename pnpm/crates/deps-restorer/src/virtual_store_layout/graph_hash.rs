@@ -1,5 +1,5 @@
 use super::{
-    gvs_layout_cache,
+    GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION,
     gvs_version_segment,
     is_local_directory,
 };
@@ -211,7 +211,7 @@ impl<'h> GvsHasher<'h> {
     pub(super) fn fingerprint(&self, snapshots: &HashMap<PackageKey, SnapshotEntry>) -> String {
         use sha2::Digest as _;
         let mut hasher = sha2::Sha256::new();
-        write_field(&mut hasher, gvs_layout_cache::CACHE_FORMAT_VERSION);
+        hasher.update([GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION]);
         // `None` and `Some("")` are different payloads downstream, so
         // they must not collapse here.
         match self.engine {
