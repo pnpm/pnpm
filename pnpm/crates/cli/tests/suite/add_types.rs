@@ -150,6 +150,33 @@ fn skips_bundled_types_and_missing_types_packages() {
     }
 }
 
+/// <https://github.com/pnpm/pnpm/issues/18428>
+#[test]
+fn skips_an_unpublished_types_package() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let _package = serve_package(&mut server, "example", &json!({}));
+    let unpublished = server
+        .mock("GET", mockito::Matcher::Regex("(?i)^/@types%2fexample$".to_string()))
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "name": "@types/example",
+                "time": {"unpublished": {"time": "2025-02-01T00:00:00.000Z", "versions": ["1.0.0"]}}
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create();
+    setup(&workspace, &server.url());
+    add(&workspace, &["example", "--save-types"]).assert().success();
+    let result = manifest(&workspace);
+    assert_eq!(result["dependencies"], json!({"example": "^1.0.0"}));
+    assert_eq!(result["devDependencies"], Value::Null);
+    unpublished.assert();
+    drop(root);
+}
+
 /// <https://github.com/pnpm/pnpm/issues/15636>
 #[test]
 fn skips_deprecated_types_stubs() {

@@ -195,5 +195,11 @@ fn has_export_target(value: &serde_json::Value) -> bool {
 }
 
 fn is_not_found(error: &PickPackageError) -> bool {
-    matches!(error, PickPackageError::Fetch(FetchMetadataError::Network { error, .. }) if error.status().is_some_and(|status| status.as_u16() == 404))
+    match error {
+        PickPackageError::Fetch(FetchMetadataError::Network { error, .. }) => error
+            .status()
+            .is_some_and(|status| status.as_u16() == 404),
+        PickPackageError::Fetch(FetchMetadataError::Unpublished { .. }) => true,
+        _ => false,
+    }
 }

@@ -151,10 +151,9 @@ fn decode_metadata(body: &str, install_v2: bool, url: &str) -> Result<Package, F
 /// Whether `body` is npm's record of a fully unpublished package: a
 /// non-empty `time.unpublished.versions` and neither `dist-tags` nor
 /// `versions`.
-///
-/// Runs only after the body failed to parse as a [`Package`], so it skips
-/// every field but the marker instead of building the whole document again.
 fn is_unpublished_packument(body: &str) -> bool {
+    // Runs only after the body failed to parse as a `Package`, so it skips
+    // every field but the marker instead of building the whole document again.
     #[derive(Deserialize)]
     struct Packument {
         #[serde(rename = "dist-tags")]
