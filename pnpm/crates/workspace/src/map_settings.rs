@@ -113,10 +113,12 @@ pub fn package_map<'a>(
     value: &'a serde_json::Value,
     field: &str,
 ) -> Option<&'a serde_json::Map<String, serde_json::Value>> {
-    let map = value.as_object()?;
-    Some(
-        map.get(field)
-            .and_then(serde_json::Value::as_object)
-            .unwrap_or(map),
-    )
+    package_map_value(value, field).as_object()
+}
+
+pub fn package_map_value<'a>(value: &'a serde_json::Value, field: &str) -> &'a serde_json::Value {
+    value
+        .get(field)
+        .filter(|entries| entries.is_object())
+        .unwrap_or(value)
 }

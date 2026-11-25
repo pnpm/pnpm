@@ -124,7 +124,7 @@ overrides:
 
 #### overrides.rules and overrides.unused
 
-Put selectors under `overrides.rules` to configure unused overrides alongside them.
+Put selectors under `overrides.rules` to configure unused overrides alongside them. Use `rules: {}` for an empty map. Without `rules`, a key named `unused` refers to a package.
 
 ```yaml title="pnpm-workspace.yaml"
 overrides:

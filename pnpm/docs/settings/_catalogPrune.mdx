@@ -2,7 +2,7 @@
 
 ### catalog.entries and catalog.unused
 
-Put the default catalog's packages under `catalog.entries` to configure cleanup alongside them.
+Put the default catalog's packages under `catalog.entries` to configure cleanup alongside them. Use `entries: {}` for an empty map. Without `entries`, a key named `unused` refers to a package.
 
 ```yaml title="pnpm-workspace.yaml"
 catalog:
