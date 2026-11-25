@@ -161,3 +161,26 @@ fn setting_a_field_after_deleting_the_last_one_keeps_a_single_blank_line() {
 
     assert_eq!(fs::read_to_string(&path).expect("file kept"), with_field);
 }
+
+#[test]
+fn catalog_alias_edits_update_nested_options_and_clear_shadowed_values() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    for catalog in ["{ entries: {}, mode: strict }", "\n  entries: {}\n  mode: strict"] {
+        fs::write(&path, format!("catalogMode: prefer\ncatalog: {catalog}\n")).unwrap();
+        for (alias, option, value) in
+            [("catalogMode", "mode", "manual"), ("saveCatalogName", "saveTo", "tools")]
+        {
+            crate::update_workspace_setting(dir.path(), alias, &serde_json::json!(value)).unwrap();
+            let read = || {
+                serde_saphyr::from_str::<serde_json::Value>(&fs::read_to_string(&path).unwrap())
+                    .unwrap()
+            };
+            assert_eq!(read()["catalog"][option], value);
+            assert!(read().get(alias).is_none());
+            crate::update_workspace_setting(dir.path(), alias, &serde_json::Value::Null).unwrap();
+            assert!(read()["catalog"].get(option).is_none());
+            assert_eq!(read()["catalog"]["entries"], serde_json::json!({}));
+        }
+    }
+}

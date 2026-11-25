@@ -219,11 +219,7 @@ pub fn edit_manifest_field(
         return Err(EditManifestFieldError::UnsupportedInlineBlock { key: key.to_string() });
     }
 
-    let changed = if value.is_null() {
-        edit::remove_top_level_field(&mut manifest, key)
-    } else {
-        edit::set_top_level_field(&mut manifest, key, value)
-    };
+    let changed = edit_setting(&mut manifest, key, value)?;
     if !changed {
         return Ok(ManifestEdit::Unchanged);
     }
@@ -231,4 +227,31 @@ pub fn edit_manifest_field(
         return Ok(ManifestEdit::Remove);
     }
     Ok(ManifestEdit::Write(manifest.document.into_text().map_err(EditManifestFieldError::Edit)?))
+}
+
+fn edit_setting(
+    manifest: &mut Manifest,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<bool, EditManifestFieldError> {
+    let option = match key {
+        "catalogMode" => Some("mode"),
+        "saveCatalogName" => Some("saveTo"),
+        _ => None,
+    };
+    if let Some(option) = option
+        && manifest.document.sections.catalog() == ["catalog", "entries"]
+    {
+        if edit::has_unsupported_inline_value(manifest.document.text(), &["catalog"]) {
+            return Err(EditManifestFieldError::UnsupportedInlineBlock { key: "catalog".into() });
+        }
+        let mut changed = edit::edit_catalog_option(manifest, option, value);
+        changed |= edit::remove_top_level_field(manifest, key);
+        return Ok(changed);
+    }
+    Ok(if value.is_null() {
+        edit::remove_top_level_field(manifest, key)
+    } else {
+        edit::set_top_level_field(manifest, key, value)
+    })
 }

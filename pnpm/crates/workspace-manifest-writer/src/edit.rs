@@ -19,6 +19,7 @@ pub(crate) use allow_builds::{
 pub(crate) use catalogs::{
     CatalogReferences,
     add_catalogs,
+    edit_catalog_option,
     remove_unused_catalogs,
 };
 pub(crate) use permissions::{

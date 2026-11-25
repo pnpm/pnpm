@@ -8,6 +8,29 @@ use super::{
     upsert,
 };
 
+pub(crate) fn edit_catalog_option(
+    manifest: &mut Manifest,
+    option: &str,
+    value: &serde_json::Value,
+) -> bool {
+    let path = &["catalog"][..];
+    if !value.is_null() {
+        return super::nested::set_nested_entry(
+            manifest,
+            path,
+            option,
+            (&value.to_string(), value),
+        );
+    }
+    let text = manifest.document.text();
+    let updated = remove_mapping_entries(text, path, &[option.to_string()]);
+    if updated == text {
+        return false;
+    }
+    manifest.document.set_text(updated);
+    true
+}
+
 /// Merge `updated` into `manifest`'s catalog blocks. Returns whether anything
 /// changed.
 pub(crate) fn add_catalogs(
