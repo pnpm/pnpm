@@ -66,7 +66,7 @@ fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
 fn unset_removes_a_caret_declared_runtime_by_major_version() {
     let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    let version = "22.14.0";
+    let version = "24.0.0-rc.4";
     let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
     let pnpm_home = root.path().join("pnpm-home");
     configure_node_runtime(&root, &workspace, &server);
@@ -91,12 +91,12 @@ fn unset_removes_a_caret_declared_runtime_by_major_version() {
     let manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
     assert_eq!(
         manifest["devDependencies"]["node"].as_str(),
-        Some("runtime:^22.14.0"),
+        Some("runtime:^24.0.0-rc.4"),
         "set should save a caret range: {manifest}",
     );
 
     let output = command()
-        .with_args(["runtime", "unset", "node", "22"])
+        .with_args(["runtime", "unset", "node", "24"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
