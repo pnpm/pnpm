@@ -149,6 +149,7 @@ alias:remove=un	partial	available
 alias:remove=uni	partial	available
 alias:remove=uninstall	partial	available
 alias:run=run-script	partial	available
+alias:runtime=env	routed	host-limited
 alias:runtime=rt	routed	host-limited
 alias:search=find	partial	available
 alias:search=s	partial	available
