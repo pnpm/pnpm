@@ -66,14 +66,14 @@ pub struct SummaryLog {
     pub level: LogLevel,
     pub prefix: String,
     /// The root directories of the projects this install found no
-    /// previous install of. Set only when the install covers a workspace
-    /// of several projects, with `prefix` as its root, and skipped from the
-    /// wire otherwise, so `None` means a single-project install.
+    /// previous install of. Set by an install that materializes projects,
+    /// with `prefix` as the workspace root, and skipped from the wire
+    /// otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub new_projects: Option<Vec<String>>,
     /// The package name of each project of the workspace, keyed by root
-    /// directory. Set under the same condition as `new_projects`. A
-    /// project without a name has no entry.
+    /// directory. Set only when the install covers a workspace of several
+    /// projects. A project without a name has no entry.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_names: Option<BTreeMap<String, String>>,
 }

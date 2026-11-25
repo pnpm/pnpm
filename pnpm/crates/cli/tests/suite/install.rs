@@ -426,8 +426,7 @@ fn install_reports_a_deprecation_without_the_notice_and_keeps_the_metadata_on_re
         .success();
     let stdout = String::from_utf8_lossy(&assertion.get_output().stdout).into_owned();
     assert!(
-        stdout.contains("+ @pnpm.e2e/deprecated 1.0.0\n")
-            && stdout.contains("✗ 1 package is deprecated: @pnpm.e2e/deprecated@1.0.0"),
+        stdout.contains("✗ 1 package is deprecated: @pnpm.e2e/deprecated@1.0.0"),
         "the checks footer should name the deprecated dependency:\n{stdout}",
     );
     assert!(

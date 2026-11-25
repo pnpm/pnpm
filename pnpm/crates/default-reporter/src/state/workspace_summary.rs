@@ -1,6 +1,7 @@
-//! The packages-diff summary of an install that covers a workspace of
-//! several projects. Each line is one change, merged across the projects
-//! that made it and attributed to them unless only the current project did.
+//! The packages-diff summary of an install that lists its new projects.
+//! Each line is one change, merged across the projects that made it and
+//! attributed to them unless only the current project did. A new project
+//! shows only the dependencies the command requested.
 
 use super::{
     BTreeMap,

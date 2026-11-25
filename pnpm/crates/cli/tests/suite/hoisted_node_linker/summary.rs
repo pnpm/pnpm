@@ -58,20 +58,23 @@ fn hoisted_install_reports_the_version_a_dependency_resolved_to() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+    write_manifest(&workspace, serde_json::json!({}));
+    install_summary(pacquet);
     write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/foo": "^100.0.0" }));
 
-    assert_eq!(install_summary(pacquet).as_deref(), Some("dependencies:\n+ @pnpm.e2e/foo 100.1.0"));
+    assert_eq!(
+        install_summary(pacquet_at(&workspace)).as_deref(),
+        Some("dependencies:\n+ @pnpm.e2e/foo 100.1.0"),
+    );
 
     // Nothing changed, so there is nothing to report.
     assert_eq!(install_summary(pacquet_at(&workspace)), None);
 
     // The lockfile the previous install left behind goes with
-    // `node_modules`, so the next install reports what it puts back.
+    // `node_modules`, so the next install finds no previous install and
+    // reports only what the command requested: nothing.
     fs_remove_dir_all(&workspace.join("node_modules"));
-    assert_eq!(
-        install_summary(pacquet_at(&workspace)).as_deref(),
-        Some("dependencies:\n+ @pnpm.e2e/foo 100.1.0"),
-    );
+    assert_eq!(install_summary(pacquet_at(&workspace)), None);
 
     drop((root, mock_instance));
 }
@@ -118,10 +121,12 @@ fn hoisted_install_reports_an_aliased_dependency_under_its_alias() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+    write_manifest(&workspace, serde_json::json!({}));
+    install_summary(pacquet);
     write_manifest(&workspace, serde_json::json!({ "aliased": "npm:@pnpm.e2e/foo@100.1.0" }));
 
     assert_eq!(
-        install_summary(pacquet).as_deref(),
+        install_summary(pacquet_at(&workspace)).as_deref(),
         Some("dependencies:\n+ aliased <- @pnpm.e2e/foo 100.1.0"),
     );
 
@@ -215,18 +220,20 @@ fn hoisted_install_reports_an_optional_dependency_it_stops_supporting() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(
+        &workspace,
+        "nodeLinker: hoisted\nsupportedArchitectures:\n  os:\n    - this-os-does-not-exist\n",
+    );
+    write_manifest(&workspace, serde_json::json!({}));
+    install_summary(pacquet);
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({ "optionalDependencies": { PKG: "*" } }).to_string(),
     )
     .expect("write package.json");
 
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\nsupportedArchitectures:\n  os:\n    - this-os-does-not-exist\n",
-    );
     assert_eq!(
-        install_summary_of(pacquet, "optionalDependencies:").as_deref(),
+        install_summary_of(pacquet_at(&workspace), "optionalDependencies:").as_deref(),
         Some(&*format!("optionalDependencies:\n+ {PKG} 1.0.0")),
     );
 

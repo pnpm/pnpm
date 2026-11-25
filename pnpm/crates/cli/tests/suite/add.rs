@@ -1188,3 +1188,34 @@ fn add_exact_version_honors_exact_when_range_already_exists() {
     assert_eq!(spec.as_deref(), Some("1.0.0"));
     drop((root, npmrc_info));
 }
+
+/// A project with no previous install summarizes only what the command
+/// asked for, not every dependency it already declared.
+#[test]
+fn add_to_a_project_with_no_previous_install_lists_only_the_added_dependency() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }"#,
+    )
+    .unwrap();
+
+    let assert = pacquet
+        .with_args(["add", "@pnpm.e2e/bar@100.0.0"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let summary: Vec<&str> = stdout
+        .lines()
+        .skip_while(|line| *line != "dependencies:")
+        .take_while(|line| !line.is_empty())
+        .collect();
+    assert_eq!(summary, ["dependencies:", "+ @pnpm.e2e/bar 100.0.0"], "{stdout}");
+    drop((root, npmrc_info));
+}

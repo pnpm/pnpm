@@ -379,14 +379,16 @@ fn install_summary(
 }
 
 /// See [`SummaryLog::new_projects`]. A project had no
-/// previous install when the current lockfile has no importer for it.
+/// previous install when the current lockfile has no importer for it. A
+/// previous install that had nothing to install writes `.modules.yaml`
+/// and no current lockfile, so it leaves no project new.
 fn new_projects(
     inputs: &ApplyMaterializationInputs<'_, '_>,
     installed_importer_ids: &HashSet<String>,
 ) -> Option<Vec<String>> {
     let importers = &inputs.projects.importers;
-    if importers.real_ids.len() < 2 {
-        return None;
+    if inputs.prior.lockfile.is_none() && inputs.prior.metadata.is_some() {
+        return Some(Vec::new());
     }
     let previous_importers = inputs.prior.lockfile.as_ref().map(|lockfile| &lockfile.importers);
     let new_projects = importers.manifests
