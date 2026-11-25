@@ -154,6 +154,7 @@ fn synthesize_runtime_manifest_emits_name_version_and_bin_single() {
     // named after the package", so the shim is
     // `<modules_dir>/.bin/node` → `<slot>/bin/node`.
     assert_eq!(parsed["bin"], "bin/node");
+    assert!(parsed.get("license").is_none());
 }
 #[test]
 fn synthesize_runtime_manifest_emits_name_version_and_bin_map() {
@@ -186,7 +187,7 @@ fn synthesize_runtime_manifest_emits_name_version_and_bin_map() {
 /// `@deno/runtime`) so pin the shape now rather than catch it later.
 #[test]
 fn synthesize_runtime_manifest_preserves_scoped_name() {
-    let key: PackageKey = "@foo/bar@1.2.3".parse().expect("parse scoped key");
+    let key: PackageKey = "@foo/bar@runtime:1.2.3".parse().expect("parse scoped key");
     let binary = BinaryResolution {
         url: "https://example.test/foo-bar-1.2.3.tar.gz".to_string(),
         integrity: "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==".parse().expect("parse integrity"),
@@ -198,6 +199,7 @@ fn synthesize_runtime_manifest_preserves_scoped_name() {
     let bytes = synthesize_runtime_manifest_bytes(&key, &binary).expect("synth must succeed");
     let parsed: serde_json::Value = serde_json::from_slice(&bytes).expect("round-trip");
 
+    assert!(parsed.get("license").is_none());
     assert_eq!(parsed["name"], "@foo/bar");
     assert_eq!(parsed["version"], "1.2.3");
 }
