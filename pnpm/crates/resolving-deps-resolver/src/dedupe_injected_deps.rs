@@ -168,7 +168,10 @@ fn injected_workspace_target(
     let path = raw
         .strip_prefix("file:")
         .or_else(|| raw.split_once("@file:").map(|(_, path)| path))?;
-    workspace_project_ids.contains(path).then(|| path.to_string())
+    workspace_project_ids
+        .get(path)
+        .or_else(|| workspace_project_ids.get(path.strip_suffix('/')?))
+        .cloned()
 }
 
 fn apply_dedupe_map(

@@ -209,6 +209,9 @@ The keys of `snapshots` are full package keys:
 | `(patch_hash=<hash>)` | Present when the package is patched. `<hash>` is the hex digest recorded in `patchedDependencies`. |
 | `(<peer>)` | One group for each peer dependency that the package or its dependencies resolved from outside the package. See [peer suffixes](#peer-suffixes). |
 
+When a `file:` directory name ends in a parenthesis, its key includes a trailing
+slash, as in `example-kit@file:vendor/(kit)/`.
+
 The keys of `packages` are the same keys without the patch hash and the peer
 suffixes. To find the `packages` entry of a snapshot, strip the trailing
 parenthesized groups. Older lockfiles can also have a
@@ -255,6 +258,8 @@ pnpm sorts the group contents and joins them with `)(`. This body includes any
 nested parentheses and excludes the outermost pair. If its UTF-8 byte length
 exceeds [`peersSuffixMaxLength`](./settings/store.md#peerssuffixmaxlength), pnpm
 replaces the body with the first 32 hex characters of its SHA-256 digest.
+If a provider's `file:` path contains parentheses, pnpm hashes the sorted
+groups with a NUL byte before each group to preserve their boundaries.
 pnpm wraps the resulting body in parentheses. Use the dependency maps to
 follow resolved edges, including when a peer group is shortened or hashed.
 

@@ -39,10 +39,7 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
 /// two distinct dep paths to one name. Only `/` after the scheme escapes
 /// unambiguously.
 fn has_ambiguous_escape(dep_path: &str) -> bool {
-    let pkg_id = dep_path
-        .split('(')
-        .next()
-        .unwrap_or_default();
+    let pkg_id = crate::remove_suffix(dep_path);
     let pkg_id = pkg_id.strip_prefix('/').unwrap_or(pkg_id);
     let version = if pkg_id.starts_with("file:") {
         pkg_id
@@ -55,6 +52,9 @@ fn has_ambiguous_escape(dep_path: &str) -> bool {
     let Some((_, location)) = version.split_once(':') else { return false };
     if crate::parse_registry_qualified_version(version).is_some() {
         return false;
+    }
+    if version.starts_with("file:") && location.contains(['(', ')']) {
+        return true;
     }
     let location = location.strip_prefix("//").unwrap_or(location);
     location.contains(['+', '\\', ':', '*', '?', '"', '<', '>', '|', '#'])

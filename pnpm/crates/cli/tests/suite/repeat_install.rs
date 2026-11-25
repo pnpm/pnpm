@@ -1666,3 +1666,34 @@ fn a_publish_directory_beneath_a_registry_package_follows_its_project_manifest()
         "the frozen install must reject the stale lockfile: {stderr}",
     );
 }
+
+#[test]
+fn frozen_install_preserves_parentheses_in_local_dependency_paths() {
+    let fixture = WorkspaceFixture::new();
+    let deps = [
+        ("trailing", "file:vendor/(kit)"),
+        ("nested", r"file:vendor\(kit)\component"),
+        ("literal", "file:vendor/%28kit%29"),
+    ];
+    fixture.write_root_manifest("root", ManifestDeps { prod: &deps, ..Default::default() });
+    for (alias, specifier) in deps {
+        let directory = fixture.workspace.join(
+            specifier
+                .strip_prefix("file:")
+                .unwrap()
+                .replace('\\', "/"),
+        );
+        write_project_manifest(&directory, "example-kit", ManifestDeps::default());
+        fs::write(directory.join("marker"), alias).unwrap();
+    }
+    assert_success(&fixture.command_at(&fixture.workspace, ["install"]));
+    fs::remove_dir_all(fixture.workspace.join("node_modules")).unwrap();
+    assert_success(&fixture.command_at(&fixture.workspace, ["install", "--frozen-lockfile"]));
+    for (alias, _) in deps {
+        let marker = fixture.workspace
+            .join("node_modules")
+            .join(alias)
+            .join("marker");
+        assert_eq!(fs::read_to_string(marker).unwrap(), alias);
+    }
+}

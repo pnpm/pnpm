@@ -38,7 +38,7 @@ pub(super) fn canonical_workspace_resolution(
     else {
         return None;
     };
-    if result.id.as_str().strip_prefix("file:") == Some(&directory_resolution.directory) {
+    if result.id.matches_file_directory(&directory_resolution.directory) {
         return Some(result.clone());
     }
     if result.id.as_str().strip_prefix("link:") != Some(&directory_resolution.directory) {

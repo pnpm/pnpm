@@ -299,6 +299,12 @@ impl FromStr for PkgVerPeer {
             return Err(ParsePkgVerPeerError::ConflictingSchemes);
         }
 
+        if body.starts_with("file:") {
+            let base = pnpm_deps_path::remove_suffix(body);
+            let version = parse_version_part(base)?;
+            return Ok(PkgVerPeer { prefix, version, peer: body[base.len()..].to_string() });
+        }
+
         if !body.ends_with(')') {
             if body.find(['(', ')']).is_some() {
                 return Err(ParsePkgVerPeerError::MismatchParenthesis);
