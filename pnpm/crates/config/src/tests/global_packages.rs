@@ -294,3 +294,20 @@ fn global_packages_npmrc_auth_file_applies_to_a_global_packages_load() {
     assert_eq!(header(&global).as_deref(), Some("Bearer global-packages-token"));
     assert_eq!(header(&project), None);
 }
+
+#[test]
+fn http_tarball_uses_the_registry_and_proxy_for_global_packages() {
+    fake_env!();
+    let machine = Machine::with_global_config(
+        "_auth:\n  https://registry.example/: { '@': { authToken: token } }\nglobalPackagesConfig:\n  registries:\n    http://registry.example/npm/: { scopes: ['@'] }\n  httpProxy: http://proxy.example/\n",
+    );
+    set_fake_env(&[("XDG_CONFIG_HOME", machine.xdg_config_home())]);
+    let global = global_packages_load().current::<FakeEnv>(machine.pnpm_home.path()).unwrap();
+    let url = "http://registry.example/npm/pkg.tgz";
+    assert_eq!(
+        global.auth_headers.tarball_authorization(url, "pkg")(url).as_deref(),
+        Some("Bearer token"),
+    );
+    let project = Config::default().current::<FakeEnv>(machine.pnpm_home.path()).unwrap();
+    assert_eq!(project.auth_headers.tarball_authorization(url, "pkg")(url), None);
+}

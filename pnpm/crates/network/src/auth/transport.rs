@@ -17,6 +17,13 @@ impl Default for CredentialTransport {
 }
 
 impl CredentialTransport {
+    pub(super) fn http_registry_count(&self) -> usize {
+        match self {
+            Self::Registry(registries) => registries.len(),
+            Self::SecureOnly => 0,
+        }
+    }
+
     pub(super) fn requires_secure_transport(&self) -> bool {
         matches!(self, Self::SecureOnly)
     }

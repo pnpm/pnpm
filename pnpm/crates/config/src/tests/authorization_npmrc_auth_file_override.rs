@@ -954,6 +954,11 @@ fn http_tarball_from_the_user_npmrc_uses_only_the_user_proxy() {
         direct.auth_headers.tarball_authorization(url, "package")(url).as_deref(),
         Some("Bearer user-token"),
     );
+    let bootstrap = &direct.package_manager_bootstrap.auth_headers;
+    assert_eq!(
+        bootstrap.tarball_authorization(url, "pnpm")(url).as_deref(),
+        Some("Bearer user-token"),
+    );
     let proxied = load_with_project_and_user("http-proxy=http://proxy.example", user);
     assert_eq!(proxied.auth_headers.tarball_authorization(url, "package")(url), None);
 }

@@ -256,7 +256,12 @@ impl Config {
         // yaml may have overridden), the security boundary holds even
         // when the workspace points the default registry elsewhere.
         // A workspace-selected proxy must not receive the user's cleartext credentials.
-        if self.proxy != self.package_manager_bootstrap.proxy {
+        if !npmrc_auth.routes.trusted_http_registries.is_empty()
+            && self.proxy != self.package_manager_bootstrap.proxy
+        {
+            tracing::debug!(
+                "HTTP tarball credentials withheld because the project overrides the user proxy settings",
+            );
             npmrc_auth.routes.trusted_http_registries.clear();
         }
         std::mem::take(npmrc_auth).build_auth_headers(self)?;

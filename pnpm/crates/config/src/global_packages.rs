@@ -56,6 +56,8 @@ impl Config {
         explicit.note(&settings);
         note_declared_registries(declared_registries, &settings);
         collect_explicit_settings(&mut self.explicit_settings, &settings);
+        let bootstrap = &mut self.package_manager_bootstrap;
+        settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.take();
         let base_dir = self.dir.clone();
         settings.apply_to(self, &base_dir);

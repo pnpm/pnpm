@@ -147,17 +147,14 @@ pub(super) fn note_declared_registries(
     }
 }
 
-fn trusted_http_registries(auth: &NpmrcAuth, global: Option<&WorkspaceSettings>) -> Vec<String> {
+fn npm_registry_urls(settings: &WorkspaceSettings) -> impl Iterator<Item = &String> {
     use crate::workspace_yaml::registries::{
         Ecosystem,
         RegistryEntry,
     };
 
-    let ini = auth.routes.default.iter().chain(auth.routes.scoped.values());
-    let default = global.and_then(|settings| settings.registry.as_ref());
-    let entries = global.and_then(|settings| settings.registries.as_ref());
-    let declared = entries
-        .into_iter()
+    let declared = settings.registries
+        .iter()
         .flatten()
         .filter_map(|(key, entry)| match entry {
             RegistryEntry::ScopeRoute(url) => Some(url),
@@ -168,8 +165,17 @@ fn trusted_http_registries(auth: &NpmrcAuth, global: Option<&WorkspaceSettings>)
             }
             RegistryEntry::Declaration(_) => None,
         });
-    ini.chain(default)
-        .chain(declared)
+    settings.registry.iter().chain(declared)
+}
+
+fn trusted_http_registries<'a>(
+    auth: &'a NpmrcAuth,
+    settings: impl Iterator<Item = &'a WorkspaceSettings>,
+) -> Vec<String> {
+    auth.routes.default
+        .iter()
+        .chain(auth.routes.scoped.values())
+        .chain(settings.flat_map(npm_registry_urls))
         .filter(|url| {
             url.split_once("://")
                 .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("http"))
@@ -270,15 +276,24 @@ impl Config {
         if self.settings_read == crate::SettingsRead::PinDecision {
             return Ok(AuthSources::none());
         }
-        let global_settings = global_settings.map(|global| self.global_auth_settings(global));
+        let auth_settings = global_settings.map(|global| self.global_auth_settings(global));
         let mut sources = self.collect_auth_sources::<Sys>(
             start_dir,
             workspace_yaml,
-            global_settings.as_deref(),
+            auth_settings.as_deref(),
             global_config_dir,
         )?;
-        sources.npmrc_auth.routes.trusted_http_registries =
-            trusted_http_registries(&sources.trusted_auth, global_settings.as_deref());
+        let settings = global_settings
+            .into_iter()
+            .flat_map(|global| {
+                let section = global.machine.global_packages_config
+                    .as_deref()
+                    .filter(|_| self.cli.command_target == crate::CommandTarget::GlobalPackages);
+                std::iter::once(&global.settings).chain(section)
+            });
+        let registries = trusted_http_registries(&sources.trusted_auth, settings);
+        sources.trusted_auth.routes.trusted_http_registries.clone_from(&registries);
+        sources.npmrc_auth.routes.trusted_http_registries = registries;
         Ok(sources)
     }
 
