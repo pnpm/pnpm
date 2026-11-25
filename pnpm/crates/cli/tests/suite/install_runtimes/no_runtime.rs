@@ -30,6 +30,7 @@ use serde_json::{
 use std::{
     fs,
     path::Path,
+    process::Command,
 };
 
 #[test]
@@ -402,6 +403,13 @@ fn project_engines_use_the_locked_root_runtime_when_the_project_has_no_runtime()
         .success();
 }
 
+/// The engine check probes `node` from `PATH`. A global `node` shim there
+/// would try to download the unsatisfiable runtime these tests pin and fail,
+/// so the check would see no Node.js at all.
+fn command_probing_the_system_node(workspace: &Path) -> Command {
+    command(workspace).with_env("PNPM_SHIM_BYPASS", "1")
+}
+
 #[test]
 fn production_install_checks_engines_against_the_runtime_it_links() {
     let root = tempfile::tempdir().unwrap();
@@ -412,7 +420,7 @@ fn production_install_checks_engines_against_the_runtime_it_links() {
     manifest["engines"]["node"] = json!(">=99.0.0");
     fs::write(&manifest_path, manifest.to_string()).unwrap();
 
-    let output = command(&workspace)
+    let output = command_probing_the_system_node(&workspace)
         .with_args(["install", "--prod"])
         .output()
         .unwrap();
@@ -430,7 +438,7 @@ fn production_add_checks_engines_against_the_runtime_it_links() {
     manifest["engines"]["node"] = json!(">=99.0.0");
     fs::write(&manifest_path, manifest.to_string()).unwrap();
 
-    let output = command(&workspace)
+    let output = command_probing_the_system_node(&workspace)
         .with_args(["add", "--prod", "is-positive"])
         .output()
         .unwrap();
