@@ -250,7 +250,7 @@ fn settings_readers_see_include(text: &str) -> bool {
 }
 
 /// `text` as a mapping, or `None` for a document that is not one.
-fn parse_mapping(text: &str) -> Result<Option<Mapping>, yaml_serde::Error> {
+pub(crate) fn parse_mapping(text: &str) -> Result<Option<Mapping>, yaml_serde::Error> {
     let value = match yaml_serde::from_str::<Value>(text) {
         Ok(value) => value,
         Err(raw_error) => parse_value_preserving_placeholders(text).ok_or(raw_error)?,

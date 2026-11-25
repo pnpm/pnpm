@@ -4,7 +4,9 @@
 //! pnpm reads settings only from the `pnpm-workspace.yaml` at the workspace
 //! root, so a nested workspace's `patchedDependencies`, `overrides`, and
 //! every other setting it declares do not apply when the outer workspace
-//! installs it.
+//! installs it. A nested manifest whose settings the root manifest already
+//! sets loses nothing, so it gets no warning. A project that is also
+//! installed on its own, such as a git submodule, keeps such a manifest.
 
 use pnpm_reporter::{
     LogEvent,
@@ -12,11 +14,16 @@ use pnpm_reporter::{
     PnpmLog,
     Reporter,
 };
-use pnpm_workspace::WORKSPACE_MANIFEST_FILENAME;
+use pnpm_workspace::{
+    WORKSPACE_MANIFEST_FILENAME,
+    root_settings_cover,
+};
 use std::path::Path;
 
 /// Emit one warning per project in `project_dirs`, other than the workspace
-/// root itself, whose directory holds a `pnpm-workspace.yaml`.
+/// root itself, whose directory holds a `pnpm-workspace.yaml` with settings
+/// the root manifest does not set. A manifest that cannot be read counts as
+/// not covered.
 pub(super) fn report_nested_workspace_manifests<'a, Reporter: self::Reporter>(
     workspace_dir: &Path,
     project_dirs: impl IntoIterator<Item = &'a Path>,
@@ -27,6 +34,7 @@ pub(super) fn report_nested_workspace_manifests<'a, Reporter: self::Reporter>(
         .into_iter()
         .filter(|dir| pnpm_fs::lexical_normalize(dir) != workspace_dir_normalized)
         .filter(|dir| dir.join(WORKSPACE_MANIFEST_FILENAME).is_file())
+        .filter(|dir| !root_settings_cover(workspace_dir, dir).unwrap_or(false))
         .map(|dir| pnpm_fs::relative_path(workspace_dir, dir).to_string_lossy().replace('\\', "/"))
         .collect::<Vec<_>>();
     relative_dirs.sort();
