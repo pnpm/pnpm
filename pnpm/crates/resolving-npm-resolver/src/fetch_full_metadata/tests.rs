@@ -892,10 +892,12 @@ async fn fetch_full_metadata_reports_unpublished_without_retrying() {
         .mock("GET", "/acme")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(r#"{
+        .with_body(
+            r#"{
             "name": "acme",
             "time": { "unpublished": { "time": "2025-02-01T00:00:00.000Z", "versions": ["1.0.0"] } }
-        }"#)
+        }"#,
+        )
         .expect(1)
         .create_async()
         .await;

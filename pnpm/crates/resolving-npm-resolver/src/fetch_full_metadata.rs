@@ -129,6 +129,24 @@ fn parse_metadata(body: &str, install_v2: bool) -> serde_json::Result<Package> {
     if install_v2 { pnpm_registry::parse_install_v2(body) } else { serde_json::from_str(body) }
 }
 
+/// [`parse_metadata`], with a body that fails to parse reported as
+/// [`FetchMetadataError::Unpublished`] when it is npm's record of a fully
+/// unpublished package, and as [`FetchMetadataError::Decode`] otherwise.
+fn decode_metadata(body: &str, install_v2: bool, url: &str) -> Result<Package, FetchMetadataError> {
+    parse_metadata(body, install_v2)
+        .map_err(|error| {
+            let url = redact_url_credentials(url);
+            if !install_v2 && is_unpublished_packument(body) {
+                FetchMetadataError::Unpublished { url }
+            } else {
+                FetchMetadataError::Decode { url, error }
+            }
+        })
+}
+
+/// Whether `body` is npm's record of a fully unpublished package: a
+/// non-empty `time.unpublished.versions` and neither `dist-tags` nor
+/// `versions`.
 fn is_unpublished_packument(body: &str) -> bool {
     let Ok(packument) = serde_json::from_str::<serde_json::Value>(body) else { return false };
     packument.get("dist-tags").is_none()
@@ -508,15 +526,7 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
     let task_url = url.to_string();
     let (output, elapsed) = run_decode(move || {
         let raw_body = raw_body.into_text();
-        let mut meta = parse_metadata(&raw_body, install_v2)
-            .map_err(|error| {
-                let url = redact_url_credentials(&task_url);
-                if !install_v2 && is_unpublished_packument(&raw_body) {
-                    FetchMetadataError::Unpublished { url }
-                } else {
-                    FetchMetadataError::Decode { url, error }
-                }
-            })?;
+        let mut meta = decode_metadata(&raw_body, install_v2, &task_url)?;
         // Each version's fragment is copied out of the body, so it can go
         // before `finish` writes the mirror.
         drop(raw_body);

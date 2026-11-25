@@ -343,9 +343,10 @@ fn info_json_reports_unpublished_package_as_not_found() {
 
         assert_eq!(output.status.code(), Some(1), "{specifier} must exit with code 1");
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
-            panic!("stdout for {specifier} must be a JSON error envelope: {error}: {stdout}")
-        });
+        let parsed: Value = serde_json::from_str(&stdout)
+            .unwrap_or_else(|error| {
+                panic!("stdout for {specifier} must be a JSON error envelope: {error}: {stdout}")
+            });
         assert_eq!(parsed["error"]["code"], "ERR_PNPM_PACKAGE_NOT_FOUND", "{specifier}: {stdout}");
         let message = parsed["error"]["message"].as_str().expect("error message must be a string");
         assert!(message.contains("unpublished"), "{specifier}: {message}");

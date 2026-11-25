@@ -261,8 +261,7 @@ where
 /// A packument with no versions at all: either every version was
 /// unpublished, or it never had any.
 fn no_versions_error(meta: &Package, spec: &RegistryPackageSpec) -> PickPackageFromMetaError {
-    let unpublished = meta
-        .time
+    let unpublished = meta.time
         .as_ref()
         .and_then(|time| time.get("unpublished"))
         .is_some_and(has_unpublished_versions);

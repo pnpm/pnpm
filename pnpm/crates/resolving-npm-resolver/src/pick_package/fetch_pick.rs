@@ -171,7 +171,8 @@ impl PickState<'_> {
 
     /// The mirror a failed fetch may fall back to, when
     /// [`fetch_failure_falls_back`] allows it. The fallback reads only the
-    /// scoped mirror `pkg_mirror` already points at.
+    /// scoped mirror `pkg_mirror` already points at. An unpublished package
+    /// never falls back, so its removed versions are not picked from the mirror.
     async fn disk_fallback(
         &self,
         error: &FetchMetadataError,

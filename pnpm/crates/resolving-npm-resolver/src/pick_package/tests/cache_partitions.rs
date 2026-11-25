@@ -575,8 +575,7 @@ async fn public_scope_does_not_fall_back_to_mirror_after_unpublish() {
             "unpublished": { "time": "2026-11-23T08:31:37.404Z", "versions": ["1.0.0", "1.1.0"] }
         }
     }"#;
-    let error = pick_with_preloaded_public_mirror(200, tombstone)
-        .await
+    let error = pick_with_preloaded_public_mirror(200, tombstone).await
         .expect_err("an unpublished package must not be picked from the mirror");
     assert!(
         matches!(error, PickPackageError::Fetch(FetchMetadataError::Unpublished { .. })),
@@ -633,8 +632,7 @@ async fn pick_with_preloaded_public_mirror(
             },
         },
     };
-    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
-        .await;
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry)).await;
     mock.assert_async().await;
     result
 }
