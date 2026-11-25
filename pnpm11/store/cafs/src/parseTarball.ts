@@ -271,28 +271,24 @@ function handleEntryContent (state: ParserState, { fileType, fileName, mode }: P
       parsePaxHeader(state, entryContent, true)
       break
     case FILE_TYPE_LONGLINK:
-      state.longLinkPath = parseLongLinkPath(entryContent)
+      state.longLinkPath = entryContent.toString('utf8').replace(/\0.*/, '')
       break
     default:
       state.onFile(fileName, mode, entryContent)
   }
 }
 
-function parseLongLinkPath (entryContent: Buffer): string {
-  const longLinkPath = entryContent.toString('utf8').replace(/\0.*/, '')
-  // Remove the first path segment
-  const slashIndex = longLinkPath.indexOf('/')
-  return slashIndex >= 0 ? longLinkPath.slice(slashIndex + 1) : longLinkPath
-}
-
 function parseHeader (state: ParserState, header: Buffer, headerOffset: number): PendingEntry {
-  const fileType = header[FILE_TYPE_OFFSET]
-  const fileSize = takeEntryFileSize(state, header)
+  const headerFileSize = takeEntryFileSize(state, header)
   verifyHeaderChecksum(header, headerOffset)
-  if (!Number.isSafeInteger(fileSize) || fileSize < 0) {
+  if (!Number.isSafeInteger(headerFileSize) || headerFileSize < 0) {
     throw new Error(`Invalid file size for TAR header at offset ${headerOffset}`)
   }
-  const fileName = normalizeTraversal(takeEntryFileName(state, header))
+  const entryPath = takeEntryPath(state, header)
+  const fileName = normalizeTraversal(entryPath.fileName)
+  const fileType = readFileType(header, entryPath.endsWithSlash)
+  // node-tar, which npm uses, reads a directory as having no content, whatever its size field says.
+  const fileSize = fileType === FILE_TYPE_DIRECTORY ? 0 : headerFileSize
 
   // Values '\0' and '0' are normal files.
   // Treat all other file types as non-existent
@@ -339,19 +335,46 @@ function verifyHeaderChecksum (header: Buffer, headerOffset: number): void {
   }
 }
 
-function takeEntryFileName (state: ParserState, header: Buffer): string {
+/**
+ * Reads the entry type, treating a regular file whose path ends in `/` as a
+ * directory, as node-tar does.
+ */
+function readFileType (header: Buffer, pathEndsWithSlash: boolean): number {
+  const fileType = header[FILE_TYPE_OFFSET]
+  return (fileType === 0 || fileType === ZERO) && pathEndsWithSlash ? FILE_TYPE_DIRECTORY : fileType
+}
+
+/**
+ * Returns the entry's path without its first segment, and whether the full path ends in `/`.
+ */
+function takeEntryPath (state: ParserState, header: Buffer): { fileName: string, endsWithSlash: boolean } {
   if (state.longLinkPath) {
-    const fileName = state.longLinkPath
+    const longLinkPath = state.longLinkPath
     state.longLinkPath = ''
-    return fileName
+    return { fileName: removeFirstSegment(longLinkPath), endsWithSlash: longLinkPath.endsWith('/') }
   }
   if (state.paxHeaderPath) {
-    const fileName = state.paxHeaderPath
+    const paxHeaderPath = state.paxHeaderPath
     // The PAX header only applies to the immediate next entry.
     state.paxHeaderPath = ''
-    return fileName
+    return { fileName: removeFirstSegment(paxHeaderPath), endsWithSlash: paxHeaderPath.endsWith('/') }
   }
-  return parseHeaderPath(header)
+  return { fileName: parseHeaderPath(header), endsWithSlash: nameFieldEndsWithSlash(header) }
+}
+
+function removeFirstSegment (entryPath: string): string {
+  const slashIndex = entryPath.indexOf('/')
+  return slashIndex >= 0 ? entryPath.slice(slashIndex + 1) : entryPath
+}
+
+/**
+ * node-tar checks only the name field, not the ustar prefix, for a trailing `/`.
+ */
+function nameFieldEndsWithSlash (header: Buffer): boolean {
+  const nameField = header.subarray(0, MODE_OFFSET)
+  const nulIndex = nameField.indexOf(0)
+  const nameEnd = nulIndex >= 0 ? nulIndex : MODE_OFFSET
+  return nameEnd > 0 && nameField[nameEnd - 1] === SLASH
 }
 
 function normalizeTraversal (fileName: string): string {
@@ -407,12 +430,10 @@ function applyPaxRecord (state: ParserState, record: string, global: boolean): v
   const keyword: string = record.slice(0, equalSign)
 
   if (keyword === 'path') {
-    // Still need to trim the first path segment.
-    const slashIndex: number = record.indexOf('/', equalSign + 1)
     if (global) {
       throw new Error(`Unexpected global PAX path: ${record}`)
     }
-    state.paxHeaderPath = record.slice(slashIndex >= 0 ? slashIndex + 1 : equalSign + 1)
+    state.paxHeaderPath = record.slice(equalSign + 1)
   } else if (keyword === 'size') {
     state.paxHeaderFileSize = parsePaxSize(record, equalSign, global)
   }
