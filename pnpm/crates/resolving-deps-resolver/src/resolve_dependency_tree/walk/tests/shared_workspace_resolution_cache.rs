@@ -189,15 +189,18 @@ fn link_resolution_round_trips_through_the_lockfile_root() {
 
 #[test]
 fn injected_resolution_is_already_consumer_independent() {
-    let injected = directory_result("file:packages/shared", "workspace");
-    let canonical = canonical_workspace_resolution(
-        &injected,
-        Path::new("/repo/packages/a"),
-        Path::new("/repo"),
-    )
-    .expect("an injected workspace package is shareable as resolved");
-    assert_eq!(canonical, injected);
-    assert_eq!(rendered_link(&canonical, "/repo/apps/nested/b"), injected.id.as_str());
+    for path in ["packages/shared", "packages/(shared)"] {
+        let mut injected = directory_result(&format!("file:{path}"), "workspace");
+        injected.id = PkgResolutionId::file_directory(path);
+        let canonical = canonical_workspace_resolution(
+            &injected,
+            Path::new("/repo/packages/a"),
+            Path::new("/repo"),
+        )
+        .expect("an injected workspace package is shareable as resolved");
+        assert_eq!(canonical, injected);
+        assert_eq!(rendered_link(&canonical, "/repo/apps/nested/b"), injected.id.as_str());
+    }
 }
 
 #[test]

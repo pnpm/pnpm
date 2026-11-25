@@ -96,22 +96,25 @@ fn rewrites_childless_injected_dep_to_link() {
 fn rewrites_scoped_injected_dep_to_link() {
     let lockfile_dir = PathBuf::from("/ws");
     let host_root = lockfile_dir.join("fixtures/host");
-    let pkg_root = host_root.join("pkg");
+    let pkg_root = host_root.join("(pkg)");
 
     let mut graph: DependenciesGraph = std::collections::HashMap::default();
-    let injected = DepPath::from("@test/pkg@file:fixtures/host/pkg".to_string());
-    graph.insert(injected.clone(), make_node("@test/pkg@file:fixtures/host/pkg", BTreeMap::new()));
+    let injected = DepPath::from("@test/pkg@file:fixtures/host/(pkg)/".to_string());
+    graph.insert(
+        injected.clone(),
+        make_node("@test/pkg@file:fixtures/host/(pkg)/", BTreeMap::new()),
+    );
 
     let mut direct: DirectByImporter = BTreeMap::new();
     direct.insert(
         "fixtures/host".to_string(),
         BTreeMap::from([("@test/pkg".to_string(), injected)]),
     );
-    direct.insert("fixtures/host/pkg".to_string(), BTreeMap::new());
+    direct.insert("fixtures/host/(pkg)".to_string(), BTreeMap::new());
 
     let mut roots = BTreeMap::new();
     roots.insert("fixtures/host".to_string(), host_root);
-    roots.insert("fixtures/host/pkg".to_string(), pkg_root);
+    roots.insert("fixtures/host/(pkg)".to_string(), pkg_root);
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &UnboundOptionalPeers::default());
 
@@ -120,7 +123,7 @@ fn rewrites_scoped_injected_dep_to_link() {
         .unwrap()
         .get("@test/pkg")
         .unwrap();
-    assert_eq!(after.as_str(), "link:pkg");
+    assert_eq!(after.as_str(), "link:(pkg)");
     assert!(graph.is_empty(), "unreachable file: snapshot should be pruned");
 }
 

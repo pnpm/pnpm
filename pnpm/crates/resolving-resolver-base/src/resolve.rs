@@ -54,8 +54,17 @@ impl PkgResolutionId {
     /// A trailing slash separates a directory name ending in a parenthesis from peer suffixes.
     #[must_use]
     pub fn file_directory(path: &str) -> Self {
-        let separator = if path.ends_with(['(', ')']) { "/" } else { "" };
+        let separator = directory_id_terminator(path);
         Self(format!("file:{path}{separator}"))
+    }
+
+    /// Whether this is the ID produced by [`Self::file_directory`] for `path`.
+    #[must_use]
+    pub fn matches_file_directory(&self, path: &str) -> bool {
+        self.0
+            .strip_prefix("file:")
+            .and_then(|target| target.strip_suffix(directory_id_terminator(path)))
+            == Some(path)
     }
 
     #[must_use]
@@ -67,6 +76,10 @@ impl PkgResolutionId {
     pub fn into_inner(self) -> String {
         self.0
     }
+}
+
+fn directory_id_terminator(path: &str) -> &'static str {
+    if path.ends_with(['(', ')']) { "/" } else { "" }
 }
 
 impl From<&str> for PkgResolutionId {
