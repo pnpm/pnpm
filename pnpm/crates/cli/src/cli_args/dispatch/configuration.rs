@@ -105,7 +105,6 @@ impl RunSetup {
                     | CliCommand::Fetch(_)
                     | CliCommand::Unlink(_)
                     | CliCommand::Create(_)
-                    | CliCommand::Runtime(_)
                     // `rebuild` drives the frozen-install pipeline and emits
                     // the same progress events, so it shares the `Done in ...`
                     // footer.
@@ -113,6 +112,13 @@ impl RunSetup {
                     | CliCommand::Rb(_)
                     | CliCommand::PatchCommit(_)
                     | CliCommand::PatchRemove(_),
+            ) || matches!(
+                &args.command,
+                CliCommand::Runtime(runtime)
+                    if runtime
+                        .params
+                        .first()
+                        .is_none_or(|subcommand| subcommand != "list" && subcommand != "ls"),
             ),
             print_json_errors: args.command.prints_json_errors(),
             recursive_by_default: args.command.recursive_by_default(),

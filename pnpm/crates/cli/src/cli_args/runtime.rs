@@ -57,7 +57,7 @@ pub struct RuntimeArgs {
     pub remote: bool,
 
     /// Subcommand and its arguments: `set <name> [<version>]`, where `<name>`
-    /// is `node`, `deno`, or `bun`; `list [<version>]` lists matching Node.js releases.
+    /// is `node`, `deno`, or `bun`; `list` lists releases for all supported runtimes.
     pub params: Vec<String>,
 }
 
@@ -104,34 +104,128 @@ struct RuntimeSetRequest {
 }
 
 impl RuntimeArgs {
-    /// List matching Node.js releases.
-    pub async fn run_list(
-        version_spec: Option<String>,
-        config: &'static Config,
-    ) -> miette::Result<()> {
-        let specifier = parse_node_specifier(version_spec.as_deref().unwrap_or_default())
-            .map_err(miette::Report::new)?;
-        let channels = config.tool_channel_mirrors(Tool::Node);
-        let mirror = get_node_mirror(
-            config.tool_mirror(Tool::Node),
-            channels.get(&specifier.release_channel).map(String::as_str),
-            Some(&config.node_download_mirrors),
-            &specifier.release_channel,
-        );
-        let http_client = super::registry_client::build_registry_client(config)?;
-        let mut versions = resolve_node_versions_with_auth(
-            &http_client,
-            &config.auth_headers,
-            Some(specifier.version_specifier.as_str()),
-            Some(&mirror),
-        )
-        .await
-        .map_err(miette::Report::new)?;
-        versions.reverse();
-        pnpm_diagnostics::println!("{}", versions.join("\n"));
+    /// List releases for Node.js, Deno, and Bun.
+    pub async fn run_list(config: &'static Config) -> miette::Result<()> {
+        for (runtime, versions) in [
+            ("node", list_node_versions(None, config).await?),
+            ("deno", list_registry_versions("deno", config).await?),
+            ("bun", list_registry_versions("bun", config).await?),
+        ] {
+            for version in versions {
+                pnpm_diagnostics::println!("{runtime} {version}");
+            }
+        }
         Ok(())
     }
 
+    /// List `pnpm env list` releases and retain its Node.js selector.
+    pub async fn run_env_list(
+        version_spec: Option<String>,
+        config: &'static Config,
+    ) -> miette::Result<()> {
+        if version_spec.is_none() {
+            return Self::run_list(config).await;
+        }
+        for version in list_node_versions(version_spec.as_deref(), config).await? {
+            pnpm_diagnostics::println!("{version}");
+        }
+        Ok(())
+    }
+}
+
+async fn list_node_versions(
+    version_spec: Option<&str>,
+    config: &Config,
+) -> miette::Result<Vec<String>> {
+    let specifier =
+        parse_node_specifier(version_spec.unwrap_or_default()).map_err(miette::Report::new)?;
+    let channels = config.tool_channel_mirrors(Tool::Node);
+    let mirror = get_node_mirror(
+        config.tool_mirror(Tool::Node),
+        channels.get(&specifier.release_channel).map(String::as_str),
+        Some(&config.node_download_mirrors),
+        &specifier.release_channel,
+    );
+    let http_client = super::registry_client::build_registry_client(config)?;
+    let version_spec = version_spec.map(|_| specifier.version_specifier.as_str());
+    let mut versions = resolve_node_versions_with_auth(
+        &http_client,
+        &config.auth_headers,
+        version_spec,
+        Some(&mirror),
+    )
+    .await
+    .map_err(miette::Report::new)?;
+    versions.reverse();
+    Ok(versions)
+}
+
+async fn list_registry_versions(
+    package_name: &str,
+    config: &Config,
+) -> miette::Result<Vec<String>> {
+    let metadata = fetch_registry_package(package_name, config).await?;
+    let mut versions: Vec<_> = metadata.versions
+        .keys()
+        .filter_map(|version| {
+            node_semver::Version::parse(version)
+                .ok()
+                .map(|parsed| (parsed, version.clone()))
+        })
+        .collect();
+    versions.sort_by(|left, right| left.0.cmp(&right.0));
+    versions.reverse();
+    Ok(versions
+        .into_iter()
+        .map(|(_, version)| version)
+        .collect())
+}
+
+async fn fetch_registry_package(
+    package_name: &str,
+    config: &Config,
+) -> miette::Result<pnpm_registry::Package> {
+    use pnpm_resolving_npm_resolver::{
+        FetchFullMetadataOptions,
+        FetchFullMetadataOutcome,
+        MetadataHttpClient,
+        fetch_full_metadata,
+    };
+
+    let registries = super::registry_client::resolve_registries_with_override(config, None);
+    let registry = super::registry_client::resolve_target_registry_for_package(
+        &registries,
+        None,
+        package_name,
+        None,
+    );
+    let http_client = super::registry_client::build_registry_client(config)?;
+    let outcome = fetch_full_metadata(
+        package_name,
+        &FetchFullMetadataOptions {
+            registry: &registry,
+            full_metadata: false,
+            etag: None,
+            modified: None,
+            http: MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &config.auth_headers,
+                retry_opts: config.retry_opts(),
+            },
+        },
+    )
+    .await
+    .map_err(miette::Report::new)?;
+    let metadata = match outcome {
+        FetchFullMetadataOutcome::Modified(metadata) => metadata,
+        FetchFullMetadataOutcome::NotModified => {
+            miette::bail!("registry returned 304 Not Modified unexpectedly for {package_name}");
+        }
+    };
+    Ok(*metadata)
+}
+
+impl RuntimeArgs {
     /// Execute the subcommand, installing the runtime into the current
     /// project. Mirrors pnpm's `runtime set`, which runs
     /// `pnpm add <name>@runtime:<version>` in the project directory.

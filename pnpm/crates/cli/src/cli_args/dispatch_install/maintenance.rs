@@ -231,13 +231,8 @@ pub(in super::super) fn runtime<'a>(
     args: RuntimeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if matches!(args.params.first().map(String::as_str), Some("list" | "ls")) {
-        let version_spec = args.params
-            .get(1)
-            .map(|version| version.trim())
-            .filter(|version| !version.is_empty())
-            .map(ToOwned::to_owned);
         let config = (ctx.loaders.global_packages_config)()?;
-        return Ok(Box::pin(RuntimeArgs::run_list(version_spec, config)));
+        return Ok(Box::pin(RuntimeArgs::run_list(config)));
     }
     if args.global {
         let config = (ctx.loaders.global_packages_config)()?;
@@ -268,7 +263,7 @@ pub(in super::super) fn env<'a>(
             Box::pin(EnvArgs::run_remove::<CliReporter>(versions, config, dir))
         }
         EnvSubcommand::List { version_spec } => {
-            Box::pin(async move { RuntimeArgs::run_list(version_spec, config).await })
+            Box::pin(async move { RuntimeArgs::run_env_list(version_spec, config).await })
         }
     })
 }

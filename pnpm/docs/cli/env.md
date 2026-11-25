@@ -67,7 +67,7 @@ pnpm env remove --global 14.0.0 16.2.3
 
 ### list, ls
 
-Print the Node.js versions available from the Node.js mirror that match a version range. Without a range, only the newest version is printed.
+Without a selector, list Node.js, Deno, and Bun releases. A selector lists matching Node.js versions.
 
 ```sh
 pnpm env list

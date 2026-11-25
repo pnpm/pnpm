@@ -26,7 +26,35 @@ const LOCKFILE: &str = "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: t
 fn queries_do_not_create_a_manifest() {
     for args in [&["why", "foo"][..], &["outdated"], &["rt", "ls"]] {
         let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
+        let mut node_server = mockito::Server::new();
+        let _node_index = crate::install_runtimes::mock_node_release(&mut node_server, "22.0.0");
+        let mut registry = mockito::Server::new();
+        let _packuments = [
+            registry
+                .mock("GET", "/deno")
+                .with_status(200)
+                .with_body(
+                    r#"{"name":"deno","dist-tags":{"latest":"2.0.0"},"versions":{"2.0.0":{}}}"#,
+                )
+                .create(),
+            registry
+                .mock("GET", "/bun")
+                .with_status(200)
+                .with_body(
+                    r#"{"name":"bun","dist-tags":{"latest":"1.0.0"},"versions":{"1.0.0":{}}}"#,
+                )
+                .create(),
+        ];
+        fs::create_dir_all(root.path().join("pnpm_home")).unwrap();
+        fs::write(workspace.join(".npmrc"), format!("registry={}/\n", registry.url())).unwrap();
+        fs::write(
+            root.path().join("pnpm_home/pnpm-workspace.yaml"),
+            format!("nodeDownloadMirrors:\n  release: '{}/'\n", node_server.url()),
+        )
+        .unwrap();
         pacquet
+            .with_env("PNPM_HOME", root.path().join("pnpm_home"))
+            .with_env("PNPM_CONFIG_REGISTRY", registry.url())
             .with_args(args)
             .assert()
             .success();

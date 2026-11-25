@@ -11,13 +11,13 @@ Alias: `rt`
 
 ### list
 
-List Node.js releases matching an optional version selector. Without a selector, pnpm lists the newest release.
+List releases for Node.js, Deno, and Bun. Each line starts with the runtime name.
 
 ```sh
-pnpm runtime list [<version>]
+pnpm runtime list
 ```
 
-`pnpm env list` is an alias for this command.
+`pnpm env list` remains available as an alias. A version selector to `pnpm env list` continues to filter Node.js releases.
 
 ### set
 

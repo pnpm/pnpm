@@ -343,10 +343,8 @@ fn runtime_and_env_list_use_and_remove_support_leading_v_and_prerelease_channels
         CommandTempCwd::init().add_mocked_registry();
     let mut server = mockito::Server::new();
     let version = "22.0.0-rc.1";
-    let _mocks = [
-        crate::install_runtimes::mock_node_release(&mut server, version),
-        crate::install_runtimes::mock_node_release(&mut server, version),
-    ];
+    let _mocks =
+        crate::install_runtimes::mock_node_releases(&mut server, &["22.1.0", version], None);
 
     let pnpm_home = root.path().join("pnpm_home");
     let global_bin = pnpm_home.join("bin");
@@ -354,19 +352,36 @@ fn runtime_and_env_list_use_and_remove_support_leading_v_and_prerelease_channels
     std::fs::write(
         pnpm_home.join("pnpm-workspace.yaml"),
         format!(
-            "storeDir: {}\ncacheDir: {}\nnodeDownloadMirrors:\n  rc: '{}/'\n",
+            "storeDir: {}\ncacheDir: {}\nnodeDownloadMirrors:\n  rc: '{}/'\n  release: '{}/'\n",
             root.path().join("store").display(),
             root.path().join("cache").display(),
+            server.url(),
             server.url(),
         ),
     )
     .unwrap();
     let _ = &npmrc_info;
 
+    let mut registry = mockito::Server::new();
+    let _packuments = [
+        registry
+            .mock("GET", "/deno")
+            .with_status(200)
+            .with_body(r#"{"name":"deno","dist-tags":{"latest":"2.0.0"},"versions":{"2.0.0":{}}}"#)
+            .create(),
+        registry
+            .mock("GET", "/bun")
+            .with_status(200)
+            .with_body(r#"{"name":"bun","dist-tags":{"latest":"1.0.0"},"versions":{"1.0.0":{}}}"#)
+            .create(),
+    ];
+    std::fs::write(workspace.join(".npmrc"), format!("registry={}/\n", registry.url())).unwrap();
+
     let config_home = root.path().join("xdg-config");
     let run = |args: &[&str]| {
         crate::_utils::pacquet_in(&workspace)
             .with_env("PNPM_HOME", &pnpm_home)
+            .with_env("PNPM_CONFIG_REGISTRY", registry.url())
             .with_env("XDG_CONFIG_HOME", &config_home)
             .with_env("PATH", prepend_to_path(&global_bin))
             .with_args(args)
@@ -374,7 +389,7 @@ fn runtime_and_env_list_use_and_remove_support_leading_v_and_prerelease_channels
             .expect("run pacquet env")
     };
 
-    let runtime_list_out = run(&["runtime", "list", "v22.0.0-rc.1"]);
+    let runtime_list_out = run(&["runtime", "list"]);
     assert!(
         runtime_list_out.status.success(),
         "stdout={} stderr={}",
@@ -382,7 +397,19 @@ fn runtime_and_env_list_use_and_remove_support_leading_v_and_prerelease_channels
         String::from_utf8_lossy(&runtime_list_out.stderr),
     );
     assert!(
-        String::from_utf8_lossy(&runtime_list_out.stdout).contains("22.0.0-rc.1"),
+        String::from_utf8_lossy(&runtime_list_out.stdout).contains("node 22.1.0"),
+        "stdout={}",
+        String::from_utf8_lossy(&runtime_list_out.stdout),
+    );
+    for runtime_version in ["deno 2.0.0", "bun 1.0.0"] {
+        assert!(
+            String::from_utf8_lossy(&runtime_list_out.stdout).contains(runtime_version),
+            "stdout={}",
+            String::from_utf8_lossy(&runtime_list_out.stdout),
+        );
+    }
+    assert!(
+        !String::from_utf8_lossy(&runtime_list_out.stdout).contains("Done in"),
         "stdout={}",
         String::from_utf8_lossy(&runtime_list_out.stdout),
     );

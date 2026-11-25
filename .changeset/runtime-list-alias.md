@@ -2,4 +2,4 @@
 "pnpm": patch
 ---
 
-`pnpm runtime list` lists Node.js releases. `pnpm env list` is an alias for this command.
+`pnpm runtime list` and `pnpm env list` list releases for Node.js, Deno, and Bun.
