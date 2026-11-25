@@ -25,6 +25,7 @@ fn args(params: &[&str]) -> RuntimeArgs {
         global: false,
         save_dev: false,
         save_prod: false,
+        remote: false,
         params: params
             .iter()
             .map(|param| (*param).to_string())

@@ -164,8 +164,9 @@ fn the_top_level_set_is_gated_like_config_set() {
 #[test]
 fn global_env_alias_is_blocked_under_sudo() {
     assert_eq!(
-        sudo_blocked_operation(&command(&["pnpm", "env", "set", "node", "24", "--global"])),
+        sudo_blocked_operation(&command(&["pnpm", "env", "use", "24", "--global"])),
         Some("pnpm runtime set --global".to_string()),
     );
-    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "set", "node", "24"])), None);
+    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "use", "24"])), None);
+    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "list", "--global"])), None);
 }

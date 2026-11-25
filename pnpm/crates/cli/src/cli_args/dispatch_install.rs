@@ -44,6 +44,10 @@ use super::{
     },
     dlx::DlxArgs,
     edit::EditArgs,
+    env::{
+        EnvArgs,
+        EnvSubcommand,
+    },
     fetch::FetchArgs,
     global,
     import::ImportArgs,

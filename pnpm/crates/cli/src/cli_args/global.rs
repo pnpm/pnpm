@@ -18,7 +18,10 @@ pub(crate) use install::global_group_config;
 pub use legacy::migrate_legacy_global_packages;
 pub(crate) use pnpm_fs::is_subdir;
 pub(crate) use pnpm_global::scan_global_packages;
-pub use remove::handle_global_remove;
+pub use remove::{
+    handle_global_remove,
+    remove_global_groups,
+};
 pub(crate) use skills::links_of_other_groups;
 
 pub use selectors::{

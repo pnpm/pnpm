@@ -69,6 +69,7 @@ mod docs;
 mod doctor;
 mod dry_run;
 mod edit;
+mod env;
 mod env_file;
 mod exclude_links_from_lockfile;
 mod exec;
