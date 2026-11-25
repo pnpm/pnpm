@@ -57,7 +57,8 @@ pub struct RuntimeArgs {
 
     /// Subcommand and its arguments: `set <name> [<version>]` or
     /// `unset <name> [<version>]`, where `<name>` is `node`, `deno`, or `bun`;
-    /// `use <version>` aliases `set node <version>`.
+    /// `use <version>` aliases `set node <version>`, and `remove <version>`
+    /// aliases `unset node <version>`.
     pub params: Vec<String>,
 }
 
@@ -226,7 +227,7 @@ impl RuntimeArgs {
         };
         match subcommand.as_str() {
             "set" => Ok(RuntimeCommand::Set(self.set_request()?)),
-            "unset" => Ok(RuntimeCommand::Unset(self.unset_request()?)),
+            "unset" | "remove" => Ok(RuntimeCommand::Unset(self.unset_request()?)),
             _ => Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() }),
         }
     }
@@ -277,18 +278,24 @@ impl RuntimeArgs {
     }
 
     fn unset_request(&self) -> Result<RuntimeUnsetRequest, RuntimeError> {
-        let Some(runtime_name) = self.params
-            .get(1)
-            .map(|name| name.trim())
-            .filter(|name| !name.is_empty())
-        else {
-            return Err(RuntimeError::MissingRuntimeName);
+        let is_remove_alias = self.params
+            .first()
+            .is_some_and(|subcommand| subcommand == "remove");
+        let runtime_name = if is_remove_alias {
+            "node"
+        } else {
+            self.params
+                .get(1)
+                .map(|name| name.trim())
+                .filter(|name| !name.is_empty())
+                .ok_or(RuntimeError::MissingRuntimeName)?
         };
         if !is_runtime_alias(runtime_name) {
             return Err(RuntimeError::InvalidRuntimeName { name: runtime_name.to_string() });
         }
+        let version_index = if is_remove_alias { 1 } else { 2 };
         let version_spec = self.params
-            .get(2)
+            .get(version_index)
             .map(|version| version.trim())
             .filter(|version| !version.is_empty())
             .map(str::to_string);
@@ -297,7 +304,7 @@ impl RuntimeArgs {
         {
             return Err(RuntimeError::InvalidRuntimeVersion { version: version.to_string() });
         }
-        if let Some(argument) = self.params.get(3) {
+        if let Some(argument) = self.params.get(version_index + 1) {
             return Err(RuntimeError::UnexpectedArgument { argument: argument.clone() });
         }
         let dependency_group = if self.save_dev || !self.save_prod {

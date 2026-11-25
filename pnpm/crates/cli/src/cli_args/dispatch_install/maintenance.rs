@@ -230,14 +230,8 @@ pub(in super::super) fn runtime<'a>(
     ctx: &RunCtx<'a>,
     args: RuntimeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    if matches!(
-        args.params.first().map(String::as_str),
-        Some("list" | "ls" | "remove" | "rm" | "uninstall" | "un",)
-    ) {
-        return env_compatibility(
-            ctx,
-            EnvArgs { global: args.global, remote: args.remote, params: args.params },
-        );
+    if matches!(args.params.first().map(String::as_str), Some("list" | "ls")) {
+        return env_compatibility(ctx, EnvArgs { params: args.params });
     }
     if args.global {
         let config = (ctx.loaders.global_packages_config)()?;
@@ -253,11 +247,7 @@ pub(in super::super) fn runtime<'a>(
 
 fn env_compatibility<'a>(ctx: &RunCtx<'a>, args: EnvArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.global_packages_config)()?;
-    let dir = ctx.locations.dir;
-    Ok(match args.subcommand::<CliReporter>(config)? {
-        EnvSubcommand::Remove { versions } => {
-            Box::pin(EnvArgs::run_remove::<CliReporter>(versions, config, dir))
-        }
+    Ok(match args.subcommand()? {
         EnvSubcommand::List { version_spec } => Box::pin(async move {
             pnpm_diagnostics::println!("{}", EnvArgs::run_list(version_spec, config).await?);
             Ok(())

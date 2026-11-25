@@ -178,8 +178,25 @@ fn unset_request_accepts_a_version() {
 }
 
 #[test]
+fn remove_alias_unsets_node() {
+    let RuntimeCommand::Unset(request) = args(&["remove", "v22.14.0"]).command().unwrap() else {
+        panic!("expected `remove` to map to `unset node`");
+    };
+    assert_eq!(request.runtime_name, "node");
+    assert_eq!(request.version_spec.as_deref(), Some("v22.14.0"));
+}
+
+#[test]
+fn remove_alias_is_the_only_supported_legacy_spelling() {
+    for subcommand in ["rm", "un", "uninstall"] {
+        let error = args(&[subcommand]).command().unwrap_err();
+        assert_eq!(error, RuntimeError::UnknownSubcommand { subcommand: subcommand.to_string() },);
+    }
+}
+
+#[test]
 fn unset_rejects_other_removal_subcommands() {
-    for subcommand in ["remove", "rm", "uninstall", "un"] {
+    for subcommand in ["rm", "uninstall", "un"] {
         let err = args(&[subcommand, "node"]).command().unwrap_err();
         assert_eq!(err, RuntimeError::UnknownSubcommand { subcommand: subcommand.to_string() });
     }

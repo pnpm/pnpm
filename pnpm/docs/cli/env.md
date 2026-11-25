@@ -9,9 +9,9 @@ title: "pnpm env <cmd>"
 
 :::
 
-`pnpm env list` and `pnpm env remove` remain available with their existing behavior.
+`pnpm env list` remains available with its existing behavior. `pnpm env remove <version>` aliases `pnpm runtime unset node <version>`.
 
 ```sh
 pnpm env list [<version>]
-pnpm env remove --global <version>
+pnpm env remove <version> [-g]
 ```

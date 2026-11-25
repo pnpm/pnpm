@@ -734,6 +734,11 @@ fn env_is_an_alias_for_runtime() {
     };
     assert!(runtime.global);
     assert_eq!(runtime.params, ["use", "24"]);
+
+    let CliCommand::Runtime(runtime) = command(&["pacquet", "env", "remove", "24"]) else {
+        panic!("expected runtime");
+    };
+    assert_eq!(runtime.params, ["remove", "24"]);
 }
 
 #[test]
