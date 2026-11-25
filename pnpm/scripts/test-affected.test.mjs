@@ -112,7 +112,8 @@ test('skips smoke tests when nothing depends on what changed', () => {
 test('maps a core crate to the CLI modules that observe its effects', () => {
   assert.deepEqual(e2eAreas(['pnpm-lockfile']), [
     'add', 'ci_frozen_lockfile', 'current_lockfile', 'dedupe', 'import',
-    'install', 'lockfile_dir', 'lockfile_format_v13', 'remove', 'update',
+    'install', 'lockfile_dir', 'lockfile_format_v13', 'lockfile_only',
+    'lockfile_resolution_settings', 'remove', 'update',
   ])
 })
 
@@ -129,7 +130,7 @@ test('leaves crates without a module map to their own tests and smoke', () => {
 
 test('every mapped module is declared in the CLI suite', () => {
   const source = fs.readFileSync(path.join(repo, 'pnpm/crates/cli/tests/suite/main.rs'), 'utf8')
-  const modules = new Set([...source.matchAll(/^mod\s+([\w]+);$/gm)].map(([, name]) => name))
+  const modules = new Set([...source.matchAll(/^mod\s+(\w+);$/gm)].map(([, name]) => name))
   for (const area of mappedE2eModules()) {
     assert.ok(modules.has(area), `E2E_AREAS names ${area}, but suite/main.rs does not declare mod ${area};`)
   }
@@ -148,6 +149,12 @@ test('forwards execution options without forwarding a run selection', () => {
 test('keeps target selectors and test filters out of the extra runs', () => {
   const args = ['--lib', '--test-threads', '4', '--test', 'suite', 'catalog', '--retries=2', '--no-run']
   assert.deepEqual(executionOptions(args), ['--test-threads', '4', '--retries=2', '--no-run'])
+})
+
+test('forwards the build mode so every run tests one build', () => {
+  const args = ['--release', '--cargo-profile', 'ci', '--target=x86_64-unknown-linux-gnu', '-j4', '-v', '--features', 'extra', '-F', 'more']
+  assert.deepEqual(executionOptions(args), ['--release', '--cargo-profile', 'ci', '--target=x86_64-unknown-linux-gnu', '-j4', '-v'])
+  assert.deepEqual(executionOptions(['-r', '-j', '2']), ['-r', '-j', '2'])
 })
 
 test('reads --no-smoke', () => {

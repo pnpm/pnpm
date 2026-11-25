@@ -46,12 +46,12 @@ const EXTERNAL_TEST_INPUTS = [
 // listed crate runs the CLI modules that observe its effects, instead of
 // either the crate's own tests alone or the whole end-to-end suite.
 const E2E_AREAS = {
-  'pnpm-lockfile': ['add', 'ci_frozen_lockfile', 'current_lockfile', 'dedupe', 'import', 'install', 'lockfile_dir', 'lockfile_format_v13', 'remove', 'update'],
-  'pnpm-config': ['config_dependencies', 'config_get_set', 'config_home', 'config_includes', 'env', 'env_file'],
+  'pnpm-lockfile': ['add', 'ci_frozen_lockfile', 'current_lockfile', 'dedupe', 'import', 'install', 'lockfile_dir', 'lockfile_format_v13', 'lockfile_only', 'lockfile_resolution_settings', 'remove', 'update'],
+  'pnpm-config': ['config_dependencies', 'config_get_set', 'config_home', 'config_includes', 'env', 'env_file', 'package_configs'],
   'pnpm-fs': ['cas_linker', 'clean', 'deploy', 'global_virtual_store', 'hoisted_node_linker', 'install', 'link'],
   'pnpm-cargo-resolver': ['cargo_git_install', 'cargo_install'],
   'pnpm-package-manager': ['dlx', 'exec', 'install', 'run'],
-  'pnpr-storage': ['add_jsr', 'audit', 'deprecate', 'dist_tag', 'publish'],
+  'pnpr-storage': ['add_jsr', 'audit', 'deprecate', 'dist_tag', 'pnpr_install', 'publish'],
 }
 
 export function e2eAreas (selected) {
@@ -181,6 +181,11 @@ export function parseOptions (argv) {
 }
 
 const EXECUTION_SWITCHES = new Set([
+  '--cargo-quiet',
+  '--cargo-verbose',
+  '--release',
+  '-r',
+  '-v',
   '--no-run',
   '--no-capture',
   '--nocapture',
@@ -194,6 +199,9 @@ const EXECUTION_SWITCHES = new Set([
 
 const EXECUTION_VALUE_OPTIONS = new Set([
   '--build-jobs',
+  '--cargo-profile',
+  '-j',
+  '--target',
   '--color',
   '--config',
   '--config-file',
@@ -209,14 +217,16 @@ const EXECUTION_VALUE_OPTIONS = new Set([
 ])
 
 /**
- * The nextest options that apply to every run this script makes. Target,
- * package, profile, and test selections belong to one run and are left behind.
+ * The nextest options that apply to every run this script makes, including
+ * the build mode, so every run tests one build. Target, package, profile, and
+ * test selections belong to one run and are left behind, as do `--features`,
+ * whose names are scoped to the selected packages.
  */
 export function executionOptions (args) {
   const options = []
   for (let index = 0; index < args.length; index++) {
     const arg = args[index]
-    const name = arg.split('=', 1)[0]
+    const name = optionName(arg)
     if (EXECUTION_SWITCHES.has(name)) {
       options.push(arg)
     } else if (EXECUTION_VALUE_OPTIONS.has(name)) {
@@ -228,6 +238,12 @@ export function executionOptions (args) {
     }
   }
   return options
+}
+
+// `--name=value` and `-xvalue` carry their value in the same argument.
+function optionName (arg) {
+  if (arg.startsWith('--')) return arg.split('=', 1)[0]
+  return arg.startsWith('-') ? arg.slice(0, 2) : arg
 }
 
 // No git ref name starts with `-`, so an operand that does is a mistyped flag.
