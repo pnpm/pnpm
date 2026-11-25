@@ -147,7 +147,7 @@ fn remove_global_runtimes<Reporter: self::Reporter>(
     let Some(global_pkg_dir) = config.global_pkg_dir.as_deref() else {
         return Ok(false);
     };
-    let remove = || -> miette::Result<bool> {
+    let mut remove = || -> miette::Result<bool> {
         let packages =
             select_global_runtimes(global_pkg_dir, runtime_name, version, removed_names)?;
         if packages.is_empty() {
