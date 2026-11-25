@@ -166,3 +166,24 @@ fn install_after_one_with_nothing_to_install_keeps_new_projects_apart() {
 
     drop(fixture);
 }
+
+/// A filtered install proves installed only the projects it selected.
+#[test]
+fn project_left_out_of_an_install_with_nothing_to_install_is_new() {
+    let fixture = workspace_of(&["a", "b"]);
+    let workspace = &fixture.workspace;
+    pacquet_at(workspace)
+        .with_args(["install", "--filter", "a"])
+        .assert()
+        .success();
+
+    write_project(
+        &workspace.join("packages/b"),
+        "b",
+        &serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" }),
+    );
+
+    assert_eq!(install_summary(workspace), "");
+
+    drop(fixture);
+}

@@ -55,10 +55,10 @@ pub(super) struct PreparedModulesState<'install> {
     pub(super) lockfile_verification_override:
         Option<super::LockfileVerificationOverride<'install>>,
     pub(super) tree_moved: bool,
-    /// See [`ApplyPriorState::recorded_projects`].
+    /// See [`ApplyPriorState::proven_importer_ids`].
     ///
-    /// [`ApplyPriorState::recorded_projects`]: crate::install::state_options::ApplyPriorState::recorded_projects
-    pub(super) recorded_projects: Option<HashSet<PathBuf>>,
+    /// [`ApplyPriorState::proven_importer_ids`]: crate::install::state_options::ApplyPriorState::proven_importer_ids
+    pub(super) proven_importer_ids: Option<HashSet<String>>,
 }
 
 pub(super) fn prior_hoisted_dependencies(
@@ -118,15 +118,13 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         is_inconsistent,
         lockfile_verification_override: inputs.verification.override_check,
         tree_moved: recorded.moved,
-        recorded_projects: recorded_state.map(recorded_project_dirs),
+        proven_importer_ids: recorded_state.and_then(proven_importer_ids_of),
     }))
 }
 
-fn recorded_project_dirs(state: WorkspaceState) -> HashSet<PathBuf> {
-    state.projects
-        .into_keys()
-        .map(PathBuf::from)
-        .collect()
+fn proven_importer_ids_of(state: WorkspaceState) -> Option<HashSet<String>> {
+    let validation = state.validation?;
+    Some(validation.manifests.into_keys().collect())
 }
 
 /// The workspace state, read once for the recorded `supportedArchitectures`
