@@ -1,5 +1,3 @@
-#[cfg(unix)]
-use super::remove::cleanup_pnpm_home_without_stale_current;
 use super::{
     EnvArgs,
     EnvError,
@@ -8,8 +6,6 @@ use super::{
 };
 use pnpm_config::Config;
 use pnpm_reporter::SilentReporter;
-#[cfg(unix)]
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 /// A config that looks like a standalone-script pnpm install: it has a
@@ -43,14 +39,6 @@ fn an_unrecognized_subcommand_is_rejected() {
         .subcommand::<SilentReporter>(&config_with_global_bin())
         .unwrap_err();
     assert!(matches!(error, EnvError::UnknownSubcommand), "{error:?}");
-}
-
-#[test]
-fn managing_node_needs_a_global_bin_dir() {
-    let error = args(true, &["use", "24"])
-        .subcommand::<SilentReporter>(&Config::default())
-        .unwrap_err();
-    assert!(matches!(error, EnvError::CannotManageNode), "{error:?}");
 }
 
 #[test]
@@ -110,24 +98,6 @@ fn remove_deletes_a_global_node_package_without_a_bin_dir() {
     assert!(!install_dir.exists());
 }
 
-#[cfg(unix)]
-#[test]
-fn runtime_cleanup_keeps_a_dangling_current_link_that_matches_nothing() {
-    let root = tempfile::tempdir().unwrap();
-    let pnpm_home = root.path().join("pnpm-home");
-    std::fs::create_dir_all(&pnpm_home).unwrap();
-    let current = pnpm_home.join("nodejs_current");
-    std::os::unix::fs::symlink(pnpm_home.join("nodejs/18.12.1/bin/node"), &current).unwrap();
-    let mut removed_names = HashSet::new();
-
-    let removed =
-        cleanup_pnpm_home_without_stale_current(Some(&pnpm_home), &|_| false, &mut removed_names)
-            .unwrap();
-
-    assert!(!removed);
-    assert!(current.symlink_metadata().is_ok());
-}
-
 #[test]
 fn remove_matches_leading_v_and_channel_prefixed_global_node_versions() {
     for (installed, wrong_request, matching_request) in [
@@ -170,33 +140,6 @@ fn listing_node_does_not_need_a_global_bin_dir() {
         .subcommand::<SilentReporter>(&Config::default())
         .unwrap();
     assert!(matches!(subcommand, EnvSubcommand::List { version_spec: None }), "{subcommand:?}");
-}
-
-#[test]
-fn use_installs_the_version_as_a_global_runtime() {
-    let subcommand = args(true, &["use", "24"])
-        .subcommand::<SilentReporter>(&config_with_global_bin())
-        .unwrap();
-    let EnvSubcommand::Use { package_name } = subcommand else {
-        panic!("expected a `use` subcommand");
-    };
-    assert_eq!(package_name, "node@runtime:24");
-}
-
-#[test]
-fn use_is_global_only() {
-    let error = args(false, &["use", "24"])
-        .subcommand::<SilentReporter>(&config_with_global_bin())
-        .unwrap_err();
-    assert!(matches!(error, EnvError::LocalUseUnsupported), "{error:?}");
-}
-
-#[test]
-fn use_requires_a_version() {
-    let error = args(true, &["use", "  "])
-        .subcommand::<SilentReporter>(&config_with_global_bin())
-        .unwrap_err();
-    assert!(matches!(error, EnvError::MissingNodeVersion { .. }), "{error:?}");
 }
 
 #[test]

@@ -2,4 +2,4 @@
 "pnpm": patch
 ---
 
-`pnpm env` accepts the `runtime` command's subcommands and options. `pnpm env use` is an alias for `pnpm runtime set node`.
+`pnpm env use` is an alias for `pnpm runtime set node`. The `env` command remains available as an alias for `runtime`.

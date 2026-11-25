@@ -51,6 +51,10 @@ pub struct RuntimeArgs {
     #[clap(short = 'P', long = "save-prod")]
     pub save_prod: bool,
 
+    /// Accepted for compatibility with `pnpm env`.
+    #[clap(long, hide = true)]
+    pub remote: bool,
+
     /// Subcommand and its arguments: `set <name> [<version>]` or
     /// `unset <name> [<version>]`, where `<name>` is `node`, `deno`, or `bun`;
     /// `use <version>` aliases `set node <version>`.
