@@ -1,10 +1,14 @@
 //! The importers a run installs, as a selection narrows them.
 
-use super::super::{
-    HashSet,
-    PackageManifest,
-    Path,
-    PathBuf,
+use super::{
+    super::{
+        HashSet,
+        PackageManifest,
+        Path,
+        PathBuf,
+    },
+    InstallScope,
+    RunExecution,
 };
 
 /// The importers a selection narrows the run to.
@@ -43,6 +47,31 @@ impl ImporterSelection {
                 }),
             real_importer_ids,
             filtered_install,
+        }
+    }
+}
+impl RunExecution<'_> {
+    pub(super) fn retain_missing_mutation_importers(
+        &self,
+        scope: &mut InstallScope<'_>,
+        wanted: Option<&pnpm_lockfile::Lockfile>,
+    ) {
+        if self.options.selection.is_some()
+            || !self.install.context.config.shares_one_lockfile()
+            || self.workspace.dirs.workspace_dir.is_none()
+            || !matches!(
+                self.install.execution.mutation,
+                crate::ProjectMutation::InstallSome | crate::ProjectMutation::InstallSelected,
+            )
+        {
+            return;
+        }
+        let on_disk = &scope.importers.real_importer_ids;
+        if wanted.is_some_and(|lockfile| {
+            pnpm_deps_restorer::missing_project_importers(lockfile, on_disk).next().is_some()
+        }) {
+            scope.importers.requested_importer_ids = Some(on_disk.clone());
+            scope.prune_stale_importers = false;
         }
     }
 }
