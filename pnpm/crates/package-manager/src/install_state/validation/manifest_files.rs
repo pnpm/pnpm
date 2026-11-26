@@ -63,6 +63,15 @@ pub(super) fn current_fields(
         .filter(|_| file.fields_revision == FIELDS_REVISION)
 }
 
+/// The digest of the manifest fields an install reads. An edit outside them
+/// cannot change what the install records, so it is not an install input.
+pub(crate) fn install_input_digest(manifest: &PackageManifest) -> String {
+    match recorded_fields(manifest.value()) {
+        Some(fields) => super::value_digest(&serde_json::Value::Object(fields)),
+        None => super::manifest_digest(manifest),
+    }
+}
+
 /// Whether a write would give a `vouched` project a record the next check can
 /// use, where `validation` holds none: its record is missing or has no
 /// fields, or the manifest's file name or stat differs from it or is not

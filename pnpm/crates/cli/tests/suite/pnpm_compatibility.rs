@@ -579,6 +579,8 @@ fn read_normalized_workspace_state(workspace: &Path) -> Option<NormalizedWorkspa
         val.recorded_at_ns = 0;
         // Only pnpm v12 records manifest files.
         val.manifest_files.clear();
+        // Only pnpm v12 records install inputs.
+        val.inputs.clear();
         val.files = val.files
             .into_iter()
             .map(|(file_path, mut sig)| {

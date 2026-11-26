@@ -1,9 +1,12 @@
 use super::{
     current_fields,
+    install_input_digest,
     recorded_fields,
 };
+use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ManifestFile;
 use serde_json::json;
+use std::path::PathBuf;
 
 #[test]
 fn records_dev_engines_for_project_host_checks() {
@@ -33,4 +36,27 @@ fn refuses_manifest_fields_from_an_old_revision() {
     };
 
     assert!(current_fields(&file).is_none());
+}
+
+#[test]
+fn install_input_digest_ignores_unchecked_manifest_fields() {
+    let manifest = |description: &str, version: &str| {
+        PackageManifest::from_value(
+            PathBuf::from("package.json"),
+            json!({
+                "name": "app",
+                "dependencies": { "is-positive": version },
+                "description": description,
+            }),
+        )
+    };
+
+    assert_eq!(
+        install_input_digest(&manifest("first", "1.0.0")),
+        install_input_digest(&manifest("edited", "1.0.0")),
+    );
+    assert_ne!(
+        install_input_digest(&manifest("first", "1.0.0")),
+        install_input_digest(&manifest("first", "2.0.0")),
+    );
 }

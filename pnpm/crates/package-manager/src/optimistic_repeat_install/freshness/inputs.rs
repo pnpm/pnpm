@@ -7,7 +7,7 @@ use super::{
         WorkspaceState,
         validation::{
             FileDigests,
-            manifest_digest,
+            install_input_digest,
             project_bins_digest,
             shared_input_paths,
             workspace_bins_digest,
@@ -59,7 +59,7 @@ pub(super) fn check_recorded_inputs(
         check.layout.supported_architectures,
         check.catalogs,
     );
-    let current = current_inputs(check, state, drift, settings_json(&current_settings));
+    let current = current_inputs(check, state, drift, &settings_json(&current_settings));
     let patches: HashSet<PathBuf> = check.config.patch_file_paths().collect();
     for stat in held {
         let importer_id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
@@ -120,7 +120,7 @@ fn current_inputs(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     drift: &InputDrift<'_>,
-    settings: String,
+    settings: &str,
 ) -> BTreeMap<String, InstallInputs> {
     let bins = workspace_bins_digest(check.workspace_root, check.bin_projects());
     let digests = FileDigests::new(state.validation.as_ref());
@@ -135,16 +135,13 @@ fn current_inputs(
         .iter()
         .map(|stat| {
             let importer_id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
-            let manifest = check.project_manifests
-                .recorded_digest(stat.root_dir)
-                .map(str::to_string)
-                .unwrap_or_else(|| manifest_digest(stat.manifest));
+            let manifest = install_input_digest(stat.manifest);
             let workspace_bins = project_bins_digest(&importer_id, stat.manifest, bins.as_deref())
                 .map(str::to_string);
             (
                 importer_id,
                 InstallInputs {
-                    settings: settings.clone(),
+                    settings: settings.to_owned(),
                     manifest,
                     lockfile: drift.lockfile.digest().map(str::to_string),
                     workspace_bins,

@@ -25,6 +25,7 @@ pub(crate) use local_dependencies::{
 };
 pub(crate) use manifest_files::{
     ManifestStandIns,
+    install_input_digest,
     manifest_stand_ins,
     records_need_refresh,
 };
@@ -391,6 +392,7 @@ fn record_projects(
                 return Some((
                     importer_id,
                     manifest_digest(manifest),
+                    Some(install_input_digest(manifest)),
                     lockfile,
                     project_bins,
                     true,
@@ -400,6 +402,7 @@ fn record_projects(
             Some((
                 importer_id.clone(),
                 record.manifest.to_string(),
+                None,
                 record.lockfile,
                 carried?.workspace_bins.get(&importer_id).map(String::as_str),
                 false,
@@ -407,11 +410,11 @@ fn record_projects(
         })
         .collect::<Vec<_>>();
     let recorded = records.len();
-    for (importer_id, manifest, lockfile, bins, vouched) in records {
+    for (importer_id, manifest, input_manifest, lockfile, bins, vouched) in records {
         let recorded_inputs = if vouched {
-            Some(InstallInputs {
+            input_manifest.map(|manifest| InstallInputs {
                 settings: settings.clone(),
-                manifest: manifest.clone(),
+                manifest,
                 lockfile: lockfile.map(str::to_string),
                 workspace_bins: bins.map(str::to_string),
                 files: files.clone(),

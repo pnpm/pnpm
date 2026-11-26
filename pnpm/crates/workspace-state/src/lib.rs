@@ -112,6 +112,13 @@ pub struct WorkspaceState {
 /// The inputs each project was last proven installed against.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the validation record in pnpm-workspace-state-v1.json."
+    )
+)]
 pub struct Validation {
     /// Filesystem time, in nanoseconds since the Unix epoch, by which every
     /// entry of [`Self::files`] was stat'd. A file whose mtime is this close to
