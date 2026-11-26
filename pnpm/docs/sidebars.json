@@ -236,6 +236,7 @@
         "continuous-integration",
         "supply-chain-security",
         "typescript",
+        "electron",
         "git",
         "git-worktrees",
         "docker",

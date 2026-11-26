@@ -23,7 +23,9 @@ exceptions:
   - Corepack
   - Deno
   - Docker
+  - Electron
   - Ethereum
+  - Forge
   - Git
   - GitHub
   - GitLab
