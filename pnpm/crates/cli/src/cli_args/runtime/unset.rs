@@ -107,9 +107,9 @@ fn cleanup_legacy_runtime_artifacts(
     Ok(removed)
 }
 
-/// Find the dependency group that declares the requested runtime. Without
-/// `--save-dev` or `--save-prod`, `devEngines.runtime` is checked before
-/// `engines.runtime`.
+/// Find the dependency group whose runtime declaration matches the request.
+/// Without `--save-dev` or `--save-prod`, `devEngines.runtime` is checked
+/// before `engines.runtime`.
 pub fn ensure_project_runtime_matches(
     state: &State,
     request: &RuntimeUnsetRequest,
@@ -118,27 +118,34 @@ pub fn ensure_project_runtime_matches(
         Some(group) => vec![group],
         None => vec![DependencyGroup::Dev, DependencyGroup::Prod],
     };
-    let Some((dependency_group, declared_version)) = candidates
+    let declarations = candidates
         .into_iter()
-        .find_map(|group| {
+        .filter_map(|group| {
             declared_runtime_version(state, group, &request.runtime_name)
                 .map(|version| (group, version))
         })
-    else {
+        .collect::<Vec<_>>();
+    if declarations.is_empty() {
         return Err(
             RuntimeError::NotARuntimeDependency { name: request.runtime_name.clone() }.into()
         );
-    };
-    if let Some(version) = request.version_spec.as_deref()
-        && !runtime_version_matches(&request.runtime_name, declared_version, version)
-    {
-        return Err(RuntimeError::RuntimeNotDeclared {
-            name: request.runtime_name.clone(),
-            version: version.to_string(),
-        }
-        .into());
     }
-    Ok(dependency_group)
+    let Some(version) = request.version_spec.as_deref() else {
+        return Ok(declarations[0].0);
+    };
+    declarations
+        .into_iter()
+        .find(|(_, declared_version)| {
+            runtime_version_matches(&request.runtime_name, declared_version, version)
+        })
+        .map(|(group, _)| group)
+        .ok_or_else(|| {
+            RuntimeError::RuntimeNotDeclared {
+                name: request.runtime_name.clone(),
+                version: version.to_string(),
+            }
+            .into()
+        })
 }
 
 fn declared_runtime_version<'state>(

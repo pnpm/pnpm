@@ -262,6 +262,25 @@ fn project_runtime_without_a_flag_finds_a_prod_runtime() {
 }
 
 #[test]
+fn project_runtime_without_a_flag_finds_the_group_matching_the_version() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "dependencies": { "node": "runtime:22.14.0" },
+            "devDependencies": { "node": "runtime:20.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let config = Config::new().leak();
+    let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+    let request = args(&["unset", "node", "22"]).unset_request().unwrap();
+
+    assert_eq!(ensure_project_runtime_matches(&state, &request).unwrap(), DependencyGroup::Prod);
+}
+
+#[test]
 fn project_runtime_with_save_dev_ignores_a_prod_runtime() {
     let dir = tempdir().unwrap();
     fs::write(
