@@ -80,7 +80,7 @@ fn existing_single_quoted_scalars_stay_as_written_in_a_double_quoted_manifest() 
     eprintln!("OUTPUT:\n{out}\n");
     assert_eq!(
         out,
-        "packages:\n  - \"apps/*\"\n  - \"packages/*\"\nallowBuilds:\n  \"@scope/added\": false\n  '@scope/kept': true\n",
+        "packages:\n  - \"apps/*\"\n  - \"packages/*\"\nallowBuilds:\n  '@scope/kept': true\npermissions:\n  \"@scope/added\":\n    build: false\n",
     );
 }
 
