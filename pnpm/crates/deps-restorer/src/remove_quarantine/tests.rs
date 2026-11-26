@@ -10,6 +10,7 @@ use command_extra::CommandExtra;
 
 use super::{
     is_native_binary,
+    quarantined_native_binaries,
     remove_quarantine,
     remove_quarantine_from_native_binaries,
 };
@@ -21,12 +22,13 @@ use std::{
 };
 
 const QUARANTINE_ATTR: &str = "com.apple.quarantine";
+const QUARANTINE_VALUE: &str = "0083;00000000;TestApp;";
 
-fn set_quarantine(path: &Path) {
+fn set_quarantine(path: &Path, value: &str) {
     let status = Command::new("/usr/bin/xattr")
         .with_arg("-w")
         .with_arg(QUARANTINE_ATTR)
-        .with_arg("0083;00000000;TestApp;")
+        .with_arg(value)
         .with_arg(path)
         .status()
         .expect("spawn xattr -w");
@@ -63,7 +65,7 @@ fn removes_quarantine_from_a_file() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("addon.node");
     fs::write(&file, b"test content").unwrap();
-    set_quarantine(&file);
+    set_quarantine(&file, QUARANTINE_VALUE);
     assert!(has_quarantine(&file));
 
     remove_quarantine(std::slice::from_ref(&file));
@@ -90,7 +92,7 @@ fn removes_from_a_batch_while_preserving_other_xattrs() {
     let clean = dir.path().join("b.node");
     fs::write(&quarantined, b"a").unwrap();
     fs::write(&clean, b"b").unwrap();
-    set_quarantine(&quarantined);
+    set_quarantine(&quarantined, QUARANTINE_VALUE);
     Command::new("/usr/bin/xattr")
         .with_arg("-w")
         .with_arg("com.example.custom")
@@ -111,7 +113,7 @@ fn tolerates_missing_files_in_the_batch() {
     let quarantined = dir.path().join("real.node");
     let missing = dir.path().join("dropped.node");
     fs::write(&quarantined, b"a").unwrap();
-    set_quarantine(&quarantined);
+    set_quarantine(&quarantined, QUARANTINE_VALUE);
 
     remove_quarantine(&[missing, quarantined.clone()]);
 
@@ -123,20 +125,30 @@ fn sweep_targets_only_native_binaries_under_dir() {
     let dir = tempfile::tempdir().unwrap();
     let native = dir.path().join("lib/addon.node");
     let script = dir.path().join("index.js");
+    let clean = dir.path().join("clean.node");
+    fs::write(&clean, b"clean").unwrap();
     fs::create_dir_all(native.parent().unwrap()).unwrap();
     fs::write(&native, b"a").unwrap();
     fs::write(&script, b"b").unwrap();
-    set_quarantine(&native);
-    set_quarantine(&script);
+    set_quarantine(&native, QUARANTINE_VALUE);
+    set_quarantine(&script, QUARANTINE_VALUE);
 
     let cas_paths = HashMap::from([
         ("lib/addon.node".to_string(), native.clone().into()),
         ("index.js".to_string(), script.clone().into()),
+        ("clean.node".to_string(), clean.into()),
     ]);
+    assert_eq!(quarantined_native_binaries(dir.path(), &cas_paths), [native.clone()]);
     remove_quarantine_from_native_binaries(dir.path(), &cas_paths);
+    assert!(quarantined_native_binaries(dir.path(), &cas_paths).is_empty());
 
     assert!(!has_quarantine(&native), "native binary should be unquarantined");
     assert!(has_quarantine(&script), "non-binary files must be left untouched");
+
+    set_quarantine(&native, "");
+    assert_eq!(quarantined_native_binaries(dir.path(), &cas_paths), [native.clone()]);
+    remove_quarantine_from_native_binaries(dir.path(), &cas_paths);
+    assert!(!has_quarantine(&native));
 }
 
 #[test]
