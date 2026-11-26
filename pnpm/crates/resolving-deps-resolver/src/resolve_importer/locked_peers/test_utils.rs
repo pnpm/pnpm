@@ -21,7 +21,7 @@ pub(in crate::resolve_importer) fn importer_locked_peer_versions(
     retained_peer_versions(
         lockfile,
         importer,
-        is_retained,
+        |name, _| is_retained(name),
         &hashed_suffix::ProviderContexts::default(),
     )
 }

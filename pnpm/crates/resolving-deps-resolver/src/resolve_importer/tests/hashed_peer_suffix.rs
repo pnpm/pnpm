@@ -121,8 +121,9 @@ fn production_pins_preserve_undiscovered_hashed_and_nested_peers() {
                 crate::WorkspaceTreeCtx::default().with_wanted_lockfile(Some(Arc::new(lockfile))),
             );
             let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
-            let retained = HashSet::from_iter(["consumer".parse().unwrap()]);
-            let pins = LockedPeers::for_importer(&ctx, importer, &retained);
+            let retained =
+                HashMap::from_iter([("consumer".parse().unwrap(), Arc::from("consumer@1.0.0"))]);
+            let pins = LockedPeers::for_importer(&ctx, importer, retained);
             assert_eq!(pins.versions(&workspace).as_ref(), &expected, "{suffix}, {importer}");
         }
     }

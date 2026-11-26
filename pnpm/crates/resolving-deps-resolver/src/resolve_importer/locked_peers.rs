@@ -28,23 +28,30 @@ pub(super) struct LockedPeers {
 
 struct RetainedImporter {
     id: String,
-    dependencies: HashSet<PkgName>,
+    dependencies: HashMap<PkgName, Arc<str>>,
+}
+
+impl RetainedImporter {
+    fn retains(&self, alias: &PkgName, key: &pnpm_lockfile::PkgNameVerPeer) -> bool {
+        self.dependencies
+            .get(alias)
+            .is_some_and(|id| {
+                format!("{}@{}", key.name, key.suffix.without_peer_bindings()) == id.as_ref()
+            })
+    }
 }
 
 impl LockedPeers {
     pub(super) fn for_importer(
         ctx: &TreeCtx,
         importer_id: &str,
-        retained: &HashSet<PkgName>,
+        retained: HashMap<PkgName, Arc<str>>,
     ) -> Self {
         let importer = ctx
             .workspace()
             .wanted_lockfile()
             .filter(|lockfile| lockfile.importers.contains_key(importer_id))
-            .map(|_| RetainedImporter {
-                id: importer_id.to_string(),
-                dependencies: retained.clone(),
-            });
+            .map(|_| RetainedImporter { id: importer_id.to_string(), dependencies: retained });
         Self { importer, versions: std::sync::OnceLock::new() }
     }
 
@@ -60,7 +67,7 @@ impl LockedPeers {
                 return Arc::new(retained_peer_versions(
                     lockfile,
                     &lockfile.importers[&importer.id],
-                    |name| importer.dependencies.contains(name),
+                    |name, key| importer.retains(name, key),
                     &contexts,
                 ));
             }
@@ -87,7 +94,7 @@ pub(super) fn retained_dependency_names(
 fn retained_peer_versions(
     lockfile: &pnpm_lockfile::Lockfile,
     importer: &pnpm_lockfile::ProjectSnapshot,
-    is_retained: impl Fn(&PkgName) -> bool,
+    is_retained: impl Fn(&PkgName, &pnpm_lockfile::PkgNameVerPeer) -> bool,
     contexts: &hashed_suffix::ProviderContexts,
 ) -> HashMap<String, HashSet<String>> {
     let mut versions = HashMap::<String, HashSet<String>>::default();
@@ -96,12 +103,12 @@ fn retained_peer_versions(
         DependencyGroup::Optional,
         DependencyGroup::Dev,
     ]) {
-        if !is_retained(alias) {
-            continue;
-        }
         let Some(key) = dependency.version.resolved_key(alias) else {
             continue;
         };
+        if !is_retained(alias, &key) {
+            continue;
+        }
         let snapshot = lockfile.snapshots
             .as_ref()
             .and_then(|snapshots| snapshots.get(&key));
