@@ -273,7 +273,7 @@ pub struct WorkspaceSettings {
     /// [`Config::inject_workspace_packages`](crate::settings::Config::inject_workspace_packages).
     pub inject_workspace_packages: Option<bool>,
     /// `hoistingLimits` from `pnpm-workspace.yaml`. One of `none`,
-    /// `workspaces`, or `dependencies`; see
+    /// `projects`, or `dependencies`; see
     /// [`crate::HoistingLimits`]. Missing → default
     /// [`crate::HoistingLimits::None`].
     pub hoisting_limits: Option<HoistingLimits>,

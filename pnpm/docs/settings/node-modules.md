@@ -45,7 +45,7 @@ The hoisted linker accepts `hoistingLimits`:
 ```yaml title="pnpm-workspace.yaml"
 nodeLinker:
   type: hoisted
-  hoistingLimits: workspaces
+  hoistingLimits: projects
 ```
 
 The loaded linker accepts an `excluded` list. The list replaces lower-priority exclusions, and an omitted list clears them. Other linker types reject options they do not support.
@@ -521,13 +521,13 @@ root of `node_modules`, you can set this to `true` to hoist them for you.
 ### hoistingLimits
 
 * Default: **none**
-* Type: **none**, **workspaces**, **dependencies**
+* Type: **none**, **projects**, **dependencies**
 
 Controls how far dependencies are hoisted when using `nodeLinker: hoisted`. This setting mirrors Yarn's `nmHoistingLimits`.
 
 * **none** - hoist as far as possible (the default).
-* **workspaces** - hoist only as far as each workspace package, preventing dependencies from being hoisted above the workspace package that depends on them.
-* **dependencies** - hoist only up to each workspace package's direct dependencies, preventing transitive dependencies from being hoisted into the workspace package's `node_modules`.
+* **projects** - hoist only as far as each workspace project, preventing dependencies from being hoisted above the project that depends on them. pnpm also accepts its earlier name, `workspaces`.
+* **dependencies** - hoist only up to each workspace project's direct dependencies, preventing transitive dependencies from being hoisted into the project's `node_modules`.
 
 ### externalDependencies
 

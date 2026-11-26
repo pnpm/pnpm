@@ -814,7 +814,7 @@ pub struct Config {
 
     /// `hoistingLimits` from `pnpm-workspace.yaml`. Controls how far
     /// dependencies are hoisted under `nodeLinker: hoisted`. See
-    /// [`HoistingLimits`] for the `none` / `workspaces` /
+    /// [`HoistingLimits`] for the `none` / `projects` /
     /// `dependencies` semantics. Default [`HoistingLimits::None`]
     /// (hoist as far as possible). Translated into the hoister's
     /// per-locator border map by `crate::get_hoisting_limits` in
