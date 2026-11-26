@@ -19,6 +19,7 @@ use pnpm_deps_restorer::{
 use pnpm_lockfile::LockfileResolution;
 use pnpm_network::{
     ThrottledClient,
+    has_http_scheme,
     redact_and_sanitize,
     redact_specifier_for_display,
 };
@@ -320,9 +321,8 @@ impl<'a> AddOne<'a> {
             .resolve(package)
             .await
             .inspect_err(|error| {
-                let tarball = package.starts_with("https:")
-                    || package.starts_with("http:")
-                    || pnpm_local_spec::is_tarball_filename(package);
+                let tarball =
+                    has_http_scheme(package) || pnpm_local_spec::is_tarball_filename(package);
                 if tarball {
                     report_add_failure::<Reporter>(error, Some(package));
                 } else {

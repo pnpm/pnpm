@@ -17,6 +17,7 @@
 //! `.npmrc`; if it redirects across hosts, no header is attached.
 
 pub use redaction::{
+    has_http_scheme,
     hide_auth_information,
     redact_and_sanitize,
     redact_and_sanitize_multiline,

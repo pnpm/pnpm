@@ -18,6 +18,7 @@ pub use auth::{
     UpstreamRouteHook,
     base64_encode,
     base64_encode_bytes,
+    has_http_scheme,
     hide_auth_information,
     is_url_secure_for_credentials,
     nerf_dart,

@@ -1118,17 +1118,38 @@ fn store_add_warns_which_tarball_in_a_directory_failed() {
         .unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let warning = stderr
+    let warning = tarball_warning(&stderr);
+    let tarball = warning["tarball"].as_str().unwrap();
+    assert!(tarball.ends_with("broken.tgz"), "{warning}");
+    let message = warning["message"].as_str().unwrap();
+    assert!(message.contains(tarball) && message.contains("ERR_PNPM_"), "{warning}");
+}
+
+#[test]
+fn store_add_redacts_a_mixed_case_url_in_the_tarball_warning() {
+    let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init();
+    let input = "hTtPs://127.0.0.1:1/example.tgz?token=sample-query#sample-fragment";
+    let output = pacquet
+        .with_args(["store", "add", input, "--offline", "--reporter=ndjson"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let warning = tarball_warning(&String::from_utf8_lossy(&output.stderr));
+    let display = "https://127.0.0.1:1/example.tgz";
+    assert_eq!(warning["tarball"], display);
+    let message = warning["message"].as_str().unwrap();
+    assert!(message.contains(display), "{warning}");
+    assert!(!message.contains("sample-query") && !message.contains("sample-fragment"), "{warning}");
+}
+
+fn tarball_warning(stderr: &str) -> serde_json::Value {
+    stderr
         .lines()
         .map(serde_json::from_str::<serde_json::Value>)
         .filter_map(Result::ok)
         .filter(|event| event["level"] == "warn")
         .find(|event| event["tarball"].is_string())
-        .unwrap_or_else(|| panic!("missing per-tarball warning: {stderr}"));
-    let tarball = warning["tarball"].as_str().unwrap();
-    assert!(tarball.ends_with("broken.tgz"), "{warning}");
-    let message = warning["message"].as_str().unwrap();
-    assert!(message.contains(tarball) && message.contains("ERR_PNPM_"), "{warning}");
+        .unwrap_or_else(|| panic!("missing per-tarball warning: {stderr}"))
 }
 
 #[test]

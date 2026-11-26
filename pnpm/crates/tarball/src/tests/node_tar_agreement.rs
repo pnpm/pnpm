@@ -194,7 +194,7 @@ fn ignores_multiline_package_metadata_and_reads_the_next_record() {
 #[test]
 fn refuses_ambiguous_multiline_metadata() {
     for (key, value) in [
-        ("NODETAR.package.description", "first line\n  +123 text"),
+        ("NODETAR.package.description", "first line\nordinary text\n\u{feff}  +123 text"),
         ("path", "first line\nsecond line"),
     ] {
         let tar =
