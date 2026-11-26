@@ -96,13 +96,14 @@ fn isolated_object_applies_private_and_public_hoist_patterns() {
 
 #[test]
 fn hoisted_object_applies_hoisting_limits() {
-    let settings: WorkspaceSettings =
-        serde_saphyr::from_str("nodeLinker:\n  type: hoisted\n  hoistingLimits: projects\n")
-            .unwrap();
-    let mut config = Config::default();
-    settings.apply_to(&mut config, Path::new("."));
-    assert_eq!(config.node_linker, NodeLinker::Hoisted);
-    assert_eq!(config.hoisting_limits, HoistingLimits::Projects);
+    for limit in ["projects", "workspaces"] {
+        let yaml = format!("nodeLinker:\n  type: hoisted\n  hoistingLimits: {limit}\n");
+        let settings: WorkspaceSettings = serde_saphyr::from_str(&yaml).unwrap();
+        let mut config = Config::default();
+        settings.apply_to(&mut config, Path::new("."));
+        assert_eq!(config.node_linker, NodeLinker::Hoisted, "{limit}");
+        assert_eq!(config.hoisting_limits, HoistingLimits::Projects, "{limit}");
+    }
 }
 
 #[test]
