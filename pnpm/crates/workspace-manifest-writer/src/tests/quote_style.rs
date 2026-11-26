@@ -50,23 +50,26 @@ fn config_set_keeps_single_quotes_in_an_unquoted_or_new_manifest() {
 }
 
 #[test]
-fn allow_builds_double_quotes_new_keys_in_a_double_quoted_manifest() {
+fn build_decisions_double_quote_new_keys_in_a_double_quoted_manifest() {
     let original = "packages:\n  - \"packages/*\"\n";
     let out = run_allow_builds(Some(original), &[("@scope/native", true), ("esbuild", true)])
         .expect("file written");
     eprintln!("OUTPUT:\n{out}\n");
     assert_eq!(
         out,
-        "packages:\n  - \"packages/*\"\nallowBuilds:\n  \"@scope/native\": true\n  esbuild: true\n",
+        "packages:\n  - \"packages/*\"\npermissions:\n  \"@scope/native\":\n    build: true\n  esbuild:\n    build: true\n",
     );
 }
 
 #[test]
-fn allow_builds_keeps_single_quotes_in_a_single_quoted_manifest() {
+fn build_decisions_keep_single_quotes_in_a_single_quoted_manifest() {
     let original = "packages:\n  - 'packages/*'\n";
     let out = run_allow_builds(Some(original), &[("@scope/native", true)]).expect("file written");
     eprintln!("OUTPUT:\n{out}\n");
-    assert_eq!(out, "packages:\n  - 'packages/*'\nallowBuilds:\n  '@scope/native': true\n");
+    assert_eq!(
+        out,
+        "packages:\n  - 'packages/*'\npermissions:\n  '@scope/native':\n    build: true\n",
+    );
 }
 
 #[test]
@@ -82,14 +85,14 @@ fn existing_single_quoted_scalars_stay_as_written_in_a_double_quoted_manifest() 
 }
 
 #[test]
-fn an_added_scalar_that_sorts_before_an_equal_existing_one_takes_the_double_quotes() {
+fn an_added_permission_key_that_matches_a_catalog_key_takes_the_double_quotes() {
     let original =
         "packages:\n  - \"apps/*\"\n  - \"packages/*\"\ncatalog:\n  '@scope/x': ^1.0.0\n";
     let out = run_allow_builds(Some(original), &[("@scope/x", true)]).expect("file written");
     eprintln!("OUTPUT:\n{out}\n");
     assert_eq!(
         out,
-        "packages:\n  - \"apps/*\"\n  - \"packages/*\"\nallowBuilds:\n  \"@scope/x\": true\ncatalog:\n  '@scope/x': ^1.0.0\n",
+        "packages:\n  - \"apps/*\"\n  - \"packages/*\"\ncatalog:\n  '@scope/x': ^1.0.0\npermissions:\n  \"@scope/x\":\n    build: true\n",
     );
 }
 
