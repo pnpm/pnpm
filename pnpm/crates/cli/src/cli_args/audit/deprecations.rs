@@ -4,6 +4,7 @@
 use super::{
     AuditGraph,
     HashMap,
+    HashSet,
     Include,
     PackageKey,
     PackageMetadata,
@@ -227,27 +228,80 @@ fn one_line(message: &str) -> String {
     sanitize_inline(&words.join(" ")).into_owned()
 }
 
+/// One block per package name and deprecation message: the message, then
+/// each deprecated version with where it comes from.
 pub(super) fn render_deprecations(deprecated: &[DeprecatedPackage]) -> String {
     if deprecated.is_empty() {
         return "No deprecated packages found".to_string();
     }
-    let mut lines = Vec::new();
+    let groups = group_by_deprecation(deprecated);
+    let blocks: Vec<String> = groups
+        .iter()
+        .map(|group| render_group(group))
+        .collect();
+    let names = groups
+        .iter()
+        .map(|group| group[0].name.as_str())
+        .collect::<HashSet<_>>()
+        .len();
+    let noun = if names == 1 { "package" } else { "packages" };
+    let summary = if names == deprecated.len() {
+        format!("{names} deprecated {noun}")
+    } else {
+        format!("{names} deprecated {noun}, {} versions", deprecated.len())
+    };
+    format!("{}\n\n{}", blocks.join("\n\n"), super::red(&summary))
+}
+
+/// The packages with the same name, message, and non-deprecated version,
+/// each group ordered by version.
+fn group_by_deprecation(deprecated: &[DeprecatedPackage]) -> Vec<Vec<&DeprecatedPackage>> {
+    let mut groups: Vec<Vec<&DeprecatedPackage>> = Vec::new();
     for package in deprecated {
-        lines.push(format!(
-            "{} {}  {}",
-            super::bold(&sanitize_inline(&package.name)),
-            sanitize_inline(&package.version),
-            package.origin.render(),
-        ));
-        lines.push(format!("  {}", package.deprecated));
-        if let Some(version) = &package.non_deprecated_version {
-            lines.push(format!("  {} is not deprecated", super::green(version)));
+        let group = groups
+            .iter_mut()
+            .find(|group| {
+                let first = group[0];
+                first.name == package.name
+                    && first.deprecated == package.deprecated
+                    && first.non_deprecated_version == package.non_deprecated_version
+            });
+        match group {
+            Some(group) => group.push(package),
+            None => groups.push(vec![package]),
         }
     }
-    let count = deprecated.len();
-    let noun = if count == 1 { "package" } else { "packages" };
-    lines.push(String::new());
-    lines.push(super::red(&format!("{count} deprecated {noun}")));
+    for group in &mut groups {
+        group.sort_by_cached_key(|package| node_semver::Version::parse(&package.version).ok());
+    }
+    groups
+}
+
+fn render_group(group: &[&DeprecatedPackage]) -> String {
+    let first = group[0];
+    let name = super::bold(&sanitize_inline(&first.name));
+    let header = match &first.non_deprecated_version {
+        Some(version) => format!(
+            "{name}  newest non-deprecated version: {}",
+            super::green(&sanitize_inline(version)),
+        ),
+        None => name,
+    };
+    let mut lines = vec![header, format!("  {}", first.deprecated)];
+    let versions: Vec<_> = group
+        .iter()
+        .map(|package| sanitize_inline(&package.version))
+        .collect();
+    let width = versions
+        .iter()
+        .map(|version| version.chars().count())
+        .max()
+        .unwrap_or_default();
+    for (package, version) in group.iter().zip(&versions) {
+        lines.push(
+            format!("  {version:<width$}  {}", package.origin.render()).trim_end().to_string(),
+        );
+    }
     lines.join("\n")
 }
 

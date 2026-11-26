@@ -61,7 +61,8 @@ fn lists_a_deprecated_direct_dependency_and_fails() {
 
     assert_failure(&output);
     let out = stdout(&output);
-    assert!(out.contains(&format!("{DEPRECATED} 1.0.0  .")), "{out}");
+    assert!(out.starts_with(&format!("{DEPRECATED}\n")), "{out}");
+    assert!(out.contains("\n  1.0.0  .\n"), "{out}");
     assert!(out.contains("1 deprecated package"), "{out}");
 }
 
