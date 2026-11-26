@@ -285,6 +285,9 @@ the workspace. This also means that all dependencies of workspace packages will
 be in a single `node_modules` (and get symlinked to their package `node_modules`
 folder for Node's module resolution).
 
+In a sparse checkout, running `pnpm add` or `pnpm update` on a single project
+preserves the shared lockfile entries for projects missing from disk.
+
 Advantages of this option:
 * every dependency is a singleton
 * faster installations in a monorepo

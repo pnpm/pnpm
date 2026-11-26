@@ -86,6 +86,7 @@ impl<'a> RunExecution<'a> {
             (&mut self.options.manifests, self.loaded_workspace_projects),
         )
         .await?;
+        self.retain_missing_mutation_importers(&mut scope, loaded.wanted.merge);
         let manifests = std::mem::take(&mut loaded.manifests);
         let project_manifests = manifests.view(&scope.project_manifests);
         self.validate_project_manifests(&project_manifests)?;

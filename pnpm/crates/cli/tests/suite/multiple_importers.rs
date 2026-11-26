@@ -183,7 +183,18 @@ fn assert_filtered_install_keeps_missing_project(filters: &[&str]) {
 }
 
 #[test]
+fn single_project_mutations_keep_missing_importers() {
+    assert_single_project_mutations_keep_missing_importers(None);
+}
+
+#[test]
 fn hook_filtered_single_project_mutations_keep_missing_importers() {
+    assert_single_project_mutations_keep_missing_importers(Some(
+        "export const hooks = { updateConfig: config => ({ ...config, filter: ['active', 'sibling'] }) }",
+    ));
+}
+
+fn assert_single_project_mutations_keep_missing_importers(hook: Option<&str>) {
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml(&format!("catalogs:\n  sparse:\n    '{FOOBAR}': 100.0.0\n"));
     let deps = || ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() };
@@ -198,11 +209,9 @@ fn hook_filtered_single_project_mutations_keep_missing_importers() {
     let before = fixture.wanted();
     let sibling_manifest = fs::read(sibling.join("package.json")).unwrap();
     fs::remove_dir_all(&missing).unwrap();
-    fs::write(
-        fixture.workspace.join(".pnpmfile.mjs"),
-        "export const hooks = { updateConfig: config => ({ ...config, filter: ['active', 'sibling'] }) }",
-    )
-    .unwrap();
+    if let Some(hook) = hook {
+        fs::write(fixture.workspace.join(".pnpmfile.mjs"), hook).unwrap();
+    }
 
     for (command, package, expected_name, expected_version) in [
         ("add", format!("{QAR}@100.0.0"), QAR, "100.0.0"),
@@ -216,6 +225,16 @@ fn hook_filtered_single_project_mutations_keep_missing_importers() {
         assert!(has_snapshot(&wanted, FOOBAR, "100.0.0"));
         assert_eq!(wanted.catalogs, before.catalogs);
         assert!(!missing.exists());
+    }
+
+    fixture.run_at(&active, ["update", "--lockfile-only"]);
+    assert_eq!(
+        fixture.wanted().importers["packages/missing"],
+        before.importers["packages/missing"],
+    );
+    if hook.is_none() {
+        fixture.run(["install", "--lockfile-only", "--no-prefer-frozen-lockfile"]);
+        assert!(!fixture.wanted().importers.contains_key("packages/missing"));
     }
 }
 
