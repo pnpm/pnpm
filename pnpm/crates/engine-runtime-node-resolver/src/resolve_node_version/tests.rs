@@ -7,21 +7,28 @@ use pnpm_network::{
 };
 
 use super::{
-    NodeVersion,
+    NodeRelease,
     filter_versions,
     resolve_node_version,
     resolve_node_version_with_auth,
     resolve_node_versions,
 };
 
-fn make_versions() -> Vec<NodeVersion> {
-    vec![
-        NodeVersion { version: "22.0.0".to_string(), lts: None },
-        NodeVersion { version: "20.10.0".to_string(), lts: Some("Iron".to_string()) },
-        NodeVersion { version: "20.5.0".to_string(), lts: None },
-        NodeVersion { version: "18.18.0".to_string(), lts: Some("Hydrogen".to_string()) },
-        NodeVersion { version: "16.20.0".to_string(), lts: Some("Gallium".to_string()) },
+fn make_versions() -> Vec<NodeRelease> {
+    [
+        ("22.0.0", None),
+        ("20.10.0", Some("Iron")),
+        ("20.5.0", None),
+        ("18.18.0", Some("Hydrogen")),
+        ("16.20.0", Some("Gallium")),
     ]
+    .into_iter()
+    .map(|(version, lts)| NodeRelease {
+        version: version.to_string(),
+        lts: lts.map(str::to_string),
+        index_entry: serde_json::Map::new(),
+    })
+    .collect()
 }
 
 #[test]
