@@ -181,7 +181,7 @@ fn unset_deletes_the_global_runtime_group() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(output.status.success(), "stderr={stderr}");
-    assert!(!link.exists(), "global hash link should be removed");
+    assert_link_removed(&link);
     assert!(!install_dir.exists(), "global install dir should be removed");
     assert!(!global_bin.join("node").exists(), "global bin should be removed");
 }
@@ -202,7 +202,7 @@ fn unset_without_a_global_bin_dir_deletes_the_store_group() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(output.status.success(), "stderr={stderr}");
-    assert!(!link.exists());
+    assert_link_removed(&link);
     assert!(!install_dir.exists());
 }
 
@@ -226,9 +226,9 @@ fn unset_deletes_every_global_group_of_the_runtime() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(output.status.success(), "stderr={stderr}");
-    assert!(!first_link.exists());
+    assert_link_removed(&first_link);
     assert!(!first_dir.exists());
-    assert!(!second_link.exists());
+    assert_link_removed(&second_link);
     assert!(!second_dir.exists());
 }
 
@@ -251,7 +251,7 @@ fn unset_cleans_up_the_active_legacy_node_link() {
 
     assert!(output.status.success(), "stderr={stderr}");
     assert!(!legacy_version_dir.exists());
-    assert!(!active_link.exists());
+    assert_link_removed(&active_link);
 }
 
 #[cfg(unix)]
@@ -279,7 +279,7 @@ fn unset_preserves_an_unrelated_dangling_npm_link_during_legacy_cleanup() {
 
     assert!(output.status.success(), "stderr={stderr}");
     assert!(!legacy_version_dir.exists());
-    assert!(node_link.symlink_metadata().is_err());
+    assert_link_removed(&node_link);
     assert!(
         npm_link
             .symlink_metadata()
@@ -359,7 +359,7 @@ fn unset_does_not_remove_an_npm_shim_under_a_version_named_home_directory() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(output.status.success(), "stderr={stderr}");
-    assert!(!node_link.exists());
+    assert_link_removed(&node_link);
     assert!(!node_install_dir.exists());
     assert!(npm_link.exists());
     assert!(npm_install_dir.exists());
@@ -433,6 +433,12 @@ fn unset_rejects_an_unsupported_runtime_name() {
     assert!(stderr.contains("ERR_PNPM_INVALID_RUNTIME_NAME"), "stderr={stderr}");
     drop(root);
     drop(workspace);
+}
+
+/// `Path::exists` follows the link, so a dangling link would pass it.
+fn assert_link_removed(link: &Path) {
+    let err = link.symlink_metadata().unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::NotFound, "{} should be removed", link.display());
 }
 
 fn seed_global_runtime(
