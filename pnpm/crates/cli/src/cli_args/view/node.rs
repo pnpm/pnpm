@@ -25,8 +25,7 @@ use serde_json::{
 };
 
 /// The `runtime:` specifier `package_spec` asks for when it names Node.js
-/// rather than an npm package, such as `latest` for `node` or `rc/24` for
-/// `node@runtime:rc/24`.
+/// rather than an npm package.
 pub(super) fn node_runtime_specifier(package_spec: &str) -> Option<String> {
     let selector = tool_install_selector(package_spec);
     selector
