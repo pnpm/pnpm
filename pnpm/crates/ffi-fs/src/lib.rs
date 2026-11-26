@@ -50,6 +50,8 @@ pub use dir_handle::{
     unlink_at,
 };
 pub use exchange::exchange_dirents;
+#[cfg(target_os = "macos")]
+pub use extended_attribute::has_extended_attribute;
 #[cfg(unix)]
 pub use fifo::create_fifo;
 pub use file_mode::FileMode;
@@ -94,6 +96,8 @@ mod dir_entries;
 #[cfg(unix)]
 mod dir_handle;
 mod exchange;
+#[cfg(target_os = "macos")]
+mod extended_attribute;
 #[cfg(unix)]
 mod fifo;
 mod file_mode;

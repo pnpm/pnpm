@@ -10,6 +10,7 @@ use command_extra::CommandExtra;
 
 use super::{
     is_native_binary,
+    quarantined_native_binaries,
     remove_quarantine,
     remove_quarantine_from_native_binaries,
 };
@@ -123,6 +124,8 @@ fn sweep_targets_only_native_binaries_under_dir() {
     let dir = tempfile::tempdir().unwrap();
     let native = dir.path().join("lib/addon.node");
     let script = dir.path().join("index.js");
+    let clean = dir.path().join("clean.node");
+    fs::write(&clean, b"clean").unwrap();
     fs::create_dir_all(native.parent().unwrap()).unwrap();
     fs::write(&native, b"a").unwrap();
     fs::write(&script, b"b").unwrap();
@@ -132,8 +135,11 @@ fn sweep_targets_only_native_binaries_under_dir() {
     let cas_paths = HashMap::from([
         ("lib/addon.node".to_string(), native.clone().into()),
         ("index.js".to_string(), script.clone().into()),
+        ("clean.node".to_string(), clean.into()),
     ]);
+    assert_eq!(quarantined_native_binaries(dir.path(), &cas_paths), [native.clone()]);
     remove_quarantine_from_native_binaries(dir.path(), &cas_paths);
+    assert!(quarantined_native_binaries(dir.path(), &cas_paths).is_empty());
 
     assert!(!has_quarantine(&native), "native binary should be unquarantined");
     assert!(has_quarantine(&script), "non-binary files must be left untouched");

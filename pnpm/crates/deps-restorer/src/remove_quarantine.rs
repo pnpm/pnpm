@@ -21,11 +21,12 @@ use crate::process::Command;
 #[cfg(target_os = "macos")]
 use std::{
     ffi::OsStr,
+    os::unix::ffi::OsStrExt as _,
     path::PathBuf,
 };
 
 #[cfg(target_os = "macos")]
-const QUARANTINE_ATTR: &str = "com.apple.quarantine";
+const QUARANTINE_ATTR: &std::ffi::CStr = c"com.apple.quarantine";
 
 // Native binaries are the only files macOS Gatekeeper blocks for carrying a
 // quarantine xattr; `.dll` is Windows-only and never relevant here.
@@ -44,12 +45,29 @@ const MAX_ARG_BYTES: usize = 100_000;
 /// `cas_paths`, so the targets are `dir_path.join(entry)`. A no-op off macOS.
 #[cfg(target_os = "macos")]
 pub fn remove_quarantine_from_native_binaries(dir_path: &Path, cas_paths: &pnpm_fs::CasPaths) {
-    let native_binaries: Vec<PathBuf> = cas_paths
+    remove_quarantine(&quarantined_native_binaries(dir_path, cas_paths));
+}
+
+#[cfg(target_os = "macos")]
+fn quarantined_native_binaries(dir_path: &Path, cas_paths: &pnpm_fs::CasPaths) -> Vec<PathBuf> {
+    cas_paths
         .keys()
         .filter(|entry| is_native_binary(entry))
         .map(|entry| dir_path.join(entry))
-        .collect();
-    remove_quarantine(&native_binaries);
+        .filter(|path| match pnpm_ffi_fs::has_extended_attribute(path, QUARANTINE_ATTR) {
+            Ok(present) => present,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(error) => {
+                tracing::warn!(
+                    target: "pacquet::remove_quarantine",
+                    ?path,
+                    %error,
+                    "failed to check the macOS quarantine attribute",
+                );
+                false
+            }
+        })
+        .collect()
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -83,16 +101,14 @@ fn remove_quarantine(file_paths: &[PathBuf]) {
 fn remove_quarantine_from_chunk(file_paths: &[&Path]) {
     let output = Command::new("/usr/bin/xattr")
         .arg("-d")
-        .arg(QUARANTINE_ATTR)
+        .arg(OsStr::from_bytes(QUARANTINE_ATTR.to_bytes()))
         .args(file_paths)
         .output();
     match output {
         Ok(output) if output.status.success() => {}
         Ok(output) => {
-            // `xattr -d` exits non-zero when a file has no quarantine
-            // xattr ("No such xattr"), the common case, and reports "No such
-            // file" for entries the importer legitimately dropped or renamed.
-            // Surface only errors that are not of those kinds.
+            // A concurrent import may have already cleared the shared inode's
+            // attribute or replaced the file since the presence check.
             let stderr = String::from_utf8_lossy(&output.stderr);
             let real_errors: Vec<&str> = stderr
                 .lines()
