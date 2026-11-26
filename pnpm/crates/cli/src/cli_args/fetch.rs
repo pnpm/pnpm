@@ -1,6 +1,10 @@
 use crate::{
     State,
-    cli_args::pre_command::fetch_locked_package_manager,
+    cli_args::{
+        install::workspace_install_selection,
+        pipelines::InstallFamilySelection,
+        pre_command::fetch_locked_package_manager,
+    },
 };
 use clap::Args;
 use miette::Context;
@@ -22,7 +26,13 @@ pub struct FetchArgs {
 }
 
 impl FetchArgs {
-    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
+    /// `selection` narrows a shared workspace lockfile to the importers a
+    /// `--filter` selected; `None` fetches every importer.
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(
+        self,
+        state: State,
+        selection: Option<&InstallFamilySelection>,
+    ) -> miette::Result<()> {
         fetch_locked_package_manager::<Reporter>(state.config, state.lockfile_dir()).await?;
         let lockfile_path = state.lockfile_path();
         let mut fetch_config = (*state.config).clone();
@@ -45,6 +55,10 @@ impl FetchArgs {
         base_install.lockfile_policy.ignore_manifest_check = true;
         base_install.execution.mutation = ProjectMutation::Fetch;
         base_install.context.lockfile_path = Some(&lockfile_path);
-        base_install.run::<Reporter>().await.wrap_err("fetching dependencies")
+        match selection.map(workspace_install_selection) {
+            Some(selection) => base_install.run_selected::<Reporter>(selection).await,
+            None => base_install.run::<Reporter>().await,
+        }
+        .wrap_err("fetching dependencies")
     }
 }

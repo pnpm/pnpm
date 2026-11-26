@@ -10,10 +10,13 @@ A missing package manifest is not created.
 
 ## Workspaces
 
+Use `--filter` to fetch only the packages that the selected projects need.
 With `sharedWorkspaceLockfile: false`, use `pnpm -r fetch` to fetch packages
-from each selected project's lockfile. Use `--filter` to select projects.
-Workspace discovery requires the projects' package manifests. Their dependency
-fields do not change what is fetched from the lockfiles.
+from each project's lockfile.
+
+Selecting projects requires their package manifests. A filter that matches no
+project on disk fetches nothing. The manifests' dependency fields do not change
+what is fetched from the lockfile.
 
 ## Usage scenario
 
