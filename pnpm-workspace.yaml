@@ -17,18 +17,20 @@ packages:
 
 include:
   ./.config/pnpm/policies.yaml:
-    - allowBuilds
     - auditConfig
     - minimumReleaseAge
     - minimumReleaseAgeExclude
     - minimumReleaseAgeExcludePrune
     - overrides
     - packageExtensions
+    - permissions
+    - permissions.unused
     - registries
     - trustPolicy
     - trustPolicyExclude
     - trustPolicyExcludePrune
     - trustPolicyIgnoreAfter
+    - warnUnusedOverrides
   ./.config/pnpm/patches/patches.yaml:
     - patchedDependencies
     - patchesDir
