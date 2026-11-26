@@ -17,12 +17,18 @@ use pnpm_deps_restorer::{
     manifest_unpacked_size,
 };
 use pnpm_lockfile::LockfileResolution;
-use pnpm_network::ThrottledClient;
+use pnpm_network::{
+    ThrottledClient,
+    has_http_scheme,
+    redact_and_sanitize,
+    redact_specifier_for_display,
+};
 use pnpm_reporter::{
     GlobalLog,
     LogEvent,
     LogLevel,
     Reporter,
+    TarballWarningLog,
     emit_global_warning,
 };
 use pnpm_resolving_default_resolver::standalone::{
@@ -221,11 +227,20 @@ fn store_resolve_options(dir: &Path) -> ResolveOptions {
 /// the rest, which leaves this line as the only place the cause
 /// is reported, so it carries the code the top-level handler
 /// would otherwise have printed.
-fn report_add_failure<Reporter: self::Reporter>(error: &miette::Report) {
+fn report_add_failure<Reporter: self::Reporter>(error: &miette::Report, tarball: Option<&str>) {
     let code = error
         .code()
         .map_or_else(String::new, |code| format!("{code}: "));
-    emit_global_warning::<Reporter>(&format!("{code}{error}"));
+    if let Some(tarball) = tarball {
+        let display = redact_specifier_for_display(tarball);
+        let cause = redact_and_sanitize(&error.to_string().replace(tarball, &display));
+        Reporter::emit(&LogEvent::TarballWarning(TarballWarningLog {
+            log: GlobalLog { level: LogLevel::Warn, message: format!("{display}: {code}{cause}") },
+            tarball: display,
+        }));
+    } else {
+        emit_global_warning::<Reporter>(&format!("{code}{error}"));
+    }
 }
 
 /// Everything one specifier's resolve-and-fetch needs. Grouped so the
@@ -291,11 +306,8 @@ impl<'a> AddOne<'a> {
             .buffer_unordered(self.config.network_concurrency.max(1))
             .fold(AddAllOutcome::default(), |mut all, outcome| {
                 match outcome {
-                    Ok(package_id) => all.added.push(package_id),
-                    Err(error) => {
-                        report_add_failure::<Reporter>(&error);
-                        all.has_failures = true;
-                    }
+                    Some(package_id) => all.added.push(package_id),
+                    None => all.has_failures = true,
                 }
                 std::future::ready(all)
             })
@@ -304,15 +316,31 @@ impl<'a> AddOne<'a> {
 
     /// Resolve one specifier and pull its tarball into the store, returning
     /// the package id pnpm reports it under.
-    async fn add_one<Reporter: self::Reporter>(&self, package: &str) -> miette::Result<String> {
-        let resolved = self.resolve(package).await?;
+    async fn add_one<Reporter: self::Reporter>(&self, package: &str) -> Option<String> {
+        let resolved = self
+            .resolve(package)
+            .await
+            .inspect_err(|error| {
+                let tarball =
+                    has_http_scheme(package) || pnpm_local_spec::is_tarball_filename(package);
+                if tarball {
+                    report_add_failure::<Reporter>(error, Some(package));
+                } else {
+                    emit_global_warning::<Reporter>(&format!(
+                        "{}: {error}",
+                        redact_specifier_for_display(package),
+                    ));
+                }
+            })
+            .ok()?;
         let package_id = resolved.id.to_string();
         let Some((package_url, integrity)) = archive_to_fetch(&resolved.resolution) else {
-            return Err(UnsupportedSpecError {
+            let error = UnsupportedSpecError {
                 package: package.to_owned(),
                 resolved_via: resolved.resolved_via,
-            }
-            .into());
+            };
+            report_add_failure::<Reporter>(&error.into(), None);
+            return None;
         };
 
         let archive = ArchiveToAdd {
@@ -320,13 +348,26 @@ impl<'a> AddOne<'a> {
             id: &package_id,
             manifest: resolved.package.manifest.as_deref(),
         };
+        self.fetch_archive::<Reporter>(&archive, &resolved.resolved_via, integrity.as_ref())
+            .await
+            .inspect_err(|error| report_add_failure::<Reporter>(error, Some(package_url)))
+            .ok()?;
+        Some(package_id)
+    }
+
+    async fn fetch_archive<Reporter: self::Reporter>(
+        &self,
+        archive: &ArchiveToAdd<'_>,
+        resolved_via: &str,
+        integrity: Option<&Integrity>,
+    ) -> miette::Result<()> {
         let lockfile_dir = &self.resolve_options.project.lockfile_dir;
         if let Some(path) =
-            downloaded_tarball::tarball_on_disk(&resolved.resolved_via, package_url, lockfile_dir)
+            downloaded_tarball::tarball_on_disk(resolved_via, archive.url, lockfile_dir)
         {
-            self.add_downloaded_tarball::<Reporter>(&path, &archive).await?;
+            self.add_downloaded_tarball::<Reporter>(&path, archive).await
         } else {
-            let ingestion = self.ingestion(&archive, integrity.as_ref());
+            let ingestion = self.ingestion(archive, integrity);
             if integrity.is_some() {
                 ingestion
                     .run_without_mem_cache::<Reporter>()
@@ -338,10 +379,8 @@ impl<'a> AddOne<'a> {
                     .await
                     .map(|_| ())
             }
-            .map_err(miette::Report::new)?;
+            .map_err(miette::Report::new)
         }
-
-        Ok(package_id)
     }
 
     fn ingestion<'r>(
@@ -397,6 +436,6 @@ impl<'a> AddOne<'a> {
         self.resolver
             .resolve(&wanted, self.resolve_options)
             .await
-            .map_err(|error| miette::miette!("{package}: {error}"))
+            .map_err(|error| miette::miette!("{error}"))
     }
 }

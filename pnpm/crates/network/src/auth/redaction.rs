@@ -113,6 +113,29 @@ pub fn redact_url_for_display(url: &str) -> String {
     display.to_string()
 }
 
+/// Whether a specifier starts with an HTTP or HTTPS scheme.
+#[must_use]
+pub fn has_http_scheme(specifier: &str) -> bool {
+    specifier
+        .split_once(':')
+        .is_some_and(|(scheme, _)| {
+            scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https")
+        })
+}
+
+/// The display-safe form of an alias-less selector, which may be a local
+/// path or a URL. A URL loses its credentials, query, and fragment; a path
+/// is only stripped of control characters, since it carries no secret and
+/// naming it is the whole point of the message.
+#[must_use]
+pub fn redact_specifier_for_display(specifier: &str) -> String {
+    if has_http_scheme(specifier) {
+        redact_url_for_display(specifier)
+    } else {
+        redact_and_sanitize(specifier)
+    }
+}
+
 fn sanitize_control_characters(text: &str) -> String {
     text.chars()
         .filter(|character| !character.is_control())

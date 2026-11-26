@@ -7,6 +7,7 @@ use pnpm_config::Config;
 use pnpm_network::{
     ThrottledClient,
     redact_and_sanitize,
+    redact_specifier_for_display,
     redact_url_for_display,
 };
 use pnpm_package_manifest::PackageManifest;
@@ -259,17 +260,6 @@ pub(super) fn redact_url_token(token: &str) -> String {
         .find(['?', '#'])
         .unwrap_or(token.len())]
         .to_string()
-}
-/// The display-safe form of an alias-less selector, which may be a local
-/// path or a URL. A URL loses its credentials, query, and fragment; a path
-/// is only stripped of control characters, since it carries no secret and
-/// naming it is the whole point of the message.
-pub(super) fn redact_specifier_for_display(specifier: &str) -> String {
-    if specifier.starts_with("http:") || specifier.starts_with("https:") {
-        redact_url_for_display(specifier)
-    } else {
-        redact_and_sanitize(specifier)
-    }
 }
 /// The `name` an alias-less selector's own manifest declares. The name keys
 /// the project's manifest entry and names the `node_modules` directory the

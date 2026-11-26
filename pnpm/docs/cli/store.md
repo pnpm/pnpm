@@ -39,6 +39,9 @@ pnpm store add ./tarballs
 pnpm install --offline --frozen-lockfile
 ```
 
+If a tarball fails to fetch or extract, the warning identifies the archive and
+gives the cause. With `--reporter=ndjson`, the warning includes a `tarball` field.
+
 An install takes a package from such a tarball when its lockfile entry pins
 that tarball. The entry's `integrity` can be the tarball's sha512 or sha1, or the
 hash of the uncompressed tar inside it, which

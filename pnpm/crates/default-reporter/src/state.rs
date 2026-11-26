@@ -425,7 +425,10 @@ impl ReporterState {
             // `pnpm:global` shares the "other" log stream with the `pnpm`
             // channel but carries no prefix, so it always renders (the
             // empty-prefix path in `on_pnpm`).
-            LogEvent::Global(log) => self.on_pnpm(log.level, &log.message, ""),
+            LogEvent::Global(log)
+            | LogEvent::TarballWarning(pnpm_reporter::TarballWarningLog { log, .. }) => {
+                self.on_pnpm(log.level, &log.message, "");
+            }
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             LogEvent::Hook(log) => self.on_hook(log),
             LogEvent::Deprecation(log) => self.on_deprecation(log),
@@ -452,6 +455,7 @@ impl ReporterState {
             | LogEvent::InstallCheck(_)
             | LogEvent::Pnpm(_)
             | LogEvent::Global(_)
+            | LogEvent::TarballWarning(_)
             | LogEvent::DedupeCheck(_)
             | LogEvent::Lifecycle(_) => true,
             LogEvent::IgnoredScripts(_)

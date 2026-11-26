@@ -32,6 +32,7 @@ use pnpm_resolving_resolver_base::{
 use pnpm_tarball::{
     FetchTarballForResolution,
     MemCache,
+    NetworkError,
     PrefetchIntegrityCheck,
     PrefetchResult,
     RetryOpts,
@@ -253,7 +254,7 @@ impl TarballResolver {
             .request(method, url)
             .send()
             .await
-            .map_err(|err| Box::new(err) as ResolveError)
+            .map_err(|error| Box::new(NetworkError::new(url, error)) as ResolveError)
     }
 
     /// Reuse an already-extracted store entry for the dependency whose

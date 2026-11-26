@@ -176,6 +176,34 @@ fn refuses_a_pax_size_that_is_not_plain_digits() {
 }
 
 #[test]
+fn ignores_multiline_package_metadata_and_reads_the_next_record() {
+    let records =
+        [("NODETAR.package.description", "first line\nsecond line"), ("path", "package/index.js")];
+    let tar = [pax(b'x', &records), file("placeholder", b"contents"), END.to_vec()].concat();
+    assert_index_js(&tar, b"contents");
+    let error = tar::Archive::new(tar.as_slice())
+        .entries()
+        .unwrap()
+        .next()
+        .unwrap()
+        .err()
+        .expect("strict reader accepted multiline metadata");
+    assert!(error.to_string().contains("malformed PAX extended header record"));
+}
+
+#[test]
+fn refuses_ambiguous_multiline_metadata() {
+    for (key, value) in [
+        ("NODETAR.package.description", "first line\nordinary text\n\u{feff}  +123 text"),
+        ("path", "first line\nsecond line"),
+    ] {
+        let tar =
+            [pax(b'x', &[(key, value)]), file("placeholder", b"contents"), END.to_vec()].concat();
+        assert_refused(&tar, "malformed PAX extended header record");
+    }
+}
+
+#[test]
 fn refuses_a_malformed_pax_record() {
     let body = format!("99 junk=1\n{}", pax_record("size", "512"));
     let tar = [

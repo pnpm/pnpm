@@ -1106,6 +1106,70 @@ fn store_operation_lock_lives_in_the_xdg_runtime_dir() {
 }
 
 #[test]
+fn store_add_warns_which_tarball_in_a_directory_failed() {
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let dir = workspace.join("archives");
+    fs::create_dir(&dir).unwrap();
+    fs::write(dir.join("broken.tgz"), b"incomplete archive").unwrap();
+
+    let output = pacquet
+        .with_args(["store", "add", "./archives", "--reporter=ndjson"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let warning = tarball_warning(&stderr);
+    let tarball = warning["tarball"].as_str().unwrap();
+    assert!(tarball.ends_with("broken.tgz"), "{warning}");
+    let message = warning["message"].as_str().unwrap();
+    assert!(message.contains(tarball) && message.contains("ERR_PNPM_"), "{warning}");
+}
+
+#[test]
+fn store_add_redacts_a_mixed_case_url_in_the_tarball_warning() {
+    let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init();
+    let input = "hTtPs://127.0.0.1:1/example.tgz?token=sample-query#sample-fragment";
+    let output = pacquet
+        .with_args(["store", "add", input, "--offline", "--reporter=ndjson"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let warning = tarball_warning(&String::from_utf8_lossy(&output.stderr));
+    let display = "https://127.0.0.1:1/example.tgz";
+    assert_eq!(warning["tarball"], display);
+    let message = warning["message"].as_str().unwrap();
+    assert!(message.contains(display), "{warning}");
+    assert!(!message.contains("sample-query") && !message.contains("sample-fragment"), "{warning}");
+}
+
+#[test]
+fn store_add_redacts_the_normalized_url_in_a_preflight_error() {
+    let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init();
+    let input = "https://example.invalid:443/archive.tgz?token=sample-query";
+    let output = pacquet
+        .with_args(["store", "add", input, "--reporter=ndjson"])
+        .with_env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let warning = tarball_warning(&String::from_utf8_lossy(&output.stderr));
+    assert_eq!(warning["tarball"], "https://example.invalid/archive.tgz");
+    let message = warning["message"].as_str().unwrap();
+    assert!(message.contains("request"), "{warning}");
+    assert!(!message.contains("sample-query"), "{warning}");
+}
+
+fn tarball_warning(stderr: &str) -> serde_json::Value {
+    stderr
+        .lines()
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
+        .filter(|event| event["level"] == "warn")
+        .find(|event| event["tarball"].is_string())
+        .unwrap_or_else(|| panic!("missing per-tarball warning: {stderr}"))
+}
+
+#[test]
 fn store_add_fails_when_a_package_cannot_be_fetched() {
     let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init().add_mocked_registry();
 
