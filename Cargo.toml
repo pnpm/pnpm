@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["pnpm/crates/*", "pnpm/tasks/*", "pnpr/crates/*"]
+members = ["pnpm/crates/*", "pnpm/tasks/*", "pnpr/crates/*", "pnpz/crates/*"]
 exclude = ["vendor/tar", "vendor/deno_task_shell"]
 
 [workspace.package]
@@ -140,6 +140,7 @@ pnpr-libsql = { path = "pnpr/crates/libsql" }
 pnpr-oci = { path = "pnpr/crates/oci" }
 pnpr-osv = { path = "pnpr/crates/osv" }
 pnpr-package-name = { path = "pnpr/crates/package-name" }
+pnpz-nix-store = { path = "pnpz/crates/nix-store" }
 pnpr-policy = { path = "pnpr/crates/policy" }
 pnpr-pypi = { path = "pnpr/crates/pypi" }
 pnpr-registry = { path = "pnpr/crates/registry" }
@@ -227,6 +228,8 @@ owo-colors = { version = "4.4.0", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.33" }
 junction = { version = "2.1.0" }
 libc = { version = "0.2.191" }
+lzma-rust2 = { version = "0.26.0" }
+nix = { version = "0.32.0", features = ["fs", "mount", "sched", "user"] }
 reqwest = { version = "0.13.5", default-features = false, features = [
   "gzip",
   "json",

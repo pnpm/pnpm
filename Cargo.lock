@@ -3741,6 +3741,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 
 [[package]]
+name = "lzma-rust2"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c7861572250348d13073a9035c6a83f3e583ec9a76a65ce92f338fe1107d8f5"
+dependencies = [
+ "sha2 0.11.1",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7831,6 +7840,48 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "pnpz"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "bytes",
+ "clap",
+ "derive_more",
+ "ed25519-dalek 2.2.0",
+ "futures-util",
+ "home",
+ "lzma-rust2",
+ "miette 7.6.0",
+ "mockito",
+ "nix 0.32.0",
+ "pnpm-diagnostics",
+ "pnpm-network",
+ "pnpz-nix-store",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "yaml_serde",
+ "zstd",
+]
+
+[[package]]
+name = "pnpz-nix-store"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "derive_more",
+ "ed25519-dalek 2.2.0",
+ "miette 7.6.0",
+ "pretty_assertions",
+ "serde",
+ "sha2 0.10.9",
+ "tempfile",
 ]
 
 [[package]]

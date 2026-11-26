@@ -1,0 +1,10 @@
+StorePath: /nix/store/v7wvwm1bpm6kzlqgw33m98arm7sw40ln-python3-3.12.15
+URL: nar/07hqdal6imym5wmbzccfywkr4px1fkyq8cklhasrnc3gvvh2jfv8.nar.zst
+Compression: zstd
+FileHash: sha256:0lm2dh7nrp4s09sn61wdksf9p6pwmx85pqlkprwv6m4h01jspafv
+FileSize: 55621279
+NarHash: sha256:07hqdal6imym5wmbzccfywkr4px1fkyq8cklhasrnc3gvvh2jfv8
+NarSize: 133904224
+References: 10dxp0qxqxxsyiljrh2kp0xqhz6arhcx-bash-5.3p15 328fx8r0jb6l2ai4cli7fhp8g26fbfnh-util-linux-minimal-2.42.3-lib 67v4318ajiy9ia2wz14hqj7idy5181is-gdbm-1.26-lib 9j086va2zn7ifgdc3h3jlqbi2c23j1x5-mailcap-2.1.54 9x0m6s73sg89fv5awb95vsac2mbns8n0-sqlite-3.53.3 cq65g1vyyiklplv6n2fgrjwxa6b4xfs9-mpdecimal-4.0.1 cxd8d2vg70c3pa31v2473hphaa1v0j44-openssl-3.5.8 h4wfwic161kxrr74jlzla5lsm28hgary-glibc-2.44-25 hzqwc6pv8sb9qrwivc4h42cr811gs1mk-ncurses-6.6 j7qx4s4mr17j1wqgvqdzj33lmrnzb387-gcc-16.2.0-lib mpqgjnlmzy3c5hslbgyc3s7zfz3m32lg-bzip2-1.0.8 n8fqcpnr5ni28l3i9svqa70wz46798v9-tzdata-2026d pi2b23y3gv6zgcziwbgnihf8gam1cmlp-libffi-3.8.0 v7wvwm1bpm6kzlqgw33m98arm7sw40ln-python3-3.12.15 vkwq2iap75p0srizppc3jl2j5b1lxpln-xz-5.8.4 wgw25d181h0qks7qsfp1bh7c5nd3f0s7-zlib-1.3.2 wx1y0adli2qggk81pm4marx3km1scqxg-libxcrypt-4.5.2 xnam05aa3vc7aqbbdixpwcdb8dpv71xn-readline-8.3p3 zrkqwk0989k5wa1gn3cjb76jfga3d8i3-expat-2.8.5
+Deriver: 3bm2l95g22hyn7gniwy1npncpjiw8m7v-python3-3.12.15.drv
+Sig: cache.nixos.org-1:6ylX1iyi9aaGIxiO2iIa/aVoBPKea3isQsCjQbcIo0tZApIfKjIBHpLT+tSVjkW1y3u9TvL1eKiW1HRjHxR6Aw==

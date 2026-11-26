@@ -1,0 +1,28 @@
+[package]
+name = "pnpz-nix-store"
+version = "0.0.1"
+publish = false
+authors = ["pnpm contributors"]
+description = "Nix store paths, NAR archives, and binary cache metadata"
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+derive_more = { workspace = true }
+ed25519-dalek = { workspace = true }
+miette = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+
+[target.'cfg(unix)'.dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

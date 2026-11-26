@@ -1,0 +1,50 @@
+[package]
+name = "pnpz"
+version = "0.0.1"
+publish = false
+authors = ["pnpm contributors"]
+description = "System packages from the Nix binary cache, without Nix"
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "pnpz"
+path = "src/main.rs"
+
+[target.'cfg(unix)'.dependencies]
+pnpm-diagnostics = { workspace = true }
+pnpm-network = { workspace = true }
+pnpz-nix-store = { workspace = true }
+
+bytes = { workspace = true }
+clap = { workspace = true }
+derive_more = { workspace = true }
+futures-util = { workspace = true }
+home = { workspace = true }
+lzma-rust2 = { workspace = true }
+miette = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+yaml_serde = { workspace = true }
+zstd = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { workspace = true }
+
+[target.'cfg(unix)'.dev-dependencies]
+base64 = { workspace = true }
+ed25519-dalek = { workspace = true }
+mockito = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
