@@ -49,6 +49,7 @@ pub use progress::{
     StatsLog,
     StatsMessage,
     SummaryLog,
+    TarballWarningLog,
 };
 
 use serde::Serialize;
@@ -246,6 +247,10 @@ pub enum LogEvent {
     /// log stream.
     #[serde(rename = "pnpm:global")]
     Global(GlobalLog),
+
+    /// A global warning identifying the archive that failed to fetch or extract.
+    #[serde(rename = "pnpm:global")]
+    TarballWarning(TarballWarningLog),
 
     /// One per `context.log(...)` call a pnpmfile hook makes while it
     /// runs (`pnpm:hook`). `readPackage` and `afterAllResolved` hooks

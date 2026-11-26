@@ -113,6 +113,19 @@ pub fn redact_url_for_display(url: &str) -> String {
     display.to_string()
 }
 
+/// The display-safe form of an alias-less selector, which may be a local
+/// path or a URL. A URL loses its credentials, query, and fragment; a path
+/// is only stripped of control characters, since it carries no secret and
+/// naming it is the whole point of the message.
+#[must_use]
+pub fn redact_specifier_for_display(specifier: &str) -> String {
+    if specifier.starts_with("http:") || specifier.starts_with("https:") {
+        redact_url_for_display(specifier)
+    } else {
+        redact_and_sanitize(specifier)
+    }
+}
+
 fn sanitize_control_characters(text: &str) -> String {
     text.chars()
         .filter(|character| !character.is_control())

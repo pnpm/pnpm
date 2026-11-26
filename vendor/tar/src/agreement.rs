@@ -102,7 +102,7 @@ pub(crate) fn check_pax_records(payload: &[u8], global: bool) -> io::Result<()> 
     let mut keys = HashSet::new();
     let mut rest = text;
     while !rest.is_empty() {
-        let (key, value, len) = parse_pax_record(rest)?;
+        let (key, value, len) = parse_pax_record(rest, false)?;
         if !keys.insert(key) {
             return Err(other(&format!("PAX extended header sets `{}` more than once", key)));
         }
@@ -125,7 +125,11 @@ pub(crate) fn keep_last_pax_records(payload: &[u8]) -> io::Result<Vec<u8>> {
     let mut last_index = HashMap::new();
     let mut rest = text;
     while !rest.is_empty() {
-        let (key, _, len) = parse_pax_record(rest)?;
+        let (key, value, len) = parse_pax_record(rest, true)?;
+        if value.contains('\n') {
+            rest = &rest[len..];
+            continue;
+        }
         last_index.insert(key, records.len());
         records.push((key, &rest[..len]));
         rest = &rest[len..];
@@ -144,7 +148,7 @@ pub(crate) fn keep_last_pax_records(payload: &[u8]) -> io::Result<Vec<u8>> {
 ///
 /// The length has no leading zero because node-tar finds the key by the
 /// width of the number it parsed, not by the position of the space.
-fn parse_pax_record(text: &str) -> io::Result<(&str, &str, usize)> {
+fn parse_pax_record(text: &str, read_like_node_tar: bool) -> io::Result<(&str, &str, usize)> {
     let malformed = || other("malformed PAX extended header record");
     let (digits, _) = text.split_once(' ').ok_or_else(malformed)?;
     if digits.is_empty()
@@ -159,14 +163,33 @@ fn parse_pax_record(text: &str) -> io::Result<(&str, &str, usize)> {
         .get(digits.len() + 1..)
         .and_then(|rest| rest.strip_suffix('\n'))
         .ok_or_else(malformed)?;
-    if key_value.contains('\n') {
+    let (key, value) = key_value.split_once('=').ok_or_else(malformed)?;
+    if key.is_empty() || key.contains('\n') {
         return Err(malformed());
     }
-    let (key, value) = key_value.split_once('=').ok_or_else(malformed)?;
-    if key.is_empty() {
+    if value.contains('\n') && !(read_like_node_tar && ignored_multiline_metadata(key, value)) {
         return Err(malformed());
     }
     Ok((key, value, len))
+}
+
+/// node-tar reads physical lines. The first line is shorter than the declared
+/// record length. Skip the record only if no continuation can start with a
+/// decimal length after JavaScript whitespace and an optional sign.
+fn ignored_multiline_metadata(key: &str, value: &str) -> bool {
+    key.starts_with("NODETAR.package.")
+        && !value.contains('\0')
+        && value
+            .split('\n')
+            .skip(1)
+            .all(|line| {
+                let line =
+                    line.trim_start_matches(|ch: char| ch.is_whitespace() || ch == '\u{feff}');
+                let digits = line
+                    .strip_prefix(['+', '-'])
+                    .unwrap_or(line);
+                !digits.starts_with(|ch: char| ch.is_ascii_digit())
+            })
 }
 
 /// Reads the `size` record of a payload that [`check_pax_records`] accepted.
@@ -179,7 +202,7 @@ pub(crate) fn pax_size(payload: &[u8]) -> io::Result<Option<u64>> {
         return Ok(None);
     };
     while !rest.is_empty() {
-        let (key, value, len) = parse_pax_record(rest)?;
+        let (key, value, len) = parse_pax_record(rest, false)?;
         if key == PAX_SIZE {
             return parse_pax_size(value).map(Some);
         }

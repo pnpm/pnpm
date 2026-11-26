@@ -25,6 +25,7 @@ pub use auth::{
     redact_and_sanitize,
     redact_and_sanitize_multiline,
     redact_npm_auth_key,
+    redact_specifier_for_display,
     redact_url_credentials,
     redact_url_for_display,
     scoped_redirect_auth,

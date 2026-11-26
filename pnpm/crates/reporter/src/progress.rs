@@ -1,4 +1,5 @@
 use super::{
+    GlobalLog,
     LogLevel,
     Serialize,
 };
@@ -193,4 +194,11 @@ pub struct StatsLog {
 pub enum StatsMessage {
     Added { prefix: String, added: u64 },
     Removed { prefix: String, removed: u64 },
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TarballWarningLog {
+    #[serde(flatten)]
+    pub log: GlobalLog,
+    pub tarball: String,
 }
