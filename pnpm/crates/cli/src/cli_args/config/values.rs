@@ -278,7 +278,7 @@ fn auth_value(config: &Config, key: &str) -> Value {
     config.raw_auth_config
         .get(key)
         .cloned()
-        .map_or(Value::Null, Value::String)
+        .unwrap_or(Value::Null)
 }
 
 /// `lookupByPropertyPath`: resolve a (possibly nested) property path against the
@@ -354,7 +354,7 @@ fn config_to_record(config: &Config) -> Map<String, Value> {
     merge_default_catalog(&mut result);
     absolutize_patch_paths(&mut result, config);
     for (key, value) in &config.raw_auth_config {
-        result.entry(key.clone()).or_insert_with(|| Value::String(value.clone()));
+        result.entry(key.clone()).or_insert_with(|| value.clone());
     }
     // The `registry` / `@scope:registry` rows show the merged routes (the
     // values `config get` answers) so a raw `.npmrc` row cannot contradict

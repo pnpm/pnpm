@@ -500,8 +500,8 @@ fn resolved_config_views(
 /// to name one. `pnpm config list` merges them the same way.
 fn resolved_auth_config(config: &Config, registries_by_scope: &BTreeMap<String, String>) -> Value {
     let mut auth_config: serde_json::Map<String, Value> = config.raw_auth_config
-        .iter()
-        .map(|(k, v)| (k.clone(), Value::String(v.clone())))
+        .clone()
+        .into_iter()
         .collect();
     for (scope, url) in registries_by_scope {
         let key =

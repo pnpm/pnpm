@@ -1,4 +1,9 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+};
+
+use serde_json::Value;
 
 use super::{
     Config,
@@ -229,6 +234,25 @@ fn is_dlx_stripped_npmrc_key(key: &str) -> bool {
         .any(|suffix| key.ends_with(suffix))
 }
 
+/// [`NpmrcAuth::raw_ini_config`] keeps only the last value of each key, so
+/// `ca` comes from the inline CA list, which keeps every entry and merges
+/// across sources the same way.
+fn raw_auth_config(auth: &mut NpmrcAuth) -> BTreeMap<String, Value> {
+    let mut raw: BTreeMap<String, Value> = std::mem::take(&mut auth.raw_ini_config)
+        .into_iter()
+        .map(|(key, value)| (key, Value::String(value)))
+        .collect();
+    if auth.tls.ca.len() > 1 {
+        let entries = auth.tls.ca
+            .iter()
+            .cloned()
+            .map(Value::String)
+            .collect();
+        raw.insert("ca".to_string(), Value::Array(entries));
+    }
+    raw
+}
+
 fn clear_dlx_untrusted_project_npmrc(auth: &mut NpmrcAuth) {
     auth.proxy = crate::npmrc_auth::NpmrcProxy::default();
     auth.tls = crate::npmrc_auth::NpmrcTls::default();
@@ -399,7 +423,7 @@ impl Config {
         // Retain the merged raw `.npmrc` / `auth.ini` config keys for
         // `pnpm config get` / `pnpm config list` before the structured fields
         // are consumed below.
-        self.raw_auth_config = std::mem::take(&mut npmrc_auth.raw_ini_config);
+        self.raw_auth_config = raw_auth_config(&mut npmrc_auth);
 
         npmrc_auth.move_warnings_to(self);
         let trusted_auth = merge_auth_sources(trusted_sources);

@@ -287,7 +287,9 @@ pub fn cli_config_auth_outranks_url_scoped_env_and_project_npmrc() {
         Some("Bearer cli-token"),
     );
     assert_eq!(
-        config.raw_auth_config.get("//env2e.example.com/:_authToken").map(String::as_str),
+        config.raw_auth_config
+            .get("//env2e.example.com/:_authToken")
+            .and_then(serde_json::Value::as_str),
         Some("cli-token"),
     );
 }
@@ -687,7 +689,9 @@ pub fn rescoped_token_helper_is_reported_under_its_pinned_key() {
     let config = load_with_project_and_user("", user_file);
 
     assert_eq!(
-        config.raw_auth_config.get("//trusted.example.com/:tokenHelper").map(String::as_str),
+        config.raw_auth_config
+            .get("//trusted.example.com/:tokenHelper")
+            .and_then(serde_json::Value::as_str),
         Some("/bin/echo"),
     );
 }

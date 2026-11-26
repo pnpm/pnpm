@@ -1982,8 +1982,11 @@ pub struct Config {
     /// [`config_types::is_ini_config_key`](crate::config_types::is_ini_config_key) holds: `registry`, `@scope:registry`,
     /// `//host/:_authToken`, `username`, `ca`, ...), post-`${VAR}` substitution
     /// and merged across sources. The raw auth-config map, consumed by
-    /// `pnpm config get` / `pnpm config list`.
-    pub raw_auth_config: BTreeMap<String, String>,
+    /// `pnpm config get` / `pnpm config list` and passed to pnpmfile hooks.
+    ///
+    /// Each value is a string, except `ca`: an array when more than one
+    /// `ca` or `ca[]` entry is in effect, so no CA is hidden.
+    pub raw_auth_config: BTreeMap<String, serde_json::Value>,
 
     /// The global pnpm config directory (`<configDir>`), where `config.yaml`
     /// and `auth.ini` live. `None` when it cannot be determined. Consumed by
