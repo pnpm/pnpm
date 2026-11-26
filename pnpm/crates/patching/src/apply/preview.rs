@@ -9,6 +9,7 @@ use super::{
 use diffy::patch_set::{
     FileOperation,
     FilePatch,
+    PatchKind,
 };
 use indexmap::IndexSet;
 use std::{
@@ -63,6 +64,7 @@ pub fn preview_patch(
     let mut state = PreviewState {
         patched_dir,
         patch_file_path,
+        patch_text: &text,
         preview: PatchPreview::default(),
         // Written paths are tracked as a set so a delete record costs one
         // lookup rather than a scan of everything written so far, and
@@ -96,6 +98,8 @@ pub fn preview_patch(
 struct PreviewState<'a> {
     patched_dir: &'a Path,
     patch_file_path: &'a Path,
+    /// The text the records were parsed from.
+    patch_text: &'a str,
     preview: PatchPreview,
     written_paths: IndexSet<String>,
     removed_paths: IndexSet<String>,
@@ -172,17 +176,23 @@ impl PreviewState<'_> {
     ) -> Result<(), PatchApplyError> {
         let target = self.patched_dir.join(MANIFEST_FILE_NAME);
         self.manifest_removed = false;
-        let text_patch = file_patch
-            .patch()
-            .as_text()
-            .ok_or_else(|| self.failed("binary patch is not supported".to_string()))?;
-        self.preview.manifest = Some(match tolerant::apply(&original, text_patch) {
-            Ok(updated) => updated,
-            Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => original,
-            Err(message) => {
-                return Err(self.failed(format!("apply to {}: {message}", target.display())));
-            }
-        });
+        let updated = match file_patch.patch() {
+            PatchKind::Text(text_patch) => match tolerant::apply(&original, text_patch) {
+                Ok(updated) => updated,
+                Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => original,
+                Err(message) => {
+                    return Err(self.failed(format!("apply to {}: {message}", target.display())));
+                }
+            },
+            PatchKind::Binary(binary_patch) => super::binary::preview_binary_manifest(
+                self.patch_text,
+                file_patch.operation(),
+                binary_patch,
+                original,
+            )
+            .map_err(|message| self.failed(format!("apply to {}: {message}", target.display())))?,
+        };
+        self.preview.manifest = Some(updated);
         Ok(())
     }
 

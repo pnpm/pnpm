@@ -1,3 +1,4 @@
+pub use error::PatchApplyError;
 pub use preview::{
     MANIFEST_FILE_NAME,
     PatchPreview,
@@ -5,14 +6,12 @@ pub use preview::{
 };
 
 mod atomic_write;
+mod binary;
+mod error;
 mod preview;
 mod tolerant;
 
 use atomic_write::write_atomic_with_mode;
-use derive_more::{
-    Display,
-    Error,
-};
 use diffy::{
     Patch,
     patch_set::{
@@ -20,10 +19,10 @@ use diffy::{
         FileOperation,
         FilePatch,
         ParseOptions,
+        PatchKind,
         PatchSet,
     },
 };
-use miette::Diagnostic;
 use std::{
     fs,
     io,
@@ -33,46 +32,6 @@ use std::{
         PathBuf,
     },
 };
-
-/// Error from [`apply_patch_to_dir`].
-///
-/// Diagnostic codes:
-///
-/// - `ERR_PNPM_PATCH_NOT_FOUND`, the patch file is missing.
-/// - `ERR_PNPM_INVALID_PATCH`, the patch file can't be parsed.
-/// - `ERR_PNPM_PATCH_FAILED`, a hunk wouldn't apply, the target
-///   file is missing, or an IO error hit a target path.
-#[derive(Debug, Display, Error, Diagnostic)]
-pub enum PatchApplyError {
-    #[display("Patch file not found: {}", path.display())]
-    #[diagnostic(code(ERR_PNPM_PATCH_NOT_FOUND))]
-    PatchNotFound { path: PathBuf },
-
-    #[display("Failed to read patch file {}: {source}", path.display())]
-    #[diagnostic(code(ERR_PNPM_PATCH_NOT_FOUND))]
-    ReadPatchFile {
-        path: PathBuf,
-        #[error(source)]
-        source: io::Error,
-    },
-
-    #[display("Applying patch \"{}\" failed: {message}", patch_file_path.display())]
-    #[diagnostic(code(ERR_PNPM_INVALID_PATCH))]
-    InvalidPatch {
-        patch_file_path: PathBuf,
-        #[error(not(source))]
-        message: String,
-    },
-
-    #[display("Could not apply patch {} to {}: {message}", patch_file_path.display(), patched_dir.display())]
-    #[diagnostic(code(ERR_PNPM_PATCH_FAILED))]
-    PatchFailed {
-        patch_file_path: PathBuf,
-        patched_dir: PathBuf,
-        #[error(not(source))]
-        message: String,
-    },
-}
 
 /// Apply a unified-diff patch file to every modified/created/deleted
 /// file inside `patched_dir`.
@@ -102,8 +61,14 @@ pub fn apply_patch_to_dir(
         })?;
     let text = read_patch_text(patch_file_path)?;
 
+    let apply = FileApply {
+        patched_dir,
+        canonical_dir: &canonical_dir,
+        patch_file_path,
+        patch_text: &text,
+    };
     for file_patch in parse_file_patches(&text, patch_file_path) {
-        apply_one_file(patched_dir, &canonical_dir, patch_file_path, &file_patch?)?;
+        apply.apply_one_file(&file_patch?)?;
     }
     Ok(())
 }
@@ -187,43 +152,47 @@ fn read_patch_file(patch_file_path: &Path) -> Result<String, PatchApplyError> {
     }
 }
 
-fn apply_one_file(
-    patched_dir: &Path,
-    canonical_dir: &Path,
-    patch_file_path: &Path,
-    file_patch: &FilePatch<'_, str>,
-) -> Result<(), PatchApplyError> {
-    let operation = package_relative_operation(file_patch);
-    let apply = FileApply { patched_dir, canonical_dir, patch_file_path };
-
-    let text_patch = || {
-        file_patch
-            .patch()
-            .as_text()
-            .ok_or_else(|| apply.failed("binary patch is not supported".to_string()))
-    };
-    match operation {
-        FileOperation::Modify { modified, .. } => apply.modify(
-            &apply.resolve_target(Path::new(modified.as_ref()))?,
-            text_patch()?,
-            file_patch.new_mode(),
-        ),
-        FileOperation::Create(path) => apply.create(
-            &apply.resolve_target(Path::new(path.as_ref()))?,
-            text_patch()?,
-            file_patch.new_mode(),
-        ),
-        FileOperation::Delete(path) => {
-            apply.delete(&apply.resolve_target(Path::new(path.as_ref()))?, text_patch()?)
+impl FileApply<'_> {
+    fn apply_one_file(&self, file_patch: &FilePatch<'_, str>) -> Result<(), PatchApplyError> {
+        let operation = package_relative_operation(file_patch);
+        match file_patch.patch() {
+            PatchKind::Binary(binary_patch) => {
+                self.binary_operation(&operation, binary_patch, file_patch.new_mode())
+            }
+            PatchKind::Text(text_patch) => {
+                self.text_operation(&operation, text_patch, file_patch.new_mode())
+            }
         }
-        FileOperation::Rename { from, to } => apply.rename(
-            &apply.resolve_target(Path::new(from.as_ref()))?,
-            &apply.resolve_target(Path::new(to.as_ref()))?,
-            text_patch()?,
-            file_patch.new_mode(),
-        ),
-        FileOperation::Copy { .. } => {
-            Err(apply.failed("copy operations in patches are not yet supported".to_string()))
+    }
+
+    /// Apply one text record, dispatching on the operation.
+    fn text_operation(
+        &self,
+        operation: &FileOperation<'_, str>,
+        text_patch: &Patch<'_, str>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        match operation {
+            FileOperation::Modify { modified, .. } => self.modify(
+                &self.resolve_target(Path::new(modified.as_ref()))?,
+                text_patch,
+                new_mode,
+            ),
+            FileOperation::Create(path) => {
+                self.create(&self.resolve_target(Path::new(path.as_ref()))?, text_patch, new_mode)
+            }
+            FileOperation::Delete(path) => {
+                self.delete(&self.resolve_target(Path::new(path.as_ref()))?, text_patch)
+            }
+            FileOperation::Rename { from, to } => self.rename(
+                &self.resolve_target(Path::new(from.as_ref()))?,
+                &self.resolve_target(Path::new(to.as_ref()))?,
+                text_patch,
+                new_mode,
+            ),
+            FileOperation::Copy { .. } => {
+                Err(self.failed("copy operations in patches are not yet supported".to_string()))
+            }
         }
     }
 }
@@ -242,10 +211,12 @@ pub(super) fn package_relative_operation<'patch>(
 }
 
 /// One patch record being applied to one file of `patched_dir`.
-struct FileApply<'a> {
+pub(super) struct FileApply<'a> {
     patched_dir: &'a Path,
     canonical_dir: &'a Path,
     patch_file_path: &'a Path,
+    /// The text the records were parsed from.
+    patch_text: &'a str,
 }
 
 impl FileApply<'_> {
@@ -382,6 +353,18 @@ impl FileApply<'_> {
         text_patch: &Patch<'_, str>,
         new_mode: Option<&FileMode>,
     ) -> Result<(), PatchApplyError> {
+        self.move_entry(from, to)?;
+        if text_patch.hunks().is_empty() && !atomic_write::needs_mode_change(to, new_mode) {
+            return Ok(());
+        }
+        self.modify(to, text_patch, new_mode)
+    }
+
+    /// Move `from` to `to` for a rename record: refuse to overwrite an
+    /// existing `to` (see [`Self::create`]), tolerate a missing `from` when
+    /// an earlier apply of the same patch already moved it, and leave a
+    /// missing pair to the caller's error handling.
+    fn move_entry(&self, from: &Path, to: &Path) -> Result<(), PatchApplyError> {
         if from.symlink_metadata().is_ok() {
             if to.symlink_metadata().is_ok() {
                 let (from, to) = (from.display(), to.display());
@@ -398,10 +381,7 @@ impl FileApply<'_> {
             let (from, to) = (from.display(), to.display());
             return Err(self.failed(format!("cannot rename {from} to {to}: neither exists")));
         }
-        if text_patch.hunks().is_empty() && !atomic_write::needs_mode_change(to, new_mode) {
-            return Ok(());
-        }
-        self.modify(to, text_patch, new_mode)
+        Ok(())
     }
 
     /// A "new file" patch (`--- /dev/null`) means the target is expected NOT
@@ -421,7 +401,7 @@ impl FileApply<'_> {
         let created = tolerant::apply("", text_patch)
             .map_err(|message| self.failed(format!("create {}: {message}", target.display())))?;
         let exists = target.symlink_metadata().is_ok();
-        if exists && self.existing_file_matches(target, &created, new_mode)? {
+        if exists && self.existing_file_matches(target, created.as_bytes(), new_mode)? {
             return Ok(());
         }
         self.create_parent_dir(target)?;
@@ -441,7 +421,7 @@ impl FileApply<'_> {
     fn existing_file_matches(
         &self,
         target: &Path,
-        created: &str,
+        created: &[u8],
         new_mode: Option<&FileMode>,
     ) -> Result<bool, PatchApplyError> {
         if target.is_symlink() {
@@ -450,7 +430,7 @@ impl FileApply<'_> {
         }
         let existing = fs::read(target)
             .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
-        if existing != created.as_bytes() {
+        if existing != created {
             let target = target.display();
             return Err(self.failed(format!("cannot create {target}: target already exists")));
         }

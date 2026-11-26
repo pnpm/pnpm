@@ -197,7 +197,7 @@ fn git_diff_command() -> Command {
             "--irreversible-delete",
             "--full-index",
             "--no-index",
-            "--text",
+            "--binary",
             "--no-ext-diff",
             "--no-color",
             "--",

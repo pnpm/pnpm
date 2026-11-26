@@ -205,6 +205,8 @@ const BINDING_GYP_DELETE_PATCH: &str = text_block_fnl! {
     "-{}"
 };
 
+mod binary;
+
 mod files;
 
 mod behavior;
