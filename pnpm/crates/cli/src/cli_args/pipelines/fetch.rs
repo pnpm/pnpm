@@ -50,7 +50,8 @@ pub(crate) async fn run_fetch<Rep: Reporter + 'static>(
     }
 }
 
-/// A shared lockfile without a filter fetches every importer, so it needs
+/// Whether the fetch reads the workspace projects to select importers. An
+/// unfiltered fetch of a shared lockfile fetches every importer, so it needs
 /// no project manifests on disk.
 fn selects_projects(config: &Config) -> bool {
     let is_filtered = !config.filter.is_empty() || !config.filter_prod.is_empty();
