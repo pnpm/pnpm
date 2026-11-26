@@ -79,6 +79,7 @@ fn renders_projects_and_the_chain_of_a_subdependency() {
     let mut request = package("request", &[".", "packages/a", "packages/b", "packages/c"], &[]);
     request.non_deprecated_version = Some("3.0.0".to_string());
     let output = render_deprecations(&[request, package("uuid", &[], &["request", "har"])]);
+    eprintln!("OUTPUT:\n{output}\n");
     assert_eq!(
         output,
         "request  newest non-deprecated version: 3.0.0\n  \
@@ -108,8 +109,10 @@ fn groups_the_versions_that_share_a_message() {
         .into_iter()
         .chain([other_message])
         .collect();
+    let output = render_deprecations(&packages);
+    eprintln!("OUTPUT:\n{output}\n");
     assert_eq!(
-        render_deprecations(&packages),
+        output,
         "glob\n  \
          Old versions of glob are not supported\n  \
          7.2.3   via foo\n  \
@@ -122,6 +125,15 @@ fn groups_the_versions_that_share_a_message() {
          \n\
          1 deprecated package, 4 versions",
     );
+}
+
+#[test]
+fn counts_a_version_installed_from_two_registries_once() {
+    let mut from_work = package("foo", &[], &["bar"]);
+    from_work.key = "foo@work:1.0.0".parse().expect("package key");
+    let output = render_deprecations(&[package("foo", &[], &["baz"]), from_work]);
+    eprintln!("OUTPUT:\n{output}\n");
+    assert!(output.ends_with("\n1 deprecated package"), "{output}");
 }
 
 #[test]

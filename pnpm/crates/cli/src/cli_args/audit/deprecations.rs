@@ -239,16 +239,21 @@ pub(super) fn render_deprecations(deprecated: &[DeprecatedPackage]) -> String {
         .iter()
         .map(|group| render_group(group))
         .collect();
-    let names = groups
+    let names = deprecated
         .iter()
-        .map(|group| group[0].name.as_str())
+        .map(|package| package.name.as_str())
+        .collect::<HashSet<_>>()
+        .len();
+    let versions = deprecated
+        .iter()
+        .map(|package| (package.name.as_str(), package.version.as_str()))
         .collect::<HashSet<_>>()
         .len();
     let noun = if names == 1 { "package" } else { "packages" };
-    let summary = if names == deprecated.len() {
+    let summary = if names == versions {
         format!("{names} deprecated {noun}")
     } else {
-        format!("{names} deprecated {noun}, {} versions", deprecated.len())
+        format!("{names} deprecated {noun}, {versions} versions")
     };
     format!("{}\n\n{}", blocks.join("\n\n"), super::red(&summary))
 }
@@ -257,19 +262,16 @@ pub(super) fn render_deprecations(deprecated: &[DeprecatedPackage]) -> String {
 /// each group ordered by version.
 fn group_by_deprecation(deprecated: &[DeprecatedPackage]) -> Vec<Vec<&DeprecatedPackage>> {
     let mut groups: Vec<Vec<&DeprecatedPackage>> = Vec::new();
+    let mut group_indexes = HashMap::new();
     for package in deprecated {
-        let group = groups
-            .iter_mut()
-            .find(|group| {
-                let first = group[0];
-                first.name == package.name
-                    && first.deprecated == package.deprecated
-                    && first.non_deprecated_version == package.non_deprecated_version
+        let key = (&package.name, &package.deprecated, &package.non_deprecated_version);
+        let index = *group_indexes
+            .entry(key)
+            .or_insert_with(|| {
+                groups.push(Vec::new());
+                groups.len() - 1
             });
-        match group {
-            Some(group) => group.push(package),
-            None => groups.push(vec![package]),
-        }
+        groups[index].push(package);
     }
     for group in &mut groups {
         group.sort_by_cached_key(|package| node_semver::Version::parse(&package.version).ok());
