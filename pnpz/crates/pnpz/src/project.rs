@@ -41,6 +41,7 @@ pub enum LockError {
 
 /// The systems a manifest locks: the ones it lists, or `host_system` when it
 /// lists none.
+#[must_use]
 pub fn wanted_systems(manifest: &Manifest, host_system: &str) -> Vec<String> {
     if manifest.systems.is_empty() {
         return vec![host_system.to_string()];
@@ -49,6 +50,7 @@ pub fn wanted_systems(manifest: &Manifest, host_system: &str) -> Vec<String> {
 }
 
 /// Whether `lockfile` already answers `manifest` for every one of `systems`.
+#[must_use]
 pub fn is_up_to_date(manifest: &Manifest, lockfile: &Lockfile, systems: &[String]) -> bool {
     let wanted = manifest.packages();
     wanted.len() == lockfile.packages.len()
@@ -90,13 +92,12 @@ pub async fn lock(
                 let reusable = previous
                     .and_then(|lockfile| lockfile.packages.get(&name))
                     .filter(|locked| is_reusable(locked, &specifier, systems));
-                let package = match reusable {
-                    Some(locked) => locked.clone(),
-                    None => {
-                        let resolved =
-                            catalog.resolve(&name, &specifier).await.map_err(LockError::Catalog)?;
-                        locked_package(&name, specifier, resolved, systems)?
-                    }
+                let package = if let Some(locked) = reusable {
+                    locked.clone()
+                } else {
+                    let resolved =
+                        catalog.resolve(&name, &specifier).await.map_err(LockError::Catalog)?;
+                    locked_package(&name, specifier, resolved, systems)?
                 };
                 Ok::<_, LockError>((name, package))
             }),

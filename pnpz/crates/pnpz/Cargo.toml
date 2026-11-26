@@ -30,6 +30,7 @@ pnpz-nix-store = { workspace = true }
 
 bytes = { workspace = true }
 clap = { workspace = true }
+command-extra = { workspace = true }
 derive_more = { workspace = true }
 futures-util = { workspace = true }
 home = { workspace = true }

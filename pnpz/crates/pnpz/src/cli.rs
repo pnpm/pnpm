@@ -3,10 +3,8 @@ use clap::{
     Parser,
     Subcommand,
 };
-use miette::IntoDiagnostic as _;
 use std::{
     ffi::OsString,
-    future::Future,
     path::PathBuf,
 };
 
@@ -52,19 +50,9 @@ enum Command {
 pub fn run() -> miette::Result<()> {
     match Args::parse().command {
         Command::Enter { store_root, command } => commands::enter(&store_root, &command),
-        Command::Add { packages } => block_on(commands::add(&packages)),
-        Command::Install { frozen } => block_on(commands::install(frozen)),
+        Command::Add { packages } => commands::add(&packages),
+        Command::Install { frozen } => commands::install(frozen),
         Command::Run { command } => commands::run(&command),
         Command::Shell => commands::shell(),
     }
-}
-
-pub(crate) fn block_on<Output>(
-    future: impl Future<Output = miette::Result<Output>>,
-) -> miette::Result<Output> {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .into_diagnostic()?
-        .block_on(future)
 }

@@ -1,4 +1,4 @@
-include = ["Cargo.toml", "pnpm/crates/*/*.toml", "pnpm/tasks/*/*.toml", "pnpr/crates/*/*.toml"]
+include = ["Cargo.toml", "pnpm/crates/*/*.toml", "pnpm/tasks/*/*.toml", "pnpr/crates/*/*.toml", "pnpz/crates/*/*.toml"]
 
 [formatting]
 align_entries = false

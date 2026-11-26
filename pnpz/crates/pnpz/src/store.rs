@@ -69,20 +69,24 @@ impl Store {
     }
 
     /// The directory that stands for `/nix`.
+    #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
     }
 
+    #[must_use]
     pub fn is_native(&self) -> bool {
         self.root == Path::new(NATIVE_ROOT)
     }
 
     /// Where `path` is kept on disk, which differs from the path itself
     /// unless the store is native.
+    #[must_use]
     pub fn location_of(&self, path: &StorePath) -> PathBuf {
         self.root.join("store").join(path.base_name())
     }
 
+    #[must_use]
     pub fn contains(&self, path: &StorePath) -> bool {
         fs::symlink_metadata(self.location_of(path)).is_ok()
     }
@@ -93,6 +97,7 @@ impl Store {
     /// It is a sibling of the final location because a directory that is not
     /// writable, as every store directory is, can only be renamed within its
     /// parent.
+    #[must_use]
     pub fn staging_location_of(&self, path: &StorePath) -> PathBuf {
         self.root
             .join("store")

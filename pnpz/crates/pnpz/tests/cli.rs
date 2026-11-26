@@ -14,6 +14,10 @@ use pnpz::{
 use pretty_assertions::assert_eq;
 use std::{
     fs,
+    io::{
+        self,
+        Write as _,
+    },
     path::Path,
 };
 use tempfile::TempDir;
@@ -50,7 +54,8 @@ fn can_mount_store(remote: &Remote, project: &Path) -> bool {
         .arg("true")
         .ok();
     if let Err(error) = &probe {
-        eprintln!("skipping: this machine cannot mount a store at /nix: {error}");
+        let notice = format!("skipping: this machine cannot mount a store at /nix: {error}\n");
+        io::stderr().write_all(notice.as_bytes()).unwrap();
     }
     probe.is_ok()
 }
@@ -70,7 +75,7 @@ async fn add_writes_the_manifest_and_lockfile_and_run_finds_the_package() {
 
     assert_eq!(
         fs::read_to_string(project.path().join("pnpz.yaml")).unwrap(),
-        "packages:\n- tool@1\n"
+        "packages:\n- tool@1\n",
     );
     let lockfile = fs::read_to_string(project.path().join("pnpz-lock.yaml")).unwrap();
     assert!(lockfile.contains(&format!("out: {tool}")), "{lockfile}");
@@ -147,16 +152,8 @@ async fn add_leaves_the_manifest_alone_when_a_package_does_not_resolve() {
         .assert()
         .failure();
 
-    assert!(
-        !project
-            .path()
-            .join("pnpz.yaml")
-            .exists()
-    );
-    assert!(
-        !project
-            .path()
-            .join("pnpz-lock.yaml")
-            .exists()
-    );
+    let manifest = project.path().join("pnpz.yaml");
+    let lockfile = project.path().join("pnpz-lock.yaml");
+    assert!(!manifest.exists());
+    assert!(!lockfile.exists());
 }

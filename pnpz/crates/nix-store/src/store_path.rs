@@ -59,15 +59,18 @@ impl StorePath {
         Ok(Self { base_name: text.to_string() })
     }
 
+    #[must_use]
     pub fn base_name(&self) -> &str {
         &self.base_name
     }
 
     /// The hash part, which is the name of the path's `.narinfo`.
+    #[must_use]
     pub fn hash_part(&self) -> &str {
         &self.base_name[..HASH_LEN]
     }
 
+    #[must_use]
     pub fn name(&self) -> &str {
         &self.base_name[HASH_LEN + 1..]
     }

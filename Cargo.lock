@@ -7850,6 +7850,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "clap",
+ "command-extra",
  "derive_more",
  "ed25519-dalek 2.2.0",
  "futures-util",

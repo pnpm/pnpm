@@ -16,6 +16,16 @@ pub mod store;
 pub mod system;
 
 pub use cli::run;
+pub use pnpm_network::ThrottledClient;
+pub use pnpz_nix_store::{
+    NarHash,
+    NarInfo,
+    ParseNarInfoError,
+    SignatureError,
+    StorePath,
+    TrustedKey,
+    nar::UnpackError,
+};
 
 mod cli;
 mod commands;

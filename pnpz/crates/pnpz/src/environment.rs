@@ -31,6 +31,7 @@ pub fn search_path(lockfile: &Lockfile, system: &str, store: &Store) -> OsString
 }
 
 /// The store paths of `system`'s environment, for display.
+#[must_use]
 pub fn describe(lockfile: &Lockfile, system: &str) -> Vec<String> {
     lockfile.packages
         .iter()

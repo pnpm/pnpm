@@ -58,7 +58,7 @@ fn rejects_an_entry_that_is_not_a_package() {
 #[test]
 fn rejects_an_unknown_key() {
     let temp = TempDir::new().unwrap();
-    fs::write(temp.path().join(MANIFEST_FILE_NAME), "pakages: []\n").unwrap();
+    fs::write(temp.path().join(MANIFEST_FILE_NAME), "dependencies: []\n").unwrap();
     let error = Manifest::load(temp.path()).unwrap_err();
     assert!(matches!(error, ManifestError::Invalid { .. }), "{error}");
 }

@@ -14,10 +14,12 @@ const ALPHABET: &[u8; 32] = b"0123456789abcdfghijklmnpqrsvwxyz";
 pub struct DecodeError;
 
 /// The length of the encoding of `byte_count` bytes.
+#[must_use]
 pub const fn encoded_len(byte_count: usize) -> usize {
     (byte_count * 8).div_ceil(5)
 }
 
+#[must_use]
 pub fn encode(bytes: &[u8]) -> String {
     (0..encoded_len(bytes.len()))
         .rev()
@@ -56,16 +58,18 @@ pub fn decode(text: &str, byte_count: usize) -> Result<Vec<u8>, DecodeError> {
 }
 
 fn digit_value(character: u8) -> Option<u8> {
-    ALPHABET
+    let index = ALPHABET
         .iter()
-        .position(|candidate| *candidate == character)
-        .and_then(|index| u8::try_from(index).ok())
+        .position(|candidate| *candidate == character)?;
+    u8::try_from(index).ok()
 }
 
 /// Whether every byte of `text` is a Nix base32 digit.
+#[must_use]
 pub fn is_valid(text: &str) -> bool {
     text.bytes()
-        .all(|character| digit_value(character).is_some())
+        .map(digit_value)
+        .all(|digit| digit.is_some())
 }
 
 #[cfg(test)]

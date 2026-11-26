@@ -28,6 +28,7 @@ pub struct ParseNarHashError {
 }
 
 impl NarHash {
+    #[must_use]
     pub fn from_digest(digest: [u8; DIGEST_LEN]) -> Self {
         Self(digest)
     }
@@ -36,17 +37,20 @@ impl NarHash {
     /// `sha256-<base64>`.
     pub fn parse(text: &str) -> Result<Self, ParseNarHashError> {
         decode(text)
-            .and_then(|bytes| <[u8; DIGEST_LEN]>::try_from(bytes).ok())
+            .map(<[u8; DIGEST_LEN]>::try_from)
+            .and_then(Result::ok)
             .map(Self)
             .ok_or_else(|| ParseNarHashError { text: text.to_string() })
     }
 
     /// `sha256:<nix base32>`, the form a `.narinfo` signature covers.
+    #[must_use]
     pub fn to_nix_base32(self) -> String {
         format!("sha256:{}", base32::encode(&self.0))
     }
 
     /// `sha256-<base64>`, the form lockfiles record.
+    #[must_use]
     pub fn to_sri(self) -> String {
         format!("sha256-{}", BASE64.encode(self.0))
     }
@@ -81,7 +85,7 @@ fn decode_hex(digits: &str) -> Option<Vec<u8>> {
     digits
         .as_bytes()
         .chunks(2)
-        .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).ok()?, 16).ok())
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok())
         .collect()
 }
 

@@ -20,7 +20,7 @@ init:
 
 # When ready, run the same CI commands
 ready:
-  typos pnpm pnpr
+  typos pnpm pnpr pnpz
   node pnpm/scripts/rustfmt.mjs --all
   just check
   just test

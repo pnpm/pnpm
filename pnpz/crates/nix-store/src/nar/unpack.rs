@@ -136,7 +136,7 @@ impl<Input: Read> Unpacker<Input> {
             tag = self.string(MAX_TOKEN_LEN)?;
         }
         if tag != "contents" {
-            return malformed(format!("expected \"contents\", found {tag:?}"));
+            return malformed(format!(r#"expected "contents", found {tag:?}"#));
         }
         let len = self.integer()?;
         let mut file = OpenOptions::new()
@@ -169,7 +169,7 @@ impl<Input: Read> Unpacker<Input> {
             match self.string(MAX_TOKEN_LEN)?.as_str() {
                 ")" => break,
                 "entry" => self.entry(path, &mut previous_name, depth)?,
-                other => return malformed(format!("expected \"entry\", found {other:?}")),
+                other => return malformed(format!(r#"expected "entry", found {other:?}"#)),
             }
         }
         File::open(path)

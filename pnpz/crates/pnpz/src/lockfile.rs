@@ -114,6 +114,7 @@ impl Lockfile {
     }
 
     /// The store paths `system`'s environment is built from, in package order.
+    #[must_use]
     pub fn environment_paths(&self, system: &str) -> Vec<&StorePath> {
         self.packages
             .values()

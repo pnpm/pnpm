@@ -57,19 +57,23 @@ impl NarInfo {
         let references = field("References").unwrap_or_default();
         Ok(Self {
             store_path: StorePath::from_absolute(field("StorePath")?)
-                .map_err(|error| invalid(error.to_string()))?,
+                .map_err(|error| error.to_string())
+                .map_err(invalid)?,
             url: parse_url(field("URL")?)?,
             compression: parse_compression(field("Compression")?)?,
             nar_hash: NarHash::parse(field("NarHash")?)
-                .map_err(|error| invalid(error.to_string()))?,
+                .map_err(|error| error.to_string())
+                .map_err(invalid)?,
             nar_size: field("NarSize")?.parse().map_err(|_| invalid("NarSize is not a number"))?,
             references: references
                 .split_ascii_whitespace()
                 .map(StorePath::from_base_name)
                 .collect::<Result<_, _>>()
-                .map_err(|error| invalid(error.to_string()))?,
+                .map_err(|error| error.to_string())
+                .map_err(invalid)?,
             signatures: fields(text)
-                .filter_map(|(key, value)| (key == "Sig").then(|| value.to_string()))
+                .filter(|(key, _)| *key == "Sig")
+                .map(|(_, value)| value.to_string())
                 .collect(),
         })
     }

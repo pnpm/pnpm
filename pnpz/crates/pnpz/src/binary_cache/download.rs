@@ -70,12 +70,14 @@ fn unpack_and_check(
     let unpack_error = |source| CacheError::Unpack { store_path: store_path.clone(), source };
     let compressed = ChunkReader { chunks, current: Bytes::new() };
     let archive = decompress(narinfo.compression, compressed)
-        .map_err(|error| unpack_error(UnpackError::Read(error)))?;
+        .map_err(UnpackError::Read)
+        .map_err(&unpack_error)?;
     let mut archive = HashingReader::new(BufReader::new(archive));
-    unpack(&mut archive, destination).map_err(unpack_error)?;
+    unpack(&mut archive, destination).map_err(&unpack_error)?;
     let (hash, size) = archive
         .finish()
-        .map_err(|error| unpack_error(UnpackError::Read(error)))?;
+        .map_err(UnpackError::Read)
+        .map_err(&unpack_error)?;
     if (hash, size) != (narinfo.nar_hash, narinfo.nar_size) {
         return Err(CacheError::HashMismatch {
             store_path,

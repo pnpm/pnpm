@@ -24,7 +24,8 @@ fn lockfile() -> Lockfile {
         nar_size: 120,
         references: references
             .iter()
-            .map(|text| StorePath::from_absolute(text).unwrap())
+            .map(|text| StorePath::from_absolute(text))
+            .map(Result::unwrap)
             .collect(),
     };
     let system = LockedSystem {

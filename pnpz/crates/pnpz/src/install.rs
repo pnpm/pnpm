@@ -51,6 +51,7 @@ pub struct InstallSummary {
 }
 
 /// The paths of `closure` the store lacks.
+#[must_use]
 pub fn missing_paths<'closure>(
     store: &Store,
     closure: &'closure Closure,
@@ -68,7 +69,7 @@ pub async fn install_closure(
     cache: &BinaryCache,
     store: &Store,
     closure: &Closure,
-    on_fetched: impl Fn(&StorePath, &LockedPath),
+    on_fetched: impl Fn(&StorePath, &LockedPath) + Send + Sync,
 ) -> Result<InstallSummary, InstallError> {
     let missing = missing_paths(store, closure);
     let summary = InstallSummary {

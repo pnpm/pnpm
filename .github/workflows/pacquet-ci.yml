@@ -84,6 +84,7 @@ jobs:
               - '!pnpr/client/*.md'
               - 'pnpm/**'
               - 'pnpr/**'
+              - 'pnpz/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'package.json'

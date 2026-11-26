@@ -64,9 +64,9 @@ impl Manifest {
         };
         let manifest: Self =
             yaml_serde::from_str(&text).map_err(|source| ManifestError::Invalid { path, source })?;
-        manifest.packages
-            .iter()
-            .try_for_each(|spec| parse_spec(spec).map(drop))?;
+        for spec in &manifest.packages {
+            parse_spec(spec)?;
+        }
         Ok(manifest)
     }
 
@@ -77,10 +77,12 @@ impl Manifest {
     }
 
     /// The declared packages, as a map from name to version specifier.
+    #[must_use]
     pub fn packages(&self) -> BTreeMap<String, String> {
         self.packages
             .iter()
-            .map(|spec| parse_spec(spec).expect("specs are validated when they enter the manifest"))
+            .map(|spec| parse_spec(spec))
+            .map(|spec| spec.expect("specs are validated when they enter the manifest"))
             .collect()
     }
 

@@ -10,7 +10,6 @@ use crate::{
         Catalog,
         DEFAULT_CATALOG_URL,
     },
-    cli::block_on,
     environment::{
         describe,
         search_path,
@@ -35,6 +34,7 @@ use crate::{
     store::Store,
     system::host_system,
 };
+use command_extra::CommandExtra as _;
 use miette::{
     Context as _,
     IntoDiagnostic as _,
@@ -92,22 +92,35 @@ fn remotes() -> miette::Result<(Catalog, BinaryCache)> {
     Ok((catalog, cache))
 }
 
-pub async fn add(specs: &[String]) -> miette::Result<()> {
+pub fn add(specs: &[String]) -> miette::Result<()> {
     let project = Project::open()?;
     let mut manifest = Manifest::load(&project.directory)?;
     for spec in specs {
         manifest.add(spec)?;
     }
-    synchronize(&project, &manifest, Frozen::No).await?;
+    block_on(synchronize(&project, &manifest, Frozen::No))?;
     manifest.save(&project.directory)?;
     Ok(())
 }
 
-pub async fn install(frozen: bool) -> miette::Result<()> {
+pub fn install(frozen: bool) -> miette::Result<()> {
     let project = Project::open()?;
     let manifest = Manifest::load(&project.directory)?;
     let frozen = if frozen { Frozen::Yes } else { Frozen::No };
-    synchronize(&project, &manifest, frozen).await.map(drop)
+    block_on(synchronize(&project, &manifest, frozen)).map(drop)
+}
+
+/// Runs `future` on a runtime made for it. Commands that end in `exec` call
+/// this only when they have something to download, so that the common case
+/// starts no threads.
+fn block_on<Output>(
+    future: impl Future<Output = miette::Result<Output>>,
+) -> miette::Result<Output> {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .into_diagnostic()?
+        .block_on(future)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -206,23 +219,18 @@ fn exec_in_environment(
     lockfile: &Lockfile,
     command: &[OsString],
 ) -> miette::Result<()> {
-    let mut process = if project.store.is_native() {
+    let process = if project.store.is_native() {
         Command::new(&command[0])
     } else {
-        let mut process = Command::new(env::current_exe().into_diagnostic()?);
-        process
-            .arg("__enter")
-            .arg(project.store.root())
-            .arg(&command[0]);
-        process
+        Command::new(env::current_exe().into_diagnostic()?)
+            .with_arg("__enter")
+            .with_arg(project.store.root())
+            .with_arg(&command[0])
     };
-    let error = process
-        .args(&command[1..])
-        .env("PATH", search_path(lockfile, &project.system, &project.store))
-        .exec();
-    Err(error)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("failed to run {}", command[0].display()))
+    let process = process
+        .with_args(&command[1..])
+        .with_env("PATH", search_path(lockfile, &project.system, &project.store));
+    exec(process, command)
 }
 
 /// Mounts the store at `store_root` on `/nix`, then replaces this process
@@ -230,20 +238,23 @@ fn exec_in_environment(
 #[cfg(target_os = "linux")]
 pub fn enter(store_root: &Path, command: &[OsString]) -> miette::Result<()> {
     crate::sandbox::enter(store_root)?;
-    let error = Command::new(&command[0])
-        .args(&command[1..])
-        .exec();
-    Err(error)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("failed to run {}", command[0].display()))
+    exec(Command::new(&command[0]).with_args(&command[1..]), command)
 }
 
 #[cfg(not(target_os = "linux"))]
 pub fn enter(store_root: &Path, _command: &[OsString]) -> miette::Result<()> {
+    let store_root = store_root.display();
     Err(miette!(
         code = "ERR_PNPZ_STORE_NOT_AT_NIX",
         help = "create a /nix/store directory that you own, and pnpz will install there",
-        "the store at {} is not at /nix, and this platform cannot mount it there without root",
-        store_root.display(),
+        "the store at {store_root} is not at /nix, and this platform cannot mount it there without root",
     ))
+}
+
+/// Replaces this process with `process`. Returns only when that fails.
+fn exec(mut process: Command, command: &[OsString]) -> miette::Result<()> {
+    let program = command[0].display();
+    Err(process.exec())
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to run {program}"))
 }

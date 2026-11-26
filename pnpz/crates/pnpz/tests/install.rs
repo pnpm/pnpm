@@ -24,9 +24,9 @@ use std::fs;
 
 fn manifest(specs: &[&str]) -> Manifest {
     let mut manifest = Manifest::default();
-    specs
-        .iter()
-        .for_each(|spec| manifest.add(spec).unwrap());
+    for spec in specs {
+        manifest.add(spec).unwrap();
+    }
     manifest
 }
 

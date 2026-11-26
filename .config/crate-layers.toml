@@ -86,6 +86,7 @@ crates = [
   "pnpr-package-name",
   "pnpr-policy",
   "pnpr-registry",
+  "pnpz-nix-store",
 ]
 
 [[layer]]
@@ -173,6 +174,7 @@ crates = [
   "pnpm-cli",
   "pnpm-napi",
   "pnpr",
+  "pnpz",
 ]
 
 [[layer]]
@@ -397,6 +399,7 @@ pnpr-shared-artifacts = 3
 pnpr-sql = 3
 pnpr-storage = 11
 pnpr-upstream = 7
+pnpz = 3
 
 # The accepted number of workspace crates whose items each crate names in its
 # public signatures without re-exporting them. A caller that uses such an item
