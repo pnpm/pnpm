@@ -2,4 +2,4 @@
 "pnpm": patch
 ---
 
-`pnpm install` now drops a removed optional peer from the lockfile when you change the version of the dependency that declares it [#18482](https://github.com/pnpm/pnpm/issues/18482).
+`pnpm install` drops an optional peer when you remove its last provider. `pnpm dedupe` and `pnpm install --fix-lockfile` also remove stale optional peer bindings from existing lockfiles [#18482](https://github.com/pnpm/pnpm/issues/18482).

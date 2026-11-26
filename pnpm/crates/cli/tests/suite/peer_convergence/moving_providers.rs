@@ -20,16 +20,39 @@ use std::{
 };
 
 #[test]
+fn removing_the_last_optional_provider_drops_its_binding() {
+    check_optional_provider_removal(("1.0.0", "1.0.0", "1.0.0"), &["install"], false);
+}
+
+#[test]
 fn changing_a_consumer_releases_its_removed_optional_provider() {
-    check_optional_provider_removal("1.0.0", "1.1.0", &["install"]);
+    check_optional_provider_removal(("1.0.0", "1.1.0", "1.1.0"), &["install"], true);
 }
 
 #[test]
 fn updating_a_consumer_within_its_range_releases_its_removed_optional_provider() {
-    check_optional_provider_removal("^1.0.0", "^1.0.0", &["update", "consumer"]);
+    check_optional_provider_removal(("^1.0.0", "^1.0.0", "1.1.0"), &["update", "consumer"], true);
 }
 
-fn check_optional_provider_removal(initial: &str, changed: &str, last_command: &[&str]) {
+#[test]
+fn dedupe_drops_an_orphaned_optional_peer_from_an_existing_lockfile() {
+    check_optional_provider_removal(("1.0.0", "1.0.0", "1.0.0"), &["dedupe"], true);
+}
+
+#[test]
+fn fix_lockfile_drops_an_orphaned_optional_peer_from_an_existing_lockfile() {
+    check_optional_provider_removal(
+        ("1.0.0", "1.0.0", "1.0.0"),
+        &["install", "--fix-lockfile"],
+        true,
+    );
+}
+
+fn check_optional_provider_removal(
+    (initial, changed, expected): (&str, &str, &str),
+    command: &[&str],
+    stale: bool,
+) {
     let registry_dir = tempfile::tempdir().unwrap();
     let mut fixture = WorkspaceFixture::new();
     let consumers = ["1.0.0", "1.1.0"].map(|version| {
@@ -50,27 +73,47 @@ fn check_optional_provider_removal(initial: &str, changed: &str, last_command: &
     let installed_provider = fixture.workspace.join("node_modules/.pnpm/provider@1.0.0");
     let storage = registry_dir.path().join("storage");
     pnpr_fixtures::set_dist_tag(&storage, "consumer", "1.0.0", "latest");
-    for deps in [&[("consumer", initial), ("provider", "1.0.0")][..], &[("consumer", initial)][..]]
-    {
-        fixture.write_root_manifest("root", ManifestDeps { dev: deps, ..Default::default() });
-        assert_success(&fixture.command_at(&fixture.workspace, ["install"]));
-        assert!(installed_provider.is_dir());
-        let lockfile = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
-        assert!(
-            lockfile.snapshots
-                .unwrap()
-                .contains_key(&"consumer@1.0.0(provider@1.0.0)".parse().unwrap()),
-        );
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { dev: &[("consumer", initial), ("provider", "1.0.0")], ..Default::default() },
+    );
+    assert_success(&fixture.command_at(&fixture.workspace, ["install"]));
+    assert!(installed_provider.is_dir());
+    let mut lockfile = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    assert!(
+        lockfile.snapshots
+            .as_ref()
+            .unwrap()
+            .contains_key(&"consumer@1.0.0(provider@1.0.0)".parse().unwrap()),
+    );
+    if stale {
+        lockfile.importers
+            .get_mut(".")
+            .unwrap()
+            .dev_dependencies
+            .as_mut()
+            .unwrap()
+            .remove(&"provider".parse().unwrap())
+            .unwrap();
+        fs::write(fixture.workspace.join("pnpm-lock.yaml"), lockfile.to_yaml_string().unwrap())
+            .unwrap();
     }
     pnpr_fixtures::set_dist_tag(&storage, "consumer", "1.1.0", "latest");
     fixture.write_root_manifest(
         "root",
         ManifestDeps { dev: &[("consumer", changed)], ..Default::default() },
     );
-    assert_success(&fixture.command_at(&fixture.workspace, last_command));
+    if command == ["dedupe"] {
+        let check = fixture.command_at(&fixture.workspace, ["dedupe", "--check"]);
+        assert_eq!(check.status.code(), Some(1), "{check:?}");
+    }
+    assert_success(&fixture.command_at(&fixture.workspace, command));
     let lockfile = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
     let snapshots = lockfile.snapshots.unwrap();
-    assert!(snapshots.contains_key(&"consumer@1.1.0".parse().unwrap()), "{snapshots:?}");
+    assert!(
+        snapshots.contains_key(&format!("consumer@{expected}").parse().unwrap()),
+        "{snapshots:?}",
+    );
     assert_eq!(snapshots.len(), 1);
     assert_eq!(lockfile.packages.unwrap().len(), 1);
     assert!(!installed_provider.exists());

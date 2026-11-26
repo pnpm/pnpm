@@ -36,8 +36,7 @@ use pnpm_resolving_resolver_base::{
 };
 use std::cell::RefCell;
 
-/// Resolve current-graph providers before allowing lockfile-only candidates
-/// to change dependency ownership in a later hoist wave.
+/// Resolve current-graph providers before consulting manifest preferences.
 #[derive(Clone, Copy)]
 pub(crate) enum OptionalPeerCandidates {
     Resolved,
@@ -362,20 +361,10 @@ impl ImporterHoistState {
         provided_peer_versions: &HashMap<String, String>,
     ) -> PreferredVersions {
         let names = self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
-        let workspace = self.ctx.workspace();
-        let retained = workspace
-            .wanted_lockfile()
-            .map(|_| self.selection.locked_versions.versions(workspace));
         let mut preferred = self.ctx.preferred_versions_for_names(
             &self.selection.preferred_versions,
             names,
-            |name, version, entry| {
-                entry.weight() != EXISTING_VERSION_SELECTOR_WEIGHT
-                    || retained.is_none_or(|pins| {
-                        pins.get(name)
-                            .is_some_and(|versions| versions.contains(version))
-                    })
-            },
+            |_, _, entry| entry.weight() != EXISTING_VERSION_SELECTOR_WEIGHT,
         );
         match self.policy.peers.dedupe_peer_dependents.optional_peer_scope() {
             OptionalPeerScope::Project => {

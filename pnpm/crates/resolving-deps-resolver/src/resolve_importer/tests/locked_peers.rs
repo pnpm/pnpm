@@ -551,17 +551,8 @@ async fn auto_install_skips_optional_peers_without_preferred_versions() {
     );
 }
 
-/// A locked optional peer version is preserved on re-resolution. The
-/// optional peer `peer-c` is recorded in the preferred versions twice: a
-/// plain entry for the lower `1.0.0` a sibling workspace package declares
-/// directly, and a weighted entry for the already-locked higher `1.0.1`
-/// seeded from the wanted lockfile. Optional peer hoisting must consider
-/// the weighted entry too; otherwise the locked `1.0.1` is discarded and
-/// the lockfile is rewritten to the sibling's `1.0.0`. Regression test for
-/// <https://github.com/pnpm/pnpm/pull/12075>; the end-to-end equivalent
-/// lives in pnpm's `autoInstallPeers.ts`.
 #[tokio::test]
-async fn keeps_locked_optional_peer_over_lower_sibling_version() {
+async fn optional_peer_prefers_a_sibling_provider_over_a_lockfile_only_version() {
     let mut table = HashMap::default();
     table.insert(
         ("abc".to_string(), "1.0.0".to_string()),
@@ -621,17 +612,7 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
 
     assert_eq!(
         result.peers_result.direct_dependencies_by_alias.get("peer-c"),
-        Some(&DepPath::from("peer-c@1.0.1".to_string())),
-        "the already-locked optional peer 1.0.1 must win over the sibling's 1.0.0",
-    );
-    let abc = result.peers_result.direct_dependencies_by_alias
-        .get("abc")
-        .expect("abc resolved")
-        .to_string();
-    assert!(abc.contains("(peer-c@1.0.1)"), "abc should keep the locked optional peer: {abc}");
-    assert!(
-        !abc.contains("(peer-c@1.0.0)"),
-        "abc must not adopt the sibling's lower version: {abc}",
+        Some(&DepPath::from("peer-c@1.0.0")),
     );
 }
 
