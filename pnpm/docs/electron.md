@@ -65,7 +65,10 @@ nodeLinker: hoisted
 hoistingLimits: workspaces
 ```
 
-After changing either setting, run `pnpm install` to relink `node_modules`.
+After changing these settings, run `pnpm install` to relink `node_modules`. If
+`node_modules` was already installed with the `hoisted` linker, delete it
+first. pnpm does not relink a hoisted `node_modules` when only
+`hoistingLimits` changes.
 
 The Forge error message also accepts a custom `hoistPattern` or
 `publicHoistPattern` in place of the `hoisted` linker. Do not rely on it. With
