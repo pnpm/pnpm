@@ -125,9 +125,12 @@ impl FileApply<'_> {
         if from.symlink_metadata().is_ok() {
             let bytes = fs::read(from)
                 .map_err(|source| self.failed(format!("read {}: {source}", from.display())))?;
-            record
-                .direction(&bytes)
-                .map_err(|message| self.failed(format!("rename {}: {message}", from.display())))?;
+            if !record.is_recorded_image(&bytes) {
+                return Err(self.failed(format!(
+                    "rename {}: the file matches neither the record's pre-image nor its post-image",
+                    from.display(),
+                )));
+            }
         }
         self.move_entry(from, to)?;
         self.modify_binary(to, record, new_mode)
