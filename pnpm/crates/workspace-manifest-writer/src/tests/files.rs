@@ -12,7 +12,7 @@ use super::{
 
 #[test]
 fn allow_builds_no_op_when_unchanged_keeps_file() {
-    let original = "allowBuilds:\n  esbuild: true\n";
+    let original = "permissions:\n  esbuild:\n    build: true\n";
     let out = run_allow_builds(Some(original), &[("esbuild", true)]);
     assert_eq!(out.as_deref(), Some(original));
 }
@@ -169,10 +169,13 @@ fn an_update_keeps_the_permissions_of_the_existing_manifest() {
     use std::os::unix::fs::PermissionsExt as _;
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
-    std::fs::write(&path, "allowBuilds:\n  esbuild: false\n").expect("seed manifest");
+    std::fs::write(&path, "permissions:\n  esbuild:\n    build: false\n").expect("seed manifest");
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).expect("chmod");
     crate::set_allow_builds(dir.path(), [("esbuild", true)]).expect("update succeeds");
-    assert_eq!(std::fs::read_to_string(&path).expect("read"), "allowBuilds:\n  esbuild: true\n");
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "permissions:\n  esbuild:\n    build: true\n"
+    );
     assert_eq!(mode(&path), 0o640);
 }
 
