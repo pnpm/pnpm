@@ -143,7 +143,7 @@ pub struct InstallMaterializationArgs {
     #[clap(flatten)]
     pub store: crate::cli_args::install_options::FrozenStoreArgs,
     /// Package names allowed to run lifecycle (build) scripts during this
-    /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
+    /// install, recorded in `permissions`. Prefix a name with `!` to deny
     /// its scripts instead. Repeat or comma-separate for multiple.
     #[clap(long = "allow-build")]
     pub allow_build: Vec<String>,

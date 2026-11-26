@@ -188,7 +188,9 @@ fn deployed_project_passes_dependency_verification() {
             "packages": ["."],
             "peersSuffixMaxLength": 42,
             "virtualStoreType": "project",
-            "allowBuilds": { workspace_project_key(&workspace, "lib"): true },
+            "permissions": {
+                workspace_project_key(&workspace, "lib"): { "build": true }
+            },
         }),
     );
     pacquet_cmd(&deploy_dir)
@@ -264,7 +266,7 @@ fn deploy_records_its_own_resolution_settings() {
 }
 
 #[test]
-fn deploy_writes_dependencies_and_allow_builds_sorted_by_name() {
+fn deploy_writes_dependencies_and_permissions_sorted_by_name() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -321,7 +323,7 @@ fn deploy_writes_dependencies_and_allow_builds_sorted_by_name() {
         &fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap(),
     )
     .unwrap();
-    let allowed_names = deployed_workspace_manifest["allowBuilds"]
+    let allowed_names = deployed_workspace_manifest["permissions"]
         .as_object()
         .unwrap()
         .keys()

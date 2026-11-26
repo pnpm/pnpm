@@ -56,7 +56,7 @@ fn is_package_selector(selector: &str) -> bool {
 }
 
 /// Honor `--allow-build`: reject any package the root project explicitly
-/// disallows (`allowBuilds: false`), persist the allowed names to `store`,
+/// denies, persist the allowed names to `store`,
 /// and enable them for this install. Mirrors pnpm's `add` handler.
 pub(crate) fn apply_allow_build(
     config: &mut Config,
@@ -107,7 +107,7 @@ pub enum AllowBuildError {
     #[diagnostic(
         code(ERR_PNPM_OVERRIDING_IGNORED_BUILT_DEPENDENCIES),
         help(
-            "If you are sure you want to allow those dependencies to run installation scripts, remove them from the allowBuilds list (or change their value to true)."
+            "If you are sure you want to allow those dependencies to run installation scripts, remove their denial from permissions (or set build to true)."
         )
     )]
     OverridingIgnoredBuiltDependencies { dependencies: String },

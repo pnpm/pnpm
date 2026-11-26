@@ -127,6 +127,20 @@ impl WorkspaceSettings {
 
     /// Apply `allowBuilds`, `permissions` and `skills` onto `config`.
     pub(super) fn apply_permissions(&mut self, config: &mut Config) {
+        if self.allow_builds
+            .as_ref()
+            .is_some_and(|entries| {
+                entries
+                    .values()
+                    .map(AllowBuild::decided)
+                    .any(|decision| decision.is_some())
+            })
+        {
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The "allowBuilds" setting is deprecated. Use "permissions.<package>.build" instead."#,
+            );
+        }
         let duplicated = self.duplicated_build_decisions();
         if !duplicated.is_empty() {
             let duplicated = duplicated.join(", ");

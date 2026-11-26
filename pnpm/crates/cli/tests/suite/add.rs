@@ -137,8 +137,9 @@ fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
     let yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml present");
     assert!(
-        yaml.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
-        "allowBuilds entry should be persisted, got:\n{yaml}",
+        yaml.contains("permissions:")
+            && yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example':\n    build: true"),
+        "build permission should be persisted, got:\n{yaml}",
     );
 
     drop((root, mock_instance));
@@ -185,8 +186,8 @@ fn add_allow_build_accepts_a_comma_separated_list() {
     let yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml present");
     assert!(
-        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example': true")
-            && yaml.contains("'@pnpm.e2e/install-script-example': false"),
+        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example':\n    build: true")
+            && yaml.contains("'@pnpm.e2e/install-script-example':\n    build: false"),
         "both decisions should be persisted, got:\n{yaml}",
     );
 
@@ -211,8 +212,8 @@ fn add_short_t_reports_the_long_spellings() {
     drop(root);
 }
 
-/// `--allow-build=!<pkg>` denies the package's build: `allowBuilds` records
-/// `<pkg>: false` and the install script does not run.
+/// `--allow-build=!<pkg>` denies the package's build and the install script
+/// does not run.
 #[test]
 fn add_denies_a_build_with_the_negation_prefix() {
     let CommandTempCwd {
@@ -247,7 +248,7 @@ fn add_denies_a_build_with_the_negation_prefix() {
     let yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml present");
     assert!(
-        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example': false"),
+        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example':\n    build: false"),
         "the denial should be persisted, got:\n{yaml}",
     );
 

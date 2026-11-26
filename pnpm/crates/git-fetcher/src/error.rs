@@ -18,20 +18,20 @@ use pnpm_diagnostics::miette::{
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PreparePackageError {
-    /// Package wants to run build scripts but is not in `allowBuilds`.
+    /// Package wants to run build scripts but is not allowed to do so.
     #[display(
-        "The git-hosted package \"{name}@{version}\" needs to execute build scripts but is not in the \"allowBuilds\" allowlist."
+        "The git-hosted package \"{name}@{version}\" needs to execute build scripts but is not allowed to do so."
     )]
     #[diagnostic(
         code(ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED),
         help(
-            "Add the package to \"allowBuilds\" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:\nallowBuilds:\n  {dep_path}: true",
+            "Add the package to \"permissions\" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:\npermissions:\n  '{dep_path}':\n    build: true",
         )
     )]
     NotAllowed {
         name: String,
         version: String,
-        /// The identity `allowBuilds` is checked against, the name
+        /// The identity the build permission is checked against, the name
         /// plus the resolution id, not the manifest version. A
         /// name-only key cannot approve a git artifact, so quoting
         /// anything else here suggests an entry that never matches.

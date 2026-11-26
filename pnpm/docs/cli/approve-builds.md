@@ -5,9 +5,9 @@ title: pnpm approve-builds
 
 Approve dependencies for running scripts during installation.
 
-The approved dependencies are added to the [`allowBuilds`] map in `pnpm-workspace.yaml` with a value of `true`, while unapproved ones are saved with a value of `false`. You can also update these settings manually if you prefer.
+The approved dependencies are added to [`permissions`] in `pnpm-workspace.yaml` with `build: true`, while unapproved ones are saved with `build: false`. You can also update these settings manually if you prefer.
 
-Since v12.11.0, when `pnpm-workspace.yaml` already has a [`permissions`] setting, the decisions are written there as the `build` capability instead. To review agent skills as well, use [`pnpm approve`](./permissions.md).
+Existing entries for other packages remain in [`allowBuilds`]. To review agent skills as well, use [`pnpm approve`](./permissions.md).
 
 [`allowBuilds`]: ../settings/build.md#allowbuilds
 [`permissions`]: ../settings/build.md#permissions
@@ -30,7 +30,7 @@ Since v12.4.0, a decision is saved even when nothing is awaiting approval, so a 
 
 During install, packages with ignored builds that are not yet listed in `allowBuilds` are automatically added to `pnpm-workspace.yaml` with the placeholder value `set this to true or false`, so you can manually set them to `true` or `false`.
 
-Writing `allowBuilds` also removes the ignored legacy settings `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies` from `pnpm-workspace.yaml`.
+Writing a build decision also removes the ignored legacy settings `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, and `ignoredBuiltDependencies` from `pnpm-workspace.yaml`.
 
 ## Options
 

@@ -1,7 +1,7 @@
 //! Integration tests for `pacquet ignored-builds`, `approve-builds`, and
 //! `rebuild`: a dependency whose build was ignored is listed by
 //! `ignored-builds`, approved by `approve-builds` (which writes
-//! `allowBuilds` and re-runs the build), and re-run by `rebuild`.
+//! `permissions` and re-runs the build), and re-run by `rebuild`.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -397,21 +397,17 @@ fn allow_builds_placeholder_does_not_block_commands() {
         "an undecided entry is not an explicit denial: {output}",
     );
 
-    // Deciding a package replaces its placeholder outright, the whole
-    // value, not the first word of it, which would leave the rest behind
-    // as a plain scalar that reads as undecided all over again.
+    // Deciding a package moves its placeholder from `allowBuilds` to
+    // `permissions` while leaving unrelated placeholders alone.
     pacquet(&workspace)
         .with_args(["approve-builds", "@pnpm.e2e/install-script-example"])
         .assert()
         .success();
     let yaml = fs::read_to_string(&yaml_path).expect("read yaml");
-    // Matched whole-line: a value of `true this to true or false` would
-    // satisfy a `contains` on the prefix while still reading as a
-    // string, leaving the package undecided.
     assert!(
-        yaml.lines()
-            .any(|line| line.trim() == r#""@pnpm.e2e/install-script-example": true"#),
-        "the decided entry is replaced cleanly: {yaml}",
+        yaml.contains("\"@pnpm.e2e/install-script-example\":\n    build: true")
+            && !yaml.contains(r#""@pnpm.e2e/install-script-example": set this to true or false"#),
+        "the decided entry moves cleanly to permissions: {yaml}",
     );
     // A package the approval didn't name keeps its placeholder, even
     // though an undecided entry never reaches `Config::allow_builds`.
@@ -618,7 +614,7 @@ fn approve_builds_deny_keeps_the_build_ignored() {
 
     let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
     assert!(
-        output.contains("Explicitly ignored package builds (via allowBuilds):"),
+        output.contains("Explicitly ignored package builds:"),
         "denied build is reported as explicitly ignored: {output}",
     );
 
@@ -677,7 +673,7 @@ fn approve_builds_in_a_project_with_its_own_lockfile_runs_the_build() {
     assert!(project.join(INSTALL_MARKER).exists(), "the project's build must run");
     assert!(!workspace.join("node_modules/.pnpm").exists(), "no virtual store at the root");
     assert_eq!(
-        allow_builds(&workspace),
+        build_permissions(&workspace),
         std::collections::BTreeMap::from([(INSTALL.to_string(), true)]),
     );
 
@@ -743,7 +739,7 @@ fn approve_builds_denies_a_package_that_is_not_installed_yet() {
         "output: {output}",
     );
     assert_eq!(
-        allow_builds(&workspace),
+        build_permissions(&workspace),
         std::collections::BTreeMap::from([(INSTALL.to_string(), false)]),
     );
 
@@ -867,7 +863,7 @@ fn assert_prepost_approvable_after_removing(workspace: &Path, removed: &str) {
 
     assert!(workspace.join(PREPOST_MARKER).exists(), "remaining package built under --all");
     assert_eq!(
-        allow_builds(workspace).get(PREPOST),
+        build_permissions(workspace).get(PREPOST),
         Some(&true),
         "remaining package approval persisted",
     );
@@ -927,16 +923,35 @@ fn approve_builds_works_after_adding_another_dependency() {
         .success();
     assert!(workspace.join(PREPOST_MARKER).exists(), "first package built under --all");
     assert!(workspace.join(INSTALL_MARKER).exists(), "second package built under --all");
-    let recorded = allow_builds(&workspace);
+    let recorded = build_permissions(&workspace);
     assert_eq!(recorded.get(PREPOST), Some(&true), "first package approval persisted");
     assert_eq!(recorded.get(INSTALL), Some(&true), "second package approval persisted");
     drop(harness);
 }
 
-/// The *decided* `allowBuilds` entries. An install scaffolds an
+/// The decided build permissions. An install scaffolds an
 /// undecided placeholder for every build it blocked, which is a prompt to
 /// edit rather than a decision, so it is dropped here exactly as the
 /// config drops it.
+fn build_permissions(workspace: &Path) -> std::collections::BTreeMap<String, bool> {
+    #[derive(serde::Deserialize)]
+    struct PackagePermissions {
+        build: Option<bool>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Manifest {
+        #[serde(default)]
+        permissions: std::collections::BTreeMap<String, PackagePermissions>,
+    }
+    let text = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+    serde_saphyr::from_str::<Manifest>(&text)
+        .expect("parse yaml")
+        .permissions
+        .into_iter()
+        .filter_map(|(name, permissions)| Some((name, permissions.build?)))
+        .collect()
+}
+
 fn allow_builds(workspace: &Path) -> std::collections::BTreeMap<String, bool> {
     #[derive(serde::Deserialize)]
     struct Manifest {
@@ -983,7 +998,7 @@ fn approve_builds_all_flag_builds_everything() {
     assert!(workspace.join(PREPOST_MARKER).exists(), "prepost built under --all");
     assert!(workspace.join(INSTALL_MARKER).exists(), "install built under --all");
     assert_eq!(
-        allow_builds(&workspace),
+        build_permissions(&workspace),
         std::collections::BTreeMap::from([
             (INSTALL.to_string(), true),
             (PREPOST.to_string(), true),
@@ -1006,7 +1021,7 @@ fn approve_builds_approves_and_denies_via_positional_args() {
     assert!(workspace.join(PREPOST_MARKER).exists(), "approved package built");
     assert!(!workspace.join(INSTALL_MARKER).exists(), "denied package not built");
     assert_eq!(
-        allow_builds(&workspace),
+        build_permissions(&workspace),
         std::collections::BTreeMap::from([
             (INSTALL.to_string(), false),
             (PREPOST.to_string(), true),
@@ -1028,14 +1043,13 @@ fn approve_builds_deny_only_keeps_other_pending() {
 
     // Only the denied package is decided; the other stays pending.
     assert_eq!(
-        allow_builds(&workspace),
+        build_permissions(&workspace),
         std::collections::BTreeMap::from([(INSTALL.to_string(), false)]),
     );
 
     let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
-    let (automatic, explicit) = output
-        .split_once("Explicitly ignored package builds (via allowBuilds):")
-        .expect("explicit section present");
+    let (automatic, explicit) =
+        output.split_once("Explicitly ignored package builds:").expect("explicit section present");
     assert!(automatic.contains(PREPOST), "the undecided package stays pending: {output}");
     assert!(explicit.contains(INSTALL), "the denied package is explicitly ignored: {output}");
 
@@ -1052,8 +1066,11 @@ fn approve_builds_preserves_existing_allow_builds_entries() {
         .assert()
         .success();
 
-    let builds = allow_builds(&workspace);
-    assert_eq!(builds.get("@pnpm.e2e/existing-package"), Some(&true), "existing entry kept");
+    let legacy = allow_builds(&workspace);
+    assert_eq!(legacy.get("@pnpm.e2e/existing-package"), Some(&true), "existing entry kept");
+    assert!(!legacy.contains_key(PREPOST), "approved entry moved from allowBuilds");
+    assert!(!legacy.contains_key(INSTALL), "unmentioned package not touched: {legacy:?}");
+    let builds = build_permissions(&workspace);
     assert_eq!(builds.get(PREPOST), Some(&true), "approved package recorded");
     assert!(!builds.contains_key(INSTALL), "unmentioned package not touched: {builds:?}");
 
@@ -1088,7 +1105,11 @@ fn approve_builds_clears_legacy_build_settings() {
     ] {
         assert!(!yaml.contains(key), "legacy setting {key} must be cleared: {yaml}");
     }
-    assert_eq!(allow_builds(&workspace).get(PREPOST), Some(&true), "approved package recorded");
+    assert_eq!(
+        build_permissions(&workspace).get(PREPOST),
+        Some(&true),
+        "approved package recorded",
+    );
 
     drop(harness);
 }

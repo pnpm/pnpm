@@ -194,7 +194,7 @@ fn prepare_rejects_when_build_is_undecided() {
 }
 
 #[test]
-fn prepare_rejection_suggests_the_allow_builds_key_the_gate_checked() {
+fn prepare_rejection_suggests_the_permissions_key_the_gate_checked() {
     // The bare package name cannot approve a git artifact, so an example
     // built from it sends the reader in a circle: they add the entry the
     // error asked for and the next install fails the same way.
@@ -227,7 +227,8 @@ fn prepare_rejection_suggests_the_allow_builds_key_the_gate_checked() {
         panic!("expected exactly one allowBuild check, got {checked:?}");
     };
     assert!(
-        help.contains(&format!("  {gated_key}: true")),
+        help.contains("permissions:")
+            && help.contains(&format!("  '{gated_key}':\n    build: true")),
         "the help must quote the key the gate checked ({gated_key}), got: {help}",
     );
     assert!(

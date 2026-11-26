@@ -101,8 +101,9 @@ A repository declares eligibility and nothing else:
 
 ```yaml title="pnpm-workspace.yaml"
 pnprServer: http://127.0.0.1:7677
-allowBuilds:
-  native-addon: true
+permissions:
+  native-addon:
+    build: true
 remoteCache:
   org: acme
 sideEffectsCache:
@@ -115,12 +116,13 @@ Declaring only `remote` leaves `read` and `write` at their defaults, so the
 local cache keeps working as it did.
 
 `packages` is an eligibility list, not a permission: a package is only a
-candidate when it also passes [`allowBuilds`](#allowbuilds), has
+candidate when it also passes [`permissions`](#permissions) or the deprecated
+[`allowBuilds`](#allowbuilds), has
 `requiresBuild: true`, and has a verified source integrity. Listing a package
 here does not review its build scripts for you. Under the default
 [`strictDepBuilds`](#strictdepbuilds) an install still fails with
 `ERR_PNPM_IGNORED_BUILDS` when it reaches a build nobody has ruled on, and a
-package denied with `allowBuilds: false` is never built, from the cache or
+package denied with `build: false` in `permissions` or `false` in `allowBuilds` is never built, from the cache or
 otherwise.
 
 The organization and the trust material are set under
@@ -323,6 +325,18 @@ When `strictDepBuilds` is enabled, the installation will exit with a non-zero ex
 
 ### allowBuilds
 
+Deprecated in: v13
+
+Existing decisions are still read, and pnpm warns when this setting contains a decision. Install may add undecided placeholders here; they do not affect whether a package can run build scripts. New build decisions are written to [`permissions`](#permissions). To migrate an entry, move it under `permissions.<package>.build`:
+
+```yaml title="pnpm-workspace.yaml"
+permissions:
+  esbuild:
+    build: true
+  core-js:
+    build: false
+```
+
 A map of package matchers to explicitly allow (`true`) or disallow (`false`) script execution.
 
 ```yaml title="pnpm-workspace.yaml"
@@ -353,9 +367,9 @@ The repository form also approves git-hosted packages that pnpm downloads as a t
 
 Denials by package name are not restricted this way: `foo: false` blocks `foo` whether it comes from the registry or from git.
 
-**Default behavior:** Packages not listed in `allowBuilds` are disallowed by default and are treated as unreviewed. By default, an error is printed ([`strictDepBuilds`](#strictdepbuilds) defaults to `true`). If `strictDepBuilds` is set to `false`, a warning is printed instead.
+**Default behavior:** Packages not listed in `permissions` or `allowBuilds` are disallowed by default and are treated as unreviewed. By default, an error is printed ([`strictDepBuilds`](#strictdepbuilds) defaults to `true`). If `strictDepBuilds` is set to `false`, a warning is printed instead.
 
-During install, dependencies with ignored builds that are not yet listed in `allowBuilds` are automatically added to `pnpm-workspace.yaml` with a placeholder value, so you can manually set them to `true` or `false`. The [`--allow-build`](../cli/add.md#--allow-build) flag on `pnpm add` and `pnpm approve-builds` writes its entries here as well.
+During install, dependencies with ignored builds that are not yet listed in `permissions` or `allowBuilds` are automatically added to `allowBuilds` with a placeholder value. This legacy entry can be moved under `permissions.<package>.build` after you decide whether to allow or deny it. The [`--allow-build`](../cli/add.md#--allow-build) flag on `pnpm add` and `pnpm approve-builds` write decisions to `permissions`.
 
 **Patched packages:** since v12.4.0, a [patch](../cli/patch.md) that adds an install script or a `binding.gyp` makes the package buildable, and the build goes through the same approval. When `strictDepBuilds` is `false`, an unapproved package appears under "Packages awaiting approval". When `strictDepBuilds` is `true`, the install fails with `ERR_PNPM_IGNORED_BUILDS`.
 
@@ -413,7 +427,7 @@ A `skills` list names the only skills of the package that pnpm links, and a skil
 
 `false` records a denial, so the package is not offered for approval again. [`pnpm approve`](../cli/permissions.md) writes these entries.
 
-A build decision is written to `permissions` only when the file already has a `permissions` setting. Otherwise it is written to `allowBuilds`, which older pnpm versions read too.
+New build decisions are written to `permissions`. Existing `allowBuilds` entries remain active until a new decision is saved for that package. pnpm then moves that entry to `permissions` and leaves the other entries in `allowBuilds`. Older pnpm versions do not read build decisions from `permissions`.
 
 #### permissions.rules and permissions.unused
 
@@ -460,7 +474,7 @@ An empty list turns agent skills off. pnpm stops offering them for approval and 
 * Default: **false**
 * Type: **Boolean**
 
-If set to `true`, all build scripts (e.g. `preinstall`, `install`, `postinstall`) from dependencies will run automatically, without requiring approval. A package whose build is denied, by `false` in [`allowBuilds`](#allowbuilds) or `build: false` in [`permissions`](#permissions), is still blocked, so this setting allows every build except the denied ones. As everywhere else, a package's `permissions` entry outranks its `allowBuilds` entry.
+If set to `true`, all build scripts (e.g. `preinstall`, `install`, `postinstall`) from dependencies will run automatically, without requiring approval. A package whose build is denied, by `false` in [`allowBuilds`](#allowbuilds) or `build: false` in [`permissions`](#permissions), is still blocked, so this setting allows every build except the denied ones. A package's `permissions` entry outranks its `allowBuilds` entry.
 
 :::warning
 

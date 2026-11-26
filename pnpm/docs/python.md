@@ -72,11 +72,12 @@ shared = { workspace = true }
 
 pnpm builds local packages with their declared backend. Editable installations follow source edits. A requirement naming a workspace project without a source declaration is refused instead of fetched from the index.
 
-Build requirements need approval under [`allowBuilds`](./settings/build.md#allowbuilds), using Package URL keys:
+Build requirements need approval under [`permissions`](./settings/build.md#permissions), using Package URL keys:
 
 ```yaml title="pnpm-workspace.yaml"
-allowBuilds:
-  'pkg:pypi/hatchling': true
+permissions:
+  'pkg:pypi/hatchling':
+    build: true
 ```
 
 An unapproved backend is skipped, with a message naming the approval to add. Git sources and source distributions additionally need approval of `pkg:pypi/<distribution>`. pnpm can build a source distribution when no compatible wheel is published; its archive and SHA-256 are pinned in `pylock.toml`, and cached sources can be replayed offline. Direct wheel URLs and Git sources can be declared in `[tool.uv.sources]`; Git and URL sources cannot be installed editable.

@@ -36,7 +36,10 @@ fn allow_build_merges_into_config_and_persists_to_workspace_yaml() {
 
     let yaml = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml written");
-    assert!(yaml.contains("esbuild: true"), "allowBuilds entry persisted, got:\n{yaml}");
+    assert!(
+        yaml.contains("permissions:") && yaml.contains("esbuild:\n    build: true"),
+        "build permission persisted, got:\n{yaml}",
+    );
 }
 
 #[test]
@@ -50,7 +53,10 @@ fn allow_build_negation_sets_false_in_config_and_workspace_yaml() {
 
     let yaml = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml written");
-    assert!(yaml.contains("core-js: false"), "allowBuilds entry persisted, got:\n{yaml}");
+    assert!(
+        yaml.contains("permissions:") && yaml.contains("core-js:\n    build: false"),
+        "build permission persisted, got:\n{yaml}",
+    );
 }
 
 #[test]

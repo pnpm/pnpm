@@ -126,13 +126,13 @@ pub(crate) struct ApprovalDecision {
 }
 
 impl ApproveBuildsArgs {
-    /// Validate, prompt, write `allowBuilds`, and clear the decided ignored
+    /// Validate, prompt, write `permissions`, and clear the decided ignored
     /// builds. Returns the rebuild inputs (`Some`) when packages were
     /// approved to build, or `None` when there is nothing to rebuild; the
     /// caller then drives `run_rebuild` with a reporter.
     ///
     /// `config` locates the pending approvals and the settings file. The
-    /// returned rebuild state is `rebuild_config` plus the `allowBuilds`
+    /// returned rebuild state is `rebuild_config` plus the build decisions
     /// this call wrote, anchored at `manifest_path`. `dir` is the
     /// canonicalized `--dir`, the fallback settings target when no
     /// `pnpm-workspace.yaml` is found.
@@ -305,7 +305,9 @@ fn named_decisions(approved: &[String], denied: &[String]) -> BTreeMap<String, b
 /// confirmation; it denies every pending package.
 fn confirm_selected_builds(build_packages: &[String], pending: &[String]) -> miette::Result<bool> {
     if build_packages.is_empty() {
-        pnpm_diagnostics::println!("All packages were added to allowBuilds with value false.");
+        pnpm_diagnostics::println!(
+            "All packages were added to permissions with build set to false.",
+        );
         return Ok(true);
     }
     confirm(&confirm_builds_prompt(build_packages, pending))

@@ -285,10 +285,15 @@ impl DeployWorkspaceSettings {
             );
         }
         if !self.allow_builds.is_empty() {
+            let permissions = self.allow_builds
+                .iter()
+                .map(|(package, allowed)| {
+                    (package.clone(), serde_json::json!({ "build": allowed }))
+                })
+                .collect::<BTreeMap<_, _>>();
             manifest.insert(
-                "allowBuilds".to_string(),
-                serde_json::to_value(self.allow_builds.iter().collect::<BTreeMap<_, _>>())
-                    .into_diagnostic()?,
+                "permissions".to_string(),
+                serde_json::to_value(permissions).into_diagnostic()?,
             );
         }
         Ok(manifest)

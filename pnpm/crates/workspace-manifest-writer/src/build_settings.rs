@@ -33,15 +33,10 @@ pub enum PermissionValue {
 }
 
 /// Upsert `name → bool` entries into `dir`'s `pnpm-workspace.yaml`
-/// `allowBuilds:` block (creating the file/block if absent), preserving the
+/// `permissions:` block (creating the file/block if absent), preserving the
 /// rest of the document's formatting, and write the file back only when
 /// something actually changed. Records which dependencies may (`true`) or
 /// may not (`false`) run build scripts.
-///
-/// When the file has a `permissions` block, each decision lands there as
-/// [`set_permissions`] places a [`PermissionValue::Build`]: a
-/// `permissions.<name>.build` entry outranks `allowBuilds.<name>`, so an
-/// `allowBuilds` write would not take effect.
 ///
 /// `entries` is iterated in its own order; pass an ordered map for a
 /// deterministic result.
@@ -232,7 +227,7 @@ pub const LEGACY_BUILD_SETTINGS: &[&str] = &[
 /// Same as [`set_allow_builds`], but also deletes the
 /// [`LEGACY_BUILD_SETTINGS`] in the same write. Used by `pnpm
 /// approve-builds` so a workspace migrated from pnpm v10 is not left with
-/// dead build settings next to the `allowBuilds:` it writes.
+/// dead build settings next to the `permissions:` it writes.
 pub fn set_allow_builds_clearing_legacy<'a, Entries>(
     dir: &Path,
     entries: Entries,
@@ -313,14 +308,8 @@ fn validate_allow_build_entries(
 }
 
 /// Record `permissions` decisions in `dir`'s `pnpm-workspace.yaml`,
-/// deleting the [`LEGACY_BUILD_SETTINGS`] in the same write.
-///
-/// A [`PermissionValue::Build`] decision lands in `permissions` only when
-/// the file already has a `permissions` block, and the package's
-/// `allowBuilds` entry is then removed. Otherwise it lands in
-/// `allowBuilds`, which pnpm versions without `permissions` read too. A
-/// `PermissionValue::Skills` decision always lands in `permissions`; this
-/// pnpm is the only reader of that capability.
+/// deleting the [`LEGACY_BUILD_SETTINGS`] in the same write. Build decisions
+/// land in `permissions`, and any matching `allowBuilds` entry is removed.
 pub fn set_permissions<'a, Entries>(
     dir: &Path,
     entries: Entries,
@@ -400,20 +389,12 @@ fn validate_permission_entries(
     Ok(())
 }
 
-/// Upsert `entries`, sending build decisions to `allowBuilds` unless the
-/// document already has `permissions`. Returns whether anything changed.
+/// Upsert `entries`, recording build decisions in `permissions`.
 fn record_permissions(manifest: &mut Manifest, entries: Vec<(&str, PermissionValue)>) -> bool {
-    let builds_in_permissions = manifest.document.keys
-        .iter()
-        .any(|key| key == "permissions");
     let mut changed = false;
     for (name, value) in entries {
         match &value {
-            PermissionValue::Build(allowed) => {
-                if !builds_in_permissions {
-                    changed |= edit::add_allow_build(manifest, name, *allowed);
-                    continue;
-                }
+            PermissionValue::Build(_) => {
                 changed |= edit::set_permission(manifest, name, "build", &value);
                 changed |= edit::remove_allow_build(manifest, name);
             }

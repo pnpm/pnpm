@@ -60,7 +60,7 @@ variables the way `npm install --build-from-source` does. Set the variables
 in the environment instead. Native addons that use `node-pre-gyp` or
 `prebuild-install`, such as `sqlite3`, read them. For example, to build
 `sqlite3` from source for Electron, approve its build in
-[`allowBuilds`](./settings/build.md#allowbuilds), then put the variables in an
+[`permissions`](./settings/build.md#permissions), then put the variables in an
 env file:
 
 ```ini title=".env.electron"
