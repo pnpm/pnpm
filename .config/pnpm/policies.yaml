@@ -1,12 +1,11 @@
 # yaml-language-server: $schema=https://json.schemastore.org/pnpm-workspace.json
-allowBuilds:
-  '@parcel/watcher': false
-  core-js: false
-  esbuild: true
-  fuse-native: true
-  ghooks: true
-  msgpackr-extract: true
-  unrs-resolver: true
+permissions:
+  unused: warn
+  rules:
+    esbuild:
+      build: true
+    unrs-resolver:
+      build: true
 
 auditConfig:
   ignoreGhsas:
@@ -80,29 +79,31 @@ minimumReleaseAgeExclude:
 minimumReleaseAgeExcludePrune: true
 
 overrides:
-  '@yarnpkg/fslib@2': '3'
-  adm-zip@<0.6.0: ^0.6.0
-  brace-expansion@<5.0.5: '>=5.0.5'
-  clipanion: 3.2.0-rc.6
-  cross-spawn@<7.0.5: '>=7.0.5'
-  diff@<8.0.3: '^8.0.3'
-  glob@>=10.3.7 <=11.0.3: '^11.1.0'
-  handlebars@>=4.0.0 <4.7.9: '>=4.7.9'
-  js-yaml@<3.14.2: '^3.14.2'
-  js-yaml@^4.0.0: '^4.3.2'
-  lodash@<=4.17.23: '>=4.18.0'
-  lodash@>=4.0.0 <=4.17.22: '^4.17.23'
-  minimatch@>=7.0.0 <7.4.7: '^7.4.7'
-  minimatch@>=9.0.0 <10.0.0: '^10.2.4'
-  # CVE-2026-84947: no undici 6 release has the fix. node-gyp 12 only uses
-  # undici's EnvHttpProxyAgent, which undici 7 keeps. undici 7 needs a global
-  # File, which .config/pnpm/patches/node-gyp@12.3.0.patch adds on Node.js 18.
-  node-gyp@12>undici: 'catalog:'
-  request: npm:postman-request@2.88.1-postman.40
-  semver@<7.5.2: 'catalog:'
-  socks@2: 'catalog:'
-  tar@<=7.5.9: '>=7.5.10'
-  tmp@<=0.2.3: '>=0.2.4'
+  unused: warn
+  rules:
+    '@yarnpkg/fslib@2': '3'
+    adm-zip@<0.6.0: ^0.6.0
+    brace-expansion@<5.0.5: '>=5.0.5'
+    clipanion: 3.2.0-rc.6
+    cross-spawn@<7.0.5: '>=7.0.5'
+    diff@<8.0.3: '^8.0.3'
+    glob@>=10.3.7 <=11.0.3: '^11.1.0'
+    handlebars@>=4.0.0 <4.7.9: '>=4.7.9'
+    js-yaml@<3.14.2: '^3.14.2'
+    js-yaml@^4.0.0: '^4.3.2'
+    lodash@<=4.17.23: '>=4.18.0'
+    lodash@>=4.0.0 <=4.17.22: '^4.17.23'
+    minimatch@>=7.0.0 <7.4.7: '^7.4.7'
+    minimatch@>=9.0.0 <10.0.0: '^10.2.4'
+    # CVE-2026-84947: no undici 6 release has the fix. node-gyp 12 only uses
+    # undici's EnvHttpProxyAgent, which undici 7 keeps. undici 7 needs a global
+    # File, which .config/pnpm/patches/node-gyp@12.3.0.patch adds on Node.js 18.
+    node-gyp@12>undici: 'catalog:'
+    request: npm:postman-request@2.88.1-postman.40
+    semver@<7.5.2: 'catalog:'
+    socks@2: 'catalog:'
+    tar@<=7.5.9: '>=7.5.10'
+    tmp@<=0.2.3: '>=0.2.4'
 
 packageExtensions:
   # Its index.js imports the Jest plugin, which it declares only as a dev dependency.
