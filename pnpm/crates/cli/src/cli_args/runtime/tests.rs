@@ -241,7 +241,7 @@ fn project_runtime_matches_the_requested_version() {
 
     assert_eq!(
         ensure_project_runtime_matches(&state, &request).unwrap(),
-        Some(DependencyGroup::Dev)
+        Some(DependencyGroup::Dev),
     );
 }
 
@@ -263,7 +263,7 @@ fn project_runtime_without_a_flag_finds_a_prod_runtime() {
 
     assert_eq!(
         ensure_project_runtime_matches(&state, &request).unwrap(),
-        Some(DependencyGroup::Prod)
+        Some(DependencyGroup::Prod),
     );
 }
 
@@ -285,7 +285,7 @@ fn project_runtime_without_a_flag_finds_the_group_matching_the_version() {
 
     assert_eq!(
         ensure_project_runtime_matches(&state, &request).unwrap(),
-        Some(DependencyGroup::Prod)
+        Some(DependencyGroup::Prod),
     );
 }
 
@@ -327,7 +327,7 @@ fn project_runtime_keeps_an_optional_dependency_with_the_same_name() {
 
     assert_eq!(
         ensure_project_runtime_matches(&state, &request).unwrap(),
-        Some(DependencyGroup::Dev)
+        Some(DependencyGroup::Dev),
     );
 }
 
