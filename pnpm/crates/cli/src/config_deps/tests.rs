@@ -6,6 +6,7 @@ use super::{
     resolve_engine_version,
     run_update_config_hooks,
 };
+use crate::no_env_host::NoEnv;
 use pnpm_config::{
     Config,
     Host,
@@ -230,7 +231,7 @@ async fn update_config_warns_about_scope_left_on_its_registry_by_legacy_routes()
         "module.exports = { hooks: { updateConfig: (config) => ({ ...config, registries: { default: 'https://other.example/' } }) } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default().current::<NoEnv>(root.path()).expect("load configuration");
 
     run_update_config_hooks::<RecordingReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
