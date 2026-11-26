@@ -1,3 +1,7 @@
+use self::unset::{
+    ensure_project_runtime_matches,
+    run_unset,
+};
 use crate::{
     State,
     cli_args::{
@@ -6,6 +10,7 @@ use crate::{
             add_package,
         },
         global::handle_global_add,
+        remove::RemoveArgs,
     },
 };
 use clap::Args;
@@ -46,8 +51,8 @@ pub struct RuntimeArgs {
     #[clap(short = 'P', long = "save-prod")]
     pub save_prod: bool,
 
-    /// Subcommand and its arguments: `set <name> [<version>]`, where `<name>`
-    /// is `node`, `deno`, or `bun`.
+    /// Subcommand and its arguments: `set <name> [<version>]` or
+    /// `unset <name>`, where `<name>` is `node`, `deno`, or `bun`.
     pub params: Vec<String>,
 }
 
@@ -65,9 +70,7 @@ pub enum RuntimeError {
         subcommand: String,
     },
 
-    #[display(
-        r#""pnpm runtime set <name> <version>" requires a runtime name (e.g. node, deno, bun)"#
-    )]
+    #[display(r#""pnpm runtime" requires a runtime name (e.g. node, deno, bun)"#)]
     #[diagnostic(code(ERR_PNPM_MISSING_RUNTIME_NAME))]
     MissingRuntimeName,
 
@@ -84,6 +87,29 @@ pub enum RuntimeError {
         #[error(not(source))]
         version: String,
     },
+
+    #[display("Unexpected argument: {argument}")]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_UNEXPECTED_ARGUMENT))]
+    UnexpectedArgument {
+        #[error(not(source))]
+        argument: String,
+    },
+
+    #[display(
+        r#"Cannot unset "{name}": it is declared as both a dev and a prod runtime, and as an optional dependency. Pass --save-dev or --save-prod to pick the runtime to remove"#
+    )]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_AMBIGUOUS_UNSET))]
+    AmbiguousUnset {
+        #[error(not(source))]
+        name: String,
+    },
+
+    #[display(r#"Cannot unset "{name}": "{name}" is not declared as a runtime in the project"#)]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_NOT_DECLARED))]
+    NotARuntimeDependency {
+        #[error(not(source))]
+        name: String,
+    },
 }
 
 #[derive(Debug)]
@@ -93,12 +119,51 @@ struct RuntimeSetRequest {
     dependency_group: DependencyGroup,
 }
 
+#[derive(Debug)]
+struct RuntimeUnsetRequest {
+    runtime_name: String,
+    /// `None` when neither `--save-dev` nor `--save-prod` was passed.
+    dependency_group: Option<DependencyGroup>,
+}
+
+#[derive(Debug)]
+enum RuntimeCommand {
+    Set(RuntimeSetRequest),
+    Unset(RuntimeUnsetRequest),
+}
+
 impl RuntimeArgs {
-    /// Execute the subcommand, installing the runtime into the current
-    /// project. Mirrors pnpm's `runtime set`, which runs
-    /// `pnpm add <name>@runtime:<version>` in the project directory.
+    /// Execute the subcommand in the current project.
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let request = self.set_request()?;
+        match self.command()? {
+            RuntimeCommand::Set(request) => Self::run_set::<Reporter>(state, request).await,
+            RuntimeCommand::Unset(request) => {
+                let dependency_group = ensure_project_runtime_matches(&state, &request)?;
+                RemoveArgs::for_runtime(request.runtime_name, dependency_group)
+                    .run::<Reporter>(state)
+                    .await
+            }
+        }
+    }
+
+    /// Execute the subcommand against the global packages directory.
+    pub async fn run_global<Reporter: self::Reporter + 'static>(
+        self,
+        config: &'static Config,
+        dir: &Path,
+    ) -> miette::Result<()> {
+        match self.command()? {
+            RuntimeCommand::Set(request) => {
+                Self::run_global_set::<Reporter>(config, dir, request).await
+            }
+            RuntimeCommand::Unset(request) => run_unset::<Reporter>(&request, config),
+        }
+    }
+
+    async fn run_set<Reporter: self::Reporter + 'static>(
+        state: State,
+        request: RuntimeSetRequest,
+    ) -> miette::Result<()> {
         let config = state.config;
         let prefix = state.manifest
             .path()
@@ -129,19 +194,11 @@ impl RuntimeArgs {
         Ok(())
     }
 
-    /// `pnpm runtime set <name> <version> -g`: install the runtime into the
-    /// global packages directory and link its binary into the global bin
-    /// directory. Mirrors pnpm's `runtime set … -g`, which runs
-    /// `pnpm add <name>@runtime:<version> --global` against the pnpm home
-    /// directory. `--save-dev` / `--save-prod` are ignored for a global
-    /// install, like every `pnpm add -g`, the global group always saves to
-    /// `dependencies`.
-    pub async fn run_global<Reporter: self::Reporter + 'static>(
-        self,
+    async fn run_global_set<Reporter: self::Reporter + 'static>(
         config: &'static Config,
         dir: &Path,
+        request: RuntimeSetRequest,
     ) -> miette::Result<()> {
-        let request = self.set_request()?;
         let global_request = AddRequest::from(request.package_name.as_str());
         Box::pin(handle_global_add::<Reporter>(
             config,
@@ -156,13 +213,45 @@ impl RuntimeArgs {
         .await
     }
 
-    fn set_request(&self) -> Result<RuntimeSetRequest, RuntimeError> {
+    fn command(&self) -> Result<RuntimeCommand, RuntimeError> {
         let Some(subcommand) = self.params.first() else {
             return Err(RuntimeError::NoSubcommand);
         };
-        if subcommand != "set" {
-            return Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() });
+        match subcommand.as_str() {
+            "set" => Ok(RuntimeCommand::Set(self.set_request()?)),
+            "unset" => Ok(RuntimeCommand::Unset(self.unset_request()?)),
+            _ => Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() }),
         }
+    }
+
+    fn set_request(&self) -> Result<RuntimeSetRequest, RuntimeError> {
+        let runtime_name = self.runtime_name()?;
+        let version_spec = self.version_spec()?.unwrap_or("");
+        Ok(RuntimeSetRequest {
+            runtime_name: runtime_name.to_string(),
+            package_name: format!("{runtime_name}@runtime:{version_spec}"),
+            dependency_group: self.dependency_group(),
+        })
+    }
+
+    fn unset_request(&self) -> Result<RuntimeUnsetRequest, RuntimeError> {
+        let runtime_name = self.runtime_name()?;
+        // A global runtime has one installed version and a project field one
+        // declaration, so a version would select nothing.
+        if let Some(argument) = self.params.get(2) {
+            return Err(RuntimeError::UnexpectedArgument { argument: argument.clone() });
+        }
+        let dependency_group = if self.save_dev {
+            Some(DependencyGroup::Dev)
+        } else if self.save_prod {
+            Some(DependencyGroup::Prod)
+        } else {
+            None
+        };
+        Ok(RuntimeUnsetRequest { runtime_name: runtime_name.to_string(), dependency_group })
+    }
+
+    fn runtime_name(&self) -> Result<&str, RuntimeError> {
         let runtime_name = self.params
             .get(1)
             .map(|name| name.trim())
@@ -175,25 +264,29 @@ impl RuntimeArgs {
         if !is_runtime_alias(runtime_name) {
             return Err(RuntimeError::InvalidRuntimeName { name: runtime_name.to_string() });
         }
-        let version_spec = self.params.get(2).map_or("", |version| version.trim());
+        Ok(runtime_name)
+    }
+
+    fn version_spec(&self) -> Result<Option<&str>, RuntimeError> {
+        let version_spec = self.params
+            .get(2)
+            .map(|version| version.trim())
+            .filter(|version| !version.is_empty());
         // The version is interpolated into the same `<name>@runtime:<version>`
         // selector, which the global-add pipeline splits on commas. Reject a
         // comma so `runtime set node 22,evil -g` can't smuggle in a second
         // install target. No valid runtime version (semver, dist-tag,
         // channel) contains one.
-        if version_spec.contains(',') {
-            return Err(RuntimeError::InvalidRuntimeVersion { version: version_spec.to_string() });
+        if let Some(version) = version_spec
+            && version.contains(',')
+        {
+            return Err(RuntimeError::InvalidRuntimeVersion { version: version.to_string() });
         }
-        let dependency_group = if self.save_dev || !self.save_prod {
-            DependencyGroup::Dev
-        } else {
-            DependencyGroup::Prod
-        };
-        Ok(RuntimeSetRequest {
-            runtime_name: runtime_name.to_string(),
-            package_name: format!("{runtime_name}@runtime:{version_spec}"),
-            dependency_group,
-        })
+        Ok(version_spec)
+    }
+
+    fn dependency_group(&self) -> DependencyGroup {
+        if self.save_dev || !self.save_prod { DependencyGroup::Dev } else { DependencyGroup::Prod }
     }
 }
 
@@ -220,6 +313,8 @@ fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> boo
     crate::shim_dispatch::native_shim_is_installed(bin_dir, runtime_name)
         || crate::shim_dispatch::is_legacy_context_aware_shim(&bin_dir.join(runtime_name))
 }
+
+mod unset;
 
 #[cfg(test)]
 mod tests;

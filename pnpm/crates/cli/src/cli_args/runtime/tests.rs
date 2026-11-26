@@ -2,6 +2,7 @@ use super::{
     RuntimeArgs,
     RuntimeError,
     runtime_shim_hint,
+    unset::ensure_project_runtime_matches,
 };
 use crate::{
     State,
@@ -72,14 +73,14 @@ fn set_request_works_with_deno() {
 }
 
 #[test]
-fn set_request_fails_without_subcommand() {
-    let err = args(&[]).set_request().unwrap_err();
+fn command_fails_without_subcommand() {
+    let err = args(&[]).command().unwrap_err();
     assert_eq!(err, RuntimeError::NoSubcommand);
 }
 
 #[test]
-fn set_request_fails_for_unknown_subcommand() {
-    let err = args(&["foo"]).set_request().unwrap_err();
+fn command_fails_for_unknown_subcommand() {
+    let err = args(&["foo"]).command().unwrap_err();
     assert_eq!(err, RuntimeError::UnknownSubcommand { subcommand: "foo".to_string() });
 }
 
@@ -149,6 +150,165 @@ fn global_install_builds_the_same_runtime_selector() {
     let request =
         RuntimeArgs { global: true, ..args(&["set", "node", "22"]) }.set_request().unwrap();
     assert_eq!(request.package_name, "node@runtime:22");
+}
+
+#[test]
+fn unset_request_without_a_flag_leaves_the_group_to_the_manifest() {
+    let request = args(&["unset", "node"]).unset_request().unwrap();
+    assert_eq!(request.runtime_name, "node");
+    assert_eq!(request.dependency_group, None);
+}
+
+#[test]
+fn unset_request_rejects_a_version() {
+    for version in ["22", ""] {
+        let err = args(&["unset", "node", version]).unset_request().unwrap_err();
+        assert_eq!(err, RuntimeError::UnexpectedArgument { argument: version.to_string() });
+    }
+}
+
+#[test]
+fn unset_rejects_other_removal_subcommands() {
+    for subcommand in ["remove", "rm", "uninstall", "un"] {
+        let err = args(&[subcommand, "node"]).command().unwrap_err();
+        assert_eq!(err, RuntimeError::UnknownSubcommand { subcommand: subcommand.to_string() });
+    }
+}
+
+#[test]
+fn unset_request_uses_prod_when_save_prod_is_set() {
+    let request =
+        RuntimeArgs { save_prod: true, ..args(&["unset", "deno"]) }.unset_request().unwrap();
+    assert_eq!(request.dependency_group, Some(DependencyGroup::Prod));
+}
+
+#[test]
+fn unset_request_prefers_save_dev_over_save_prod() {
+    let request = RuntimeArgs { save_dev: true, save_prod: true, ..args(&["unset", "node"]) }
+        .unset_request()
+        .unwrap();
+    assert_eq!(request.dependency_group, Some(DependencyGroup::Dev));
+}
+
+#[test]
+fn unset_request_fails_without_runtime_name() {
+    let err = args(&["unset"]).unset_request().unwrap_err();
+    assert_eq!(err, RuntimeError::MissingRuntimeName);
+}
+
+#[test]
+fn unset_request_rejects_unsupported_runtime_names() {
+    for name in ["python", "node,is-positive", "./evil", "file:./evil"] {
+        let err = args(&["unset", name]).unset_request().unwrap_err();
+        assert_eq!(err, RuntimeError::InvalidRuntimeName { name: name.to_string() });
+    }
+}
+
+#[test]
+fn project_runtime_without_a_flag_finds_a_prod_runtime() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "dependencies": { "node": "runtime:22.14.0" },
+            "devDependencies": { "node": "^22.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let config = Config::new().leak();
+    let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+    let request = args(&["unset", "node"]).unset_request().unwrap();
+
+    assert_eq!(
+        ensure_project_runtime_matches(&state, &request).unwrap(),
+        Some(DependencyGroup::Prod),
+    );
+}
+
+#[test]
+fn project_runtime_without_a_flag_targets_every_group() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "dependencies": { "node": "runtime:22.14.0" },
+            "devDependencies": { "node": "runtime:20.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let config = Config::new().leak();
+    let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+    let request = args(&["unset", "node"]).unset_request().unwrap();
+
+    assert_eq!(ensure_project_runtime_matches(&state, &request).unwrap(), None);
+}
+
+#[test]
+fn project_runtime_rejects_an_unflagged_unset_that_would_clear_an_optional_dependency() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "dependencies": { "node": "runtime:22.14.0" },
+            "devDependencies": { "node": "runtime:20.0.0" },
+            "optionalDependencies": { "node": "^22.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let config = Config::new().leak();
+    let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+    let request = args(&["unset", "node"]).unset_request().unwrap();
+
+    assert_eq!(
+        ensure_project_runtime_matches(&state, &request).unwrap_err().to_string(),
+        RuntimeError::AmbiguousUnset { name: "node".to_string() }.to_string(),
+    );
+}
+
+#[test]
+fn project_runtime_with_save_dev_ignores_a_prod_runtime() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "dependencies": { "node": "runtime:22.14.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let config = Config::new().leak();
+    let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+    let request =
+        RuntimeArgs { save_dev: true, ..args(&["unset", "node"]) }.unset_request().unwrap();
+
+    assert_eq!(
+        ensure_project_runtime_matches(&state, &request).unwrap_err().to_string(),
+        RuntimeError::NotARuntimeDependency { name: "node".to_string() }.to_string(),
+    );
+}
+
+#[test]
+fn local_unset_rejects_an_ordinary_dependency() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "devDependencies": { "node": "^22.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let config = Config::new().leak();
+    let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+    let request = args(&["unset", "node"]).unset_request().unwrap();
+
+    assert_eq!(
+        ensure_project_runtime_matches(&state, &request).unwrap_err().to_string(),
+        RuntimeError::NotARuntimeDependency { name: "node".to_string() }.to_string(),
+    );
 }
 
 #[test]

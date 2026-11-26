@@ -72,6 +72,26 @@ pub struct RemoveArgs {
 }
 
 impl RemoveArgs {
+    /// `dependency_group` is `None` to remove the runtime from every field.
+    pub(crate) fn for_runtime(
+        package_name: String,
+        dependency_group: Option<DependencyGroup>,
+    ) -> Self {
+        Self {
+            package_names: vec![package_name],
+            dependency_options: RemoveDependencyOptions {
+                save_prod: dependency_group == Some(DependencyGroup::Prod),
+                save_dev: dependency_group == Some(DependencyGroup::Dev),
+                save_optional: false,
+            },
+            lockfile_only: false,
+            lockfile_dir: LockfileDirArg::default(),
+            trust_lockfile: false,
+            no_trust_lockfile: false,
+            global: false,
+        }
+    }
+
     pub(crate) fn apply_cli_config(&self, config: &mut pnpm_config::Config) {
         if self.trust_lockfile || self.no_trust_lockfile {
             config.cli_settings.insert("trustLockfile".to_string());

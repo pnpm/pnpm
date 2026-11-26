@@ -120,11 +120,23 @@ The registry answered a request for one package with the metadata of a different
 
 Check that the registry configured for the package, or for its scope, is correct. A misconfigured proxy or a registry that serves the wrong document can cause this error.
 
+## ERR_PNPM_RUNTIME_AMBIGUOUS_UNSET
+
+`pnpm runtime unset <name>` matched both a dev runtime (`devEngines.runtime` or a `runtime:` entry in `devDependencies`) and a prod runtime (`engines.runtime` or a `runtime:` entry in `dependencies`). `optionalDependencies` also declares a dependency with that name. Pass `--save-dev` or `--save-prod` to pick the runtime to remove, and run the command again for the other one.
+
+## ERR_PNPM_RUNTIME_NOT_DECLARED
+
+`pnpm runtime unset <name>` found no declaration of that runtime in the project. A dependency with the same name counts only if it is declared with the `runtime:` or `tool:` protocol.
+
 ## ERR_PNPM_RUNTIME_NOT_FOUND
 
 A runtime declared in [`devEngines.runtime`](./package_json.md#devenginesruntime) or `engines.runtime` with `onFail` set to `error` is not installed on the system.
 
 Install the runtime, or set `onFail` to `download` to let pnpm fetch it. To check without failing, set [`runtimeOnFail`](./settings/cli.md#runtimeonfail) to `warn` or `ignore`.
+
+## ERR_PNPM_RUNTIME_UNEXPECTED_ARGUMENT
+
+`pnpm runtime unset` received an argument after `<name>`. The command takes no version. Remove the extra argument and retry.
 
 ## ERR_PNPM_TARBALL_INTEGRITY
 

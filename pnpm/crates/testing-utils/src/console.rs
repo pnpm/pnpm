@@ -76,9 +76,15 @@ impl PrivateConsole {
     /// end the test too.
     pub fn close(self) {
         use windows_sys::Win32::{
+            Foundation::{
+                ERROR_SUCCESS,
+                ERROR_TIMEOUT,
+                SetLastError,
+            },
             System::Console::GetConsoleWindow,
             UI::WindowsAndMessaging::{
-                PostMessageW,
+                SMTO_ABORTIFHUNG,
+                SendMessageTimeoutW,
                 WM_CLOSE,
             },
         };
@@ -87,11 +93,35 @@ impl PrivateConsole {
         let window = unsafe { GetConsoleWindow() };
         assert!(!window.is_null(), "the private console has a window");
         drop(self);
-        // SAFETY: the window is the console's, which stays alive while the
-        // processes still attached to it hold it open, and posting to a
-        // window that has closed meanwhile only fails.
-        let posted = unsafe { PostMessageW(window, WM_CLOSE, 0, 0) };
-        assert_ne!(posted, 0, "PostMessageW: {}", std::io::Error::last_os_error());
+        // SAFETY: plain FFI call that takes an integer. The send does not
+        // set the last error on every failure, so a stale `ERROR_TIMEOUT`
+        // must not reach the check below.
+        unsafe { SetLastError(ERROR_SUCCESS) };
+        // SAFETY: the handle came from `GetConsoleWindow` and is non-null.
+        // The send takes no pointer but the result slot, which may be null.
+        // A window that closed meanwhile makes the send fail, which is
+        // harmless.
+        // The send waits until the console host has processed the close, so
+        // the caller observes its effect.
+        let sent = unsafe {
+            SendMessageTimeoutW(
+                window,
+                WM_CLOSE,
+                0,
+                0,
+                SMTO_ABORTIFHUNG,
+                30_000,
+                std::ptr::null_mut(),
+            )
+        };
+        if sent == 0 {
+            let error = std::io::Error::last_os_error();
+            assert_ne!(
+                error.raw_os_error(),
+                Some(ERROR_TIMEOUT.cast_signed()),
+                "the console host did not process WM_CLOSE: {error}",
+            );
+        }
     }
 }
 

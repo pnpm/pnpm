@@ -88,16 +88,40 @@ pnpm runtime set bun latest -g
 
 [codename]: https://github.com/nodejs/Release/blob/main/CODENAMES.md
 
+### unset
+
+Remove a runtime installed by `runtime set`.
+
+```sh
+pnpm runtime unset <name> [-g]
+```
+
+Without `-g`, pnpm removes the runtime dependency from the current project. A declaration must use the `runtime:` or `tool:` protocol; an ordinary dependency with the same name is left in place. Without `--save-dev` or `--save-prod`, pnpm removes the runtime from both `devEngines.runtime` and `engines.runtime`. With `-g`, pnpm removes the global install of the runtime and unlinks its bins. For Node.js, pnpm also removes the Node.js versions installed by `pnpm env use -g` and their active link. The runtime files stay in the store until [`pnpm store prune`](./store.md#prune), so projects that use the runtime keep working.
+
+#### Examples
+
+Unset the global Node.js:
+
+```sh
+pnpm runtime unset node -g
+```
+
+Unset Deno from the current project:
+
+```sh
+pnpm runtime unset deno
+```
+
 ## Options
 
 ### --global, -g
 
-Install the runtime globally.
+Apply the command to globally installed runtimes.
 
 ### --save-dev, -D
 
-Save the runtime to `devEngines.runtime`. This is the default.
+Target `devEngines.runtime`. This is the default for `set`.
 
 ### --save-prod, -P
 
-Save the runtime to `engines.runtime`.
+Target `engines.runtime`.
