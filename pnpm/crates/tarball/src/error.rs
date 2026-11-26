@@ -40,7 +40,8 @@ pub struct NetworkError {
 }
 
 impl NetworkError {
-    pub(crate) fn new(url: &str, error: reqwest::Error) -> Self {
+    #[must_use]
+    pub fn new(url: &str, error: reqwest::Error) -> Self {
         Self { url: redact_url_for_display(url), error: error.without_url() }
     }
 }

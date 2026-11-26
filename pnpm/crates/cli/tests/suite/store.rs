@@ -1142,6 +1142,23 @@ fn store_add_redacts_a_mixed_case_url_in_the_tarball_warning() {
     assert!(!message.contains("sample-query") && !message.contains("sample-fragment"), "{warning}");
 }
 
+#[test]
+fn store_add_redacts_the_normalized_url_in_a_preflight_error() {
+    let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init();
+    let input = "https://example.invalid:443/archive.tgz?token=sample-query";
+    let output = pacquet
+        .with_args(["store", "add", input, "--reporter=ndjson"])
+        .with_env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let warning = tarball_warning(&String::from_utf8_lossy(&output.stderr));
+    assert_eq!(warning["tarball"], "https://example.invalid/archive.tgz");
+    let message = warning["message"].as_str().unwrap();
+    assert!(message.contains("request"), "{warning}");
+    assert!(!message.contains("sample-query"), "{warning}");
+}
+
 fn tarball_warning(stderr: &str) -> serde_json::Value {
     stderr
         .lines()
