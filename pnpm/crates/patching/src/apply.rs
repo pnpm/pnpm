@@ -61,8 +61,14 @@ pub fn apply_patch_to_dir(
         })?;
     let text = read_patch_text(patch_file_path)?;
 
+    let apply = FileApply {
+        patched_dir,
+        canonical_dir: &canonical_dir,
+        patch_file_path,
+        patch_text: &text,
+    };
     for file_patch in parse_file_patches(&text, patch_file_path) {
-        apply_one_file(patched_dir, &canonical_dir, patch_file_path, &file_patch?)?;
+        apply.apply_one_file(&file_patch?)?;
     }
     Ok(())
 }
@@ -146,26 +152,19 @@ fn read_patch_file(patch_file_path: &Path) -> Result<String, PatchApplyError> {
     }
 }
 
-fn apply_one_file(
-    patched_dir: &Path,
-    canonical_dir: &Path,
-    patch_file_path: &Path,
-    file_patch: &FilePatch<'_, str>,
-) -> Result<(), PatchApplyError> {
-    let operation = package_relative_operation(file_patch);
-    let apply = FileApply { patched_dir, canonical_dir, patch_file_path };
-
-    match file_patch.patch() {
-        PatchKind::Binary(binary_patch) => {
-            apply.binary_operation(&operation, binary_patch, file_patch.new_mode())
-        }
-        PatchKind::Text(text_patch) => {
-            apply.text_operation(&operation, text_patch, file_patch.new_mode())
+impl FileApply<'_> {
+    fn apply_one_file(&self, file_patch: &FilePatch<'_, str>) -> Result<(), PatchApplyError> {
+        let operation = package_relative_operation(file_patch);
+        match file_patch.patch() {
+            PatchKind::Binary(binary_patch) => {
+                self.binary_operation(&operation, binary_patch, file_patch.new_mode())
+            }
+            PatchKind::Text(text_patch) => {
+                self.text_operation(&operation, text_patch, file_patch.new_mode())
+            }
         }
     }
-}
 
-impl FileApply<'_> {
     /// Apply one text record, dispatching on the operation.
     fn text_operation(
         &self,
@@ -216,6 +215,8 @@ pub(super) struct FileApply<'a> {
     patched_dir: &'a Path,
     canonical_dir: &'a Path,
     patch_file_path: &'a Path,
+    /// The text the records were parsed from.
+    patch_text: &'a str,
 }
 
 impl FileApply<'_> {

@@ -6436,6 +6436,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "diffy",
+ "flate2",
  "indexmap 2.14.2",
  "miette 7.6.0",
  "node-semver",
@@ -6446,6 +6447,7 @@ dependencies = [
  "pnpm-process",
  "pretty_assertions",
  "serde_json",
+ "sha1 0.10.7",
  "tempfile",
  "text-block-macros",
 ]

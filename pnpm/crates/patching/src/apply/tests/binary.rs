@@ -307,6 +307,10 @@ fn binary_delete_patch_with_data() -> String {
             "diff --git a/gone.bin b/gone.bin\ndeleted file mode 100644",
         )
         .replace(
+            "0000000000000000000000000000000000000000..0ae8040411865fbc997e77a0a3ccce72e6e91cd8",
+            "0ae8040411865fbc997e77a0a3ccce72e6e91cd8..0000000000000000000000000000000000000000",
+        )
+        .replace(
             "literal 7\nOcmc~xEoVr|%mV-lAOeH{\n\nliteral 0\nHcmV?d00001",
             "literal 0\nHcmV?d00001\n\nliteral 7\nOcmc~xEoVr|%mV-lAOeH{",
         )
@@ -375,4 +379,80 @@ fn binary_manifest_record_is_previewed_for_build_decision() {
         preview.manifest.as_deref(),
         Some(String::from_utf8_lossy(BINARY_POSTIMAGE).as_ref()),
     );
+}
+
+#[test]
+fn binary_delta_modify_rejects_same_length_base_with_changed_byte() {
+    let mut altered = BIG_BIN_PREIMAGE.to_vec();
+    altered[100] ^= 0xff;
+    let dir = tempdir().expect("temp dir");
+    let target = dir.path().join("big.bin");
+    fs::write(&target, &altered).expect("write altered preimage");
+    let patch = write_patch(dir.path(), BINARY_DELTA_MODIFY_PATCH);
+
+    let error = apply_patch_to_dir(dir.path(), &patch).expect_err("should not apply");
+    assert!(matches!(error, PatchApplyError::PatchFailed { .. }), "error: {error}");
+    assert_eq!(fs::read(&target).expect("read target"), altered);
+}
+
+#[test]
+fn binary_patch_without_full_index_line_is_rejected() {
+    let patch_body = BINARY_MODIFY_PATCH.replace(
+        "index 9a20e1af1471b1378e27f2c97c3047811aea78ce..2ba8392e9cff316d90d283b8635b340073fd704c",
+        "index 9a20e1a..2ba8392",
+    );
+    let dir = tempdir().expect("temp dir");
+    let target = dir.path().join("bin.dat");
+    fs::write(&target, BINARY_PREIMAGE).expect("write preimage");
+    let patch = write_patch(dir.path(), &patch_body);
+
+    let error = apply_patch_to_dir(dir.path(), &patch).expect_err("should not apply");
+    assert!(error.to_string().contains("full index line"), "error: {error}");
+    assert_eq!(fs::read(&target).expect("read target"), BINARY_PREIMAGE);
+}
+
+/// A create record whose forward block holds only the two-byte zlib
+/// header, a stream that ends before its end marker.
+const TRUNCATED_STREAM_PATCH: &str = "\
+diff --git a/cut.bin b/cut.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ae8040411865fbc997e77a0a3ccce72e6e91cd8
+GIT binary patch
+literal 1
+Bc$@$L
+
+literal 0
+HcmV?d00001
+
+";
+
+#[test]
+fn binary_patch_with_truncated_stream_is_rejected() {
+    let dir = tempdir().expect("temp dir");
+    let patch = write_patch(dir.path(), TRUNCATED_STREAM_PATCH);
+
+    let error = apply_patch_to_dir(dir.path(), &patch).expect_err("should not apply");
+    assert!(error.to_string().contains("corrupt binary data"), "error: {error}");
+    assert!(!dir.path().join("cut.bin").exists(), "nothing should be created");
+}
+
+#[test]
+fn binary_rename_without_binary_data_is_rejected_before_moving() {
+    let patch_body = "\
+diff --git a/old.bin b/new.bin
+similarity index 92%
+rename from old.bin
+rename to new.bin
+index d88d75086be4e95d2edadda5a4361e3e64e8532f..4b802595e1f2ab0feb61fb2d757bba69b382856a 100644
+Binary files a/old.bin and b/new.bin differ
+";
+    let dir = tempdir().expect("temp dir");
+    let from = dir.path().join("old.bin");
+    fs::write(&from, RENAME_PREIMAGE).expect("write preimage");
+    let patch = write_patch(dir.path(), patch_body);
+
+    let error = apply_patch_to_dir(dir.path(), &patch).expect_err("should not apply");
+    assert!(error.to_string().contains("no binary data"), "error: {error}");
+    assert!(from.exists(), "the source must stay in place");
+    assert!(!dir.path().join("new.bin").exists(), "nothing should be moved");
 }

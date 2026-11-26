@@ -2,4 +2,4 @@
 "pnpm": patch
 ---
 
-`pnpm patch` and `pnpm patch-commit` now support binary files. Files that contain non-text content are patched with git's binary patch format (`GIT binary patch`, literal and delta blocks) instead of producing mangled text diffs, and applying a patch writes binary files byte-for-byte. Re-applying an already-applied binary patch is a no-op, and deleted binary files are handled correctly.
+`pnpm patch-commit` now records changes to binary files, and `patchedDependencies` patches that change binary files apply byte for byte. Before, binary files were written to the patch as mangled text diffs [#18430](https://github.com/pnpm/pnpm/pull/18430).

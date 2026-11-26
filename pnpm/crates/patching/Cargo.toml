@@ -18,11 +18,13 @@ pnpm-patching-config = { workspace = true }
 
 derive_more = { workspace = true }
 diffy = { workspace = true }
+flate2 = { workspace = true }
 indexmap = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
 pnpm-process = { path = "../process" }
 serde_json = { workspace = true }
+sha1 = { workspace = true }
 
 [dev-dependencies]
 pnpm-fs = { workspace = true, features = ["test"] }

@@ -64,6 +64,7 @@ pub fn preview_patch(
     let mut state = PreviewState {
         patched_dir,
         patch_file_path,
+        patch_text: &text,
         preview: PatchPreview::default(),
         // Written paths are tracked as a set so a delete record costs one
         // lookup rather than a scan of everything written so far, and
@@ -97,6 +98,8 @@ pub fn preview_patch(
 struct PreviewState<'a> {
     patched_dir: &'a Path,
     patch_file_path: &'a Path,
+    /// The text the records were parsed from.
+    patch_text: &'a str,
     preview: PatchPreview,
     written_paths: IndexSet<String>,
     removed_paths: IndexSet<String>,
@@ -181,20 +184,11 @@ impl PreviewState<'_> {
                     return Err(self.failed(format!("apply to {}: {message}", target.display())));
                 }
             },
-            // A binary record can touch the manifest too (a manifest with
-            // non-UTF-8 bytes, or a mixed patch). Resolving it like the
-            // real apply keeps the build decision aware of what such a
-            // patch adds, an install script included.
             PatchKind::Binary(binary_patch) => {
-                match super::FileApply::preview_binary_manifest(binary_patch, &original) {
-                    Ok(updated) => updated,
-                    Err(message) => {
-                        return Err(self.failed(format!(
-                            "apply to {}: {message}",
-                            target.display(),
-                        )));
-                    }
-                }
+                super::binary::preview_binary_manifest(self.patch_text, binary_patch, original)
+                    .map_err(|message| {
+                        self.failed(format!("apply to {}: {message}", target.display()))
+                    })?
             }
         };
         self.preview.manifest = Some(updated);
