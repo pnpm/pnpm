@@ -71,3 +71,13 @@ fn an_install_that_leaves_out_the_nested_workspace_does_not_warn() {
     let stdout = install(&workspace, &["--filter", "plain"]);
     assert!(!stdout.contains("pnpm-workspace.yaml do not apply"), "{stdout}");
 }
+
+#[test]
+fn a_nested_workspace_manifest_whose_settings_the_root_repeats_does_not_warn() {
+    let CommandTempCwd { root: _root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_workspace_with_nested_manifest(&workspace, "overrides:\n  is-odd: 3.0.1\n");
+
+    let stdout = install(&workspace, &[]);
+    assert!(!stdout.contains("pnpm-workspace.yaml do not apply"), "{stdout}");
+}

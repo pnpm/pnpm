@@ -85,6 +85,7 @@ pub use root_finder::{
     find_workspace_dir,
     find_workspace_dir_from_env,
 };
+pub use settings_coverage::RootSettings;
 
 mod api;
 mod directory_patterns;
@@ -96,3 +97,4 @@ mod project_manifest;
 mod projects;
 mod projects_graph_view;
 mod root_finder;
+mod settings_coverage;
