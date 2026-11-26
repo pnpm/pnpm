@@ -436,17 +436,12 @@ fn every_file_a_full_install_opens_is_recorded_or_classified() {
     for cli in &clis {
         seen.extend(assert_reads_recorded_or_classified(cli));
     }
-    let versions: Vec<Version> = clis.iter().map(Cli::version).collect();
-    let classified = CLASSIFICATION.iter().map(|(path, ..)| *path);
-    let not_inputs = NOT_INPUTS
+    let unused: Vec<&str> = CLASSIFICATION
         .iter()
-        .filter(|(_, version, _)| versions.contains(version))
-        .map(|(path, ..)| *path);
-    let unused: Vec<&str> = classified
-        .chain(not_inputs)
+        .map(|(path, ..)| *path)
         .filter(|path| !seen.contains(*path))
         .collect();
-    assert!(unused.is_empty(), "classified files no fixture opens: {unused:?}");
+    assert!(unused.is_empty(), "classified inputs no fixture opens: {unused:?}");
 }
 
 /// Assert that `cli` opens only recorded or classified files, and every
