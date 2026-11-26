@@ -795,7 +795,16 @@ fn filtered_fetch_populates_only_selected_projects_of_shared_lockfile() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     append_workspace_yaml_key(&workspace, "packages", "[packages/*]");
-    fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#).unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "private": true,
+            "dependencies": { OPTIONAL_DEP: "100.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
     for (name, dependency) in [("a", PROD_DEP), ("b", DEV_DEP)] {
         let project = workspace.join("packages").join(name);
         fs::create_dir_all(&project).unwrap();
@@ -822,6 +831,9 @@ fn filtered_fetch_populates_only_selected_projects_of_shared_lockfile() {
         .success();
     assert!(virtual_dep(&workspace, PROD_DEP).exists());
     assert!(!virtual_dep(&workspace, DEV_DEP).exists());
+    // `--filter a install` also installs the workspace root, so its
+    // offline run needs the root's packages.
+    assert!(virtual_dep(&workspace, OPTIONAL_DEP).exists());
     assert_no_importer_links(&workspace.join("packages/a"));
     pacquet_at(&workspace)
         .with_args(["--filter", "a", "install", "--offline", "--frozen-lockfile", "--store-dir"])
