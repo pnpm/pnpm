@@ -68,7 +68,7 @@ fn node_linker_objects_reject_invalid_and_not_yet_supported_options() {
         json!({"type": "loaded", "hoist": {"public": []}}),
         json!({"type": "hoisted", "hoistingLimits": "invalid"}),
         json!({"type": "hoisted", "hoist": false}),
-        json!({"type": "isolated", "hoistingLimits": "workspaces"}),
+        json!({"type": "isolated", "hoistingLimits": "projects"}),
         json!({"type": "pnp", "hoist": false}),
         json!({"type": "isolated", "hoist": {"public": [false]}}),
     ] {
@@ -97,12 +97,12 @@ fn isolated_object_applies_private_and_public_hoist_patterns() {
 #[test]
 fn hoisted_object_applies_hoisting_limits() {
     let settings: WorkspaceSettings =
-        serde_saphyr::from_str("nodeLinker:\n  type: hoisted\n  hoistingLimits: workspaces\n")
+        serde_saphyr::from_str("nodeLinker:\n  type: hoisted\n  hoistingLimits: projects\n")
             .unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("."));
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
-    assert_eq!(config.hoisting_limits, HoistingLimits::Workspaces);
+    assert_eq!(config.hoisting_limits, HoistingLimits::Projects);
 }
 
 #[test]
@@ -224,7 +224,7 @@ fn resetting_node_linker_restores_its_options_and_keeps_flat_aliases() {
     let defaults = Config::default();
     let mut config = Config::default();
     serde_saphyr::from_str::<WorkspaceSettings>(
-        "nodeLinker:\n  type: hoisted\n  hoistingLimits: workspaces\n",
+        "nodeLinker:\n  type: hoisted\n  hoistingLimits: projects\n",
     )
     .unwrap()
     .apply_to(&mut config, Path::new("."));
@@ -379,7 +379,7 @@ fn unsetting_the_linker_object_drops_its_mirrored_flat_settings() {
     record_and_apply(&mut config, &json!({"hoistPattern": ["flat"]}));
     record_and_apply(
         &mut config,
-        &json!({"nodeLinker": {"type": "hoisted", "hoistingLimits": "workspaces"}}),
+        &json!({"nodeLinker": {"type": "hoisted", "hoistingLimits": "projects"}}),
     );
     config.forget_node_linker_aliases();
     config.explicit_settings.remove("nodeLinker");
@@ -402,10 +402,10 @@ fn resolved_linker_is_a_string_unless_a_source_used_the_object_form() {
 
     record_and_apply(
         &mut config,
-        &json!({"nodeLinker": {"type": "hoisted", "hoistingLimits": "workspaces"}}),
+        &json!({"nodeLinker": {"type": "hoisted", "hoistingLimits": "projects"}}),
     );
     let reported = serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap();
-    assert_eq!(reported["nodeLinker"], json!({"type": "hoisted", "hoistingLimits": "workspaces"}));
+    assert_eq!(reported["nodeLinker"], json!({"type": "hoisted", "hoistingLimits": "projects"}));
 }
 
 #[test]

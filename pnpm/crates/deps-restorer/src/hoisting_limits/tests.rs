@@ -62,7 +62,7 @@ fn workspaces_mode_borders_packages_at_root() {
     importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), project_with_deps(&["a"]));
     importers.insert("packages/foo".to_string(), project_with_deps(&["b"]));
 
-    let limits = get_hoisting_limits(&importers, HoistingLimits::Workspaces);
+    let limits = get_hoisting_limits(&importers, HoistingLimits::Projects);
     assert_eq!(
         limits
             .keys()
@@ -95,7 +95,7 @@ fn workspaces_mode_borders_packages_at_root_when_root_importer_omitted() {
     let mut importers = HashMap::new();
     importers.insert("packages/foo".to_string(), project_with_deps(&["b"]));
 
-    let limits = get_hoisting_limits(&importers, HoistingLimits::Workspaces);
+    let limits = get_hoisting_limits(&importers, HoistingLimits::Projects);
     assert_eq!(
         limits
             .keys()

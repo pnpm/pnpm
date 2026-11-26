@@ -182,8 +182,9 @@ pub enum NodePackageMapType {
 /// Given workspace package `A` → `B` → `C`:
 /// - [`HoistingLimits::None`]: hoist as far as possible
 ///   (`/node_modules/B`, `/node_modules/C`).
-/// - [`HoistingLimits::Workspaces`]: hoist only as far as each
-///   workspace package (`/packages/A/node_modules/{B,C}`).
+/// - [`HoistingLimits::Projects`]: hoist only as far as each
+///   workspace package (`/packages/A/node_modules/{B,C}`). Also read
+///   from `workspaces`, yarn's name for it, which pnpm 11 accepted.
 /// - [`HoistingLimits::Dependencies`]: hoist only up to each
 ///   workspace package's direct dependencies
 ///   (`/packages/A/node_modules/B/node_modules/C`).
@@ -192,7 +193,8 @@ pub enum NodePackageMapType {
 pub enum HoistingLimits {
     #[default]
     None,
-    Workspaces,
+    #[serde(alias = "workspaces")]
+    Projects,
     Dependencies,
 }
 

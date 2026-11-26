@@ -817,7 +817,7 @@ fn hoist_false_disables_private_hoist_pattern() {
     assert_eq!(config.hoist_pattern, None, "hoist:false must override an explicit hoistPattern");
 }
 
-/// `hoistingLimits` deserializes as one of the `none` / `workspaces`
+/// `hoistingLimits` deserializes as one of the `none` / `projects`
 /// / `dependencies` modes. Yaml-empty /
 /// missing keeps the `Config` field at its [`HoistingLimits::None`]
 /// default.
@@ -831,6 +831,15 @@ fn parses_hoisting_limits_from_yaml_and_applies() {
     assert_eq!(config.hoisting_limits, HoistingLimits::None, "default is None");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.hoisting_limits, HoistingLimits::Dependencies);
+}
+
+/// pnpm 11 configs spell the `projects` limit `workspaces`.
+#[test]
+fn reads_workspaces_hoisting_limit_as_projects() {
+    for yaml in ["hoistingLimits: projects\n", "hoistingLimits: workspaces\n"] {
+        let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        assert_eq!(settings.hoisting_limits, Some(HoistingLimits::Projects), "{yaml}");
+    }
 }
 
 /// Both knobs absent → both `Config` fields stay at their empty
