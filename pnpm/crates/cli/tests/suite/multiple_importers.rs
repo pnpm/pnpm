@@ -182,6 +182,43 @@ fn assert_filtered_install_keeps_missing_project(filters: &[&str]) {
     assert!(!project_3.exists(), "the install must not recreate the missing project");
 }
 
+#[test]
+fn hook_filtered_single_project_mutations_keep_missing_importers() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(&format!("catalogs:\n  sparse:\n    '{FOOBAR}': 100.0.0\n"));
+    let deps = || ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() };
+    let active = fixture.project("active", "active", deps());
+    let sibling = fixture.project("sibling", "sibling", deps());
+    let missing = fixture.project(
+        "missing",
+        "missing",
+        ManifestDeps { prod: &[(FOOBAR, "catalog:sparse")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+    let before = fixture.wanted();
+    let sibling_manifest = fs::read(sibling.join("package.json")).unwrap();
+    fs::remove_dir_all(&missing).unwrap();
+    fs::write(
+        fixture.workspace.join(".pnpmfile.mjs"),
+        "export const hooks = { updateConfig: config => ({ ...config, filter: ['active', 'sibling'] }) }",
+    )
+    .unwrap();
+
+    for (command, package, expected_name, expected_version) in [
+        ("add", format!("{QAR}@100.0.0"), QAR, "100.0.0"),
+        ("update", format!("{FOO}@2.0.0"), FOO, "2.0.0"),
+    ] {
+        fixture.run_at(&active, [command, &package, "--lockfile-only"]);
+        let wanted = fixture.wanted();
+        assert_eq!(importer_version(&wanted, "packages/active", expected_name), expected_version);
+        assert_eq!(fs::read(sibling.join("package.json")).unwrap(), sibling_manifest);
+        assert_eq!(wanted.importers["packages/missing"], before.importers["packages/missing"]);
+        assert!(has_snapshot(&wanted, FOOBAR, "100.0.0"));
+        assert_eq!(wanted.catalogs, before.catalogs);
+        assert!(!missing.exists());
+    }
+}
+
 /// The dependencies of a project missing from disk still take part in the
 /// resolution of a filtered install, so it writes the lockfile a full
 /// checkout writes. Here the missing project supplies the optional peer a

@@ -16,7 +16,8 @@ pub(super) struct ImporterSelection {
 impl ImporterSelection {
     /// A `--filter` selection requests its importers even when it matches
     /// every project on disk, so the importers of projects missing from disk
-    /// stay in the lockfile.
+    /// stay in the lockfile. A hook filter on a non-recursive command keeps
+    /// the same lockfile boundary while the command acts on its current project.
     pub(super) fn select(
         selection: Option<&crate::WorkspaceInstallSelection<'_>>,
         has_filter: bool,
@@ -31,19 +32,15 @@ impl ImporterSelection {
             importer_ids(workspace_root, selection.selected_dirs.iter().map(PathBuf::as_path))
                 != real_importer_ids
         });
-        Self {
-            requested_importer_ids: (filtered_install || has_filter)
-                .then_some(selection)
-                .flatten()
-                .map(|selection| {
-                    importer_ids(
-                        workspace_root,
-                        selection.install_dirs.iter().map(PathBuf::as_path),
-                    )
-                }),
-            real_importer_ids,
-            filtered_install,
-        }
+        let requested_importer_ids = match selection {
+            Some(selection) if filtered_install || has_filter => Some(importer_ids(
+                workspace_root,
+                selection.install_dirs.iter().map(PathBuf::as_path),
+            )),
+            None if has_filter => Some(real_importer_ids.clone()),
+            _ => None,
+        };
+        Self { real_importer_ids, filtered_install, requested_importer_ids }
     }
 }
 fn importer_ids<'d>(

@@ -161,6 +161,12 @@ after the hook returns, so changing it in the hook has no effect. This covers
 flags such as `--registry`, `--config.@acme:registry`, `--store-dir`, `--state-dir`,
 `--config.<key>` overrides, and setting flags such as `--no-optional`.
 
+#### Project filters
+
+When an `updateConfig` hook sets `filter` or `filterProd`, a non-recursive
+`pnpm add` or `pnpm update` still targets the current project. In a sparse
+checkout, the shared lockfile keeps entries for projects missing from disk.
+
 #### Which commands load the pnpmfile
 
 Since v12.3.0, `pnpm run`, `pnpm exec`, `pnpm rebuild`, the script
