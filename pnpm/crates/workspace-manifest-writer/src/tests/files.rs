@@ -174,7 +174,7 @@ fn an_update_keeps_the_permissions_of_the_existing_manifest() {
     crate::set_allow_builds(dir.path(), [("esbuild", true)]).expect("update succeeds");
     assert_eq!(
         std::fs::read_to_string(&path).expect("read"),
-        "permissions:\n  esbuild:\n    build: true\n"
+        "permissions:\n  esbuild:\n    build: true\n",
     );
     assert_eq!(mode(&path), 0o640);
 }
