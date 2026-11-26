@@ -955,8 +955,8 @@ fn serve_node_index(workspace: &Path, server: &mut mockito::Server) -> mockito::
     .expect("write pnpm-workspace.yaml");
     let index = serde_json::json!([
         { "version": "v24.1.0", "date": "2026-05-01", "npm": "11.3.0", "lts": false },
-        { "version": "v22.2.0", "date": "2026-04-01", "npm": "10.9.0", "lts": "Jod" },
-        { "version": "v22.1.0", "date": "2026-03-01", "npm": "10.8.0", "lts": "Jod" },
+        { "version": "v22.2.0", "date": "2026-04-01", "npm": "10.9.0", "lts": "Iron" },
+        { "version": "v22.1.0", "date": "2026-03-01", "npm": "10.8.0", "lts": "Iron" },
     ]);
     serve(server, "/index.json", &index.to_string())
 }
@@ -989,7 +989,7 @@ fn node_range_picks_a_release_with_its_index_fields() {
     mock.assert();
     assert_eq!(
         stdout_of(&output),
-        "version = '22.2.0'\nnpm = '10.9.0'\nlts = 'Jod'\ndist-tags = {\"latest\":\"24.1.0\",\"lts\":\"22.2.0\"}\n",
+        "version = '22.2.0'\nnpm = '10.9.0'\nlts = 'Iron'\ndist-tags = {\"latest\":\"24.1.0\",\"lts\":\"22.2.0\"}\n",
     );
     drop((root, server));
 }
