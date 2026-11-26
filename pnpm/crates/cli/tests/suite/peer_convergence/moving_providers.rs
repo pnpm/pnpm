@@ -19,40 +19,74 @@ use std::{
     path::Path,
 };
 
+#[derive(Clone, Copy)]
+enum ProviderLockfile {
+    DirectDependency,
+    OrphanedPeer,
+}
+
+#[derive(Clone, Copy)]
+enum ConsumerChange {
+    Pinned,
+    NewSpecifier,
+    UpdateWithinRange,
+}
+
 #[test]
 fn removing_the_last_optional_provider_drops_its_binding() {
-    check_optional_provider_removal(("1.0.0", "1.0.0", "1.0.0"), &["install"], false);
+    check_optional_provider_removal(
+        ConsumerChange::Pinned,
+        &["install"],
+        ProviderLockfile::DirectDependency,
+    );
 }
 
 #[test]
 fn changing_a_consumer_releases_its_removed_optional_provider() {
-    check_optional_provider_removal(("1.0.0", "1.1.0", "1.1.0"), &["install"], true);
+    check_optional_provider_removal(
+        ConsumerChange::NewSpecifier,
+        &["install"],
+        ProviderLockfile::OrphanedPeer,
+    );
 }
 
 #[test]
 fn updating_a_consumer_within_its_range_releases_its_removed_optional_provider() {
-    check_optional_provider_removal(("^1.0.0", "^1.0.0", "1.1.0"), &["update", "consumer"], true);
+    check_optional_provider_removal(
+        ConsumerChange::UpdateWithinRange,
+        &["update", "consumer"],
+        ProviderLockfile::OrphanedPeer,
+    );
 }
 
 #[test]
 fn dedupe_drops_an_orphaned_optional_peer_from_an_existing_lockfile() {
-    check_optional_provider_removal(("1.0.0", "1.0.0", "1.0.0"), &["dedupe"], true);
+    check_optional_provider_removal(
+        ConsumerChange::Pinned,
+        &["dedupe"],
+        ProviderLockfile::OrphanedPeer,
+    );
 }
 
 #[test]
 fn fix_lockfile_drops_an_orphaned_optional_peer_from_an_existing_lockfile() {
     check_optional_provider_removal(
-        ("1.0.0", "1.0.0", "1.0.0"),
+        ConsumerChange::Pinned,
         &["install", "--fix-lockfile"],
-        true,
+        ProviderLockfile::OrphanedPeer,
     );
 }
 
 fn check_optional_provider_removal(
-    (initial, changed, expected): (&str, &str, &str),
+    change: ConsumerChange,
     command: &[&str],
-    stale: bool,
+    provider: ProviderLockfile,
 ) {
+    let (initial, changed, expected) = match change {
+        ConsumerChange::Pinned => ("1.0.0", "1.0.0", "1.0.0"),
+        ConsumerChange::NewSpecifier => ("1.0.0", "1.1.0", "1.1.0"),
+        ConsumerChange::UpdateWithinRange => ("^1.0.0", "^1.0.0", "1.1.0"),
+    };
     let registry_dir = tempfile::tempdir().unwrap();
     let mut fixture = WorkspaceFixture::new();
     let consumers = ["1.0.0", "1.1.0"].map(|version| {
@@ -86,7 +120,7 @@ fn check_optional_provider_removal(
             .unwrap()
             .contains_key(&"consumer@1.0.0(provider@1.0.0)".parse().unwrap()),
     );
-    if stale {
+    if matches!(provider, ProviderLockfile::OrphanedPeer) {
         lockfile.importers
             .get_mut(".")
             .unwrap()

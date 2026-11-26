@@ -14,8 +14,10 @@ use crate::resolve_dependency_tree::{
 };
 use hashed_suffix::hashed_peer_keys;
 use pnpm_lockfile::{
+    ImporterDepVersion,
     PeerBindings,
     PkgName,
+    PkgNameVerPeer,
 };
 
 mod hashed_suffix;
@@ -32,12 +34,16 @@ struct RetainedImporter {
 }
 
 impl RetainedImporter {
-    fn retains(&self, alias: &PkgName, key: &pnpm_lockfile::PkgNameVerPeer) -> bool {
-        self.dependencies
-            .get(alias)
-            .is_some_and(|id| {
-                format!("{}@{}", key.name, key.suffix.without_peer_bindings()) == id.as_ref()
-            })
+    fn retained_key(
+        &self,
+        alias: &PkgName,
+        version: &ImporterDepVersion,
+    ) -> Option<PkgNameVerPeer> {
+        let id = self.dependencies.get(alias)?;
+        let key = version.resolved_key(alias)?;
+        (format!("{}@{}", key.name, key.suffix.without_peer_bindings()) == id.as_ref()).then_some(
+            key,
+        )
     }
 }
 
@@ -67,7 +73,7 @@ impl LockedPeers {
                 return Arc::new(retained_peer_versions(
                     lockfile,
                     &lockfile.importers[&importer.id],
-                    |name, key| importer.retains(name, key),
+                    |name, version| importer.retained_key(name, version),
                     &contexts,
                 ));
             }
@@ -94,7 +100,7 @@ pub(super) fn retained_dependency_names(
 fn retained_peer_versions(
     lockfile: &pnpm_lockfile::Lockfile,
     importer: &pnpm_lockfile::ProjectSnapshot,
-    is_retained: impl Fn(&PkgName, &pnpm_lockfile::PkgNameVerPeer) -> bool,
+    retained_key: impl Fn(&PkgName, &ImporterDepVersion) -> Option<PkgNameVerPeer>,
     contexts: &hashed_suffix::ProviderContexts,
 ) -> HashMap<String, HashSet<String>> {
     let mut versions = HashMap::<String, HashSet<String>>::default();
@@ -103,12 +109,9 @@ fn retained_peer_versions(
         DependencyGroup::Optional,
         DependencyGroup::Dev,
     ]) {
-        let Some(key) = dependency.version.resolved_key(alias) else {
+        let Some(key) = retained_key(alias, &dependency.version) else {
             continue;
         };
-        if !is_retained(alias, &key) {
-            continue;
-        }
         let snapshot = lockfile.snapshots
             .as_ref()
             .and_then(|snapshots| snapshots.get(&key));
