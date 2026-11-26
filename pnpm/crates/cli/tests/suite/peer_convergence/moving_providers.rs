@@ -120,17 +120,20 @@ fn check_optional_provider_removal(
             .unwrap()
             .contains_key(&"consumer@1.0.0(provider@1.0.0)".parse().unwrap()),
     );
-    if matches!(provider, ProviderLockfile::OrphanedPeer) {
-        lockfile.importers
-            .get_mut(".")
-            .unwrap()
-            .dev_dependencies
-            .as_mut()
-            .unwrap()
-            .remove(&"provider".parse().unwrap())
-            .unwrap();
-        fs::write(fixture.workspace.join("pnpm-lock.yaml"), lockfile.to_yaml_string().unwrap())
-            .unwrap();
+    match provider {
+        ProviderLockfile::DirectDependency => {}
+        ProviderLockfile::OrphanedPeer => {
+            lockfile.importers
+                .get_mut(".")
+                .unwrap()
+                .dev_dependencies
+                .as_mut()
+                .unwrap()
+                .remove(&"provider".parse().unwrap())
+                .unwrap();
+            fs::write(fixture.workspace.join("pnpm-lock.yaml"), lockfile.to_yaml_string().unwrap())
+                .unwrap();
+        }
     }
     pnpr_fixtures::set_dist_tag(&storage, "consumer", "1.1.0", "latest");
     fixture.write_root_manifest(
