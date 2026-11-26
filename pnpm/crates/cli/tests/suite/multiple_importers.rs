@@ -184,18 +184,30 @@ fn assert_filtered_install_keeps_missing_project(filters: &[&str]) {
 
 #[test]
 fn single_project_mutations_keep_missing_importers() {
-    assert_single_project_mutations_keep_missing_importers(None);
+    assert_single_project_mutations_keep_missing_importers(&WorkspaceFixture::new(), None);
 }
 
 #[test]
 fn hook_filtered_single_project_mutations_keep_missing_importers() {
-    assert_single_project_mutations_keep_missing_importers(Some(
-        "export const hooks = { updateConfig: config => ({ ...config, filter: ['active', 'sibling'] }) }",
-    ));
+    assert_single_project_mutations_keep_missing_importers(
+        &WorkspaceFixture::new(),
+        Some(
+            "export const hooks = { updateConfig: config => ({ ...config, filter: ['active', 'sibling'] }) }",
+        ),
+    );
 }
 
-fn assert_single_project_mutations_keep_missing_importers(hook: Option<&str>) {
+#[test]
+fn single_project_mutations_keep_missing_importers_with_auto_dedupe() {
     let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("autoDedupe: true\n");
+    assert_single_project_mutations_keep_missing_importers(&fixture, None);
+}
+
+fn assert_single_project_mutations_keep_missing_importers(
+    fixture: &WorkspaceFixture,
+    hook: Option<&str>,
+) {
     fixture.append_workspace_yaml(&format!("catalogs:\n  sparse:\n    '{FOOBAR}': 100.0.0\n"));
     let deps = || ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() };
     let active = fixture.project("active", "active", deps());
@@ -203,7 +215,10 @@ fn assert_single_project_mutations_keep_missing_importers(hook: Option<&str>) {
     let missing = fixture.project(
         "missing",
         "missing",
-        ManifestDeps { prod: &[(FOOBAR, "catalog:sparse")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(FOOBAR, "catalog:sparse"), ("sibling", "link:../sibling")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     let before = fixture.wanted();

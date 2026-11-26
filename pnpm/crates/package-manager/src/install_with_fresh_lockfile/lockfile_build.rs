@@ -128,13 +128,18 @@ pub(super) fn build_resolved_lockfile<Reporter>(
     })
 }
 /// The importers whose fresh entries replace their previous ones in a
-/// filtered install. With `autoDedupe`, every importer takes its fresh entry:
+/// filtered install. With `autoDedupe`, every on-disk importer takes its fresh entry:
 /// deduplication can move a project the filter left out, and its previous
 /// entry would keep the version the resolution dropped.
 fn spliced_selection<'a>(
     install: &FreshInputs<'a>,
 ) -> Option<&'a std::collections::HashSet<String>> {
-    install.projects.selected_ids.filter(|_| !install.drivers.config.auto_dedupe)
+    if !install.drivers.config.auto_dedupe {
+        return install.projects.selected_ids;
+    }
+    let on_disk = install.projects.real_ids?;
+    let previous = install.lockfiles.merge_wanted?;
+    pnpm_deps_restorer::missing_project_importers(previous, on_disk).next().map(|_| on_disk)
 }
 fn resolves_peer_dependencies(install: &FreshInputs<'_>) -> bool {
     install.resolved_groups().contains(&pnpm_package_manifest::DependencyGroup::Peer)
