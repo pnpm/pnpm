@@ -38,13 +38,35 @@ impl FileApply<'_> {
         record: &BinaryRecord<'_, '_>,
         new_mode: Option<&FileMode>,
     ) -> Result<(), PatchApplyError> {
-        let permissions = atomic_write::modify_permissions(target, new_mode)
-            .map_err(|source| self.failed(format!("stat {}: {source}", target.display())))?;
+        let (bytes, direction) = self.resolve_binary(target, record)?;
+        self.write_binary(target, bytes, direction, new_mode)
+    }
+
+    /// Read `target` and resolve the record against its content.
+    fn resolve_binary(
+        &self,
+        target: &Path,
+        record: &BinaryRecord<'_, '_>,
+    ) -> Result<(Vec<u8>, BinaryDirection), PatchApplyError> {
         let bytes = fs::read(target)
             .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
         let direction = record
             .direction(&bytes)
             .map_err(|message| self.failed(format!("apply to {}: {message}", target.display())))?;
+        Ok((bytes, direction))
+    }
+
+    /// Write the result of [`Self::resolve_binary`] to `target`, which holds
+    /// `bytes`.
+    fn write_binary(
+        &self,
+        target: &Path,
+        bytes: Vec<u8>,
+        direction: BinaryDirection,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        let permissions = atomic_write::modify_permissions(target, new_mode)
+            .map_err(|source| self.failed(format!("stat {}: {source}", target.display())))?;
         let updated = match direction {
             BinaryDirection::Forward(updated) => updated,
             BinaryDirection::AlreadyPatched
@@ -113,8 +135,9 @@ impl FileApply<'_> {
         }
     }
 
-    /// Move `from` to `to` and apply the record there. A `from` that is
-    /// neither recorded image is refused before anything moves.
+    /// Move `from` to `to` and apply the record there. The record is
+    /// resolved against `from` before anything moves, so a refused rename
+    /// leaves both paths alone.
     fn rename_binary(
         &self,
         from: &Path,
@@ -122,18 +145,13 @@ impl FileApply<'_> {
         record: &BinaryRecord<'_, '_>,
         new_mode: Option<&FileMode>,
     ) -> Result<(), PatchApplyError> {
-        if from.symlink_metadata().is_ok() {
-            let bytes = fs::read(from)
-                .map_err(|source| self.failed(format!("read {}: {source}", from.display())))?;
-            if !record.is_recorded_image(&bytes) {
-                return Err(self.failed(format!(
-                    "rename {}: the file matches neither the record's pre-image nor its post-image",
-                    from.display(),
-                )));
-            }
+        if from.symlink_metadata().is_err() {
+            self.move_entry(from, to)?;
+            return self.modify_binary(to, record, new_mode);
         }
+        let (bytes, direction) = self.resolve_binary(from, record)?;
         self.move_entry(from, to)?;
-        self.modify_binary(to, record, new_mode)
+        self.write_binary(to, bytes, direction, new_mode)
     }
 
     /// Apply one binary record, dispatching on the operation.

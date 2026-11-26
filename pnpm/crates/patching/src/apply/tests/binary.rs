@@ -514,3 +514,20 @@ fn binary_manifest_recreate_is_previewed() {
     let preview = preview_patch(dir.path(), &patch).expect("preview");
     assert_eq!(preview.manifest.as_deref(), Some(String::from_utf8_lossy(BINARY_CREATED).as_ref()));
 }
+
+#[test]
+fn binary_rename_whose_result_misses_its_blob_id_leaves_both_paths_alone() {
+    let patch_body = BINARY_RENAME_PATCH.replace(
+        "4b802595e1f2ab0feb61fb2d757bba69b382856a",
+        "1111111111111111111111111111111111111111",
+    );
+    let dir = tempdir().expect("temp dir");
+    let from = dir.path().join("old.bin");
+    fs::write(&from, RENAME_PREIMAGE).expect("write preimage");
+    let patch = write_patch(dir.path(), &patch_body);
+
+    let error = apply_patch_to_dir(dir.path(), &patch).expect_err("should not apply");
+    assert!(matches!(error, PatchApplyError::PatchFailed { .. }), "error: {error}");
+    assert_eq!(fs::read(&from).expect("read source"), RENAME_PREIMAGE);
+    assert!(!dir.path().join("new.bin").exists(), "nothing should be moved");
+}

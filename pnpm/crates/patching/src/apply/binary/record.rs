@@ -59,11 +59,6 @@ impl<'patch, 'text> BinaryRecord<'patch, 'text> {
         git_blob_id(bytes, self.old_blob_id) == self.old_blob_id
     }
 
-    /// Whether `bytes` is the recorded pre-image or post-image.
-    pub(in crate::apply) fn is_recorded_image(&self, bytes: &[u8]) -> bool {
-        self.is_preimage(bytes) || git_blob_id(bytes, self.new_blob_id) == self.new_blob_id
-    }
-
     /// The content the forward block creates from an empty pre-image.
     pub(in crate::apply) fn created(&self) -> Result<Vec<u8>, String> {
         let created = self.patch
