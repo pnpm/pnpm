@@ -159,7 +159,7 @@ impl WorkspaceSettings {
         }
     }
 
-    /// Rewrite a leading `~/` in `storeDir`, and in the directories of
+    /// Rewrite a leading `~/` in `storeDir`, `cacheDir`, and the directories of
     /// [`MachineSettings::expand_home_prefixes`](super::MachineSettings::expand_home_prefixes),
     /// into the home directory. A shell expands the tilde before pnpm sees it,
     /// but a configuration file carries it verbatim.
@@ -167,10 +167,10 @@ impl WorkspaceSettings {
     /// Call this before [`Self::apply_to`], which would otherwise take the
     /// tilde for an ordinary relative path segment.
     pub(crate) fn expand_home_prefixes<Sys: GetHomeDir>(&mut self) {
-        if let Some(dir) = self.store_dir.as_mut()
-            && let Some(expanded) = expand_home_prefix::<Sys>(dir)
-        {
-            *dir = expanded;
+        for dir in [&mut self.store_dir, &mut self.cache_dir].into_iter().flatten() {
+            if let Some(expanded) = expand_home_prefix::<Sys>(dir) {
+                *dir = expanded;
+            }
         }
     }
 

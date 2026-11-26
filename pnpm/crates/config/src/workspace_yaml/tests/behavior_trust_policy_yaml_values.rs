@@ -692,6 +692,7 @@ fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
         let mut settings = TrustedSettings {
             settings: WorkspaceSettings {
                 store_dir: Some(configured.to_string()),
+                cache_dir: Some(configured.to_string()),
                 ..WorkspaceSettings::default()
             },
             machine: MachineSettings {
@@ -706,6 +707,11 @@ fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
             settings.settings.store_dir.as_deref().map(Path::new),
             expected,
             "storeDir {configured}",
+        );
+        assert_eq!(
+            settings.settings.cache_dir.as_deref().map(Path::new),
+            expected,
+            "cacheDir {configured}",
         );
         assert_eq!(
             settings.machine.global_dir.as_deref().map(Path::new),
@@ -734,6 +740,7 @@ fn a_tilde_without_a_separator_is_left_alone() {
     let mut settings = TrustedSettings {
         settings: WorkspaceSettings {
             store_dir: Some("~backup/store".to_string()),
+            cache_dir: Some("cache/~/nested".to_string()),
             ..WorkspaceSettings::default()
         },
         machine: MachineSettings {
@@ -744,6 +751,7 @@ fn a_tilde_without_a_separator_is_left_alone() {
     };
     settings.expand_home_prefixes::<FakeHome>();
     assert_eq!(settings.settings.store_dir.as_deref(), Some("~backup/store"));
+    assert_eq!(settings.settings.cache_dir.as_deref(), Some("cache/~/nested"));
     assert_eq!(settings.machine.global_dir.as_deref(), Some("~backup/global"));
     assert_eq!(settings.machine.global_bin_dir.as_deref(), Some("bin/~/nested"));
 }

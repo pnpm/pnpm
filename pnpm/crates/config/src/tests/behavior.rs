@@ -66,7 +66,7 @@ pub fn global_config_paths_expand_a_leading_tilde() {
     fs::write(
         config_dir.join("config.yaml"),
         format!(
-            "globalDir: ~/global\nglobalBinDir: ~/bin\nstoreDir: ~/store\nsymlinkedLockfileTargetDirs:\n  - ~/src\n  - relative\n  - '{}'\n",
+            "globalDir: ~/global\nglobalBinDir: ~/bin\nstoreDir: ~/store\ncacheDir: ~/cache\nsymlinkedLockfileTargetDirs:\n  - ~/src\n  - relative\n  - '{}'\n",
             absolute_dir.display(),
         ),
     )
@@ -115,12 +115,13 @@ pub fn global_config_paths_expand_a_leading_tilde() {
     );
     assert_eq!(config.global_bin, Some(home.path().join("bin")));
     assert_eq!(config.store_dir.root(), home.path().join("store").join("v11"));
+    assert_eq!(config.cache_dir, home.path().join("cache"));
     // A relative entry is dropped, not resolved against the working directory.
     assert_eq!(config.symlinked_lockfile_target_dirs, [home.path().join("src"), absolute_dir]);
 }
 
 #[test]
-pub fn pnpm_config_store_dir_expands_a_leading_tilde() {
+pub fn pnpm_config_dirs_expand_a_leading_tilde() {
     let home = tempdir().expect("home tempdir");
     static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     HOME_PATH
@@ -132,6 +133,7 @@ pub fn pnpm_config_store_dir_expands_a_leading_tilde() {
         fn var(name: &str) -> Option<String> {
             match name {
                 "PNPM_CONFIG_STORE_DIR" => Some("~/store".to_string()),
+                "PNPM_CONFIG_CACHE_DIR" => Some("~/cache".to_string()),
                 "XDG_CONFIG_HOME" => Some(
                     HOME_PATH
                         .get()
@@ -160,8 +162,9 @@ pub fn pnpm_config_store_dir_expands_a_leading_tilde() {
 
     let project = tempdir().expect("project tempdir");
     let config =
-        Config::new().current::<HostWithHome>(project.path()).expect("PNPM_CONFIG_STORE_DIR loads");
+        Config::new().current::<HostWithHome>(project.path()).expect("PNPM_CONFIG_* dirs load");
     assert_eq!(config.store_dir.root(), home.path().join("store").join("v11"));
+    assert_eq!(config.cache_dir, home.path().join("cache"));
 }
 
 #[test]
