@@ -817,7 +817,7 @@ fn runtime_help_names_the_set_and_unset_subcommands() {
     let help = error.to_string();
     eprintln!("{help}");
     assert!(help.contains("`set <name> [<version>]`"));
-    assert!(help.contains("`unset <name> [<version>]`"));
+    assert!(help.contains("`unset <name>`"));
 }
 
 /// `--force` keeps skipping optional dependencies built for other
