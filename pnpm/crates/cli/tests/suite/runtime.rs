@@ -59,13 +59,13 @@ fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
 }
 
 #[test]
-fn unset_removes_a_caret_declared_runtime_by_major_version() {
+fn unset_removes_a_dev_engines_runtime() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = json!({ "devDependencies": { "node": "runtime:^24.0.0-rc.4" } }).to_string();
     fs::write(workspace.join("package.json"), &manifest).unwrap();
 
     let output = pacquet
-        .with_args(["runtime", "unset", "node", "24"])
+        .with_args(["runtime", "unset", "node"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -123,18 +123,25 @@ fn unset_without_a_flag_removes_the_runtime_from_both_engines_fields() {
 }
 
 #[test]
-fn unset_rejects_a_blank_version_before_touching_global_runtimes() {
-    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+fn unset_rejects_a_version_before_touching_global_runtimes() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    fs::create_dir_all(pnpm_home.join("bin")).unwrap();
+    let (link, install_dir) = seed_global_runtime(&global_pkg_dir, "node", "22.14.0", "hash-node");
 
     let output = pacquet
-        .with_args(["runtime", "unset", "node", " ", "-g"])
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["runtime", "unset", "node", "22", "-g"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(!output.status.success());
-    assert!(stderr.contains("ERR_PNPM_INVALID_RUNTIME_VERSION"), "stderr={stderr}");
-    drop(root);
+    assert!(stderr.contains("ERR_PNPM_RUNTIME_UNEXPECTED_ARGUMENT"), "stderr={stderr}");
+    assert!(link.exists());
+    assert!(install_dir.exists());
 }
 
 #[test]
@@ -156,7 +163,7 @@ fn unset_leaves_an_ordinary_project_dependency_named_like_a_runtime() {
 }
 
 #[test]
-fn unset_deletes_a_matching_global_runtime_group() {
+fn unset_deletes_the_global_runtime_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
     let pnpm_home = root.path().join("pnpm-home");
@@ -168,7 +175,7 @@ fn unset_deletes_a_matching_global_runtime_group() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "unset", "node", "22.14.0", "-g"])
+        .with_args(["runtime", "unset", "node", "-g"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -189,7 +196,7 @@ fn unset_without_a_global_bin_dir_deletes_the_store_group() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "unset", "node", "20.19", "-g"])
+        .with_args(["runtime", "unset", "node", "-g"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -200,33 +207,7 @@ fn unset_without_a_global_bin_dir_deletes_the_store_group() {
 }
 
 #[test]
-fn unset_keeps_other_versions_of_the_same_runtime() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("package.json"), "{}").unwrap();
-    let pnpm_home = root.path().join("pnpm-home");
-    let global_pkg_dir = pnpm_home.join("global/v11");
-    fs::create_dir_all(pnpm_home.join("bin")).unwrap();
-    let (removed_link, removed_dir) =
-        seed_global_runtime(&global_pkg_dir, "deno", "2.1.0", "hash-deno-2");
-    let (kept_link, kept_dir) =
-        seed_global_runtime(&global_pkg_dir, "deno", "1.46.0", "hash-deno-1");
-
-    let output = pacquet
-        .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "unset", "deno", "2.1", "-g"])
-        .output()
-        .expect("spawn pacquet runtime unset");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert!(output.status.success(), "stderr={stderr}");
-    assert!(!removed_link.exists());
-    assert!(!removed_dir.exists());
-    assert!(kept_link.exists());
-    assert!(kept_dir.exists());
-}
-
-#[test]
-fn unset_without_a_version_deletes_every_installed_version() {
+fn unset_deletes_every_global_group_of_the_runtime() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").unwrap();
     let pnpm_home = root.path().join("pnpm-home");
@@ -263,7 +244,7 @@ fn unset_cleans_up_the_active_legacy_node_link() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "unset", "node", "22.14", "-g"])
+        .with_args(["runtime", "unset", "node", "-g"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -291,7 +272,7 @@ fn unset_preserves_an_unrelated_dangling_npm_link_during_legacy_cleanup() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "unset", "node", "22.14", "-g"])
+        .with_args(["runtime", "unset", "node", "-g"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -318,7 +299,7 @@ fn unset_fails_when_the_runtime_is_not_installed() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "unset", "node", "22", "-g"])
+        .with_args(["runtime", "unset", "node", "-g"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -372,7 +353,7 @@ fn unset_does_not_remove_an_npm_shim_under_a_version_named_home_directory() {
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
-        .with_args(["runtime", "unset", "node", "22.14.0", "-g"])
+        .with_args(["runtime", "unset", "node", "-g"])
         .output()
         .expect("spawn pacquet runtime unset");
     let stderr = String::from_utf8_lossy(&output.stderr);

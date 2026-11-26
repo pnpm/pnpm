@@ -52,7 +52,7 @@ pub struct RuntimeArgs {
     pub save_prod: bool,
 
     /// Subcommand and its arguments: `set <name> [<version>]` or
-    /// `unset <name> [<version>]`, where `<name>` is `node`, `deno`, or `bun`.
+    /// `unset <name>`, where `<name>` is `node`, `deno`, or `bun`.
     pub params: Vec<String>,
 }
 
@@ -88,24 +88,11 @@ pub enum RuntimeError {
         version: String,
     },
 
-    #[display("The runtime version is empty. Omit it to unset every version of the runtime")]
-    #[diagnostic(code(ERR_PNPM_INVALID_RUNTIME_VERSION))]
-    EmptyRuntimeVersion,
-
     #[display("Unexpected argument: {argument}")]
     #[diagnostic(code(ERR_PNPM_RUNTIME_UNEXPECTED_ARGUMENT))]
     UnexpectedArgument {
         #[error(not(source))]
         argument: String,
-    },
-
-    #[display(r#"Cannot unset "{name}" version {version}: no matching runtime is declared in the project"#)]
-    #[diagnostic(code(ERR_PNPM_RUNTIME_NOT_DECLARED))]
-    RuntimeNotDeclared {
-        #[error(not(source))]
-        name: String,
-        #[error(not(source))]
-        version: String,
     },
 
     #[display(
@@ -135,7 +122,6 @@ struct RuntimeSetRequest {
 #[derive(Debug)]
 struct RuntimeUnsetRequest {
     runtime_name: String,
-    version_spec: Option<String>,
     /// `None` when neither `--save-dev` nor `--save-prod` was passed.
     dependency_group: Option<DependencyGroup>,
 }
@@ -250,13 +236,9 @@ impl RuntimeArgs {
 
     fn unset_request(&self) -> Result<RuntimeUnsetRequest, RuntimeError> {
         let runtime_name = self.runtime_name()?;
-        let version_spec = self.version_spec()?.map(str::to_string);
-        // A blank version, such as an unset shell variable, must not widen
-        // the request to every installed version.
-        if self.params.len() > 2 && version_spec.is_none() {
-            return Err(RuntimeError::EmptyRuntimeVersion);
-        }
-        if let Some(argument) = self.params.get(3) {
+        // A global runtime has one installed version and a project field one
+        // declaration, so a version would select nothing.
+        if let Some(argument) = self.params.get(2) {
             return Err(RuntimeError::UnexpectedArgument { argument: argument.clone() });
         }
         let dependency_group = if self.save_dev {
@@ -266,11 +248,7 @@ impl RuntimeArgs {
         } else {
             None
         };
-        Ok(RuntimeUnsetRequest {
-            runtime_name: runtime_name.to_string(),
-            version_spec,
-            dependency_group,
-        })
+        Ok(RuntimeUnsetRequest { runtime_name: runtime_name.to_string(), dependency_group })
     }
 
     fn runtime_name(&self) -> Result<&str, RuntimeError> {

@@ -59,7 +59,7 @@ pub async fn run_remove<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
-pub(crate) fn matches_node_version(actual: &str, requested: &str) -> bool {
+fn matches_node_version(actual: &str, requested: &str) -> bool {
     let (explicit_channel, raw_version) = match requested.split_once('/') {
         Some((channel, rest))
             if pnpm_engine_runtime_node_resolver::RELEASE_CHANNELS.contains(&channel) =>
