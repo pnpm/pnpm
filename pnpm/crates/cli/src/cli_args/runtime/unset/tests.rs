@@ -32,6 +32,13 @@ fn version_matches_a_caret_range_written_by_set() {
 }
 
 #[test]
+fn version_matches_a_tilde_range() {
+    assert!(runtime_version_matches("node", "~22.11.0", "22"));
+    assert!(runtime_version_matches("deno", "~2.1.0", "2.1"));
+    assert!(!runtime_version_matches("node", "~20.0.0", "22"));
+}
+
+#[test]
 fn an_empty_version_does_not_match_anything() {
     assert!(!runtime_version_matches("node", "22.14.0", ""));
     assert!(!runtime_version_matches("deno", "2.0.0", "  "));

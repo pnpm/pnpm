@@ -72,12 +72,16 @@ pub struct RemoveArgs {
 }
 
 impl RemoveArgs {
-    pub(crate) fn for_runtime(package_name: String, dependency_group: DependencyGroup) -> Self {
+    /// `dependency_group` is `None` to remove the runtime from every field.
+    pub(crate) fn for_runtime(
+        package_name: String,
+        dependency_group: Option<DependencyGroup>,
+    ) -> Self {
         Self {
             package_names: vec![package_name],
             dependency_options: RemoveDependencyOptions {
-                save_prod: dependency_group == DependencyGroup::Prod,
-                save_dev: dependency_group == DependencyGroup::Dev,
+                save_prod: dependency_group == Some(DependencyGroup::Prod),
+                save_dev: dependency_group == Some(DependencyGroup::Dev),
                 save_optional: false,
             },
             lockfile_only: false,

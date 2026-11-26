@@ -107,13 +107,14 @@ fn cleanup_legacy_runtime_artifacts(
     Ok(removed)
 }
 
-/// Find the dependency group whose runtime declaration matches the request.
-/// Without `--save-dev` or `--save-prod`, `devEngines.runtime` is checked
-/// before `engines.runtime`.
+/// The dependency group to remove the requested runtime from, or `None` to
+/// remove it from every field. Without `--save-dev` or `--save-prod`, every
+/// matching declaration in `devEngines.runtime` and `engines.runtime` is
+/// removed.
 pub fn ensure_project_runtime_matches(
     state: &State,
     request: &RuntimeUnsetRequest,
-) -> miette::Result<DependencyGroup> {
+) -> miette::Result<Option<DependencyGroup>> {
     let candidates = match request.dependency_group {
         Some(group) => vec![group],
         None => vec![DependencyGroup::Dev, DependencyGroup::Prod],
@@ -130,22 +131,40 @@ pub fn ensure_project_runtime_matches(
             RuntimeError::NotARuntimeDependency { name: request.runtime_name.clone() }.into()
         );
     }
-    let Some(version) = request.version_spec.as_deref() else {
-        return Ok(declarations[0].0);
-    };
-    declarations
+    let matching = declarations
         .into_iter()
-        .find(|(_, declared_version)| {
-            runtime_version_matches(&request.runtime_name, declared_version, version)
+        .filter(|(_, declared_version)| {
+            request.version_spec
+                .as_deref()
+                .is_none_or(|version| {
+                    runtime_version_matches(&request.runtime_name, declared_version, version)
+                })
         })
         .map(|(group, _)| group)
-        .ok_or_else(|| {
-            RuntimeError::RuntimeNotDeclared {
-                name: request.runtime_name.clone(),
-                version: version.to_string(),
-            }
-            .into()
-        })
+        .collect::<Vec<_>>();
+    match matching.as_slice() {
+        [] => Err(RuntimeError::RuntimeNotDeclared {
+            name: request.runtime_name.clone(),
+            version: request.version_spec.clone().unwrap_or_default(),
+        }
+        .into()),
+        [group] => Ok(Some(*group)),
+        // An unflagged removal also clears `optionalDependencies`, so it is
+        // used only when that field does not declare the name.
+        [first, ..] if declares(state, DependencyGroup::Optional, &request.runtime_name) => {
+            Ok(Some(*first))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn declares(state: &State, dependency_group: DependencyGroup, name: &str) -> bool {
+    let dependencies_field: &str = dependency_group.into();
+    state.manifest
+        .value()
+        .get(dependencies_field)
+        .and_then(|dependencies| dependencies.get(name))
+        .is_some()
 }
 
 fn declared_runtime_version<'state>(
@@ -235,7 +254,9 @@ fn is_runtime_dependency(pkg: &GlobalPackageInfo, runtime_name: &str) -> bool {
 
 fn runtime_version_matches(runtime_name: &str, actual: &str, requested: &str) -> bool {
     let actual = actual.trim();
-    let selector = actual.strip_prefix('^').unwrap_or(actual);
+    let selector = actual
+        .strip_prefix(['^', '~'])
+        .unwrap_or(actual);
     runtime_selector_matches(runtime_name, selector.trim(), requested)
 }
 

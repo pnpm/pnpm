@@ -239,7 +239,10 @@ fn project_runtime_matches_the_requested_version() {
     let state = State::init(dir.path().join("package.json"), config, false).unwrap();
     let request = args(&["unset", "node", "22.14"]).unset_request().unwrap();
 
-    assert_eq!(ensure_project_runtime_matches(&state, &request).unwrap(), DependencyGroup::Dev);
+    assert_eq!(
+        ensure_project_runtime_matches(&state, &request).unwrap(),
+        Some(DependencyGroup::Dev)
+    );
 }
 
 #[test]
@@ -258,7 +261,10 @@ fn project_runtime_without_a_flag_finds_a_prod_runtime() {
     let state = State::init(dir.path().join("package.json"), config, false).unwrap();
     let request = args(&["unset", "node"]).unset_request().unwrap();
 
-    assert_eq!(ensure_project_runtime_matches(&state, &request).unwrap(), DependencyGroup::Prod);
+    assert_eq!(
+        ensure_project_runtime_matches(&state, &request).unwrap(),
+        Some(DependencyGroup::Prod)
+    );
 }
 
 #[test]
@@ -277,7 +283,52 @@ fn project_runtime_without_a_flag_finds_the_group_matching_the_version() {
     let state = State::init(dir.path().join("package.json"), config, false).unwrap();
     let request = args(&["unset", "node", "22"]).unset_request().unwrap();
 
-    assert_eq!(ensure_project_runtime_matches(&state, &request).unwrap(), DependencyGroup::Prod);
+    assert_eq!(
+        ensure_project_runtime_matches(&state, &request).unwrap(),
+        Some(DependencyGroup::Prod)
+    );
+}
+
+#[test]
+fn project_runtime_without_a_flag_or_version_targets_every_group() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "dependencies": { "node": "runtime:22.14.0" },
+            "devDependencies": { "node": "runtime:20.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let config = Config::new().leak();
+    let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+    let request = args(&["unset", "node"]).unset_request().unwrap();
+
+    assert_eq!(ensure_project_runtime_matches(&state, &request).unwrap(), None);
+}
+
+#[test]
+fn project_runtime_keeps_an_optional_dependency_with_the_same_name() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "dependencies": { "node": "runtime:22.14.0" },
+            "devDependencies": { "node": "runtime:20.0.0" },
+            "optionalDependencies": { "node": "^22.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let config = Config::new().leak();
+    let state = State::init(dir.path().join("package.json"), config, false).unwrap();
+    let request = args(&["unset", "node"]).unset_request().unwrap();
+
+    assert_eq!(
+        ensure_project_runtime_matches(&state, &request).unwrap(),
+        Some(DependencyGroup::Dev)
+    );
 }
 
 #[test]
