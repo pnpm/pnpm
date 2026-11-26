@@ -399,7 +399,7 @@ fn binary_delta_modify_rejects_same_length_base_with_changed_byte() {
 fn binary_patch_without_full_index_line_is_rejected() {
     let patch_body = BINARY_MODIFY_PATCH.replace(
         "index 9a20e1af1471b1378e27f2c97c3047811aea78ce..2ba8392e9cff316d90d283b8635b340073fd704c",
-        "index 9a20e1a..2ba8392",
+        "index 1111111..2222222",
     );
     let dir = tempdir().expect("temp dir");
     let target = dir.path().join("bin.dat");
