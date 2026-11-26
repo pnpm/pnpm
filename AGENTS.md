@@ -6,6 +6,7 @@ The repository contains these products:
 
 - The **Rust pnpm CLI (pacquet)** — `pnpm/`, the newest pnpm major. See [`pnpm/AGENTS.md`](./pnpm/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
 - The **Rust pnpr registry server** — `pnpr/`. See [`pnpr/AGENTS.md`](./pnpr/AGENTS.md) for pnpr-specific rules; it adds to (and never contradicts) the conventions below.
+- The **pnpz proof of concept** — `pnpz/`, a system package manager that installs nixpkgs binaries without Nix. See [`pnpz/README.md`](./pnpz/README.md). It is unreleased.
 - The **get-pnpm installer** — `pnpm/npm/get-pnpm`, the `get-pnpm` npm package. The pnpm npm package bundles it to download its native binary. It is released apart from the CLIs.
 
 Sections below marked "(TypeScript only)" apply to the TypeScript and JavaScript code, such as get-pnpm and the scripts under `.github/scripts/`; they do not apply to Rust code in `pnpm/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.

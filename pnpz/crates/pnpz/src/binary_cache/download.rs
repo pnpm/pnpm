@@ -72,6 +72,9 @@ fn unpack_and_check(
     let archive = decompress(narinfo.compression, compressed)
         .map_err(UnpackError::Read)
         .map_err(&unpack_error)?;
+    // One byte past the signed size is enough to fail the size check below,
+    // and it bounds what a hostile archive can make this machine decompress.
+    let archive = archive.take(narinfo.nar_size + 1);
     let mut archive = HashingReader::new(BufReader::new(archive));
     unpack(&mut archive, destination).map_err(&unpack_error)?;
     let (hash, size) = archive
