@@ -784,7 +784,7 @@ fn the_override_policy_is_named_by_its_nested_selector() {
         assert_eq!(
             merged(dir.path())["overrides"]["unused"].as_str(),
             Some("ignore"),
-            "{selector}"
+            "{selector}",
         );
     }
 }
