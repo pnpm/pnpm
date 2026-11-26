@@ -61,13 +61,16 @@ fn config_dependency_is_added_to_a_flow_mapping() {
 #[test]
 fn allow_build_is_added_to_a_flow_mapping() {
     let out = run_allow_builds(Some("allowBuilds: { foo: true }\n"), &[("bar", false)]);
-    assert_eq!(out.as_deref(), Some("allowBuilds: { bar: false, foo: true }\n"));
+    assert_eq!(
+        out.as_deref(),
+        Some("allowBuilds: { foo: true }\npermissions:\n  bar:\n    build: false\n"),
+    );
 }
 
 #[test]
 fn allow_build_is_updated_in_a_flow_mapping() {
     let out = run_allow_builds(Some("allowBuilds: { foo: true }\n"), &[("foo", false)]);
-    assert_eq!(out.as_deref(), Some("allowBuilds: { foo: false }\n"));
+    assert_eq!(out.as_deref(), Some("permissions:\n  foo:\n    build: false\n"));
 }
 
 #[test]
