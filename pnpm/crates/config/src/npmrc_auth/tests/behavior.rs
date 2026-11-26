@@ -401,6 +401,30 @@ fn parses_inline_ca_from_ini() {
 }
 
 #[test]
+fn ca_array_entries_are_trusted_like_ca() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>("ca[]=first-ca\nca[]=second-ca\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.tls.ca, vec!["first-ca", "second-ca"]);
+}
+
+#[test]
+fn ca_array_entry_is_shown_as_ca_by_config_get() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>("ca[]=only-ca\n", Path::new(""));
+    assert_eq!(auth.raw_ini_config.get("ca").map(String::as_str), Some("only-ca"));
+    assert!(!auth.raw_ini_config.contains_key("ca[]"));
+}
+
+#[test]
+fn ca_and_ca_array_entries_accumulate_in_file_order() {
+    let auth =
+        NpmrcAuth::from_ini::<NoEnv>("ca=first-ca\nca[]=second-ca\nca=third-ca\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.tls.ca, vec!["first-ca", "second-ca", "third-ca"]);
+}
+
+#[test]
 fn parses_strict_ssl_true_and_false() {
     assert_eq!(
         NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n", Path::new("")).tls.strict_ssl,

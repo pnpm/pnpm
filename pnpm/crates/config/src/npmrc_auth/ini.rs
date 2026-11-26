@@ -181,6 +181,8 @@ impl NpmrcAuth {
             else {
                 continue;
             };
+            // npm reads `ca[]=` as one entry of the `ca` array.
+            let key = if key == "ca[]" { "ca".to_string() } else { key };
 
             // Capture every auth/scoped/per-registry key verbatim for
             // `pnpm config get` / `list`, independent of the structured
