@@ -6,6 +6,8 @@
 //! field arguments, only those fields are printed; otherwise a formatted
 //! summary (or, with `--json`, the whole assembled info object) is shown.
 
+pub(super) use node::node_mirror;
+
 use crate::cli_args::{
     registry_client::{
         build_registry_client,
@@ -27,7 +29,6 @@ use derive_more::{
 };
 use jiff::Timestamp;
 use miette::Diagnostic;
-pub(super) use node::node_mirror;
 use node::{
     NodeView,
     fetch_node_view,
