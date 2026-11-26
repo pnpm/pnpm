@@ -37,7 +37,7 @@ fn set_allow_builds_replaces_a_symlinked_manifest_without_following_it() {
     );
     assert_eq!(
         fs::read_to_string(&manifest).expect("read manifest"),
-        "allowBuilds:\n  esbuild: true\n",
+        "permissions:\n  esbuild:\n    build: true\n",
     );
 }
 
@@ -60,7 +60,7 @@ fn allow_builds_replaces_a_value_with_an_escaped_quote() {
         Some("allowBuilds:\n  esbuild: \"a \\\" # b\" # real\n"),
         &[("esbuild", false)],
     );
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: false # real\n"));
+    assert_eq!(out.as_deref(), Some("permissions:\n  esbuild:\n    build: false\n"));
 }
 
 #[test]
