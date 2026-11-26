@@ -456,3 +456,61 @@ Binary files a/old.bin and b/new.bin differ
     assert!(from.exists(), "the source must stay in place");
     assert!(!dir.path().join("new.bin").exists(), "nothing should be moved");
 }
+
+#[test]
+fn binary_patch_with_sha256_index_line_applies() {
+    let patch_body = BINARY_MODIFY_PATCH.replace(
+        "index 9a20e1af1471b1378e27f2c97c3047811aea78ce..2ba8392e9cff316d90d283b8635b340073fd704c",
+        "index ac851f442d38149033037d4c790511ca3cc6772520816ad8c54bf9c7519f1c62..b260fe2585dd9440e816bd794899775bdde2b8bd4c0e6a6a963d89413f3b5a31",
+    );
+    let dir = tempdir().expect("temp dir");
+    let target = dir.path().join("bin.dat");
+    fs::write(&target, BINARY_PREIMAGE).expect("write preimage");
+    let patch = write_patch(dir.path(), &patch_body);
+
+    apply_patch_to_dir(dir.path(), &patch).expect("apply");
+    assert_eq!(fs::read(&target).expect("read patched"), BINARY_POSTIMAGE);
+    apply_patch_to_dir(dir.path(), &patch).expect("reapply");
+    assert_eq!(fs::read(&target).expect("read patched"), BINARY_POSTIMAGE);
+}
+
+#[test]
+fn binary_create_with_mismatched_blob_id_is_rejected() {
+    let patch_body = BINARY_CREATE_PATCH.replace(
+        "0ae8040411865fbc997e77a0a3ccce72e6e91cd8",
+        "1111111111111111111111111111111111111111",
+    );
+    let dir = tempdir().expect("temp dir");
+    let patch = write_patch(dir.path(), &patch_body);
+
+    let error = apply_patch_to_dir(dir.path(), &patch).expect_err("should not apply");
+    assert!(matches!(error, PatchApplyError::PatchFailed { .. }), "error: {error}");
+    assert!(!dir.path().join("added.bin").exists(), "nothing should be created");
+}
+
+#[test]
+fn binary_rename_with_wrong_source_leaves_both_paths_alone() {
+    let dir = tempdir().expect("temp dir");
+    let from = dir.path().join("old.bin");
+    fs::write(&from, b"some other bytes entirely").expect("write wrong source");
+    let patch = write_patch(dir.path(), BINARY_RENAME_PATCH);
+
+    let error = apply_patch_to_dir(dir.path(), &patch).expect_err("should not apply");
+    assert!(matches!(error, PatchApplyError::PatchFailed { .. }), "error: {error}");
+    assert_eq!(fs::read(&from).expect("read source"), b"some other bytes entirely");
+    assert!(!dir.path().join("new.bin").exists(), "nothing should be moved");
+}
+
+#[test]
+fn binary_manifest_recreate_is_previewed() {
+    let patch_body = format!(
+        "diff --git a/package.json b/package.json\ndeleted file mode 100644\nindex 9a20e1af1471b1378e27f2c97c3047811aea78ce..0000000000000000000000000000000000000000\n{}",
+        BINARY_CREATE_PATCH.replace("added.bin", "package.json"),
+    );
+    let dir = tempdir().expect("temp dir");
+    fs::write(dir.path().join("package.json"), BINARY_PREIMAGE).expect("write manifest");
+    let patch = write_patch(dir.path(), &patch_body);
+
+    let preview = preview_patch(dir.path(), &patch).expect("preview");
+    assert_eq!(preview.manifest.as_deref(), Some(String::from_utf8_lossy(BINARY_CREATED).as_ref()));
+}

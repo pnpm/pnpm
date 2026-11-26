@@ -113,6 +113,26 @@ impl FileApply<'_> {
         }
     }
 
+    /// Move `from` to `to` and apply the record there. A `from` that is
+    /// neither recorded image is refused before anything moves.
+    fn rename_binary(
+        &self,
+        from: &Path,
+        to: &Path,
+        record: &BinaryRecord<'_, '_>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        if from.symlink_metadata().is_ok() {
+            let bytes = fs::read(from)
+                .map_err(|source| self.failed(format!("read {}: {source}", from.display())))?;
+            record
+                .direction(&bytes)
+                .map_err(|message| self.failed(format!("rename {}: {message}", from.display())))?;
+        }
+        self.move_entry(from, to)?;
+        self.modify_binary(to, record, new_mode)
+    }
+
     /// Apply one binary record, dispatching on the operation.
     pub(super) fn binary_operation(
         &self,
@@ -139,11 +159,12 @@ impl FileApply<'_> {
             FileOperation::Delete(path) => {
                 self.delete_binary(&self.resolve_target(Path::new(path.as_ref()))?, &record)
             }
-            FileOperation::Rename { from, to } => {
-                let to = self.resolve_target(Path::new(to.as_ref()))?;
-                self.move_entry(&self.resolve_target(Path::new(from.as_ref()))?, &to)?;
-                self.modify_binary(&to, &record, new_mode)
-            }
+            FileOperation::Rename { from, to } => self.rename_binary(
+                &self.resolve_target(Path::new(from.as_ref()))?,
+                &self.resolve_target(Path::new(to.as_ref()))?,
+                &record,
+                new_mode,
+            ),
             FileOperation::Copy { .. } => {
                 Err(self.failed("copy operations in patches are not yet supported".to_string()))
             }
@@ -152,17 +173,23 @@ impl FileApply<'_> {
 }
 
 /// Resolve a binary record against the manifest for the preview, the
-/// way [`FileApply::modify_binary`] resolves it.
+/// way [`FileApply::create_binary`] and [`FileApply::modify_binary`]
+/// resolve it.
 pub(super) fn preview_binary_manifest(
     patch_text: &str,
+    operation: &FileOperation<'_, str>,
     binary_patch: &BinaryPatch<'_>,
     original: String,
 ) -> Result<String, String> {
     let record = BinaryRecord::new(patch_text, binary_patch)?;
-    match record.direction(original.as_bytes())? {
-        BinaryDirection::Forward(updated) => Ok(String::from_utf8_lossy(&updated).into_owned()),
-        BinaryDirection::AlreadyPatched => Ok(original),
-    }
+    let updated = match operation {
+        FileOperation::Create(_) => record.created()?,
+        _ => match record.direction(original.as_bytes())? {
+            BinaryDirection::Forward(updated) => updated,
+            BinaryDirection::AlreadyPatched => return Ok(original),
+        },
+    };
+    Ok(String::from_utf8_lossy(&updated).into_owned())
 }
 
 /// The path a record names, for error messages.

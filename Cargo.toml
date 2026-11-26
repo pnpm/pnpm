@@ -270,7 +270,6 @@ rustls = { version = "0.23.46", default-features = false, features = ["std"] }
 rustls-platform-verifier = { version = "0.7.1" }
 serde-saphyr = { version = "2.2.0" }
 sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs"] }
-sha1 = { version = "0.10.7" }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2 = { version = "0.10.9" }
 sigstore-sign = { version = "0.17.0" }

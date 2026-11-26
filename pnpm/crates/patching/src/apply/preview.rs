@@ -184,12 +184,13 @@ impl PreviewState<'_> {
                     return Err(self.failed(format!("apply to {}: {message}", target.display())));
                 }
             },
-            PatchKind::Binary(binary_patch) => {
-                super::binary::preview_binary_manifest(self.patch_text, binary_patch, original)
-                    .map_err(|message| {
-                        self.failed(format!("apply to {}: {message}", target.display()))
-                    })?
-            }
+            PatchKind::Binary(binary_patch) => super::binary::preview_binary_manifest(
+                self.patch_text,
+                file_patch.operation(),
+                binary_patch,
+                original,
+            )
+            .map_err(|message| self.failed(format!("apply to {}: {message}", target.display())))?,
         };
         self.preview.manifest = Some(updated);
         Ok(())

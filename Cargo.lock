@@ -6447,7 +6447,7 @@ dependencies = [
  "pnpm-process",
  "pretty_assertions",
  "serde_json",
- "sha1 0.10.7",
+ "ssri",
  "tempfile",
  "text-block-macros",
 ]

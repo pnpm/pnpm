@@ -10,13 +10,10 @@ use flate2::{
     FlushDecompress,
     Status,
 };
-use sha1::{
-    Digest,
-    Sha1,
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
 };
-
-/// Length of a full SHA-1 blob id in hex.
-const FULL_BLOB_ID_LEN: usize = 40;
 
 /// A binary record whose blocks decode and whose `index` line names the
 /// full blob ids of both images.
@@ -59,14 +56,18 @@ impl<'patch, 'text> BinaryRecord<'patch, 'text> {
 
     /// Whether `bytes` is the recorded pre-image.
     pub(in crate::apply) fn is_preimage(&self, bytes: &[u8]) -> bool {
-        git_blob_id(bytes) == self.old_blob_id
+        git_blob_id(bytes, self.old_blob_id) == self.old_blob_id
     }
 
     /// The content the forward block creates from an empty pre-image.
     pub(in crate::apply) fn created(&self) -> Result<Vec<u8>, String> {
-        self.patch
+        let created = self.patch
             .apply(&[])
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        if git_blob_id(&created, self.new_blob_id) != self.new_blob_id {
+            return Err("the record's binary data does not produce its post-image".into());
+        }
+        Ok(created)
     }
 
     /// Decide what `bytes` is by its blob id.
@@ -74,27 +75,41 @@ impl<'patch, 'text> BinaryRecord<'patch, 'text> {
     /// The blocks cannot decide it: a `literal` block ignores its input, and
     /// a `delta` block checks only lengths and copy ranges.
     pub(in crate::apply) fn direction(&self, bytes: &[u8]) -> Result<BinaryDirection, String> {
-        if git_blob_id(bytes) == self.new_blob_id {
+        if git_blob_id(bytes, self.new_blob_id) == self.new_blob_id {
             return Ok(BinaryDirection::AlreadyPatched);
         }
         if !self.is_preimage(bytes) {
             return Err("the file matches neither the record's pre-image nor its post-image".into());
         }
         let updated = self.patch.apply(bytes).map_err(|error| error.to_string())?;
-        if git_blob_id(&updated) != self.new_blob_id {
+        if git_blob_id(&updated, self.new_blob_id) != self.new_blob_id {
             return Err("the record's binary data does not produce its post-image".into());
         }
         Ok(BinaryDirection::Forward(updated))
     }
 }
 
-/// The blob id git gives `bytes`.
-fn git_blob_id(bytes: &[u8]) -> String {
-    let mut hasher = Sha1::new();
-    hasher.update(format!("blob {}\0", bytes.len()));
-    hasher.update(bytes);
-    format!("{:x}", hasher.finalize())
+/// The blob id git gives `bytes`, in the object format `recorded_id` uses:
+/// SHA-1 or, in a SHA-256 repository, SHA-256.
+fn git_blob_id(bytes: &[u8], recorded_id: &str) -> String {
+    let algorithm = match recorded_id.len() {
+        SHA256_HEX_LEN => Algorithm::Sha256,
+        _ => Algorithm::Sha1,
+    };
+    IntegrityOpts::new()
+        .algorithm(algorithm)
+        .chain(format!("blob {}\0", bytes.len()))
+        .chain(bytes)
+        .result()
+        .to_hex()
+        .1
 }
+
+/// Length of a full SHA-1 object id in hex.
+const SHA1_HEX_LEN: usize = 40;
+
+/// Length of a full SHA-256 object id in hex.
+const SHA256_HEX_LEN: usize = 64;
 
 /// The `<old>..<new>` ids of the `index` line in the header of the record
 /// that holds `forward`.
@@ -114,8 +129,8 @@ fn full_index_line<'text>(
         .split(' ')
         .next()?;
     let (old, new) = ids.split_once("..")?;
-    let is_full = |id: &str| id.len() == FULL_BLOB_ID_LEN;
-    (is_full(old) && is_full(new)).then_some((old, new))
+    let is_full = |id: &str| matches!(id.len(), SHA1_HEX_LEN | SHA256_HEX_LEN);
+    (is_full(old) && is_full(new) && old.len() == new.len()).then_some((old, new))
 }
 
 /// Reject a block whose zlib stream ends before its end marker or
@@ -158,6 +173,17 @@ fn check_stream_ends(block: &BinaryBlock<'_>) -> Result<(), String> {
 const BASE85_ALPHABET: &[u8; 85] =
     b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+-;<=>?@^_`{|}~";
 
+/// The digit of each byte in [`BASE85_ALPHABET`], `None` for other bytes.
+const BASE85_DIGITS: [Option<u8>; 256] = {
+    let mut digits = [None; 256];
+    let mut digit = 0;
+    while digit < BASE85_ALPHABET.len() {
+        digits[BASE85_ALPHABET[digit] as usize] = Some(digit as u8);
+        digit += 1;
+    }
+    digits
+};
+
 /// Decode the base85 lines of a block.
 fn decode_base85_lines(data: &[u8]) -> Result<Vec<u8>, String> {
     let mut decoded = Vec::new();
@@ -191,12 +217,10 @@ fn decode_base85_group(group: &[u8]) -> Option<[u8; 4]> {
     let [_, _, _, _, _] = group else { return None };
     let mut value: u32 = 0;
     for &symbol in group {
-        let digit = BASE85_ALPHABET
-            .iter()
-            .position(|&candidate| candidate == symbol)
-            .map(u32::try_from)
-            .and_then(Result::ok)?;
-        value = value.checked_mul(85)?.checked_add(digit)?;
+        let digit = BASE85_DIGITS[usize::from(symbol)]?;
+        value = value
+            .checked_mul(85)?
+            .checked_add(u32::from(digit))?;
     }
     Some(value.to_be_bytes())
 }
