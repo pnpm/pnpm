@@ -767,6 +767,44 @@ fn nested_catalog_options_need_their_own_delegations() {
 }
 
 #[test]
+fn the_override_policy_is_named_by_its_nested_selector() {
+    let dir = workspace(&[
+        ("pnpm-workspace.yaml", "include:\n  ./policy.yaml: [overrides]\n"),
+        ("policy.yaml", "overrides: {rules: {example: '1'}, unused: ignore}\n"),
+    ]);
+    assert!(
+        matches!(load(dir.path()), Err(IncludeError::SettingNotDelegated {setting, ..}) if setting == "overrides.unused"),
+    );
+    for selector in ["overrides.unused", "warnUnusedOverrides"] {
+        fs::write(
+            dir.path().join("pnpm-workspace.yaml"),
+            format!("include:\n  ./policy.yaml: [overrides, {selector}]\n"),
+        )
+        .unwrap();
+        assert_eq!(
+            merged(dir.path())["overrides"]["unused"].as_str(),
+            Some("ignore"),
+            "{selector}"
+        );
+    }
+}
+
+#[test]
+fn the_legacy_override_policy_spelling_shares_its_owner() {
+    let error = load_error(&[
+        (
+            "pnpm-workspace.yaml",
+            "include:\n  ./policy.yaml: [overrides.unused]\nwarnUnusedOverrides: false\n",
+        ),
+        ("policy.yaml", ""),
+    ]);
+    assert!(
+        matches!(&error, IncludeError::DuplicateSetting {setting, ..} if setting == "overrides.unused"),
+        "{error:?}",
+    );
+}
+
+#[test]
 fn relative_specifiers_in_nested_maps_are_relative_to_their_source() {
     let dir = workspace(&[
         ("pnpm-workspace.yaml", "include:\n  ./config/policy.yaml: '*'\n"),

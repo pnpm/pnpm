@@ -41,7 +41,7 @@ impl SettingSlot {
             }
             "catalog.unused" => Some(SettingSlot::Setting("catalogPrune".to_string())),
             "permissions.unused" => Some(SettingSlot::Setting("permissions.unused".to_string())),
-            "overrides.unused" => Some(SettingSlot::Setting("warnUnusedOverrides".to_string())),
+            "overrides.unused" => Some(SettingSlot::Setting("overrides.unused".to_string())),
             _ => match selector.strip_prefix("catalogs.") {
                 Some("") => None,
                 Some(name) => Some(SettingSlot::Catalog(name.to_string())),
@@ -90,6 +90,7 @@ pub fn canonical_setting_name(key: &str) -> &str {
         "maxsockets" => "maxSockets",
         "namedRegistries" => "registries",
         "updateConfig" => "update",
+        "warnUnusedOverrides" => "overrides.unused",
         _ => key,
     }
 }
@@ -124,7 +125,7 @@ fn add_option_slots(slots: &mut Vec<SettingSlot>, key: &str, value: &Value) {
                 ("defaultSaveTarget", "saveCatalogName"),
             ],
         ),
-        "overrides" => ("rules", &[("unused", "warnUnusedOverrides")]),
+        "overrides" => ("rules", &[("unused", "overrides.unused")]),
         "permissions" => ("rules", &[("unused", "permissions.unused")]),
         _ => return,
     };
