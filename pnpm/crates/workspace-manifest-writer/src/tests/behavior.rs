@@ -100,22 +100,25 @@ fn preserves_comment_when_inserting_before_commented_entry() {
 }
 
 #[test]
-fn allow_builds_creates_block_when_absent() {
+fn allow_builds_decisions_create_permissions_when_absent() {
     let out = run_allow_builds(None, &[("esbuild", true)]);
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n"));
+    assert_eq!(out.as_deref(), Some("permissions:\n  esbuild:\n    build: true\n"));
 }
 
 #[test]
-fn allow_builds_writes_boolean_values_unquoted() {
+fn allow_builds_decisions_write_boolean_values_unquoted() {
     let out = run_allow_builds(None, &[("esbuild", true), ("@scope/pkg", false)]);
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  '@scope/pkg': false\n  esbuild: true\n"));
+    assert_eq!(
+        out.as_deref(),
+        Some("permissions:\n  '@scope/pkg':\n    build: false\n  esbuild:\n    build: true\n"),
+    );
 }
 
 #[test]
-fn allow_builds_upserts_existing_entry() {
+fn allow_builds_decisions_move_existing_entries_to_permissions() {
     let original = "allowBuilds:\n  esbuild: false\n";
     let out = run_allow_builds(Some(original), &[("esbuild", true)]);
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n"));
+    assert_eq!(out.as_deref(), Some("permissions:\n  esbuild:\n    build: true\n"));
 }
 
 #[test]
@@ -143,19 +146,18 @@ fn allow_builds_preserves_other_keys_and_comments() {
     let out = run_allow_builds(Some(original), &[("esbuild", true)]).expect("file written");
     assert!(out.contains("# top comment"), "comment preserved");
     assert!(out.contains("storeDir: ../store"), "existing key preserved");
-    assert!(out.contains("allowBuilds:\n  esbuild: true"), "block appended");
+    assert!(out.contains("permissions:\n  esbuild:\n    build: true"), "block appended");
 }
 
 #[test]
 fn allow_builds_upserts_a_key_containing_a_colon() {
-    // Artifact allow-build keys keep the full pkgId, which contains `:`
-    // (e.g. a tarball/git URL). The upsert must find and toggle the
-    // existing entry instead of appending a duplicate, which a
-    // first-colon line scan would do by truncating the key.
+    // Artifact permission keys keep the full pkgId, which contains `:`
+    // (e.g. a tarball/git URL).
     let key = "foo@https://example.com/foo.tgz";
     let original = format!("allowBuilds:\n  '{key}': false\n");
     let out = run_allow_builds(Some(&original), &[(key, true)]).expect("file written");
-    assert_eq!(out, format!("allowBuilds:\n  '{key}': true\n"));
+    assert!(out.contains("permissions:"), "permission block written: {out}");
+    assert!(out.contains("build: true"), "build decision written: {out}");
     assert_eq!(out.matches(key).count(), 1, "exactly one entry, no duplicate: {out}");
 }
 
@@ -164,12 +166,13 @@ fn allow_builds_creates_and_round_trips_a_colon_key() {
     let key = "foo@https://example.com/foo.tgz";
     let created = run_allow_builds(None, &[(key, true)]).expect("file written");
     assert!(created.contains(key), "key written verbatim: {created}");
-    // Re-upserting the same value is a no-op (the entry is found, not duplicated).
+    // Re-upserting the same value is a no-op.
     let same = run_allow_builds(Some(&created), &[(key, true)]);
     assert_eq!(same.as_deref(), Some(created.as_str()), "idempotent: {created}");
-    // Toggling flips the existing entry rather than appending a duplicate.
+    // Toggling changes the existing permission without duplicating the key.
     let toggled = run_allow_builds(Some(&created), &[(key, false)]).expect("written");
     assert_eq!(toggled.matches(key).count(), 1, "no duplicate after toggle: {toggled}");
+    assert!(toggled.contains("build: false"), "decision updated: {toggled}");
 }
 
 #[test]
@@ -519,7 +522,7 @@ fn allow_builds_clearing_legacy_drops_every_legacy_key_in_the_same_write() {
     let out =
         run_allow_builds_clearing_legacy(Some(original), &[("esbuild", true)]).expect("file kept");
     eprintln!("MANIFEST:\n{out}\n");
-    assert_eq!(out, "packages:\n  - '*'\nallowBuilds:\n  esbuild: true\n");
+    assert_eq!(out, "packages:\n  - '*'\npermissions:\n  esbuild:\n    build: true\n");
 }
 
 #[test]
@@ -674,48 +677,40 @@ fn delete_unset_field_is_noop() {
 }
 
 /// pnpm scaffolds undecided entries with a multi-word plain scalar.
-/// Deciding one replaces the whole value: ending it at the first
-/// whitespace would leave `true this to true or false` behind, which
-/// YAML reads as a string, so the package would stay undecided.
+/// Recording a decision removes that legacy placeholder before writing the
+/// permission.
 #[test]
-fn allow_builds_replaces_a_multi_word_placeholder_value() {
+fn allow_builds_migrates_a_multi_word_placeholder_value() {
     let out = run_allow_builds(
         Some("allowBuilds:\n  esbuild: set this to true or false\n"),
         &[("esbuild", true)],
     );
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n"));
+    assert_eq!(out.as_deref(), Some("permissions:\n  esbuild:\n    build: true\n"));
 }
 
-/// A comment after the value is the one thing that must survive the
-/// replacement, which is why the value span stops at ` #`.
 #[test]
-fn allow_builds_keeps_a_trailing_comment() {
+fn allow_builds_migrates_a_placeholder_with_a_trailing_comment() {
     let out =
         run_allow_builds(Some("allowBuilds:\n  esbuild: false # why\n"), &[("esbuild", true)]);
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # why\n"));
+    assert_eq!(out.as_deref(), Some("permissions:\n  esbuild:\n    build: true\n"));
 }
 
-/// A quote only delimits a scalar when it opens the value, so an
-/// apostrophe inside a plain scalar is a character, not an unterminated
-/// quoted string that would swallow a following comment.
 #[test]
-fn allow_builds_replaces_a_plain_value_containing_a_quote() {
+fn allow_builds_migrates_a_plain_placeholder_containing_a_quote() {
     let out = run_allow_builds(
         Some("allowBuilds:\n  esbuild: don't know yet # decide later\n"),
         &[("esbuild", true)],
     );
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # decide later\n"));
+    assert_eq!(out.as_deref(), Some("permissions:\n  esbuild:\n    build: true\n"));
 }
 
-/// A doubled quote is the single-quoted style's escape, so it does not
-/// end the scalar either.
 #[test]
-fn allow_builds_replaces_a_value_with_a_doubled_single_quote() {
+fn allow_builds_migrates_a_quoted_placeholder() {
     let out = run_allow_builds(
         Some("allowBuilds:\n  esbuild: 'it''s # fine' # real\n"),
         &[("esbuild", true)],
     );
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # real\n"));
+    assert_eq!(out.as_deref(), Some("permissions:\n  esbuild:\n    build: true\n"));
 }
 
 #[test]

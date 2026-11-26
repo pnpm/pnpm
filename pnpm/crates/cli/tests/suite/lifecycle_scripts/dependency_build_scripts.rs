@@ -1041,8 +1041,8 @@ fn install_runs_scripts_with_allow_build_flag() {
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml present");
     assert!(
-        yaml.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
-        "allowBuilds entry should be persisted, got:\n{yaml}",
+        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example':\n    build: true"),
+        "build permission should be persisted, got:\n{yaml}",
     );
 
     // Subsequent frozen install should succeed because package is in allowBuilds
@@ -1093,8 +1093,8 @@ fn install_denies_scripts_with_negated_allow_build_flag() {
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml present");
     assert!(
-        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example': false"),
-        "denied allowBuilds entry should be persisted with false, got:\n{yaml}",
+        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example':\n    build: false"),
+        "denied build permission should be persisted, got:\n{yaml}",
     );
 
     drop((root, mock_instance));
@@ -1151,8 +1151,8 @@ fn install_allows_and_runs_scripts_on_subsequent_install() {
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml present");
     assert!(
-        yaml.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
-        "allowBuilds entry should be persisted, got:\n{yaml}",
+        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example':\n    build: true"),
+        "build permission should be persisted, got:\n{yaml}",
     );
 
     drop((root, mock_instance));
