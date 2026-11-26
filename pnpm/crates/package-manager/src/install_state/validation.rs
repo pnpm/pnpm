@@ -363,6 +363,15 @@ pub(super) fn recordable_signature(config: &Config, mut signature: FileSignature
     signature
 }
 
+struct RecordedProject {
+    importer_id: String,
+    manifest: String,
+    input_manifest: Option<String>,
+    lockfile: Option<String>,
+    bins: Option<String>,
+    vouched: bool,
+}
+
 /// Record in `validation` each project the write vouches for, proven against
 /// `lockfile`, and each other one `carried` still proves. Returns how many it
 /// recorded.
@@ -389,46 +398,55 @@ fn record_projects(
             };
             if vouched {
                 let project_bins = project_bins_digest(&importer_id, manifest, bins.as_deref());
-                return Some((
+                return Some(RecordedProject {
                     importer_id,
-                    manifest_digest(manifest),
-                    Some(install_input_digest(manifest)),
-                    lockfile,
-                    project_bins,
-                    true,
-                ));
+                    manifest: manifest_digest(manifest),
+                    input_manifest: Some(install_input_digest(manifest)),
+                    lockfile: lockfile.map(str::to_string),
+                    bins: project_bins.map(str::to_string),
+                    vouched: true,
+                });
             }
-            let record = carried?.project(&importer_id)?;
-            Some((
-                importer_id.clone(),
-                record.manifest.to_string(),
-                None,
-                record.lockfile,
-                carried?.workspace_bins.get(&importer_id).map(String::as_str),
-                false,
-            ))
+            let previous = carried?;
+            let record = previous.project(&importer_id)?;
+            Some(RecordedProject {
+                importer_id,
+                manifest: record.manifest.to_string(),
+                input_manifest: None,
+                lockfile: record.lockfile.map(str::to_string),
+                bins: previous.workspace_bins.get(&importer_id).cloned(),
+                vouched: false,
+            })
         })
         .collect::<Vec<_>>();
     let recorded = records.len();
-    for (importer_id, manifest, input_manifest, lockfile, bins, vouched) in records {
+    for record in records {
+        let RecordedProject {
+            importer_id,
+            manifest,
+            input_manifest,
+            lockfile,
+            bins,
+            vouched,
+        } = record;
         let recorded_inputs = if vouched {
             input_manifest.map(|manifest| InstallInputs {
                 settings: settings.clone(),
                 manifest,
-                lockfile: lockfile.map(str::to_string),
-                workspace_bins: bins.map(str::to_string),
+                lockfile: lockfile.clone(),
+                workspace_bins: bins.clone(),
                 files: files.clone(),
             })
         } else {
             carried.and_then(|validation| validation.inputs.get(&importer_id).cloned())
         };
         if let Some(bins) = bins {
-            validation.workspace_bins.insert(importer_id.clone(), bins.to_string());
+            validation.workspace_bins.insert(importer_id.clone(), bins);
         }
         if let Some(inputs) = recorded_inputs {
             validation.inputs.insert(importer_id.clone(), inputs);
         }
-        validation.insert_project(importer_id, manifest, lockfile);
+        validation.insert_project(importer_id, manifest, lockfile.as_deref());
     }
     recorded
 }

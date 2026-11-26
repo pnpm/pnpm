@@ -20,7 +20,6 @@ use super::{
 };
 use crate::install_state::{
     current_settings_with_catalogs,
-    settings_json,
     settings_match,
 };
 use pnpm_workspace::importer_id_from_root_dir;
@@ -38,6 +37,12 @@ use std::{
         PathBuf,
     },
 };
+
+struct ComparedInputs {
+    manifest: String,
+    workspace_bins: Option<String>,
+    files: BTreeMap<String, String>,
+}
 
 pub(super) fn check_recorded_inputs(
     check: &OptimisticRepeatInstallCheck<'_>,
@@ -59,7 +64,7 @@ pub(super) fn check_recorded_inputs(
         check.layout.supported_architectures,
         check.catalogs,
     );
-    let current = current_inputs(check, state, drift, &settings_json(&current_settings));
+    let current = current_inputs(check, state, drift);
     let patches: HashSet<PathBuf> = check.config.patch_file_paths().collect();
     for stat in held {
         let importer_id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
@@ -85,7 +90,7 @@ pub(super) fn check_recorded_inputs(
 
 fn inputs_match(
     recorded: &InstallInputs,
-    current: &InstallInputs,
+    current: &ComparedInputs,
     current_settings: &WorkspaceStateSettings,
     policy: &GatePolicy<'_>,
     patches: &HashSet<PathBuf>,
@@ -96,8 +101,9 @@ fn inputs_match(
     } else {
         recorded.files == current.files
     };
+    // The content check compares the config-selected lockfile. A whole-file
+    // digest here would reject rewrites that leave the dependencies unchanged.
     if recorded.manifest != current.manifest
-        || recorded.lockfile != current.lockfile
         || recorded.workspace_bins != current.workspace_bins
         || !files_match
     {
@@ -120,8 +126,7 @@ fn current_inputs(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     drift: &InputDrift<'_>,
-    settings: &str,
-) -> BTreeMap<String, InstallInputs> {
+) -> BTreeMap<String, ComparedInputs> {
     let bins = workspace_bins_digest(check.workspace_root, check.bin_projects());
     let digests = FileDigests::new(state.validation.as_ref());
     let files = shared_input_paths(check.config, &state.pnpmfiles)
@@ -138,16 +143,7 @@ fn current_inputs(
             let manifest = install_input_digest(stat.manifest);
             let workspace_bins = project_bins_digest(&importer_id, stat.manifest, bins.as_deref())
                 .map(str::to_string);
-            (
-                importer_id,
-                InstallInputs {
-                    settings: settings.to_owned(),
-                    manifest,
-                    lockfile: drift.lockfile.digest().map(str::to_string),
-                    workspace_bins,
-                    files: files.clone(),
-                },
-            )
+            (importer_id, ComparedInputs { manifest, workspace_bins, files: files.clone() })
         })
         .collect()
 }

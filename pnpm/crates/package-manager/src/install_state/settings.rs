@@ -59,7 +59,6 @@ pub(crate) fn global_virtual_store_layout_version(config: &Config) -> Option<u8>
     )
 }
 
-/// The canonical workspace-state settings JSON a full install records.
 pub(crate) fn settings_json(settings: &WorkspaceStateSettings) -> String {
     serde_json::to_string(settings).expect("serialize workspace state settings")
 }

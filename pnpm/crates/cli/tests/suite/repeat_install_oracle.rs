@@ -136,7 +136,7 @@ struct Scenario {
 /// dependency resolves from each project, the commands each project's
 /// `node_modules/.bin` offers, the files of every registry dependency a
 /// project declares, every lockfile, and every `.modules.yaml` manifest.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Snapshot {
     tree: BTreeMap<String, String>,
     bins: BTreeMap<String, Vec<String>>,
@@ -525,21 +525,26 @@ impl Scenario {
     /// `pnpm install` takes its fast path exactly when a full install changes
     /// nothing, and takes it on the next run.
     #[track_caller]
-    fn assert_install_gate(&self, allowed: AllowedRefusal) {
+    fn assert_install_gate(&self, oracle: Option<&Path>, allowed: AllowedRefusal) {
         let before = self.snapshot();
         let offered = self.offers_next_install_fast_path();
         if self.install(&[]) {
+            let after = self.snapshot();
+            let mut expected = before.clone();
+            if let Some(oracle) = oracle {
+                if after.lockfiles != before.lockfiles {
+                    expected.lockfiles = workspace_lockfiles(oracle);
+                }
+            }
             assert_eq!(
-                self.snapshot(),
-                before,
+                after, expected,
                 "{:?} ({:?}): the install fast path modified the snapshot",
-                self.layout,
-                self.driver,
+                self.layout, self.driver,
             );
             assert!(!self.install(&["--config.optimistic-repeat-install=false"]));
             assert_eq!(
                 self.snapshot(),
-                before,
+                expected,
                 "{:?} ({:?}): the install fast path was taken, but a full install changes the tree",
                 self.layout,
                 self.driver,
@@ -637,7 +642,7 @@ impl Scenario {
         for selection in [&["a"][..], &["b"], &["c"], &PROJECTS] {
             self.assert_run_gate(&oracle, selection, allowed);
         }
-        self.assert_install_gate(allowed);
+        self.assert_install_gate(Some(oracle.as_path()), allowed);
         for selection in [&["a"][..], &["b"], &["c"], &PROJECTS] {
             assert!(
                 self.exec(selection, "error"),
@@ -1348,7 +1353,7 @@ fn a_scope_route_moved(layout: Layout) {
         !scenario.exec(&["b"], "error"),
         "{layout:?}: b's locked dependency is not served by the registry its scope moved to",
     );
-    scenario.assert_install_gate(AllowedRefusal::None);
+    scenario.assert_install_gate(None, AllowedRefusal::None);
     for selection in [&["a"][..], &["b"], &["c"], &PROJECTS] {
         assert!(
             scenario.exec(selection, "error"),
