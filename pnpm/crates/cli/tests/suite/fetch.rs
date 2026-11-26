@@ -832,7 +832,7 @@ fn filtered_fetch_populates_only_selected_projects_of_shared_lockfile() {
         workspace
             .join("packages/a/node_modules")
             .join(PROD_DEP)
-            .exists()
+            .exists(),
     );
     drop((root, mock_instance));
 }
