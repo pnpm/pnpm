@@ -945,6 +945,24 @@ fn a_filtered_install_into_a_fresh_workspace(layout: Layout) {
     scenario.check_gates();
 }
 
+fn a_filtered_install_then_a_deleted_lockfile(layout: Layout) {
+    let mut scenario = Scenario::new(layout);
+    scenario.install(&["--filter", "b"]);
+    fs::remove_file(scenario.lockfile_of("b")).expect("delete the lockfile");
+    scenario.check_gates();
+}
+
+fn generated_filtered_install_edit_and_lockfile_sequences(layout: Layout) {
+    for project in ["a", "b", "c"] {
+        let mut scenario = Scenario::new(layout);
+        scenario.install(&[]);
+        scenario.install(&["--filter", project]);
+        scenario.set_dependencies(project, &json!({ "@pnpm.e2e/foo": "100.0.0" }));
+        fs::remove_file(scenario.lockfile_of(project)).expect("delete the lockfile");
+        scenario.check_gates();
+    }
+}
+
 /// A filtered install for `c` installs its workspace dependency `a` too.
 fn a_filtered_install_reaching_a_workspace_dependency(layout: Layout) {
     let mut scenario = Scenario::new(layout);
@@ -1448,6 +1466,8 @@ macro_rules! matrix {
                     a_full_install_converges,
                     a_pull_then_a_filtered_command_for_one_project,
                     a_filtered_install_into_a_fresh_workspace,
+                    a_filtered_install_then_a_deleted_lockfile,
+                    generated_filtered_install_edit_and_lockfile_sequences,
                     a_filtered_install_reaching_a_workspace_dependency,
                     an_edit_outside_the_next_filtered_install,
                     filtered_commands_for_every_project_after_a_pull,

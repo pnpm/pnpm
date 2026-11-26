@@ -59,6 +59,25 @@ pub(crate) fn global_virtual_store_layout_version(config: &Config) -> Option<u8>
     )
 }
 
+/// The canonical workspace-state settings JSON a full install records.
+pub(crate) fn settings_json(settings: &WorkspaceStateSettings) -> String {
+    serde_json::to_string(settings).expect("serialize workspace state settings")
+}
+
+/// Compare settings an install recorded against today's settings with the
+/// same equivalence rules the freshness gate applies to workspace state.
+pub(crate) fn settings_match<'a>(
+    recorded: &'a str,
+    current: &'a WorkspaceStateSettings,
+    ignored: &'a [&'a str],
+    workspace_dir: Option<&'a Path>,
+) -> Result<bool, serde_json::Error> {
+    let recorded: WorkspaceStateSettings = serde_json::from_str(recorded)?;
+    Ok(SettingsComparison { recorded: &recorded, live: current, ignored, workspace_dir }
+        .first_drift()
+        .is_none())
+}
+
 /// Whether the `supportedArchitectures` recorded by the last install
 /// matches `live` (today's CLI-merged value). Read from the workspace
 /// state for the frozen path's lockfile-up-to-date early return, whose

@@ -765,6 +765,20 @@ fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
 }
 
 #[test]
+fn run_gate_refuses_a_missing_wanted_lockfile() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let status = single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)]);
+
+    assert!(
+        matches!(&status, RunDepsStatus::Outdated { issue, .. } if issue.contains("Cannot find")),
+        "expected Outdated(no lockfile), got {status:?}",
+    );
+}
+
+#[test]
 fn lockfile_rewritten_after_the_drift_stat_is_not_unchanged() {
     let (dir, config) = setup_content_check_project();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();

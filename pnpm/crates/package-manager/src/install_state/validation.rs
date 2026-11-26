@@ -29,6 +29,7 @@ pub(crate) use manifest_files::{
     records_need_refresh,
 };
 
+use super::settings::settings_json;
 use file_stat::{
     signature_trusted,
     stat_trusted,
@@ -39,6 +40,7 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::{
     FileSignature,
+    InstallInputs,
     Validation,
     WorkspaceState,
 };
@@ -283,9 +285,21 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
     let carried = previous
         .filter(|previous| shared_inputs_match(previous, state, &shared_inputs, &files))
         .and_then(|previous| previous.validation.as_ref());
+    let input_files = files
+        .iter()
+        .filter(|(path, _)| Path::new(path.as_str()) != lockfile_path)
+        .map(|(path, signature)| (path.clone(), signature.digest.clone()))
+        .collect();
     let mut validation =
         Validation { recorded_at_ns, files, lockfile: lockfile.clone(), ..Validation::default() };
-    let recorded = record_projects(&mut validation, inputs, carried, lockfile.as_deref());
+    let recorded = record_projects(
+        &mut validation,
+        inputs,
+        carried,
+        lockfile.as_deref(),
+        &input_files,
+        &state.settings,
+    );
     if let Some(manifest_stats) = manifest_stats {
         manifest_files::insert(&mut validation, manifest_stats, carried);
     }
@@ -356,11 +370,14 @@ fn record_projects(
     inputs: &RecordValidation<'_>,
     carried: Option<&Validation>,
     lockfile: Option<&str>,
+    files: &BTreeMap<String, String>,
+    settings: &pnpm_workspace_state::WorkspaceStateSettings,
 ) -> usize {
     let bins = workspace_bins_digest(
         inputs.workspace_root,
         inputs.workspace_projects.unwrap_or(inputs.project_manifests.as_slice()),
     );
+    let settings = settings_json(settings);
     let records = inputs.project_manifests
         .iter()
         .filter_map(|(root_dir, manifest)| {
@@ -371,7 +388,13 @@ fn record_projects(
             };
             if vouched {
                 let project_bins = project_bins_digest(&importer_id, manifest, bins.as_deref());
-                return Some((importer_id, manifest_digest(manifest), lockfile, project_bins));
+                return Some((
+                    importer_id,
+                    manifest_digest(manifest),
+                    lockfile,
+                    project_bins,
+                    true,
+                ));
             }
             let record = carried?.project(&importer_id)?;
             Some((
@@ -379,13 +402,28 @@ fn record_projects(
                 record.manifest.to_string(),
                 record.lockfile,
                 carried?.workspace_bins.get(&importer_id).map(String::as_str),
+                false,
             ))
         })
         .collect::<Vec<_>>();
     let recorded = records.len();
-    for (importer_id, manifest, lockfile, bins) in records {
+    for (importer_id, manifest, lockfile, bins, vouched) in records {
+        let recorded_inputs = if vouched {
+            Some(InstallInputs {
+                settings: settings.clone(),
+                manifest: manifest.clone(),
+                lockfile: lockfile.map(str::to_string),
+                workspace_bins: bins.map(str::to_string),
+                files: files.clone(),
+            })
+        } else {
+            carried.and_then(|validation| validation.inputs.get(&importer_id).cloned())
+        };
         if let Some(bins) = bins {
             validation.workspace_bins.insert(importer_id.clone(), bins.to_string());
+        }
+        if let Some(inputs) = recorded_inputs {
+            validation.inputs.insert(importer_id.clone(), inputs);
         }
         validation.insert_project(importer_id, manifest, lockfile);
     }

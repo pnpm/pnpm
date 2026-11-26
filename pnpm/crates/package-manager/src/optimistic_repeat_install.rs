@@ -71,13 +71,13 @@ mod relocation;
 mod settle;
 mod up_to_date;
 use freshness::{
+    FreshnessDecision,
     Gate,
     GatePolicy,
     MissingWantedLockfile,
     NewerPatch,
     RecordedGroups,
     Stale,
-    check_freshness,
 };
 use modules_dirs::{
     SelectedReach,
@@ -186,7 +186,8 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
         newer_patch: NewerPatch::Refuse,
         recorded_groups: RecordedGroups::Current,
     };
-    match check_freshness(check, state, moved, &policy, scope) {
+    let decision = FreshnessDecision { check, state, moved };
+    match decision.decide(scope, &policy) {
         Ok(()) => Decision::UpToDate,
         Err(stale) => Decision::Skipped { reason: skip_reason(&stale) },
     }
@@ -224,6 +225,7 @@ fn skip_reason(stale: &Stale) -> &'static str {
         Stale::NothingInstalled => "current lockfile missing",
         Stale::ProjectNotInstalled(_) => "a project with dependencies was never installed",
         Stale::NoLockfile => "wanted lockfile missing",
+        Stale::InputsChanged(_) => "recorded inputs changed",
     }
 }
 

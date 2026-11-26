@@ -46,12 +46,13 @@ use super::{
 use std::collections::HashSet;
 
 mod drift;
+mod inputs;
 mod missing_lockfile;
 mod pruned_excludes;
 mod registry_keys;
 mod stand_in_writes;
 
-/// What a gate does differently in [`check_freshness`].
+/// What a gate does differently in [`FreshnessDecision::decide`].
 pub(super) struct GatePolicy<'a> {
     /// The gate a failed state write is logged under.
     pub(super) gate: Gate,
@@ -72,14 +73,13 @@ pub(super) enum Gate {
     Run,
 }
 
-/// What a gate does when `pnpm-lock.yaml` is missing and the current lockfile
-/// can stand in for it.
+/// What a gate does when `pnpm-lock.yaml` is missing.
 pub(super) enum MissingWantedLockfile {
     /// Write `pnpm-lock.yaml` from the current lockfile, as a full install
     /// would.
     Restore,
-    /// Leave the project untouched and only require the stand-in to exist.
-    RequireStandIn,
+    /// Refuse the check without writing the lockfile.
+    RequireWantedLockfile,
 }
 
 /// What a gate does with a patch file whose content changed since the last
@@ -103,7 +103,7 @@ pub(super) enum RecordedGroups {
     Kept,
 }
 
-/// Why [`check_freshness`] cannot report the tree current. Each gate words it
+/// Why [`FreshnessDecision::decide`] cannot report the tree current. Each gate words it
 /// for its own audience.
 pub(crate) enum Stale {
     /// A filtered state without validation records cannot prove an unfiltered
@@ -147,55 +147,63 @@ pub(crate) enum Stale {
     NoLockfile,
     /// A content check failed.
     Content(&'static str),
+    /// The inputs recorded for a project differ from the ones this check
+    /// recomputed, named by importer id.
+    InputsChanged(String),
 }
 
-/// The freshness check for `state`, which `moved` marks as re-keyed by
-/// [`super::relocation::relocated_state`].
-pub(super) fn check_freshness(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    moved: bool,
-    policy: &GatePolicy<'_>,
-    scope: Scope<'_>,
-) -> Result<(), Stale> {
-    check_static_freshness(check, state, policy, scope)?;
-    let drift = InputDrift::compute(check, state);
-    let held = drift.held(check, scope, proven_projects(check, state, policy));
-    if !drift::held_workspace_bins_match(check, state, &held) {
-        return Err(Stale::Content("workspace package bins changed since the last install"));
+/// One freshness decision over a recorded state and the inputs this run sees.
+/// `moved` marks the state as re-keyed by [`super::relocation::relocated_state`].
+pub(super) struct FreshnessDecision<'a> {
+    pub(super) check: &'a OptimisticRepeatInstallCheck<'a>,
+    pub(super) state: &'a WorkspaceState,
+    pub(super) moved: bool,
+}
+
+impl FreshnessDecision<'_> {
+    /// Decide whether `scope` is still installed under `policy`.
+    pub(super) fn decide(&self, scope: Scope<'_>, policy: &GatePolicy<'_>) -> Result<(), Stale> {
+        let Self { check, state, moved } = *self;
+        check_static_freshness(check, state, policy, scope)?;
+        let drift = InputDrift::compute(check, state);
+        let held = drift.held(check, scope, proven_projects(check, state, policy));
+        if !drift::held_workspace_bins_match(check, state, &held) {
+            return Err(Stale::Content("workspace package bins changed since the last install"));
+        }
+        stand_in_writes::refuse(check, moved || !held.is_empty() || drift.patches_modified)?;
+        if moved {
+            return settle_moved_tree(check, state, &drift, policy);
+        }
+        if matches!(drift.lockfile, FileDigest::Unreadable) {
+            return Err(Stale::Unprovable);
+        }
+        match current_lockfile_unusable_with_non_empty_wanted(check) {
+            Ok(true) => return Err(Stale::NothingInstalled),
+            Ok(false) => {}
+            Err(reason) => return Err(Stale::Content(reason)),
+        }
+        let unverified = state_unverified_by_changed_lockfile(check, state, &drift, policy)?;
+        let state = unverified.as_ref().unwrap_or(state);
+        if held.is_empty() && !drift.patches_modified {
+            return settle_proven_tree(check, state, &drift, policy, scope);
+        }
+        // Probed before any content is read, so a file edited while the checks
+        // run is newer than the recorded validation.
+        let filesystem_now = validation_now(check);
+        if drift.patches_modified {
+            check_newer_patches(check, policy, &drift.current)?;
+        }
+        if !held.is_empty() {
+            held_projects_match_lockfile(check, state, &held, &drift.current)?;
+        }
+        settle_missing_wanted_lockfile(check, policy, &drift.current)?;
+        inputs::check_recorded_inputs(check, state, &drift, &held, policy)?;
+        if drift.lockfile_unchanged() {
+            let vouched = drift.proven_dirs(&held);
+            record_state_at(check, state, &vouched, policy, filesystem_now);
+        }
+        Ok(())
     }
-    stand_in_writes::refuse(check, moved || !held.is_empty() || drift.patches_modified)?;
-    if moved {
-        return settle_moved_tree(check, state, &drift, policy);
-    }
-    if matches!(drift.lockfile, FileDigest::Unreadable) {
-        return Err(Stale::Unprovable);
-    }
-    match current_lockfile_unusable_with_non_empty_wanted(check) {
-        Ok(true) => return Err(Stale::NothingInstalled),
-        Ok(false) => {}
-        Err(reason) => return Err(Stale::Content(reason)),
-    }
-    let unverified = state_unverified_by_changed_lockfile(check, state, &drift, policy)?;
-    let state = unverified.as_ref().unwrap_or(state);
-    if held.is_empty() && !drift.patches_modified {
-        return settle_proven_tree(check, state, &drift, policy, scope);
-    }
-    // Probed before any content is read, so a file edited while the checks
-    // run is newer than the recorded validation.
-    let filesystem_now = validation_now(check);
-    if drift.patches_modified {
-        check_newer_patches(check, policy, &drift.current)?;
-    }
-    if !held.is_empty() {
-        held_projects_match_lockfile(check, state, &held, &drift.current)?;
-    }
-    settle_missing_wanted_lockfile(check, policy, &drift.current)?;
-    if drift.lockfile_unchanged() {
-        let vouched = drift.proven_dirs(&held);
-        record_state_at(check, state, &vouched, policy, filesystem_now);
-    }
-    Ok(())
 }
 
 /// A gate that lets local file dependencies through still has to see a
