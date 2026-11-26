@@ -122,7 +122,7 @@ Check that the registry configured for the package, or for its scope, is correct
 
 ## ERR_PNPM_RUNTIME_AMBIGUOUS_UNSET
 
-`pnpm runtime unset <name>` matched a runtime in both `devEngines.runtime` and `engines.runtime`, and `optionalDependencies` also declares a dependency with that name. Pass `--save-dev` or `--save-prod` to pick the runtime to remove, and run the command again for the other one.
+`pnpm runtime unset <name>` matched both a dev runtime (`devEngines.runtime` or a `runtime:` entry in `devDependencies`) and a prod runtime (`engines.runtime` or a `runtime:` entry in `dependencies`). `optionalDependencies` also declares a dependency with that name. Pass `--save-dev` or `--save-prod` to pick the runtime to remove, and run the command again for the other one.
 
 ## ERR_PNPM_RUNTIME_NOT_DECLARED
 

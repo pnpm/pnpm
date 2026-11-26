@@ -109,7 +109,7 @@ pub enum RuntimeError {
     },
 
     #[display(
-        r#"Cannot unset "{name}": it is declared as a runtime in both "devEngines" and "engines", and as an optional dependency. Pass --save-dev or --save-prod to pick the runtime to remove"#
+        r#"Cannot unset "{name}": it is declared as both a dev and a prod runtime, and as an optional dependency. Pass --save-dev or --save-prod to pick the runtime to remove"#
     )]
     #[diagnostic(code(ERR_PNPM_RUNTIME_AMBIGUOUS_UNSET))]
     AmbiguousUnset {
