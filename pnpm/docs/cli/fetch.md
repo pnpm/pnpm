@@ -11,7 +11,7 @@ A missing package manifest is not created.
 ## Workspaces
 
 Use `--filter` to fetch only the packages that `pnpm install` with the same
-filter needs. That includes the workspace root's dependencies.
+filter needs.
 With `sharedWorkspaceLockfile: false`, use `pnpm -r fetch` to fetch packages
 from each project's lockfile.
 
