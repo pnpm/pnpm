@@ -20,6 +20,39 @@ use std::{
 };
 
 #[test]
+fn changing_a_consumer_releases_its_removed_optional_provider() {
+    let registry_dir = tempfile::tempdir().unwrap();
+    let mut fixture = WorkspaceFixture::new();
+    let consumers = ["1.0.0", "2.0.0"].map(|version| {
+        json!({
+            "name": "consumer",
+            "version": version,
+            "peerDependencies": {"provider": "*"},
+            "peerDependenciesMeta": {"provider": {"optional": true}},
+        })
+    });
+    fixture.registry.mock_instance = registry_from_manifests(
+        registry_dir.path(),
+        consumers
+            .into_iter()
+            .chain([json!({"name": "provider", "version": "1.0.0"})]),
+    );
+    for (deps, expected, count) in [
+        (&[("consumer", "1.0.0"), ("provider", "1.0.0")][..], "consumer@1.0.0(provider@1.0.0)", 2),
+        (&[("consumer", "1.0.0")][..], "consumer@1.0.0(provider@1.0.0)", 2),
+        (&[("consumer", "2.0.0")][..], "consumer@2.0.0", 1),
+    ] {
+        fixture.write_root_manifest("root", ManifestDeps { dev: deps, ..Default::default() });
+        install_lockfile(&fixture, None);
+        let lockfile = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+        let snapshots = lockfile.snapshots.unwrap();
+        assert!(snapshots.contains_key(&expected.parse().unwrap()), "{snapshots:?}");
+        assert_eq!(snapshots.len(), count);
+        assert_eq!(lockfile.packages.unwrap().len(), count);
+    }
+}
+
+#[test]
 fn changing_a_consumer_keeps_optional_peer_pins_on_cycles() {
     for suffix_length in [20, 1000] {
         for format in ["v9", "v13"] {

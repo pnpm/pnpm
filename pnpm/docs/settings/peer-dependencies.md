@@ -27,7 +27,7 @@ pnpm also resolves optional peers this way when `autoInstallPeers` is `false` an
 
 When selecting a workspace provider for a new project, pnpm prefers compatible optional peer versions already pinned in the lockfile.
 
-When you change or remove a direct dependency, its previous peer versions no longer guide optional peer selection. Unchanged dependencies can still retain their locked peer versions. A removed provider that remains only in the old lockfile does not prevent deduplication with the providers still installed.
+When you change or remove a direct dependency, its previous peer versions no longer guide optional peer selection. Unchanged dependencies can still retain their locked peer versions. If the old lockfile is the only source of an optional peer version and no unchanged dependency retains that pin, pnpm leaves the peer unbound. A removed provider that remains only in the old lockfile does not prevent deduplication with the providers still installed.
 
 #### Version conflicts
 

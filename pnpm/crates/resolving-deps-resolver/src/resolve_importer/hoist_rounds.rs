@@ -238,7 +238,7 @@ impl ImporterHoistState {
             .collect();
         let names = || missing_as_pairs.iter().map(|(name, _)| name.as_str());
         let resolved_versions = self.ctx.run_resolved_versions(names());
-        let hoist_preferred = self.required_peer_preferred_versions(names(), &resolved_versions);
+        let hoist_preferred = self.required_peer_preferred_versions(names());
         let hoist_opts = self.hoist_peers_options(&hoist_preferred, &resolved_versions);
         let hoisted = hoist_peers(&hoist_opts, &missing_as_pairs);
         let reachability = crate::resolve_dependency_tree::HoistedPeerReachability::new(
