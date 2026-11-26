@@ -31,7 +31,10 @@ use pnpm_global::{
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
-use pnpm_tool_protocol::strip_tool_protocol;
+use pnpm_tool_protocol::{
+    is_tool_specifier,
+    strip_tool_protocol,
+};
 use std::{
     collections::HashSet,
     path::Path,
@@ -76,32 +79,30 @@ fn cleanup_legacy_runtime_artifacts(
     global_bin_dir: Option<&Path>,
     removed_names: &mut HashSet<String>,
 ) -> miette::Result<bool> {
-    let version = request.version_spec.as_deref();
-    let mut removed = false;
-    if request.runtime_name == "node" {
-        let matches_legacy_version = |name: &str| {
-            version.is_none_or(|requested| runtime_version_matches("node", name, requested))
-        };
-        let pnpm_home = pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>();
-        removed = cleanup_pnpm_home_without_stale_current(
-            pnpm_home.as_deref(),
-            &matches_legacy_version,
-            removed_names,
-        )
-        .into_diagnostic()?;
+    if request.runtime_name != "node" {
+        return Ok(false);
     }
+    let version = request.version_spec.as_deref();
+    let matches_legacy_version = |name: &str| {
+        version.is_none_or(|requested| runtime_version_matches("node", name, requested))
+    };
+    let pnpm_home = pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>();
+    let mut removed = cleanup_pnpm_home_without_stale_current(
+        pnpm_home.as_deref(),
+        &matches_legacy_version,
+        removed_names,
+    )
+    .into_diagnostic()?;
     if removed
         && !removed_names.is_empty()
         && let Some(global_bin_dir) = global_bin_dir
     {
-        let runtime_name = request.runtime_name.as_str();
-        let bin_names: &[&str] = if runtime_name == "node" {
-            &["node", "npm", "npx"]
-        } else {
-            std::slice::from_ref(&runtime_name)
-        };
-        removed |= cleanup_bin_links_for_removed_targets(global_bin_dir, bin_names, removed_names)
-            .into_diagnostic()?;
+        removed |= cleanup_bin_links_for_removed_targets(
+            global_bin_dir,
+            &["node", "npm", "npx"],
+            removed_names,
+        )
+        .into_diagnostic()?;
     }
     Ok(removed)
 }
@@ -210,7 +211,7 @@ fn remove_selected_global_runtimes<Reporter: self::Reporter>(
 fn is_runtime_dependency(pkg: &GlobalPackageInfo, runtime_name: &str) -> bool {
     pkg.dependencies
         .iter()
-        .any(|(alias, specifier)| alias == runtime_name && strip_tool_protocol(specifier).is_some())
+        .any(|(alias, specifier)| alias == runtime_name && is_tool_specifier(specifier))
 }
 
 fn runtime_version_matches(runtime_name: &str, actual: &str, requested: &str) -> bool {

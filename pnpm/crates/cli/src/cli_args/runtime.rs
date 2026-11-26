@@ -227,12 +227,29 @@ impl RuntimeArgs {
     }
 
     fn set_request(&self) -> Result<RuntimeSetRequest, RuntimeError> {
-        let Some(subcommand) = self.params.first() else {
-            return Err(RuntimeError::NoSubcommand);
-        };
-        if subcommand != "set" {
-            return Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() });
+        let runtime_name = self.runtime_name()?;
+        let version_spec = self.version_spec()?.unwrap_or("");
+        Ok(RuntimeSetRequest {
+            runtime_name: runtime_name.to_string(),
+            package_name: format!("{runtime_name}@runtime:{version_spec}"),
+            dependency_group: self.dependency_group(),
+        })
+    }
+
+    fn unset_request(&self) -> Result<RuntimeUnsetRequest, RuntimeError> {
+        let runtime_name = self.runtime_name()?;
+        let version_spec = self.version_spec()?.map(str::to_string);
+        if let Some(argument) = self.params.get(3) {
+            return Err(RuntimeError::UnexpectedArgument { argument: argument.clone() });
         }
+        Ok(RuntimeUnsetRequest {
+            runtime_name: runtime_name.to_string(),
+            version_spec,
+            dependency_group: self.dependency_group(),
+        })
+    }
+
+    fn runtime_name(&self) -> Result<&str, RuntimeError> {
         let runtime_name = self.params
             .get(1)
             .map(|name| name.trim())
@@ -245,61 +262,29 @@ impl RuntimeArgs {
         if !is_runtime_alias(runtime_name) {
             return Err(RuntimeError::InvalidRuntimeName { name: runtime_name.to_string() });
         }
-        let version_spec = self.params.get(2).map_or("", |version| version.trim());
+        Ok(runtime_name)
+    }
+
+    fn version_spec(&self) -> Result<Option<&str>, RuntimeError> {
+        let version_spec = self.params
+            .get(2)
+            .map(|version| version.trim())
+            .filter(|version| !version.is_empty());
         // The version is interpolated into the same `<name>@runtime:<version>`
         // selector, which the global-add pipeline splits on commas. Reject a
         // comma so `runtime set node 22,evil -g` can't smuggle in a second
         // install target. No valid runtime version (semver, dist-tag,
         // channel) contains one.
-        if version_spec.contains(',') {
-            return Err(RuntimeError::InvalidRuntimeVersion { version: version_spec.to_string() });
-        }
-        let dependency_group = if self.save_dev || !self.save_prod {
-            DependencyGroup::Dev
-        } else {
-            DependencyGroup::Prod
-        };
-        Ok(RuntimeSetRequest {
-            runtime_name: runtime_name.to_string(),
-            package_name: format!("{runtime_name}@runtime:{version_spec}"),
-            dependency_group,
-        })
-    }
-
-    fn unset_request(&self) -> Result<RuntimeUnsetRequest, RuntimeError> {
-        let Some(runtime_name) = self.params
-            .get(1)
-            .map(|name| name.trim())
-            .filter(|name| !name.is_empty())
-        else {
-            return Err(RuntimeError::MissingRuntimeName);
-        };
-        if !is_runtime_alias(runtime_name) {
-            return Err(RuntimeError::InvalidRuntimeName { name: runtime_name.to_string() });
-        }
-        let version_spec = self.params
-            .get(2)
-            .map(|version| version.trim())
-            .filter(|version| !version.is_empty())
-            .map(str::to_string);
-        if let Some(version) = version_spec.as_deref()
+        if let Some(version) = version_spec
             && version.contains(',')
         {
             return Err(RuntimeError::InvalidRuntimeVersion { version: version.to_string() });
         }
-        if let Some(argument) = self.params.get(3) {
-            return Err(RuntimeError::UnexpectedArgument { argument: argument.clone() });
-        }
-        let dependency_group = if self.save_dev || !self.save_prod {
-            DependencyGroup::Dev
-        } else {
-            DependencyGroup::Prod
-        };
-        Ok(RuntimeUnsetRequest {
-            runtime_name: runtime_name.to_string(),
-            version_spec,
-            dependency_group,
-        })
+        Ok(version_spec)
+    }
+
+    fn dependency_group(&self) -> DependencyGroup {
+        if self.save_dev || !self.save_prod { DependencyGroup::Dev } else { DependencyGroup::Prod }
     }
 }
 

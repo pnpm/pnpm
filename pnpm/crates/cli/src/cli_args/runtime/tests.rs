@@ -73,14 +73,14 @@ fn set_request_works_with_deno() {
 }
 
 #[test]
-fn set_request_fails_without_subcommand() {
-    let err = args(&[]).set_request().unwrap_err();
+fn command_fails_without_subcommand() {
+    let err = args(&[]).command().unwrap_err();
     assert_eq!(err, RuntimeError::NoSubcommand);
 }
 
 #[test]
-fn set_request_fails_for_unknown_subcommand() {
-    let err = args(&["foo"]).set_request().unwrap_err();
+fn command_fails_for_unknown_subcommand() {
+    let err = args(&["foo"]).command().unwrap_err();
     assert_eq!(err, RuntimeError::UnknownSubcommand { subcommand: "foo".to_string() });
 }
 
@@ -221,12 +221,6 @@ fn unset_request_rejects_a_comma_in_the_version() {
 fn unset_request_rejects_extra_arguments() {
     let err = args(&["unset", "node", "22", "unexpected"]).unset_request().unwrap_err();
     assert_eq!(err, RuntimeError::UnexpectedArgument { argument: "unexpected".to_string() });
-}
-
-#[test]
-fn set_request_rejects_the_unset_subcommand() {
-    let err = args(&["unset", "node"]).set_request().unwrap_err();
-    assert_eq!(err, RuntimeError::UnknownSubcommand { subcommand: "unset".to_string() });
 }
 
 #[test]
