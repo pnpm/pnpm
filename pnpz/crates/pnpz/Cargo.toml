@@ -9,6 +9,8 @@ homepage.workspace = true
 keywords.workspace = true
 license.workspace = true
 repository.workspace = true
+# tests/suite.rs declares the files under tests/ as modules of one binary.
+autotests = false
 
 [lib]
 path = "src/lib.rs"
@@ -16,6 +18,10 @@ path = "src/lib.rs"
 [[bin]]
 name = "pnpz"
 path = "src/main.rs"
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"
 
 [target.'cfg(unix)'.dependencies]
 pnpm-diagnostics = { workspace = true }
@@ -40,11 +46,14 @@ zstd = { workspace = true }
 nix = { workspace = true }
 
 [target.'cfg(unix)'.dev-dependencies]
+assert_cmd = { workspace = true }
 base64 = { workspace = true }
 ed25519-dalek = { workspace = true }
 mockito = { workspace = true }
 pretty_assertions = { workspace = true }
+sha2 = { workspace = true }
 tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros"] }
 
 [lints]
 workspace = true

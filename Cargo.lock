@@ -7846,6 +7846,7 @@ dependencies = [
 name = "pnpz"
 version = "0.0.1"
 dependencies = [
+ "assert_cmd",
  "base64 0.23.1",
  "bytes",
  "clap",
@@ -7864,6 +7865,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "tokio",
  "yaml_serde",
