@@ -107,26 +107,24 @@ fn cleanup_legacy_runtime_artifacts(
     Ok(removed)
 }
 
+/// Find the dependency group that declares the requested runtime. Without
+/// `--save-dev` or `--save-prod`, `devEngines.runtime` is checked before
+/// `engines.runtime`.
 pub fn ensure_project_runtime_matches(
     state: &State,
     request: &RuntimeUnsetRequest,
-) -> miette::Result<()> {
-    let dependencies_field = match request.dependency_group {
-        DependencyGroup::Prod => "dependencies",
-        DependencyGroup::Dev => "devDependencies",
-        DependencyGroup::Optional | DependencyGroup::Peer => return Ok(()),
+) -> miette::Result<DependencyGroup> {
+    let candidates = match request.dependency_group {
+        Some(group) => vec![group],
+        None => vec![DependencyGroup::Dev, DependencyGroup::Prod],
     };
-    let declared = state.manifest
-        .value()
-        .get(dependencies_field)
-        .and_then(|dependencies| dependencies.get(&request.runtime_name))
-        .and_then(|specifier| specifier.as_str());
-    let Some(specifier) = declared else {
-        return Err(
-            RuntimeError::NotARuntimeDependency { name: request.runtime_name.clone() }.into()
-        );
-    };
-    let Some(declared_version) = strip_tool_protocol(specifier) else {
+    let Some((dependency_group, declared_version)) = candidates
+        .into_iter()
+        .find_map(|group| {
+            declared_runtime_version(state, group, &request.runtime_name)
+                .map(|version| (group, version))
+        })
+    else {
         return Err(
             RuntimeError::NotARuntimeDependency { name: request.runtime_name.clone() }.into()
         );
@@ -140,7 +138,21 @@ pub fn ensure_project_runtime_matches(
         }
         .into());
     }
-    Ok(())
+    Ok(dependency_group)
+}
+
+fn declared_runtime_version<'state>(
+    state: &'state State,
+    dependency_group: DependencyGroup,
+    runtime_name: &str,
+) -> Option<&'state str> {
+    let dependencies_field: &str = dependency_group.into();
+    state.manifest
+        .value()
+        .get(dependencies_field)?
+        .get(runtime_name)?
+        .as_str()
+        .and_then(strip_tool_protocol)
 }
 
 fn with_global_bin_lock<Output>(

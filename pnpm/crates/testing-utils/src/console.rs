@@ -76,9 +76,11 @@ impl PrivateConsole {
     /// end the test too.
     pub fn close(self) {
         use windows_sys::Win32::{
+            Foundation::ERROR_TIMEOUT,
             System::Console::GetConsoleWindow,
             UI::WindowsAndMessaging::{
-                SendMessageW,
+                SMTO_ABORTIFHUNG,
+                SendMessageTimeoutW,
                 WM_CLOSE,
             },
         };
@@ -87,10 +89,31 @@ impl PrivateConsole {
         let window = unsafe { GetConsoleWindow() };
         assert!(!window.is_null(), "the private console has a window");
         drop(self);
-        // SAFETY: the window is the console's, which stays alive while the
-        // processes still attached to it hold it open. The synchronous send
-        // waits until the console host has processed the close request.
-        unsafe { SendMessageW(window, WM_CLOSE, 0, 0) };
+        // SAFETY: the handle came from `GetConsoleWindow` and is non-null.
+        // The send takes no pointer but the result slot, which may be null.
+        // A window that closed meanwhile makes the send fail, which is
+        // harmless.
+        // The send waits until the console host has processed the close, so
+        // the caller observes its effect.
+        let sent = unsafe {
+            SendMessageTimeoutW(
+                window,
+                WM_CLOSE,
+                0,
+                0,
+                SMTO_ABORTIFHUNG,
+                30_000,
+                std::ptr::null_mut(),
+            )
+        };
+        if sent == 0 {
+            let error = std::io::Error::last_os_error();
+            assert_ne!(
+                error.raw_os_error(),
+                Some(ERROR_TIMEOUT.cast_signed()),
+                "the console host did not process WM_CLOSE: {error}",
+            );
+        }
     }
 }
 

@@ -78,6 +78,43 @@ fn unset_removes_a_caret_declared_runtime_by_major_version() {
 }
 
 #[test]
+fn unset_without_a_flag_removes_an_engines_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "engines": { "runtime": { "name": "node", "version": "^24.0.0-rc.4", "onFail": "download" } },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), &manifest).unwrap();
+
+    let output = pacquet
+        .with_args(["runtime", "unset", "node"])
+        .output()
+        .expect("spawn pacquet runtime unset");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr={stderr}");
+
+    let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+    assert!(manifest["engines"].get("runtime").is_none(), "manifest: {manifest}");
+    drop(root);
+}
+
+#[test]
+fn unset_rejects_a_blank_version_before_touching_global_runtimes() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_args(["runtime", "unset", "node", " ", "-g"])
+        .output()
+        .expect("spawn pacquet runtime unset");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_INVALID_RUNTIME_VERSION"), "stderr={stderr}");
+    drop(root);
+}
+
+#[test]
 fn unset_leaves_an_ordinary_project_dependency_named_like_a_runtime() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = json!({ "devDependencies": { "node": "^22.0.0" } }).to_string();

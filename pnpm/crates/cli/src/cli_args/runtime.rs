@@ -70,9 +70,7 @@ pub enum RuntimeError {
         subcommand: String,
     },
 
-    #[display(
-        r#""pnpm runtime set <name> <version>" requires a runtime name (e.g. node, deno, bun)"#
-    )]
+    #[display(r#""pnpm runtime" requires a runtime name (e.g. node, deno, bun)"#)]
     #[diagnostic(code(ERR_PNPM_MISSING_RUNTIME_NAME))]
     MissingRuntimeName,
 
@@ -89,6 +87,10 @@ pub enum RuntimeError {
         #[error(not(source))]
         version: String,
     },
+
+    #[display("The runtime version is empty. Omit it to unset every version of the runtime")]
+    #[diagnostic(code(ERR_PNPM_INVALID_RUNTIME_VERSION))]
+    EmptyRuntimeVersion,
 
     #[display("Unexpected argument: {argument}")]
     #[diagnostic(code(ERR_PNPM_RUNTIME_UNEXPECTED_ARGUMENT))]
@@ -125,7 +127,8 @@ struct RuntimeSetRequest {
 struct RuntimeUnsetRequest {
     runtime_name: String,
     version_spec: Option<String>,
-    dependency_group: DependencyGroup,
+    /// `None` when neither `--save-dev` nor `--save-prod` was passed.
+    dependency_group: Option<DependencyGroup>,
 }
 
 #[derive(Debug)]
@@ -140,8 +143,8 @@ impl RuntimeArgs {
         match self.command()? {
             RuntimeCommand::Set(request) => Self::run_set::<Reporter>(state, request).await,
             RuntimeCommand::Unset(request) => {
-                ensure_project_runtime_matches(&state, &request)?;
-                RemoveArgs::for_runtime(request.runtime_name, request.dependency_group)
+                let dependency_group = ensure_project_runtime_matches(&state, &request)?;
+                RemoveArgs::for_runtime(request.runtime_name, dependency_group)
                     .run::<Reporter>(state)
                     .await
             }
@@ -239,13 +242,25 @@ impl RuntimeArgs {
     fn unset_request(&self) -> Result<RuntimeUnsetRequest, RuntimeError> {
         let runtime_name = self.runtime_name()?;
         let version_spec = self.version_spec()?.map(str::to_string);
+        // A blank version, such as an unset shell variable, must not widen
+        // the request to every installed version.
+        if self.params.len() > 2 && version_spec.is_none() {
+            return Err(RuntimeError::EmptyRuntimeVersion);
+        }
         if let Some(argument) = self.params.get(3) {
             return Err(RuntimeError::UnexpectedArgument { argument: argument.clone() });
         }
+        let dependency_group = if self.save_dev {
+            Some(DependencyGroup::Dev)
+        } else if self.save_prod {
+            Some(DependencyGroup::Prod)
+        } else {
+            None
+        };
         Ok(RuntimeUnsetRequest {
             runtime_name: runtime_name.to_string(),
             version_spec,
-            dependency_group: self.dependency_group(),
+            dependency_group,
         })
     }
 
