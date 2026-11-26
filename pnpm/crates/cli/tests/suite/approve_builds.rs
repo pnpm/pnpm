@@ -562,8 +562,9 @@ fn approve_builds_with_args_runs_the_build() {
 
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
     assert!(
-        yaml.contains("allowBuilds:") && yaml.contains("@pnpm.e2e/install-script-example"),
-        "allowBuilds entry written: {yaml}",
+        yaml.contains("permissions:")
+            && yaml.contains("'@pnpm.e2e/install-script-example':\n    build: true"),
+        "build permission written: {yaml}",
     );
 
     // With its only ignored build approved, `.modules.yaml` no longer
