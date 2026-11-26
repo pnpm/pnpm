@@ -22,11 +22,11 @@ use std::collections::BTreeSet;
 /// How many projects a package's line names before it counts the rest.
 const MAX_LISTED_PROJECTS: usize = 3;
 
-/// How many packages of a chain its line names: the dependency a project
-/// declares and the packages closest to the package, with `...` between.
+/// The longest chain a line names in full. A longer one keeps the
+/// dependency a project declares and the [`LISTED_CHAIN_TAIL`] packages
+/// closest to the package, with `...` between.
 const MAX_LISTED_CHAIN: usize = 4;
 
-/// How many of the packages closest to the package a shortened chain names.
 const LISTED_CHAIN_TAIL: usize = 2;
 
 #[derive(Debug, Default, PartialEq, Eq, Serialize)]
