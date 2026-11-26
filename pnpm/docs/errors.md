@@ -120,6 +120,10 @@ The registry answered a request for one package with the metadata of a different
 
 Check that the registry configured for the package, or for its scope, is correct. A misconfigured proxy or a registry that serves the wrong document can cause this error.
 
+## ERR_PNPM_RUNTIME_AMBIGUOUS_UNSET
+
+`pnpm runtime unset <name>` matched a runtime in both `devEngines.runtime` and `engines.runtime`, and `optionalDependencies` also declares a dependency with that name. Pass `--save-dev` or `--save-prod` to pick the runtime to remove, and run the command again for the other one.
+
 ## ERR_PNPM_RUNTIME_NOT_DECLARED
 
 `pnpm runtime unset <name> <version>` found no declaration of that runtime and version in the project. Run the command without a version to unset any declared version of the runtime. The command also rejects a dependency with the same name that is not declared with the `runtime:` or `tool:` protocol.

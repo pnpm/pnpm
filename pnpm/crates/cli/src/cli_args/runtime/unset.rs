@@ -149,10 +149,9 @@ pub fn ensure_project_runtime_matches(
         }
         .into()),
         [group] => Ok(Some(*group)),
-        // An unflagged removal also clears `optionalDependencies`, so it is
-        // used only when that field does not declare the name.
-        [first, ..] if declares(state, DependencyGroup::Optional, &request.runtime_name) => {
-            Ok(Some(*first))
+        // An unflagged removal also clears `optionalDependencies`.
+        _ if declares(state, DependencyGroup::Optional, &request.runtime_name) => {
+            Err(RuntimeError::AmbiguousUnset { name: request.runtime_name.clone() }.into())
         }
         _ => Ok(None),
     }

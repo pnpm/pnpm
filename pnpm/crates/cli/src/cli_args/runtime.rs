@@ -108,6 +108,15 @@ pub enum RuntimeError {
         version: String,
     },
 
+    #[display(
+        r#"Cannot unset "{name}": it is declared as a runtime in both "devEngines" and "engines", and as an optional dependency. Pass --save-dev or --save-prod to pick the runtime to remove"#
+    )]
+    #[diagnostic(code(ERR_PNPM_RUNTIME_AMBIGUOUS_UNSET))]
+    AmbiguousUnset {
+        #[error(not(source))]
+        name: String,
+    },
+
     #[display(r#"Cannot unset "{name}": "{name}" is not declared as a runtime in the project"#)]
     #[diagnostic(code(ERR_PNPM_RUNTIME_NOT_DECLARED))]
     NotARuntimeDependency {

@@ -309,7 +309,7 @@ fn project_runtime_without_a_flag_or_version_targets_every_group() {
 }
 
 #[test]
-fn project_runtime_keeps_an_optional_dependency_with_the_same_name() {
+fn project_runtime_rejects_an_unflagged_unset_that_would_clear_an_optional_dependency() {
     let dir = tempdir().unwrap();
     fs::write(
         dir.path().join("package.json"),
@@ -326,8 +326,8 @@ fn project_runtime_keeps_an_optional_dependency_with_the_same_name() {
     let request = args(&["unset", "node"]).unset_request().unwrap();
 
     assert_eq!(
-        ensure_project_runtime_matches(&state, &request).unwrap(),
-        Some(DependencyGroup::Dev),
+        ensure_project_runtime_matches(&state, &request).unwrap_err().to_string(),
+        RuntimeError::AmbiguousUnset { name: "node".to_string() }.to_string(),
     );
 }
 
