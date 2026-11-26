@@ -76,7 +76,11 @@ impl PrivateConsole {
     /// end the test too.
     pub fn close(self) {
         use windows_sys::Win32::{
-            Foundation::ERROR_TIMEOUT,
+            Foundation::{
+                ERROR_SUCCESS,
+                ERROR_TIMEOUT,
+                SetLastError,
+            },
             System::Console::GetConsoleWindow,
             UI::WindowsAndMessaging::{
                 SMTO_ABORTIFHUNG,
@@ -89,6 +93,10 @@ impl PrivateConsole {
         let window = unsafe { GetConsoleWindow() };
         assert!(!window.is_null(), "the private console has a window");
         drop(self);
+        // SAFETY: plain FFI call that takes an integer. The send does not
+        // set the last error on every failure, so a stale `ERROR_TIMEOUT`
+        // must not reach the check below.
+        unsafe { SetLastError(ERROR_SUCCESS) };
         // SAFETY: the handle came from `GetConsoleWindow` and is non-null.
         // The send takes no pointer but the result slot, which may be null.
         // A window that closed meanwhile makes the send fail, which is
