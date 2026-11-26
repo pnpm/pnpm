@@ -44,15 +44,14 @@ it with electron-builder 26.18.
 Electron Forge only packages a flat `node_modules`. Before packaging, it checks
 that pnpm uses the `hoisted` linker and fails otherwise. Set
 [`nodeLinker`](./settings/node-modules.md#nodelinker) in
-`pnpm-workspace.yaml`:
+`pnpm-workspace.yaml`, then run `pnpm install` to relink `node_modules`:
 
 ```yaml title="pnpm-workspace.yaml"
 nodeLinker: hoisted
 ```
 
 The Forge error message suggests adding `node-linker=hoisted` to `.npmrc`.
-pnpm reads only authentication settings from `.npmrc`, so that line has no
-effect. Use the string form shown above. Forge rejects the object form of
+pnpm does not read `nodeLinker` from `.npmrc`, so that line has no effect. Use the string form shown above. Forge rejects the object form of
 `nodeLinker`.
 
 In a workspace, the `hoisted` linker moves dependencies to the
