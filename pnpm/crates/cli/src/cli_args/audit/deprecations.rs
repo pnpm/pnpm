@@ -294,7 +294,8 @@ fn render_group(group: &[&DeprecatedPackage]) -> String {
         .collect();
     let width = versions
         .iter()
-        .map(|version| version.chars().count())
+        .map(|version| version.chars())
+        .map(Iterator::count)
         .max()
         .unwrap_or_default();
     for (package, version) in group.iter().zip(&versions) {
