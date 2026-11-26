@@ -22,6 +22,13 @@ use std::collections::BTreeSet;
 /// How many projects a package's line names before it counts the rest.
 const MAX_LISTED_PROJECTS: usize = 3;
 
+/// The longest chain a line names in full. A longer one keeps the
+/// dependency a project declares and the [`LISTED_CHAIN_TAIL`] packages
+/// closest to the package, with `...` between.
+const MAX_LISTED_CHAIN: usize = 4;
+
+const LISTED_CHAIN_TAIL: usize = 2;
+
 #[derive(Debug, Default, PartialEq, Eq, Serialize)]
 pub(super) struct Origin {
     /// The projects that declare the package as a direct dependency.
@@ -39,14 +46,11 @@ impl Origin {
     pub(super) fn render(&self) -> String {
         let clean = |label: &String| sanitize_inline(label).into_owned();
         if !self.via.is_empty() {
-            return format!(
-                "via {}",
-                self.via
-                    .iter()
-                    .map(clean)
-                    .collect::<Vec<_>>()
-                    .join(" > "),
-            );
+            let mut chain: Vec<String> = self.via.iter().map(clean).collect();
+            if chain.len() > MAX_LISTED_CHAIN {
+                chain.splice(1..chain.len() - LISTED_CHAIN_TAIL, ["...".to_string()]);
+            }
+            return format!("via {}", chain.join(" > "));
         }
         let listed = self.projects
             .iter()

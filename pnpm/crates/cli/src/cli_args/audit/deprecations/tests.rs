@@ -79,15 +79,61 @@ fn renders_projects_and_the_chain_of_a_subdependency() {
     let mut request = package("request", &[".", "packages/a", "packages/b", "packages/c"], &[]);
     request.non_deprecated_version = Some("3.0.0".to_string());
     let output = render_deprecations(&[request, package("uuid", &[], &["request", "har"])]);
+    eprintln!("OUTPUT:\n{output}\n");
     assert_eq!(
         output,
-        "request 1.0.0  ., packages/a, packages/b and 1 more\n  \
+        "request  newest non-deprecated version: 3.0.0\n  \
          request is no longer maintained\n  \
-         3.0.0 is not deprecated\n\
-         uuid 1.0.0  via request > har\n  \
-         uuid is no longer maintained\n\n\
+         1.0.0  ., packages/a, packages/b and 1 more\n\
+         \n\
+         uuid\n  \
+         uuid is no longer maintained\n  \
+         1.0.0  via request > har\n\
+         \n\
          2 deprecated packages",
     );
+}
+
+#[test]
+fn groups_the_versions_that_share_a_message() {
+    let versions = ["11.1.0", "7.2.3", "8.1.0"].map(|version| {
+        let mut glob = package("glob", &[], &["foo"]);
+        glob.version = version.to_string();
+        glob.deprecated = "Old versions of glob are not supported".to_string();
+        glob
+    });
+    let mut other_message = package("glob", &[], &["bar"]);
+    other_message.version = "6.0.0".to_string();
+    other_message.deprecated = "Use a newer glob".to_string();
+    let packages: Vec<_> = versions
+        .into_iter()
+        .chain([other_message])
+        .collect();
+    let output = render_deprecations(&packages);
+    eprintln!("OUTPUT:\n{output}\n");
+    assert_eq!(
+        output,
+        "glob\n  \
+         Old versions of glob are not supported\n  \
+         7.2.3   via foo\n  \
+         8.1.0   via foo\n  \
+         11.1.0  via foo\n\
+         \n\
+         glob\n  \
+         Use a newer glob\n  \
+         6.0.0  via bar\n\
+         \n\
+         1 deprecated package, 4 versions",
+    );
+}
+
+#[test]
+fn counts_a_version_installed_from_two_registries_once() {
+    let mut from_work = package("foo", &[], &["bar"]);
+    from_work.key = "foo@work:1.0.0".parse().expect("package key");
+    let output = render_deprecations(&[package("foo", &[], &["baz"]), from_work]);
+    eprintln!("OUTPUT:\n{output}\n");
+    assert!(output.ends_with("\n1 deprecated package"), "{output}");
 }
 
 #[test]

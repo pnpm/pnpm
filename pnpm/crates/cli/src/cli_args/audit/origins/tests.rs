@@ -23,6 +23,14 @@ fn renders_the_chain_of_a_subdependency() {
 }
 
 #[test]
+fn shortens_a_long_chain_to_its_ends() {
+    let origin = Origin { projects: Vec::new(), via: labels(&["a", "b", "c", "d", "e", "f"]) };
+    assert_eq!(origin.render(), "via a > ... > e > f");
+    let origin = Origin { projects: Vec::new(), via: labels(&["a", "b", "c", "d"]) };
+    assert_eq!(origin.render(), "via a > b > c > d");
+}
+
+#[test]
 fn renders_the_first_projects_and_counts_the_rest() {
     let origin = Origin {
         projects: labels(&[".", "packages/a", "packages/b", "packages/c"]),
