@@ -4282,6 +4282,11 @@
     - napi-lockfile-format
     - napi-option-contract
     - smaller-napi-addon-opt-level-s
+"@pnpm/napi@12.24.0":
+  dir: pnpm/npm/napi
+  intents:
+    - freebsd-open-file-limit-build
+    - strip-napi-addon
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -10048,6 +10053,51 @@ pnpm@12.23.0:
     - workspace-install-summary
     - workspace-shim-options
     - workspace-union-range
+pnpm@12.24.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - 18409-offline-workspace-fetch
+    - 18428-info-unpublished-package
+    - 310-file-dep-catalog-peer
+    - approve-git-repository
+    - audit-deprecations
+    - audit-engines
+    - choose-advance-permissions
+    - compact-install-progress
+    - compact-install-summary
+    - compact-progress-output
+    - concurrent-store-repair
+    - config-set-unicode-line-separators
+    - corepack-native-signals
+    - empty-dir-env-unset
+    - expand-cache-dir-home
+    - freebsd-open-file-limit-build
+    - fresh-install-summary
+    - frozen-equivalent-local-override
+    - frozen-run-registry-routes
+    - global-agent-skills
+    - http-registry-tarball-auth
+    - install-check-footer
+    - legacy-deploy-patch-usage
+    - local-path-parentheses
+    - lockfile-only-progress
+    - nested-workspace-manifest-covered-settings
+    - node-runtime-update-bounds
+    - normalize-policy-build-metadata
+    - patched-global-slot-bins
+    - preserve-runtime-on-fail
+    - reject-multiple-override-parents
+    - remove-stale-private-hoist
+    - runtime-manifest-license
+    - sbom-dev-optional
+    - scope-injected-dependents
+    - strip-pnpm-binary
+    - summarize-install-scripts
+    - tar-agree-with-node-tar
+    - validate-pending-git-selectors
+    - version-untracked-files
+    - warn-unused-permissions
+    - workspace-manifest-added-scalars-quote-style
 pnpm@12.3.0:
   dir: pnpm/npm/pnpm
   intents:
