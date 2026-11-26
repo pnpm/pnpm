@@ -265,3 +265,43 @@ fn cli_tls_settings_reach_the_bootstrap_over_the_global_config_yaml_and_the_envi
     assert_eq!(config.package_manager_bootstrap.tls.strict_ssl, Some(false));
     assert_eq!(config.package_manager_bootstrap.tls.local_address, local_address(LOCAL_ADDRESS));
 }
+
+fn raw_ca_from_project_npmrc(npmrc: &str) -> Option<serde_json::Value> {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), npmrc);
+    let config = Config::new().current::<HostNoHome>(project.path()).expect("load config");
+    config.raw_auth_config.get("ca").cloned()
+}
+
+#[test]
+fn raw_auth_config_lists_every_ca_array_entry() {
+    assert_eq!(
+        raw_ca_from_project_npmrc("ca[]=first-ca\nca[]=second-ca\n"),
+        Some(serde_json::json!(["first-ca", "second-ca"])),
+    );
+}
+
+#[test]
+fn raw_auth_config_lists_repeated_ca_entries_in_file_order() {
+    assert_eq!(
+        raw_ca_from_project_npmrc("ca=first-ca\nca[]=second-ca\nca=third-ca\n"),
+        Some(serde_json::json!(["first-ca", "second-ca", "third-ca"])),
+    );
+}
+
+#[test]
+fn raw_auth_config_keeps_a_single_ca_as_a_string() {
+    assert_eq!(raw_ca_from_project_npmrc("ca[]=only-ca\n"), Some(serde_json::json!("only-ca")));
+}
+
+#[test]
+fn raw_auth_config_ca_leaves_out_cafile_certificates() {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join("extra.pem"), "file-ca");
+    write_file(&project.path().join(".npmrc"), "ca=inline-ca\ncafile=extra.pem\n");
+
+    let config = Config::new().current::<HostNoHome>(project.path()).expect("load config");
+
+    assert_eq!(config.tls.ca.len(), 2, "tls.ca={:?}", config.tls.ca);
+    assert_eq!(config.raw_auth_config.get("ca"), Some(&serde_json::json!("inline-ca")));
+}

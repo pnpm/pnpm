@@ -97,10 +97,9 @@ pub(crate) fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
 
     let subscriber = tracing_subscriber::registry().with(CaptureLayer(messages_clone));
     tracing::subscriber::with_default(subscriber, f);
-    Arc::try_unwrap(messages)
-        .unwrap()
-        .into_inner()
-        .unwrap()
+    // A callsite registered on another test thread can still hold the
+    // subscriber, so take the messages instead of unwrapping the `Arc`.
+    std::mem::take(&mut *messages.lock().unwrap())
 }
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage

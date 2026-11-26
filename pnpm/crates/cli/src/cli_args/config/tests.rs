@@ -962,7 +962,7 @@ fn config_for_get(explicit: &[(&str, Value)], auth: &[(&str, &str)]) -> Config {
         config.explicit_settings.insert((*key).to_string(), value.clone());
     }
     for (key, value) in auth {
-        config.raw_auth_config.insert((*key).to_string(), (*value).to_string());
+        config.raw_auth_config.insert((*key).to_string(), json!(value));
     }
     config
 }
@@ -1039,6 +1039,19 @@ fn get_unknown_key_is_undefined() {
             "{key}",
         );
     }
+}
+
+#[test]
+fn get_ca_prints_every_configured_ca() {
+    let mut config = config_for_get(&[], &[]);
+    config.raw_auth_config.insert("ca".to_string(), json!(["first-ca", "second-ca"]));
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &config_get(&config, flags(false, None, false), "ca").unwrap()
+        )
+        .unwrap(),
+        json!(["first-ca", "second-ca"]),
+    );
 }
 
 #[test]

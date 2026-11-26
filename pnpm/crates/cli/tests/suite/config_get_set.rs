@@ -201,6 +201,26 @@ fn config_set_preserves_repeated_ca_and_comments_in_npmrc() {
 }
 
 #[test]
+fn config_get_ca_prints_every_ca_in_npmrc() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join(".npmrc"), "ca[]=certificate-A\nca=certificate-B\n")
+        .expect("write .npmrc");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["config", "get", "ca"])
+        .output()
+        .expect("run pacquet config get");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr={stderr}");
+
+    let printed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("config get ca prints JSON");
+    assert_eq!(printed, serde_json::json!(["certificate-A", "certificate-B"]));
+
+    drop(root);
+}
+
+#[test]
 fn config_delete_preserves_repeated_ca_and_comments_in_npmrc() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let npmrc_path = workspace.join(".npmrc");

@@ -76,7 +76,9 @@ pub fn rescoped_creds_are_reported_under_their_pinned_key() {
     let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
 
     assert_eq!(
-        config.raw_auth_config.get("//trusted.example.com/:_authToken").map(String::as_str),
+        config.raw_auth_config
+            .get("//trusted.example.com/:_authToken")
+            .and_then(serde_json::Value::as_str),
         Some("user-secret"),
     );
     assert!(!config.raw_auth_config.contains_key("_authToken"));
