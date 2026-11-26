@@ -788,3 +788,63 @@ fn fetch_dedicated_lockfiles_for_offline_install(selection: FetchSelection) {
         .success();
     drop((root, mock_instance));
 }
+
+#[test]
+fn filtered_fetch_populates_only_selected_projects_of_shared_lockfile() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "packages", "[packages/*]");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "private": true,
+            "dependencies": { OPTIONAL_DEP: "100.0.0" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    for (name, dependency) in [("a", PROD_DEP), ("b", DEV_DEP)] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).unwrap();
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "dependencies": { dependency: "100.0.0" },
+            })
+            .to_string(),
+        )
+        .unwrap();
+    }
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only", "--store-dir"])
+        .with_arg(root.path().join("seed-store"))
+        .assert()
+        .success();
+    let store = root.path().join("fetch-store");
+    pacquet_at(&workspace)
+        .with_args(["--filter", "a", "fetch", "--store-dir"])
+        .with_arg(&store)
+        .assert()
+        .success();
+    assert!(virtual_dep(&workspace, PROD_DEP).exists());
+    assert!(!virtual_dep(&workspace, DEV_DEP).exists());
+    // `--filter a install` also installs the workspace root, so its
+    // offline run needs the root's packages.
+    assert!(virtual_dep(&workspace, OPTIONAL_DEP).exists());
+    assert_no_importer_links(&workspace.join("packages/a"));
+    pacquet_at(&workspace)
+        .with_args(["--filter", "a", "install", "--offline", "--frozen-lockfile", "--store-dir"])
+        .with_arg(&store)
+        .assert()
+        .success();
+    assert!(
+        workspace
+            .join("packages/a/node_modules")
+            .join(PROD_DEP)
+            .exists(),
+    );
+    drop((root, mock_instance));
+}
