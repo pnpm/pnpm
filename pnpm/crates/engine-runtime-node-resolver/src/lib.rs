@@ -37,7 +37,10 @@ pub use parse_node_specifier::{
 };
 pub use resolve_node_version::{
     NODE_EXTRAS_IGNORE_PATTERN,
+    NodeRelease,
     ResolveNodeVersionError,
+    fetch_node_releases,
+    pick_node_version,
     resolve_node_version,
     resolve_node_version_with_auth,
     resolve_node_versions,

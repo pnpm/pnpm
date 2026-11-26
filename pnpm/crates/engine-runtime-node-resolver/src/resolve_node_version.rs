@@ -36,21 +36,23 @@ use serde::Deserialize;
 pub const NODE_EXTRAS_IGNORE_PATTERN: &str = r"^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$)";
 
 /// One row of the `index.json` Node.js publishes for each mirror.
-///
-/// `version` arrives with a leading `v`; pacquet strips it at the
-/// deserialization boundary. `lts` is either `false` (non-LTS build)
-/// or a string codename, JSON deserialization needs the union shape.
 #[derive(Debug, Clone)]
-pub(crate) struct NodeVersion {
-    pub(crate) version: String,
-    pub(crate) lts: Option<String>,
+pub struct NodeRelease {
+    /// The version without the leading `v` the index spells it with.
+    pub version: String,
+    /// The LTS codename. The index writes `false` for a non-LTS build.
+    pub lts: Option<String>,
+    /// The row as the index publishes it.
+    pub index_entry: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
-struct RawNodeVersion {
+struct RawNodeRelease {
     version: String,
     #[serde(default)]
     lts: serde_json::Value,
+    #[serde(flatten)]
+    rest: serde_json::Map<String, serde_json::Value>,
 }
 
 /// Errors raised by [`resolve_node_version`] and [`resolve_node_versions`].
@@ -105,12 +107,19 @@ pub async fn resolve_node_version_with_auth(
     version_spec: &str,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Option<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
+    let releases = fetch_node_releases(http_client, auth_headers, node_mirror_base_url).await?;
+    Ok(pick_node_version(&releases, version_spec))
+}
+
+/// Pick the single best version for a selector from a mirror's
+/// releases, as [`resolve_node_version`] does.
+#[must_use]
+pub fn pick_node_version(releases: &[NodeRelease], version_spec: &str) -> Option<String> {
     if is_latest_selector(version_spec) {
-        return Ok(latest_version(&all_versions));
+        return latest_version(releases);
     }
-    let (versions, range) = filter_versions(&all_versions, version_spec);
-    Ok(max_satisfying_stable_first(&versions, &range))
+    let (versions, range) = filter_versions(releases, version_spec);
+    max_satisfying_stable_first(&versions, &range)
 }
 
 /// Pick every Node.js version a selector accepts against a mirror.
@@ -140,7 +149,7 @@ pub async fn resolve_node_versions_with_auth(
     version_spec: Option<&str>,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Vec<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
+    let all_versions = fetch_node_releases(http_client, auth_headers, node_mirror_base_url).await?;
     let Some(version_spec) = version_spec else {
         return Ok(all_versions
             .into_iter()
@@ -161,7 +170,7 @@ pub async fn resolve_node_versions_with_auth(
         .collect())
 }
 
-fn latest_version(versions: &[NodeVersion]) -> Option<String> {
+fn latest_version(versions: &[NodeRelease]) -> Option<String> {
     versions
         .iter()
         .find(|version| {
@@ -172,11 +181,15 @@ fn latest_version(versions: &[NodeVersion]) -> Option<String> {
         .map(|version| version.version.clone())
 }
 
-async fn fetch_all_versions(
+/// Fetch a mirror's release index, newest release first.
+///
+/// `node_mirror_base_url` falls back to the official `release` channel
+/// when `None`.
+pub async fn fetch_node_releases(
     http_client: &ThrottledClient,
     auth_headers: &AuthHeaders,
     node_mirror_base_url: Option<&str>,
-) -> Result<Vec<NodeVersion>, ResolveNodeVersionError> {
+) -> Result<Vec<NodeRelease>, ResolveNodeVersionError> {
     let base = node_mirror_base_url.unwrap_or("https://nodejs.org/download/release/");
     let url = format!("{base}index.json");
     let response = http_client
@@ -192,19 +205,22 @@ async fn fetch_all_versions(
             status: response.status.as_u16(),
         });
     }
-    let raw: Vec<RawNodeVersion> = serde_json::from_slice(&response.body)
+    let raw: Vec<RawNodeRelease> = serde_json::from_slice(&response.body)
         .map_err(|error| ResolveNodeVersionError::DecodeIndex {
             url: url.clone(),
             error: Arc::new(error),
         })?;
     Ok(raw
         .into_iter()
-        .map(|entry| NodeVersion {
-            version: entry.version
+        .map(|entry| {
+            let version = entry.version
                 .strip_prefix('v')
                 .unwrap_or(&entry.version)
-                .to_string(),
-            lts: lts_codename(entry.lts),
+                .to_string();
+            let mut index_entry = entry.rest;
+            index_entry.insert("version".to_string(), entry.version.into());
+            index_entry.insert("lts".to_string(), entry.lts.clone());
+            NodeRelease { version, lts: lts_codename(entry.lts), index_entry }
         })
         .collect())
 }
@@ -224,7 +240,7 @@ fn lts_codename(value: serde_json::Value) -> Option<String> {
 
 /// Reduce the mirror index into the candidate set + matching range
 /// for the user's selector.
-fn filter_versions(versions: &[NodeVersion], version_selector: &str) -> (Vec<String>, String) {
+fn filter_versions(versions: &[NodeRelease], version_selector: &str) -> (Vec<String>, String) {
     if version_selector == "lts" {
         return (
             versions

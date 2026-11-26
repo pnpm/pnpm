@@ -27,6 +27,12 @@ use derive_more::{
 };
 use jiff::Timestamp;
 use miette::Diagnostic;
+pub(super) use node::node_mirror;
+use node::{
+    NodeView,
+    fetch_node_view,
+    node_runtime_specifier,
+};
 use owo_colors::{
     OwoColorize,
     Stream,
@@ -131,6 +137,11 @@ impl ViewArgs {
         };
         let fields = self.params.get(1..).unwrap_or(&[]);
 
+        if let Some(specifier) = node_runtime_specifier(&package_spec) {
+            let NodeView { info, mirror } = fetch_node_view(config, &specifier).await?;
+            return Ok(self.render(&info, fields, &mirror));
+        }
+
         let FetchedPackage { meta, picked, registry } =
             fetch_package_metadata(config, self.registry.as_deref(), &package_spec, "view").await?;
         let mut info = assemble_info(&meta, &picked);
@@ -143,14 +154,19 @@ impl ViewArgs {
                 info.insert(RELEASE_NOTES_FIELD.to_owned(), notes);
             }
         }
+        Ok(self.render(&info, fields, &registry))
+    }
 
+    /// The requested `fields`, a JSON dump, or the formatted summary naming
+    /// `source`, the registry or mirror `info` came from.
+    fn render(&self, info: &Value, fields: &[String], source: &str) -> String {
         if !fields.is_empty() {
-            return Ok(render_fields(&info, fields, self.json));
+            return render_fields(info, fields, self.json);
         }
         if self.json {
-            return Ok(to_pretty(&info));
+            return to_pretty(info);
         }
-        Ok(render_summary(&info, &registry))
+        render_summary(info, source)
     }
 }
 
@@ -392,4 +408,5 @@ fn pick_view_version(
     })
 }
 
+mod node;
 mod render;

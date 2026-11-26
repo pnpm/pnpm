@@ -944,3 +944,68 @@ fn object_author_collapses_to_its_name() {
     assert_eq!(stdout_of(&output).trim(), "Jane Doe");
     drop((root, server));
 }
+
+/// Serve a Node.js release index, newest release first, and point the
+/// workspace's `release` channel at it.
+fn serve_node_index(workspace: &Path, server: &mut mockito::Server) -> mockito::Mock {
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("nodeDownloadMirrors:\n  release: '{}/'\n", server.url()),
+    )
+    .expect("write pnpm-workspace.yaml");
+    let index = serde_json::json!([
+        { "version": "v24.1.0", "date": "2026-05-01", "npm": "11.3.0", "lts": false },
+        { "version": "v22.2.0", "date": "2026-04-01", "npm": "10.9.0", "lts": "Jod" },
+        { "version": "v22.1.0", "date": "2026-03-01", "npm": "10.8.0", "lts": "Jod" },
+    ]);
+    serve(server, "/index.json", &index.to_string())
+}
+
+#[test]
+fn node_lists_versions_from_the_release_index() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let mock = serve_node_index(&workspace, &mut server);
+    let auth_file = empty_auth_file(root.path());
+
+    let output = run_view(&workspace, &auth_file, &["node", "versions", "--json"]);
+
+    mock.assert();
+    let versions: Value = serde_json::from_str(&stdout_of(&output)).expect("parse JSON");
+    assert_eq!(versions, serde_json::json!(["22.1.0", "22.2.0", "24.1.0"]));
+    drop((root, server));
+}
+
+#[test]
+fn node_range_picks_a_release_with_its_index_fields() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let mock = serve_node_index(&workspace, &mut server);
+    let auth_file = empty_auth_file(root.path());
+
+    let output =
+        run_view(&workspace, &auth_file, &["node@22", "version", "npm", "lts", "dist-tags"]);
+
+    mock.assert();
+    assert_eq!(
+        stdout_of(&output),
+        "version = '22.2.0'\nnpm = '10.9.0'\nlts = 'Jod'\ndist-tags = {\"latest\":\"24.1.0\",\"lts\":\"22.2.0\"}\n",
+    );
+    drop((root, server));
+}
+
+#[test]
+fn node_summary_names_the_mirror_as_its_source() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let mock = serve_node_index(&workspace, &mut server);
+    let auth_file = empty_auth_file(root.path());
+
+    let output = run_view(&workspace, &auth_file, &["node"]);
+
+    mock.assert();
+    let stdout = stdout_of(&output);
+    assert!(stdout.starts_with("node@24.1.0 | deps: none | versions: 3\n"), "{stdout}");
+    assert!(stdout.contains(&format!("registry: {}/", server.url())), "{stdout}");
+    drop((root, server));
+}
