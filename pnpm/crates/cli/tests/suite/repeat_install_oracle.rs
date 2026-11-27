@@ -527,6 +527,34 @@ impl Scenario {
     #[track_caller]
     fn assert_install_gate(&self, oracle: Option<&Path>, allowed: AllowedRefusal) {
         let before = self.snapshot();
+        self.assert_initial_install(&before, oracle, allowed);
+        let settled = self.snapshot();
+        self.assert_repeat_install(&settled, false);
+        if matches!(self.driver, Driver::Mixed { .. }) {
+            self.assert_repeat_install(&settled, true);
+        }
+        let frozen = self.command_at(self.workspace(), ["install", "--frozen-lockfile"]);
+        assert_success(&frozen);
+        assert_eq!(
+            self.snapshot(),
+            settled,
+            "{:?} ({:?}): a frozen install must accept and preserve the converged snapshot",
+            self.layout,
+            self.driver,
+        );
+        if self.layout.shared_lockfile {
+            let dedupe = self.command_at(self.workspace(), ["dedupe", "--check"]);
+            assert_success(&dedupe);
+        }
+    }
+
+    #[track_caller]
+    fn assert_initial_install(
+        &self,
+        before: &Snapshot,
+        oracle: Option<&Path>,
+        allowed: AllowedRefusal,
+    ) {
         let offered = self.offers_next_install_fast_path();
         if self.install(&[]) {
             let after = self.snapshot();
@@ -558,69 +586,34 @@ impl Scenario {
                 self.driver,
             );
         }
-        let settled = self.snapshot();
-        let raw_modules_before_repeat = workspace_raw_modules_manifests(self.workspace());
-        let repeat_offered = self.offers_next_install_fast_path();
+    }
+
+    #[track_caller]
+    fn assert_repeat_install(&self, settled: &Snapshot, cross_cli: bool) {
+        let description = if cross_cli { "cross-CLI repeat install" } else { "repeat install" };
+        let raw_modules_before = workspace_raw_modules_manifests(self.workspace());
+        let offered = self.offers_next_install_fast_path();
         assert!(
             self.install_takes_fast_path(&[]),
-            "{:?} ({:?}): a repeat install must take the fast path",
+            "{:?} ({:?}): a {description} must take the fast path",
             self.layout,
             self.driver,
         );
         assert_eq!(
             self.snapshot(),
             settled,
-            "{:?} ({:?}): a repeat install must be byte-identical",
+            "{:?} ({:?}): a {description} must be byte-identical",
             self.layout,
             self.driver,
         );
-        if repeat_offered {
+        if offered {
             assert_eq!(
                 workspace_raw_modules_manifests(self.workspace()),
-                raw_modules_before_repeat,
-                "{:?} ({:?}): a fast-path repeat install must not rewrite .modules.yaml",
+                raw_modules_before,
+                "{:?} ({:?}): a fast-path {description} must not rewrite .modules.yaml",
                 self.layout,
                 self.driver,
             );
-        }
-        if matches!(self.driver, Driver::Mixed { .. }) {
-            let raw_modules_before_cross = workspace_raw_modules_manifests(self.workspace());
-            let cross_repeat_offered = self.offers_next_install_fast_path();
-            assert!(
-                self.install_takes_fast_path(&[]),
-                "{:?} ({:?}): a cross-CLI repeat install must take the fast path",
-                self.layout,
-                self.driver,
-            );
-            assert_eq!(
-                self.snapshot(),
-                settled,
-                "{:?} ({:?}): a cross-CLI repeat install must be byte-identical",
-                self.layout,
-                self.driver,
-            );
-            if cross_repeat_offered {
-                assert_eq!(
-                    workspace_raw_modules_manifests(self.workspace()),
-                    raw_modules_before_cross,
-                    "{:?} ({:?}): a cross-CLI fast-path repeat install must not rewrite .modules.yaml",
-                    self.layout,
-                    self.driver,
-                );
-            }
-        }
-        let frozen = self.command_at(self.workspace(), ["install", "--frozen-lockfile"]);
-        assert_success(&frozen);
-        assert_eq!(
-            self.snapshot(),
-            settled,
-            "{:?} ({:?}): a frozen install must accept and preserve the converged snapshot",
-            self.layout,
-            self.driver,
-        );
-        if self.layout.shared_lockfile {
-            let dedupe = self.command_at(self.workspace(), ["dedupe", "--check"]);
-            assert_success(&dedupe);
         }
     }
 
