@@ -225,23 +225,28 @@ impl ResolverShared {
         }
     }
 
-    fn new(config: &RegistryConfig) -> Self {
+    fn new(config: &RegistryConfig, metrics: Arc<crate::server::ServerMetrics>) -> Self {
         let cache_dir = config.storage.cache_dir.join("resolver-cache");
         // Best-effort: a real failure here (e.g. a permission problem)
         // resurfaces with a precise error on the first cache write during
         // resolution, so there's nothing actionable to report yet.
         let _ = std::fs::create_dir_all(&cache_dir);
         Self {
-            cache: Arc::new(ResolverCache::new(cache_dir, config)),
+            cache: Arc::new(ResolverCache::new(cache_dir, config, metrics)),
             index: Arc::new(IndexCache::new(config.http.packument_ttl)),
             limits: Arc::new(ResolverLimits::from_config(config)),
         }
     }
 }
-struct ResolverCache {
-    dir: PathBuf,
+/// Where the resolver keeps its files on disk.
+struct ResolverDirs {
+    cache: PathBuf,
     /// The package store resolutions fetch into, shared by every graph.
-    store_dir: StoreDir,
+    store: StoreDir,
+}
+
+struct ResolverCache {
+    dirs: ResolverDirs,
     /// Configurations keyed by canonical JSON, with least recently used eviction.
     configs: ConfigCache,
     /// Held behind an [`Arc`] so the detached streaming-resolve task can
@@ -259,6 +264,7 @@ struct ResolverCache {
     /// an in-flight resolve started before a grant or graph change cannot
     /// populate the post-change cache namespace when it finishes.
     generation: std::sync::atomic::AtomicU64,
+    metrics: Arc<crate::server::ServerMetrics>,
 }
 
 struct IndexCache {
@@ -274,20 +280,24 @@ struct IndexCache {
 }
 
 impl ResolverCache {
-    fn new(cache_dir: PathBuf, config: &RegistryConfig) -> Self {
+    fn new(
+        cache_dir: PathBuf,
+        config: &RegistryConfig,
+        metrics: Arc<crate::server::ServerMetrics>,
+    ) -> Self {
         let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
         let store_dir = config.storage.cache_dir.join("resolver-store");
         // Best-effort, as for the cache dir in [`ResolverShared::new`].
         let _ = std::fs::create_dir_all(&store_dir);
         Self {
-            dir: cache_dir,
-            store_dir: StoreDir::new(store_dir),
+            dirs: ResolverDirs { cache: cache_dir, store: StoreDir::new(store_dir) },
             configs: ConfigCache::default(),
             entries: Arc::new(Mutex::new(HashMap::new())),
             ttl: config.http.packument_ttl,
             verdicts: verdict_cache,
             secret: Arc::clone(&config.resolution_cache_secret),
             generation: std::sync::atomic::AtomicU64::new(0),
+            metrics,
         }
     }
 
@@ -304,7 +314,7 @@ impl ResolverCache {
         let config = intern_config(
             &self.configs.entries,
             store_dir,
-            &self.dir,
+            &self.dirs.cache,
             request,
             MAX_CACHED_CONFIGS,
             MAX_CONFIG_KEY_BYTES,
@@ -333,7 +343,9 @@ impl Resolver {
     ) -> &'a Resolver {
         routing.caches.resolver.get_or_init(|| {
             let config = &state.inner.config;
-            let shared = shared.get_or_init(|| ResolverShared::new(config));
+            let shared = shared.get_or_init(|| {
+                ResolverShared::new(config, Arc::clone(&state.inner.metrics))
+            });
             let route_context = Arc::clone(&routing.route_context);
             let mut resolver = Resolver::build_for(config, route_context, shared, osv_index);
             resolver.local_registry.attach(state, routing);
@@ -345,7 +357,8 @@ impl Resolver {
     #[cfg(test)]
     fn build(config: &RegistryConfig, osv_index: Option<Arc<OsvIndex>>) -> Resolver {
         let route_context = Arc::new(RouteContext::from_config(config));
-        Self::build_for(config, route_context, &ResolverShared::new(config), osv_index)
+        let shared = ResolverShared::new(config, Arc::new(crate::server::ServerMetrics::new()));
+        Self::build_for(config, route_context, &shared, osv_index)
     }
 
     /// The engine's limits, for a test that tunes them on an engine it built
@@ -415,7 +428,7 @@ impl Resolver {
     /// name never share an entry; the caller's route scope adds the last
     /// namespace segment at fetch time.
     fn cargo_index_cache_dir(&self, registry: &str) -> PathBuf {
-        self.cache.dir
+        self.cache.dirs.cache
             .join("cargo-index")
             .join(pnpm_crypto_hash::create_hex_hash(registry))
     }
@@ -424,14 +437,14 @@ impl Resolver {
     /// origin is hashed into the path so two indexes serving the same
     /// project never share an entry.
     fn python_index_cache_dir(&self, index: &str) -> PathBuf {
-        self.cache.dir
+        self.cache.dirs.cache
             .join("python-index")
             .join(pnpm_crypto_hash::create_hex_hash(index))
     }
 
     /// Reuse the request's configuration while bounding active work and cached entries.
     fn config_for(&self, request: &ResolveRequest) -> Result<ActiveConfig, Response> {
-        self.cache.config_for(&self.cache.store_dir, request)
+        self.cache.config_for(&self.cache.dirs.store, request)
     }
 }
 
@@ -498,4 +511,5 @@ fn request_tarball_router(
             .collect(),
     )
     .with_registries_by_prefix(config.registries_by_prefix.clone())
+    .with_metrics(Arc::clone(&runtime.cache.metrics))
 }

@@ -371,6 +371,7 @@ async fn finish_before_deadline_drops_sender_for_immediate_eof_and_skips_cache_o
             entries: Arc::clone(&resolver.cache.entries),
             ttl: resolver.cache.ttl,
             secret: Arc::clone(&resolver.cache.secret),
+            metrics: Arc::clone(&resolver.cache.metrics),
         },
         terminal,
         inputs: StreamedResolveInputs {

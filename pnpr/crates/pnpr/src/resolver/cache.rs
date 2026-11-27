@@ -20,6 +20,11 @@ use pnpr_route::{
     RouteContext,
 };
 
+use crate::server::{
+    ResolutionFootprint,
+    ServerMetrics,
+};
+
 use super::{
     config_cache::{
         CONFIG_KEY,
@@ -42,6 +47,7 @@ pub(super) struct CachedResolution {
 pub(super) struct CachedResolutionResult {
     pub(super) lockfile: Lockfile,
     pub(super) allowed_picks: Vec<String>,
+    pub(super) footprint: ResolutionFootprint,
 }
 
 pub(super) const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
@@ -77,6 +83,7 @@ pub(super) fn cached_resolution(
     Some(CachedResolutionResult {
         lockfile: candidate.lockfile.clone(),
         allowed_picks: candidate.allowed_picks.clone(),
+        footprint: ResolutionFootprint::of(&candidate.footprint),
     })
 }
 
@@ -131,6 +138,7 @@ pub(super) struct StoreCandidate<'a> {
     pub(super) cache_secret: &'a [u8],
     pub(super) lockfile: &'a Lockfile,
     pub(super) allowed_picks: &'a [String],
+    pub(super) metrics: &'a ServerMetrics,
 }
 
 /// Offer a finished resolution to the cache, logging what a private one was
@@ -150,6 +158,9 @@ pub(super) fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
         candidate.lockfile,
         candidate.allowed_picks.to_vec(),
     );
+    if cached {
+        candidate.metrics.resolver.record_cache_store(ResolutionFootprint::of(&footprint));
+    }
     if footprint.is_public() {
         return;
     }

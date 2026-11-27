@@ -120,6 +120,7 @@ pub(super) struct StreamCacheTarget {
     pub(super) entries: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
     pub(super) ttl: Duration,
     pub(super) secret: Arc<[u8]>,
+    pub(super) metrics: Arc<crate::server::ServerMetrics>,
 }
 
 /// Spawn resolution onto a bounded frame channel whose response body aborts
@@ -152,6 +153,7 @@ pub(super) fn stream_resolve_response(
             entries: Arc::clone(&runtime.cache.entries),
             ttl: runtime.cache.ttl,
             secret: Arc::clone(&runtime.cache.secret),
+            metrics: Arc::clone(&runtime.cache.metrics),
         },
         terminal,
         inputs,
@@ -425,6 +427,7 @@ impl ResolutionFinalizer {
             cache_secret: &self.cache.secret,
             lockfile,
             allowed_picks,
+            metrics: &self.cache.metrics,
         });
     }
 }

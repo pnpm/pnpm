@@ -1258,6 +1258,10 @@ The metrics are:
 - `pnpr_cache_hits_total` (counter): packument cache hits on upstream proxies.
 - `pnpr_cache_misses_total` (counter): packument cache misses requiring upstream fetches.
 - `pnpr_login_rate_limits_total` (counter): login attempts throttled by rate limiting.
+- `pnpr_resolution_cache_hits_total` (counter): resolve requests answered from the resolution cache, labelled by `footprint`. A `public` entry used only public routes and is shared by every caller. A `private` entry is served only to callers with access to the private packages it used.
+- `pnpr_resolution_cache_misses_total` (counter): resolve requests that found no cached resolution the caller may use.
+- `pnpr_resolution_cache_stores_total` (counter): resolutions stored in the resolution cache, labelled by `footprint`.
+- `pnpr_tarball_routes_total` (counter): tarball URLs written into resolve responses, labelled by `route`. `upstream` is a public package's own registry URL, `gateway` is pnpr's install endpoint for a private upstream package, and `hosted` is pnpr's URL for a private package it hosts.
 - `pnpr_build_info` (gauge): server build version info.
 
 ## Environment variable substitution

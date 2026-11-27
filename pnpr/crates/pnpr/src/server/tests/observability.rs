@@ -466,6 +466,10 @@ fn records_request_and_renders_prometheus() {
     assert!(output.contains("pnpr_cache_hits_total 1"));
     assert!(output.contains("pnpr_cache_misses_total 1"));
     assert!(output.contains("pnpr_login_rate_limits_total 1"));
+    assert!(output.contains("pnpr_resolution_cache_misses_total 0"));
+    assert!(output.contains(r#"pnpr_resolution_cache_hits_total{footprint="public"} 0"#));
+    assert!(output.contains(r#"pnpr_resolution_cache_stores_total{footprint="private"} 0"#));
+    assert!(output.contains(r#"pnpr_tarball_routes_total{route="hosted"} 0"#));
 
     for bound in DURATION_BUCKETS {
         assert!(output.contains(&format!(

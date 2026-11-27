@@ -235,6 +235,7 @@ fn build_post_fetch_cancel_task(
             entries: Arc::clone(&resolver.cache.entries),
             ttl: resolver.cache.ttl,
             secret: Arc::clone(&resolver.cache.secret),
+            metrics: Arc::clone(&resolver.cache.metrics),
         },
         terminal,
         inputs: StreamedResolveInputs {

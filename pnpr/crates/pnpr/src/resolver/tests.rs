@@ -24,6 +24,8 @@ mod graph_swap;
 
 mod resolution_shape;
 
+mod metrics;
+
 use axum::http::StatusCode;
 use pnpm_config::{
     Config as PacquetConfig,

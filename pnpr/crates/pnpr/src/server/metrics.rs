@@ -1,3 +1,9 @@
+pub(crate) use resolver::{
+    ResolutionFootprint,
+    ResolverMetrics,
+    TarballRoute,
+};
+
 use std::{
     fmt::Write,
     sync::atomic::{
@@ -26,6 +32,8 @@ use super::{
     AppState,
     authentication::carries_bearer_secret,
 };
+
+mod resolver;
 
 pub(crate) const DURATION_BUCKETS: [f64; 11] =
     [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];
@@ -93,6 +101,7 @@ pub(crate) struct ServerMetrics {
     cache_hits_total: AtomicU64,
     cache_misses_total: AtomicU64,
     login_rate_limits_total: AtomicU64,
+    pub(crate) resolver: ResolverMetrics,
 }
 
 impl ServerMetrics {
@@ -105,6 +114,7 @@ impl ServerMetrics {
             cache_hits_total: AtomicU64::new(0),
             cache_misses_total: AtomicU64::new(0),
             login_rate_limits_total: AtomicU64::new(0),
+            resolver: ResolverMetrics::default(),
         }
     }
 
@@ -166,6 +176,7 @@ impl ServerMetrics {
         writeln!(buffer, "pnpr_http_response_bytes_total {bytes}\n").unwrap();
 
         self.render_counters(&mut buffer);
+        self.resolver.render(&mut buffer);
         buffer
     }
 
@@ -232,7 +243,7 @@ impl ServerMetrics {
         .unwrap();
         writeln!(buffer, "# TYPE pnpr_login_rate_limits_total counter").unwrap();
         let rate_limits = self.login_rate_limits_total.load(Ordering::Relaxed);
-        writeln!(buffer, "pnpr_login_rate_limits_total {rate_limits}").unwrap();
+        writeln!(buffer, "pnpr_login_rate_limits_total {rate_limits}\n").unwrap();
     }
 }
 
