@@ -113,32 +113,55 @@ pub(super) fn build_node<'graph>(
     let snapshot = build_snapshot_entry(node, graph, optional_overrides);
     Ok(Some(BuiltNode { node, snapshot_key, snapshot }))
 }
-/// Record a package's metadata under its peer-stripped key, once: the first
-/// node of a key in graph order wins.
+/// Record a package's metadata under its peer-stripped key, once. Every
+/// later node of the key must carry the resolution the first one recorded,
+/// so one key never names two artifacts.
 pub(super) fn insert_package_metadata(
     packages: &mut HashMap<PackageKey, PackageMetadata>,
     node: &DependenciesGraphNode,
     metadata_key: PackageKey,
     sources: &PackageMetadataSources<'_>,
 ) -> Result<(), DependenciesGraphToLockfileError> {
-    let std::collections::hash_map::Entry::Vacant(entry) = packages.entry(metadata_key) else {
-        return Ok(());
+    let (registry, include_tarball_url) = metadata_registry(&metadata_key, sources);
+    let lockfile_form = LockfileFormOptions {
+        registry,
+        server_type: registry_server_type(sources.registry_options_by_url, registry),
+        include_tarball_url,
     };
-    let (registry, include_tarball_url) = metadata_registry(entry.key(), sources);
-    let mut metadata = build_package_metadata(
-        node,
-        entry.key(),
-        LockfileFormOptions {
-            registry,
-            server_type: registry_server_type(sources.registry_options_by_url, registry),
-            include_tarball_url,
-        },
-    )
-    .map_err(DependenciesGraphToLockfileError::LockfileForm)?;
+    let entry = match packages.entry(metadata_key) {
+        std::collections::hash_map::Entry::Vacant(entry) => entry,
+        std::collections::hash_map::Entry::Occupied(entry) => {
+            let resolution = lockfile_resolution(node, entry.key(), lockfile_form)
+                .map_err(DependenciesGraphToLockfileError::LockfileForm)?;
+            if entry.get().resolution == resolution {
+                return Ok(());
+            }
+            return Err(DependenciesGraphToLockfileError::ConflictingResolutions {
+                package_key: entry.key().to_string(),
+            });
+        }
+    };
+    let mut metadata = build_package_metadata(node, entry.key(), lockfile_form)
+        .map_err(DependenciesGraphToLockfileError::LockfileForm)?;
     metadata.specifiers = directory::specifiers(node, entry.key(), sources.lockfile_format)?;
     carry_previous_deprecation(&mut metadata, entry.key(), sources);
     entry.insert(metadata);
     Ok(())
+}
+fn lockfile_resolution(
+    node: &DependenciesGraphNode,
+    metadata_key: &PackageKey,
+    lockfile_form: LockfileFormOptions<'_>,
+) -> Result<LockfileResolution, LockfileFormError> {
+    let resolution_version = match metadata_key.suffix.registry_qualified() {
+        Some((_, version)) => version.to_string(),
+        None => metadata_key.suffix.version().to_string(),
+    };
+    node.resolve_result.resolution.to_lockfile_form(
+        &metadata_key.name.to_string(),
+        &resolution_version,
+        lockfile_form,
+    )
 }
 /// The registry a package's metadata is written against, and whether its
 /// tarball URL has to be written out.
@@ -198,15 +221,7 @@ pub(super) fn build_package_metadata(
     let manifest = node.resolve_result.package.manifest.as_deref();
     let (peer_dependencies, peer_dependencies_meta) =
         pnpm_resolving_deps_resolver::lockfile_peer_blocks(node.edges.peer_set.declared());
-    let resolution_version = match metadata_key.suffix.registry_qualified() {
-        Some((_, version)) => version.to_string(),
-        None => metadata_key.suffix.version().to_string(),
-    };
-    let resolution = node.resolve_result.resolution.to_lockfile_form(
-        &metadata_key.name.to_string(),
-        &resolution_version,
-        lockfile_form,
-    )?;
+    let resolution = lockfile_resolution(node, metadata_key, lockfile_form)?;
     Ok(PackageMetadata {
         specifiers: None,
         version: explicit_version(node, metadata_key, &resolution, manifest),

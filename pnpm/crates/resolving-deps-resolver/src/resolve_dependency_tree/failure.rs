@@ -221,6 +221,14 @@ pub enum ResolveDependencyTreeError {
         alias: String,
     },
 
+    #[display("The package fetched from {id} has an invalid name: {name:?}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_DEPENDENCY_NAME))]
+    InvalidManifestName {
+        #[error(not(source))]
+        id: String,
+        name: String,
+    },
+
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
 

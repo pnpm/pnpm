@@ -177,6 +177,9 @@ pub enum DependenciesGraphToLockfileError {
         #[error(source)]
         source: Box<pnpm_resolving_deps_resolver::ResolveDependencyTreeError>,
     },
+
+    #[display("Packages with different resolutions share the lockfile key {package_key:?}")]
+    ConflictingResolutions { package_key: String },
 }
 
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus
