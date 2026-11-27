@@ -409,12 +409,13 @@ fn record_projects(
             }
             let previous = carried?;
             let record = previous.project(&importer_id)?;
+            let bins = previous.workspace_bins.get(&importer_id).cloned();
             Some(RecordedProject {
                 importer_id,
                 manifest: record.manifest.to_string(),
                 input_manifest: None,
                 lockfile: record.lockfile.map(str::to_string),
-                bins: previous.workspace_bins.get(&importer_id).cloned(),
+                bins,
                 vouched: false,
             })
         })
