@@ -1,4 +1,4 @@
-pub use paths::{
+pub use pnpm_relative_path::{
     normalize_bin_path,
     normalize_package_relative_path,
 };
@@ -13,8 +13,6 @@ use serde::{
     Serialize,
 };
 use serde_json::Value;
-
-mod paths;
 
 /// Maximum number of commands precalculated in `dist.pnpr.bins`. Packages
 /// declaring more commands fall back to on-disk bin discovery at link time.

@@ -16,6 +16,7 @@ pnpm-fs = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-package-manifest = { workspace = true }
+pnpm-relative-path = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-store-dir = { workspace = true }
 

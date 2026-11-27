@@ -62,6 +62,7 @@ A fact about one value travels in the value's type, not in a precondition that e
 - `str` methods take byte offsets and the contracts speak of characters. `to_bytes` relates the two, and `injective_to_bytes` shows that two strings with equal bytes are equal. The `spec` module of `pnpm-pkg-name-split` holds lemmas for slicing a `str` at the byte length of a substring.
 - The solvers rarely find an existential witness. Wrap `exists` in a named predicate with lemmas for each way the program changes it, as `stacked` in `pnpm-strongly-connected-components` does.
 - Prove a new or changed proof cold before pushing it: remove `target/creusot`, `verif/`, `why3find.proofs` and `.why3find`, then run `just creusot`. `why3find.proofs` is not committed, so CI meets a new goal without the hint an earlier local run left, and a goal the solvers found once by search can fail there. Halving `time` in `why3find.json` for that run shows the goals close to the limit.
+- Creusot does not know what a string literal holds, so `text == ".."` proves nothing about `text`. Classify the string by its characters instead, as `segment_kind` in `pnpm-relative-path` does with `split_first_char`.
 - Re-associating `concat` is a step the solvers can miss. Cite `Seq::concat_assoc` for it rather than leaving it to search.
 - `cargo creusot --dry-run-why3find` prints the `why3find` command it runs. Run that command with `-X` and the failed `.coma` file to print the goal and its context.
 

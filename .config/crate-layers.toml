@@ -53,7 +53,7 @@ crates = [
 [[layer]]
 name = "model"
 description = "Names, specifiers, and the formats pnpm reads and writes: manifests, lockfiles, workspace and store layout."
-max_transitive_dependencies = 24
+max_transitive_dependencies = 25
 crates = [
   "pnpm-catalogs-config",
   "pnpm-catalogs-protocol-parser",
@@ -71,6 +71,7 @@ crates = [
   "pnpm-package-name",
   "pnpm-patching-config",
   "pnpm-pkg-name-split",
+  "pnpm-relative-path",
   "pnpm-release-notes",
   "pnpm-release-record",
   "pnpm-resolving-jsr-specifier-parser",
@@ -94,7 +95,7 @@ crates = [
 [[layer]]
 name = "service"
 description = "One capability each: resolve, fetch, link, patch, run scripts, talk to a registry. Takes its settings as values and never reads the configuration."
-max_transitive_dependencies = 43
+max_transitive_dependencies = 44
 crates = [
   "pnpm-cargo-resolver",
   "pnpm-cmd-shim",
@@ -344,7 +345,7 @@ pnpm-pack = 12
 pnpm-package-extensions = 2
 pnpm-package-is-installable = 3
 pnpm-package-manager = 63
-pnpm-package-manifest = 4
+pnpm-package-manifest = 5
 pnpm-package-name = 1
 pnpm-patching = 5
 pnpm-patching-config = 1
@@ -370,7 +371,7 @@ pnpm-resolving-resolver-base = 6
 pnpm-resolving-tarball-resolver = 9
 pnpm-rust-toolchain = 9
 pnpm-store-dir = 9
-pnpm-tarball = 8
+pnpm-tarball = 9
 pnpm-testing-utils-registry = 5
 pnpm-version-policy = 2
 pnpm-versioning = 4

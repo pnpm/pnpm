@@ -6460,6 +6460,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-diagnostics",
  "pnpm-fs",
+ "pnpm-relative-path",
  "pnpm-tool-protocol",
  "pnpm-yaml-document-sync",
  "pretty_assertions",
@@ -6737,6 +6738,16 @@ dependencies = [
  "tempfile",
  "tokio",
  "walkdir",
+]
+
+[[package]]
+name = "pnpm-relative-path"
+version = "0.0.1"
+dependencies = [
+ "creusot-std",
+ "pnpm-creusot-models",
+ "pretty_assertions",
+ "split-first-char",
 ]
 
 [[package]]
@@ -7123,6 +7134,7 @@ dependencies = [
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-package-manifest",
+ "pnpm-relative-path",
  "pnpm-reporter",
  "pnpm-store-dir",
  "pnpm-testing-utils",

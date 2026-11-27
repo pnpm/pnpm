@@ -2,12 +2,14 @@
 //! its hash is known to match.
 
 pub use pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE;
+pub(crate) use pnpm_relative_path::archive_entry_segments;
 
 use super::{
     MAX_UNTRUSTED_PREALLOC_BYTES,
     Read,
     TarballError,
 };
+use pnpm_relative_path::EntryPathRejection;
 use std::{
     cell::Cell,
     io,
@@ -300,81 +302,18 @@ fn rejected_entry_path_error(error: RejectedEntryPathError) -> TarballError {
     TarballError::ReadTarballEntries(io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
-/// Validate and clean one archive entry path: reject traversal, drop
-/// the top-level package directory (`package/`), and join the remaining
-/// segments with forward slashes.
-///
-/// Rejected rather than normalized so a tampered tarball is visible
-/// instead of silently landing outside the store.
-///
-/// An entry that is only one segment long keeps that segment. Such an
-/// entry sits at the archive root (beside `package/`, or in a flat
-/// archive with no wrapping directory at all) so there is no
-/// top-level directory on it to drop, and pnpm keys it by its own name
-/// (`parseString` in `parseTarball.ts` advances past the first
-/// separator, which a single segment has none of). Dropping the segment
-/// instead would leave nothing to key the file by, and rejecting the
-/// entry would fail an archive that every other installer accepts. A
-/// lone `.` is the exception: it names the archive root rather than
-/// anything inside it, so there is no file for a key to address.
-///
-/// Joined by hand rather than with `PathBuf`, whose native separator
-/// would desynchronize these keys from pnpm's always-forward-slashed
-/// path layer and the `index.db` both implementations share. Callers
-/// pass the `to_string_lossy` rendering, which coerces non-UTF-8 bytes
-/// to U+FFFD per component.
+/// [`pnpm_relative_path::clean_archive_entry_path`], with its rejection as a
+/// [`TarballError`]. Callers pass the `to_string_lossy` rendering, which
+/// coerces non-UTF-8 bytes to U+FFFD per component.
 pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
-    let Some(mut parts) = archive_entry_segments(raw) else {
-        return Err(rejected_entry_path_error(RejectedEntryPathError::NonNormalComponent {
-            raw: raw.to_string(),
-        }));
-    };
-    if parts.as_slice() == ["."] {
-        return Err(rejected_entry_path_error(RejectedEntryPathError::ArchiveRoot {
-            raw: raw.to_string(),
-        }));
-    }
-    if parts.len() > 1 {
-        parts.remove(0);
-    }
-    Ok(parts.join("/"))
-}
-
-/// Split a published archive entry's path into its segments, rejecting
-/// anything that escapes the archive root.
-///
-/// `\` is treated as a separator, as pnpm does before it validates
-/// (`parseTarball.ts`). Without that, a Windows-built entry keeps its
-/// backslashes verbatim on Unix (where they are ordinary filename
-/// characters) and the resulting key travels through the `index.db`
-/// both implementations share to a reader that *does* treat them as
-/// separators.
-///
-/// A leading `.` is preserved because npm's `tar` counts it as the
-/// component removed by `strip: 1`. Other `.` components are ignored.
-///
-/// `None` for an absolute path or one climbing past the root.
-pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
-    if raw.starts_with(['/', '\\']) {
-        return None;
-    }
-    let mut segments = Vec::new();
-    for (index, segment) in raw.split(['/', '\\']).enumerate() {
-        match segment {
-            "" => {}
-            "." if index == 0 => segments.push(segment),
-            "." => {}
-            ".." => return None,
-            other if has_windows_drive_prefix(other) => return None,
-            other => segments.push(other),
-        }
-    }
-    (!segments.is_empty()).then_some(segments)
-}
-
-fn has_windows_drive_prefix(segment: &str) -> bool {
-    segment
-        .as_bytes()
-        .get(..2)
-        .is_some_and(|bytes| bytes[0].is_ascii_alphabetic() && bytes[1] == b':')
+    pnpm_relative_path::clean_archive_entry_path(raw)
+        .map_err(|rejection| {
+            let raw = raw.to_string();
+            rejected_entry_path_error(match rejection {
+                EntryPathRejection::NonNormalComponent => {
+                    RejectedEntryPathError::NonNormalComponent { raw }
+                }
+                EntryPathRejection::ArchiveRoot => RejectedEntryPathError::ArchiveRoot { raw },
+            })
+        })
 }
