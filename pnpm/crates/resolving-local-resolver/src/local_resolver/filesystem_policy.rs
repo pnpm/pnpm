@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::{
     LocalResolverOptions,
     LocalTarballResolution,
+    PublishingProjectSearch,
     ResolveLocalError,
     parse_bare_specifier::LocalPackageSpec,
 };
@@ -17,6 +18,15 @@ pub enum LocalFilesystemPolicy {
     /// stay within the workspace root, and refuse `file:`, `link:`, and bare
     /// path specifiers without touching the host filesystem.
     WorkspaceOnly,
+}
+
+impl LocalFilesystemPolicy {
+    pub(crate) fn publishing_project_search(self) -> PublishingProjectSearch {
+        match self {
+            Self::HostFilesystem(_) => PublishingProjectSearch::Anywhere,
+            Self::WorkspaceOnly => PublishingProjectSearch::InsideWorkspace,
+        }
+    }
 }
 
 impl Default for LocalFilesystemPolicy {

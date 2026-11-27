@@ -1,10 +1,10 @@
 use super::{
     LocalDirectory,
     LocalDirectoryUse,
+    PublishingProjectSearch,
     WorkspaceProjectManifests,
     local_directory_manifest,
 };
-use crate::LocalFilesystemPolicy;
 use pnpm_resolving_resolver_base::{
     WorkspacePackage,
     WorkspacePackages,
@@ -37,7 +37,7 @@ fn describe<'a>(
         usage,
         workspace_root,
         project_manifest,
-        filesystem_policy: LocalFilesystemPolicy::default(),
+        publishing_project_search: PublishingProjectSearch::Anywhere,
     })
     .expect("read the manifest")
 }
@@ -122,7 +122,7 @@ fn an_unreadable_ancestor_fails_only_a_directory_without_a_manifest() {
             usage: LocalDirectoryUse::Copied,
             workspace_root: tmp.path(),
             project_manifest: &no_projects,
-            filesystem_policy: LocalFilesystemPolicy::default(),
+            publishing_project_search: PublishingProjectSearch::Anywhere,
         })
     };
     read().expect_err("the publishing project search reads the malformed ancestor");
@@ -141,7 +141,7 @@ fn nothing_describes_a_directory_without_a_manifest_or_a_publishing_project() {
         usage: LocalDirectoryUse::Copied,
         workspace_root: &workspace,
         project_manifest: &no_projects,
-        filesystem_policy: LocalFilesystemPolicy::WorkspaceOnly,
+        publishing_project_search: PublishingProjectSearch::InsideWorkspace,
     });
     assert_eq!(described.expect("read the manifest"), None);
 }

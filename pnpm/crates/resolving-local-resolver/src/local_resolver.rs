@@ -373,7 +373,7 @@ fn directory_manifest(
         usage,
         workspace_root: workspace_root(opts),
         project_manifest: &|dir| opts.workspace_projects.as_deref()?.manifest_at(dir),
-        filesystem_policy,
+        publishing_project_search: filesystem_policy.publishing_project_search(),
     };
     match local_directory_manifest(&directory) {
         Ok(Some(manifest)) => Ok(manifest),

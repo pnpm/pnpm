@@ -2,7 +2,6 @@
 //! lockfile checks both read it through [`local_directory_manifest`], so a
 //! check compares a lockfile with the manifest the resolver wrote it from.
 
-use crate::LocalFilesystemPolicy;
 use pnpm_package_manifest::{
     PackageManifestError,
     publishes_from_directory,
@@ -34,6 +33,14 @@ pub enum LocalDirectoryUse {
     Linked,
 }
 
+/// Which ancestors of a directory without a manifest are searched for the
+/// project that publishes from it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PublishingProjectSearch {
+    Anywhere,
+    InsideWorkspace,
+}
+
 /// A local directory and where its manifest may come from.
 pub struct LocalDirectory<'a> {
     pub dir: &'a Path,
@@ -45,7 +52,7 @@ pub struct LocalDirectory<'a> {
     /// a lexically normalized directory. It replaces that project's manifest
     /// file.
     pub project_manifest: &'a dyn Fn(&Path) -> Option<&'a Value>,
-    pub filesystem_policy: LocalFilesystemPolicy,
+    pub publishing_project_search: PublishingProjectSearch,
 }
 
 /// The manifest that describes `directory`, before any hook, from the first
@@ -55,9 +62,8 @@ pub struct LocalDirectory<'a> {
 ///    inside the workspace whose `publishConfig.directory` it is;
 /// 2. the workspace project at the directory;
 /// 3. the directory's own manifest file;
-/// 4. the nearest project whose `publishConfig.directory` it is, inside the
-///    workspace under [`LocalFilesystemPolicy::WorkspaceOnly`] and anywhere
-///    otherwise.
+/// 4. the nearest project whose `publishConfig.directory` it is, among the
+///    ancestors [`LocalDirectory::publishing_project_search`] names.
 ///
 /// `None` when nothing describes it: [`directory_name_manifest`] then stands
 /// in for a directory the caller accepts.
@@ -82,9 +88,9 @@ pub fn local_directory_manifest(
     if let Some(manifest) = safe_read_project_manifest_from_dir(directory.dir)? {
         return Ok(Some(manifest));
     }
-    let bound = match directory.filesystem_policy {
-        LocalFilesystemPolicy::HostFilesystem(_) => None,
-        LocalFilesystemPolicy::WorkspaceOnly => Some(workspace_root.as_path()),
+    let bound = match directory.publishing_project_search {
+        PublishingProjectSearch::Anywhere => None,
+        PublishingProjectSearch::InsideWorkspace => Some(workspace_root.as_path()),
     };
     publishing_project_manifest(directory, &target, bound, Err)
 }

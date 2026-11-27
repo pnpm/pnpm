@@ -30,6 +30,7 @@ pub use chain::{
 pub use directory_manifest::{
     LocalDirectory,
     LocalDirectoryUse,
+    PublishingProjectSearch,
     WorkspaceProjectManifests,
     directory_name_manifest,
     local_directory_manifest,

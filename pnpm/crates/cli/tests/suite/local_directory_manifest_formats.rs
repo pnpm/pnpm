@@ -31,7 +31,8 @@ fn assert_lib_dependency_is_installed_and_frozen(fixture: &WorkspaceFixture) {
             .expect("resolve the installed lib");
         lib.parent()
             .expect("lib sits in a node_modules directory")
-            .join("is-positive/package.json")
+            .join("is-positive")
+            .join("package.json")
     };
     fixture.run(["install"]);
     assert!(lib_dependency().exists(), "the install links the dependency lib declares");

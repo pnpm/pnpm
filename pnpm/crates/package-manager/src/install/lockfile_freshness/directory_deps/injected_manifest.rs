@@ -3,7 +3,7 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_local_resolver::{
     LocalDirectory,
     LocalDirectoryUse,
-    LocalFilesystemPolicy,
+    PublishingProjectSearch,
     directory_name_manifest,
     local_directory_manifest,
 };
@@ -80,7 +80,7 @@ pub(in crate::install::lockfile_freshness) fn unhooked_manifest(
         project_manifest: &|dir| {
             injected.manifests_by_dir.get(dir).map(|manifest| manifest.value())
         },
-        filesystem_policy: LocalFilesystemPolicy::default(),
+        publishing_project_search: PublishingProjectSearch::Anywhere,
     };
     let manifest = match local_directory_manifest(&directory).ok()? {
         Some(manifest) => manifest,
