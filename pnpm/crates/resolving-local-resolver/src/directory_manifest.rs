@@ -1,6 +1,5 @@
 //! The manifest that describes a local directory. The resolver and the
-//! lockfile checks both read it through [`local_directory_manifest`], so a
-//! check compares a lockfile with the manifest the resolver wrote it from.
+//! lockfile checks both read it through [`local_directory_manifest`].
 
 use pnpm_package_manifest::{
     PackageManifestError,

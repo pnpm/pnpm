@@ -66,10 +66,9 @@ pub(in crate::install::lockfile_freshness) struct InjectedDirectory<'a> {
     pub(in crate::install::lockfile_freshness) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
 }
 
-/// The manifest the resolver described the dependency with, before any hook
-/// (see [`local_directory_manifest`]). `None` when the resolver would not
-/// resolve the directory: its manifest fails to read, or nothing describes it
-/// and it does not exist.
+/// The manifest [`local_directory_manifest`] describes the dependency with,
+/// before any hook, else the directory's name. `None` when a manifest fails
+/// to read, or when nothing describes the directory and it does not exist.
 pub(in crate::install::lockfile_freshness) fn unhooked_manifest(
     injected: &InjectedDirectory<'_>,
 ) -> Option<PackageManifest> {

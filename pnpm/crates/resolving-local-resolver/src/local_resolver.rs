@@ -348,14 +348,7 @@ async fn resolve_spec(
 }
 
 /// The manifest [`local_directory_manifest`] describes the directory of `spec`
-/// with, else its name alone.
-///
-/// A missing directory fails a `file:` spec with
-/// `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, even when its publishing project could
-/// describe it, and only warns for a `link:` one. A missing directory whose
-/// `path_shaped_specifier` opens with a protocol fails with
-/// `ERR_PNPM_UNSUPPORTED_PROTOCOL` instead, so the protocol is checked only
-/// after resolution has already failed.
+/// with, else its name alone, once [`ensure_directory`] accepts the directory.
 fn directory_manifest(
     filesystem_policy: LocalFilesystemPolicy,
     spec: &LocalPackageSpec,
@@ -382,6 +375,13 @@ fn directory_manifest(
     }
 }
 
+/// A missing directory fails a `file:` spec with
+/// `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, even when its publishing project could
+/// describe it, and only warns for a `link:` one. A missing directory whose
+/// `path_shaped_specifier` opens with a protocol fails with
+/// `ERR_PNPM_UNSUPPORTED_PROTOCOL` instead, so the protocol is checked only
+/// after resolution has already failed. A path that is not a directory fails
+/// with `ERR_PNPM_NOT_PACKAGE_DIRECTORY`.
 fn ensure_directory(
     spec: &LocalPackageSpec,
     usage: LocalDirectoryUse,
