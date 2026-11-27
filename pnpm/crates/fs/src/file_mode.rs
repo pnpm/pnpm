@@ -18,7 +18,7 @@ use std::{
 };
 
 /// Set permissions through a pinned Linux `O_PATH` handle, which rejects `fchmod`.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) fn set_path_handle_mode(handle: &std::fs::File, mode: FileMode) -> io::Result<()> {
     use std::os::fd::AsRawFd as _;
     std::fs::set_permissions(format!("/proc/self/fd/{}", handle.as_raw_fd()), mode.into())

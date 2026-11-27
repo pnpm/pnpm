@@ -190,15 +190,26 @@ fn native_path_bytes(path: &Path) -> Vec<u8> {
 fn secure_owned_directory(directory: &Path) -> io::Result<()> {
     let mode = pnpm_ffi_fs::FileMode::from_mode(0o700);
     match open_owned_directory(directory, libc::O_RDONLY) {
-        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        #[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
         Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", target_os = "android"))]
             return crate::file_mode::set_path_handle_mode(
                 &open_owned_directory(directory, libc::O_PATH)?,
                 mode,
             );
             #[cfg(target_os = "macos")]
-            open_owned_directory(directory, libc::O_SEARCH)?.set_permissions(mode.into())
+            {
+                let handle = open_owned_directory(directory, libc::O_SEARCH).map_err(|error| {
+                    if error.kind() == io::ErrorKind::PermissionDenied {
+                        return io::Error::new(error.kind(), format!(
+                            "cannot open lock directory {}: {error}. Restore owner read or search permission on the directory",
+                            directory.display(),
+                        ));
+                    }
+                    error
+                })?;
+                handle.set_permissions(mode.into())
+            }
         }
         result => result?.set_permissions(mode.into()),
     }
