@@ -127,15 +127,38 @@ fn store_prune_keeps_a_crate_no_registered_workspace_has_linked() {
     let root = workspace(&registry, "demo = \"1\"\n");
     pnpm_in(root.path(), store.path(), &["install"]).assert().success();
     let slot = &slots[0];
-    let record = slot.with_file_name(format!(
-        "{}.linked",
-        slot.file_name()
-            .unwrap()
-            .to_string_lossy(),
-    ));
-    fs::remove_file(record).unwrap();
+    fs::remove_file(linked_record(slot)).unwrap();
     fs::remove_dir_all(root.path()).unwrap();
 
     pnpm_in(store.path(), store.path(), &["store", "prune"]).assert().success();
     assert!(slot.is_dir());
+}
+
+/// The first install by this pnpm of a workspace an older pnpm installed
+/// records the crates the workspace already links.
+#[test]
+fn store_prune_removes_a_crate_an_older_pnpm_linked_once_the_workspace_is_reinstalled() {
+    let store = TempDir::new().unwrap();
+    let mut registry = mockito::Server::new();
+    let (_mocks, slots) = serve_crates(&mut registry, store.path(), &["demo"]);
+    let root = workspace(&registry, "demo = \"1\"\n");
+    pnpm_in(root.path(), store.path(), &["install"]).assert().success();
+    let slot = &slots[0];
+    fs::remove_file(linked_record(slot)).unwrap();
+    fs::remove_dir_all(store.path().join("v11/cargo-workspaces")).unwrap();
+
+    pnpm_in(root.path(), store.path(), &["install"]).assert().success();
+    assert!(linked_record(slot).is_file());
+    fs::remove_dir_all(root.path()).unwrap();
+    pnpm_in(store.path(), store.path(), &["store", "prune"]).assert().success();
+    assert!(!slot.exists());
+}
+
+fn linked_record(slot: &Path) -> PathBuf {
+    slot.with_file_name(format!(
+        "{}.linked",
+        slot.file_name()
+            .unwrap()
+            .to_string_lossy(),
+    ))
 }

@@ -47,10 +47,11 @@ impl StoreDir {
 }
 
 /// Register the Cargo workspace at `root` in [`StoreDir::cargo_workspaces`].
+/// Returns whether it was registered already.
 pub fn register_cargo_workspace(
     store_dir: &StoreDir,
     root: &Path,
-) -> Result<(), RegisterProjectError> {
+) -> Result<bool, RegisterProjectError> {
     register_in(&store_dir.cargo_workspaces(), root)
 }
 

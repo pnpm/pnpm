@@ -22,19 +22,22 @@ use std::path::PathBuf;
 const MANAGED_START: &str = "# >>> pnpm-managed cargo sources >>>";
 const MANAGED_END: &str = "# <<< pnpm-managed cargo sources <<<";
 
-pub(super) fn link_workspace(
+/// Link `slots` into the workspace's `directory`, returning the slots whose
+/// link was created or replaced.
+pub(super) fn link_workspace<'slots>(
     root_dir: &Path,
     directory: &[&str],
-    slots: &[(String, PathBuf)],
-) -> Result<()> {
+    slots: &'slots [(String, PathBuf)],
+) -> Result<Vec<&'slots Path>> {
     let source_dir = ensure_workspace_directory(root_dir, directory)?;
     link_workspace_in(&source_dir, slots)
 }
 
-pub(super) fn link_workspace_in(
+pub(super) fn link_workspace_in<'slots>(
     source_dir: &ManagedDirectory,
-    slots: &[(String, PathBuf)],
-) -> Result<()> {
+    slots: &'slots [(String, PathBuf)],
+) -> Result<Vec<&'slots Path>> {
+    let mut linked = Vec::new();
     for (name, slot) in slots {
         let outcome = force_workspace_symlink(source_dir, slot, name)
             .into_diagnostic()
@@ -42,8 +45,11 @@ pub(super) fn link_workspace_in(
         if let Some(warning) = outcome.warning {
             tracing::warn!(target: "pacquet::cargo", ?warning, "cargo package link warning");
         }
+        if !outcome.reused {
+            linked.push(slot.as_path());
+        }
     }
-    Ok(())
+    Ok(linked)
 }
 
 pub(super) fn write_sources_config(

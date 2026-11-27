@@ -114,14 +114,15 @@ pub fn register_loaded_project(
     store_dir: &StoreDir,
     project_dir: &Path,
 ) -> Result<(), RegisterProjectError> {
-    register_in(&store_dir.projects(), project_dir)
+    register_in(&store_dir.projects(), project_dir).map(drop)
 }
 
-/// Register `project_dir` in the registry at `registry_dir`.
+/// Register `project_dir` in the registry at `registry_dir`. Returns whether
+/// it was registered already.
 pub(crate) fn register_in(
     registry_dir: &Path,
     project_dir: &Path,
-) -> Result<(), RegisterProjectError> {
+) -> Result<bool, RegisterProjectError> {
     fs::create_dir_all(registry_dir)
         .map_err(|error| RegisterProjectError::CreateRegistryDir {
             dir: registry_dir.to_path_buf(),
@@ -133,14 +134,14 @@ pub(crate) fn register_in(
 }
 
 /// Make `link_path` a link to `project_dir`, replacing a link to anything
-/// else.
+/// else. Returns whether it led to `project_dir` already.
 pub(crate) fn link_to_project(
     project_dir: &Path,
     link_path: PathBuf,
-) -> Result<(), RegisterProjectError> {
+) -> Result<bool, RegisterProjectError> {
     // Fast path: link doesn't exist yet, just create it.
     match link_project(project_dir, &link_path) {
-        Ok(()) => Ok(()),
+        Ok(()) => Ok(false),
         Err(error) if error.kind() == ErrorKind::AlreadyExists => {
             repair_project_link(project_dir, link_path)
         }
@@ -157,7 +158,10 @@ fn link_project(project_dir: &Path, link_path: &Path) -> io::Result<()> {
     symlink_dir_with_contents(&target, &target, link_path)
 }
 
-fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), RegisterProjectError> {
+fn repair_project_link(
+    project_dir: &Path,
+    link_path: PathBuf,
+) -> Result<bool, RegisterProjectError> {
     // Either the same project re-registering (no-op), or an entry that no
     // longer resolves to it (heal).
     let existing_target = read_symlink_dir(&link_path)
@@ -167,7 +171,7 @@ fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), Reg
             error,
         })?;
     if target_resolves_to(&link_path, &existing_target, project_dir) {
-        return Ok(());
+        return Ok(true);
     }
     // A concurrent registration of the same project may remove the entry
     // first, or recreate it between the removal and the create below.
@@ -189,13 +193,15 @@ fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), Reg
                 && read_symlink_dir(&link_path)
                     .is_ok_and(|target| target_resolves_to(&link_path, &target, project_dir)) =>
         {
-            Ok(())
+            Ok(false)
         }
-        result => result.map_err(|error| RegisterProjectError::CreateSymlink {
-            project_dir: project_dir.to_path_buf(),
-            link_path,
-            error,
-        }),
+        result => result
+            .map(|()| false)
+            .map_err(|error| RegisterProjectError::CreateSymlink {
+                project_dir: project_dir.to_path_buf(),
+                link_path,
+                error,
+            }),
     }
 }
 

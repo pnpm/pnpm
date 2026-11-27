@@ -303,6 +303,22 @@ pub(crate) struct Prepared {
     /// Keeps a store prune from removing the slots before the workspace
     /// links them. Set once every workspace is prepared.
     store_lock: Option<Arc<StoreOperationLock>>,
+    records: SlotRecords,
+}
+
+/// Which slots publication records as linked (see
+/// [`pnpm_store_dir::record_linked_crate_slot`]).
+#[derive(Debug, Clone, Copy)]
+enum SlotRecords {
+    /// None: the workspace is not registered, so a prune cannot see that it
+    /// links them.
+    None,
+    /// The slots whose link publication creates or replaces. The workspace
+    /// was registered already, so its other links were recorded when made.
+    Linked,
+    /// Every slot: the workspace was not registered, so its existing links
+    /// may come from an older pnpm, which records none.
+    All,
 }
 
 /// The store slots a workspace links, one list per Cargo source the
@@ -317,10 +333,11 @@ struct WorkspaceSlots {
 impl PreparedInstall for Prepared {
     fn publish(&mut self) -> Result<()> {
         if let Some(slots) = &self.slots {
-            link_workspace(&self.root, &CRATES_SOURCE_DIRECTORY, &slots.crates)?;
+            let mut linked = link_workspace(&self.root, &CRATES_SOURCE_DIRECTORY, &slots.crates)?;
             if !slots.git.is_empty() {
-                link_workspace(&self.root, &GIT_SOURCE_DIRECTORY, &slots.git)?;
+                linked.extend(link_workspace(&self.root, &GIT_SOURCE_DIRECTORY, &slots.git)?);
             }
+            record_linked_slots(self.records, slots, linked);
             write_sources_config(&self.root, &self.index_url, &slots.git_sources)?;
             write_cargo_config(&self.root)?;
         }
@@ -374,6 +391,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
             slots: None,
             index_url: config.cargo_index_url().to_string(),
             store_lock: None,
+            records: SlotRecords::None,
         });
     }
     let slots = prepare_workspace_slots::<Reporter>(
@@ -385,7 +403,6 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         http_client,
     )
     .await?;
-    register_in_store(config, root_dir, &slots);
 
     Ok(Prepared {
         root: root_dir.to_path_buf(),
@@ -393,26 +410,44 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         slots: Some(slots),
         index_url: config.cargo_index_url().to_string(),
         store_lock: None,
+        records: register_in_store(config, root_dir),
     })
 }
 
-/// Register the workspace in the store and record that it links `slots`,
-/// so a store prune keeps them while the workspace links them. A slot is
-/// recorded only once the workspace is registered, since a prune removes a
-/// recorded slot that no registered workspace links.
-fn register_in_store(config: &Config, root: &Path, slots: &WorkspaceSlots) {
+/// Register the workspace in the store, so a store prune keeps the slots it
+/// links.
+fn register_in_store(config: &Config, root: &Path) -> SlotRecords {
     if config.frozen_store {
-        return;
+        return SlotRecords::None;
     }
-    if let Err(error) = pnpm_store_dir::register_cargo_workspace(&config.store_dir, root) {
-        tracing::warn!(
-            target: "pacquet::cargo",
-            ?error,
-            "Failed to register a Cargo workspace in the store; install continues",
-        );
-        return;
+    match pnpm_store_dir::register_cargo_workspace(&config.store_dir, root) {
+        Ok(true) => SlotRecords::Linked,
+        Ok(false) => SlotRecords::All,
+        Err(error) => {
+            tracing::warn!(
+                target: "pacquet::cargo",
+                ?error,
+                "Failed to register a Cargo workspace in the store; install continues",
+            );
+            SlotRecords::None
+        }
     }
-    for (_, slot) in slots.crates.iter().chain(&slots.git) {
+}
+
+/// Record the slots `records` selects, `linked` being the slots whose link
+/// publication created or replaced. A slot left unrecorded is one a prune
+/// keeps.
+fn record_linked_slots(records: SlotRecords, slots: &WorkspaceSlots, linked: Vec<&Path>) {
+    let recorded: Vec<&Path> = match records {
+        SlotRecords::None => return,
+        SlotRecords::Linked => linked,
+        SlotRecords::All => slots.crates
+            .iter()
+            .chain(&slots.git)
+            .map(|(_, slot)| slot.as_path())
+            .collect(),
+    };
+    for slot in recorded {
         if let Err(error) = pnpm_store_dir::record_linked_crate_slot(slot) {
             tracing::warn!(
                 target: "pacquet::cargo",
