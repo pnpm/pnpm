@@ -54,7 +54,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     let app = router(config);
 
     let response = app

@@ -163,10 +163,12 @@ pub(super) fn router_with_auth_and_osv(
 /// The main router and the state it serves, which [`metrics_listener_router`]
 /// shares.
 pub(crate) fn state_and_router(
-    config: Config,
+    mut config: Config,
     auth: AuthState,
     osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
 ) -> pnpr_error::Result<(AppState, Router)> {
+    let listen = config.http.listen;
+    config.http.public_url.get_or_insert_with(|| format!("http://{listen}"));
     let cors_origins = cors_origins(&config)?;
     let surfaces = EnabledSurfaces {
         resolver: config.features.resolver.enabled,

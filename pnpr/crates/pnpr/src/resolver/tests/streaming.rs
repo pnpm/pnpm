@@ -39,7 +39,7 @@ async fn dropping_a_stream_cancels_pending_resolution_and_releases_admission() {
     });
     let temp = tempfile::tempdir().unwrap();
     let mut config = Config::proxy("127.0.0.1:7677".parse().unwrap(), temp.path().to_owned());
-    config.http.public_url = "http://example.test".into();
+    config.http.public_url = Some("http://example.test".into());
     config.routing.upstreams
         .get_mut("npmjs")
         .unwrap()

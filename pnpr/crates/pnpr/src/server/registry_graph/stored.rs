@@ -233,7 +233,7 @@ fn check_upstream_hosts(
     previous: &RegistryGraphDocument,
     next: &RegistryGraphDocument,
 ) -> Result<(), RegistryError> {
-    let context = RouteContext::from_routing(routing, &config.http.public_url);
+    let context = RouteContext::from_routing(routing, &config.http.public_url());
     for name in next.registry_names() {
         let Some(url) = next.upstream_url(name) else { continue };
         if previous.upstream_url(name) == Some(url) {
@@ -274,7 +274,7 @@ fn check_public_route_hosts(
     previous: &RegistryGraphDocument,
     next: &RegistryGraphDocument,
 ) -> Result<(), RegistryError> {
-    let context = RouteContext::from_routing(routing, &config.http.public_url);
+    let context = RouteContext::from_routing(routing, &config.http.public_url());
     let unchanged = previous.public_route_registries().collect::<Vec<_>>();
     for registry in next.public_route_registries() {
         if unchanged.contains(&registry) {

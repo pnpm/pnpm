@@ -17,7 +17,7 @@ fn config(public_url: &str, public_routes: &[&str], allowed_private_networks: &[
         "127.0.0.1:7677".parse::<SocketAddr>().unwrap(),
         PathBuf::from("/tmp/pnpr-route"),
     );
-    config.http.public_url = public_url.to_string();
+    config.http.public_url = Some(public_url.to_string());
     config.routing.route_policy.public.extend(
         public_routes
             .iter()

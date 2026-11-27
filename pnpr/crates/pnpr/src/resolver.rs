@@ -397,7 +397,9 @@ impl Resolver {
             client,
             osv_index,
             route_context,
-            local_registry: crate::server::LocalRegistry::new(config.http.public_url.clone()),
+            local_registry: crate::server::LocalRegistry::new(
+                config.http.public_url().into_owned(),
+            ),
             cache: Arc::clone(&shared.cache),
             index: Arc::clone(&shared.index),
             limits: Arc::clone(&shared.limits),

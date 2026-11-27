@@ -180,7 +180,7 @@ fn allows_registry_is_a_default_deny_allowlist() {
     assert!(context.allows_registry("https://registry.npmjs.org/"));
     assert!(context.allows_registry("https://public.mirror.example/@scope/pkg"));
     assert!(context.allows_registry("https://npm.corp.example/@acme/widget"));
-    assert!(context.allows_registry(&format!("{}/~corp/@acme/widget", config.http.public_url)));
+    assert!(context.allows_registry(&format!("{}/~corp/@acme/widget", config.http.public_url())));
 
     // Rejected: cloud instance metadata and any other off-allowlist host.
     assert!(!context.allows_registry("http://169.254.169.254/"));
@@ -189,21 +189,21 @@ fn allows_registry_is_a_default_deny_allowlist() {
 
     // Rejected: a `..` segment that could escape a path-scoped prefix match
     // (here pnpr's own `/~corp/` endpoint prefix) onto a sibling path.
-    assert!(!context.allows_registry(&format!("{}/~corp/../admin", config.http.public_url)));
+    assert!(!context.allows_registry(&format!("{}/~corp/../admin", config.http.public_url())));
     assert!(!context.allows_registry("https://npm.corp.example/../etc"));
     for path in [r"npm\~corp/widget", "npm/~co\trp/widget", "npm/~co\nrp/widget"] {
-        assert!(!context.allows_registry(&format!("{}/{path}", config.http.public_url)));
+        assert!(!context.allows_registry(&format!("{}/{path}", config.http.public_url())));
     }
 
     assert!(!context.allows_registry(&format!(
         "{}/npm/~denied/%2e%2e/~corp/widget",
-        config.http.public_url
+        config.http.public_url()
     )));
 
     // Rejected: `file:` URLs, even when their authority matches an allowlisted
     // `localhost` origin.
     let mut localhost_config = base_config();
-    localhost_config.http.public_url = "http://localhost/".to_string();
+    localhost_config.http.public_url = Some("http://localhost/".to_string());
     localhost_config.routing.route_policy.public.push(PublicRoute {
         registry: Some("http://localhost/".to_string()),
         package: None,
@@ -555,7 +555,7 @@ fn upstream_credential_is_bounded_by_its_packages_claim() {
     };
     assert!(context.allows_descriptor(&user("alice"), &descriptor("@corp/tool")));
     assert!(!context.allows_descriptor(&user("alice"), &descriptor("lodash")));
-    let endpoint = format!("{}/npm/~corp/lodash", config.http.public_url);
+    let endpoint = format!("{}/npm/~corp/lodash", config.http.public_url());
     assert_eq!(context.classify(&user("alice"), &endpoint, Some("lodash")), RouteClass::Public);
 }
 
@@ -668,7 +668,7 @@ fn self_upstream_endpoint_url_classifies_as_proxied_for_authorized_caller() {
     let context = RouteContext::from_config(&config);
     // A request to pnpr's own `/npm/~corp/` endpoint resolves through the
     // corp upstream, using its current credential (the URL carries none).
-    let url = format!("{}/npm/~corp/@acme%2fwidget", config.http.public_url);
+    let url = format!("{}/npm/~corp/@acme%2fwidget", config.http.public_url());
     assert_eq!(
         context.classify(&user("alice"), &url, Some("@acme/widget")),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
@@ -679,7 +679,7 @@ fn self_upstream_endpoint_url_classifies_as_proxied_for_authorized_caller() {
     // itself rejects is the fail-closed point.
     assert_eq!(context.classify(&anon(), &url, Some("@acme/widget")), RouteClass::Public);
     // An unknown upstream name is treated the same way.
-    let ghost = format!("{}/npm/~ghost/@acme%2fwidget", config.http.public_url);
+    let ghost = format!("{}/npm/~ghost/@acme%2fwidget", config.http.public_url());
     assert_eq!(context.classify(&user("alice"), &ghost, Some("@acme/widget")), RouteClass::Public);
 }
 
@@ -687,7 +687,7 @@ fn self_upstream_endpoint_url_classifies_as_proxied_for_authorized_caller() {
 fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
     let mut config = base_config();
     // pnpr deployed behind a reverse proxy under a `/pnpr/` sub-path.
-    config.http.public_url = "https://host.example/pnpr/".to_string();
+    config.http.public_url = Some("https://host.example/pnpr/".to_string());
     config.routing.upstreams.insert(
         "corp".to_string(),
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
@@ -752,7 +752,7 @@ fn proxied_alias_accepts_team_member_identity() {
 #[test]
 fn hosted_route_follows_package_access_policy() {
     let mut config = base_config();
-    config.http.public_url = "https://pnpr.example/".to_string();
+    config.http.public_url = Some("https://pnpr.example/".to_string());
     // `Config::proxy` carries the registry-mock rules on the `local` hosted
     // registry: `@private/*` requires auth, the rest of the fixture
     // namespace is open.
@@ -784,7 +784,7 @@ fn hosted_route_follows_package_access_policy() {
 #[test]
 fn hosted_route_follows_rules_replaced_after_the_context_was_built() {
     let mut config = base_config();
-    config.http.public_url = "https://pnpr.example/".to_string();
+    config.http.public_url = Some("https://pnpr.example/".to_string());
     let context = RouteContext::from_config(&config);
     let url = "https://pnpr.example/@private%2fpkg";
     let alice_reads = || context.classify(&user("alice"), url, Some("@private/pkg"));
@@ -908,7 +908,7 @@ fn route_hook_records_routes_and_returns_alias_credential() {
 
     assert_eq!(
         hook.authorize(
-            &format!("{}/npm/~corp/@acme%2fwidget", config.http.public_url),
+            &format!("{}/npm/~corp/@acme%2fwidget", config.http.public_url()),
             Some("@acme/widget")
         ),
         None,
@@ -1063,7 +1063,7 @@ fn self_upstream_endpoint_uses_ecosystem_scoped_credentials() {
         upstream_with_access("https://cargo.corp.example/", "bob"),
     );
     let context = RouteContext::from_config(&config);
-    let url = format!("{}/npm/~internal/demo", config.http.public_url);
+    let url = format!("{}/npm/~internal/demo", config.http.public_url());
     assert_eq!(
         context.classify(&user("alice"), &url, Some("demo")),
         RouteClass::Proxied {

@@ -37,6 +37,7 @@ mod cargo_resolve;
 mod cross_ecosystem_publish;
 mod grant_administration;
 mod htpasswd_import;
+mod listening;
 mod managed_refresh;
 mod multi_replica;
 mod oci_registry;

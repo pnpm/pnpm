@@ -257,7 +257,7 @@ fn log_config_source(source: &ConfigSource) {
 /// URLs to its bind address, which clients usually cannot reach.
 fn warn_derived_public_url(config: &Config) {
     let listen = config.http.listen;
-    if !listen.ip().is_loopback() && config.http.public_url == format!("http://{listen}") {
+    if !listen.ip().is_loopback() && config.http.public_url.is_none() {
         tracing::warn!(
             %listen,
             "publicUrl is not set; tarball URLs point at the bind address. Set `publicUrl` to the URL clients use",

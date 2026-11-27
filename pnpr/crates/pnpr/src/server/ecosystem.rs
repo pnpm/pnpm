@@ -86,7 +86,8 @@ pub(super) fn registry_endpoint(
     ecosystem: Ecosystem,
     registry: Option<&str>,
 ) -> String {
-    let public_url = state.inner.config.http.public_url.trim_end_matches('/');
+    let public_url = state.inner.config.http.public_url();
+    let public_url = public_url.trim_end_matches('/');
     let base = format!("{public_url}{}", ecosystem.base_path());
     match registry {
         Some(registry) => format!("{base}/~{registry}"),

@@ -105,7 +105,7 @@ pub(crate) async fn post_v1_login(
         Err(err) => return err.into_response(),
     };
     let (login_url, done_url) =
-        build_login_urls(&state.inner.config.http.public_url, registry.as_deref(), &tokens);
+        build_login_urls(&state.inner.config.http.public_url(), registry.as_deref(), &tokens);
     let notice = format!("Enter the code {} in the browser to sign in", tokens.user_code);
     let Ok(notice) = HeaderValue::from_str(&notice) else {
         return pnpr_error::RegistryError::Internal {

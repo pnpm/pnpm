@@ -39,7 +39,7 @@ pub(super) fn build_http_config(
     let max_tarball_bytes = build_max_tarball_bytes(file.max_tarball_size.take())?;
     Ok(HttpConfig {
         listen,
-        public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
+        public_url,
         cors,
         ui,
         oci: build_oci_config(&file.oci)?,

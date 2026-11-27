@@ -335,7 +335,7 @@ async fn controlled_upstream(cache: bool, capacity: usize) -> ControlledUpstream
 
 /// Let `config` reach the mock upstreams this module serves on loopback.
 fn allow_loopback_upstreams(config: &mut Config) {
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.routing.route_policy.allowed_private_networks =
         vec![pnpr_config::IpNetwork::parse("127.0.0.0/8").unwrap()];
 }

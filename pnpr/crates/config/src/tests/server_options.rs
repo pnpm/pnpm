@@ -643,7 +643,7 @@ fn listen_and_public_url_come_from_the_file_unless_overridden() {
     )
     .unwrap();
     assert_eq!(config.http.listen, "0.0.0.0:4873".parse().unwrap());
-    assert_eq!(config.http.public_url, "https://registry.example.com");
+    assert_eq!(config.http.public_url(), "https://registry.example.com");
 
     let overridden = Config::from_yaml_str(
         yaml,
@@ -653,7 +653,7 @@ fn listen_and_public_url_come_from_the_file_unless_overridden() {
     )
     .unwrap();
     assert_eq!(overridden.http.listen, listen());
-    assert_eq!(overridden.http.public_url, "https://override.example.com");
+    assert_eq!(overridden.http.public_url(), "https://override.example.com");
 
     let defaults = Config::from_yaml_str_with_overrides(
         "{}",
@@ -664,5 +664,5 @@ fn listen_and_public_url_come_from_the_file_unless_overridden() {
     )
     .unwrap();
     assert_eq!(defaults.http.listen.to_string(), Config::DEFAULT_LISTEN);
-    assert_eq!(defaults.http.public_url, format!("http://{}", Config::DEFAULT_LISTEN));
+    assert_eq!(defaults.http.public_url(), format!("http://{}", Config::DEFAULT_LISTEN));
 }

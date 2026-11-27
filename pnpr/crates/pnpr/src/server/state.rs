@@ -125,7 +125,7 @@ impl AppInner {
         let identity = IdentityServices::new(&config, &routing, auth)?;
         let publish_replays = ReplayStorage::new(&config.storage.cache_dir);
         let upstream_guard_context: UpstreamGuardContext = Arc::new(RwLock::new(Arc::new(
-            RouteContext::from_routing(&routing, &config.http.public_url),
+            RouteContext::from_routing(&routing, &config.http.public_url()),
         )));
         let snapshot = build_snapshot(&config, routing, None, &upstream_guard_context);
         Ok(Self {
@@ -195,7 +195,7 @@ impl IdentityServices {
             super::oidc::validate_workloads(config, routing)?;
         }
         let oidc =
-            pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;
+            pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url())?;
         Ok(Self {
             last_used: pnpr_auth::LastUsedWriter::new(Arc::clone(&auth.tokens)),
             auth,

@@ -212,7 +212,7 @@ impl RouteContext {
     /// Resolve route-classification inputs from the server config.
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        Self::from_routing(&config.routing, &config.http.public_url)
+        Self::from_routing(&config.routing, &config.http.public_url())
     }
 
     /// Resolve route-classification inputs from a registry graph and the

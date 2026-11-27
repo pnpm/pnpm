@@ -50,7 +50,7 @@ const PUBLIC_URL: &str = "http://example.test";
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.http.public_url = PUBLIC_URL.to_string();
+    config.http.public_url = Some(PUBLIC_URL.to_string());
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }
@@ -60,7 +60,7 @@ fn proxy_config(upstream: &str, storage: PathBuf) -> Config {
     let mut config = Config::proxy(listen, storage);
     config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url =
         upstream.to_string();
-    config.http.public_url = PUBLIC_URL.to_string();
+    config.http.public_url = Some(PUBLIC_URL.to_string());
     config.http.packument_ttl = Duration::from_mins(1);
     config.routing.route_policy.allowed_private_networks = loopback_networks();
     config

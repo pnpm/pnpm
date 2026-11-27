@@ -302,7 +302,7 @@ fn resolve_public_url_override_threads_through() {
     let (config, _) =
         Config::resolve(Some(&path), None, listen(), Some("http://override.test".to_string()))
             .unwrap();
-    assert_eq!(config.http.public_url, "http://override.test");
+    assert_eq!(config.http.public_url(), "http://override.test");
 }
 
 #[test]
@@ -310,7 +310,7 @@ fn resolve_bundled_branch_honors_public_url_override() {
     let (config, source) =
         Config::resolve(None, None, listen(), Some("http://from-cli.test".to_string())).unwrap();
     assert_eq!(source, ConfigSource::Bundled);
-    assert_eq!(config.http.public_url, "http://from-cli.test");
+    assert_eq!(config.http.public_url(), "http://from-cli.test");
 }
 
 #[test]

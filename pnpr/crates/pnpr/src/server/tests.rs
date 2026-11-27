@@ -805,7 +805,7 @@ async fn workload_namespace_does_not_consult_the_token_backend() {
 async fn post_v1_login_uses_peer_addr_fallback_for_rate_limiting() {
     let tmp = TempDir::new().unwrap();
     let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
-    config.http.public_url = "https://registry.example".to_string();
+    config.http.public_url = Some("https://registry.example".to_string());
     config.identity.auth.oidc = serde_json::from_value(serde_json::json!([{
         "name": "login_provider", "issuer": "https://login.example", "audience": "pnpr",
         "login": { "users": [{ "subject": "alice", "userId": "alice" }] },

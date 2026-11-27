@@ -22,7 +22,7 @@ fn config_with_providers(storage: &TempDir) -> Config {
         storage.path().to_path_buf(),
     );
     // OIDC redirect URIs must be HTTPS.
-    config.http.public_url = "https://registry.example".to_string();
+    config.http.public_url = Some("https://registry.example".to_string());
     config.identity.auth.oidc = serde_json::from_value(json!([
         {
             "name": "company", "issuer": "https://login.example", "audience": "pnpr",
