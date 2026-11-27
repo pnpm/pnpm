@@ -27,10 +27,6 @@ impl SettingsComparison<'_> {
                     prune_project_version_specs(recorded, live.unwrap_or_default(), versions)
                 };
                 (!pruned.is_empty()).then_some(pruned.as_slice()) == live
-                    && recorded
-                        .iter()
-                        .filter(|rule| rule.starts_with('!') || rule.contains('?'))
-                        .all(|rule| pruned.contains(rule))
             })
     }
     pub(super) fn minimum_release_age_drift(&self) -> Option<&'static str> {

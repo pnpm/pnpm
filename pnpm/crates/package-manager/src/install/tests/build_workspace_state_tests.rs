@@ -1,9 +1,6 @@
 use super::super::workspace_state::build_workspace_state;
 use pnpm_config::Config;
-use pnpm_modules_yaml::{
-    Clock,
-    IncludedDependencies,
-};
+use pnpm_modules_yaml::Clock;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ConfigDependency;
 use std::{
@@ -51,9 +48,7 @@ fn empty_project_list_produces_empty_projects_map() {
         dir.path(),
         &config,
         pnpm_config::NodeLinker::default(),
-        IncludedDependencies::default(),
-        None,
-        &BTreeMap::default(),
+        Default::default(),
         crate::DeclaredManifests::new(&[]),
         None,
     );
@@ -72,9 +67,7 @@ fn prefers_the_manifest_mtime_over_the_clock() {
         dir.path(),
         &config,
         pnpm_config::NodeLinker::default(),
-        IncludedDependencies::default(),
-        None,
-        &BTreeMap::default(),
+        Default::default(),
         crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
         None,
     );
@@ -102,9 +95,7 @@ fn raises_the_manifest_mtime_baseline_to_the_filesystem_now() {
             dir.path(),
             &config,
             pnpm_config::NodeLinker::default(),
-            IncludedDependencies::default(),
-            None,
-            &BTreeMap::default(),
+            Default::default(),
             crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
             filesystem_now_ms,
         )
@@ -130,9 +121,7 @@ fn source_date_epoch_lowers_the_timestamp_but_never_raises_it() {
             dir.path(),
             &config,
             pnpm_config::NodeLinker::default(),
-            IncludedDependencies::default(),
-            None,
-            &BTreeMap::default(),
+            Default::default(),
             crate::DeclaredManifests::new(&[(dir.path().to_path_buf(), &manifest)]),
             Some(1_600_000_001_000),
         )
@@ -172,9 +161,7 @@ fn records_every_workspace_project_keyed_by_root_dir() {
         dir.path(),
         &config,
         pnpm_config::NodeLinker::default(),
-        IncludedDependencies::default(),
-        None,
-        &BTreeMap::default(),
+        Default::default(),
         crate::DeclaredManifests::new(&project_manifests),
         None,
     );
@@ -208,9 +195,7 @@ fn records_config_dependencies_from_config() {
         dir.path(),
         &config,
         pnpm_config::NodeLinker::default(),
-        IncludedDependencies::default(),
-        None,
-        &BTreeMap::default(),
+        Default::default(),
         crate::DeclaredManifests::new(&[]),
         None,
     );

@@ -440,9 +440,9 @@ minimumReleaseAgeExclude:
 * Default: **false**
 * Type: **Boolean**
 
-When set to `true`, `pnpm install`, `pnpm add`, `pnpm update`, `pnpm remove`, and `pnpm dedupe` prune the entries of [`minimumReleaseAgeExclude`](#minimumreleaseageexclude) in `pnpm-workspace.yaml` that the freshly written lockfile no longer resolves: a version that is gone is dropped (an entry is removed once none of its versions remain), and an entry for a package that is no longer in the lockfile is removed too. Name patterns (`@myorg/*`) are always kept. Pruning also checks resolved configuration dependencies and their transitive dependencies.
+When set to `true`, `pnpm install`, `pnpm add`, `pnpm update`, `pnpm remove`, and `pnpm dedupe` prune the entries of [`minimumReleaseAgeExclude`](#minimumreleaseageexclude) in `pnpm-workspace.yaml` that the freshly written lockfile no longer resolves: a version that is gone is dropped (an entry is removed once none of its versions remain), and an entry for a package that is no longer in the lockfile is removed too. Pruning keeps name patterns that contain `*` or `?` and negated patterns that start with `!`. Pruning also checks resolved configuration dependencies and their transitive dependencies.
 
-The cleanup is skipped when the install's lockfile does not cover the whole workspace ([`sharedWorkspaceLockfile: false`](../workspaces.md#sharedworkspacelockfile)), since entries another project still needs would look stale. Comments on the entries that are kept survive the rewrite.
+With [per-project lockfiles](../workspaces.md#sharedworkspacelockfile), a full workspace install checks every project's lockfile before pruning. A filtered install skips cleanup in that layout. Comments on the entries that are kept survive the rewrite.
 
 ### minimumReleaseAgeIgnoreMissingTime
 
@@ -531,9 +531,9 @@ Added in: v12.4.0
 * Default: **false**
 * Type: **Boolean**
 
-When set to `true`, `pnpm install`, `pnpm add`, `pnpm update`, `pnpm remove`, and `pnpm dedupe` prune the entries of [`trustPolicyExclude`](#trustpolicyexclude) in `pnpm-workspace.yaml` that the freshly written lockfile no longer resolves: a version that is gone is dropped (an entry is removed once none of its versions remain), and an entry for a package that is no longer in the lockfile is removed too. Name patterns (`@myorg/*`) are always kept. Pruning also checks resolved configuration dependencies and their transitive dependencies.
+When set to `true`, `pnpm install`, `pnpm add`, `pnpm update`, `pnpm remove`, and `pnpm dedupe` prune the entries of [`trustPolicyExclude`](#trustpolicyexclude) in `pnpm-workspace.yaml` that the freshly written lockfile no longer resolves: a version that is gone is dropped (an entry is removed once none of its versions remain), and an entry for a package that is no longer in the lockfile is removed too. Pruning keeps name patterns that contain `*` or `?` and negated patterns that start with `!`. Pruning also checks resolved configuration dependencies and their transitive dependencies.
 
-The cleanup is skipped when the install's lockfile does not cover the whole workspace ([`sharedWorkspaceLockfile: false`](../workspaces.md#sharedworkspacelockfile)), since entries another project still needs would look stale. Comments on the entries that are kept survive the rewrite.
+With [per-project lockfiles](../workspaces.md#sharedworkspacelockfile), a full workspace install checks every project's lockfile before pruning. A filtered install skips cleanup in that layout. Comments on the entries that are kept survive the rewrite.
 
 ### trustLockfile
 

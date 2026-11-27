@@ -550,6 +550,7 @@ fn refreshed_state(
             // Nothing resolved, so the lockfile's plain keys still come from
             // where the state says.
             registry_routes: state.settings.registry_routes.clone(),
+            selected_registry_routes_resolved: state.settings.selected_registry_routes_resolved,
             kept_settings: matches!(policy.recorded_groups, RecordedGroups::Kept).then_some(
                 &state.settings,
             ),

@@ -248,7 +248,7 @@ fn build_run_exotic_subdeps_policy(
 ) -> pnpm_lockfile_verification::ExoticSubdepsPolicy {
     let install = execution.install;
     let effective_trust =
-        execution.options.save.recorded_trust_lockfile.unwrap_or(install.lockfile_policy.trust);
+        execution.options.save.effective_trust_lockfile(install.lockfile_policy.trust);
     if effective_trust || !install.context.config.block_exotic_subdeps {
         return pnpm_lockfile_verification::ExoticSubdepsPolicy::Allow;
     }

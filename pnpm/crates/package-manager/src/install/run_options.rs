@@ -57,6 +57,7 @@ pub(crate) struct InstallSaveOptions {
     /// whose importers are not the workspace's projects, so that state
     /// keeps describing the workspace's last install.
     pub(crate) workspace_state: bool,
+    pub(crate) pending_state: Option<super::PendingWorkspaceState>,
     /// pnpm's `lockfileCheck`: the run hands the wanted lockfile to the sink
     /// instead of writing it, and must leave nothing else on disk changed
     /// either. Only `pacquet dedupe --check` sets it.
@@ -72,6 +73,7 @@ impl Default for InstallSaveOptions {
         InstallSaveOptions {
             lockfile: true,
             workspace_state: true,
+            pending_state: None,
             lockfile_check: None,
             recorded_trust_lockfile: None,
         }
@@ -79,6 +81,10 @@ impl Default for InstallSaveOptions {
 }
 
 impl InstallSaveOptions {
+    pub(crate) fn effective_trust_lockfile(&self, trust_lockfile: bool) -> bool {
+        self.recorded_trust_lockfile.unwrap_or(trust_lockfile)
+    }
+
     /// Whether the run writes the wanted lockfile to disk.
     pub(crate) fn writes_lockfile(&self) -> bool {
         self.lockfile && self.lockfile_check.is_none()

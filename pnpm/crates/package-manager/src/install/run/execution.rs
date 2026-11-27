@@ -334,7 +334,6 @@ impl<'a> RunExecution<'a> {
             catalog_context_present: self.workspace.catalog_context_present,
             verified_file_integrity_baseline: self.mode.verified_file_integrity_baseline,
             config: self.install.context.config,
-            save_workspace_state: self.options.save.workspace_state,
             can_prompt: self.mode.can_prompt,
         }
     }
@@ -402,7 +401,7 @@ impl<'a> RunExecution<'a> {
                 existing_wanted: lockfiles.wanted.loaded,
                 loaded: lockfiles.wanted.get(),
                 frozen: dispatched.take_frozen_path,
-                trust_lockfile: self.options.save.recorded_trust_lockfile.unwrap_or(
+                trust_lockfile: self.options.save.effective_trust_lockfile(
                     self.install.lockfile_policy.trust,
                 ),
                 locked_registry_routes: self.workspace.loaded_workspace
@@ -410,7 +409,7 @@ impl<'a> RunExecution<'a> {
                     .take(),
             },
             scripts: self.take_project_scripts(dispatched.root_preinstall_ran),
-            write: lockfiles.write_policy(self.options.save.lockfile),
+            write: lockfiles.write_policy(&self.options.save),
             materialized,
         }
     }

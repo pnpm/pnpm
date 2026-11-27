@@ -55,23 +55,22 @@ impl DedicatedProjectRuns<'_> {
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
-        if self.pipelined {
-            self.run_projects_pipelined(run).await?;
-        } else {
-            self.run_projects(run).await?;
+        let prune = self.prune_excludes && self.projects.covers_workspace;
+        let caches = DedicatedCaches {
+            pending_states: (prune
+                && self.pipelined
+                && pnpm_package_manager::PrunedInstallExclusions::enabled(self.config))
+            .then(Default::default),
+            ..Default::default()
+        };
+        let result = self.run_and_prune::<Rep, _, _>(&caches, run, prune).await;
+        if let Some(pending) = caches.pending_states {
+            let writes = std::mem::take(&mut *pending.lock().expect("workspace states"));
+            for (config, state) in writes {
+                state.finish::<Rep>(config, result.as_ref().ok());
+            }
         }
-        if self.prune_excludes && self.projects.covers_workspace {
-            let project_dirs: Vec<PathBuf> = self.projects.dependencies
-                .keys()
-                .cloned()
-                .collect();
-            pnpm_package_manager::verify_patches_against_project_lockfiles::<Rep>(
-                self.config,
-                &project_dirs,
-            )
-            .map_err(miette::Report::new)?;
-            prune_after_dedicated_installs(self.config)?;
-        }
+        result?;
         if self.sync_injected_deps {
             let project_dirs: Vec<PathBuf> = self.projects.dependencies
                 .keys()
@@ -89,15 +88,46 @@ impl DedicatedProjectRuns<'_> {
         Ok(())
     }
 
+    async fn run_and_prune<Rep, Runner, RunFuture>(
+        &self,
+        caches: &DedicatedCaches,
+        run: Runner,
+        prune: bool,
+    ) -> miette::Result<pnpm_package_manager::PrunedInstallExclusions>
+    where
+        Rep: Reporter,
+        Runner: Fn(State) -> RunFuture + Sync,
+        RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
+    {
+        if self.pipelined {
+            self.run_projects_pipelined(caches, run).await?;
+        } else {
+            self.run_projects(run).await?;
+        }
+        if !prune {
+            return Ok(pnpm_package_manager::PrunedInstallExclusions::default());
+        }
+        let project_dirs = self.projects.dependencies
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        pnpm_package_manager::verify_patches_against_project_lockfiles::<Rep>(
+            self.config,
+            &project_dirs,
+        )
+        .map_err(miette::Report::new)?;
+        prune_after_dedicated_installs(self.config)
+    }
+
     async fn run_projects<Runner, RunFuture>(&self, run: Runner) -> miette::Result<()>
     where
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
-        let first_error = Mutex::new(None);
         let caches = DedicatedCaches::default();
+        let first_error = Mutex::new(None);
         let run_node = |project_dir: PathBuf| {
-            let (first_error, caches, run) = (&first_error, &caches, &run);
+            let (first_error, run, caches) = (&first_error, &run, &caches);
             async move {
                 let result = self.install_project(&project_dir, caches, None, run).await;
                 record_dedicated_result(first_error, result)

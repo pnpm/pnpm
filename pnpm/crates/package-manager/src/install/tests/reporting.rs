@@ -3,7 +3,7 @@ use super::{
         Install,
         InstallError,
         ProjectMutation,
-        update_workspace_state_or_warn,
+        workspace_state::update_workspace_state_or_warn,
     },
     InstallDirs,
     PARTIAL_INSTALL_LOCKFILE,

@@ -304,9 +304,11 @@ struct DedicatedProjectRuns<'a> {
 /// so it runs once here, after a run that installed every project. A
 /// filtered run skips it: an unselected project's lockfile may lag behind
 /// its manifest.
-fn prune_after_dedicated_installs(config: &Config) -> miette::Result<()> {
+fn prune_after_dedicated_installs(
+    config: &Config,
+) -> miette::Result<pnpm_package_manager::PrunedInstallExclusions> {
     let Some(workspace_dir) = config.workspace_dir.as_deref() else {
-        return Ok(());
+        return Ok(pnpm_package_manager::PrunedInstallExclusions::default());
     };
     pnpm_package_manager::prune_against_project_lockfiles(config, workspace_dir)
         .wrap_err("prune the workspace manifest")

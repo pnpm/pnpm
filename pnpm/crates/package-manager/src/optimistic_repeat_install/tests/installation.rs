@@ -570,14 +570,14 @@ fn returns_skipped_when_a_scope_moves_to_another_registry() {
         },
     );
     let project_manifests = [(dir.path().to_path_buf(), &manifest)];
-    let recorded = crate::install_state::recorded_registry_prefixes(recorded_config);
+    let recorded = crate::install_state::settings::recorded_registry_prefixes(recorded_config);
     assert_eq!(recorded, Some(BTreeMap::from([("work".to_string(), work.to_string())])));
 
     let mut routed = recorded_config.clone();
     routed.registries_by_scope.insert("@corp".to_string(), work.to_string());
     let routed = routed.leak();
 
-    assert_eq!(crate::install_state::recorded_registry_prefixes(routed), recorded);
+    assert_eq!(crate::install_state::settings::recorded_registry_prefixes(routed), recorded);
     assert_eq!(
         crate::install_state::settings::recorded_registry_routes(routed).get("@corp"),
         Some(&work.to_string()),
@@ -589,11 +589,12 @@ fn returns_skipped_when_a_scope_moves_to_another_registry() {
 }
 #[test]
 fn run_checks_registry_routes_when_its_install_can_resolve_the_whole_lockfile() {
-    for (ci, filtered, shared_lockfile, expects_drift) in [
-        (true, false, true, false),
-        (false, true, true, false),
-        (false, true, false, true),
-        (false, false, true, true),
+    for (ci, filtered, shared_lockfile, selected_resolved, expects_drift) in [
+        (true, false, true, false, false),
+        (false, true, true, true, false),
+        (false, true, true, false, true),
+        (false, true, false, true, true),
+        (false, false, true, true, true),
     ] {
         let (dir, config) = super::setup_content_check_project();
         let mut config = config.clone();
@@ -604,6 +605,7 @@ fn run_checks_registry_routes_when_its_install_can_resolve_the_whole_lockfile() 
             config.filter.push(".".into());
         }
         let mut state = pnpm_workspace_state::load_workspace_state(dir.path()).unwrap().unwrap();
+        state.settings.selected_registry_routes_resolved = selected_resolved;
         state.settings.installed_registry_routes =
             Some(crate::install_state::settings::recorded_registry_routes(&config));
         pnpm_workspace_state::update_workspace_state(dir.path(), &state).unwrap();

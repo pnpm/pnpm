@@ -114,7 +114,7 @@ where
     /// nothing but rewrite the lockfile) has to run them.
     pub(crate) async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
-        options: InstallRunOptions<'a, '_>,
+        mut options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
         let store_lock = lock_store(self.context.config)?;
         let mut time_machine_exclusions = super::TimeMachineExclusions::empty();
@@ -139,6 +139,15 @@ where
             })
             .transpose()?;
         let prune_excludes = self.prunes_workspace_excludes(&options);
+        let config = self.context.config;
+        let pending = (prune_excludes
+            && config.shares_one_lockfile()
+            && crate::PrunedInstallExclusions::enabled(config))
+        .then(super::PendingWorkspaceState::default);
+        options.save.pending_state = self.projects.dedicated
+            .as_ref()
+            .and_then(|project| project.pending_state.clone())
+            .or_else(|| pending.clone());
         let result = Box::pin(self.run_inner_and_cleanup::<Reporter>(
             options,
             branch_lockfiles_to_clean,
@@ -146,9 +155,12 @@ where
             &mut time_machine_exclusions,
         ))
         .await;
+        if let Some(pending) = pending {
+            pending.finish::<Reporter>(config, result.as_ref().ok());
+        }
         drop(store_lock);
         time_machine_exclusions.apply::<Reporter>().await;
-        result
+        result.map(drop)
     }
 
     async fn run_inner_and_cleanup<Reporter: self::Reporter + 'static>(
@@ -157,7 +169,7 @@ where
         branch_lockfiles_to_clean: Option<PathBuf>,
         prune_excludes: bool,
         time_machine_exclusions: &mut super::TimeMachineExclusions,
-    ) -> Result<(), InstallError> {
+    ) -> Result<crate::PrunedInstallExclusions, InstallError> {
         let (config, manifest) = (self.context.config, self.context.manifest);
         let outcome =
             Box::pin(self.run_inner_impl::<Reporter>(options, time_machine_exclusions)).await?;
@@ -168,10 +180,10 @@ where
         if prune_excludes
             && let InstallRunOutcome::LockfileSettled { workspace_manifest_dir } = outcome
         {
-            post_install_prune(config, Some(&workspace_manifest_dir), manifest)
-                .map_err(InstallError::WriteWorkspaceManifest)?;
+            return post_install_prune(config, Some(&workspace_manifest_dir), manifest)
+                .map_err(InstallError::WriteWorkspaceManifest);
         }
-        Ok(())
+        Ok(crate::PrunedInstallExclusions::default())
     }
 
     /// Whether this run owes the [`post_install_prune`] pass over the

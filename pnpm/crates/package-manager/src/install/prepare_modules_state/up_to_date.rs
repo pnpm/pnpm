@@ -20,9 +20,9 @@ use super::super::{
     map_frozen_lockfile_error,
     modules_consistent_with,
     moved_tree_is_reusable,
+    publish_workspace_state,
     recorded_allow_builds_differ,
     unapproved_recorded_ignored_builds,
-    update_workspace_state_or_warn,
     verify_lockfile_eagerly,
 };
 use crate::install_state::{
@@ -228,7 +228,7 @@ pub(super) struct UpToDateInstall<'a, 'install> {
     pub(crate) projects: crate::install::state_options::InstallProjectMetadata<'a>,
     pub(crate) verification:
         crate::install::state_options::LockfileVerificationInputs<'a, 'install>,
-    pub(crate) write: crate::install::state_options::LockfileWritePolicy,
+    pub(crate) write: crate::install::state_options::InstallWritePolicy,
     pub(super) wanted_lockfile: &'a Lockfile,
     pub(super) modules: &'a pnpm_modules_yaml::ModulesLayout,
     pub(super) supported_architectures:
@@ -283,7 +283,11 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
         context.wanted_lockfile,
         context.tree.config,
         context.tree.workspace_root,
-        (context.write.synthesized_from_current, context.write.fast_updated, context.write.save),
+        (
+            context.write.lockfile.synthesized_from_current,
+            context.write.lockfile.fast_updated,
+            context.write.lockfile.save,
+        ),
     )?;
     refresh_up_to_date_workspace::<Reporter>(&context);
     Ok(())
@@ -322,27 +326,21 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         filesystem_now_ms: filesystem_now_ms_in_modules(
             &context.tree.config.workspace_state_modules_dir(context.tree.workspace_root),
         ),
-        carried: crate::install::CarriedSettings {
-            trust_lockfile: context.verification.trust_lockfile,
-            established_auto_dedupe: context.carried_state.recorded_auto_dedupe,
-            registry_keys_verified: crate::install::registry_keys_current(
-                context.tree.config,
-                Some(context.wanted_lockfile),
-            ),
-            registry_routes: Some(crate::install_state::recorded_registry_routes_after_install(
-                context.tree.config,
-                context.carried_state.recorded_registry_routes.as_ref(),
-                Some(context.wanted_lockfile),
-                crate::install_state::ResolvedImporters::None,
-            )),
-            kept_settings: None,
-        },
+        carried: crate::install::CarriedSettings::after_install(
+            context.tree.config,
+            Some(context.wanted_lockfile),
+            context.carried_state.recorded_registry_routes.as_ref(),
+            crate::install_state::ResolvedImporters::None,
+            context.verification.trust_lockfile,
+            context.carried_state.recorded_auto_dedupe,
+        ),
         vouched: &crate::install_state::validation::Vouched::All,
     });
-    update_workspace_state_or_warn::<Reporter>(
+    publish_workspace_state::<Reporter>(
         context.tree.workspace_root,
-        &state,
+        state,
         context.tree.config,
+        context.write.pending_state.as_ref(),
     );
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(

@@ -159,6 +159,16 @@ impl Lockfile {
         Ok(Self::load_wanted_from_path(&dir.join(Lockfile::FILE_NAME))?.0.value)
     }
 
+    /// The wanted lockfile and the digest of the bytes it was parsed from.
+    pub fn load_wanted_from_dir_with_digest(
+        dir: &Path,
+    ) -> Result<Option<(Self, String)>, LoadLockfileError> {
+        let path = dir.join(Self::FILE_NAME);
+        let Some(content) = read_lockfile_text(&path)? else { return Ok(None) };
+        let parsed = parse_wanted_file(&content, &path, Self::parse, merge_lockfile_changes)?;
+        Ok(parsed.value.map(|lockfile| (lockfile, pnpm_crypto_hash::create_short_hash(&content))))
+    }
+
     /// Load the wanted lockfile an install reads, honoring the per-branch
     /// lockfile settings.
     ///

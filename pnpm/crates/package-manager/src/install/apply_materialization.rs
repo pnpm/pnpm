@@ -36,8 +36,8 @@ use super::{
     Reporter,
     StateWrite,
     SummaryLog,
+    publish_workspace_state,
     recorded_workspace_state,
-    update_workspace_state_or_warn,
 };
 use crate::install_state::{
     ResolvedImporters,
@@ -56,7 +56,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(crate) projects: crate::install::state_options::ApplyProjectSelection<'a>,
     pub(crate) resolution: crate::install::state_options::ApplyResolutionState<'a>,
     pub(crate) scripts: crate::install::state_options::PendingProjectScripts<'a, 'selection>,
-    pub(crate) write: crate::install::state_options::LockfileWritePolicy,
+    pub(crate) write: crate::install::state_options::InstallWritePolicy,
     pub(super) materialized: Materialized,
 }
 
@@ -200,7 +200,7 @@ fn commit_apply_state<Reporter: self::Reporter>(
             is_inconsistent: inputs.prior.is_inconsistent,
             filtered_install: inputs.projects.filtered_install,
         },
-        write: inputs.write,
+        write: inputs.write.lockfile,
         force_prune: inputs.force_prune(),
     })?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
@@ -338,7 +338,7 @@ fn finish_apply<Reporter: self::Reporter>(
 
     // Refreshing the root here would hide stale bins in unselected projects
     // from the next install.
-    if inputs.completion.save_workspace_state
+    if inputs.write.save_workspace_state
         && !(inputs.prior.tree_moved && inputs.projects.filtered_install)
     {
         write_applied_workspace_state::<Reporter>(&inputs, materialized_dirs);
@@ -436,18 +436,14 @@ fn applied_carried_settings<'a>(
         (true, true) => ResolvedImporters::Selected,
         (true, false) => ResolvedImporters::All,
     };
-    CarriedSettings {
-        trust_lockfile: inputs.resolution.trust_lockfile,
-        established_auto_dedupe: (config.auto_dedupe && resolved.is_some()).then_some(true),
-        registry_keys_verified: crate::install::registry_keys_current(config, lockfile),
-        registry_routes: Some(crate::install_state::recorded_registry_routes_after_install(
-            config,
-            inputs.resolution.locked_registry_routes.as_ref(),
-            lockfile,
-            resolution,
-        )),
-        kept_settings: None,
-    }
+    CarriedSettings::after_install(
+        config,
+        lockfile,
+        inputs.resolution.locked_registry_routes.as_ref(),
+        resolution,
+        inputs.resolution.trust_lockfile,
+        (config.auto_dedupe && resolved.is_some()).then_some(true),
+    )
 }
 
 // Publish workspace freshness only after modules.yaml and the current lockfile are committed.
@@ -485,10 +481,11 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
         carried: applied_carried_settings(inputs),
         vouched: &vouched,
     });
-    update_workspace_state_or_warn::<Reporter>(
+    publish_workspace_state::<Reporter>(
         &inputs.projects.workspace_root,
-        &state,
+        state,
         inputs.completion.config,
+        inputs.write.pending_state.as_ref(),
     );
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 }
