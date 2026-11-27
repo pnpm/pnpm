@@ -32,7 +32,8 @@ use std::{
 pub struct Program {
     pub functions: Vec<Function>,
     pub fields: Vec<Field>,
-    /// The path of each type that has a field, such as `pnpm_config::Config`.
+    /// The path of each type that has a field, such as
+    /// `pnpm_config::settings::Config`.
     pub types: Vec<String>,
 }
 
@@ -220,8 +221,9 @@ impl<'tree> Reader<'tree> {
             let Some(name) = Span::parse(&occurrence.range).map(|name| name.start) else {
                 continue;
             };
-            self.program.functions[function].line =
-                usize::try_from(name.0).map_or(0, |line| line + 1);
+            self.program.functions[function].line = usize::try_from(name.0)
+                .map(|line| line + 1)
+                .unwrap_or_default();
             let item = Span::parse(&occurrence.enclosing_range);
             bodies.extend(item.map(|item| Body { item, name, function }));
         }
@@ -254,12 +256,10 @@ fn field_owner(symbol: &str) -> Option<(&str, String)> {
     let owner = &symbol[..=symbol.rfind('#')?];
     let mut parts = owner.splitn(5, ' ');
     let crate_name = parts.nth(2)?;
-    let descriptors = parts.nth(1)?;
-    let type_path = descriptors
-        .rsplit('/')
-        .next()?
+    let type_path = parts
+        .nth(1)?
         .trim_end_matches('#')
-        .replace('#', "::");
+        .replace(['/', '#'], "::");
     Some((owner, format!("{}::{type_path}", lib_name(crate_name))))
 }
 
@@ -315,7 +315,10 @@ impl Source<'_> {
     /// does not hold `name`.
     fn accesses(&self, range: &[i32], name: &str) -> Result<bool, String> {
         let stale = || {
-            let line = range.first().map_or(0, |line| line + 1);
+            let line = range
+                .first()
+                .map(|line| line + 1)
+                .unwrap_or_default();
             format!(
                 "{}:{line}: the index has the field `{name}` here and the file does not. Make \
                  the index again for these sources.",

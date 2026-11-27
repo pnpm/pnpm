@@ -45,7 +45,7 @@ pub struct FieldsArgs {
     #[command(flatten)]
     index: IndexArgs,
     /// Print the functions that access the fields of this type, such as
-    /// `pnpm_config::Config`, by module.
+    /// `pnpm_config::settings::Config`, by module.
     #[clap(long = "type")]
     type_path: Option<String>,
 }

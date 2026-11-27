@@ -257,10 +257,16 @@ fn reads_the_fields_a_function_accesses_and_the_functions_it_calls() {
                 "one::left".to_owned(),
                 "read",
                 1,
-                vec!["one::State.alpha".to_owned()],
+                vec!["one::state::State.alpha".to_owned()],
                 vec!["helper"]
             ),
-            ("one::left".to_owned(), "helper", 2, vec!["one::State.beta".to_owned()], vec![]),
+            (
+                "one::left".to_owned(),
+                "helper",
+                2,
+                vec!["one::state::State.beta".to_owned()],
+                vec![]
+            ),
         ],
     );
 }
@@ -277,8 +283,8 @@ fn leaves_out_fields_named_in_struct_literals_and_patterns() {
         accessed,
         vec![
             ("build", vec![]),
-            ("outer", vec!["one::State.alpha".to_owned()]),
-            ("inner", vec!["one::State.beta".to_owned()]),
+            ("outer", vec!["one::state::State.alpha".to_owned()]),
+            ("inner", vec!["one::state::State.beta".to_owned()]),
         ],
     );
 }
@@ -319,8 +325,8 @@ impl Port for State {
     assert_eq!(
         accessed,
         vec![
-            ("first", vec!["one::State.alpha".to_owned()]),
-            ("second", vec!["one::State.beta".to_owned()])
+            ("first", vec!["one::state::State.alpha".to_owned()]),
+            ("second", vec!["one::state::State.beta".to_owned()])
         ],
     );
 }
