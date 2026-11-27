@@ -118,7 +118,7 @@ fn pkg_name_and_version(
     };
     if !is_valid_fetched_manifest_name(name) {
         return Err(ResolveDependencyTreeError::InvalidManifestName {
-            id: pnpm_network::redact_and_sanitize(result.id.as_str()),
+            id: pnpm_network::redact_specifier_for_display(result.id.as_str()),
             name: pnpm_network::redact_and_sanitize(name),
         });
     }

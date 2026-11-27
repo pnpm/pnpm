@@ -40,7 +40,7 @@ async fn fetched_manifest_names_that_forge_a_package_id_are_rejected() {
 }
 
 #[tokio::test]
-async fn invalid_fetched_manifest_name_error_hides_url_credentials() {
+async fn invalid_fetched_manifest_name_error_hides_url_secrets() {
     let ctx = crate::resolve_dependency_tree::TreeCtx::with_workspace(
         std::sync::Arc::new(
             crate::resolve_dependency_tree::workspace_ctx::WorkspaceTreeCtx::default(),
@@ -48,12 +48,15 @@ async fn invalid_fetched_manifest_name_error_hides_url_credentials() {
         pnpm_resolving_resolver_base::ResolveOptions::default(),
     );
     let mut result = manifest_result(serde_json::json!({ "name": "fake-pkg(" }));
-    result.id = PkgResolutionId::from("https://fake-user:fake-secret@example.test/fake-pkg.tgz");
+    result.id = PkgResolutionId::from(
+        "https://fake-user:fake-secret@example.test/fake-pkg.tgz?token=fake-token",
+    );
     let message = super::build_pkg_id_with_patch_hash(&ctx, &result).await
         .expect_err("invalid fetched manifest name")
         .to_string();
     assert!(message.contains("example.test/fake-pkg.tgz"), "{message}");
     assert!(!message.contains("fake-secret"), "{message}");
+    assert!(!message.contains("fake-token"), "{message}");
 }
 
 #[tokio::test]
