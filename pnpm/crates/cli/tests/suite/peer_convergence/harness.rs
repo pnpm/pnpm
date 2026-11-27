@@ -178,12 +178,13 @@ impl Harness {
             for (row, v11_lockfile) in &v11_fresh {
                 if let Some(v12_lockfile) = v12_fresh.get(row)
                     && v12_lockfile != v11_lockfile
+                    && let differences = diff(v12_lockfile, v11_lockfile)
+                    && !differences.is_empty()
                 {
                     v11.violation_at(
                         row,
                         &format!(
-                            "a fresh v11 install differs from a fresh v12 install:\n{}",
-                            diff(v12_lockfile, v11_lockfile),
+                            "a fresh v11 install differs from a fresh v12 install:\n{differences}",
                         ),
                         None,
                     );
