@@ -1082,6 +1082,31 @@ async fn import_check_exits_with_code_1_while_the_file_differs() {
 }
 
 #[tokio::test]
+async fn an_export_to_stdout_imports_as_no_change() {
+    let dir = TempDir::new().unwrap();
+    load_config(dir.path()).await;
+    let pnpr = |args: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_pnpr"))
+            .with_arg("--config")
+            .with_arg(config_path(dir.path()))
+            .with_args(args)
+            .with_env("RUST_LOG", "info")
+            .without_env("PNPR_CONFIG")
+            .output()
+            .unwrap()
+    };
+    let export = pnpr(&["registries", "export"]);
+    assert_eq!(export.status.code(), Some(0), "{export:?}");
+    let stderr = String::from_utf8_lossy(&export.stderr);
+    assert!(stderr.contains("loaded config from --config"), "{stderr}");
+    let exported = dir.path().join("registries.yaml");
+    std::fs::write(&exported, &export.stdout).unwrap();
+
+    let check = pnpr(&["registries", "import", "--check", exported.to_str().unwrap()]);
+    assert_eq!(check.status.code(), Some(0), "{check:?}");
+}
+
+#[tokio::test]
 async fn an_empty_first_import_is_stored_so_the_defaults_are_not() {
     let dir = TempDir::new().unwrap();
     let yaml = format!("storage: {}\n{EMPTY_CONFIG}", storage_dir(dir.path()).display());

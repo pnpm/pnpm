@@ -1143,7 +1143,9 @@ log:
   level: error     # trace, debug, http, info, warn, or error
 ```
 
-pnpr logs to stdout. `format` defaults to `pretty` and `level` to `info`.
+The server logs to stdout. Commands such as `pnpr grants export` log to
+stderr, so their stdout holds only their output. `format` defaults to
+`pretty` and `level` to `info`.
 `RUST_LOG` always overrides the configured level. See the
 [CLI reference](cli.md#logging).
 
