@@ -149,6 +149,7 @@ mod update_project_manifest;
 mod update_project_manifest_object;
 mod warn_on_stale_convergence_overrides;
 mod workspace_cycles;
+mod workspace_root;
 
 /// The dependency groups a project installs directly (`dependencies`,
 /// `devDependencies`, `optionalDependencies`) in the order pnpm's

@@ -182,7 +182,7 @@ fn derive_workspace_dir(
         .expect("manifest path always has a parent dir")
         .to_path_buf();
     let workspace_dir =
-        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
+        crate::workspace_root::configured_or_discovered_workspace_dir(config, &manifest_dir)
             .map_err(WriteWorkspaceCatalogsError::FindWorkspaceDir)?
             .unwrap_or(manifest_dir);
     Ok(workspace_dir)
@@ -285,18 +285,7 @@ fn prune_unresolved_entries(
     workspace_dir: &Path,
     mut resolved: ResolvedPackageVersions,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
-    if (config.minimum_release_age_exclude_prune || config.trust_policy_exclude_prune)
-        && let Some(mut env) = EnvLockfile::read(config.root_project_manifest_dir(workspace_dir))
-            .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
-    {
-        retain_config_dependencies(&mut env, |name| {
-            config.config_dependencies
-                .as_ref()
-                .is_some_and(|dependencies| dependencies.contains_key(name))
-        });
-        prune_env_lockfile(&mut env);
-        record_resolved_package_versions(env.snapshots.keys(), &mut resolved);
-    }
+    record_config_dependency_versions(config, workspace_dir, &mut resolved)?;
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
@@ -308,6 +297,53 @@ fn prune_unresolved_entries(
         },
     )
     .map_err(WriteWorkspaceCatalogsError::Write)
+}
+
+fn record_config_dependency_versions(
+    config: &Config,
+    workspace_dir: &Path,
+    resolved: &mut ResolvedPackageVersions,
+) -> Result<(), WriteWorkspaceCatalogsError> {
+    if (config.minimum_release_age_exclude_prune || config.trust_policy_exclude_prune)
+        && let Some(mut env) = EnvLockfile::read(config.root_project_manifest_dir(workspace_dir))
+            .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
+    {
+        retain_config_dependencies(&mut env, |name| {
+            config.config_dependencies
+                .as_ref()
+                .is_some_and(|dependencies| dependencies.contains_key(name))
+        });
+        prune_env_lockfile(&mut env);
+        record_resolved_package_versions(env.snapshots.keys(), resolved);
+    }
+    Ok(())
+}
+
+/// Pruning can run after a lockfile-only install. Use the lockfile bytes the
+/// materialized tree was validated against to decide which settings still apply.
+pub(crate) fn installed_prune_versions(
+    config: &Config,
+    lockfile_root: &Path,
+    digest: &str,
+    covers_projects: impl FnOnce(&Lockfile) -> bool,
+) -> Option<ResolvedPackageVersions> {
+    let workspace = config.workspace_dir.as_deref().unwrap_or(lockfile_root);
+    let path = lockfile_root.join(config.wanted_lockfile_name());
+    let content = std::fs::read_to_string(&path).ok()?;
+    if pnpm_crypto_hash::create_short_hash(&content) != digest {
+        return None;
+    }
+    let installed = Lockfile::parse(&content, &path).ok()??;
+    if !covers_projects(&installed) {
+        return None;
+    }
+    let mut versions = ResolvedPackageVersions::new();
+    record_config_dependency_versions(config, workspace, &mut versions).ok()?;
+    record_resolved_package_versions(
+        installed.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+        &mut versions,
+    );
+    Some(versions)
 }
 
 /// Adds each snapshot key to `resolved` with its resolved version.

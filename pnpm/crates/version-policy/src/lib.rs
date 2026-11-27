@@ -194,6 +194,25 @@ pub fn drop_unresolved_package_version_specs(
         .collect()
 }
 
+/// Prune against one project's lockfile while allowing other projects to
+/// account for entries retained in a workspace-wide policy.
+#[must_use]
+pub fn prune_project_version_specs(
+    recorded: &[String],
+    retained: &[String],
+    resolved: &ResolvedPackageVersions,
+) -> Vec<String> {
+    let mut possible = resolved.clone();
+    for spec in retained {
+        let Ok(rule) = parse_version_policy_rule(spec) else { continue };
+        possible
+            .entry(rule.package_name.to_string())
+            .or_default()
+            .extend(rule.exact_versions);
+    }
+    drop_unresolved_package_version_specs(recorded, &possible)
+}
+
 fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Option<String> {
     let Ok(parsed) = parse_version_policy_rule(spec) else {
         return Some(spec.to_string());
