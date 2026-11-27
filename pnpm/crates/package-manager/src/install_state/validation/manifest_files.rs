@@ -67,7 +67,10 @@ pub(super) fn current_fields(
 /// cannot change what the install records, so it is not an install input.
 pub(crate) fn install_input_digest(manifest: &PackageManifest) -> String {
     match recorded_fields(manifest.value()) {
-        Some(fields) => super::value_digest(&serde_json::Value::Object(fields)),
+        Some(mut fields) => {
+            fields.remove("version");
+            super::value_digest(&serde_json::Value::Object(fields))
+        }
         None => super::manifest_digest(manifest),
     }
 }

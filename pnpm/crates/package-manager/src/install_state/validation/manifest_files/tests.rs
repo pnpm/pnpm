@@ -60,3 +60,19 @@ fn install_input_digest_ignores_unchecked_manifest_fields() {
         install_input_digest(&manifest("first", "2.0.0")),
     );
 }
+
+#[test]
+fn install_input_digest_ignores_project_version() {
+    let manifest = |version: &str| {
+        PackageManifest::from_value(
+            PathBuf::from("package.json"),
+            json!({
+                "name": "app",
+                "version": version,
+                "dependencies": { "is-positive": "1.0.0" },
+            }),
+        )
+    };
+
+    assert_eq!(install_input_digest(&manifest("1.0.0")), install_input_digest(&manifest("1.0.1")),);
+}
