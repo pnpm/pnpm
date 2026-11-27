@@ -27,6 +27,14 @@ pub use chain::{
     LocalResolver,
     LocalSchemeResolver,
 };
+pub use directory_manifest::{
+    LocalDirectory,
+    LocalDirectoryUse,
+    PublishingProjectSearch,
+    WorkspaceProjectManifests,
+    directory_name_manifest,
+    local_directory_manifest,
+};
 pub use local_resolver::{
     LocalCurrentPkg,
     LocalFilesystemPolicy,
@@ -55,6 +63,7 @@ pub use pnpm_local_spec::{
 };
 
 mod chain;
+mod directory_manifest;
 mod local_resolver;
 mod parse_bare_specifier;
 

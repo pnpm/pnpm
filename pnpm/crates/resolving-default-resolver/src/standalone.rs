@@ -44,7 +44,6 @@ use pnpm_resolving_git_resolver::{
 };
 use pnpm_resolving_local_resolver::{
     LocalFilesystemPolicy,
-    LocalPathResolver,
     LocalResolverContext,
     LocalSchemeResolver,
 };
@@ -109,6 +108,8 @@ pub fn build_standalone_chain(
         ..Default::default()
     };
 
+    let local_scheme_resolver = LocalSchemeResolver::new(local_ctx);
+    let local_path_resolver = local_scheme_resolver.path_resolver();
     let mut chain: Vec<Box<dyn Resolver>> = vec![
         Box::new(Arc::clone(&npm_resolver)),
         Box::new(GitResolver::new(
@@ -116,7 +117,7 @@ pub fn build_standalone_chain(
             Arc::new(RealGitRunner::new()),
         )),
         Box::new(TarballResolver { http_client: Arc::clone(http_client), fetch_context: None }),
-        Box::new(LocalSchemeResolver::new(local_ctx)),
+        Box::new(local_scheme_resolver),
     ];
     #[cfg(feature = "runtime-provisioning")]
     {
@@ -134,7 +135,7 @@ pub fn build_standalone_chain(
     #[cfg(not(feature = "runtime-provisioning"))]
     chain.push(Box::new(crate::UnavailableToolResolver));
     chain.push(Box::new(build_named_registry_resolver(opts, retry_opts)?));
-    chain.push(Box::new(LocalPathResolver::new(local_ctx)));
+    chain.push(Box::new(local_path_resolver));
     Ok(DefaultResolver::new(chain))
 }
 

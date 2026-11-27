@@ -54,6 +54,7 @@ fn opts(project_dir: &Path) -> LocalResolverOptions {
         current_pkg: None,
         update: LocalResolverUpdate::Off,
         inject_workspace_packages: false,
+        workspace_projects: None,
     }
 }
 

@@ -1,5 +1,12 @@
 use crate::install_state::ProjectManifestsByDir;
 use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_local_resolver::{
+    LocalDirectory,
+    LocalDirectoryUse,
+    PublishingProjectSearch,
+    directory_name_manifest,
+    local_directory_manifest,
+};
 use std::{
     borrow::Cow,
     path::{
@@ -59,73 +66,27 @@ pub(in crate::install::lockfile_freshness) struct InjectedDirectory<'a> {
     pub(in crate::install::lockfile_freshness) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
 }
 
-/// The manifest the resolver described the dependency with, before any hook,
-/// whichever spec declared it, in the resolver's order:
-///
-/// - the project inside the workspace that publishes from the directory
-///   (`publishConfig.directory`), so a `package.json` a build wrote there does
-///   not describe it;
-/// - the workspace project at the directory;
-/// - the directory's `package.json`;
-/// - without one, a publishing project outside the workspace, else the
-///   directory's name.
+/// The manifest [`local_directory_manifest`] describes the dependency with,
+/// before any hook, else the directory's name. `None` when a manifest fails
+/// to read, or when nothing describes the directory and it does not exist.
 pub(in crate::install::lockfile_freshness) fn unhooked_manifest(
     injected: &InjectedDirectory<'_>,
 ) -> Option<PackageManifest> {
-    let workspace_root = pnpm_fs::lexical_normalize(injected.workspace_root);
-    let described = manifest_of_project_publishing_from(injected, Some(&workspace_root))
-        .or_else(|| {
-            injected.manifests_by_dir
-                .get(&pnpm_fs::lexical_normalize(injected.dir))
-                .map(|manifest| (*manifest).clone())
-        });
-    if described.is_some() {
-        return described;
-    }
-    match pnpm_workspace::safe_read_project_manifest_only(injected.dir) {
-        Ok(Some(manifest)) => Some(manifest),
-        Ok(None) => manifest_of_project_publishing_from(injected, None)
-            .or_else(|| directory_name_manifest(injected.dir)),
-        Err(_) => None,
-    }
-}
-
-/// The manifest the resolver gives an existing directory that nothing else
-/// describes: its name alone.
-fn directory_name_manifest(dir: &Path) -> Option<PackageManifest> {
-    if !dir.is_dir() {
-        return None;
-    }
-    let name = dir
-        .file_name()?
-        .to_string_lossy()
-        .into_owned();
-    Some(PackageManifest::from_value(dir.join("package.json"), serde_json::json!({ "name": name })))
-}
-
-/// The manifest of the project whose `publishConfig.directory` is
-/// `injected.dir`, among the ancestors inside `root` when it is given: the
-/// project's entry in `manifests_by_dir` when it has one, else its
-/// `package.json`. A manifest that fails to read is no such project.
-fn manifest_of_project_publishing_from(
-    injected: &InjectedDirectory<'_>,
-    root: Option<&Path>,
-) -> Option<PackageManifest> {
-    let target = pnpm_fs::lexical_normalize(injected.dir);
-    target
-        .ancestors()
-        .skip(1)
-        .take_while(|candidate| root.is_none_or(|root| candidate.starts_with(root)))
-        .find_map(|candidate| {
-            let manifest = injected.manifests_by_dir
-                .get(candidate)
-                .map(|manifest| (*manifest).clone())
-                .or_else(|| {
-                    pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten()
-                })?;
-            pnpm_package_manifest::publishes_from_directory(candidate, manifest.value(), &target)
-                .then_some(manifest)
-        })
+    let directory = LocalDirectory {
+        dir: injected.dir,
+        usage: LocalDirectoryUse::Copied,
+        workspace_root: injected.workspace_root,
+        project_manifest: &|dir| {
+            injected.manifests_by_dir.get(dir).map(|manifest| manifest.value())
+        },
+        publishing_project_search: PublishingProjectSearch::Anywhere,
+    };
+    let manifest = match local_directory_manifest(&directory).ok()? {
+        Some(manifest) => manifest,
+        None if injected.dir.is_dir() => directory_name_manifest(injected.dir),
+        None => return None,
+    };
+    Some(PackageManifest::from_value(injected.dir.join("package.json"), manifest))
 }
 
 pub(super) fn workspace_path_matches_target(

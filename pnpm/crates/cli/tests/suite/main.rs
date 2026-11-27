@@ -116,6 +116,7 @@ mod link;
 mod linker_parity;
 mod list;
 mod local_child_freshness;
+mod local_directory_manifest_formats;
 mod local_directory_manifest_hooks;
 mod local_directory_without_manifest;
 mod local_override_metadata_cache;

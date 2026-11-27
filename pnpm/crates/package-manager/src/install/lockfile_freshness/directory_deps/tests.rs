@@ -741,6 +741,137 @@ fn a_publish_directory_is_described_by_its_project_however_it_was_declared() {
     assert_eq!(describe(&outside_dist).value()["name"], "built");
 }
 
+/// A workspace with one directory per source a directory package's manifest
+/// can come from. Returns the workspace root and each directory.
+fn manifest_source_fixture(tmp: &Path) -> (PathBuf, Vec<PathBuf>) {
+    let workspace_root = tmp.join("ws");
+    let write = |dir: &str, basename: &str, contents: &str| {
+        let dir = workspace_root.join(dir);
+        std::fs::create_dir_all(&dir).expect("create a fixture directory");
+        std::fs::write(dir.join(basename), contents).expect("write a fixture manifest");
+    };
+    write("json", "package.json", r#"{"name":"json","dependencies":{"dep":"1.0.0"}}"#);
+    write("json5", "package.json5", "{name: 'json5', dependencies: {dep: '1.0.0'}}");
+    write("yaml", "package.yaml", "name: yaml\ndependencies:\n  dep: 1.0.0\n");
+    write(
+        "publisher",
+        "package.json",
+        r#"{"name":"publisher","publishConfig":{"directory":"dist"},"dependencies":{"dep":"1.0.0"}}"#,
+    );
+    write("publisher/dist", "package.json", r#"{"name":"publisher"}"#);
+    write("in-memory", "package.json", r#"{"name":"in-memory","version":"1.0.0"}"#);
+    write(
+        "in-memory-publisher",
+        "package.json",
+        r#"{"name":"in-memory-publisher","version":"1.0.0"}"#,
+    );
+    std::fs::create_dir_all(workspace_root.join("in-memory-publisher/dist"))
+        .expect("create the in-memory publish directory");
+    std::fs::create_dir_all(workspace_root.join("unnamed")).expect("create the bare directory");
+    let directories = [
+        "json",
+        "json5",
+        "yaml",
+        "publisher/dist",
+        "in-memory",
+        "in-memory-publisher/dist",
+        "unnamed",
+    ];
+    (
+        workspace_root.clone(),
+        directories
+            .map(|dir| workspace_root.join(dir))
+            .to_vec(),
+    )
+}
+
+#[tokio::test]
+async fn directory_manifest_reader_agrees_across_callers() {
+    let tmp = tempfile::tempdir().expect("create a temporary directory");
+    let (workspace_root, directories) = manifest_source_fixture(tmp.path());
+    let in_memory = [
+        PackageManifest::from_value(
+            workspace_root.join("in-memory/package.json"),
+            serde_json::json!({
+                "name": "in-memory",
+                "version": "1.0.0",
+                "dependencies": { "dep": "1.0.0" },
+            }),
+        ),
+        PackageManifest::from_value(
+            workspace_root.join("in-memory-publisher/package.json"),
+            serde_json::json!({
+                "name": "in-memory-publisher",
+                "version": "1.0.0",
+                "publishConfig": { "directory": "dist" },
+                "dependencies": { "dep": "1.0.0" },
+            }),
+        ),
+    ];
+    let projects: Vec<(PathBuf, &PackageManifest)> = in_memory
+        .iter()
+        .map(|manifest| {
+            (
+                manifest
+                    .path()
+                    .parent()
+                    .expect("project directory")
+                    .to_path_buf(),
+                manifest,
+            )
+        })
+        .collect();
+    let workspace_packages =
+        crate::install::workspace_state::build_workspace_packages_map_from_manifests(
+            &projects, None,
+        );
+    let resolver_projects =
+        std::sync::Arc::new(pnpm_resolving_local_resolver::WorkspaceProjectManifests::new(
+            std::sync::Arc::new(workspace_packages),
+        ));
+    let manifests_by_dir = project_manifests_by_dir(in_memory.iter(), None);
+    let consumer = workspace_root.join("app");
+    std::fs::create_dir_all(&consumer).expect("create the consumer");
+
+    for dir in &directories {
+        let resolved = pnpm_resolving_local_resolver::resolve_from_local_scheme(
+            &pnpm_resolving_local_resolver::LocalResolverContext::default(),
+            &pnpm_resolving_local_resolver::WantedLocalDependency {
+                bare_specifier: format!("file:{}", dir.display()),
+                injected: false,
+            },
+            &pnpm_resolving_local_resolver::LocalResolverOptions {
+                project_dir: consumer.clone(),
+                lockfile_dir: Some(workspace_root.clone()),
+                workspace_dir: Some(workspace_root.clone()),
+                current_pkg: None,
+                update: pnpm_resolving_local_resolver::LocalResolverUpdate::On,
+                inject_workspace_packages: false,
+                workspace_projects: Some(std::sync::Arc::clone(&resolver_projects)),
+            },
+        )
+        .await
+        .expect("resolve the directory")
+        .expect("the local resolver claims a file: specifier")
+        .manifest
+        .expect("a directory resolution carries its manifest");
+        let checked = super::unhooked_manifest(&super::InjectedDirectory {
+            dir,
+            workspace_root: &workspace_root,
+            manifests_by_dir: &manifests_by_dir,
+        })
+        .expect("the check describes the directory");
+        assert_eq!(*resolved, *checked.value(), "the manifest of {}", dir.display());
+        let expects_dependency = !dir.ends_with("unnamed");
+        assert_eq!(
+            resolved.get("dependencies").is_some(),
+            expects_dependency,
+            "the dependencies of {}",
+            dir.display(),
+        );
+    }
+}
+
 #[test]
 fn a_transitive_directory_dependency_is_checked_from_its_consumer() {
     let tmp = tempfile::tempdir().expect("create tempdir");

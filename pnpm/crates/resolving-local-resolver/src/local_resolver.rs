@@ -16,7 +16,7 @@ use derive_more::{
 };
 use filesystem_policy::{
     check_scheme_spec_allowed,
-    find_bounded_parent_publish_manifest,
+    workspace_root,
 };
 use miette::Diagnostic;
 use pnpm_lockfile::{
@@ -24,12 +24,7 @@ use pnpm_lockfile::{
     IntegrityTarget,
     LockfileResolution,
 };
-use pnpm_package_manifest::{
-    PackageManifestError,
-    publishes_from_directory,
-    safe_read_package_json_from_dir,
-    safe_read_project_manifest_from_dir,
-};
+use pnpm_package_manifest::PackageManifestError;
 use pnpm_resolving_resolver_base::{
     LatestInfo,
     LatestQuery,
@@ -40,14 +35,23 @@ use pnpm_resolving_resolver_base::{
 use pnpm_tarball::TarballError;
 use tarball::resolve_file_spec;
 
-use crate::parse_bare_specifier::{
-    LocalPackageSpec,
-    LocalSpecKind,
-    ParseOptions,
-    PathProtocolNotSupportedError,
-    WantedLocalDependency,
-    parse_local_path,
-    parse_local_scheme,
+use crate::{
+    directory_manifest::{
+        LocalDirectory,
+        LocalDirectoryUse,
+        WorkspaceProjectManifests,
+        directory_name_manifest,
+        local_directory_manifest,
+    },
+    parse_bare_specifier::{
+        LocalPackageSpec,
+        LocalSpecKind,
+        ParseOptions,
+        PathProtocolNotSupportedError,
+        WantedLocalDependency,
+        parse_local_path,
+        parse_local_scheme,
+    },
 };
 
 /// Per-install knobs the dispatcher threads into every resolver call.
@@ -96,6 +100,9 @@ pub struct LocalResolverOptions {
     /// When set, a `workspace:` directory dep resolves to `file:` the same
     /// way a per-dep `injected` flag does.
     pub inject_workspace_packages: bool,
+    /// The workspace projects whose in-memory manifest describes them in
+    /// place of their manifest file. `None` reads every manifest from disk.
+    pub workspace_projects: Option<Arc<WorkspaceProjectManifests>>,
 }
 
 /// Lockfile-pinned slice the local resolver short-circuits on for
@@ -327,19 +334,7 @@ async fn resolve_spec(
         }));
     }
 
-    let manifest = match publishing_project_manifest(&spec, opts) {
-        Some(manifest) => manifest,
-        None => match safe_read_package_json_from_dir(&spec.fetch_spec) {
-            Ok(Some(manifest)) => manifest,
-            Ok(None) => synthesize_fallback_manifest(
-                ctx.filesystem_policy,
-                &spec,
-                opts,
-                path_shaped_specifier,
-            )?,
-            Err(err) => return Err(handle_manifest_read_failure(err, &spec)),
-        },
-    };
+    let manifest = directory_manifest(ctx.filesystem_policy, &spec, opts, path_shaped_specifier)?;
 
     Ok(Some(LocalResolveResult {
         id: spec.id.clone(),
@@ -352,125 +347,103 @@ async fn resolve_spec(
     }))
 }
 
-/// The manifest of the project whose `publishConfig.directory` a `file:`
-/// directory is. It describes the directory however the directory was
-/// declared, as it does for a `workspace:` range, so a `package.json` a build
-/// writes there does not change the resolution. A `link:` directory keeps its
-/// own `package.json`.
-///
-/// Only projects inside the workspace root count, and a manifest that fails
-/// to read is no such project, as the lockfile freshness check reads them.
-/// A directory that does not exist gets none, so it fails as missing.
-fn publishing_project_manifest(
-    spec: &LocalPackageSpec,
-    opts: &LocalResolverOptions,
-) -> Option<serde_json::Value> {
-    if !spec.id.as_str().starts_with("file:") || !spec.fetch_spec.is_dir() {
-        return None;
-    }
-    let root = opts.workspace_dir
-        .as_deref()
-        .or(opts.lockfile_dir.as_deref())
-        .unwrap_or(&opts.project_dir);
-    let root = pnpm_fs::lexical_normalize(root);
-    let target = pnpm_fs::lexical_normalize(&spec.fetch_spec);
-    target
-        .ancestors()
-        .skip(1)
-        .take_while(|dir| dir.starts_with(&root))
-        .find_map(|dir| {
-            let manifest = safe_read_project_manifest_from_dir(dir).ok().flatten()?;
-            publishes_from_directory(dir, &manifest, &target).then_some(manifest)
-        })
-}
-
-/// Decide the fall-back when `package.json` is missing. For `file:`
-/// specs (copy-shaped) this throws `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` when the
-/// directory itself doesn't exist; for `link:` with a missing
-/// `package.json` it warns and substitutes a manifest with the
-/// directory basename and no version: the version is unknown, so ranged
-/// `packageExtensions` and overrides selectors must not match it
-/// (<https://github.com/pnpm/pnpm/issues/15007>). The dependency resolver
-/// stamps the `0.0.0` identity default after the manifest hooks have run.
-/// A missing directory whose `path_shaped_specifier` opens with a protocol
-/// fails with `ERR_PNPM_UNSUPPORTED_PROTOCOL` instead, so the protocol is
-/// checked only after resolution has already failed.
-fn synthesize_fallback_manifest(
+/// The manifest [`local_directory_manifest`] describes the directory of `spec`
+/// with, else its name alone, once [`ensure_directory`] accepts the directory.
+fn directory_manifest(
     filesystem_policy: LocalFilesystemPolicy,
     spec: &LocalPackageSpec,
     opts: &LocalResolverOptions,
     path_shaped_specifier: Option<&str>,
 ) -> Result<serde_json::Value, ResolveLocalError> {
-    let metadata = std::fs::metadata(&spec.fetch_spec);
-    if matches!(&metadata, Err(err) if pnpm_fs::is_not_found(err)) {
-        if let Some(err) = path_shaped_specifier.and_then(UnsupportedProtocolError::detect) {
-            return Err(ResolveLocalError::UnsupportedProtocol(err));
-        }
-        if spec.id.as_str().starts_with("file:") {
-            return Err(ResolveLocalError::LinkedPkgDirNotFound {
-                path: spec.fetch_spec.display().to_string(),
-            });
-        }
-        // Warn via `tracing::warn!` until pacquet's reporter grows a
-        // generic `pnpm:logger` channel.
-        let prefix = opts.project_dir.display();
-        let fetch_spec = spec.fetch_spec.display();
-        tracing::warn!(
-            target: "pacquet::resolving-local-resolver",
-            prefix = %prefix,
-            "Installing a dependency from a non-existent directory: {fetch_spec}",
-        );
-    } else if let Ok(metadata) = metadata
-        && !metadata.is_dir()
-    {
-        // The path exists but isn't a directory (e.g. a `.tgz` that
-        // slipped past tarball-shape detection because the spec used
-        // the `link:` scheme). On Windows `read(<file>/package.json)`
-        // returns `NotFound` rather than `NotADirectory`, so this
-        // explicit check surfaces `ERR_PNPM_NOT_PACKAGE_DIRECTORY` on every
-        // platform.
-        return Err(ResolveLocalError::NotPackageDirectory {
-            path: spec.fetch_spec.display().to_string(),
-        });
+    let usage = if spec.id.as_str().starts_with("file:") {
+        LocalDirectoryUse::Copied
+    } else {
+        LocalDirectoryUse::Linked
+    };
+    ensure_directory(spec, usage, opts, path_shaped_specifier)?;
+    let directory = LocalDirectory {
+        dir: &spec.fetch_spec,
+        usage,
+        workspace_root: workspace_root(opts),
+        project_manifest: &|dir| opts.workspace_projects.as_deref()?.manifest_at(dir),
+        publishing_project_search: filesystem_policy.publishing_project_search(),
+    };
+    match local_directory_manifest(&directory) {
+        Ok(Some(manifest)) => Ok(manifest),
+        Ok(None) => Ok(directory_name_manifest(&spec.fetch_spec)),
+        Err(err) => Err(handle_manifest_read_failure(err, spec)),
     }
-    if let Some(manifest) =
-        find_bounded_parent_publish_manifest(filesystem_policy, &spec.fetch_spec, opts)?
-    {
-        return Ok(manifest);
-    }
-    let name = spec.fetch_spec
-        .file_name()
-        .map(std::ffi::OsStr::to_string_lossy)
-        .map(std::borrow::Cow::into_owned)
-        .unwrap_or_default();
-    Ok(serde_json::json!({ "name": name }))
 }
 
-/// Map a [`PackageManifestError`] from
-/// [`safe_read_package_json_from_dir`] into the resolver's error
-/// surface.
+/// A path that is not a directory fails with
+/// `ERR_PNPM_NOT_PACKAGE_DIRECTORY`. [`missing_directory`] decides a path that
+/// does not exist.
+fn ensure_directory(
+    spec: &LocalPackageSpec,
+    usage: LocalDirectoryUse,
+    opts: &LocalResolverOptions,
+    path_shaped_specifier: Option<&str>,
+) -> Result<(), ResolveLocalError> {
+    match std::fs::metadata(&spec.fetch_spec) {
+        Err(err) if pnpm_fs::is_not_found(&err) => {
+            missing_directory(spec, usage, opts, path_shaped_specifier)
+        }
+        // On Windows `read(<file>/package.json)` returns `NotFound` rather
+        // than `NotADirectory`, so a path that is a file (a `.tgz` behind
+        // the `link:` scheme, say) is rejected here on every platform.
+        Ok(metadata) if !metadata.is_dir() => Err(ResolveLocalError::NotPackageDirectory {
+            path: spec.fetch_spec.display().to_string(),
+        }),
+        Ok(_) | Err(_) => Ok(()),
+    }
+}
+
+/// A missing directory fails a `file:` spec with
+/// `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, even when its publishing project could
+/// describe it, and only warns for a `link:` one. A missing directory whose
+/// `path_shaped_specifier` opens with a protocol fails with
+/// `ERR_PNPM_UNSUPPORTED_PROTOCOL` instead, so the protocol is checked only
+/// after resolution has already failed.
+fn missing_directory(
+    spec: &LocalPackageSpec,
+    usage: LocalDirectoryUse,
+    opts: &LocalResolverOptions,
+    path_shaped_specifier: Option<&str>,
+) -> Result<(), ResolveLocalError> {
+    if let Some(err) = path_shaped_specifier.and_then(UnsupportedProtocolError::detect) {
+        return Err(ResolveLocalError::UnsupportedProtocol(err));
+    }
+    match usage {
+        LocalDirectoryUse::Copied => Err(ResolveLocalError::LinkedPkgDirNotFound {
+            path: spec.fetch_spec.display().to_string(),
+        }),
+        LocalDirectoryUse::Linked => {
+            // Warn via `tracing::warn!` until pacquet's reporter grows a
+            // generic `pnpm:logger` channel.
+            let prefix = opts.project_dir.display();
+            let fetch_spec = spec.fetch_spec.display();
+            tracing::warn!(
+                target: "pacquet::resolving-local-resolver",
+                prefix = %prefix,
+                "Installing a dependency from a non-existent directory: {fetch_spec}",
+            );
+            Ok(())
+        }
+    }
+}
+
+/// Map a [`PackageManifestError`] from [`local_directory_manifest`] into the
+/// resolver's error surface.
 fn handle_manifest_read_failure(
     err: PackageManifestError,
     spec: &LocalPackageSpec,
 ) -> ResolveLocalError {
-    if let PackageManifestError::Read { source: io_err, .. } = &err {
-        match io_err.kind() {
-            std::io::ErrorKind::NotADirectory => {
-                return ResolveLocalError::NotPackageDirectory {
-                    path: spec.fetch_spec.display().to_string(),
-                };
-            }
-            std::io::ErrorKind::NotFound => {
-                // ENOENT normally synthesizes the placeholder manifest,
-                // but that path is reached via `Ok(None)` from
-                // `safe_read_package_json_from_dir` hitting
-                // `synthesize_fallback_manifest` first. Reaching this
-                // arm therefore means a directory was renamed mid-read;
-                // treat it as a hard failure rather than racing back
-                // into the fall-back path.
-            }
-            _ => {}
-        }
+    if let PackageManifestError::Read { source, .. } = &err
+        && source.kind() == std::io::ErrorKind::NotADirectory
+    {
+        return ResolveLocalError::NotPackageDirectory {
+            path: spec.fetch_spec.display().to_string(),
+        };
     }
     ResolveLocalError::ReadManifest(err)
 }

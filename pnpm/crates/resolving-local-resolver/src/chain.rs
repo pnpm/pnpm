@@ -11,6 +11,7 @@
 //! kept for tests and one-off chains that don't need the split.
 
 use crate::{
+    directory_manifest::WorkspaceProjectManifests,
     local_resolver::{
         LocalCurrentPkg,
         LocalResolverContext,
@@ -23,7 +24,11 @@ use crate::{
     },
     parse_bare_specifier::WantedLocalDependency,
 };
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    Mutex,
+    PoisonError,
+};
 
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
@@ -41,15 +46,23 @@ use pnpm_resolving_resolver_base::{
 /// `Resolver` for the local-scheme branch (`link:` / `file:` /
 /// `workspace:`). Sits between the tarball resolver and the runtime
 /// / named-registry resolvers in the chain.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default)]
 pub struct LocalSchemeResolver {
     pub ctx: LocalResolverContext,
+    workspace_projects: WorkspaceProjectsMemo,
 }
 
 impl LocalSchemeResolver {
     #[must_use]
     pub fn new(ctx: LocalResolverContext) -> Self {
-        Self { ctx }
+        Self { ctx, workspace_projects: WorkspaceProjectsMemo::default() }
+    }
+
+    /// The [`LocalPathResolver`] of the same chain. The two share one
+    /// by-directory view of the workspace projects.
+    #[must_use]
+    pub fn path_resolver(&self) -> LocalPathResolver {
+        LocalPathResolver { ctx: self.ctx, workspace_projects: self.workspace_projects.clone() }
     }
 }
 
@@ -63,7 +76,7 @@ impl Resolver for LocalSchemeResolver {
             let Some(wd) = wanted_local(wanted_dependency) else {
                 return Ok(None);
             };
-            let local_opts = local_options(opts);
+            let local_opts = local_options(opts, &self.workspace_projects);
             let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
                 .await
                 .map_err(into_resolve_error)?
@@ -94,16 +107,10 @@ impl Resolver for LocalSchemeResolver {
 /// `resolve_latest` returns `Ok(None)` because the latest-version
 /// step is handled by [`resolve_latest_from_local`] and only fires
 /// once, for the scheme branch.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug)]
 pub struct LocalPathResolver {
     pub ctx: LocalResolverContext,
-}
-
-impl LocalPathResolver {
-    #[must_use]
-    pub fn new(ctx: LocalResolverContext) -> Self {
-        Self { ctx }
-    }
+    workspace_projects: WorkspaceProjectsMemo,
 }
 
 impl Resolver for LocalPathResolver {
@@ -116,7 +123,7 @@ impl Resolver for LocalPathResolver {
             let Some(wd) = wanted_local(wanted_dependency) else {
                 return Ok(None);
             };
-            let local_opts = local_options(opts);
+            let local_opts = local_options(opts, &self.workspace_projects);
             let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts)
                 .await
                 .map_err(into_resolve_error)?
@@ -138,15 +145,16 @@ impl Resolver for LocalPathResolver {
 
 /// Combined scheme-then-path resolver. Kept for tests and one-off
 /// chains that don't need the split.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default)]
 pub struct LocalResolver {
     pub ctx: LocalResolverContext,
+    workspace_projects: WorkspaceProjectsMemo,
 }
 
 impl LocalResolver {
     #[must_use]
     pub fn new(ctx: LocalResolverContext) -> Self {
-        Self { ctx }
+        Self { ctx, workspace_projects: WorkspaceProjectsMemo::default() }
     }
 }
 
@@ -178,7 +186,7 @@ impl LocalResolver {
         let Some(wd) = wanted_local(wanted_dependency) else {
             return Ok(None);
         };
-        let local_opts = local_options(opts);
+        let local_opts = local_options(opts, &self.workspace_projects);
 
         if let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
             .await
@@ -214,7 +222,32 @@ fn wanted_local(wanted_dependency: &WantedDependency) -> Option<WantedLocalDepen
     })
 }
 
-fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
+/// The [`WorkspaceProjectManifests`] of the workspace packages the last
+/// resolve carried. An install hands every resolve the same map, so its
+/// by-directory index is built once.
+#[derive(Debug, Default, Clone)]
+struct WorkspaceProjectsMemo(Arc<Mutex<Option<Arc<WorkspaceProjectManifests>>>>);
+
+impl WorkspaceProjectsMemo {
+    fn of(&self, opts: &ResolveOptions) -> Option<Arc<WorkspaceProjectManifests>> {
+        let packages = opts.project.workspace_packages.as_ref()?;
+        let mut memo = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(projects) = memo
+            .as_ref()
+            .filter(|projects| projects.views(packages))
+        {
+            return Some(Arc::clone(projects));
+        }
+        let projects = Arc::new(WorkspaceProjectManifests::new(Arc::clone(packages)));
+        *memo = Some(Arc::clone(&projects));
+        Some(projects)
+    }
+}
+
+fn local_options(
+    opts: &ResolveOptions,
+    workspace_projects: &WorkspaceProjectsMemo,
+) -> LocalResolverOptions {
     LocalResolverOptions {
         project_dir: opts.project.project_dir.clone(),
         lockfile_dir: Some(opts.project.lockfile_dir.clone()),
@@ -232,6 +265,7 @@ fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
             UpdateBehavior::Off | UpdateBehavior::Patches => LocalResolverUpdate::Off,
         },
         inject_workspace_packages: opts.project.inject_workspace_packages,
+        workspace_projects: workspace_projects.of(opts),
     }
 }
 
