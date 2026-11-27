@@ -1064,39 +1064,32 @@ jobs:
         with:
           persist-credentials: false
 
-      # The release's Why3 has this prefix compiled in, and the cache below
-      # restores into it, so it has to exist and be writable first.
+      # The release's Why3 has this prefix compiled in, so it has to exist
+      # and be writable before the install.
       - name: Create the Why3 prefix
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/creusot-why3
 
-      # The installer pins the release, and the release pins its nightly and
-      # its solvers, so the installer's hash keys all three.
-      - name: Cache Creusot
-        id: creusot-cache
+      # Only the downloads, which the installer checks against its pins on
+      # every run. An install restored from a cache would run unchecked, and
+      # any workflow on the default branch can write a cache.
+      - name: Cache Creusot downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         timeout-minutes: 2
         continue-on-error: true
         with:
-          path: |
-            ~/.local/share/creusot
-            /opt/creusot-why3
-            ~/.rustup/toolchains/nightly-*
-            ~/.rustup/update-hashes/nightly-*
-          key: creusot-${{ runner.os }}-${{ hashFiles('pnpm/scripts/install-creusot.mjs') }}
+          path: ~/.cache/pnpm-creusot-downloads
+          key: creusot-downloads-${{ runner.os }}-${{ hashFiles('pnpm/scripts/install-creusot.mjs') }}
 
-      # The translated dependencies, why3find's prover results, and the
-      # prover that closed each goal. A goal whose text is unchanged is
-      # answered from the prover cache, and a changed one tries the prover
-      # that closed it last time first.
-      - name: Cache proofs
+      # Only the proof hints. Each names the prover that closed a goal last
+      # time, and why3find still runs that prover. The translated
+      # dependencies and the prover results could each turn a failing goal
+      # into a pass, so nothing restores them.
+      - name: Cache proof hints
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         timeout-minutes: 2
         continue-on-error: true
         with:
-          path: |
-            target/creusot
-            .why3find
-            why3find.proofs
+          path: why3find.proofs
           key: creusot-proofs-${{ runner.os }}-${{ hashFiles('pnpm/scripts/install-creusot.mjs', 'Cargo.lock', 'why3find.json') }}-${{ hashFiles('pnpm/crates/**/*.rs') }}
           restore-keys: |
             creusot-proofs-${{ runner.os }}-${{ hashFiles('pnpm/scripts/install-creusot.mjs', 'Cargo.lock', 'why3find.json') }}-
@@ -1107,8 +1100,7 @@ jobs:
           restore-cache: false
 
       - name: Install Creusot
-        if: ${{ steps.creusot-cache.outputs.cache-hit != 'true' }}
-        run: node pnpm/scripts/install-creusot.mjs
+        run: node pnpm/scripts/install-creusot.mjs --downloads ~/.cache/pnpm-creusot-downloads
 
       - name: Put Creusot on PATH
         run: echo "$HOME/.local/share/creusot/bin" >> "$GITHUB_PATH"
