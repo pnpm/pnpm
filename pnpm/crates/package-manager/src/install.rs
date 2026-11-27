@@ -2,6 +2,7 @@ pub(crate) mod state_options;
 #[cfg(test)]
 pub(crate) mod tests;
 
+pub(crate) use crate::workspace_root::configured_or_discovered_workspace_dir;
 pub use deploy_manifest::apply_deploy_manifest_hook;
 pub(crate) use deploy_manifest::apply_deploy_manifest_hook_to_arc;
 pub use errors::{
@@ -67,7 +68,6 @@ pub(crate) use workspace_state::{
     StateProjects,
     StateWrite,
     build_project_manifests_list,
-    configured_or_discovered_workspace_dir,
     lockfile_root_dir,
     lockfile_root_for,
     recorded_workspace_state,

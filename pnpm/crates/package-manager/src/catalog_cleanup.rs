@@ -182,7 +182,7 @@ fn derive_workspace_dir(
         .expect("manifest path always has a parent dir")
         .to_path_buf();
     let workspace_dir =
-        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
+        crate::workspace_root::configured_or_discovered_workspace_dir(config, &manifest_dir)
             .map_err(WriteWorkspaceCatalogsError::FindWorkspaceDir)?
             .unwrap_or(manifest_dir);
     Ok(workspace_dir)
