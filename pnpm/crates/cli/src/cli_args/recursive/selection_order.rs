@@ -2,7 +2,7 @@ use super::{
     RecursiveSelection,
     dependencies::sequence_graph_by_project,
 };
-use pnpm_workspace::GraphPkg;
+use pnpm_package_manager::GraphPkg;
 use pnpm_workspace_projects_graph::ProjectGraph;
 use std::path::PathBuf;
 

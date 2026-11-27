@@ -3,10 +3,12 @@
 //! The graph crate reads projects through the [`BaseProject`] /
 //! [`GraphProject`] traits so it stays free of manifest parsing. This is
 //! the one place that bridges the two, shared by every caller that builds
-//! a workspace graph.
+//! a workspace graph. It is not beside [`Project`], so that `pnpm-workspace`
+//! and the crates that read the workspace manifest through it do not depend
+//! on the graph crate.
 
-use crate::Project;
 use pnpm_package_manifest::DependencyGroup;
+use pnpm_workspace::Project;
 use pnpm_workspace_projects_graph::{
     BaseProject,
     DependencyGroups,

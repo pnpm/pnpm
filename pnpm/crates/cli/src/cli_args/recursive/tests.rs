@@ -17,12 +17,12 @@ use pnpm_config::{
     Config,
     VerifyDepsBeforeRun,
 };
-use pnpm_package_manager::graph_sequencer;
-use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::{
+use pnpm_package_manager::{
     GraphPkg,
-    Project,
+    graph_sequencer,
 };
+use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::Project;
 use pnpm_workspace_projects_graph::{
     ProjectGraph,
     ProjectGraphNode,

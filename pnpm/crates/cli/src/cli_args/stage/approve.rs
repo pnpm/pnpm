@@ -49,6 +49,7 @@ use pnpm_network_web_auth::{
     StdinIsTty,
     StdoutIsTty,
 };
+use pnpm_package_manager::GraphPkg;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::Reporter;
@@ -57,10 +58,7 @@ use pnpm_resolving_resolver_base::{
     is_any_version_range,
     is_valid_semver_range,
 };
-use pnpm_workspace::{
-    GraphPkg,
-    Project,
-};
+use pnpm_workspace::Project;
 use pnpm_workspace_projects_graph::{
     CreateProjectsGraphOptions,
     ProjectGraph,

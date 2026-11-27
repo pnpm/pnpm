@@ -26,7 +26,7 @@ use super::{
 impl PublishArgs {
     pub(super) async fn wait_for_existing_projects<Reporter: self::Reporter>(
         &self,
-        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
         to_publish: &HashSet<PathBuf>,
         config: &Config,
         opts: &PublishPackedPkgOptions,

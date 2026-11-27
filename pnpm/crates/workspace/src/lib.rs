@@ -77,7 +77,6 @@ pub use projects::{
     needs_package_patterns,
     read_workspace_projects,
 };
-pub use projects_graph_view::GraphPkg;
 pub use root_finder::{
     BadWorkspaceManifestNameError,
     FindWorkspaceDirError,
@@ -95,6 +94,5 @@ mod inventory;
 mod manifest;
 mod project_manifest;
 mod projects;
-mod projects_graph_view;
 mod root_finder;
 mod settings_coverage;

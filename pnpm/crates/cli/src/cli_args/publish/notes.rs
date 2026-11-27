@@ -93,7 +93,7 @@ impl PublishArgs {
     pub(super) fn attach_publication_notes<Reporter: self::Reporter>(
         &self,
         opts: &mut pnpm_publish::PublishPackedPkgOptions,
-        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
         to_publish: &HashSet<PathBuf>,
         config: &Config,
         dir: &Path,
@@ -128,7 +128,7 @@ impl PublishArgs {
     pub(super) fn check_version_notes(
         &self,
         config: &Config,
-        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
         to_publish: &HashSet<PathBuf>,
     ) -> miette::Result<()> {
         if self.flags.manifest.notes.no_release_notes {

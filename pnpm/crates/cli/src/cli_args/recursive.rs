@@ -59,10 +59,10 @@ use pnpm_config::{
     Config,
     FilterSource,
 };
+use pnpm_package_manager::GraphPkg;
 use pnpm_reporter::LogEvent;
 use pnpm_workspace::{
     FindWorkspaceProjectsOpts,
-    GraphPkg,
     Project,
     find_workspace_projects,
     importer_id_from_root_dir,

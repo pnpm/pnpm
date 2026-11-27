@@ -76,6 +76,7 @@ use pnpm_injected_deps_syncer::{
     sync_injected_deps,
 };
 use pnpm_package_manager::{
+    GraphPkg,
     make_node_package_map_option,
     make_node_require_option,
     package_map_path_for_execution,
@@ -86,10 +87,7 @@ use pnpm_reporter::{
     LogLevel,
     PnpmLog,
 };
-use pnpm_workspace::{
-    GraphPkg,
-    Project,
-};
+use pnpm_workspace::Project;
 use pnpm_workspace_projects_filter::{
     GetChangedProjectsOptions,
     get_changed_projects,

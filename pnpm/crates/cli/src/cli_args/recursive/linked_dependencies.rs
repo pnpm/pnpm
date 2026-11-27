@@ -15,8 +15,10 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
-use pnpm_package_manager::VersionsOverrider;
-use pnpm_workspace::GraphPkg;
+use pnpm_package_manager::{
+    GraphPkg,
+    VersionsOverrider,
+};
 use pnpm_workspace_projects_graph::{
     DependencyGroups,
     DependencyRewriter,

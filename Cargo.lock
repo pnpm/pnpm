@@ -7234,7 +7234,6 @@ dependencies = [
  "pnpm-fs",
  "pnpm-local-spec",
  "pnpm-package-manifest",
- "pnpm-workspace-projects-graph",
  "pretty_assertions",
  "rayon",
  "same-file",
