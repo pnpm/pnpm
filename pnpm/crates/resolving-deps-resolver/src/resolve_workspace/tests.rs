@@ -572,7 +572,13 @@ enum ManifestAvailability {
     Absent,
 }
 
-async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &str) {
+/// The linked package's manifest is written as JSON, which is valid JSON5 and
+/// valid YAML too.
+async fn link_root_dep_peer_provider(
+    linked_manifest_basename: &str,
+    linked_version: Option<&str>,
+    expected: &str,
+) {
     let root_tmp = tempfile::tempdir().expect("tempdir");
     let linked_dir = root_tmp.path().join("vendor/real-peer");
     std::fs::create_dir_all(&linked_dir).expect("create the linked package's directory");
@@ -580,7 +586,7 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
         Some(version) => serde_json::json!({ "name": "real-peer", "version": version }),
         None => serde_json::json!({ "name": "real-peer" }),
     };
-    std::fs::write(linked_dir.join("package.json"), linked_manifest.to_string())
+    std::fs::write(linked_dir.join(linked_manifest_basename), linked_manifest.to_string())
         .expect("write the linked package's manifest");
     let root_manifest_path = root_tmp.path().join("package.json");
     std::fs::write(

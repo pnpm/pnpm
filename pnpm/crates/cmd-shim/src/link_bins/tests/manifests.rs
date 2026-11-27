@@ -59,6 +59,47 @@ fn link_bins_links_a_package_whose_manifest_starts_with_a_utf8_bom() {
 }
 
 #[test]
+fn link_bins_links_a_package_described_by_a_yaml_or_json5_manifest() {
+    let manifests = [
+        ("package.json5", "{name: 'tool', bin: {'tool-cli': 'cli.js'}}"),
+        ("package.yaml", "name: tool\nbin:\n  tool-cli: cli.js\n"),
+    ];
+    for (basename, contents) in manifests {
+        let tmp = tempdir().unwrap();
+        let modules = tmp.path().join("node_modules");
+        create_dir_all(modules.join("tool")).unwrap();
+        write_file(modules.join("tool").join(basename), contents).unwrap();
+        write_file(modules.join("tool/cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+        let bins = modules.join(".bin");
+        link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
+
+        assert!(bins.join("tool-cli").exists(), "missing shim for a package with {basename}");
+    }
+}
+
+#[test]
+fn link_bins_prefers_package_json_over_the_other_manifest_formats() {
+    let tmp = tempdir().unwrap();
+    let modules = tmp.path().join("node_modules");
+    create_dir_all(modules.join("tool")).unwrap();
+    write_file(
+        modules.join("tool/package.json"),
+        json!({"name": "tool", "bin": {"from-json": "cli.js"}}).to_string(),
+    )
+    .unwrap();
+    write_file(modules.join("tool/package.yaml"), "name: tool\nbin:\n  from-yaml: cli.js\n")
+        .unwrap();
+    write_file(modules.join("tool/cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    let bins = modules.join(".bin");
+    link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
+
+    assert!(bins.join("from-json").exists());
+    assert!(!bins.join("from-yaml").exists());
+}
+
+#[test]
 fn link_bins_propagates_read_manifest_error_via_di() {
     use std::io;
 

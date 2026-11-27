@@ -591,7 +591,14 @@ async fn a_workspace_path_root_dep_is_not_offered_as_a_peer_provider() {
 /// to a registry dependency of the root.
 #[tokio::test]
 async fn a_link_root_dep_provides_the_peer_at_the_linked_packages_version() {
-    link_root_dep_peer_provider(Some("1.2.3"), "real-peer@1.2.3").await;
+    link_root_dep_peer_provider("package.json", Some("1.2.3"), "real-peer@1.2.3").await;
+}
+
+#[tokio::test]
+async fn a_link_root_dep_with_a_yaml_or_json5_manifest_provides_the_peer() {
+    for basename in ["package.yaml", "package.json5"] {
+        link_root_dep_peer_provider(basename, Some("1.2.3"), "real-peer@1.2.3").await;
+    }
 }
 
 /// Nothing stands in for the path when the target names no version, so the
@@ -599,7 +606,7 @@ async fn a_link_root_dep_provides_the_peer_at_the_linked_packages_version() {
 /// path itself must never survive as the specifier.
 #[tokio::test]
 async fn a_versionless_link_root_dep_is_not_offered_as_a_peer_provider() {
-    link_root_dep_peer_provider(None, "real-peer@1.9.9").await;
+    link_root_dep_peer_provider("package.json", None, "real-peer@1.9.9").await;
 }
 
 /// A `workspace:` range selects the same workspace package from every

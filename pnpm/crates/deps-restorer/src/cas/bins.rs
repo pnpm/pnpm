@@ -9,6 +9,7 @@ use pnpm_cmd_shim::{
     PackageBinSource,
     get_bins_from_package_manifest_with_walk,
     link_bins_of_packages,
+    read_package_manifest,
 };
 use sha2::{
     Digest,
@@ -177,9 +178,20 @@ fn read_manifest(
             };
             pnpm_store_dir::loader_blob_path(&store.join("files"), hash)?
         }
-        None => root.join("package.json"),
+        None => return read_directory_manifest(root),
     };
     pnpm_package_manifest::parse_manifest_bytes(&std::fs::read(path)?).map_err(io::Error::other)
+}
+
+/// A package the store holds no files for is a directory on disk, such as a
+/// workspace project, so its manifest may be in any project format.
+fn read_directory_manifest(root: &Path) -> io::Result<serde_json::Value> {
+    read_package_manifest::<Host>(root)
+        .map_err(io::Error::other)?
+        .ok_or_else(|| {
+            let message = format!("no package manifest in {}", root.display());
+            io::Error::new(io::ErrorKind::NotFound, message)
+        })
 }
 
 #[cfg(test)]

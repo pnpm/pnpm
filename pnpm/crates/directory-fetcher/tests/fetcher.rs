@@ -157,6 +157,36 @@ fn run_in_package_files_mode_honors_files_field() {
 }
 
 #[test]
+fn run_reads_the_files_field_and_scripts_of_a_yaml_or_json5_manifest() {
+    let manifests = [
+        (
+            "package.json5",
+            "{name: 'x', version: '0.0.0', files: ['dist'], scripts: {postinstall: 'node x.js'}}",
+        ),
+        (
+            "package.yaml",
+            "name: x\nversion: 0.0.0\nfiles:\n  - dist\nscripts:\n  postinstall: node x.js\n",
+        ),
+    ];
+    for (basename, contents) in manifests {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        touch(root, basename, contents);
+        touch(root, "dist/index.js", "");
+        touch(root, "src/index.ts", "");
+
+        let out = fetcher_for(root).run().unwrap();
+
+        let mut rels: Vec<_> = out.files_map.keys().cloned().collect();
+        rels.sort();
+        assert_eq!(rels, vec!["dist/index.js".to_string(), basename.into()]);
+        let manifest = out.manifest.expect("manifest read");
+        assert_eq!(manifest.get("name").and_then(|name| name.as_str()), Some("x"));
+        assert!(out.requires_build, "{basename} declares an install script");
+    }
+}
+
+#[test]
 fn copy_files_follows_deploy_all_files() {
     let dir = tempdir().unwrap();
     let root = dir.path();

@@ -6,7 +6,7 @@ use pnpm_cmd_shim::{
     link_bins_of_packages,
     remove_bin,
 };
-use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_workspace::find_workspace_projects_no_check;
 use std::{
     collections::HashSet,
@@ -48,7 +48,7 @@ pub(crate) fn bin_names(manifest: &serde_json::Value, pkg_root_dir: &Path) -> Ve
 }
 
 pub(crate) fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> {
-    let manifest = safe_read_package_json_from_dir(opts.pkg_root_dir)
+    let manifest = safe_read_project_manifest_from_dir(opts.pkg_root_dir)
         .map_err(|error| SyncInjectedDepsError::ReadManifest {
             dir: opts.pkg_root_dir.to_path_buf(),
             error,

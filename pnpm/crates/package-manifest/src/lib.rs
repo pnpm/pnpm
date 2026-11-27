@@ -88,6 +88,7 @@ pub use runtime::{
 pub use serialization::{
     parse_manifest,
     parse_manifest_bytes,
+    parse_project_manifest,
     safe_read_package_json_from_dir,
 };
 pub use truthiness::is_truthy;

@@ -7,8 +7,13 @@ use super::{
     Path,
     Value,
     io,
-    parse_manifest_bytes,
 };
+use pnpm_package_manifest::{
+    PROJECT_MANIFEST_BASENAMES,
+    parse_manifest_bytes,
+    parse_project_manifest,
+};
+use std::path::PathBuf;
 
 /// Read the installed packages directly under `modules_dir`, including
 /// scoped packages one directory deeper.
@@ -81,24 +86,53 @@ where
     Ok(())
 }
 
-pub(super) fn read_package<Sys: FsReadFile>(
+/// The package at `location` as a bin source. `None` when
+/// [`read_package_manifest`] finds no manifest there.
+pub fn read_package<Sys: FsReadFile>(
     location: &Path,
 ) -> Result<Option<PackageBinSource>, LinkBinsError> {
-    let manifest_path = location.join("package.json");
-    let bytes = match Sys::read_file(&manifest_path) {
-        Ok(bytes) => bytes,
-        // A missing manifest and a non-directory entry both mean the
-        // same thing: this is not a package. Users do drop stray files
-        // into `node_modules`, and one of them must not fail the
-        // install.
-        Err(error)
-            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
-        {
-            return Ok(None);
+    Ok(read_package_manifest::<Sys>(location)?
+        .map(|manifest| PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
+}
+
+/// The manifest of the package at `location`, in the first format the
+/// directory holds, in [`PROJECT_MANIFEST_BASENAMES`] order.
+///
+/// A missing manifest and a non-directory entry both mean the same thing:
+/// this is not a package. Users do drop stray files into `node_modules`, and
+/// one of them must not fail the install.
+pub fn read_package_manifest<Sys: FsReadFile>(
+    location: &Path,
+) -> Result<Option<Value>, LinkBinsError> {
+    for basename in PROJECT_MANIFEST_BASENAMES {
+        let manifest_path = location.join(basename);
+        let bytes = match Sys::read_file(&manifest_path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) if error.kind() == io::ErrorKind::NotADirectory => return Ok(None),
+            Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
+        };
+        return parse_package_manifest(manifest_path, &bytes).map(Some);
+    }
+    Ok(None)
+}
+
+/// A `package.json` may hold any JSON value, which is how
+/// [`parse_manifest_bytes`] reads the manifest of a registry package.
+fn parse_package_manifest(path: PathBuf, bytes: &[u8]) -> Result<Value, LinkBinsError> {
+    if path
+        .extension()
+        .is_some_and(|extension| extension == "json")
+    {
+        return parse_manifest_bytes(bytes)
+            .map_err(|error| LinkBinsError::ParseManifest { path, error });
+    }
+    let contents = match str::from_utf8(bytes) {
+        Ok(contents) => contents,
+        Err(error) => {
+            let error = io::Error::new(io::ErrorKind::InvalidData, error);
+            return Err(LinkBinsError::ReadManifest { path, error });
         }
-        Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
     };
-    let manifest: Value = parse_manifest_bytes(&bytes)
-        .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path, error })?;
-    Ok(Some(PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
+    parse_project_manifest(&path, contents).map_err(LinkBinsError::ReadProjectManifest)
 }

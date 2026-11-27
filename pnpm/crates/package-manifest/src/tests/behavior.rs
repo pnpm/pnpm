@@ -14,7 +14,11 @@ use super::{
     read_to_string,
     tempdir,
 };
-use crate::BuildTriggers;
+use crate::{
+    BuildTriggers,
+    requires_build_from_cas_paths,
+};
+use std::collections::HashMap;
 
 #[cfg(unix)]
 use super::{
@@ -260,6 +264,23 @@ fn gypfile_false_silences_only_the_binding_gyp_trigger() {
     std::fs::write(pkg_root.join("package.json"), json!({ "gypfile": false }).to_string())
         .expect("write manifest");
     assert!(pkg_requires_build(pkg_root));
+}
+
+#[test]
+fn install_scripts_count_in_every_project_manifest_format() {
+    let manifests = [
+        ("package.json5", "{scripts: {postinstall: 'node x.js'}}"),
+        ("package.yaml", "scripts:\n  postinstall: node x.js\n"),
+    ];
+    for (basename, contents) in manifests {
+        let dir = tempdir().expect("create temp dir");
+        let manifest_path = dir.path().join(basename);
+        std::fs::write(&manifest_path, contents).expect("write manifest");
+
+        assert!(pkg_requires_build(dir.path()), "{basename} in a package directory");
+        let cas_paths = HashMap::from([(basename.to_string(), manifest_path)]);
+        assert!(requires_build_from_cas_paths(&cas_paths), "{basename} in a file map");
+    }
 }
 
 #[test]
