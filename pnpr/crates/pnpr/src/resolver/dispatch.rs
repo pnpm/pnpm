@@ -377,13 +377,21 @@ fn cached_resolution_response(
     request: &ResolveRequest,
     deadline: tokio::time::Instant,
 ) -> Option<Response> {
-    let cached = cached_resolution(
+    let key = key?;
+    if runtime.cache.ttl.is_zero() {
+        return None;
+    }
+    let Some(cached) = cached_resolution(
         &runtime.cache.entries,
         runtime.cache.ttl,
-        key?,
+        key,
         &runtime.route_context,
         identity,
-    )?;
+    ) else {
+        runtime.cache.metrics.resolver.record_cache_miss();
+        return None;
+    };
+    runtime.cache.metrics.resolver.record_cache_hit(cached.footprint);
     let expired = || tokio::time::Instant::now() >= deadline;
     let Some(done_res) = super::try_done_frame_with_allowed_picks_until(
         &cached.lockfile,

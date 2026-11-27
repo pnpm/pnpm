@@ -13,7 +13,9 @@ pub use lifecycle::{
 };
 pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{
+    ResolutionFootprint,
     ServerMetrics,
+    TarballRoute,
     serve_metrics,
 };
 pub(crate) use registry_graph::{

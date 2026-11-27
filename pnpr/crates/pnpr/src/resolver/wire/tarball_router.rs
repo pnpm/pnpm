@@ -34,7 +34,10 @@ use super::{
     version_route_tarball_version,
 };
 
+use crate::server::ServerMetrics;
+
 mod endpoints;
+mod route_metrics;
 mod verdict_salt;
 
 #[derive(Clone, Copy)]
@@ -77,6 +80,8 @@ pub(in super::super) struct TarballRouter {
     /// Named-registry prefix map (`alias -> registry URL`) for `<alias>:<version>`
     /// resolutions.
     pub(super) registries_by_prefix: BTreeMap<String, String>,
+    /// Counts each routing decision, when the router serves a live request.
+    pub(super) metrics: Option<Arc<ServerMetrics>>,
 }
 
 impl TarballRouter {
@@ -86,7 +91,14 @@ impl TarballRouter {
         public_url: String,
         registries: HashMap<String, String>,
     ) -> Self {
-        Self { context, identity, public_url, registries, registries_by_prefix: BTreeMap::new() }
+        Self {
+            context,
+            identity,
+            public_url,
+            registries,
+            registries_by_prefix: BTreeMap::new(),
+            metrics: None,
+        }
     }
 
     pub(in super::super) fn with_registries_by_prefix(
@@ -128,7 +140,7 @@ impl TarballRouter {
         version: &str,
         tarball_url: &str,
     ) -> String {
-        match self.context.classify(&self.identity, registry, Some(package)) {
+        match self.classify_tarball(registry, package) {
             // The `dist.tarball` is untrusted upstream metadata, so sanitize it
             // before emitting/caching: drop inline `user:pass@host` userinfo and
             // any query/fragment a registry could use to carry a signed-URL
@@ -435,7 +447,7 @@ impl TarballRouter {
     }
 
     pub(super) fn route_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
-        match self.context.classify(&self.identity, tarball_url, Some(package)) {
+        match self.classify_tarball(tarball_url, package) {
             // A public route keeps its upstream URL: it was fetched
             // anonymously, so its tarball is anonymously fetchable and pnpr
             // never mints a per-tarball gateway URL. Any inline userinfo a
