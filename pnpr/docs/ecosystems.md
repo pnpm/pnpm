@@ -21,6 +21,7 @@ configured:
 | Cargo | `/cargo/` |
 | Python | `/pypi/` |
 | Container images | `/oci/` |
+| [Node.js distributions](node-distributions.md) | `/node/` |
 
 `/<ecosystem>/~<name>/` addresses a named registry and `/<ecosystem>/` the
 ecosystem's default. Adding an ecosystem to a server therefore changes no URL

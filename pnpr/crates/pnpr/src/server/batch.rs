@@ -432,6 +432,9 @@ async fn validate_entry(
             ))
         }
         Ecosystem::Pypi => validate_pypi_entry(state, identity, package).await,
+        Ecosystem::Node => Err(RegistryError::BadRequest {
+            reason: "Node.js distributions are upstream-only".into(),
+        }),
         Ecosystem::Oci => {
             let entry: OciEntry =
                 serde_json::from_value(package).map_err(|err| malformed_body(&err))?;

@@ -153,7 +153,9 @@ pub fn package_segments(ecosystem: Ecosystem, name: &str) -> Vec<String> {
             }
             _ => vec![MARKER.to_string(), encode_segment(name)],
         },
-        Ecosystem::Cargo | Ecosystem::Pypi => vec![MARKER.to_string(), encode_segment(name)],
+        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Node => {
+            vec![MARKER.to_string(), encode_segment(name)]
+        }
         Ecosystem::Oci => {
             if name.contains('/')
                 && name

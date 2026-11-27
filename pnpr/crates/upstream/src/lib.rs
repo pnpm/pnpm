@@ -460,12 +460,14 @@ impl Upstream {
         accept: Option<&str>,
         limit: usize,
     ) -> Result<FetchOutcome<FetchedDocument>> {
-        let url = format!(
-            "{}/{}",
-            self.base.trim_end_matches('/'),
-            relative_path.trim_start_matches('/'),
-        );
+        let url = self.document_url(relative_path);
         self.fetch_artifact_document(&url, accept, limit).await
+    }
+
+    /// The absolute URL of a relative distribution path at this upstream.
+    #[must_use]
+    pub fn document_url(&self, relative_path: &str) -> String {
+        format!("{}/{}", self.base.trim_end_matches('/'), relative_path.trim_start_matches('/'))
     }
 
     /// Fetch an optional npm version manifest. Some registries implement only packuments.

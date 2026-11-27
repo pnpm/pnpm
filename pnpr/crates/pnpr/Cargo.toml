@@ -54,6 +54,7 @@ backend-postgres = [
 [dependencies]
 pnpr-libsql = { workspace = true, optional = true }
 pnpr-auth = { workspace = true }
+pnpm-crypto-shasums-file = { workspace = true }
 pnpr-cargo = { workspace = true }
 pnpr-config = { workspace = true }
 pnpr-error = { workspace = true, features = ["server"] }

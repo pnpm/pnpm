@@ -49,7 +49,7 @@ pub async fn verify_storage(
         for pkg_name in package_names {
             verify_package(&mut ctx, &pkg_name).await?;
         }
-        for ecosystem in pnpr_registry::Ecosystem::all() {
+        for ecosystem in pnpr_registry::Ecosystem::hosted() {
             check_orphaned_archives(&storage.for_hosted(&namespace, ecosystem), &mut report).await?;
         }
     }

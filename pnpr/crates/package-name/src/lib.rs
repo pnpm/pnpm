@@ -43,6 +43,7 @@ pub enum Ecosystem {
     Cargo,
     Pypi,
     Oci,
+    Node,
 }
 
 impl Ecosystem {
@@ -53,12 +54,18 @@ impl Ecosystem {
             Ecosystem::Cargo => "cargo",
             Ecosystem::Pypi => "pypi",
             Ecosystem::Oci => "oci",
+            Ecosystem::Node => "node",
         }
     }
 
     /// Every ecosystem pnpr can serve.
     pub fn all() -> impl Iterator<Item = Self> {
         Self::iter()
+    }
+
+    /// Ecosystems that accept publications into hosted storage.
+    pub fn hosted() -> impl Iterator<Item = Self> {
+        Self::all().filter(|eco| *eco != Self::Node)
     }
 
     /// The path this ecosystem's endpoints sit under, whatever else the
@@ -141,7 +148,7 @@ impl CanonicalPackageName {
 
     pub fn parse(raw: &str, ecosystem: Ecosystem) -> Result<Self, RegistryError> {
         let canonical = match ecosystem {
-            Ecosystem::Npm => raw.to_string(),
+            Ecosystem::Npm | Ecosystem::Node => raw.to_string(),
             Ecosystem::Cargo => canonicalize_crate_name(raw)
                 .map_err(|error| {
                     invalid_ecosystem_name(raw.to_owned(), ecosystem, error.to_string())
@@ -169,7 +176,7 @@ impl CanonicalPackageName {
         };
         Self::parse_canonical(&canonical, ecosystem)
             .map_err(|error| match ecosystem {
-                Ecosystem::Npm => error,
+                Ecosystem::Npm | Ecosystem::Node => error,
                 Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => invalid_ecosystem_name(
                     raw.to_owned(),
                     ecosystem,

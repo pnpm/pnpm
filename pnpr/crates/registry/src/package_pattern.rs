@@ -53,7 +53,9 @@ impl PackagePattern {
             // it, so an exact name is the only claim below `**`. A scoped
             // shape here would be a claim no name of this ecosystem could
             // ever match.
-            Ecosystem::Cargo | Ecosystem::Pypi => Self::parse_exact(pattern, ecosystem),
+            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Node => {
+                Self::parse_exact(pattern, ecosystem)
+            }
         }
     }
 
@@ -232,7 +234,7 @@ pub(super) fn wildcard_shapes(ecosystem: Ecosystem) -> &'static str {
     match ecosystem {
         Ecosystem::Npm => "`@scope/*` or `@*/*`",
         Ecosystem::Oci => "`<namespace>/*`",
-        Ecosystem::Cargo | Ecosystem::Pypi => "nothing narrower",
+        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Node => "nothing narrower",
     }
 }
 

@@ -163,6 +163,12 @@ pub(super) struct PackageKey {
 }
 
 impl PackageKey {
+    fn unsupported_hosted_ecosystem(&self) -> RegistryError {
+        RegistryError::Internal {
+            reason: format!("{} has no hosted package documents", self.ecosystem),
+        }
+    }
+
     fn params(&self) -> (&str, &str, &str) {
         (&self.namespace, self.ecosystem.as_str(), &self.name)
     }

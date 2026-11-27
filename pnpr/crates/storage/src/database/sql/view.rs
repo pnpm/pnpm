@@ -307,6 +307,7 @@ fn query_published_names(
         Ecosystem::Npm => "npm_versions",
         Ecosystem::Cargo => "cargo_versions",
         Ecosystem::Pypi => "pypi_files",
+        Ecosystem::Node => return Ok(Vec::new()),
         Ecosystem::Oci => "oci_manifests",
     };
     connection

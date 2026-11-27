@@ -39,6 +39,7 @@ mod grant_administration;
 mod htpasswd_import;
 mod managed_refresh;
 mod multi_replica;
+mod node_distribution;
 mod oci_registry;
 mod package_ownership;
 mod policy;

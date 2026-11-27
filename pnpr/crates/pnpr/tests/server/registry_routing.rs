@@ -734,7 +734,7 @@ async fn registries_keep_ecosystem_access_and_defaults_separate() {
     let app = router_with_auth(config, auth);
     for authenticated in [false, true] {
         let directory = read_registry_directory(&app, authenticated.then_some(&token)).await;
-        for ecosystem in Ecosystem::all() {
+        for ecosystem in Ecosystem::hosted() {
             assert_ecosystem_directory(
                 &directory,
                 ecosystem,

@@ -73,15 +73,6 @@ use std::{
     },
 };
 
-pub(super) const fn supported_state_version(ecosystem: Ecosystem) -> u32 {
-    match ecosystem {
-        Ecosystem::Npm => PACKUMENT_FORMAT_VERSION,
-        Ecosystem::Cargo => CARGO_STATE_VERSION,
-        Ecosystem::Pypi => PYPI_STATE_VERSION,
-        Ecosystem::Oci => OCI_STATE_VERSION,
-    }
-}
-
 /// The stored row of a package.
 pub(super) struct PackageRow {
     pub(super) generation: u64,
@@ -113,7 +104,13 @@ pub(super) fn package_row_from(key: &PackageKey, rows: Vec<Row>) -> Result<Optio
 }
 
 fn validate_stored_state_version(key: &PackageKey, raw_version: i64) -> Result<u32> {
-    let supported = supported_state_version(key.ecosystem);
+    let supported = match key.ecosystem {
+        Ecosystem::Npm => PACKUMENT_FORMAT_VERSION,
+        Ecosystem::Cargo => CARGO_STATE_VERSION,
+        Ecosystem::Pypi => PYPI_STATE_VERSION,
+        Ecosystem::Node => return Err(key.unsupported_hosted_ecosystem()),
+        Ecosystem::Oci => OCI_STATE_VERSION,
+    };
     if raw_version > i64::from(supported) {
         return Err(RegistryError::DocumentFormatTooNew {
             document: key.name.clone(),
@@ -176,6 +173,7 @@ impl StoredPackage {
             }
             Ecosystem::Cargo => queries.extend(cargo_rows::queries(key)),
             Ecosystem::Pypi => queries.extend(pypi_rows::queries(key)),
+            Ecosystem::Node => {}
             Ecosystem::Oci => queries.extend(oci_rows::queries(key)),
         }
         queries
@@ -199,6 +197,7 @@ impl StoredPackage {
             Ecosystem::Npm => npm_from_rows(&mut next)?,
             Ecosystem::Cargo => StoredEcosystem::Cargo(cargo_rows::from_rows(next()?, next()?)?),
             Ecosystem::Pypi => StoredEcosystem::Pypi(pypi_rows::from_rows(next()?, next()?)?),
+            Ecosystem::Node => return Err(key.unsupported_hosted_ecosystem()),
             Ecosystem::Oci => StoredEcosystem::Oci(oci_rows::from_rows(next()?, next()?)?),
         };
         Ok(Self { row, tombstone_owners, ecosystem })
@@ -298,7 +297,7 @@ impl Commit<'_> {
     ) -> Result<Option<bool>> {
         let npm_rows = match self.key.ecosystem {
             Ecosystem::Npm => Some(decompose(bytes)?),
-            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => None,
+            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci | Ecosystem::Node => None,
         };
         if !expected.admits(
             stored.row.as_ref().map(|row| row.generation),

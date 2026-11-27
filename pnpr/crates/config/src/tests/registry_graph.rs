@@ -567,3 +567,13 @@ registries:
     let err = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap_err();
     assert!(err.to_string().contains("duplicates normalized key"), "{err}");
 }
+
+#[test]
+fn node_distributions_default_to_the_stable_origin_and_require_an_upstream() {
+    let graph = "registries:\n  runtimes: { type: upstream, ecosystem: node, public: true }";
+    let config = load_with_graph(graph, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.routing.upstreams["runtimes"].url, "https://nodejs.org/dist/");
+    let hosted = "registries:\n  runtimes: { type: hosted, ecosystem: node }";
+    let err = load_with_graph(hosted, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("must be an upstream"), "{err}");
+}

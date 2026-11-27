@@ -130,7 +130,8 @@ pub(super) struct UpstreamFile {
     /// `pypi`, a Simple API root (`https://pypi.org/simple/`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) ecosystem: Option<Ecosystem>,
-    pub(super) url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) url: Option<String>,
     /// An anonymous, world-readable origin (e.g. the public npm registry).
     /// Mutually exclusive with `auth`.
     #[serde(default, skip_serializing_if = "is_false")]
@@ -500,4 +501,14 @@ pub(super) fn default_true() -> bool {
 )]
 pub(super) fn is_false(value: &bool) -> bool {
     !*value
+}
+
+impl UpstreamFile {
+    pub(super) fn origin_url(&self) -> Option<&str> {
+        self.url
+            .as_deref()
+            .or_else(|| {
+                (self.ecosystem == Some(Ecosystem::Node)).then_some("https://nodejs.org/dist/")
+            })
+    }
 }

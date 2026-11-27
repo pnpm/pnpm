@@ -69,7 +69,7 @@ fn entry_version(entry: &Value, ecosystem: Ecosystem) -> Option<(String, String)
             let version = pnpr_pypi::normalize_version(&text(entry.get("version"))?).ok()?;
             Some((text(entry.get("name"))?, version))
         }
-        Ecosystem::Oci => None,
+        Ecosystem::Oci | Ecosystem::Node => None,
     }
 }
 

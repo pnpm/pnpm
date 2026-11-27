@@ -135,7 +135,7 @@ async fn handle_admitted_resolve(
         // An arm rather than a catch-all so an ecosystem added to the shared
         // enum has to decide here too, even though `resolves` turns this one
         // away before the dispatch runs.
-        Ecosystem::Oci => super::refuse_unresolvable(probe.ecosystem),
+        Ecosystem::Oci | Ecosystem::Node => super::refuse_unresolvable(probe.ecosystem),
     }
 }
 

@@ -23,6 +23,7 @@
     },
     "ecosystems",
     "container-images",
+    "node-distributions",
     "discovery",
     "web-ui",
     "install-acceleration",
