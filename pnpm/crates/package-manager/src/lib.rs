@@ -69,6 +69,7 @@ pub use prefetch_downloads::{
     PrefetchDownloads,
 };
 pub use prefetching_resolver::*;
+pub use projects_graph_view::GraphPkg;
 pub use rayon_pool::*;
 pub use remove::*;
 pub use resolution_observer::*;
@@ -130,6 +131,7 @@ mod patch;
 mod peer_dependency_issues;
 mod prefetch_downloads;
 mod prefetching_resolver;
+mod projects_graph_view;
 mod prune_merged_branch_lockfile;
 mod prune_virtual_store;
 mod rayon_pool;

@@ -78,6 +78,7 @@ use pnpm_executor::{
     exit_like,
 };
 use pnpm_package_manager::{
+    GraphPkg,
     make_node_package_map_option,
     make_node_require_option,
     package_map_path_for_execution,
@@ -89,7 +90,6 @@ use pnpm_reporter::{
     PnpmLog,
     ScopeLog,
 };
-use pnpm_workspace::GraphPkg;
 use pnpm_workspace_projects_graph::ProjectGraph;
 use pnpm_workspace_task_scheduler::{
     BuildTaskGraphOptions,
