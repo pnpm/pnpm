@@ -1,10 +1,5 @@
 use std::path::Path;
 
-use pnpm_package_manifest::{
-    publishes_from_directory,
-    safe_read_project_manifest_from_dir,
-};
-
 use crate::{
     LocalResolverOptions,
     LocalTarballResolution,
@@ -48,39 +43,7 @@ pub(crate) fn check_scheme_spec_allowed(
     }
 }
 
-pub(crate) fn find_bounded_parent_publish_manifest(
-    policy: LocalFilesystemPolicy,
-    target: &Path,
-    opts: &LocalResolverOptions,
-) -> Result<Option<serde_json::Value>, ResolveLocalError> {
-    match policy {
-        LocalFilesystemPolicy::HostFilesystem(_) => {
-            pnpm_package_manifest::find_parent_publish_manifest(target)
-                .map_err(ResolveLocalError::ReadManifest)
-        }
-        LocalFilesystemPolicy::WorkspaceOnly => {
-            let root = pnpm_fs::lexical_normalize(workspace_root(opts));
-            let normalized_target = pnpm_fs::lexical_normalize(target);
-            for parent in normalized_target
-                .ancestors()
-                .skip(1)
-                .take_while(|parent| pnpm_fs::is_subdir(&root, parent))
-            {
-                let Some(manifest) = safe_read_project_manifest_from_dir(parent)
-                    .map_err(ResolveLocalError::ReadManifest)?
-                else {
-                    continue;
-                };
-                if publishes_from_directory(parent, &manifest, &normalized_target) {
-                    return Ok(Some(manifest));
-                }
-            }
-            Ok(None)
-        }
-    }
-}
-
-fn workspace_root(opts: &LocalResolverOptions) -> &Path {
+pub(crate) fn workspace_root(opts: &LocalResolverOptions) -> &Path {
     opts.workspace_dir
         .as_deref()
         .or(opts.lockfile_dir.as_deref())

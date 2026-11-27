@@ -125,6 +125,7 @@ pub(super) async fn resolve_aliasless_local(
         // `is_local_filesystem_specifier` above never claims a `workspace:`
         // spec, so this setting has nothing to apply to here.
         inject_workspace_packages: false,
+        workspace_projects: None,
     };
     let mut claimed =
         resolve_from_local_scheme(&ctx, &wanted, &opts).await.map_err(AddError::ResolveLocal)?;
