@@ -112,7 +112,7 @@ pub(super) fn workspace_path_matches_target(
 
 /// The manifest of the workspace project at `target_dir` or publishing from
 /// `target_dir`: the one already loaded for it, else the ancestor project
-/// whose `publishConfig.directory` is `target_dir`, else its [`manifest_file`],
+/// whose `publishConfig.directory` is `target_dir`, else its manifest file,
 /// read only when it stays inside the workspace.
 pub(super) fn target_manifest<'a>(
     dirs: &super::spec::SpecDirs<'a>,

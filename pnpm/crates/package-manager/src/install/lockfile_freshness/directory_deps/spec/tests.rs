@@ -248,8 +248,6 @@ fn a_loaded_project_is_held_to_its_first_manifest_file_only() {
     assert!(loaded_target_satisfies(&workspace_root, target_dir));
 }
 
-/// `(basename, text)` of a manifest for `pkg` at `version`, in each format a
-/// target without a `package.json` is read from.
 fn yaml_and_json5_manifests(version: &str) -> [(&'static str, String); 2] {
     [
         ("package.yaml", format!("name: pkg\nversion: {version}\n")),

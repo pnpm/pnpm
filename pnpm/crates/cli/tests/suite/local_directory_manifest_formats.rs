@@ -87,8 +87,6 @@ fn an_injected_project_reached_by_path_is_described_by_its_yaml_or_json5_manifes
     }
 }
 
-/// A workspace with `app` linking `lib` by a `workspace:` range, `lib` being
-/// described by `manifest`.
 fn workspace_linking_lib(manifest: (&str, &str), workspace_yaml: &str) -> WorkspaceFixture {
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml(workspace_yaml);
