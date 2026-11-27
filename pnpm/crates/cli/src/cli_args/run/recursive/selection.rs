@@ -17,6 +17,7 @@ use super::{
     RecursiveRunError,
     RunArgs,
     ScriptSelector,
+    TaskDeclaration,
     TaskGraph,
     TaskKey,
     TaskRunExecutionSettings,
@@ -298,6 +299,13 @@ pub(super) fn run_tasks<'a>(
     (args.workspace.sort && !config.tasks.is_empty()).then_some(&config.tasks)
 }
 
+pub(in crate::cli_args) fn task_declaration(settings: &TaskSettings) -> TaskDeclaration<'_> {
+    TaskDeclaration {
+        depends_on: settings.depends_on.as_deref(),
+        concurrency: settings.concurrency,
+    }
+}
+
 /// How many tasks run at once. `--parallel` runs them all, `--sequential`
 /// one at a time, and the default follows the workspace concurrency
 /// setting.
@@ -420,6 +428,7 @@ pub(super) fn build_run_task_graph(
         task_name: script_name,
         requested_projects: None,
         tasks: run_tasks(args, config),
+        declaration: task_declaration,
         is_selector_task: ScriptSelector::is_selector,
     });
     if args.workspace.reverse {

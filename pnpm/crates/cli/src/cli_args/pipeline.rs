@@ -41,6 +41,7 @@ use super::{
         RunContext,
         ScriptSelector,
         run_stages,
+        task_declaration,
     },
 };
 use crate::{
@@ -455,6 +456,7 @@ impl<'a> PipelineRun<'a> {
             is_selector_task: ScriptSelector::is_selector,
             requested_projects: Some(&plan.selection.requested),
             tasks: (!self.config.tasks.is_empty()).then_some(&self.config.tasks),
+            declaration: task_declaration,
         })
     }
 

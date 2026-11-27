@@ -146,9 +146,8 @@ pub(super) fn node_edges<Node: Clone + Eq + std::hash::Hash>(
     NodeEdges { dependents, pending_dependencies }
 }
 
-pub(super) fn task_concurrency(settings: &impl TaskDeclaration) -> Option<usize> {
-    settings
-        .concurrency()
+pub(super) fn task_concurrency(settings: TaskDeclaration<'_>) -> Option<usize> {
+    settings.concurrency
         .map(usize::try_from)
         .map(|converted| converted.unwrap_or(usize::MAX))
 }
