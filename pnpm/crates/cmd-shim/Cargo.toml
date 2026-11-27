@@ -25,9 +25,6 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 walkdir = { workspace = true }
 
-[target.'cfg(unix)'.dependencies]
-pnpm-ffi-fs = { workspace = true }
-
 [dev-dependencies]
 command-extra = { workspace = true }
 tempfile = { workspace = true }

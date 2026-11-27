@@ -62,7 +62,7 @@ pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
             if matches!(
                 error.kind(),
                 io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem,
-            ) && pnpm_ffi_fs::can_execute(&target) =>
+            ) && pnpm_fs::can_execute(&target) =>
         {
             Ok(())
         }
