@@ -1130,6 +1130,50 @@ fn dedupe_prunes_the_minimum_release_age_excludes_after_resolution_changes() {
     drop((root, anchor));
 }
 
+#[test]
+fn verify_deps_after_pruning_excludes() {
+    for args in [&["install", "--frozen-lockfile"][..], &["dedupe"], &["install"]] {
+        let (_root, workspace, _anchor) = setup();
+        write_manifest(&workspace, &format!(r#"{{ "{FOO}": "2.0.0" }}"#));
+        run_ok(&workspace, &["install", "--lockfile-only"]);
+        append_workspace_yaml(
+            &workspace,
+            &format!(
+                "minimumReleaseAgeExcludePrune: true\ntrustPolicyExcludePrune: true\nverifyDepsBeforeRun: error\n\
+                minimumReleaseAgeExclude: ['{FOO}@1.0.0 || 2.0.0', obsolete@1.0.0]\ntrustPolicyExclude: [obsolete@1.0.0]\n",
+            ),
+        );
+        run_ok(&workspace, args);
+        assert!(!read(&workspace, "pnpm-workspace.yaml").contains("obsolete"));
+        run_ok(&workspace, &["exec", "node", "--version"]);
+        let yaml = read(&workspace, "pnpm-workspace.yaml");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            yaml.replace(&format!("{FOO}@2.0.0"), "different@2.0.0"),
+        )
+        .unwrap();
+        let output = pacquet(&workspace, ["exec", "node", "--version"]).output().unwrap();
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains("minimumReleaseAgeExclude setting has changed"),
+        );
+    }
+}
+
+#[test]
+fn verify_deps_after_pruning_the_last_exclusion_in_an_empty_project() {
+    let (_root, workspace, _anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        "trustPolicyExcludePrune: true\ntrustPolicyExclude: [obsolete]\nverifyDepsBeforeRun: error\n",
+    );
+    run_ok(&workspace, &["install"]);
+    assert!(!read(&workspace, "pnpm-workspace.yaml").contains("obsolete"));
+    run_ok(&workspace, &["exec", "node", "--version"]);
+}
+
 /// Dropping a dependency is drift the install absorbs by rewriting the
 /// loaded lockfile in place of a resolution, and `--lockfile-only` then
 /// returns before materializing anything; the prune pass has to run on
@@ -1200,6 +1244,19 @@ fn install_prunes_the_minimum_release_age_excludes_across_per_project_lockfiles(
 
     assert_excludes_pruned_across_projects(&workspace);
     drop((root, anchor));
+}
+
+#[test]
+fn verify_deps_after_pruning_excludes_across_project_lockfiles() {
+    let (_root, workspace, _anchor) = setup();
+    per_project_lockfile_workspace_with_stale_exclude(&workspace);
+    append_workspace_yaml(&workspace, "verifyDepsBeforeRun: error\n");
+    run_ok(&workspace, &["install"]);
+    assert_excludes_pruned_across_projects(&workspace);
+    run_ok(&workspace, &["-r", "exec", "node", "--version"]);
+    for dir in [workspace.clone(), workspace.join("packages/a"), workspace.join("packages/b")] {
+        run_ok(&dir, &["exec", "node", "--version"]);
+    }
 }
 
 #[test]

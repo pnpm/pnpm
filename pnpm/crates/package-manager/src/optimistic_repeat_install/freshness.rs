@@ -254,24 +254,13 @@ fn check_settings_and_workspace_freshness(
     scope: Scope<'_>,
 ) -> Result<(), Stale> {
     let &OptimisticRepeatInstallCheck {
-        config,
-        project_manifests,
-        catalogs,
-        layout:
-            crate::RepeatInstallLayout {
-                node_linker,
-                included,
-                supported_architectures,
-                ..
-            },
-        ..
+        config, project_manifests, catalogs, ..
     } = check;
     if let Some(setting) = first_setting_drift(
         state,
         config,
-        node_linker,
-        included,
-        supported_architectures,
+        check.workspace_root,
+        check.layout,
         policy.ignored_settings,
     ) {
         return Err(Stale::SettingChanged(setting));
@@ -355,10 +344,13 @@ fn settle_proven_tree(
             .get()
             .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
     }
-    stand_in_writes::refuse(check, drift.lockfile_changed || drift.rehashed)?;
+    let excludes_pruned = state.settings.minimum_release_age_exclude
+        != check.config.minimum_release_age_exclude
+        || state.settings.trust_policy_exclude != check.config.trust_policy_exclude;
+    stand_in_writes::refuse(check, drift.lockfile_changed || drift.rehashed || excludes_pruned)?;
     let restored = settle_missing_wanted_lockfile(check, policy, &drift.current)?;
     let vouched = drift.proven_dirs(&[]);
-    if drift.lockfile_changed || restored {
+    if drift.lockfile_changed || restored || excludes_pruned {
         record_state(check, state, &vouched, policy);
     } else {
         refresh_state(check, state, drift, policy, &vouched);

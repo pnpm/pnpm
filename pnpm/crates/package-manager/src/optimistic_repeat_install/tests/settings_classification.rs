@@ -420,5 +420,15 @@ fn recorded_state(config: &Config) -> WorkspaceState {
 }
 
 fn install_gate_drift(state: &WorkspaceState, config: &Config) -> Option<&'static str> {
-    first_setting_drift(state, config, NodeLinker::Isolated, isolated_included(), None, &[])
+    first_setting_drift(
+        state,
+        config,
+        std::path::Path::new("."),
+        crate::RepeatInstallLayout {
+            node_linker: NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        &[],
+    )
 }

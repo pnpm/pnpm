@@ -308,6 +308,8 @@ This setting allows the checking of the state of dependencies before running scr
 - `error` - Throws an error if `node_modules` is not up to date.
 - `false` - Disables dependency checks.
 
+After an install prunes unused entries from `minimumReleaseAgeExclude` or `trustPolicyExclude`, scripts can run immediately.
+
 Changing [`trustLockfile`](./dependency-resolution.md#trustlockfile) alone does not trigger a dependency reinstall before a script runs. An explicit `pnpm install` verifies the lockfile when that setting is off.
 
 When the command is filtered, for example `pnpm --filter foo run build`, the check covers the selected projects and the workspace projects they depend on, and the install it runs is filtered the same way.

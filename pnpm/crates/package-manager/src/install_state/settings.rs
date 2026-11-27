@@ -39,6 +39,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{
     Config,
     NodeLinker,
+    version_policy::ResolvedPackageVersions,
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_is_installable::SupportedArchitectures;
@@ -46,7 +47,10 @@ use pnpm_workspace_state::{
     WorkspaceState,
     WorkspaceStateSettings,
 };
-use std::path::Path;
+use std::{
+    cell::OnceCell,
+    path::Path,
+};
 
 /// The workspace-state key of [`global_virtual_store_layout_version`]. It is
 /// not a setting a user can name, so a message words it separately.
@@ -111,17 +115,24 @@ pub(crate) fn recorded_supported_architectures_match(
 pub(crate) fn first_setting_drift(
     state: &WorkspaceState,
     config: &Config,
-    node_linker: NodeLinker,
-    included: IncludedDependencies,
-    supported_architectures: Option<&SupportedArchitectures>,
+    lockfile_root: &Path,
+    layout: crate::RepeatInstallLayout<'_>,
     ignored_workspace_state_settings: &[&str],
 ) -> Option<&'static str> {
-    let current = current_settings(config, node_linker, included, supported_architectures);
+    let current = current_settings(
+        config,
+        layout.node_linker,
+        layout.included,
+        layout.supported_architectures,
+    );
     SettingsComparison {
         recorded: &state.settings,
         live: &current,
         ignored: ignored_workspace_state_settings,
-        workspace_dir: config.workspace_dir.as_deref(),
+        config,
+        lockfile_root,
+        validation: state.validation.as_ref(),
+        prune_versions: OnceCell::new(),
     }
     .first_drift()
 }
@@ -134,11 +145,16 @@ macro_rules! return_drift_if {
     };
 }
 
+mod release_policy;
+
 struct SettingsComparison<'a> {
     recorded: &'a WorkspaceStateSettings,
     live: &'a WorkspaceStateSettings,
     ignored: &'a [&'a str],
-    workspace_dir: Option<&'a Path>,
+    config: &'a Config,
+    lockfile_root: &'a Path,
+    validation: Option<&'a pnpm_workspace_state::Validation>,
+    prune_versions: OnceCell<Option<ResolvedPackageVersions>>,
 }
 
 impl SettingsComparison<'_> {
@@ -289,37 +305,11 @@ impl SettingsComparison<'_> {
         return_drift_if!(self, "packageExtensions", package_extensions_drift);
         None
     }
-    fn minimum_release_age_drift(&self) -> Option<&'static str> {
-        let recorded = self.recorded;
-        let live = self.live;
-        return_drift_if!(
-            self,
-            "minimumReleaseAge",
-            recorded.minimum_release_age != live.minimum_release_age,
-        );
-        return_drift_if!(
-            self,
-            "minimumReleaseAgeExclude",
-            recorded.minimum_release_age_exclude != live.minimum_release_age_exclude,
-        );
-        return_drift_if!(
-            self,
-            "minimumReleaseAgeIgnoreMissingTime",
-            recorded.minimum_release_age_ignore_missing_time
-                != live.minimum_release_age_ignore_missing_time,
-        );
-        return_drift_if!(
-            self,
-            "minimumReleaseAgeStrict",
-            recorded.minimum_release_age_strict != live.minimum_release_age_strict,
-        );
-        None
-    }
     fn workspace_policy_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
         let live = self.live;
         let patched_dependencies_drift =
-            !patched_dependencies_match(recorded, live, self.workspace_dir);
+            !patched_dependencies_match(recorded, live, self.config.workspace_dir.as_deref());
         return_drift_if!(self, "patchedDependencies", patched_dependencies_drift);
         return_drift_if!(
             self,
@@ -342,18 +332,7 @@ impl SettingsComparison<'_> {
             "supportedArchitectures",
             recorded.supported_architectures != live.supported_architectures,
         );
-        return_drift_if!(self, "trustPolicy", recorded.trust_policy != live.trust_policy);
-        return_drift_if!(
-            self,
-            "trustPolicyExclude",
-            recorded.trust_policy_exclude != live.trust_policy_exclude,
-        );
-        return_drift_if!(
-            self,
-            "trustPolicyIgnoreAfter",
-            recorded.trust_policy_ignore_after != live.trust_policy_ignore_after,
-        );
-        None
+        self.trust_policy_drift()
     }
 }
 
