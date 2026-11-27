@@ -87,7 +87,7 @@ impl ResolverMetrics {
             buffer,
             &LabelledCounter {
                 name: "pnpr_tarball_routes_total",
-                help: "Tarball URLs the resolver routed, by destination.",
+                help: "Tarball routing decisions the resolver made, by destination.",
                 label: "route",
                 values: &routes,
             },

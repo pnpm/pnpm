@@ -238,7 +238,6 @@ impl ResolverShared {
         }
     }
 }
-/// Where the resolver keeps its files on disk.
 struct ResolverDirs {
     cache: PathBuf,
     /// The package store resolutions fetch into, shared by every graph.

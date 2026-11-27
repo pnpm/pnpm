@@ -12,8 +12,9 @@ impl TarballRouter {
         self
     }
 
-    /// Classify the route of a tarball URL the response is about to carry,
-    /// counting the decision.
+    /// Classify the route of a tarball URL the resolver emits, counting the
+    /// decision. A decision counts even if its frame is later dropped, and a
+    /// cache hit replays earlier decisions without counting them.
     pub(super) fn classify_tarball(&self, fetch: &str, package: &str) -> RouteClass {
         let class = self.context.classify(&self.identity, fetch, Some(package));
         if let Some(metrics) = &self.metrics {
