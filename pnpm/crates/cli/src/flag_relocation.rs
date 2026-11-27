@@ -81,10 +81,22 @@ pub(crate) fn attached_short_option_prefix(
     None
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(crate) enum PositionalTarget {
     Subcommand,
     Package,
+}
+
+impl PositionalTarget {
+    fn skips_option(self, owner: OptionOwner) -> bool {
+        match owner {
+            OptionOwner::TopLevel | OptionOwner::Subcommand => true,
+            OptionOwner::Unknown => match self {
+                Self::Subcommand => true,
+                Self::Package => false,
+            },
+        }
+    }
 }
 
 /// A package must follow recognized options. An unknown option leaves its
@@ -99,14 +111,15 @@ pub(crate) fn scan_for_positional(
     loop {
         let raw = argv.get(index)?;
         if raw == "--" {
-            return (target == PositionalTarget::Package && index + 1 < argv.len()).then_some(
-                index + 1,
-            );
+            return match target {
+                PositionalTarget::Subcommand => None,
+                PositionalTarget::Package => (index + 1 < argv.len()).then_some(index + 1),
+            };
         }
         let Some(option) = scan_option(raw, top_level, subcommand_table) else {
             return raw.to_str().map(|_| index);
         };
-        if target == PositionalTarget::Package && option.owner == OptionOwner::Unknown {
+        if !target.skips_option(option.owner) {
             return None;
         }
         index += option.width;
@@ -185,10 +198,11 @@ fn moved_option_indexes(
         let Some(scanned) = scan_option(&argv[index], top_level, subcommand_table) else {
             break;
         };
-        if scanned.owner == OptionOwner::Subcommand {
-            for offset in 0..scanned.width.min(subcommand_index - index) {
-                moved_indexes.insert(index + offset);
+        match scanned.owner {
+            OptionOwner::Subcommand => {
+                moved_indexes.extend(index..(index + scanned.width).min(subcommand_index));
             }
+            OptionOwner::TopLevel | OptionOwner::Unknown => {}
         }
         index += scanned.width;
     }
@@ -202,7 +216,7 @@ struct ScannedToken {
     owner: OptionOwner,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum OptionOwner {
     TopLevel,
     Subcommand,
@@ -292,9 +306,10 @@ fn scan_short_cluster(
             return Some(consumes_value);
         }
         if let Some(consumes_value) = subcommand_table.short_consumes_value(short) {
-            if owner != OptionOwner::Unknown {
-                owner = OptionOwner::Subcommand;
-            }
+            owner = match owner {
+                OptionOwner::TopLevel | OptionOwner::Subcommand => OptionOwner::Subcommand,
+                OptionOwner::Unknown => OptionOwner::Unknown,
+            };
             Some(consumes_value)
         } else {
             owner = OptionOwner::Unknown;
