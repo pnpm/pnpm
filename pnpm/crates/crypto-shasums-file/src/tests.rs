@@ -49,13 +49,29 @@ be127be1d98cad94c56f46245d0f2de89934d300028694456861a6d5ac558bf3  foo.msi
 
 #[test]
 fn skips_empty_lines() {
-    let body = "\n\nabc def\n";
-    // The hash isn't valid hex, so this is just exercising the line
-    // split. We rely on the upstream contract that the body has a
-    // proper hash; the picker is the validator.
+    let body = "\n\ned52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  def\n";
     let items = parse_shasums_file(body);
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].file_name, "def");
+}
+
+/// Each malformed row used to give its file an empty or a wrong integrity.
+#[test]
+fn skips_rows_whose_hash_is_not_64_hex_digits() {
+    let rows = [
+        format!("{}  signed.tar.gz", "+f".repeat(32)),
+        format!("{}  not-hex.tar.gz", "zz".repeat(32)),
+        format!("{}  short.tar.gz", "ab".repeat(16)),
+        format!("{}  upper.tar.gz", "AB".repeat(32)),
+    ];
+    let items = parse_shasums_file(&rows.join("\n"));
+    assert_eq!(
+        items,
+        vec![ShasumsFileItem {
+            integrity: "sha256-q6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6s=".to_string(),
+            file_name: "upper.tar.gz".to_string(),
+        }],
+    );
 }
 
 #[test]
