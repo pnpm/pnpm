@@ -75,6 +75,42 @@ fn legacy_deploy_includes_nested_linked_dependencies() {
     drop((root, mock_instance));
 }
 
+/// The deploy copies the project's manifest file as written, so the install
+/// that follows reads the format the project uses.
+#[test]
+fn legacy_deploy_installs_a_project_with_a_yaml_or_json5_manifest() {
+    for (basename, manifest) in [
+        ("package.yaml", "name: app\nversion: 1.0.0\ndependencies:\n  lib: workspace:*\n"),
+        ("package.json5", "{name: 'app', version: '1.0.0', dependencies: {lib: 'workspace:*'}}"),
+    ] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        append_workspace_yaml_key(&workspace, "packages", "\n  - packages/*");
+        write_project(&workspace, "lib", &serde_json::json!({ "name": "lib", "version": "1.0.0" }));
+        let app = workspace.join("packages/app");
+        fs::create_dir_all(&app).unwrap();
+        fs::write(app.join(basename), manifest).unwrap();
+
+        pacquet_cmd(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        pacquet_cmd(&workspace)
+            .with_args(["--filter", "app", "deploy", "--legacy", "deployed"])
+            .assert()
+            .success();
+
+        let deployed = workspace.join("deployed");
+        assert!(deployed.join(basename).exists(), "{basename} is deployed");
+        assert!(
+            deployed.join("node_modules/lib/index.js").exists(),
+            "{basename}: lib is installed",
+        );
+        drop((root, mock_instance));
+    }
+}
+
 #[test]
 fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

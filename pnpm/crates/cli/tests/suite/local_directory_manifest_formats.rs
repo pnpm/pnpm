@@ -87,6 +87,41 @@ fn an_injected_project_reached_by_path_is_described_by_its_yaml_or_json5_manifes
     }
 }
 
+/// A workspace with `app` linking `lib` by a `workspace:` range, `lib` being
+/// described by `manifest`.
+fn workspace_linking_lib(manifest: (&str, &str), workspace_yaml: &str) -> WorkspaceFixture {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(workspace_yaml);
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    write_lib(&fixture.workspace.join("packages/lib"), manifest);
+    fixture.project(
+        "app",
+        "app",
+        ManifestDeps { prod: &[("lib", "workspace:^1.0.0")], ..Default::default() },
+    );
+    fixture
+}
+
+/// A filtered install checks the lockfile holding only the selected projects'
+/// manifests, so it reads `lib` from disk.
+#[test]
+fn a_filtered_frozen_install_accepts_a_yaml_or_json5_linked_project() {
+    for manifest in MANIFESTS {
+        let fixture = workspace_linking_lib(manifest, "");
+        fixture.run(["install"]);
+        fixture.run(["install", "--frozen-lockfile", "--filter", "app"]);
+    }
+}
+
+#[test]
+fn a_dedicated_lockfile_frozen_install_accepts_a_yaml_or_json5_linked_project() {
+    for manifest in MANIFESTS {
+        let fixture = workspace_linking_lib(manifest, "sharedWorkspaceLockfile: false\n");
+        fixture.run(["install"]);
+        fixture.run(["install", "--frozen-lockfile"]);
+    }
+}
+
 /// JSON is valid JSON5 and valid YAML, so one serialization serves every
 /// basename.
 fn write_tool(dir: &Path, basename: &str, manifest: &Value) {

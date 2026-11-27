@@ -109,8 +109,9 @@ pub(super) fn workspace_path_matches_target(
 
 /// The manifest of the workspace project at `target_dir` or publishing from
 /// `target_dir`: the one already loaded for it, else the ancestor project
-/// whose `publishConfig.directory` is `target_dir`, else its `package.json`,
-/// read only when it stays inside the workspace.
+/// whose `publishConfig.directory` is `target_dir`, else its manifest file
+/// ([`pnpm_package_manifest::project_manifest_path`]), read only when it stays
+/// inside the workspace.
 pub(super) fn target_manifest<'a>(
     dirs: &super::spec::SpecDirs<'a>,
     target_dir: &Path,
@@ -128,11 +129,11 @@ fn project_or_disk_manifest<'a>(
     target_dir: &Path,
 ) -> Option<Cow<'a, serde_json::Value>> {
     let normalized = pnpm_fs::lexical_normalize(target_dir);
-    let manifest_path = target_dir.join("package.json");
+    let manifest_path = pnpm_package_manifest::project_manifest_path(target_dir);
     if let Some(manifest) = dirs.manifests_by_dir.get(&normalized) {
         let canonical_root = loaded_project_boundary(dirs, &normalized, target_dir)?;
-        // A project passed in memory may have no `package.json`. One that has
-        // a `package.json` linking outside its boundary is not trusted, as the
+        // A project passed in memory may have no manifest file. One whose
+        // manifest file links outside its boundary is not trusted, as the
         // disk read below does not trust it.
         let escapes = std::fs::symlink_metadata(&manifest_path).is_ok()
             && !dirs.canonical_paths
@@ -147,7 +148,7 @@ fn project_or_disk_manifest<'a>(
         return None;
     }
     let content = std::fs::read_to_string(&canonical_manifest).ok()?;
-    pnpm_package_manifest::parse_manifest(&content).ok().map(Cow::Owned)
+    pnpm_package_manifest::parse_project_manifest(&manifest_path, &content).ok().map(Cow::Owned)
 }
 
 fn loaded_project_boundary(
