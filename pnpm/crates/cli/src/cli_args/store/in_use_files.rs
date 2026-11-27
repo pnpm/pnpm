@@ -58,7 +58,7 @@ use std::{
 ///   of every side-effects entry;
 /// - the modules directory of every project it lists.
 ///
-/// And the package directories of each registered project's PnP loader.
+/// And the package directories of each registered project's `.pnp.cjs`.
 ///
 /// Every file of the rows of the archives each registered project's
 /// `pylock.toml` pins.

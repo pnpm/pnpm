@@ -57,7 +57,7 @@ pub struct InUse {
     /// addition to every `node_modules` under a registered project.
     pub modules_dirs: Vec<PathBuf>,
     /// Package directories whose global virtual store slots are kept, for an
-    /// install that reaches them without links, such as a PnP loader.
+    /// install that reaches them without links, such as through `.pnp.cjs`.
     pub package_dirs: Vec<PathBuf>,
 }
 

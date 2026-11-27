@@ -381,9 +381,8 @@ fn store_prune_keeps_global_virtual_store_packages_of_a_pnp_project_without_syml
         .assert()
         .success();
     let links = StoreDir::from(store_dir).links();
-    let slots = || {
-        fs::read_dir(links.join("@/is-positive/1.0.0")).map(|entries| entries.count()).unwrap_or(0)
-    };
+    let slots =
+        || fs::read_dir(links.join("@/is-positive/1.0.0")).map(Iterator::count).unwrap_or(0);
     assert_eq!(slots(), 1, "the install must use the global virtual store");
 
     prune(&workspace);

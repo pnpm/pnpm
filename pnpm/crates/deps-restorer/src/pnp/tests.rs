@@ -129,7 +129,7 @@ fn package_dirs_are_read_back_as_the_loader_resolves_them() {
         "b@1.0.0": { "url": absolute_url.as_str(), "dependencies": {} },
         ".": { "url": "../", "dependencies": {} },
     }});
-    let loader = render_pnp_loader(&registry.to_string(), "\"node_modules\"");
+    let loader = render_pnp_loader(&registry.to_string(), r#""node_modules""#);
 
     let mut dirs: Vec<_> = package_dirs_of_loader(&loader, &lockfile_dir)
         .unwrap()
@@ -138,7 +138,7 @@ fn package_dirs_are_read_back_as_the_loader_resolves_them() {
         .collect();
     dirs.sort();
 
-    let mut expected = vec![lockfile_dir.clone(), store_package.clone(), store_package];
+    let mut expected = vec![lockfile_dir, store_package.clone(), store_package];
     expected.sort();
     assert_eq!(dirs, expected);
 }

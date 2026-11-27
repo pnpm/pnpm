@@ -223,34 +223,13 @@ pub(crate) fn register_workspace_in_store(
     config: &Config,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
-    if config.frozen_store && config.node_linker == pnpm_config::NodeLinker::Loaded {
-        return Ok(());
-    }
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
-        let loader_dir = config.store_loader_dir(workspace_root);
-        std::fs::create_dir_all(&loader_dir)
-            .map_err(|error| InstallError::CreateStoreLoaderDir {
-                dir: loader_dir.clone(),
-                error,
-            })?;
-        return pnpm_store_dir::register_loaded_project(&config.store_dir, &loader_dir)
-            .map_err(InstallError::RegisterProject);
-    }
-    if config.frozen_store && !config.enable_global_virtual_store {
-        return Ok(());
+        return register_loaded_install(config, workspace_root);
     }
     if config.enable_global_virtual_store {
-        let registered = register_global_virtual_store_user(config, workspace_root);
-        if !config.frozen_store {
-            return registered;
-        }
-        if let Err(error) = registered {
-            tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "Failed to register workspace root in the frozen store's project registry; install continues",
-            );
-        }
+        return register_global_virtual_store_install(config, workspace_root);
+    }
+    if config.frozen_store {
         return Ok(());
     }
     // Create the store root before calling `register_project` so its
@@ -271,6 +250,35 @@ pub(crate) fn register_workspace_in_store(
             target: "pacquet::install",
             ?error,
             "Failed to register workspace root in the store project registry; install continues",
+        );
+    }
+    Ok(())
+}
+
+fn register_loaded_install(config: &Config, workspace_root: &Path) -> Result<(), InstallError> {
+    if config.frozen_store {
+        return Ok(());
+    }
+    let loader_dir = config.store_loader_dir(workspace_root);
+    std::fs::create_dir_all(&loader_dir)
+        .map_err(|error| InstallError::CreateStoreLoaderDir { dir: loader_dir.clone(), error })?;
+    pnpm_store_dir::register_loaded_project(&config.store_dir, &loader_dir)
+        .map_err(InstallError::RegisterProject)
+}
+
+fn register_global_virtual_store_install(
+    config: &Config,
+    workspace_root: &Path,
+) -> Result<(), InstallError> {
+    let registered = register_global_virtual_store_user(config, workspace_root);
+    if !config.frozen_store {
+        return registered;
+    }
+    if let Err(error) = registered {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to register workspace root in the frozen store's project registry; install continues",
         );
     }
     Ok(())
