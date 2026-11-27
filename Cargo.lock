@@ -5100,6 +5100,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-package-manifest",
  "rayon",

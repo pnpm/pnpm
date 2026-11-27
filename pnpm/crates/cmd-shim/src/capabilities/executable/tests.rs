@@ -26,10 +26,13 @@ fn executable_owned_by_another_user_does_not_require_chmod() {
     let target = tmp.path().join("node_modules/foo/cli.js");
     fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(&target, "#!/usr/bin/env node\n").unwrap();
-    for mode in [0o555, 0o755] {
+    for mode in [0o555, 0o755, 0o770] {
         Permissions::from_mode(mode).apply_to_path(&target).unwrap();
         ensure_executable_bits::<DeniedPermissions>(&target, None).unwrap();
     }
+    Permissions::from_mode(0o660).apply_to_path(&target).unwrap();
+    let error = ensure_executable_bits::<DeniedPermissions>(&target, None).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 }
 
 #[test]

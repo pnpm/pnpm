@@ -56,7 +56,18 @@ pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
     if is_executable_by_everyone(mode) {
         return Ok(());
     }
-    Sys::set_permissions(&target, Permissions::from_mode(mode | 0o111))
+    match Sys::set_permissions(&target, Permissions::from_mode(mode | 0o111)) {
+        #[cfg(unix)]
+        Err(error)
+            if matches!(
+                error.kind(),
+                io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem,
+            ) && pnpm_ffi_fs::can_execute(&target) =>
+        {
+            Ok(())
+        }
+        result => result,
+    }
 }
 
 /// A file that passes needs no chmod. That is what lets an install reuse a
