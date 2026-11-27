@@ -74,5 +74,5 @@ fn install_input_digest_ignores_project_version() {
         )
     };
 
-    assert_eq!(install_input_digest(&manifest("1.0.0")), install_input_digest(&manifest("1.0.1")),);
+    assert_eq!(install_input_digest(&manifest("1.0.0")), install_input_digest(&manifest("1.0.1")));
 }
