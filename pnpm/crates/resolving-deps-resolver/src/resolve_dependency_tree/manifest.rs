@@ -118,8 +118,8 @@ fn pkg_name_and_version(
     };
     if !is_valid_fetched_manifest_name(name) {
         return Err(ResolveDependencyTreeError::InvalidManifestName {
-            id: result.id.as_str().to_string(),
-            name: name.to_string(),
+            id: pnpm_network::redact_and_sanitize(result.id.as_str()),
+            name: pnpm_network::redact_and_sanitize(name),
         });
     }
     Ok(Some((name.to_string(), manifest_field("version").unwrap_or_default().to_string())))
