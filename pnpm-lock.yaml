@@ -4488,8 +4488,8 @@ snapshots:
 			},
 		},
 
-		"comment-parser@1.4.9": {
-			"integrity": "sha512-+2AvZKjJaNq9GQljm3tr0utwrig5BL+jgJGvz5rDpGKNIp+ojcRXWUwBbh/sGIi1QCprR6PsKFakub+w1v+4hQ==",
+		"comment-parser@1.4.10": {
+			"integrity": "sha512-qN5/9lBWFYHsHLflPH/3iyu5khw7tKs75V6NH26H0P6Cp1j2JqdZZch7hyplkz6ATok3WOoZxO+IzB9s3mnTBA==",
 			"engines": {"node": ">= 12.0.0"},
 		},
 
@@ -4949,7 +4949,7 @@ snapshots:
 			"dependencies": {
 				"@typescript-eslint/types": "8.74.0",
 				"cjs-module-lexer": "2.3.0",
-				"comment-parser": "1.4.9",
+				"comment-parser": "1.4.10",
 				"debug": "4.4.3",
 				"es-module-lexer": "3.0.5",
 				"eslint-import-context": "0.1.9",
@@ -5050,7 +5050,7 @@ snapshots:
 			"dependencies": {
 				"@eslint-community/eslint-utils": "4.10.1",
 				"@eslint-community/regexpp": "4.12.3",
-				"comment-parser": "1.4.9",
+				"comment-parser": "1.4.10",
 				"jsdoc-type-pratt-parser": "7.3.0",
 				"refa": "0.12.1",
 				"regexp-ast-analysis": "0.7.1",

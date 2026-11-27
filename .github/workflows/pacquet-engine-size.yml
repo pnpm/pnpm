@@ -45,7 +45,7 @@ jobs:
         uses: $/.github/actions/install-crates
 
       - name: Install just and cargo-nextest
-        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
         with:
           tool: just,cargo-nextest
 
