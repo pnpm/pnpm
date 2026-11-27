@@ -2,4 +2,4 @@
 "pnpm": patch
 ---
 
-Fixed `verifyDepsBeforeRun` requesting a second install after pnpm prunes unused `minimumReleaseAgeExclude` or `trustPolicyExclude` entries [#18498](https://github.com/pnpm/pnpm/issues/18498).
+Fixed `verifyDepsBeforeRun` incorrectly reporting stale dependencies after an install pruned unused entries from `minimumReleaseAgeExclude` or `trustPolicyExclude` [#18498](https://github.com/pnpm/pnpm/issues/18498).
