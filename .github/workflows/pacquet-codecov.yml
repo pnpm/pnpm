@@ -38,6 +38,8 @@ jobs:
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      # Merge counters from repeated CLI invocations into a pool per instrumented binary.
+      LLVM_PROFILE_FILE_NAME: "coverage-%8m.profraw"
       # Main only restores compiler cache entries that main wrote.
       SCCACHE_SCOPE: ${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
     # A coverage run compiles the workspace from cold and then runs every
@@ -52,7 +54,7 @@ jobs:
           persist-credentials: false
 
       # The instrumented build holds a full set of debug artifacts in
-      # target/llvm-cov-target, on top of a profraw file per test process and
+      # target/llvm-cov-target, alongside the raw coverage profiles and
       # the merged profdata. That no longer fits in the runner's free disk:
       # the job dies with "No space left on device" — often while the runner
       # itself is writing its diagnostic log, so the failure lands with no
