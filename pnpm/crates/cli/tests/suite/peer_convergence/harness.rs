@@ -90,7 +90,7 @@ pub(super) struct Row {
     pub(super) inject_workspace_packages: bool,
     pub(super) auto_dedupe: bool,
     format: LockfileFormat,
-    hash_peers: bool,
+    peers_suffix_max_length: Option<usize>,
 }
 
 impl Row {
@@ -104,14 +104,16 @@ impl Row {
                 inject_workspace_packages: bits & 4 != 0,
                 auto_dedupe: bits & 8 != 0,
                 format: if bits & 16 != 0 { LockfileFormat::V13 } else { LockfileFormat::V9 },
-                hash_peers: bits & 32 != 0,
+                peers_suffix_max_length: (bits & 32 != 0).then_some(1),
             })
             .filter(move |row| with_workspace_deps || !row.inject_workspace_packages)
     }
 
     fn yaml(self) -> String {
         let major = self.format.version().major;
-        let suffix = if self.hash_peers { "peersSuffixMaxLength: 1\n" } else { "" };
+        let suffix = self.peers_suffix_max_length
+            .map(|limit| format!("peersSuffixMaxLength: {limit}\n"))
+            .unwrap_or_default();
         format!(
             "{suffix}lockfile:\n  format: v{major}\nautoInstallPeers: {}\ndedupePeerDependents: {}\ninjectWorkspacePackages: {}\nautoDedupe: {}\n",
             self.auto_install_peers,
@@ -126,13 +128,13 @@ impl fmt::Display for Row {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "autoInstallPeers={} dedupePeerDependents={} injectWorkspacePackages={} autoDedupe={} lockfile.format=v{} hashPeers={}",
+            "autoInstallPeers={} dedupePeerDependents={} injectWorkspacePackages={} autoDedupe={} lockfile.format=v{} peersSuffixMaxLength={:?}",
             self.auto_install_peers,
             self.dedupe_peer_dependents,
             self.inject_workspace_packages,
             self.auto_dedupe,
             self.format.version().major,
-            self.hash_peers,
+            self.peers_suffix_max_length,
         )
     }
 }
@@ -146,7 +148,10 @@ enum Cli {
 
 impl Cli {
     fn runs(&self, row: Row) -> bool {
-        matches!(self, Self::V12) || (!row.auto_dedupe && row.format == LockfileFormat::V9)
+        match row.format {
+            LockfileFormat::V9 => matches!(self, Self::V12) || !row.auto_dedupe,
+            LockfileFormat::V13 => matches!(self, Self::V12),
+        }
     }
 }
 
@@ -235,11 +240,11 @@ impl Harness {
                 fresh.insert(row.to_string(), lockfile);
             }
         }
-        for row in Row::all(with_workspace_deps)
-            .filter(|row| row.format == LockfileFormat::V13)
-            .filter(|row| self.cli.runs(*row))
-        {
-            let v9 = Row { format: LockfileFormat::V9, ..row };
+        for row in Row::all(with_workspace_deps).filter(|row| self.cli.runs(*row)) {
+            let v9 = match row.format {
+                LockfileFormat::V9 => continue,
+                LockfileFormat::V13 => Row { format: LockfileFormat::V9, ..row },
+            };
             if let (Some(source), Some(expected)) =
                 (fresh.get(&v9.to_string()), fresh.get(&row.to_string()))
             {
