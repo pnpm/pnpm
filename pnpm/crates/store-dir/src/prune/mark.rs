@@ -42,26 +42,24 @@ pub(super) fn mark_reachable_slots<Sys: FsReadLink>(
     // on large trees where the answer is invariant.
     let canonical_links =
         dunce::canonicalize(links_dir).unwrap_or_else(|_| links_dir.to_path_buf());
-    let mut reachable: HashSet<PathBuf> = HashSet::new();
-    let mut visited: HashSet<PathBuf> = HashSet::new();
-    mark_loader_roots::<Sys>(loader_roots, &canonical_links, &mut reachable, &mut visited)?;
+    let mut walk = Walk {
+        canonical_links: &canonical_links,
+        reachable: HashSet::new(),
+        visited: HashSet::new(),
+    };
+    mark_loader_roots::<Sys>(
+        loader_roots,
+        &canonical_links,
+        &mut walk.reachable,
+        &mut walk.visited,
+    )?;
     for project_dir in projects {
-        for modules_dir in find_all_node_modules_dirs(
-            project_dir,
-            canonical_links.parent().expect("links directory has a store root"),
-        )? {
-            walk_symlinks_to_store::<Sys>(
-                &modules_dir,
-                &canonical_links,
-                &mut reachable,
-                &mut visited,
-            )?;
-        }
+        walk.mark_project::<Sys>(project_dir)?;
     }
     for modules_dir in modules_dirs {
-        walk_symlinks_to_store::<Sys>(modules_dir, &canonical_links, &mut reachable, &mut visited)?;
+        walk.walk::<Sys>(modules_dir)?;
     }
-    Ok(reachable)
+    Ok(walk.reachable)
 }
 
 fn mark_loader_roots<Sys: FsReadLink>(
@@ -80,50 +78,73 @@ fn mark_loader_roots<Sys: FsReadLink>(
     Ok(())
 }
 
-/// Find every `node_modules/` directory under `project_dir`,
-/// including those inside workspace packages. Descends into every
-/// non-hidden subdir until it sees `node_modules`, at which point it
-/// records the path and stops descending, the
-/// hoisted deps inside `node_modules/.pnpm` and friends are picked up
-/// by [`walk_symlinks_to_store`]'s transitive recursion instead.
-fn find_all_node_modules_dirs(
-    project_dir: &Path,
-    excluded_store: &Path,
-) -> Result<Vec<PathBuf>, PruneError> {
-    let mut out = Vec::new();
-    let project = dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
-    scan_node_modules_dirs(&project, &mut out, excluded_store)?;
-    Ok(out)
+struct Walk<'links> {
+    canonical_links: &'links Path,
+    reachable: HashSet<PathBuf>,
+    visited: HashSet<PathBuf>,
 }
 
-fn scan_node_modules_dirs(
-    dir: &Path,
-    out: &mut Vec<PathBuf>,
-    excluded_store: &Path,
-) -> Result<(), PruneError> {
-    for subdir in project_subdirectories(dir, excluded_store)? {
-        let name = subdir
-            .file_name()
-            .expect("directory entry has a name")
-            .to_string_lossy();
-        if name == "node_modules" {
-            out.push(subdir);
-        } else if !name.starts_with('.') {
-            scan_node_modules_dirs(&subdir, out, excluded_store)?;
-        }
+impl Walk<'_> {
+    /// Mark the slots `project_dir` links to. Every `node_modules/` directory
+    /// under it, including those of workspace packages, is walked by
+    /// [`walk_symlinks_to_store`]. A store link anywhere else in a non-hidden
+    /// directory is followed too, so a modules directory with another name
+    /// keeps its slots even when no setting records that name.
+    fn mark_project<Sys: FsReadLink>(&mut self, project_dir: &Path) -> Result<(), PruneError> {
+        let project =
+            dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
+        self.scan_project_dir::<Sys>(&project)
     }
-    Ok(())
+
+    fn scan_project_dir<Sys: FsReadLink>(&mut self, dir: &Path) -> Result<(), PruneError> {
+        let store_root = self.canonical_links.parent().expect("links directory has a store root");
+        let ProjectEntries { subdirs, symlinks } = project_entries(dir, store_root)?;
+        for symlink in symlinks {
+            if let Some(slot) = linked_store_slot::<Sys>(&symlink, self.canonical_links)? {
+                let slot_modules = self.canonical_links.join(&slot).join("node_modules");
+                self.reachable.insert(slot);
+                self.walk::<Sys>(&slot_modules)?;
+            }
+        }
+        for subdir in subdirs {
+            let name = subdir
+                .file_name()
+                .expect("directory entry has a name")
+                .to_string_lossy();
+            if name == "node_modules" {
+                self.walk::<Sys>(&subdir)?;
+            } else if !name.starts_with('.') {
+                self.scan_project_dir::<Sys>(&subdir)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn walk<Sys: FsReadLink>(&mut self, dir: &Path) -> Result<(), PruneError> {
+        walk_symlinks_to_store::<Sys>(
+            dir,
+            self.canonical_links,
+            &mut self.reachable,
+            &mut self.visited,
+        )
+    }
 }
 
-fn project_subdirectories(dir: &Path, excluded_store: &Path) -> Result<Vec<PathBuf>, PruneError> {
+/// The directories and symlinks directly inside a project directory.
+struct ProjectEntries {
+    subdirs: Vec<PathBuf>,
+    symlinks: Vec<PathBuf>,
+}
+
+fn project_entries(dir: &Path, excluded_store: &Path) -> Result<ProjectEntries, PruneError> {
+    let mut found = ProjectEntries { subdirs: Vec::new(), symlinks: Vec::new() };
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
-            return Ok(Vec::new());
+            return Ok(found);
         }
         Err(error) => return Err(PruneError::ReadMarkDir { path: dir.to_path_buf(), error }),
     };
-    let mut subdirs = Vec::new();
     for entry in entries {
         let entry =
             entry.map_err(|error| PruneError::ReadMarkDir { path: dir.to_path_buf(), error })?;
@@ -131,11 +152,13 @@ fn project_subdirectories(dir: &Path, excluded_store: &Path) -> Result<Vec<PathB
             .file_type()
             .map_err(|error| PruneError::ReadMarkDir { path: entry.path(), error })?;
         let entry_path = entry.path();
-        if file_type.is_dir() && entry_path != excluded_store {
-            subdirs.push(entry_path);
+        if file_type.is_symlink() {
+            found.symlinks.push(entry_path);
+        } else if file_type.is_dir() && entry_path != excluded_store {
+            found.subdirs.push(entry_path);
         }
     }
-    Ok(subdirs)
+    Ok(found)
 }
 
 /// Recursively follow every symlink under `dir`. When a symlink

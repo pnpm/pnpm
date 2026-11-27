@@ -48,7 +48,7 @@ pub(super) fn map_fresh_lockfile_error(error: InstallWithFreshLockfileError) -> 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallError {
     #[diagnostic(transparent)]
-    RegisterLoadedProject(#[error(source)] pnpm_store_dir::RegisterProjectError),
+    RegisterProject(#[error(source)] pnpm_store_dir::RegisterProjectError),
 
     #[display("Failed to create the store loader directory at {dir:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_CREATE_STORE_LOADER_DIR))]

@@ -120,7 +120,7 @@ Without the global virtual store, an install with `--frozen-store` or `enableMod
 
 `pnpm store prune` removes the directory-clone cache used by local installs on macOS. Installed packages remain available, and later installs recreate the cache as needed. The cache requires the store and project to be on the same volume. A frozen store uses per-file imports when its cache is missing.
 
-When the [global virtual store] is enabled, `pnpm store prune` also performs mark-and-sweep garbage collection on its `links/` directory. It walks the registered projects to find the packages still in use and removes the rest. If no registered project links into `links/`, prune leaves it unchanged.
+When the [global virtual store] is enabled, `pnpm store prune` also performs mark-and-sweep garbage collection on its `links/` directory. It walks the registered projects to find the packages still in use and removes the rest, including every package once all registered projects are deleted. If the store has no `projects` directory, prune leaves `links/` unchanged. An install that uses the global virtual store fails if it cannot register the project, unless the store is frozen.
 
 Pruning stops if a dependency link cannot be read.
 

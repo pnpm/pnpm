@@ -4,8 +4,9 @@
 //!
 //! 1. **Mark**, walk every registered project (see
 //!    [`crate::get_registered_projects`]). For each project, find every
-//!    `node_modules/` directory (root + workspace packages), follow every
-//!    symlink it contains, and if the symlink target lands under
+//!    `node_modules/` directory (root + workspace packages) and every other
+//!    symlink in its non-hidden directories, follow them, and if a symlink
+//!    target lands under
 //!    `<store_dir>/links/...` record the slot path
 //!    (`<scope>/<name>/<version>/<hash>`) as reachable. Then recurse
 //!    into the slot's own `node_modules/` for transitive deps.
@@ -197,11 +198,13 @@ impl StoreDir {
             return Ok(());
         }
 
-        let projects = get_registered_projects(self).map_err(PruneError::ListProjects)?;
-        if projects.is_empty() {
+        // No install that used this store registered, so nothing shows which
+        // slots are unused.
+        if !path_exists(&self.projects()) {
             pnpm_diagnostics::eprintln!("No registered projects for global virtual store");
             return Ok(());
         }
+        let projects = get_registered_projects(self).map_err(PruneError::ListProjects)?;
         pnpm_diagnostics::eprintln!(
             "Checking {} registered project(s) for global virtual store usage",
             projects.len(),
@@ -213,12 +216,6 @@ impl StoreDir {
             loader_roots,
             modules_dirs,
         )?;
-        // Registration is best-effort, so no reachable slots does not prove
-        // that the global virtual store is unused.
-        if reachable.is_empty() {
-            pnpm_diagnostics::eprintln!("No registered project uses the global virtual store");
-            return Ok(());
-        }
         let removed = remove_unreachable_packages(&links_dir, &reachable)?;
         if removed > 0 {
             pnpm_diagnostics::eprintln!(
