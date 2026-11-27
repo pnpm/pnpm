@@ -146,7 +146,7 @@ async fn start_pnpr_inner(
     // refuses as other services of its own host when its public URL names
     // that host too.
     config.http.public_url =
-        public_url.unwrap_or_else(|| format!("http://localhost:{}", addr.port()));
+        Some(public_url.unwrap_or_else(|| format!("http://localhost:{}", addr.port())));
     config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
     config.routing.route_policy.allowed_private_networks = ["127.0.0.0/8", "::1"]
         .into_iter()

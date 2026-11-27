@@ -259,9 +259,8 @@ impl TestRegistryInstance {
             RegistryMode::Static => Config::static_serve(listen, storage),
         };
         config.http.public_url = public_url
-            .unwrap_or(&server_url)
-            .trim_end_matches('/')
-            .to_string();
+            .map(|url| url.trim_end_matches('/'))
+            .map(str::to_owned);
         // Registration is opt-in; tests that forward credentials create
         // accounts via adduser against this registry.
         config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;

@@ -72,6 +72,15 @@ publicUrl: https://registry.example.com
 loopback address and `publicUrl` is unset. The `--listen` and `--public-url`
 flags override both.
 
+### Discover the assigned port
+
+Use port `0` to let the OS choose an available port. The default `publicUrl`
+uses the assigned port. With `log.format: json` and info logging enabled,
+read stdout one JSON object per line. When `fields.event` is `"listening"`,
+`fields.listen` holds the bound socket address, for example `127.0.0.1:49152`.
+A wrapper can use this address as soon as it reads the record. To select only
+startup records, set `RUST_LOG=pnpr::startup=info`.
+
 ## `storage` and `cache`
 
 pnpr keeps two kinds of data:

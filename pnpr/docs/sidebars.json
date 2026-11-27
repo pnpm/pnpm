@@ -9,6 +9,7 @@
       "label": "Configuration",
       "items": [
         "configuration",
+        { "type": "link", "label": "Discover the assigned port", "href": "/pnpr/configuration#discover-the-assigned-port" },
         "storage",
         "backup-and-restore",
         "tls-and-reverse-proxy",

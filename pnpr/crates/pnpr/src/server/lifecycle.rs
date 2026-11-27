@@ -42,7 +42,7 @@ pub(super) fn load_active_osv_index(
 
 /// Check the hosted store's layout, empty a proxy cache in another layout,
 /// and reconcile hosted transparency logs with the database.
-/// [`serve`] and [`serve_listener`] call this before binding; an embedder that
+/// [`serve`] and [`serve_listener`] call this during startup; an embedder that
 /// builds a router directly should call it itself on startup, before serving
 /// requests.
 ///
@@ -318,37 +318,9 @@ enum StartupGraph {
     Unavailable,
 }
 
-/// Bind to `config.http.listen` and serve forever. Loads auth state before
-/// binding so a startup-time auth error surfaces before we accept any
-/// client connections. Registry startup additionally prepares the storage.
-pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
-    // Enforce the "at least one surface" invariant here too, not only at
-    // YAML load / CLI: embedders build `Config` programmatically and call
-    // straight into `serve`, so a both-disabled config must fail loudly
-    // rather than start a server that only answers `/-/ping`.
-    crate::config_validation::validate_serving_startup_config(&mut config)?;
-    log_enabled_surfaces(&config);
-    let graph = load_stored_graph(&mut config).await;
-    let osv_index = load_active_osv_index(&config)?;
-    let auth = load_startup_auth(&config, graph).await?;
-    let listen = config.http.listen;
-    // Build the router before taking the port: it can fail, and a failure
-    // should not leave a bound socket behind or put a `pnpr listening` line
-    // immediately above the error saying it is not.
-    let (state, app) = state_and_router(config, auth, osv_index)?;
-    adopt_startup_graph(&state, graph);
-    let inner = Arc::clone(&state.inner);
-    let metrics = bind_metrics_listener(state.clone()).await?;
-    let listener = tokio::net::TcpListener::bind(listen).await?;
-    let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(
-        &inner.config,
-        current_routing_of(&inner),
-    );
-    if inner.config.features.registry.enabled {
-        spawn_periodic_archive_temp_sweep(&inner);
-    }
-    tracing::info!(listen = %listener.local_addr()?, "pnpr listening");
-    serve_until_shutdown(state, listener, app, metrics).await
+/// Bind to `config.http.listen` and serve until shutdown.
+pub async fn serve(config: Config) -> pnpr_error::Result<()> {
+    start_server(config, None, std::convert::identity).await
 }
 
 /// The registry graph `inner` serves at each call: the routing a periodic
@@ -481,23 +453,43 @@ pub async fn serve_listener(
 /// Like [`serve_listener`], serving `wrap` applied to the router, such as a
 /// test harness that adds its own middleware.
 pub async fn serve_listener_with(
-    mut config: Config,
+    config: Config,
     listener: tokio::net::TcpListener,
     wrap: impl FnOnce(Router) -> Router,
 ) -> pnpr_error::Result<()> {
-    let listen = listener.local_addr()?;
+    start_server(config, Some(listener), wrap).await
+}
+
+async fn start_server(
+    mut config: Config,
+    listener: Option<tokio::net::TcpListener>,
+    wrap: impl FnOnce(Router) -> Router,
+) -> pnpr_error::Result<()> {
     crate::config_validation::validate_serving_startup_config(&mut config)?;
+    // A fixed port can stay closed until the router is ready. An OS-assigned
+    // port must be known before building routes that advertise their own URL.
+    let listener = match listener {
+        None if config.http.listen.port() == 0 => {
+            Some(tokio::net::TcpListener::bind(config.http.listen).await?)
+        }
+        listener => listener,
+    };
+    if let Some(listener) = &listener {
+        config.http.listen = listener.local_addr()?;
+    }
+    let listen = config.http.listen;
     log_enabled_surfaces(&config);
     let graph = load_stored_graph(&mut config).await;
     let osv_index = load_active_osv_index(&config)?;
-    // Load the configured auth backends here too, going through `router`
-    // would silently fall back to in-memory auth and ignore a persisted
-    // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config, graph).await?;
     let (state, app) = state_and_router(config, auth, osv_index)?;
     adopt_startup_graph(&state, graph);
     let inner = Arc::clone(&state.inner);
     let metrics = bind_metrics_listener(state.clone()).await?;
+    let listener = match listener {
+        Some(listener) => listener,
+        None => tokio::net::TcpListener::bind(listen).await?,
+    };
     let _cache_eviction = crate::cache_maintenance::spawn_periodic_cache_eviction(
         &inner.config,
         current_routing_of(&inner),
@@ -505,8 +497,9 @@ pub async fn serve_listener_with(
     if inner.config.features.registry.enabled {
         spawn_periodic_archive_temp_sweep(&inner);
     }
-    tracing::info!(%listen, "pnpr listening");
-    serve_until_shutdown(state, listener, wrap(app), metrics).await
+    let app = wrap(app);
+    tracing::info!(target: "pnpr::startup", event = "listening", %listen, "pnpr listening");
+    serve_until_shutdown(state, listener, app, metrics).await
 }
 
 #[cfg(test)]

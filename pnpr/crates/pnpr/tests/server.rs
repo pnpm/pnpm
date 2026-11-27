@@ -165,7 +165,7 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
     let mut config = Config::proxy(listen, storage);
     config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url =
         upstream.to_string();
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.http.packument_ttl = Duration::from_mins(1);
     config.routing.route_policy.allowed_private_networks = crate::network::loopback_networks();
     config
@@ -500,7 +500,7 @@ async fn mock_packument_for_tarball(
 /// access-bearing private-route upstream, reachable at `/~npmjs/`.
 fn upstream_endpoint_config(upstream_url: &str, storage: PathBuf, access: &str) -> Config {
     let mut config = config_for(upstream_url, storage);
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.routing.upstreams
         .get_mut("npmjs")
         .expect("default `npmjs` upstream")

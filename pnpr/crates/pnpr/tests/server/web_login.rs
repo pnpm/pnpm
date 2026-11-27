@@ -24,7 +24,7 @@ pub(super) fn config_without_oidc(storage: &TempDir) -> Config {
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
         storage.path().to_path_buf(),
     );
-    config.http.public_url = "https://registry.example".to_string();
+    config.http.public_url = Some("https://registry.example".to_string());
     config
 }
 
@@ -33,7 +33,7 @@ pub(super) fn config_with_single_login_provider(storage: &TempDir) -> Config {
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
         storage.path().to_path_buf(),
     );
-    config.http.public_url = "https://registry.example".to_string();
+    config.http.public_url = Some("https://registry.example".to_string());
     config.identity.auth.oidc = serde_json::from_value(json!([
         {
             "name": "company",
@@ -61,7 +61,7 @@ pub(super) fn config_with_multiple_login_providers(storage: &TempDir) -> Config 
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
         storage.path().to_path_buf(),
     );
-    config.http.public_url = "https://registry.example".to_string();
+    config.http.public_url = Some("https://registry.example".to_string());
     config.identity.auth.oidc = serde_json::from_value(json!([
         {
             "name": "google",

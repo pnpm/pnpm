@@ -46,7 +46,7 @@ use tower::ServiceExt;
 fn config_for(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.http.packument_ttl = Duration::from_mins(1);
     config.routing.route_policy.allowed_private_networks = crate::network::loopback_networks();
     config

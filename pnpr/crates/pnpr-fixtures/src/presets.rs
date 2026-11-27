@@ -213,7 +213,7 @@ fn http_config(listen: SocketAddr) -> pnpr_config::HttpConfig {
     pnpr_config::HttpConfig {
         cloudflare_cdn: None,
         listen,
-        public_url: format!("http://{listen}"),
+        public_url: None,
         cors: CorsConfig::default(),
         ui: UiConfig::default(),
         oci: OciConfig::default(),

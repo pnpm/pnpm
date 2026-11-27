@@ -45,7 +45,7 @@ use tower::ServiceExt;
 pub(crate) fn config(storage: &Path) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage.to_path_buf());
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }
@@ -411,7 +411,7 @@ async fn an_upstream_only_proxy_refuses_archive_staging() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut proxy_config = Config::proxy(listen, tmp.path().to_path_buf());
-    proxy_config.http.public_url = "http://example.test".to_string();
+    proxy_config.http.public_url = Some("http://example.test".to_string());
     proxy_config.identity.auth.users.max_users = MaxUsers::Unlimited;
     proxy_config.routing.hosted.clear();
     proxy_config.routing.registries = pnpr_registry::Registries::new(

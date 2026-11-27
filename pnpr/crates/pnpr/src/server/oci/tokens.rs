@@ -240,7 +240,8 @@ pub(super) fn challenge(
     {
         return response;
     }
-    let realm = format!("{}{base}/token", state.inner.config.http.public_url.trim_end_matches('/'));
+    let realm =
+        format!("{}{base}/token", state.inner.config.http.public_url().trim_end_matches('/'));
     let mut value = format!(r#"Bearer realm="{realm}",service="pnpr""#);
     if let Some((name, actions)) = scope
         && let Ok(name) =

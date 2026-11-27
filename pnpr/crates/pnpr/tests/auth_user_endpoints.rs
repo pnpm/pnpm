@@ -52,7 +52,7 @@ fn listen() -> SocketAddr {
 
 fn static_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }

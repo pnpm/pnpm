@@ -182,7 +182,7 @@ impl Candidates {
         if note.is_none() && link.is_none() {
             return Ok(None);
         }
-        let public_url = &state.inner.config.http.public_url;
+        let public_url = &state.inner.config.http.public_url();
         Ok(Some(entry_json(version, note.as_ref(), link.as_ref(), public_url)))
     }
 }

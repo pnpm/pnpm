@@ -141,7 +141,7 @@ async fn read_version_note(
         note.as_ref(),
         link.as_ref(),
         public,
-        &state.inner.config.http.public_url,
+        &state.inner.config.http.public_url(),
     ))
 }
 

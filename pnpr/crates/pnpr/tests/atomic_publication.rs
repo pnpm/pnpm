@@ -52,7 +52,7 @@ use tower::ServiceExt;
 fn sqlite_config(storage: &Path) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage.to_path_buf());
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.database = DatabaseBackend::Sqlite(storage.join("metadata.sqlite"));
     config

@@ -146,7 +146,7 @@ fn removed_keys_are_unknown_fields() {
 fn from_yaml_str_public_url_defaults_to_listen_when_none_passed() {
     let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.http.public_url, format!("http://{}", listen()));
+    assert_eq!(config.http.public_url(), format!("http://{}", listen()));
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn from_yaml_str_public_url_override_wins() {
         Some("http://override.test".to_string()),
     )
     .unwrap();
-    assert_eq!(config.http.public_url, "http://override.test");
+    assert_eq!(config.http.public_url(), "http://override.test");
 }
 
 #[test]

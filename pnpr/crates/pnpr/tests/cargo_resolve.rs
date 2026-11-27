@@ -46,7 +46,7 @@ const CKSUM: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 fn config_for(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.http.packument_ttl = Duration::from_mins(1);
     config.routing.route_policy.allowed_private_networks = crate::network::loopback_networks();
     config
@@ -175,7 +175,7 @@ async fn resolves_through_private_local_cargo_registry() {
         .get_mut("crates")
         .unwrap()
         .set_access(pnpr_policy::AccessList::from_tokens(["reader"]));
-    let registry = format!("{}/cargo/~crates/index", config.http.public_url);
+    let registry = format!("{}/cargo/~crates/index", config.http.public_url());
     let auth = crate::tokens::seeded_auth(&config, &[("reader", "password")]);
     let token = issue_token(&auth, "reader").await;
     let app = router_with_auth(config, auth);

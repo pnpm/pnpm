@@ -52,7 +52,7 @@ async fn resolve_private_hosted_package_in_process_as_caller() {
     .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.http.public_url = format!("{public_url}/registry/");
+    config.http.public_url = Some(format!("{public_url}/registry/"));
     config.routing.hosted.insert("internal".into(), hosted_with_access("internal", "reader"));
     config.routing.registries = Registries::new(
         [
@@ -133,7 +133,7 @@ async fn resolve_private_upstream(header: &str) {
         .expect_at_least(1).create_async().await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.http.public_url = public_url.clone();
+    config.http.public_url = Some(public_url.clone());
     let source = config.routing.upstreams.get_mut("npmjs").unwrap();
     source.set_access(AccessList::from_tokens(["reader"]));
     source.headers.insert(
@@ -179,7 +179,7 @@ async fn resolve_rejects_local_file_and_link_specs_without_reading_server_filesy
     std::fs::write(&secret_tgz_path, &secret_tgz).unwrap();
 
     let mut config = config_for(&upstream.url(), tmp.path().join("storage"));
-    config.http.public_url = "http://localhost:4873/".into();
+    config.http.public_url = Some("http://localhost:4873/".into());
     let auth = crate::tokens::seeded_auth(&config, &[("reader", "password")]);
     let reader = issue_token(&auth, "reader").await;
     let app = router_with_auth(config, auth);
@@ -296,7 +296,7 @@ async fn resolve_blocks_transitive_local_specs_in_published_packages_without_rea
             tmp.path()
                 .join(format!("storage-{idx}")),
         );
-        config.http.public_url = "http://localhost/".into();
+        config.http.public_url = Some("http://localhost/".into());
         config.routing.route_policy.public.push(super::PublicRoute {
             registry: Some(upstream.url()),
             package: None,
@@ -378,7 +378,7 @@ async fn resolve_continues_to_support_workspace_protocol_across_projects() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.http.public_url = "http://localhost:4873/".into();
+    config.http.public_url = Some("http://localhost:4873/".into());
     config.routing.route_policy.public.push(super::PublicRoute {
         registry: Some(upstream.url()),
         package: None,
@@ -464,7 +464,7 @@ async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve
     .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.http.public_url = public_url.clone();
+    config.http.public_url = Some(public_url.clone());
     let mut hosted = hosted_with_access("", "alice");
     hosted.rules = super::PackageRules::new(
         vec![
