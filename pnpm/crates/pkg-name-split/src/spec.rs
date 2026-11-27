@@ -30,6 +30,15 @@ pub fn to_bytes_singleton(character: char) {
     pearlite! { Seq::singleton_flat_map(character, |character: char| character.to_utf8()) }
 }
 
+/// Two ways of cutting one sequence whose first parts have one length share
+/// that first part.
+#[logic]
+#[requires(first.concat(rest) == other_first.concat(other_rest))]
+#[requires(first.len() == other_first.len())]
+#[ensures(first.ext_eq(other_first))]
+#[ensures(first == other_first)]
+pub fn equal_prefixes<T>(first: Seq<T>, rest: Seq<T>, other_first: Seq<T>, other_rest: Seq<T>) {}
+
 /// Two ways of cutting one string whose first parts have as many bytes
 /// cut it in the same place.
 #[logic]
@@ -45,6 +54,12 @@ pub fn equal_byte_prefixes(
     pearlite! {
         to_bytes_concat(first, rest);
         to_bytes_concat(other_first, other_rest);
+        equal_prefixes(
+            first.to_bytes(),
+            rest.to_bytes(),
+            other_first.to_bytes(),
+            other_rest.to_bytes(),
+        );
         injective_to_bytes()
     }
 }
@@ -75,7 +90,9 @@ pub fn scoped_name_bytes(
             Seq::singleton('@').concat(name_without_at),
             Seq::singleton('@').concat(suffix),
         );
-        to_bytes_concat(Seq::singleton('@'), suffix)
+        to_bytes_concat(Seq::singleton('@'), suffix);
+        name_without_at.concat_assoc(Seq::singleton('@'), suffix);
+        Seq::singleton('@').concat_assoc(name_without_at, Seq::singleton('@').concat(suffix))
     }
 }
 
