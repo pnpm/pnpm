@@ -25,6 +25,8 @@
 pub mod clients;
 #[cfg(creusot)]
 pub mod str_model;
+#[cfg(creusot)]
+pub mod utf8;
 
 #[cfg(creusot)]
 mod first_char_model;

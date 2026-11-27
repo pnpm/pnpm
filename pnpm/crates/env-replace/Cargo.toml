@@ -10,6 +10,9 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+pnpm-env-placeholders = { workspace = true }
+
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 

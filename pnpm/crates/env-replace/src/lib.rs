@@ -14,7 +14,13 @@
 //! instead, per the DI pattern from
 //! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
 
+pub use pnpm_env_placeholders::placeholder_ranges;
 pub use sentinel::SentinelPlaceholders;
+
+use pnpm_env_placeholders::{
+    Placeholder,
+    placeholders,
+};
 
 mod sentinel;
 
@@ -74,94 +80,35 @@ impl EnvVar for SystemEnv {
 /// [`Sys::var`]: EnvVar::var
 #[must_use]
 pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
-    let bytes = text.as_bytes();
     let mut output = String::with_capacity(text.len());
     let mut unresolved = Vec::new();
-    let mut index = 0;
-    let mut literal_start = 0;
-    while index < bytes.len() {
-        let Some(placeholder) = placeholder_at(bytes, index) else {
-            index += 1;
-            continue;
-        };
-        // The escape backslashes are held back from the literal span and
-        // re-emitted halved: each pair collapses to one literal backslash.
-        output.push_str(&text[literal_start..index - placeholder.backslashes]);
-        for _ in 0..(placeholder.backslashes / 2) {
+    let (placeholders, tail) = placeholders(text);
+    for placeholder in placeholders {
+        output.push_str(placeholder.literal());
+        // The escape backslashes are re-emitted halved: each pair collapses
+        // to one literal backslash.
+        for _ in 0..(placeholder.backslashes() / 2) {
             output.push('\\');
         }
-        let raw = &text[index..=placeholder.end];
-        if placeholder.backslashes % 2 == 1 {
+        if placeholder.backslashes() % 2 == 1 {
             // Odd backslashes: the placeholder is escaped, leave it literal.
-            output.push_str(raw);
+            output.push_str(placeholder.raw());
         } else {
-            expand_placeholder::<Sys>(raw, &mut output, &mut unresolved);
+            expand_placeholder::<Sys>(placeholder, &mut output, &mut unresolved);
         }
-        index = placeholder.end + 1;
-        literal_start = index;
     }
-    output.push_str(&text[literal_start..]);
+    output.push_str(tail);
     (output, unresolved)
-}
-
-/// The `${...}` placeholders of `text`, as byte ranges, leaving out the ones
-/// a backslash escapes.
-///
-/// A caller that resolves placeholders itself, rather than taking the whole
-/// substituted string, reads them from here so it agrees with
-/// [`env_replace_lossy`] about what a placeholder is, an unfinished `${`
-/// among them, which is text rather than the opening of one.
-#[must_use]
-pub fn placeholder_ranges(text: &str) -> Vec<std::ops::Range<usize>> {
-    let bytes = text.as_bytes();
-    let mut ranges = Vec::new();
-    let mut index = 0;
-    while index < bytes.len() {
-        let Some(placeholder) = placeholder_at(bytes, index) else {
-            index += 1;
-            continue;
-        };
-        if placeholder.backslashes % 2 == 0 {
-            ranges.push(index..placeholder.end + 1);
-        }
-        index = placeholder.end + 1;
-    }
-    ranges
-}
-
-/// A `${...}` placeholder, and the backslashes written before it.
-struct Placeholder {
-    /// Index of the closing `}`.
-    end: usize,
-    /// Backslashes immediately before the `$`.
-    backslashes: usize,
-}
-
-/// The placeholder starting at `index`, if one starts there.
-///
-/// The escape count comes from the *source*: counting it from the output
-/// would conflate a trailing `\` in a previously-substituted env value with a
-/// literal source escape.
-fn placeholder_at(bytes: &[u8], index: usize) -> Option<Placeholder> {
-    if bytes[index] != b'$' {
-        return None;
-    }
-    let mut backslashes = 0;
-    while backslashes < index && bytes[index - 1 - backslashes] == b'\\' {
-        backslashes += 1;
-    }
-    let end = find_placeholder_end(bytes, index)?;
-    Some(Placeholder { end, backslashes })
 }
 
 /// Substitute one environment placeholder, recording a name that
 /// neither the environment nor a default resolves.
 fn expand_placeholder<Sys: EnvVar>(
-    placeholder: &str,
+    placeholder: Placeholder<'_>,
     output: &mut String,
     unresolved: &mut Vec<String>,
 ) {
-    let inside = &placeholder[2..placeholder.len() - 1];
+    let inside = placeholder.body();
     let (var_name, default, default_on_empty) = match inside.split_once('-') {
         Some((name, default)) => match name.strip_suffix(':') {
             Some(name) => (name, Some(default), true),
@@ -177,7 +124,7 @@ fn expand_placeholder<Sys: EnvVar>(
     match (value, default) {
         (Some(value), _) => output.push_str(&value),
         (None, Some(default)) => output.push_str(default),
-        (None, None) => unresolved.push(placeholder.to_owned()),
+        (None, None) => unresolved.push(placeholder.raw().to_owned()),
     }
 }
 
@@ -189,26 +136,6 @@ fn optional_var_name(inside: &str) -> Option<&str> {
         .filter(|name| !name.is_empty())
         .filter(|name| !name.contains('?'))
         .filter(|name| !name.ends_with('-'))
-}
-
-/// Return the index of the closing `}` for a `${...}` starting at `start`.
-/// Returns `None` if `text[start..]` is not a well-formed placeholder
-/// (no opening `{` immediately after `$`, an empty body, or a stray `$`
-/// or `{` inside the body).
-fn find_placeholder_end(bytes: &[u8], start: usize) -> Option<usize> {
-    if bytes.get(start + 1)? != &b'{' {
-        return None;
-    }
-    let body_start = start + 2;
-    let mut cursor = body_start;
-    while cursor < bytes.len() {
-        match bytes[cursor] {
-            b'}' if cursor > body_start => return Some(cursor),
-            b'$' | b'{' | b'}' => return None,
-            _ => cursor += 1,
-        }
-    }
-    None
 }
 
 #[cfg(test)]

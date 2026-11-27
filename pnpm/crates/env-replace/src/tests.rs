@@ -125,9 +125,7 @@ fn lone_dollar_is_left_alone() {
     assert_eq!(replace_clean::<NoEnv>("$ price"), "$ price");
 }
 
-/// Hits the early-`None` branch of `bytes.get(start + 1)?` inside
-/// [`find_placeholder_end`]: the input ends on a `$` with no byte
-/// to peek at.
+/// A `$` that ends the input has no `{` after it, so it is text.
 #[test]
 fn trailing_dollar_with_no_byte_after_is_passthrough() {
     assert_eq!(replace_clean::<NoEnv>("$"), "$");

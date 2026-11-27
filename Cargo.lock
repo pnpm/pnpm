@@ -5623,9 +5623,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-env-placeholders"
+version = "0.0.1"
+dependencies = [
+ "creusot-std",
+ "pnpm-creusot-models",
+ "pretty_assertions",
+]
+
+[[package]]
 name = "pnpm-env-replace"
 version = "0.0.1"
 dependencies = [
+ "pnpm-env-placeholders",
  "pretty_assertions",
 ]
 

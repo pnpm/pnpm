@@ -19,6 +19,23 @@ fn config() -> ProptestConfig {
     ProptestConfig { cases, rng_seed, failure_persistence: None, ..from_env }
 }
 
+/// `utf8::is_boundary(text@, offset)`: some count of `text`'s first
+/// characters holds `offset` bytes.
+fn is_boundary(text: &str, offset: usize) -> bool {
+    text.char_indices()
+        .map(|(index, _)| index)
+        .chain([text.len()])
+        .any(|index| index == offset)
+}
+
+/// The characters of `text` whose encoding starts within `bytes`.
+fn chars_in(text: &str, bytes: std::ops::Range<usize>) -> String {
+    text.char_indices()
+        .filter(|(index, _)| bytes.contains(index))
+        .map(|(_, character)| character)
+        .collect()
+}
+
 /// `text@ == Seq::singleton(first).concat(rest@)`, or `text@.len() == 0`.
 fn rejoins(text: &str, split: Option<(char, &str)>) -> bool {
     match split {
@@ -126,6 +143,25 @@ proptest! {
     }
 
     #[test]
+    fn str_range_index_matches_model(text in "[a/é𝄞]{0,6}", start in 0_usize..16, end in 0_usize..16) {
+        let in_bounds =
+            start <= end && end <= text.len() && is_boundary(&text, start) && is_boundary(&text, end);
+        prop_assert_eq!(text.get(start..end).is_some(), in_bounds);
+        if in_bounds {
+            prop_assert_eq!(&text[start..end], chars_in(&text, start..end));
+        }
+    }
+
+    #[test]
+    fn str_range_from_index_matches_model(text in "[a/é𝄞]{0,6}", start in 0_usize..16) {
+        let in_bounds = start <= text.len() && is_boundary(&text, start);
+        prop_assert_eq!(text.get(start..).is_some(), in_bounds);
+        if in_bounds {
+            prop_assert_eq!(&text[start..], chars_in(&text, start..text.len()));
+        }
+    }
+
+    #[test]
     fn slice_contains_matches_model(items in vec(0_u8..8, 0..16), item in 0_u8..8) {
         let found_at_an_index = (0..items.len()).any(|index| items[index] == item);
         prop_assert_eq!(items.contains(&item), found_at_an_index);
@@ -150,5 +186,16 @@ fn is_ascii_alphabetic_matches_model_for_every_char() {
         let code = u32::from(character);
         let letter = (65..=90).contains(&code) || (97..=122).contains(&code);
         assert_eq!(character.is_ascii_alphabetic(), letter, "{character:?}");
+    }
+}
+
+#[test]
+fn non_ascii_characters_encode_to_high_bytes_for_every_char() {
+    let mut buffer = [0; 4];
+    for character in (0..=u32::from(char::MAX)).filter_map(char::from_u32) {
+        let encoded = character.encode_utf8(&mut buffer).as_bytes();
+        if !character.is_ascii() {
+            assert!(encoded.iter().all(|byte| *byte >= 0x80), "{character:?}");
+        }
     }
 }

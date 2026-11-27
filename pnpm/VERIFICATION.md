@@ -59,15 +59,18 @@ A fact about one value travels in the value's type, not in a precondition that e
 - Import from `creusot_std::prelude` by name. Its glob also brings a `vec!` that conflicts with the standard one.
 - A logic function that reads a private field is `#[logic(open(self))]`. Mark a predicate that is a conjunction `inline` too, so Why3 proves each conjunct as its own goal.
 - `proof_assert!` keeps only its last expression as a fact. When it calls a lemma, end it with the lemma's conclusion.
-- `str` methods take byte offsets and the contracts speak of characters. `to_bytes` relates the two, and `injective_to_bytes` shows that two strings with equal bytes are equal. The `spec` module of `pnpm-pkg-name-split` holds lemmas for slicing a `str` at the byte length of a substring.
+- `str` methods take byte offsets and the contracts speak of characters. `to_bytes` relates the two, and `injective_to_bytes` shows that two strings with equal bytes are equal. The `utf8` module of `pnpm-creusot-models` holds the lemmas that relate them. Its `ascii_byte` shows that an ASCII byte is a whole character, so a scan of `as_bytes`, such as the one in `pnpm-env-placeholders`, can slice the `str` wherever it finds one. The `spec` module of `pnpm-pkg-name-split` slices a `str` at the byte length of a substring.
+- Pearlite has no byte literals. Name the byte as a `const`, which the program and its contracts then share.
 - The solvers rarely find an existential witness. Wrap `exists` in a named predicate with lemmas for each way the program changes it, as `stacked` in `pnpm-strongly-connected-components` does.
+- After a `Vec::push`, assert against a `snapshot!` taken before it that the earlier elements are unchanged. Inside a larger goal, the solvers miss that step, and with it every fact about those elements.
 - Prove a new or changed proof cold before pushing it: remove `target/creusot`, `verif/`, `why3find.proofs` and `.why3find`, then run `just creusot`. `why3find.proofs` is not committed, so CI meets a new goal without the hint an earlier local run left, and a goal the solvers found once by search can fail there. Halving `time` in `why3find.json` for that run shows the goals close to the limit.
+- A run records each goal's result in `why3find.proofs`, a failure included, and a later run that replays a recorded failure can fail a goal that now proves. After a run that is meant to fail, such as one checking that a contract is not vacuous, delete the crate's entries there.
 - Creusot does not know what a string literal holds, so `text == ".."` proves nothing about `text`. Classify the string by its characters instead, as `segment_kind` in `pnpm-relative-path` does with `split_first_char`.
 - Re-associating `concat` is a step the solvers can miss. Cite `Seq::concat_assoc` for it rather than leaving it to search.
 - `cargo creusot --dry-run-why3find` prints the `why3find` command it runs. Run that command with `-X` and the failed `.coma` file to print the goal and its context.
 
 ## What is trusted
 
-- Every contract in `pnpm-creusot-models`, and the `std` contracts in `creusot-std`.
+- Every contract and logic axiom in `pnpm-creusot-models`, and the `std` contracts in `creusot-std`.
 - Creusot, Why3, and the solvers.
 - Termination: Creusot proves a function correct if it returns, unless the function carries `#[check(terminates)]`.

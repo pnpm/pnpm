@@ -17,6 +17,7 @@ crates = [
   "pnpm-crypto-shasums-file",
   "pnpm-detect-libc",
   "pnpm-diagnostics",
+  "pnpm-env-placeholders",
   "pnpm-env-replace",
   "pnpm-ffi-fs",
   "pnpm-ffi-mimalloc",
@@ -53,7 +54,7 @@ crates = [
 [[layer]]
 name = "model"
 description = "Names, specifiers, and the formats pnpm reads and writes: manifests, lockfiles, workspace and store layout."
-max_transitive_dependencies = 25
+max_transitive_dependencies = 26
 crates = [
   "pnpm-catalogs-config",
   "pnpm-catalogs-protocol-parser",
@@ -314,6 +315,7 @@ pnpm-engine-runtime-deno-resolver = 7
 pnpm-engine-runtime-node-resolver = 7
 pnpm-engine-size-probe = 7
 pnpm-env-installer = 16
+pnpm-env-replace = 1
 pnpm-executor = 9
 pnpm-exportable-manifest = 6
 pnpm-ffi-fs = 1

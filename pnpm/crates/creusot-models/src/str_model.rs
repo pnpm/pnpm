@@ -1,11 +1,21 @@
 //! The [`str`], [`String`] and [`char`] methods the verified crates call.
 
-use core::str::pattern::Pattern;
+use crate::utf8::is_boundary;
+use core::{
+    ops::{
+        Index,
+        Range,
+        RangeFrom,
+    },
+    slice::SliceIndex,
+    str::pattern::Pattern,
+};
 use creusot_std::prelude::{
     Seq,
     ensures,
     extern_spec,
     logic,
+    requires,
     trusted,
 };
 
@@ -82,6 +92,55 @@ extern_spec! {
     impl char {
         #[ensures(result == is_ascii_letter(*self))]
         fn is_ascii_alphabetic(&self) -> bool;
+    }
+}
+
+/// A byte range a [`str`] is indexed by, as in `&text[start..end]`.
+pub trait StrIndex: SliceIndex<str, Output = str> {
+    /// Whether the range lies in `text` and starts and ends on character
+    /// boundaries, so indexing by it does not panic.
+    #[logic]
+    fn in_bounds(self, text: Seq<char>) -> bool;
+
+    /// Whether `part` is what the range covers in `text`.
+    #[logic]
+    fn has_value(self, text: Seq<char>, part: Seq<char>) -> bool;
+}
+
+impl StrIndex for Range<usize> {
+    #[logic(open)]
+    fn in_bounds(self, text: Seq<char>) -> bool {
+        pearlite! {
+            self.start@ <= self.end@ && self.end@ <= text.to_bytes().len()
+                && is_boundary(text, self.start@) && is_boundary(text, self.end@)
+        }
+    }
+
+    #[logic(open)]
+    fn has_value(self, text: Seq<char>, part: Seq<char>) -> bool {
+        pearlite! { part.to_bytes() == text.to_bytes().subsequence(self.start@, self.end@) }
+    }
+}
+
+impl StrIndex for RangeFrom<usize> {
+    #[logic(open)]
+    fn in_bounds(self, text: Seq<char>) -> bool {
+        pearlite! { self.start@ <= text.to_bytes().len() && is_boundary(text, self.start@) }
+    }
+
+    #[logic(open)]
+    fn has_value(self, text: Seq<char>, part: Seq<char>) -> bool {
+        pearlite! {
+            part.to_bytes() == text.to_bytes().subsequence(self.start@, text.to_bytes().len())
+        }
+    }
+}
+
+extern_spec! {
+    impl<I: StrIndex> Index<I> for str {
+        #[requires(index.in_bounds(self@))]
+        #[ensures(index.has_value(self@, (*result)@))]
+        fn index(&self, index: I) -> &<str as Index<I>>::Output;
     }
 }
 

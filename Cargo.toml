@@ -37,6 +37,7 @@ pnpm-engine-runtime-bun-resolver = { path = "pnpm/crates/engine-runtime-bun-reso
 pnpm-engine-runtime-deno-resolver = { path = "pnpm/crates/engine-runtime-deno-resolver" }
 pnpm-engine-runtime-node-resolver = { path = "pnpm/crates/engine-runtime-node-resolver" }
 pnpm-env-installer = { path = "pnpm/crates/env-installer" }
+pnpm-env-placeholders = { path = "pnpm/crates/env-placeholders" }
 pnpm-env-replace = { path = "pnpm/crates/env-replace" }
 pnpm-ffi-fs = { path = "pnpm/crates/ffi-fs" }
 pnpm-ffi-libsql = { path = "pnpm/crates/ffi-libsql" }

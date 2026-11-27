@@ -1,6 +1,5 @@
 //! The type invariants of the split's parts, and the lemmas the split
-//! proofs call: how a string's UTF-8 bytes follow its characters, and why
-//! each split is unique.
+//! proofs call: where a split's bytes fall, and why each split is unique.
 
 use crate::{
     KeyName,
@@ -16,12 +15,15 @@ use creusot_std::{
         logic,
         requires,
     },
-    std::{
-        char::CharExt,
-        string::injective_to_bytes,
+    std::string::injective_to_bytes,
+};
+use pnpm_creusot_models::{
+    str_model::str_size_bound,
+    utf8::{
+        to_bytes_concat,
+        to_bytes_singleton,
     },
 };
-use pnpm_creusot_models::str_model::str_size_bound;
 
 /// What a [`KeyName`] holds: a non-empty name with no `@` after its first
 /// character.
@@ -64,20 +66,6 @@ impl Invariant for Scope<'_> {
     fn invariant(self) -> bool {
         pearlite! { is_scope(self@) }
     }
-}
-
-/// The bytes of two strings in a row are the bytes of each in turn.
-#[logic]
-#[ensures(left.concat(right).to_bytes() == left.to_bytes().concat(right.to_bytes()))]
-pub fn to_bytes_concat(left: Seq<char>, right: Seq<char>) {
-    pearlite! { left.concat_flat_map(right, |character: char| character.to_utf8()) }
-}
-
-/// A string of one character is that character's encoding.
-#[logic]
-#[ensures(Seq::singleton(character).to_bytes() == character.to_utf8())]
-pub fn to_bytes_singleton(character: char) {
-    pearlite! { Seq::singleton_flat_map(character, |character: char| character.to_utf8()) }
 }
 
 /// Two ways of cutting one sequence whose first parts have one length share
