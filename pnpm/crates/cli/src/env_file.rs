@@ -39,7 +39,10 @@ use derive_more::{
     Display,
     Error,
 };
-use miette::Diagnostic;
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use std::{
     collections::HashSet,
     ffi::{
@@ -67,7 +70,7 @@ pub enum EnvFileError {
 /// already defines are left untouched.
 fn load<PathItem: AsRef<Path>>(
     paths: &[PathItem],
-    mut set: impl FnMut(&str, &str),
+    mut set: impl FnMut(&str, &str) -> miette::Result<()>,
 ) -> miette::Result<HashSet<String>> {
     let mut names = HashSet::new();
     let mut loaded_keys = HashSet::new();
@@ -89,7 +92,7 @@ pub fn load_from_argv(
     single_threaded: &pnpm_ffi_process::SingleThreaded,
 ) -> miette::Result<()> {
     let names = load(&scan(argv).0, |name: &str, value: &str| {
-        single_threaded.set_var(name, value);
+        single_threaded.set_var(name, value).into_diagnostic()
     })?;
     crate::invocation_environment::record_env_file(names);
     Ok(())
@@ -110,7 +113,7 @@ const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 fn load_one(
     path: &Path,
     loaded_keys: &mut HashSet<String>,
-    mut set: impl FnMut(&str, &str),
+    mut set: impl FnMut(&str, &str) -> miette::Result<()>,
 ) -> miette::Result<Vec<String>> {
     let mut names = Vec::new();
     let bytes =
@@ -127,7 +130,7 @@ fn load_one(
         let id = env_key_id(key);
         if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
-            set(key, value);
+            set(key, value)?;
         }
     }
     Ok(names)

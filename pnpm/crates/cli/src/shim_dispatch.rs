@@ -207,12 +207,16 @@ impl ShimLaunch {
 
     /// Set [`PREPARING_ENV`] for a shim launch that no enclosing dispatch
     /// has marked.
-    pub(crate) fn mark_preparation(&self, single_threaded: &pnpm_ffi_process::SingleThreaded) {
+    pub(crate) fn mark_preparation(
+        &self,
+        single_threaded: &pnpm_ffi_process::SingleThreaded,
+    ) -> Result<(), pnpm_ffi_process::SetVarError> {
         if !self.is_shim() || std::env::var_os(PREPARING_ENV).is_some() {
-            return;
+            return Ok(());
         }
-        single_threaded.set_var(PREPARING_ENV, "1");
+        single_threaded.set_var(PREPARING_ENV, "1")?;
         SET_PREPARING_ENV.store(true, Ordering::Relaxed);
+        Ok(())
     }
 
     /// Intercept a launch under a shim name, or a legacy shim's `--shim`
