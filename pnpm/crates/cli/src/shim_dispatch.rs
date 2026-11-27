@@ -214,7 +214,7 @@ impl ShimLaunch {
         if !self.is_shim() || std::env::var_os(PREPARING_ENV).is_some() {
             return Ok(());
         }
-        single_threaded.set_var(PREPARING_ENV, "1")?;
+        single_threaded.set_var(PREPARING_ENV.to_owned(), "1".to_owned())?;
         SET_PREPARING_ENV.store(true, Ordering::Relaxed);
         Ok(())
     }

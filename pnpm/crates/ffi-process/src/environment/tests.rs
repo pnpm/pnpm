@@ -14,7 +14,7 @@ fn the_witness_is_claimable_once_and_refuses_a_shared_environment() {
     let witness = SingleThreaded::claim().expect("the first claim succeeds");
     assert!(SingleThreaded::claim().is_none(), "a second claim is refused");
 
-    let written = witness.set_var("PNPM_FFI_PROCESS_TEST_VAR", "set");
+    let written = witness.set_var("PNPM_FFI_PROCESS_TEST_VAR".to_owned(), "set".to_owned());
     if cfg!(any(
         target_os = "linux",
         target_os = "android",

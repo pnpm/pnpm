@@ -60,8 +60,8 @@ impl SingleThreaded {
     /// # Errors
     ///
     /// See [`Self::set_vars`].
-    pub fn set_var(&self, name: &str, value: &str) -> Result<(), OtherThreads> {
-        self.set_vars(vec![(name.to_owned(), value.to_owned())])
+    pub fn set_var(&self, name: String, value: String) -> Result<(), OtherThreads> {
+        self.set_vars(vec![(name, value)])
     }
 
     /// Set each name to its value in the process environment, in order,

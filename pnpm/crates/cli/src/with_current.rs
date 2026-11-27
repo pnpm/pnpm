@@ -36,7 +36,7 @@ pub fn ignore_pm_check_if_requested(
     if !is_requested(argv) {
         return Ok(());
     }
-    single_threaded.set_var("pnpm_config_pm_on_fail", "ignore")
+    single_threaded.set_var("pnpm_config_pm_on_fail".to_owned(), "ignore".to_owned())
 }
 
 fn is_requested(argv: &[OsString]) -> bool {
