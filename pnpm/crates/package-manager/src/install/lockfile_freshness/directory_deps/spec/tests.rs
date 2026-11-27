@@ -303,6 +303,31 @@ fn a_manifest_link_that_leads_nowhere_is_passed_over() {
     }
 }
 
+/// A link loop is not passed over as a link that leads nowhere is: the check
+/// cannot tell where it leads.
+#[test]
+fn a_manifest_link_that_cannot_be_resolved_fails_the_target() {
+    let (_fixture, workspace_root, _outside) = loaded_link_fixture();
+    let project_dir = workspace_root.join("packages/app");
+    let target_dir = workspace_root.join("packages/pkg");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    std::fs::create_dir_all(&target_dir).unwrap();
+    link_file(&target_dir.join("package.json"), &target_dir.join("package.json"));
+    std::fs::write(target_dir.join("package.yaml"), "name: pkg\nversion: 1.2.3\n").unwrap();
+
+    assert!(
+        !super::importer_link_satisfies(
+            &dirs(&workspace_root, &workspace_root),
+            &project_dir,
+            "pkg",
+            "workspace:^1.0.0",
+            "../pkg",
+        ),
+        "read from disk",
+    );
+    assert!(!loaded_target_satisfies(&workspace_root, target_dir), "held in memory");
+}
+
 #[test]
 fn a_yaml_or_json5_target_linking_outside_the_workspace_is_not_read() {
     for (basename, text) in yaml_and_json5_manifests("1.2.3") {
