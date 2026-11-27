@@ -375,52 +375,61 @@ fn directory_manifest(
     }
 }
 
-/// A missing directory fails a `file:` spec with
-/// `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, even when its publishing project could
-/// describe it, and only warns for a `link:` one. A missing directory whose
-/// `path_shaped_specifier` opens with a protocol fails with
-/// `ERR_PNPM_UNSUPPORTED_PROTOCOL` instead, so the protocol is checked only
-/// after resolution has already failed. A path that is not a directory fails
-/// with `ERR_PNPM_NOT_PACKAGE_DIRECTORY`.
+/// A path that is not a directory fails with
+/// `ERR_PNPM_NOT_PACKAGE_DIRECTORY`. [`missing_directory`] decides a path that
+/// does not exist.
 fn ensure_directory(
     spec: &LocalPackageSpec,
     usage: LocalDirectoryUse,
     opts: &LocalResolverOptions,
     path_shaped_specifier: Option<&str>,
 ) -> Result<(), ResolveLocalError> {
-    let metadata = std::fs::metadata(&spec.fetch_spec);
-    if matches!(&metadata, Err(err) if pnpm_fs::is_not_found(err)) {
-        if let Some(err) = path_shaped_specifier.and_then(UnsupportedProtocolError::detect) {
-            return Err(ResolveLocalError::UnsupportedProtocol(err));
+    match std::fs::metadata(&spec.fetch_spec) {
+        Err(err) if pnpm_fs::is_not_found(&err) => {
+            missing_directory(spec, usage, opts, path_shaped_specifier)
         }
-        if usage == LocalDirectoryUse::Copied {
-            return Err(ResolveLocalError::LinkedPkgDirNotFound {
-                path: spec.fetch_spec.display().to_string(),
-            });
-        }
-        // Warn via `tracing::warn!` until pacquet's reporter grows a
-        // generic `pnpm:logger` channel.
-        let prefix = opts.project_dir.display();
-        let fetch_spec = spec.fetch_spec.display();
-        tracing::warn!(
-            target: "pacquet::resolving-local-resolver",
-            prefix = %prefix,
-            "Installing a dependency from a non-existent directory: {fetch_spec}",
-        );
-    } else if let Ok(metadata) = metadata
-        && !metadata.is_dir()
-    {
-        // The path exists but isn't a directory (e.g. a `.tgz` that
-        // slipped past tarball-shape detection because the spec used
-        // the `link:` scheme). On Windows `read(<file>/package.json)`
-        // returns `NotFound` rather than `NotADirectory`, so this
-        // explicit check surfaces `ERR_PNPM_NOT_PACKAGE_DIRECTORY` on every
-        // platform.
-        return Err(ResolveLocalError::NotPackageDirectory {
+        // On Windows `read(<file>/package.json)` returns `NotFound` rather
+        // than `NotADirectory`, so a path that is a file (a `.tgz` behind
+        // the `link:` scheme, say) is rejected here on every platform.
+        Ok(metadata) if !metadata.is_dir() => Err(ResolveLocalError::NotPackageDirectory {
             path: spec.fetch_spec.display().to_string(),
-        });
+        }),
+        Ok(_) | Err(_) => Ok(()),
     }
-    Ok(())
+}
+
+/// A missing directory fails a `file:` spec with
+/// `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, even when its publishing project could
+/// describe it, and only warns for a `link:` one. A missing directory whose
+/// `path_shaped_specifier` opens with a protocol fails with
+/// `ERR_PNPM_UNSUPPORTED_PROTOCOL` instead, so the protocol is checked only
+/// after resolution has already failed.
+fn missing_directory(
+    spec: &LocalPackageSpec,
+    usage: LocalDirectoryUse,
+    opts: &LocalResolverOptions,
+    path_shaped_specifier: Option<&str>,
+) -> Result<(), ResolveLocalError> {
+    if let Some(err) = path_shaped_specifier.and_then(UnsupportedProtocolError::detect) {
+        return Err(ResolveLocalError::UnsupportedProtocol(err));
+    }
+    match usage {
+        LocalDirectoryUse::Copied => Err(ResolveLocalError::LinkedPkgDirNotFound {
+            path: spec.fetch_spec.display().to_string(),
+        }),
+        LocalDirectoryUse::Linked => {
+            // Warn via `tracing::warn!` until pacquet's reporter grows a
+            // generic `pnpm:logger` channel.
+            let prefix = opts.project_dir.display();
+            let fetch_spec = spec.fetch_spec.display();
+            tracing::warn!(
+                target: "pacquet::resolving-local-resolver",
+                prefix = %prefix,
+                "Installing a dependency from a non-existent directory: {fetch_spec}",
+            );
+            Ok(())
+        }
+    }
 }
 
 /// Map a [`PackageManifestError`] from [`local_directory_manifest`] into the

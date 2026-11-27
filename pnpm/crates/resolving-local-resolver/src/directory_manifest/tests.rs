@@ -84,9 +84,6 @@ fn a_project_held_in_memory_replaces_its_manifest_file() {
     }
 }
 
-/// A publishing project held in memory describes the directory it publishes
-/// from, whatever its manifest file says, and only when the directory is
-/// copied.
 #[test]
 fn a_publishing_project_held_in_memory_describes_its_copied_publish_directory() {
     let tmp = TempDir::new().expect("tempdir");
@@ -108,8 +105,6 @@ fn a_publishing_project_held_in_memory_describes_its_copied_publish_directory() 
     );
 }
 
-/// An unreadable ancestor manifest fails the search for a publishing project
-/// only when the directory has no manifest to describe it.
 #[test]
 fn an_unreadable_ancestor_fails_only_a_directory_without_a_manifest() {
     let tmp = TempDir::new().expect("tempdir");

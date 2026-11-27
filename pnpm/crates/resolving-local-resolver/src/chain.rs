@@ -57,6 +57,13 @@ impl LocalSchemeResolver {
     pub fn new(ctx: LocalResolverContext) -> Self {
         Self { ctx, workspace_projects: WorkspaceProjectsMemo::default() }
     }
+
+    /// The [`LocalPathResolver`] of the same chain. The two share one
+    /// by-directory view of the workspace projects.
+    #[must_use]
+    pub fn path_resolver(&self) -> LocalPathResolver {
+        LocalPathResolver { ctx: self.ctx, workspace_projects: self.workspace_projects.clone() }
+    }
 }
 
 impl Resolver for LocalSchemeResolver {
@@ -100,17 +107,10 @@ impl Resolver for LocalSchemeResolver {
 /// `resolve_latest` returns `Ok(None)` because the latest-version
 /// step is handled by [`resolve_latest_from_local`] and only fires
 /// once, for the scheme branch.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct LocalPathResolver {
     pub ctx: LocalResolverContext,
     workspace_projects: WorkspaceProjectsMemo,
-}
-
-impl LocalPathResolver {
-    #[must_use]
-    pub fn new(ctx: LocalResolverContext) -> Self {
-        Self { ctx, workspace_projects: WorkspaceProjectsMemo::default() }
-    }
 }
 
 impl Resolver for LocalPathResolver {
@@ -225,8 +225,8 @@ fn wanted_local(wanted_dependency: &WantedDependency) -> Option<WantedLocalDepen
 /// The [`WorkspaceProjectManifests`] of the workspace packages the last
 /// resolve carried. An install hands every resolve the same map, so its
 /// by-directory index is built once.
-#[derive(Debug, Default)]
-struct WorkspaceProjectsMemo(Mutex<Option<Arc<WorkspaceProjectManifests>>>);
+#[derive(Debug, Default, Clone)]
+struct WorkspaceProjectsMemo(Arc<Mutex<Option<Arc<WorkspaceProjectManifests>>>>);
 
 impl WorkspaceProjectsMemo {
     fn of(&self, opts: &ResolveOptions) -> Option<Arc<WorkspaceProjectManifests>> {

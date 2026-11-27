@@ -27,7 +27,6 @@ use pnpm_resolving_git_resolver::{
     RealGitRunner,
 };
 use pnpm_resolving_local_resolver::{
-    LocalPathResolver,
     LocalResolverContext,
     LocalSchemeResolver,
 };
@@ -440,11 +439,13 @@ impl ResolverChainInputs<'_> {
             integrity_target: self.config.lockfile_integrity_target,
             filesystem_policy: self.project.local_filesystem_policy,
         };
+        let local_scheme_resolver = LocalSchemeResolver::new(local_ctx);
+        let local_path_resolver = local_scheme_resolver.path_resolver();
         chain.extend([
             Box::new(Arc::clone(npm_resolver)) as Box<dyn Resolver>,
             Box::new(self.git_resolver()),
             Box::new(self.tarball_resolver()),
-            Box::new(LocalSchemeResolver::new(local_ctx)),
+            Box::new(local_scheme_resolver),
         ]);
         #[cfg(feature = "runtime-provisioning")]
         chain.extend(runtime_resolvers::runtime_resolvers(self, npm_resolver));
@@ -453,7 +454,7 @@ impl ResolverChainInputs<'_> {
         chain.push(Box::new(self.named_registry_resolver(caches)) as Box<dyn Resolver>);
         match self.project.local_filesystem_policy {
             pnpm_resolving_local_resolver::LocalFilesystemPolicy::HostFilesystem(_) => {
-                chain.push(Box::new(LocalPathResolver::new(local_ctx)) as Box<dyn Resolver>);
+                chain.push(Box::new(local_path_resolver) as Box<dyn Resolver>);
             }
             pnpm_resolving_local_resolver::LocalFilesystemPolicy::WorkspaceOnly => {}
         }

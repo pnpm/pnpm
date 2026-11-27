@@ -22,7 +22,7 @@ use std::{
 };
 
 /// What a dependency does with its local directory.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub enum LocalDirectoryUse {
     /// `file:` copies the directory. The project inside the workspace that
     /// publishes from it describes it, so a `package.json` a build writes
@@ -34,7 +34,7 @@ pub enum LocalDirectoryUse {
 
 /// Which ancestors of a directory without a manifest are searched for the
 /// project that publishes from it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub enum PublishingProjectSearch {
     Anywhere,
     InsideWorkspace,
@@ -75,10 +75,13 @@ pub fn local_directory_manifest(
 ) -> Result<Option<Value>, PackageManifestError> {
     let target = pnpm_fs::lexical_normalize(directory.dir);
     let workspace_root = pnpm_fs::lexical_normalize(directory.workspace_root);
-    if directory.usage == LocalDirectoryUse::Copied
-        && let Some(manifest) =
+    let publishing_project = match directory.usage {
+        LocalDirectoryUse::Copied => {
             publishing_project_manifest(directory, &target, Some(&workspace_root), |_| Ok(()))?
-    {
+        }
+        LocalDirectoryUse::Linked => None,
+    };
+    if let Some(manifest) = publishing_project {
         return Ok(Some(manifest));
     }
     if let Some(manifest) = (directory.project_manifest)(&target) {

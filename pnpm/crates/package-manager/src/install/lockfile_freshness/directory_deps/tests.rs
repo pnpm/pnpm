@@ -785,10 +785,6 @@ fn manifest_source_fixture(tmp: &Path) -> (PathBuf, Vec<PathBuf>) {
     )
 }
 
-/// The resolver and the lockfile check describe a directory package with the
-/// same manifest, whichever source it comes from: a manifest file in any
-/// format, a publishing project, a project held in memory, or the
-/// directory's name.
 #[tokio::test]
 async fn directory_manifest_reader_agrees_across_callers() {
     let tmp = tempfile::tempdir().expect("create a temporary directory");
