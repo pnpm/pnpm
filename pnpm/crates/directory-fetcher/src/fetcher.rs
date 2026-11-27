@@ -18,7 +18,7 @@ use crate::{
 use pnpm_package_manifest::{
     find_parent_publish_manifest,
     pkg_requires_build,
-    safe_read_package_json_from_dir,
+    safe_read_project_manifest_from_dir,
 };
 use std::{
     collections::HashMap,
@@ -58,7 +58,7 @@ pub struct DirectoryFetcher {
 /// import method by which slot it writes to, not by a field on the
 /// fetcher output).
 ///
-/// `manifest` is `None` when the directory has no `package.json`,
+/// `manifest` is `None` when the directory has no manifest,
 /// which is valid for the Bit-workspace shape.
 pub struct DirectoryFetchOutput {
     pub files_map: HashMap<String, PathBuf>,
@@ -107,7 +107,7 @@ impl DirectoryFetcher {
         }
 
         let files_map = self.walk_files()?;
-        let manifest = safe_read_package_json_from_dir(&self.directory)
+        let manifest = safe_read_project_manifest_from_dir(&self.directory)
             .map_err(DirectoryFetcherError::ReadManifest)?;
         // `pkg_requires_build(pkg_root)` checks scripts.preinstall /
         // install / postinstall on the manifest read from disk, and

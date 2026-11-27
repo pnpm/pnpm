@@ -4,9 +4,14 @@
 use crate::_utils::{
     ManifestDeps,
     WorkspaceFixture,
+    assert_bin_linked,
     write_manifest_value,
+    write_marker_script,
 };
-use serde_json::json;
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     fs,
     path::Path,
@@ -79,5 +84,151 @@ fn an_injected_project_reached_by_path_is_described_by_its_yaml_or_json5_manifes
             }),
         );
         assert_lib_dependency_is_installed_and_frozen(&fixture);
+    }
+}
+
+/// JSON is valid JSON5 and valid YAML, so one serialization serves every
+/// basename.
+fn write_tool(dir: &Path, basename: &str, manifest: &Value) {
+    fs::create_dir_all(dir.join("dist")).expect("create the tool's dist directory");
+    fs::create_dir_all(dir.join("src")).expect("create the tool's src directory");
+    fs::write(dir.join(basename), manifest.to_string()).expect("write the tool manifest");
+    fs::write(dir.join("dist/cli.js"), "#!/usr/bin/env node\n").expect("write the bin");
+    fs::write(dir.join("src/internal.js"), "").expect("write a file outside `files`");
+}
+
+#[test]
+fn a_copied_directory_follows_the_files_bin_and_scripts_of_its_yaml_or_json5_manifest() {
+    for basename in ["package.yaml", "package.json5"] {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml("allowBuilds:\n  'tool@file:tool': true\n");
+        fixture.write_root_manifest("root", ManifestDeps::default());
+        write_tool(
+            &fixture.workspace.join("tool"),
+            basename,
+            &json!({
+                "name": "tool",
+                "version": "1.0.0",
+                "files": ["dist"],
+                "bin": { "tool-cli": "dist/cli.js" },
+                "scripts": { "postinstall": write_marker_script("built.txt") },
+            }),
+        );
+        fixture.project(
+            "app",
+            "app",
+            ManifestDeps { prod: &[("tool", "file:../../tool")], ..Default::default() },
+        );
+
+        fixture.run(["install"]);
+
+        let modules = fixture.workspace.join("packages/app/node_modules");
+        assert_bin_linked(&modules.join(".bin").join("tool-cli"));
+        assert!(modules.join("tool/dist/cli.js").exists(), "{basename}: `files` selects dist");
+        assert!(!modules.join("tool/src").exists(), "{basename}: `files` leaves src out");
+        assert!(modules.join("tool/built.txt").exists(), "{basename}: postinstall ran");
+    }
+}
+
+#[test]
+fn a_workspace_project_bin_is_linked_from_its_yaml_or_json5_manifest() {
+    for basename in ["package.yaml", "package.json5"] {
+        for injected in [false, true] {
+            let fixture = WorkspaceFixture::new();
+            fixture.write_root_manifest("root", ManifestDeps::default());
+            write_tool(
+                &fixture.workspace.join("packages/tool"),
+                basename,
+                &json!({
+                    "name": "tool",
+                    "version": "1.0.0",
+                    "bin": { "tool-cli": "dist/cli.js" },
+                }),
+            );
+            let app = fixture.workspace.join("packages/app");
+            fs::create_dir_all(&app).expect("create the app directory");
+            write_manifest_value(
+                &app,
+                &json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "dependencies": { "tool": "workspace:*" },
+                    "dependenciesMeta": { "tool": { "injected": injected } },
+                }),
+            );
+
+            fixture.run(["install"]);
+
+            assert_bin_linked(
+                &app.join("node_modules")
+                    .join(".bin")
+                    .join("tool-cli"),
+            );
+        }
+    }
+}
+
+#[test]
+fn the_loaded_linker_links_a_workspace_project_bin_from_its_yaml_or_json5_manifest() {
+    for basename in ["package.yaml", "package.json5"] {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml("nodeLinker: loaded\n");
+        fixture.write_root_manifest("root", ManifestDeps::default());
+        write_tool(
+            &fixture.workspace.join("packages/tool"),
+            basename,
+            &json!({
+                "name": "tool",
+                "version": "1.0.0",
+                "bin": { "tool-cli": "dist/cli.js" },
+            }),
+        );
+        let app = fixture.project(
+            "app",
+            "app",
+            ManifestDeps { prod: &[("tool", "workspace:*")], ..Default::default() },
+        );
+
+        fixture.run(["install"]);
+
+        assert_bin_linked(
+            &app.join("node_modules")
+                .join(".bin")
+                .join("tool-cli"),
+        );
+    }
+}
+
+#[test]
+fn the_loaded_linker_builds_a_copied_directory_with_a_yaml_or_json5_manifest() {
+    for basename in ["package.yaml", "package.json5"] {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml(
+            "nodeLinker: loaded\nallowBuilds:\n  'tool@file:tool': true\n",
+        );
+        fixture.write_root_manifest("root", ManifestDeps::default());
+        write_tool(
+            &fixture.workspace.join("tool"),
+            basename,
+            &json!({
+                "name": "tool",
+                "version": "1.0.0",
+                "bin": { "tool-cli": "dist/cli.js" },
+                "scripts": { "postinstall": write_marker_script("built.txt") },
+            }),
+        );
+        let app = fixture.project(
+            "app",
+            "app",
+            ManifestDeps { prod: &[("tool", "file:../../tool")], ..Default::default() },
+        );
+
+        fixture.run(["install"]);
+
+        assert_bin_linked(
+            &app.join("node_modules")
+                .join(".bin")
+                .join("tool-cli"),
+        );
     }
 }

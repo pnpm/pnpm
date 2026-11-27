@@ -9,7 +9,9 @@ use pnpm_cmd_shim::{
     PackageBinSource,
     get_bins_from_package_manifest_with_walk,
     link_bins_of_packages,
+    read_package_manifest,
 };
+use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
 use sha2::{
     Digest,
     Sha256,
@@ -17,7 +19,10 @@ use sha2::{
 use std::{
     collections::HashMap,
     io,
-    path::Path,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use url::Url;
@@ -81,7 +86,8 @@ fn bin_source(
                 .join(".pnpm-loader")
                 .join(&hash)
         });
-    let metadata = read_manifest(package, &manifest.store_dir, &manifest_root(inputs, id, &root))?;
+    let metadata =
+        read_manifest(package, &manifest.store_dir, || manifest_root(inputs, id, &root))?;
     if package.resolution.as_deref() == Some("node") {
         return Ok(Some(PackageBinSource::new(root, Arc::new(metadata))));
     }
@@ -151,35 +157,52 @@ fn file_url(path: &Path) -> io::Result<String> {
         .map_err(|()| io::Error::other(format!("Invalid file path: {}", path.display())))
 }
 
-/// Where the package's `package.json` is now: `root`, or the staging
-/// directory of a package this install builds, which the build phase
-/// renames to `root` once built.
-fn manifest_root(inputs: &BinInstall<'_>, id: &str, root: &Path) -> std::path::PathBuf {
-    if root.join("package.json").exists() {
+/// Where the package's manifest is now: `root`, or the staging directory of a
+/// package this install builds, which the build phase renames to `root` once
+/// built.
+fn manifest_root(inputs: &BinInstall<'_>, id: &str, root: &Path) -> PathBuf {
+    if holds_manifest(root) {
         return root.to_path_buf();
     }
     id.parse::<pnpm_lockfile::PackageKey>()
         .ok()
         .map(|key| inputs.layout.staging_package_dir(&key))
-        .filter(|staging| staging.join("package.json").exists())
+        .filter(|staging| holds_manifest(staging))
         .unwrap_or_else(|| root.to_path_buf())
 }
 
+fn holds_manifest(dir: &Path) -> bool {
+    PROJECT_MANIFEST_BASENAMES
+        .iter()
+        .any(|basename| dir.join(basename).exists())
+}
+
+/// `directory` locates a package the store holds no files for. It is called
+/// only for such a package, because probing for it reads the disk.
 fn read_manifest(
     package: &super::StorePackage,
     store: &Path,
-    root: &Path,
+    directory: impl FnOnce() -> PathBuf,
 ) -> io::Result<serde_json::Value> {
-    let path = match &package.files {
-        Some(files) => {
-            let Some(hash) = files.get("package.json") else {
-                return Ok(serde_json::json!({}));
-            };
-            pnpm_store_dir::loader_blob_path(&store.join("files"), hash)?
-        }
-        None => root.join("package.json"),
+    let Some(files) = &package.files else {
+        return read_directory_manifest(&directory());
     };
+    let Some(hash) = files.get("package.json") else {
+        return Ok(serde_json::json!({}));
+    };
+    let path = pnpm_store_dir::loader_blob_path(&store.join("files"), hash)?;
     pnpm_package_manifest::parse_manifest_bytes(&std::fs::read(path)?).map_err(io::Error::other)
+}
+
+/// A package the store holds no files for is a directory on disk, such as a
+/// workspace project, so its manifest may be in any project format.
+fn read_directory_manifest(root: &Path) -> io::Result<serde_json::Value> {
+    read_package_manifest::<Host>(root)
+        .map_err(io::Error::other)?
+        .ok_or_else(|| {
+            let message = format!("no package manifest in {}", root.display());
+            io::Error::new(io::ErrorKind::NotFound, message)
+        })
 }
 
 #[cfg(test)]

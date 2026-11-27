@@ -1,4 +1,8 @@
-pub use discovery::collect_packages_in_modules_dir;
+pub use discovery::{
+    collect_packages_in_modules_dir,
+    read_package,
+    read_package_manifest,
+};
 pub use options::{
     LinkBinsOptions,
     OwnNodePaths,
@@ -55,7 +59,6 @@ use derive_more::{
     Error,
 };
 use miette::Diagnostic;
-use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{

@@ -95,7 +95,7 @@ use crate::{
 use pnpm_package_manifest::{
     DependencyGroup,
     PackageManifest,
-    safe_read_package_json_from_dir,
+    safe_read_project_manifest_from_dir,
 };
 use pnpm_resolving_resolver_base::{
     PreferredVersions,

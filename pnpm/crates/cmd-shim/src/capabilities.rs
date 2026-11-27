@@ -38,7 +38,7 @@ pub trait FsReadHead {
 }
 
 /// Read the entire contents of a file into a `Vec<u8>`. Reads
-/// `package.json` files when collecting bin sources.
+/// package manifests when collecting bin sources.
 pub trait FsReadFile {
     fn read_file(path: &Path) -> io::Result<Vec<u8>>;
 }
