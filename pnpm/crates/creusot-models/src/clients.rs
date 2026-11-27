@@ -2,6 +2,7 @@
 //! too weak to be used.
 
 use creusot_std::prelude::{
+    Seq,
     ensures,
     requires,
 };
@@ -90,4 +91,37 @@ pub fn length_through_pipe_deref(text: &String) -> usize {
 #[ensures(result@ <= total@)]
 pub fn share_per_cpu(total: usize) -> usize {
     total / num_cpus::get()
+}
+
+#[ensures(forall<index> 0 <= index && index < result@.len() ==>
+    result@[index] != '/' && result@[index] != '\\')]
+pub fn before_first_separator(text: &str) -> &str {
+    match text.split_once(['/', '\\']) {
+        Some((before, _)) => before,
+        None => text,
+    }
+}
+
+#[ensures(result == (text@.len() > 0 && (text@[0] == '/' || text@[0] == '\\')))]
+pub fn starts_with_separator(text: &str) -> bool {
+    text.starts_with(['/', '\\'])
+}
+
+#[ensures(result == exists<index> 0 <= index && index < text@.len() && text@[index] == ':')]
+pub fn holds_a_colon(text: &str) -> bool {
+    text.contains(':')
+}
+
+#[ensures(result@ == left@.concat(Seq::singleton('/')).concat(right@))]
+pub fn joined_by_slash(left: &str, right: &str) -> String {
+    let mut joined = String::new();
+    joined.push_str(left);
+    joined.push('/');
+    joined.push_str(right);
+    joined
+}
+
+#[ensures(result == ((65 <= letter@ && letter@ <= 90) || (97 <= letter@ && letter@ <= 122)))]
+pub fn is_drive_letter(letter: char) -> bool {
+    letter.is_ascii_alphabetic()
 }

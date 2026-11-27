@@ -78,12 +78,51 @@ proptest! {
     #[test]
     fn split_once_matches_model(text in "[a@/é]{0,12}", delimiter in prop::sample::select(vec!['@', '/', 'é'])) {
         match text.split_once(delimiter) {
-            None => prop_assert!(!text.contains(delimiter)),
+            None => prop_assert!(!text.chars().any(|character| character == delimiter)),
             Some((before, after)) => {
                 prop_assert_eq!(format!("{before}{delimiter}{after}"), text.as_str());
-                prop_assert!(!before.contains(delimiter));
+                prop_assert!(!before.chars().any(|character| character == delimiter));
             }
         }
+    }
+
+    #[test]
+    fn split_once_on_a_pair_matches_model(text in r"[a/\\é]{0,12}") {
+        let is_separator = |character: char| character == '/' || character == '\\';
+        match text.split_once(['/', '\\']) {
+            None => prop_assert!(!text.chars().any(is_separator)),
+            Some((before, after)) => {
+                let separator = text[before.len()..].chars().next().unwrap();
+                prop_assert!(is_separator(separator));
+                prop_assert_eq!(format!("{before}{separator}{after}"), text.as_str());
+                prop_assert!(!before.chars().any(is_separator));
+            }
+        }
+    }
+
+    #[test]
+    fn starts_with_and_contains_match_model(text in r"[a/\\é:]{0,8}") {
+        let first = text.chars().next();
+        prop_assert_eq!(text.starts_with('/'), first == Some('/'));
+        prop_assert_eq!(text.starts_with(['/', '\\']), matches!(first, Some('/' | '\\')));
+        prop_assert_eq!(text.contains(':'), text.chars().any(|character| character == ':'));
+        prop_assert_eq!(
+            text.contains([':', '\\']),
+            text.chars().any(|character| matches!(character, ':' | '\\')),
+        );
+    }
+
+    #[test]
+    fn string_building_matches_model(pieces in vec("[a/é]{0,4}", 0..6), last in any::<char>()) {
+        let mut built = String::new();
+        let mut expected = Vec::new();
+        for piece in &pieces {
+            built.push_str(piece);
+            expected.extend(piece.chars());
+        }
+        built.push(last);
+        expected.push(last);
+        prop_assert_eq!(built.chars().collect::<Vec<_>>(), expected);
     }
 
     #[test]
@@ -103,4 +142,13 @@ fn split_first_char_models_hold_at_the_edges() {
 #[test]
 fn num_cpus_counts_at_least_one() {
     assert!(num_cpus::get() >= 1);
+}
+
+#[test]
+fn is_ascii_alphabetic_matches_model_for_every_char() {
+    for character in (0..=u32::from(char::MAX)).filter_map(char::from_u32) {
+        let code = u32::from(character);
+        let letter = (65..=90).contains(&code) || (97..=122).contains(&code);
+        assert_eq!(character.is_ascii_alphabetic(), letter, "{character:?}");
+    }
 }
