@@ -18,6 +18,44 @@ use pnpm_catalogs_types::Catalogs;
 use rustc_hash::FxHashSet as HashSet;
 use std::path::Path;
 
+#[tokio::test]
+async fn fetched_manifest_names_that_forge_a_package_id_are_rejected() {
+    let ctx = crate::resolve_dependency_tree::TreeCtx::with_workspace(
+        std::sync::Arc::new(
+            crate::resolve_dependency_tree::workspace_ctx::WorkspaceTreeCtx::default(),
+        ),
+        pnpm_resolving_resolver_base::ResolveOptions::default(),
+    );
+    for name in ["fake-pkg@1.0.0", "fake-pkg@1.0.0(", "fake-pkg(", "fake-pkg)", "../fake-pkg"] {
+        let mut result = manifest_result(serde_json::json!({ "name": name, "version": "1.0.0" }));
+        result.id = PkgResolutionId::from("https://example.test/fake-pkg.tgz?x=)");
+        let error = super::build_pkg_id_with_patch_hash(&ctx, &result).await
+            .expect_err("invalid fetched manifest name");
+        assert_eq!(
+            miette::Diagnostic::code(&error).map(|code| code.to_string()),
+            Some("ERR_PNPM_INVALID_DEPENDENCY_NAME".to_string()),
+            "{name}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn legacy_fetched_manifest_names_still_prefix_the_package_id() {
+    let ctx = crate::resolve_dependency_tree::TreeCtx::with_workspace(
+        std::sync::Arc::new(
+            crate::resolve_dependency_tree::workspace_ctx::WorkspaceTreeCtx::default(),
+        ),
+        pnpm_resolving_resolver_base::ResolveOptions::default(),
+    );
+    let mut result =
+        manifest_result(serde_json::json!({ "name": "@Scope/Fake.Pkg", "version": "1.0.0" }));
+    result.id = PkgResolutionId::from("https://example.test/fake-pkg.tgz");
+    assert_eq!(
+        super::build_pkg_id_with_patch_hash(&ctx, &result).await.unwrap(),
+        "@Scope/Fake.Pkg@https://example.test/fake-pkg.tgz",
+    );
+}
+
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
     let result = manifest_result(serde_json::json!({

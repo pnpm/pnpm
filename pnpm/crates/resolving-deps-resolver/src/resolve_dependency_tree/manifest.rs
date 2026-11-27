@@ -79,7 +79,15 @@ pub(super) async fn build_pkg_id_with_patch_hash(
         .and_then(serde_json::Value::as_str);
     let (name, mut version) = match (result.package.name_ver.as_ref(), manifest_name) {
         (Some(name_ver), _) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
-        (None, Some(name)) => (name.to_string(), manifest_version.unwrap_or_default().to_string()),
+        (None, Some(name)) if is_valid_fetched_manifest_name(name) => {
+            (name.to_string(), manifest_version.unwrap_or_default().to_string())
+        }
+        (None, Some(name)) => {
+            return Err(ResolveDependencyTreeError::InvalidManifestName {
+                id: raw_id.to_string(),
+                name: name.to_string(),
+            });
+        }
         (None, None) => return Ok(raw_id.to_string()),
     };
     let name_prefix = format!("{name}@");
@@ -462,6 +470,13 @@ const NON_EXOTIC_RESOLVED_VIA: &[&str] = &[
 
 pub(super) fn is_exotic_resolved_via(resolved_via: &str) -> bool {
     !NON_EXOTIC_RESOLVED_VIA.contains(&resolved_via)
+}
+
+/// Whether a fetched manifest's `name` may prefix a package id. The name
+/// comes from the package itself, so it must not carry an `@` that reads as
+/// a version separator or a parenthesis that reads as a peer suffix.
+fn is_valid_fetched_manifest_name(name: &str) -> bool {
+    pnpm_package_name::is_valid_old_npm_package_name(name) && !name.contains(['(', ')'])
 }
 
 #[cfg(test)]
