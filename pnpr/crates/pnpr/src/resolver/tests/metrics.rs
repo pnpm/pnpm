@@ -101,16 +101,18 @@ async fn resolution_cache_metrics_split_public_hits_misses_and_stores() {
 
     resolve_to_done(&resolver, &body).await;
     let cold = resolver.cache.metrics.render_prometheus();
-    assert!(cold.contains("pnpr_resolution_cache_misses_total 1"), "{cold}");
+    eprintln!("{cold}");
+    assert!(cold.contains("pnpr_resolution_cache_misses_total 1"));
     assert!(cold.contains(r#"pnpr_resolution_cache_stores_total{footprint="public"} 1"#));
     assert!(cold.contains(r#"pnpr_resolution_cache_stores_total{footprint="private"} 0"#));
     assert!(cold.contains(r#"pnpr_resolution_cache_hits_total{footprint="public"} 0"#));
-    assert!(!cold.contains(r#"pnpr_tarball_routes_total{route="upstream"} 0"#), "{cold}");
+    assert!(!cold.contains(r#"pnpr_tarball_routes_total{route="upstream"} 0"#));
     assert!(cold.contains(r#"pnpr_tarball_routes_total{route="gateway"} 0"#));
 
     resolve_to_done(&resolver, &body).await;
     let warm = resolver.cache.metrics.render_prometheus();
-    assert!(warm.contains("pnpr_resolution_cache_misses_total 1"), "{warm}");
+    eprintln!("{warm}");
+    assert!(warm.contains("pnpr_resolution_cache_misses_total 1"));
     assert!(warm.contains(r#"pnpr_resolution_cache_hits_total{footprint="public"} 1"#));
     assert!(warm.contains(r#"pnpr_resolution_cache_hits_total{footprint="private"} 0"#));
     server.abort();
@@ -129,7 +131,8 @@ fn tarball_route_metrics_count_gateway_urls_for_private_aliases() {
     router.route_lockfile(&config_for_registry("https://npm.corp.example/"), &lockfile("1.0.0"));
 
     let rendered = metrics.render_prometheus();
-    assert!(rendered.contains(r#"pnpr_tarball_routes_total{route="gateway"} 1"#), "{rendered}");
+    eprintln!("{rendered}");
+    assert!(rendered.contains(r#"pnpr_tarball_routes_total{route="gateway"} 1"#));
     assert!(rendered.contains(r#"pnpr_tarball_routes_total{route="upstream"} 0"#));
     assert!(rendered.contains(r#"pnpr_tarball_routes_total{route="hosted"} 0"#));
 }
