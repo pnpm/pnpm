@@ -63,32 +63,8 @@ pub(super) async fn build_pkg_id_with_patch_hash(
         }
         return Ok(link_pkg_id(ctx, target));
     }
-    // Resolvers that learn the name from the fetched manifest (git,
-    // tarball, directory) leave `name_ver` unset. The `name` is read
-    // from the manifest itself and the id is prefixed regardless, so a
-    // `file:project-1` id becomes `project-1@file:project-1`. Skipping
-    // the prefix would leave `(` as the first paren-bearing character in
-    // the downstream depPath, which `PkgNameVerPeer`'s `@`-split parser
-    // can't recover from (it finds the `@` inside the peer suffix first).
-    let manifest = result.package.manifest.as_deref();
-    let manifest_name = manifest
-        .and_then(|manifest| manifest.get("name"))
-        .and_then(serde_json::Value::as_str);
-    let manifest_version = manifest
-        .and_then(|manifest| manifest.get("version"))
-        .and_then(serde_json::Value::as_str);
-    let (name, mut version) = match (result.package.name_ver.as_ref(), manifest_name) {
-        (Some(name_ver), _) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
-        (None, Some(name)) if is_valid_fetched_manifest_name(name) => {
-            (name.to_string(), manifest_version.unwrap_or_default().to_string())
-        }
-        (None, Some(name)) => {
-            return Err(ResolveDependencyTreeError::InvalidManifestName {
-                id: raw_id.to_string(),
-                name: name.to_string(),
-            });
-        }
-        (None, None) => return Ok(raw_id.to_string()),
+    let Some((name, mut version)) = pkg_name_and_version(result)? else {
+        return Ok(raw_id.to_string());
     };
     let name_prefix = format!("{name}@");
     let prefixed = if raw_id.starts_with(&name_prefix) {
@@ -113,6 +89,40 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     };
     lock_recoverable(&ctx.workspace.policy.applied_patches).insert(patch.key.clone());
     Ok(format!("{prefixed}(patch_hash={})", patch.hash))
+}
+
+/// The name and version a package id is built from, or `None` when neither
+/// the resolver nor the manifest names the package.
+///
+/// Resolvers that learn the name from the fetched manifest (git, tarball,
+/// directory) leave `name_ver` unset. The `name` is read from the manifest
+/// itself and the id is prefixed regardless, so a `file:project-1` id becomes
+/// `project-1@file:project-1`. Skipping the prefix would leave `(` as the
+/// first paren-bearing character in the downstream depPath, which
+/// `PkgNameVerPeer`'s `@`-split parser can't recover from (it finds the `@`
+/// inside the peer suffix first).
+fn pkg_name_and_version(
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+) -> Result<Option<(String, String)>, ResolveDependencyTreeError> {
+    if let Some(name_ver) = result.package.name_ver.as_ref() {
+        return Ok(Some((name_ver.name.to_string(), name_ver.suffix.to_string())));
+    }
+    let manifest_field = |field: &str| {
+        result.package.manifest
+            .as_deref()
+            .and_then(|manifest| manifest.get(field))
+            .and_then(serde_json::Value::as_str)
+    };
+    let Some(name) = manifest_field("name") else {
+        return Ok(None);
+    };
+    if !is_valid_fetched_manifest_name(name) {
+        return Err(ResolveDependencyTreeError::InvalidManifestName {
+            id: result.id.as_str().to_string(),
+            name: name.to_string(),
+        });
+    }
+    Ok(Some((name.to_string(), manifest_field("version").unwrap_or_default().to_string())))
 }
 
 /// A `link:` id re-anchored on the lockfile directory, so the same external
