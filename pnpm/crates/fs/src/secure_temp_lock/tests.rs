@@ -110,6 +110,17 @@ fn refuses_a_symlinked_lock_file() {
     assert!(open_secure_lock_file(&link).is_err());
 }
 
+#[test]
+fn refuses_a_symlinked_lock_directory() {
+    let root = tempfile::tempdir().unwrap();
+    let directory = root.path().join("directory");
+    std::fs::create_dir(&directory).unwrap();
+    let alias = root.path().join("alias");
+    std::os::unix::fs::symlink(&directory, &alias).unwrap();
+    assert!(open_secure_lock_file(&alias.join("lock")).is_err());
+    assert!(!directory.join("lock").exists());
+}
+
 #[cfg(unix)]
 #[test]
 fn refuses_a_hardlinked_lock_file() {

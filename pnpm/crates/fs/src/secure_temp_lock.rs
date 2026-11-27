@@ -38,7 +38,10 @@ fn secure_lock_dir(mut directory: PathBuf, name: &str) -> io::Result<PathBuf> {
     #[cfg(not(target_os = "wasi"))]
     fs::create_dir_all(&directory)?;
     #[cfg(unix)]
-    secure_unix_directory(&directory)?;
+    {
+        let handle = open_owned_directory(&directory)?;
+        handle.set_permissions(pnpm_ffi_fs::FileMode::from_mode(0o700).into())?;
+    }
     Ok(directory)
 }
 
@@ -99,26 +102,38 @@ fn user_lock_root() -> io::Result<PathBuf> {
 
 /// Open a lock file without following symlinks on Unix, then verify that the
 /// current user owns the one-link regular file that was opened.
-#[cfg(not(target_os = "wasi"))]
+#[cfg(unix)]
 pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
-    let mut options = fs::OpenOptions::new();
-    options
+    let name = path
+        .file_name()
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("expected lock file name: {}", path.display()),
+            )
+        })?;
+    let parent = path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let directory = open_owned_directory(parent)?;
+    let file = pnpm_ffi_fs::open_or_create_file_at(
+        &directory,
+        name,
+        pnpm_ffi_fs::FileMode::from_mode(0o600),
+    )?;
+    validate_unix_file(&file)?;
+    Ok(file)
+}
+
+#[cfg(not(any(unix, target_os = "wasi")))]
+pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
+    fs::OpenOptions::new()
         .create(true)
         .truncate(false)
         .read(true)
-        .write(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt as _;
-
-        options
-            .mode(0o600)
-            .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW);
-    }
-    let file = options.open(path)?;
-    #[cfg(unix)]
-    validate_unix_file(&file)?;
-    Ok(file)
+        .write(true)
+        .open(path)
 }
 
 #[cfg(target_os = "wasi")]
@@ -175,21 +190,25 @@ fn native_path_bytes(path: &Path) -> Vec<u8> {
 }
 
 #[cfg(unix)]
-fn secure_unix_directory(directory: &Path) -> io::Result<()> {
+fn open_owned_directory(directory: &Path) -> io::Result<fs::File> {
     use std::os::unix::fs::{
         MetadataExt as _,
-        PermissionsExt as _,
+        OpenOptionsExt as _,
     };
 
-    let metadata = fs::symlink_metadata(directory)?;
+    let handle = fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
+        .open(directory)?;
+    let metadata = handle.metadata()?;
     let effective_user = pnpm_ffi_process::effective_user_id();
-    if !metadata.is_dir() || metadata.uid() != effective_user {
+    if metadata.uid() != effective_user {
         return Err(io::Error::other(format!(
             "lock directory must be a real directory owned by the current user: {}",
             directory.display(),
         )));
     }
-    fs::set_permissions(directory, fs::Permissions::from_mode(0o700))
+    Ok(handle)
 }
 
 #[cfg(unix)]

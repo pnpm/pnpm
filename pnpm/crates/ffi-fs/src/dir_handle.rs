@@ -171,6 +171,14 @@ pub fn create_file_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result
     adopt(open_at(parent, &name, flags, Some(mode.narrow())))
 }
 
+/// Open or create a file for reading and writing without truncating it or
+/// following a symlink at its name. The mode applies only to a new file.
+pub fn open_or_create_file_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result<File> {
+    let name = entry_name(name)?;
+    let flags = libc::O_RDWR | libc::O_CREAT | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+    adopt(open_at(parent, &name, flags, Some(mode.narrow())))
+}
+
 /// Rename `from` to `to`, both inside `parent`, replacing whatever `to`
 /// names.
 pub fn rename_at(parent: &File, from: &OsStr, to: &OsStr) -> io::Result<()> {
