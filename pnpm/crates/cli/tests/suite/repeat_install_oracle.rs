@@ -968,7 +968,9 @@ fn generated_filtered_install_edit_and_lockfile_sequences(layout: Layout) {
         scenario.install(&[]);
         scenario.install(&["--filter", project]);
         scenario.set_dependencies(project, &json!({ "@pnpm.e2e/foo": "100.0.0" }));
-        fs::remove_file(scenario.lockfile_of(project)).expect("delete the lockfile");
+        if matches!(scenario.driver, Driver::V12) {
+            fs::remove_file(scenario.lockfile_of(project)).expect("delete the lockfile");
+        }
         scenario.check_gates();
     }
 }

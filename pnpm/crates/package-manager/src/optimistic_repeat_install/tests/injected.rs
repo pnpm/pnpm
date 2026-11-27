@@ -75,6 +75,7 @@ fn injected_sibling_decision_with_lockfile(
     injected_sibling_decision_with_projects(
         (shared_workspace_lockfile, sibling_manifest, lockfile),
         &[],
+        unchanged_sibling(),
     )
 }
 
@@ -91,6 +92,7 @@ fn injected_sibling_decision_with_projects(
         &str,
     ),
     extra_projects: &[ExtraProject<'_>],
+    installed_sibling_manifest: serde_json::Value,
 ) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
@@ -162,7 +164,7 @@ fn injected_sibling_decision_with_projects(
         }),
     );
     let installed_sibling =
-        PackageManifest::from_value(sibling_dir.join("package.json"), unchanged_sibling());
+        PackageManifest::from_value(sibling_dir.join("package.json"), installed_sibling_manifest);
     let manifests_of = |pick: for<'p> fn(&'p ExtraProject<'_>) -> &'p serde_json::Value| -> Vec<_> {
         extra_projects
             .iter()
@@ -306,6 +308,7 @@ fn recorded_injected_inputs_do_not_vouch_for_a_changed_nested_project() {
         injected_sibling_decision_with_projects(
             (false, Some(&sibling), &lockfile),
             &[("pkg-b", pkg_b.clone(), current.clone())],
+            sibling.clone(),
         )
     };
     assert_eq!(decision(&pkg_b), Decision::UpToDate);
