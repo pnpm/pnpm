@@ -30,11 +30,13 @@ use crate::{
 use futures_util::future;
 use node_semver::Version;
 use pipe_trait::Pipe;
-use pnpm_resolving_resolver_base::SharedDependencyManifest;
+use pnpm_resolving_resolver_base::{
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    SharedDependencyManifest,
+};
 use std::cell::RefCell;
 
-/// Resolve current-graph providers before allowing lockfile-only candidates
-/// to change dependency ownership in a later hoist wave.
+/// Resolve current-graph providers before consulting manifest preferences.
 #[derive(Clone, Copy)]
 pub(crate) enum OptionalPeerCandidates {
     Resolved,
@@ -152,7 +154,7 @@ impl ImporterHoistState {
     ) -> RequiredPeerPick {
         let names = || std::iter::once(name);
         let resolved_versions = self.ctx.run_resolved_versions(names());
-        let preferred = self.required_peer_preferred_versions(names(), &resolved_versions);
+        let preferred = self.required_peer_preferred_versions(names());
         let missing = [(name.to_string(), MissingPeerInfo { range })];
         let hoist_opts = self.hoist_peers_options(&preferred, &resolved_versions);
         let Some(specifier) = hoist_peers(&hoist_opts, &missing).remove(name) else {
@@ -359,8 +361,11 @@ impl ImporterHoistState {
         provided_peer_versions: &HashMap<String, String>,
     ) -> PreferredVersions {
         let names = self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
-        let mut preferred =
-            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names);
+        let mut preferred = self.ctx.preferred_versions_for_names(
+            &self.selection.preferred_versions,
+            names,
+            |_, _, entry| entry.weight() != EXISTING_VERSION_SELECTOR_WEIGHT,
+        );
         match self.policy.peers.dedupe_peer_dependents.optional_peer_scope() {
             OptionalPeerScope::Project => {
                 self.retain_own_closure_versions(&mut preferred, provided_peer_versions);

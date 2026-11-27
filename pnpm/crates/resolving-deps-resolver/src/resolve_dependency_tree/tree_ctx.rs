@@ -14,6 +14,7 @@ use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{
     LinkWorkspacePackages,
     ResolveOptions,
+    VersionSelectorEntry,
     VersionSelectorType,
     WantedDependency,
 };
@@ -524,7 +525,7 @@ impl TreeCtx {
         self.workspace.snapshot_reachable_from(direct)
     }
 
-    /// The preferred-version buckets for `names`: the caller's seed
+    /// The preferred-version buckets for `names`: the accepted seed
     /// entries merged with every version this run has resolved into the
     /// settled reachable tree (seed entries win per selector); see
     /// [`WorkspaceTreeCtx::run_preferred_versions`]. The peer-hoist
@@ -537,6 +538,7 @@ impl TreeCtx {
         &self,
         seed: &pnpm_resolving_resolver_base::PreferredVersions,
         names: impl Iterator<Item = &'name str>,
+        accepts_seed: impl Fn(&str, &str, &VersionSelectorEntry) -> bool,
     ) -> pnpm_resolving_resolver_base::PreferredVersions {
         let run = self.workspace.run_preferred_versions();
         let mut out = pnpm_resolving_resolver_base::PreferredVersions::new();
@@ -545,12 +547,13 @@ impl TreeCtx {
                 .get(name)
                 .cloned()
                 .unwrap_or_default();
-            bucket.retain(|_, entry| entry.selector_type() == VersionSelectorType::Version);
-            for (selector, entry) in run.versions
-                .get(name)
-                .into_iter()
-                .flatten()
-            {
+            let resolved = run.versions.get(name);
+            bucket.retain(|version, entry| {
+                entry.selector_type() == VersionSelectorType::Version
+                    && (resolved.is_some_and(|versions| versions.contains_key(version))
+                        || accepts_seed(name, version, entry))
+            });
+            for (selector, entry) in resolved.into_iter().flatten() {
                 bucket.entry(selector.clone()).or_insert_with(|| entry.clone());
             }
             if !bucket.is_empty() {

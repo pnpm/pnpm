@@ -118,28 +118,17 @@ impl super::ImporterHoistState {
     pub(super) fn required_peer_preferred_versions<'name>(
         &self,
         names: impl Iterator<Item = &'name str>,
-        resolved: &HashMap<String, HashSet<String>>,
     ) -> PreferredVersions {
-        let mut preferred =
-            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names);
-        if self.policy.peers.auto_install_peers
+        let allow_lockfile = self.policy.peers.auto_install_peers
             || self.ctx
                 .workspace()
                 .wanted_lockfile()
-                .is_none()
-        {
-            return preferred;
-        }
-        preferred.retain(|name, versions| {
-            versions.retain(|version, entry| {
-                entry.weight() >= DIRECT_DEP_SELECTOR_WEIGHT
-                    || resolved
-                        .get(name)
-                        .is_some_and(|versions| versions.contains(version))
-            });
-            !versions.is_empty()
-        });
-        preferred
+                .is_none();
+        self.ctx.preferred_versions_for_names(
+            &self.selection.preferred_versions,
+            names,
+            |_, _, entry| allow_lockfile || entry.weight() >= DIRECT_DEP_SELECTOR_WEIGHT,
+        )
     }
 
     pub(super) fn assemble(

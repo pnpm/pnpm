@@ -19,6 +19,143 @@ use std::{
     path::Path,
 };
 
+#[derive(Clone, Copy)]
+enum ProviderLockfile {
+    DirectDependency,
+    OrphanedPeer,
+}
+
+#[derive(Clone, Copy)]
+enum ConsumerChange {
+    Pinned,
+    NewSpecifier,
+    UpdateWithinRange,
+}
+
+#[test]
+fn removing_the_last_optional_provider_drops_its_binding() {
+    check_optional_provider_removal(
+        ConsumerChange::Pinned,
+        &["install"],
+        ProviderLockfile::DirectDependency,
+    );
+}
+
+#[test]
+fn changing_a_consumer_releases_its_removed_optional_provider() {
+    check_optional_provider_removal(
+        ConsumerChange::NewSpecifier,
+        &["install"],
+        ProviderLockfile::OrphanedPeer,
+    );
+}
+
+#[test]
+fn updating_a_consumer_within_its_range_releases_its_removed_optional_provider() {
+    check_optional_provider_removal(
+        ConsumerChange::UpdateWithinRange,
+        &["update", "consumer"],
+        ProviderLockfile::OrphanedPeer,
+    );
+}
+
+#[test]
+fn dedupe_drops_an_orphaned_optional_peer_from_an_existing_lockfile() {
+    check_optional_provider_removal(
+        ConsumerChange::Pinned,
+        &["dedupe"],
+        ProviderLockfile::OrphanedPeer,
+    );
+}
+
+#[test]
+fn fix_lockfile_drops_an_orphaned_optional_peer_from_an_existing_lockfile() {
+    check_optional_provider_removal(
+        ConsumerChange::Pinned,
+        &["install", "--fix-lockfile"],
+        ProviderLockfile::OrphanedPeer,
+    );
+}
+
+fn check_optional_provider_removal(
+    change: ConsumerChange,
+    command: &[&str],
+    provider: ProviderLockfile,
+) {
+    let (initial, changed, expected) = match change {
+        ConsumerChange::Pinned => ("1.0.0", "1.0.0", "1.0.0"),
+        ConsumerChange::NewSpecifier => ("1.0.0", "1.1.0", "1.1.0"),
+        ConsumerChange::UpdateWithinRange => ("^1.0.0", "^1.0.0", "1.1.0"),
+    };
+    let registry_dir = tempfile::tempdir().unwrap();
+    let mut fixture = WorkspaceFixture::new();
+    let consumers = ["1.0.0", "1.1.0"].map(|version| {
+        json!({
+            "name": "consumer",
+            "version": version,
+            "peerDependencies": {"provider": "*"},
+            "peerDependenciesMeta": {"provider": {"optional": true}},
+        })
+    });
+    fixture.registry.mock_instance = registry_from_manifests(
+        registry_dir.path(),
+        consumers
+            .into_iter()
+            .chain([json!({"name": "provider", "version": "1.0.0"})]),
+    );
+    fixture.append_workspace_yaml("modulesCacheMaxAge: 0\n");
+    let installed_provider = fixture.workspace.join("node_modules/.pnpm/provider@1.0.0");
+    let storage = registry_dir.path().join("storage");
+    pnpr_fixtures::set_dist_tag(&storage, "consumer", "1.0.0", "latest");
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { dev: &[("consumer", initial), ("provider", "1.0.0")], ..Default::default() },
+    );
+    assert_success(&fixture.command_at(&fixture.workspace, ["install"]));
+    assert!(installed_provider.is_dir());
+    let mut lockfile = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    assert!(
+        lockfile.snapshots
+            .as_ref()
+            .unwrap()
+            .contains_key(&"consumer@1.0.0(provider@1.0.0)".parse().unwrap()),
+    );
+    match provider {
+        ProviderLockfile::DirectDependency => {}
+        ProviderLockfile::OrphanedPeer => {
+            lockfile.importers
+                .get_mut(".")
+                .unwrap()
+                .dev_dependencies
+                .as_mut()
+                .unwrap()
+                .remove(&"provider".parse().unwrap())
+                .unwrap();
+            fs::write(fixture.workspace.join("pnpm-lock.yaml"), lockfile.to_yaml_string().unwrap())
+                .unwrap();
+        }
+    }
+    pnpr_fixtures::set_dist_tag(&storage, "consumer", "1.1.0", "latest");
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { dev: &[("consumer", changed)], ..Default::default() },
+    );
+    if command == ["dedupe"] {
+        let check = fixture.command_at(&fixture.workspace, ["dedupe", "--check"]);
+        assert_eq!(check.status.code(), Some(1), "{check:?}");
+    }
+    assert_success(&fixture.command_at(&fixture.workspace, command));
+    let lockfile = Lockfile::load_wanted_from_dir(&fixture.workspace).unwrap().unwrap();
+    let snapshots = lockfile.snapshots.unwrap();
+    assert!(
+        snapshots.contains_key(&format!("consumer@{expected}").parse().unwrap()),
+        "{snapshots:?}",
+    );
+    assert_eq!(snapshots.len(), 1);
+    assert_eq!(lockfile.packages.unwrap().len(), 1);
+    assert!(!installed_provider.exists());
+}
+
 #[test]
 fn changing_a_consumer_keeps_optional_peer_pins_on_cycles() {
     for suffix_length in [20, 1000] {

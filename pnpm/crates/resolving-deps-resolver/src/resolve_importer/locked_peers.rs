@@ -14,8 +14,10 @@ use crate::resolve_dependency_tree::{
 };
 use hashed_suffix::hashed_peer_keys;
 use pnpm_lockfile::{
+    ImporterDepVersion,
     PeerBindings,
     PkgName,
+    PkgNameVerPeer,
 };
 
 mod hashed_suffix;
@@ -28,23 +30,34 @@ pub(super) struct LockedPeers {
 
 struct RetainedImporter {
     id: String,
-    dependencies: HashSet<PkgName>,
+    dependencies: HashMap<PkgName, Arc<str>>,
+}
+
+impl RetainedImporter {
+    fn retained_key(
+        &self,
+        alias: &PkgName,
+        version: &ImporterDepVersion,
+    ) -> Option<PkgNameVerPeer> {
+        let id = self.dependencies.get(alias)?;
+        let key = version.resolved_key(alias)?;
+        (format!("{}@{}", key.name, key.suffix.without_peer_bindings()) == id.as_ref()).then_some(
+            key,
+        )
+    }
 }
 
 impl LockedPeers {
     pub(super) fn for_importer(
         ctx: &TreeCtx,
         importer_id: &str,
-        retained: &HashSet<PkgName>,
+        retained: HashMap<PkgName, Arc<str>>,
     ) -> Self {
         let importer = ctx
             .workspace()
             .wanted_lockfile()
             .filter(|lockfile| lockfile.importers.contains_key(importer_id))
-            .map(|_| RetainedImporter {
-                id: importer_id.to_string(),
-                dependencies: retained.clone(),
-            });
+            .map(|_| RetainedImporter { id: importer_id.to_string(), dependencies: retained });
         Self { importer, versions: std::sync::OnceLock::new() }
     }
 
@@ -60,7 +73,7 @@ impl LockedPeers {
                 return Arc::new(retained_peer_versions(
                     lockfile,
                     &lockfile.importers[&importer.id],
-                    |name| importer.dependencies.contains(name),
+                    |name, version| importer.retained_key(name, version),
                     &contexts,
                 ));
             }
@@ -87,7 +100,7 @@ pub(super) fn retained_dependency_names(
 fn retained_peer_versions(
     lockfile: &pnpm_lockfile::Lockfile,
     importer: &pnpm_lockfile::ProjectSnapshot,
-    is_retained: impl Fn(&PkgName) -> bool,
+    retained_key: impl Fn(&PkgName, &ImporterDepVersion) -> Option<PkgNameVerPeer>,
     contexts: &hashed_suffix::ProviderContexts,
 ) -> HashMap<String, HashSet<String>> {
     let mut versions = HashMap::<String, HashSet<String>>::default();
@@ -96,10 +109,7 @@ fn retained_peer_versions(
         DependencyGroup::Optional,
         DependencyGroup::Dev,
     ]) {
-        if !is_retained(alias) {
-            continue;
-        }
-        let Some(key) = dependency.version.resolved_key(alias) else {
+        let Some(key) = retained_key(alias, &dependency.version) else {
             continue;
         };
         let snapshot = lockfile.snapshots

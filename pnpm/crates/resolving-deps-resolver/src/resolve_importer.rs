@@ -313,7 +313,16 @@ impl SeededImporter {
         .await?;
         self.seeds.parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
         self.ctx.resolve_new_direct_deps_as_subdeps();
-        let locked = LockedPeers::for_importer(&self.ctx, &self.importer_id, &self.retained);
+        let retained = direct
+            .iter()
+            .filter_map(|dep| {
+                let alias = dep.alias.parse().ok()?;
+                self.retained
+                    .contains(&alias)
+                    .then(|| (alias, Arc::clone(&dep.id)))
+            })
+            .collect();
+        let locked = LockedPeers::for_importer(&self.ctx, &self.importer_id, retained);
         Ok(ImporterHoistState::assemble(
             self.importer_id,
             self.ctx,
