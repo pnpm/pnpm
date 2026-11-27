@@ -177,6 +177,10 @@ fn package_name((path, manifest): &Manifest) -> Result<String, String> {
 
 /// Every dependency the manifest declares, including target-specific ones,
 /// as the package name it resolves to.
+///
+/// `cfg(creusot)` dependencies are left out. Only `cargo creusot` sets that
+/// cfg, so no build compiles them, and they are proof tooling rather than
+/// part of the crate graph the layers describe.
 fn dependencies(
     manifest: &Table,
     workspace_packages: &BTreeMap<String, String>,
@@ -186,8 +190,9 @@ fn dependencies(
         .chain(
             targets
                 .into_iter()
-                .map(Table::values)
-                .flat_map(|values| values.filter_map(Value::as_table)),
+                .flat_map(Table::iter)
+                .filter(|(predicate, _)| *predicate != "cfg(creusot)")
+                .filter_map(|(_, section)| section.as_table()),
         );
     let mut found = Vec::new();
     for section in sections {

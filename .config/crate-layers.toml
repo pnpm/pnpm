@@ -368,7 +368,6 @@ pnpm-resolving-resolver-base = 6
 pnpm-resolving-tarball-resolver = 9
 pnpm-rust-toolchain = 9
 pnpm-store-dir = 9
-pnpm-strongly-connected-components = 1
 pnpm-tarball = 8
 pnpm-testing-utils-registry = 5
 pnpm-version-policy = 1

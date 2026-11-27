@@ -110,6 +110,22 @@ base = { path = "../base" }
     );
 }
 
+/// Only `cargo creusot` sets `cfg(creusot)`, so no build compiles a
+/// dependency declared under it.
+#[test]
+fn leaves_out_dependencies_only_creusot_compiles() {
+    let graph = workspace(
+        r#"
+[package]
+name = "top"
+
+[target.'cfg(creusot)'.dependencies]
+base = { workspace = true }
+"#,
+    );
+    assert_eq!(graph.edges.into_iter().collect::<Vec<_>>(), Vec::<Edge>::new());
+}
+
 #[test]
 fn skips_excluded_workspace_directories_like_cargo() {
     let root = r#"
