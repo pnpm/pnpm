@@ -14,7 +14,13 @@ just install-creusot
 export PATH="$HOME/.local/share/creusot/bin:$PATH"
 ```
 
-`just install-creusot` installs the release of [creusot-prebuilt](https://github.com/KSXGitHub/creusot-prebuilt) that `pnpm/scripts/install-creusot.mjs` pins, with the nightly it builds with and the SMT solvers. The script pins the release by the SHA-256 of its `release.json`, which records every asset's checksum. Moving to a newer release means changing the tag and that hash.
+`just install-creusot` installs the release of [creusot-prebuilt](https://github.com/KSXGitHub/creusot-prebuilt) that `pnpm/scripts/install-creusot.mjs` pins, with the nightly it builds with and the SMT solvers. The script pins every file it downloads by SHA-256 and refuses one that hashes to anything else:
+
+- The release's archives, downloaded directly from the release.
+- The nightly's `rustc`, `rust-std` and `cargo` components. The script installs them itself, replacing that nightly's directory under `~/.rustup/toolchains`, rather than asking rustup for them.
+- The solvers, which `creusot-install` downloads. It carries their hashes, and it is one of the pinned archives.
+
+Moving to a newer release means copying the archive table from the release's `release.json`, and the component hashes from Rust's channel manifest for the nightly's date. `just install-creusot --downloads <dir>` keeps each verified download in `<dir>`, and reuses a kept file only while it still matches its pin.
 
 Then, from the repository root:
 

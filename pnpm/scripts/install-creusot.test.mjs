@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { checkTree, dataHome, parseRelease, sha256 } from './install-creusot.mjs'
+import { checkTree, dataHome, keptDownload, rustupHome, sha256 } from './install-creusot.mjs'
 
 function scratch (context) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-install-creusot-test-')))
@@ -11,31 +11,31 @@ function scratch (context) {
   return root
 }
 
-const release = {
-  rust_channel: 'nightly-2026-08-03',
-  why3_prefix: '/opt/creusot-why3/_opam',
-  assets: [{ name: 'why3', file: 'why3.tar.gz', prefix: 'why3-prefix', sha256: 'ab' }],
-}
-
-test('parses the fields the installer reads', () => {
-  assert.deepEqual(parseRelease(JSON.stringify(release)), release)
-})
-
-test('rejects a release.json without a field the installer reads', () => {
-  assert.throws(() => parseRelease(JSON.stringify({ ...release, why3_prefix: undefined })), /why3_prefix/)
-  assert.throws(() => parseRelease(JSON.stringify({ ...release, assets: [] })), /no assets/)
-  const asset = { ...release.assets[0], sha256: undefined }
-  assert.throws(() => parseRelease(JSON.stringify({ ...release, assets: [asset] })), /sha256/)
-})
-
 test('finds the data directory the way cargo-creusot does', () => {
   assert.equal(dataHome({ CREUSOT_DATA_HOME: '/data', XDG_DATA_HOME: '/xdg' }, '/home'), '/data')
   assert.equal(dataHome({ XDG_DATA_HOME: '/xdg' }, '/home'), path.join('/xdg', 'creusot'))
   assert.equal(dataHome({}, '/home'), path.join('/home', '.local', 'share', 'creusot'))
 })
 
+test('finds the toolchains directory the way rustup does', () => {
+  assert.equal(rustupHome({ RUSTUP_HOME: '/rustup' }, '/home'), '/rustup')
+  assert.equal(rustupHome({}, '/home'), path.join('/home', '.rustup'))
+})
+
+const abcSha256 = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+
+test('reuses a kept download only while it matches its pin', (context) => {
+  const downloads = scratch(context)
+  assert.equal(keptDownload(undefined, 'archive.tar.gz', abcSha256), undefined)
+  assert.equal(keptDownload(downloads, 'archive.tar.gz', abcSha256), undefined)
+  fs.writeFileSync(path.join(downloads, 'archive.tar.gz'), 'abc')
+  assert.deepEqual(keptDownload(downloads, 'archive.tar.gz', abcSha256), Buffer.from('abc'))
+  fs.writeFileSync(path.join(downloads, 'archive.tar.gz'), 'tampered')
+  assert.equal(keptDownload(downloads, 'archive.tar.gz', abcSha256), undefined)
+})
+
 test('hashes bytes as hex SHA-256', () => {
-  assert.equal(sha256(Buffer.from('abc')), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
+  assert.equal(sha256(Buffer.from('abc')), abcSha256)
 })
 
 test('accepts files, directories, and symlinks that stay in the archive', (context) => {
