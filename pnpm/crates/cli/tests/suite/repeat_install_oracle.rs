@@ -971,7 +971,7 @@ fn generated_filtered_install_edit_and_lockfile_sequences(layout: Layout) {
         if matches!(scenario.driver, Driver::V12) {
             fs::remove_file(scenario.lockfile_of(project)).expect("delete the lockfile");
         }
-        scenario.check_gates();
+        scenario.check_gates_after_a_workspace_input_edit();
     }
 }
 
