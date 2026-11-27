@@ -197,7 +197,7 @@ impl FreshnessDecision<'_> {
             held_projects_match_lockfile(check, state, &held, &drift.current)?;
         }
         settle_missing_wanted_lockfile(check, policy, &drift.current)?;
-        inputs::check_recorded_inputs(check, state, &held, policy)?;
+        inputs::check_recorded_inputs(check, state, &held, policy, scope)?;
         if drift.lockfile_unchanged() {
             let vouched = drift.proven_dirs(&held);
             record_state_at(check, state, &vouched, policy, filesystem_now);

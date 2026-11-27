@@ -16,6 +16,7 @@ use super::{
     GatePolicy,
     NewerPatch,
     ProjectStatus,
+    Scope,
     Stale,
 };
 use crate::install_state::{
@@ -49,11 +50,18 @@ struct CurrentInputs {
     settings: WorkspaceStateSettings,
 }
 
+struct FreshnessContext<'a> {
+    check: &'a OptimisticRepeatInstallCheck<'a>,
+    state: &'a WorkspaceState,
+    scope: Scope<'a>,
+}
+
 pub(super) fn check_recorded_inputs(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     held: &[&ManifestStat<'_>],
     policy: &GatePolicy<'_>,
+    scope: Scope<'_>,
 ) -> Result<(), Stale> {
     let Some(validation) = state.validation.as_ref() else {
         return Ok(());
@@ -65,6 +73,7 @@ pub(super) fn check_recorded_inputs(
         return Ok(());
     }
     let current = current_inputs(check, state, held);
+    let freshness = FreshnessContext { check, state, scope };
     let patches: HashSet<PathBuf> = check.config.patch_file_paths().collect();
     for stat in held {
         let importer_id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
@@ -73,15 +82,8 @@ pub(super) fn check_recorded_inputs(
         else {
             continue;
         };
-        let matches = inputs_match(
-            recorded,
-            now,
-            &current,
-            policy,
-            &patches,
-            check.config.workspace_dir.as_deref(),
-            stat.status,
-        )?;
+        let matches =
+            inputs_match(recorded, now, &current, policy, &patches, stat.status, &freshness)?;
         if !matches {
             return Err(Stale::InputsChanged(importer_id));
         }
@@ -95,8 +97,8 @@ fn inputs_match(
     shared: &CurrentInputs,
     policy: &GatePolicy<'_>,
     patches: &HashSet<PathBuf>,
-    workspace_dir: Option<&Path>,
     status: ProjectStatus,
+    freshness: &FreshnessContext<'_>,
 ) -> Result<bool, Stale> {
     let files_match = if matches!(policy.newer_patch, NewerPatch::CompareHash) {
         visible_files(&recorded.files, patches).eq(visible_files(&shared.files, patches))
@@ -110,8 +112,20 @@ fn inputs_match(
     if !manifest_matches || recorded.workspace_bins != current.workspace_bins || !files_match {
         return Ok(false);
     }
-    settings_match(&recorded.settings, &shared.settings, policy.ignored_settings, workspace_dir)
-        .map_err(|_| Stale::Unprovable)
+    settings_match(
+        &recorded.settings,
+        &shared.settings,
+        policy.ignored_settings,
+        freshness.check.config,
+        &|| {
+            super::pruned_excludes::installed_versions(
+                freshness.check,
+                freshness.state,
+                freshness.scope,
+            )
+        },
+    )
+    .map_err(|_| Stale::Unprovable)
 }
 
 fn visible_files<'a>(

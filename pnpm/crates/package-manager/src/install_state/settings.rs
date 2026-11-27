@@ -42,16 +42,17 @@ use recorded_values::map_trust_policy;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{
     Config,
-    NodeLinker,
     version_policy::ResolvedPackageVersions,
 };
-use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_workspace_state::{
     WorkspaceState,
     WorkspaceStateSettings,
 };
-use std::cell::LazyCell;
+use std::{
+    cell::LazyCell,
+    path::Path,
+};
 
 /// The workspace-state key of [`global_virtual_store_layout_version`]. It is
 /// not a setting a user can name, so a message words it separately.
@@ -73,7 +74,8 @@ pub(crate) fn settings_match<'a>(
     recorded: &'a str,
     current: &'a WorkspaceStateSettings,
     ignored: &'a [&'a str],
-    workspace_dir: Option<&'a Path>,
+    config: &'a Config,
+    load_prune_versions: &'a dyn Fn() -> Option<ResolvedPackageVersions>,
 ) -> Result<bool, serde_json::Error> {
     let mut recorded: WorkspaceStateSettings = serde_json::from_str(recorded)?;
     if recorded.registry_routes.is_none()
@@ -81,9 +83,16 @@ pub(crate) fn settings_match<'a>(
     {
         recorded.registry_routes = Some(installed);
     }
-    Ok(SettingsComparison { recorded: &recorded, live: current, ignored, workspace_dir }
-        .first_drift()
-        .is_none())
+    Ok(SettingsComparison {
+        recorded: &recorded,
+        live: current,
+        ignored,
+        config,
+        workspace_dir: config.workspace_dir.as_deref(),
+        prune_versions: LazyCell::new(load_prune_versions),
+    }
+    .first_drift()
+    .is_none())
 }
 
 /// Whether the `supportedArchitectures` recorded by the last install
@@ -154,6 +163,7 @@ pub(crate) fn first_setting_drift(
         live: &current,
         ignored: ignored_workspace_state_settings,
         config,
+        workspace_dir: config.workspace_dir.as_deref(),
         prune_versions: LazyCell::new(load_prune_versions),
     }
     .first_drift()
@@ -169,13 +179,16 @@ macro_rules! return_drift_if {
 
 mod release_policy;
 
+type LazyPruneVersions<'a> =
+    LazyCell<Option<ResolvedPackageVersions>, &'a dyn Fn() -> Option<ResolvedPackageVersions>>;
+
 struct SettingsComparison<'a> {
     recorded: &'a WorkspaceStateSettings,
     live: &'a WorkspaceStateSettings,
     ignored: &'a [&'a str],
     config: &'a Config,
-    prune_versions:
-        LazyCell<Option<ResolvedPackageVersions>, &'a dyn Fn() -> Option<ResolvedPackageVersions>>,
+    workspace_dir: Option<&'a Path>,
+    prune_versions: LazyPruneVersions<'a>,
 }
 
 impl SettingsComparison<'_> {
@@ -330,7 +343,7 @@ impl SettingsComparison<'_> {
         let recorded = self.recorded;
         let live = self.live;
         let patched_dependencies_drift =
-            !patched_dependencies_match(recorded, live, self.config.workspace_dir.as_deref());
+            !patched_dependencies_match(recorded, live, self.workspace_dir);
         return_drift_if!(self, "patchedDependencies", patched_dependencies_drift);
         return_drift_if!(
             self,

@@ -1,9 +1,18 @@
 use super::{
     reference_time_moved_back,
-    settings_match,
+    settings_match as compare_settings,
 };
+use pnpm_config::Config;
 use pnpm_workspace_state::WorkspaceStateSettings;
 use std::collections::BTreeMap;
+
+fn settings_match(
+    recorded: &str,
+    current: &WorkspaceStateSettings,
+    ignored: &[&str],
+) -> Result<bool, serde_json::Error> {
+    compare_settings(recorded, current, ignored, &Config::new(), &|| None)
+}
 
 #[test]
 fn reference_time_drifts_only_when_it_moves_back() {
@@ -30,8 +39,8 @@ fn recorded_settings_are_compared_with_the_gate_ignoring_its_keys() {
     })
     .expect("serialize recorded settings");
 
-    assert!(settings_match(&recorded, &current, &["dev"], None).expect("parse recorded settings"));
-    assert!(!settings_match(&recorded, &current, &[], None).expect("parse recorded settings"));
+    assert!(settings_match(&recorded, &current, &["dev"]).expect("parse recorded settings"));
+    assert!(!settings_match(&recorded, &current, &[]).expect("parse recorded settings"));
 }
 
 #[test]
@@ -48,7 +57,7 @@ fn recorded_installed_registry_routes_match_current_routes() {
         ..WorkspaceStateSettings::default()
     };
 
-    assert!(settings_match(&recorded, &current, &[], None).expect("parse recorded settings"));
+    assert!(settings_match(&recorded, &current, &[]).expect("parse recorded settings"));
 }
 
 #[test]
@@ -68,10 +77,10 @@ fn recorded_lockfile_routes_still_differ_from_installed_routes() {
         ..WorkspaceStateSettings::default()
     };
 
-    assert!(!settings_match(&recorded, &current, &[], None).expect("parse recorded settings"));
+    assert!(!settings_match(&recorded, &current, &[]).expect("parse recorded settings"));
 }
 
 #[test]
 fn malformed_recorded_settings_do_not_panic() {
-    assert!(settings_match("{", &WorkspaceStateSettings::default(), &[], None).is_err());
+    assert!(settings_match("{", &WorkspaceStateSettings::default(), &[]).is_err());
 }
