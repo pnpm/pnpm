@@ -66,7 +66,7 @@ fn trust_lockfile_overrides_the_workspace_setting() {
     assert_eq!(state().settings.trust_lockfile, Some(true));
     assert!(!scenario.install(&[]));
     assert_eq!(state().settings.trust_lockfile, None);
-    scenario.assert_install_gate(super::AllowedRefusal::None);
+    scenario.assert_install_gate(None, super::AllowedRefusal::None);
 }
 
 #[test]
@@ -185,5 +185,5 @@ fn frozen_then_filtered_install_after_a_scope_route_moves() {
     assert_ne!(before, after);
     assert_eq!(resolved, after);
     assert!(!accepted);
-    scenario.assert_install_gate(super::AllowedRefusal::None);
+    scenario.assert_install_gate(None, super::AllowedRefusal::None);
 }
