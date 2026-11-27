@@ -161,6 +161,10 @@ fn reading_a_loader_skips_foreign_and_rejects_unreadable_pnpm_loaders() {
     std::fs::write(&pnp, "#!/usr/bin/env node\n/* yarn */\n").unwrap();
     assert_eq!(read_pnp_package_dirs(dir.path()).unwrap(), Vec::<std::path::PathBuf>::new());
 
+    let bundled = format!("#!/usr/bin/env node\n{}", super::PNP_EXPORTS_RESOLVER);
+    std::fs::write(&pnp, bundled).unwrap();
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap(), Vec::<std::path::PathBuf>::new());
+
     let registry = serde_json::json!({ "packages": { ".": { "url": "../", "dependencies": {} } } });
     let loader = render_pnp_loader(&registry.to_string(), r#""node_modules""#);
     std::fs::write(&pnp, &loader).unwrap();

@@ -108,7 +108,7 @@ pub fn read_pnp_package_dirs(lockfile_dir: &Path) -> Result<Vec<PathBuf>, ReadPn
         return Ok(Vec::new());
     };
     let contents = String::from_utf8_lossy(&bytes);
-    if !contents.contains(generated_marker()) {
+    if contents.lines().next() != Some(generated_marker()) {
         return Ok(Vec::new());
     }
     package_dirs_of_loader(&contents, lockfile_dir).ok_or(ReadPnpFileError::Unreadable { path })
