@@ -111,6 +111,33 @@ fn refuses_a_symlinked_lock_file() {
 }
 
 #[test]
+fn concurrent_first_opens_share_the_lock_file() {
+    use std::os::unix::fs::MetadataExt as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let lock = root.path().join("lock");
+    let callers = 8;
+    let start = std::sync::Barrier::new(callers);
+    std::thread::scope(|scope| {
+        let threads: Vec<_> = (0..callers)
+            .map(|_| {
+                scope.spawn(|| {
+                    start.wait();
+                    open_secure_lock_file(&lock)
+                        .unwrap()
+                        .metadata()
+                        .unwrap()
+                        .ino()
+                })
+            })
+            .collect();
+        for thread in threads {
+            assert_eq!(thread.join().unwrap(), std::fs::metadata(&lock).unwrap().ino());
+        }
+    });
+}
+
+#[test]
 fn refuses_a_symlinked_lock_directory() {
     let root = tempfile::tempdir().unwrap();
     let directory = root.path().join("directory");
