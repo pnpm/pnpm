@@ -29,10 +29,17 @@ Checks the Rust workspace's crate dependency graph against the layers in
   of the workspace crates as an HTML page. `--crate <name>` shows one
   crate's top-level modules. `--output <file>` writes the page to a file.
   CI uploads it as the `crate-dsm` artifact of the `Crate Layers` job.
+- `just crate-layers overlaps --index <file>` lists the groups of functions
+  in different top-level modules that [access the same fields](#field-accesses).
+  `--crate <name>` keeps the groups with a function in that crate.
+- `just crate-layers fields --index <file>` lists the types whose fields two
+  top-level modules both [access](#field-accesses). `--type <path>` lists the
+  functions that access one type's fields, by module.
 
 The tool reads the manifests directly, so it needs neither `cargo metadata`
 nor network access, and reads a git revision without touching the working
-tree.
+tree. Only `overlaps` and `fields` need more: an index that rust-analyzer
+writes.
 
 ## When the check fails
 
@@ -144,3 +151,45 @@ With `--crate <name>`, the rows are the crate's top-level modules in name
 order, and a mark means the module names the other. A commit changes a
 module when it changes `src/<module>.rs` or a file under `src/<module>/`, so
 a module whose file is set with `#[path]` shows no changes.
+
+## Field accesses
+
+`overlaps` and `fields` look for one piece of state that more than one place
+decides on. Both read a [SCIP](https://github.com/sourcegraph/scip) index,
+which resolves each name in the sources to its definition. Make one at the
+repository root:
+
+```sh
+rustup component add rust-analyzer
+rust-analyzer scip . --exclude-vendored-libraries --output <file>
+```
+
+rust-analyzer needs a few minutes and more than 10 GB of memory for it. Make
+the index again after editing the sources: the commands fail when a field is
+not where the index has it.
+
+A function accesses a field where its body names the field after a `.`,
+which reads or assigns it. Not counted:
+
+- a field named in a struct literal or a pattern, since every function that
+  builds a type names all of its fields;
+- the functions of test-only modules.
+
+`overlaps` pairs two functions when all of these hold:
+
+- they are in different top-level modules;
+- both access at least `--min-shared` of the same fields;
+- those are at least half of the fields that either one accesses;
+- neither calls the other, directly or through other functions. A call
+  through a trait counts as a call to the trait's method, not to an
+  implementation.
+
+Pairs with a function in common form one group. A group usually derives the
+same value in each place, such as two functions that build one options type
+from the same settings. Move the derivation into a function that every place
+calls.
+
+`fields` counts, for each type, the fields that two top-level modules both
+access. A type that many modules read is a plain record. A type that two or
+three modules read in depth has its rules split between them. Give those
+rules one home that the other modules call.

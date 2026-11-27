@@ -33,6 +33,8 @@ struct Module {
     /// Whether the parent declares it `pub mod`. The crate root counts as
     /// public.
     is_public: bool,
+    /// The file the module is read from.
+    file: String,
     code_lines: usize,
     imports: Vec<UsePath>,
     references: Vec<Vec<String>>,
@@ -107,6 +109,7 @@ impl CrateModules {
         }
         let module = Module {
             is_public,
+            file: file.to_owned(),
             code_lines: lexed.code_lines,
             surface: surface::scan(&lexed.tokens),
             imports: scan.imports,
@@ -123,6 +126,13 @@ impl CrateModules {
             .map(|(path, module)| {
                 (path, Scope { is_public: module.is_public, surface: &module.surface })
             })
+    }
+
+    /// Each non-test module's file and path.
+    pub fn files(&self) -> impl Iterator<Item = (&str, &ModulePath)> {
+        self.modules
+            .iter()
+            .map(|(path, module)| (module.file.as_str(), path))
     }
 
     /// The surface of the crate root, whose `extern crate` aliases bind in
