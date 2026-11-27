@@ -33,6 +33,7 @@ jobs:
       changesets: ${{ steps.filter.outputs.changesets }}
       docs: ${{ steps.filter.outputs.docs }}
       convergence: ${{ steps.manual.outputs.rust || steps.filter.outputs.convergence }}
+      creusot: ${{ steps.manual.outputs.rust || steps.filter.outputs.creusot }}
     steps:
       # Force the full Rust suite on manual runs and in the merge queue.
       # The merge queue tests the merged commit, so path filtering it away
@@ -110,6 +111,21 @@ jobs:
               - '.github/workflows/pacquet-ci.yml'
             changesets:
               - '.changeset/**'
+            # What the Creusot proofs read: every crate `pnpm/scripts/creusot.mjs`
+            # proves, the models they rely on, and the pinned toolchain.
+            creusot:
+              - 'pnpm/crates/creusot-models/**'
+              - 'pnpm/crates/strongly-connected-components/**'
+              - 'pnpm/scripts/creusot.mjs'
+              - 'pnpm/scripts/install-creusot.sh'
+              - '.github/scripts/creusot-prebuilt-install.py'
+              - 'why3find.json'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.cargo/**'
+              - '.config/pnpm/**'
+              - 'package.json'
+              - '.github/workflows/pacquet-ci.yml'
             # What decides the lockfile or workspace state either CLI writes,
             # for the job that runs the convergence harnesses through both.
             convergence:
@@ -1032,6 +1048,79 @@ jobs:
           RUSTFLAGS: '-D warnings'
         run: pnpm pipeline rust-dylint --include-workspace-root --full --no-cache
 
+  creusot:
+    name: Rust CI / Creusot
+    needs: changes
+    if: ${{ always() && !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.creusot == 'true' || needs.changes.result != 'success') }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Verify change detection
+        if: ${{ needs.changes.result != 'success' }}
+        run: |
+          echo "::error::Unable to determine whether Rust CI should run."
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The release's Why3 has this prefix compiled in, and the cache below
+      # restores into it, so it has to exist and be writable first.
+      - name: Create the Why3 prefix
+        run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/creusot-why3
+
+      # The vendored installer pins the release, and the release pins its
+      # nightly and its solvers, so the installer's hash keys all three.
+      - name: Cache Creusot
+        id: creusot-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 2
+        continue-on-error: true
+        with:
+          path: |
+            ~/.local/share/creusot
+            /opt/creusot-why3
+            ~/.rustup/toolchains/nightly-*
+            ~/.rustup/update-hashes/nightly-*
+          key: creusot-${{ runner.os }}-${{ hashFiles('.github/scripts/creusot-prebuilt-install.py') }}
+
+      # The translated dependencies, why3find's prover results, and the
+      # prover that closed each goal. A goal whose text is unchanged is
+      # answered from the prover cache, and a changed one tries the prover
+      # that closed it last time first.
+      - name: Cache proofs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 2
+        continue-on-error: true
+        with:
+          path: |
+            target/creusot
+            .why3find
+            why3find.proofs
+          key: creusot-proofs-${{ runner.os }}-${{ hashFiles('.github/scripts/creusot-prebuilt-install.py', 'Cargo.lock', 'why3find.json') }}-${{ hashFiles('pnpm/crates/**/*.rs') }}
+          restore-keys: |
+            creusot-proofs-${{ runner.os }}-${{ hashFiles('.github/scripts/creusot-prebuilt-install.py', 'Cargo.lock', 'why3find.json') }}-
+
+      - name: Install Rust Toolchain
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
+      - name: Install Creusot
+        if: ${{ steps.creusot-cache.outputs.cache-hit != 'true' }}
+        run: bash pnpm/scripts/install-creusot.sh
+
+      - name: Put Creusot on PATH
+        run: echo "$HOME/.local/share/creusot/bin" >> "$GITHUB_PATH"
+
+      - name: Install pnpm
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
+        with:
+          install: false
+
+      - name: Prove
+        run: pnpm pipeline rust-creusot --include-workspace-root --full --no-cache
+
   # Single aggregate gate — the only Rust CI context branch protection
   # needs to require. Listing the individual jobs as required checks does
   # not work: most of them skip on non-Rust PRs, and a matrix job skipped
@@ -1057,6 +1146,7 @@ jobs:
       - layers
       - format
       - dylint
+      - creusot
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Fail if any dependency failed or was cancelled
