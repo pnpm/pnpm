@@ -63,12 +63,13 @@ pub(super) fn current_fields(
         .filter(|_| file.fields_revision == FIELDS_REVISION)
 }
 
-/// The digest of the manifest fields an install reads. An edit outside them
-/// cannot change what the install records, so it is not an install input.
+/// The digest of manifest inputs not tracked by a separate freshness check.
 pub(crate) fn install_input_digest(manifest: &PackageManifest) -> String {
     match recorded_fields(manifest.value()) {
         Some(mut fields) => {
             fields.remove("version");
+            fields.remove("bin");
+            fields.remove("directories");
             super::value_digest(&serde_json::Value::Object(fields))
         }
         None => super::manifest_digest(manifest),
