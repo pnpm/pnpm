@@ -7,6 +7,7 @@ use super::{
     recorded_default_registry,
     recorded_registry_prefixes,
     recorded_registry_routes,
+    recorded_values::map_node_linker,
     store_location,
 };
 use pnpm_catalogs_types::Catalogs;

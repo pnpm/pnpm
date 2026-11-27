@@ -13,10 +13,7 @@ use pnpm_workspace_state::{
     InstallInputs,
     Validation,
 };
-use std::{
-    collections::BTreeMap,
-    path::Path,
-};
+use std::collections::BTreeMap;
 
 struct RecordedProject {
     importer_id: String,
@@ -51,12 +48,13 @@ impl ProjectInputs<'_> {
         }
         let carried = self.carried?;
         let record = carried.project(&self.importer_id)?;
+        let bins = carried.workspace_bins.get(&self.importer_id).cloned();
         Some(RecordedProject {
             importer_id: self.importer_id,
             manifest: record.manifest.to_string(),
             input_manifest: None,
             lockfile: record.lockfile.map(str::to_string),
-            bins: carried.workspace_bins.get(&self.importer_id).cloned(),
+            bins,
             vouched: false,
         })
     }
@@ -103,7 +101,7 @@ impl ProjectRecords<'_> {
 /// Record in `validation` each project the write vouches for, proven against
 /// `lockfile`, and each other one `carried` still proves. Returns how many it
 /// recorded.
-fn record_projects(
+pub(super) fn record_projects(
     validation: &mut Validation,
     inputs: &RecordValidation<'_>,
     carried: Option<&Validation>,
