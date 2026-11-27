@@ -63,10 +63,7 @@ pub fn thread_count() -> Option<usize> {
     // Without `KERN_PROC_INC_THREAD`, the kernel answers with one record for
     // the whole process, whose `ki_numthreads` counts every thread.
     let name = [libc::CTL_KERN, libc::KERN_PROC, libc::KERN_PROC_PID, pid];
-    // SAFETY: the node answers with a `kinfo_proc`, whose fields are
-    // integers, arrays of them, and raw pointers, all valid for any bytes.
-    let info: libc::kinfo_proc = unsafe { read_sysctl(&name) }?;
-    usize::try_from(info.ki_numthreads).ok()
+    usize::try_from(read_process_record(&name)?.ki_numthreads).ok()
 }
 
 /// The number of threads the process runs now, the calling one included.
@@ -74,26 +71,24 @@ pub fn thread_count() -> Option<usize> {
 pub fn thread_count() -> Option<usize> {
     // SAFETY: `getpid` takes no arguments and cannot fail.
     let pid = unsafe { libc::getpid() };
-    let record_size = libc::c_int::try_from(size_of::<libc::kinfo_proc2>()).ok()?;
+    let record_size = libc::c_int::try_from(size_of::<ProcessRecord>()).ok()?;
     // `KERN_PROC2` takes the record size and count in the name.
     let name = [libc::CTL_KERN, libc::KERN_PROC2, libc::KERN_PROC_PID, pid, record_size, 1];
-    // SAFETY: the node answers with a `kinfo_proc2`, whose fields are
-    // integers and arrays of them, all valid for any bytes.
-    let info: libc::kinfo_proc2 = unsafe { read_sysctl(&name) }?;
-    usize::try_from(info.p_nlwps).ok()
+    usize::try_from(read_process_record(&name)?.p_nlwps).ok()
 }
 
-/// Read the `sysctl` node `name` into a fresh `Record`. `None` when the
-/// call fails or writes less than a whole record.
-///
-/// # Safety
-///
-/// `Record` is the type the node answers with, and every bit pattern is a
-/// valid `Record`.
+/// The record the process `sysctl` node answers with.
+#[cfg(target_os = "freebsd")]
+type ProcessRecord = libc::kinfo_proc;
+#[cfg(target_os = "netbsd")]
+type ProcessRecord = libc::kinfo_proc2;
+
+/// Read the process `sysctl` node `name`. `None` when the call fails or
+/// writes less than a whole record.
 #[cfg(any(target_os = "freebsd", target_os = "netbsd"))]
-unsafe fn read_sysctl<Record>(name: &[libc::c_int]) -> Option<Record> {
-    let mut record = std::mem::MaybeUninit::<Record>::uninit();
-    let size = size_of::<Record>();
+fn read_process_record(name: &[libc::c_int]) -> Option<ProcessRecord> {
+    let mut record = std::mem::MaybeUninit::<ProcessRecord>::uninit();
+    let size = size_of::<ProcessRecord>();
     let mut written = size;
     // SAFETY: `name` is a live slice of `name.len()` integers. The output
     // pointer is to a stack local of `size` bytes, which is the length the
@@ -112,8 +107,8 @@ unsafe fn read_sysctl<Record>(name: &[libc::c_int]) -> Option<Record> {
     if status != 0 || written != size {
         return None;
     }
-    // SAFETY: the kernel wrote all `size` bytes, and the caller guarantees
-    // that any bytes are a valid `Record`.
+    // SAFETY: the kernel wrote all `size` bytes, and the record's fields are
+    // integers, arrays of them, and raw pointers, all valid for any bytes.
     Some(unsafe { record.assume_init() })
 }
 

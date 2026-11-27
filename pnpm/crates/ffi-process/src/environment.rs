@@ -61,25 +61,20 @@ impl SingleThreaded {
     ///
     /// See [`Self::set_vars`].
     pub fn set_var(&self, name: &str, value: &str) -> Result<(), OtherThreads> {
-        self.set_vars([(name, value)])
+        self.set_vars(vec![(name.to_owned(), value.to_owned())])
     }
 
     /// Set each name to its value in the process environment, in order,
     /// where every later read sees the new values, this process's children
     /// included.
     ///
-    /// The threads are counted once, after `vars` is drained and before
-    /// the first write.
+    /// The threads are counted once, before the first write.
     ///
     /// # Errors
     ///
     /// Refuses every write, leaving the environment unchanged, when another
     /// thread runs.
-    pub fn set_vars<Name: AsRef<str>, Value: AsRef<str>>(
-        &self,
-        vars: impl IntoIterator<Item = (Name, Value)>,
-    ) -> Result<(), OtherThreads> {
-        let vars: Vec<(Name, Value)> = vars.into_iter().collect();
+    pub fn set_vars(&self, vars: Vec<(String, String)>) -> Result<(), OtherThreads> {
         if vars.is_empty() {
             return Ok(());
         }
@@ -92,14 +87,17 @@ impl SingleThreaded {
             )]
             // SAFETY: the race `setenv` has is a concurrent read from
             // another thread, and none can run here:
-            // - On a platform that counts threads, `ensure_sole_thread`
-            //   just read a count of one. Only this thread could spawn
-            //   another, and it runs nothing but these writes.
+            // - Where the kernel reports a count, `ensure_sole_thread` just
+            //   read a count of one. Only this thread could spawn
+            //   another, and between the count and the last write it runs
+            //   only these writes and std's `String` code, which spawns
+            //   nothing.
             // - On Windows, std documents `set_var` as always safe.
-            // - Elsewhere, the witness was claimed at the top of `main`,
-            //   ahead of every spawn, and it cannot leave that thread.
+            // - Elsewhere, and where the count is unknown, the witness was
+            //   claimed at the top of `main`, ahead of every spawn, and it
+            //   cannot leave that thread.
             unsafe {
-                std::env::set_var(name.as_ref(), value.as_ref());
+                std::env::set_var(name, value);
             }
         }
         Ok(())
