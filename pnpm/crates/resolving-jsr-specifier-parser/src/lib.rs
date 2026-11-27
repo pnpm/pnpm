@@ -46,7 +46,8 @@ pub enum ParseJsrSpecifierError {
     /// name: no `/name` segment (e.g. `jsr:@foo`), an empty scope or
     /// name (e.g. `jsr:@foo/`), path separators inside the name
     /// (e.g. `jsr:@foo/../bar`), or anything else
-    /// `validate-npm-package-name` rejects.
+    /// `validate-npm-package-name` rejects. Also a `_` in the scope or
+    /// the name (e.g. `jsr:@foo_bar/baz`), which JSR names never hold.
     #[display("The package name '{pkg_name}' is invalid")]
     #[diagnostic(code(ERR_PNPM_INVALID_JSR_PACKAGE_NAME))]
     InvalidPackageName {
@@ -140,6 +141,12 @@ fn jsr_to_npm_package_name(jsr_pkg_name: &str) -> Result<String, ParseJsrSpecifi
     let Some((scope, name)) = after_at.split_once('/') else {
         return Err(invalid());
     };
+    // JSR scopes and package names hold only lowercase letters, digits and
+    // hyphens, and the npm name joins them with `__`. A `_` in either part
+    // would fold two different JSR names into one npm name.
+    if scope.contains('_') || name.contains('_') {
+        return Err(invalid());
+    }
     Ok(format!("@jsr/{scope}__{name}"))
 }
 
