@@ -217,6 +217,61 @@ fn using_a_global_virtual_store() {
 }
 
 #[test]
+fn store_prune_removes_the_slots_of_the_last_deleted_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        store_dir, cache_dir, mock_instance, ..
+    } = npmrc_info;
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
+    sole_hash_dir(&version_dir);
+
+    fs::remove_dir_all(&workspace).expect("delete the project");
+    let output = pacquet(root.path())
+        .with_env("PNPM_CONFIG_STORE_DIR", &store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["store", "prune"])
+        .output()
+        .expect("run store prune");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "store prune failed: {stderr}");
+
+    assert!(!version_dir.exists(), "prune must remove the deleted project's slot: {stderr}");
+    drop(mock_instance);
+}
+
+#[test]
+fn install_fails_when_it_cannot_register_the_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    let store = StoreDir::from(store_dir);
+    fs::create_dir_all(store.root()).expect("create the store root");
+    fs::write(store.projects(), "").expect("block the project registry with a file");
+
+    let output = pacquet(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run install");
+
+    assert!(!output.status.success(), "install must fail without a registry entry");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_STORE_DIR_REGISTER_PROJECT"),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    drop((root, mock_instance));
+}
+
+#[test]
 fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

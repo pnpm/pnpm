@@ -16,6 +16,7 @@ use pnpm_config::{
 };
 use pnpm_deps_restorer::{
     binary_store_index_key,
+    read_pnp_package_dirs,
     store_index_key_for_resolution,
 };
 use pnpm_env_replace::env_replace_lossy;
@@ -57,6 +58,8 @@ use std::{
 ///   of every side-effects entry;
 /// - the modules directory of every project it lists.
 ///
+/// And the package directories of each registered project's `.pnp.cjs`.
+///
 /// Every file of the rows of the archives each registered project's
 /// `pylock.toml` pins.
 ///
@@ -67,9 +70,15 @@ use std::{
 pub(super) fn in_use(store_dir: &StoreDir) -> Result<InUse, PruneError> {
     let mut keys = HashSet::new();
     let mut modules_dirs = ModulesDirs::default();
+    let mut package_dirs = Vec::new();
     for project in get_registered_projects(store_dir).map_err(PruneError::ListProjects)? {
         // The registry joins a relative link target without normalizing it.
         let project = lexical_normalize(&project);
+        package_dirs.extend(
+            read_pnp_package_dirs(&project)
+                .map_err(io::Error::other)
+                .map_err(PruneError::InUseFiles)?,
+        );
         let modules_dir = modules_dirs.add(&project).map_err(PruneError::InUseFiles)?;
         keys.extend(python_index_keys(&project).map_err(PruneError::InUseFiles)?);
         for lockfile in
@@ -86,6 +95,7 @@ pub(super) fn in_use(store_dir: &StoreDir) -> Result<InUse, PruneError> {
     Ok(InUse {
         files: in_use_files(store_dir, keys)?,
         modules_dirs: modules_dirs.dirs.into_iter().collect(),
+        package_dirs,
     })
 }
 

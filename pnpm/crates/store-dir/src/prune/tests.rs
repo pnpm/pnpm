@@ -1,6 +1,7 @@
 use crate::{
     InUse,
     StoreDir,
+    register_loaded_project,
     register_project,
 };
 use pnpm_fs::symlink_dir;
@@ -44,23 +45,41 @@ fn prune_is_noop_without_links_dir() {
         .expect("missing links/ must be a silent no-op");
 }
 
-/// `prune()` does nothing destructive when no projects are
-/// registered, pacquet doesn't know which slots are still
-/// referenced, so the safe stance is "keep everything". Mirrors
-/// upstream's `if (projects.length === 0) { return }` branch.
+/// A store without a project registry has seen no install that registers, so
+/// prune keeps its slots.
 #[test]
-fn prune_keeps_everything_when_no_projects() {
+fn prune_keeps_everything_without_a_project_registry() {
     let store = tempdir().unwrap();
     let store_dir = StoreDir::new(store.path().to_path_buf());
     let slot = make_slot(&store_dir.links(), "@", "left-pad", "1.0.0", "deadbeef");
     store_dir
         .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
-    assert!(slot.exists(), "no-project prune must leave slots intact");
+    assert!(slot.exists(), "no-registry prune must leave slots intact");
 }
 
 #[test]
-fn prune_keeps_everything_when_no_registered_project_uses_the_links() {
+fn prune_removes_slots_when_the_last_registered_project_is_gone() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let slot = make_slot(&store_dir.links(), "@", "left-pad", "1.0.0", "deadbeef");
+    let project = tempdir().unwrap();
+    fs::create_dir_all(project.path().join("node_modules")).unwrap();
+    symlink_dir(&slot.join("node_modules/left-pad"), &project.path().join("node_modules/left-pad"))
+        .unwrap();
+    register_project(&store_dir, project.path()).expect("register");
+    drop(project);
+
+    store_dir
+        .prune(&store_dir.root().join("cache"), &[])
+        .expect("prune");
+
+    assert!(!slot.exists());
+    assert!(!store_dir.links().join("@").exists());
+}
+
+#[test]
+fn prune_removes_slots_no_registered_project_uses() {
     let store = tempdir().unwrap();
     let store_dir = StoreDir::new(store.path().to_path_buf());
     let slot = make_slot(&store_dir.links(), "@", "left-pad", "1.0.0", "deadbeef");
@@ -72,7 +91,7 @@ fn prune_keeps_everything_when_no_registered_project_uses_the_links() {
         .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
 
-    assert!(slot.exists());
+    assert!(!slot.exists());
 }
 
 #[test]
@@ -91,7 +110,7 @@ fn prune_removes_clone_cache_without_registered_projects() {
 }
 
 #[test]
-fn prune_removes_clone_cache_without_sweeping_untracked_installed_packages() {
+fn prune_removes_clone_cache_and_keeps_installed_packages() {
     for (scenario, store_path, modules_name) in [
         ("unregistered", "store", "node_modules"),
         ("in-project-store", "project/store", "node_modules"),
@@ -108,14 +127,8 @@ fn prune_removes_clone_cache_without_sweeping_untracked_installed_packages() {
         let link = modules.join("installed");
         symlink_dir(&installed.join("node_modules/installed"), &link).unwrap();
         if scenario != "unregistered" {
-            register_project(&store, &project).unwrap();
+            register_loaded_project(&store, &project).unwrap();
         }
-        if scenario == "in-project-store" {
-            assert!(!store.projects().exists());
-        }
-        let other = root.path().join("other");
-        fs::create_dir_all(other.join("node_modules")).unwrap();
-        register_project(&store, &other).unwrap();
 
         store
             .prune(&root.path().join("cache"), &[])

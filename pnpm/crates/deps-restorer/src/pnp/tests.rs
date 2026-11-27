@@ -2,7 +2,13 @@
     clippy::disallowed_methods,
     reason = "test setup starts processes the executor does not run"
 )]
-use super::render_pnp_loader;
+use super::{
+    PNP_FILENAME,
+    ReadPnpFileError,
+    package_dirs_of_loader,
+    read_pnp_package_dirs,
+    render_pnp_loader,
+};
 use command_extra::CommandExtra;
 
 #[test]
@@ -113,4 +119,66 @@ fn execution_uses_the_configured_lockfile_directory() {
     );
     std::fs::remove_file(lockfile_dir.join(super::PNP_FILENAME)).unwrap();
     assert_eq!(super::pnp_path_for_execution(&config, &workspace), None);
+}
+
+#[test]
+fn package_dirs_are_read_back_as_the_loader_resolves_them() {
+    let root = tempfile::tempdir().unwrap();
+    let lockfile_dir = root.path().join("project");
+    let store_package = root.path().join("store dir/links/@/a/1.0.0/hash/node_modules/a");
+    let absolute_url = url::Url::from_directory_path(&store_package).unwrap();
+    let registry = serde_json::json!({ "packages": {
+        "a@1.0.0": { "url": "../../store%20dir/links/@/a/1.0.0/hash/node_modules/a/", "dependencies": {} },
+        "b@1.0.0": { "url": absolute_url.as_str(), "dependencies": {} },
+        ".": { "url": "../", "dependencies": {} },
+    }});
+    let loader = render_pnp_loader(&registry.to_string(), r#""node_modules""#);
+
+    let mut dirs: Vec<_> = package_dirs_of_loader(&loader, &lockfile_dir)
+        .unwrap()
+        .into_iter()
+        .map(|dir| pnpm_fs::lexical_normalize(&dir))
+        .collect();
+    dirs.sort();
+
+    let mut expected = vec![lockfile_dir, store_package.clone(), store_package];
+    expected.sort();
+    assert_eq!(dirs, expected);
+}
+
+#[test]
+fn a_loader_without_the_registry_is_unrecognized() {
+    assert_eq!(package_dirs_of_loader("module.exports = {}\n", std::path::Path::new("/p")), None);
+}
+
+#[test]
+fn reading_a_loader_skips_foreign_and_rejects_unreadable_pnpm_loaders() {
+    let dir = tempfile::tempdir().unwrap();
+    let pnp = dir.path().join(PNP_FILENAME);
+
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap(), Vec::<std::path::PathBuf>::new());
+
+    std::fs::write(&pnp, "#!/usr/bin/env node\n/* yarn */\n").unwrap();
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap(), Vec::<std::path::PathBuf>::new());
+
+    let bundled = format!("#!/usr/bin/env node\n{}", super::PNP_EXPORTS_RESOLVER);
+    std::fs::write(&pnp, bundled).unwrap();
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap(), Vec::<std::path::PathBuf>::new());
+
+    let registry = serde_json::json!({ "packages": { ".": { "url": "../", "dependencies": {} } } });
+    let loader = render_pnp_loader(&registry.to_string(), r#""node_modules""#);
+    std::fs::write(&pnp, &loader).unwrap();
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap().len(), 1);
+
+    std::fs::write(&pnp, loader.replace("const registry = ", "const registry =\n  ")).unwrap();
+    assert!(matches!(read_pnp_package_dirs(dir.path()), Err(ReadPnpFileError::Unreadable { .. }),));
+}
+
+#[cfg(unix)]
+#[test]
+fn reading_a_loader_does_not_follow_a_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    std::os::unix::fs::symlink("/dev/zero", dir.path().join(PNP_FILENAME)).unwrap();
+
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap(), Vec::<std::path::PathBuf>::new());
 }

@@ -4,8 +4,9 @@
 //!
 //! 1. **Mark**, walk every registered project (see
 //!    [`crate::get_registered_projects`]). For each project, find every
-//!    `node_modules/` directory (root + workspace packages), follow every
-//!    symlink it contains, and if the symlink target lands under
+//!    `node_modules/` directory (root + workspace packages) and every other
+//!    symlink in its non-hidden directories, follow them, and if a symlink
+//!    target lands under
 //!    `<store_dir>/links/...` record the slot path
 //!    (`<scope>/<name>/<version>/<hash>`) as reachable. Then recurse
 //!    into the slot's own `node_modules/` for transitive deps.
@@ -57,6 +58,9 @@ pub struct InUse {
     /// Modules directories whose links keep global virtual store slots, in
     /// addition to every `node_modules` under a registered project.
     pub modules_dirs: Vec<PathBuf>,
+    /// Package directories whose global virtual store slots are kept, for an
+    /// install that reaches them without links, such as through `.pnp.cjs`.
+    pub package_dirs: Vec<PathBuf>,
 }
 
 /// Error type of [`StoreDir::prune`].
@@ -163,6 +167,7 @@ impl StoreDir {
             .map_err(PruneError::LoaderReferences)?;
         let in_use = in_use()?;
         references.files.extend(in_use.files);
+        references.package_roots.extend(in_use.package_dirs);
         self.prune_global_virtual_store(&references.package_roots, &in_use.modules_dirs)?;
         self.prune_python_and_cargo_installs()?;
         remove_slot_dir(&self.dir_clone_cache())?;
@@ -216,11 +221,13 @@ impl StoreDir {
             return Ok(());
         }
 
-        let projects = get_registered_projects(self).map_err(PruneError::ListProjects)?;
-        if projects.is_empty() {
+        // No install that used this store registered, so nothing shows which
+        // slots are unused.
+        if !path_exists(&self.projects()) {
             pnpm_diagnostics::eprintln!("No registered projects for global virtual store");
             return Ok(());
         }
+        let projects = get_registered_projects(self).map_err(PruneError::ListProjects)?;
         pnpm_diagnostics::eprintln!(
             "Checking {} registered project(s) for global virtual store usage",
             projects.len(),
@@ -232,12 +239,6 @@ impl StoreDir {
             loader_roots,
             modules_dirs,
         )?;
-        // Registration is best-effort, so no reachable slots does not prove
-        // that the global virtual store is unused.
-        if reachable.is_empty() {
-            pnpm_diagnostics::eprintln!("No registered project uses the global virtual store");
-            return Ok(());
-        }
         let removed = remove_unreachable_packages(&links_dir, &reachable)?;
         if removed > 0 {
             pnpm_diagnostics::eprintln!(

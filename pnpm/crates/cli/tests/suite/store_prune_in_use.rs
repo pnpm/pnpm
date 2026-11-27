@@ -127,6 +127,19 @@ fn blob_paths_of_rows(store_dir: &StoreDir, keys: &[String]) -> Vec<PathBuf> {
         .collect()
 }
 
+/// Prune from `dir`, outside any workspace, reading the store and cache
+/// directories of the harness from `npmrc_info`.
+fn prune_outside_the_workspace(dir: &Path, npmrc_info: &AddMockedRegistry) {
+    let output = pacquet_at(dir)
+        .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
+        .with_args(["store", "prune"])
+        .output()
+        .expect("run store prune");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "store prune failed: {stderr}");
+}
+
 fn prune(workspace: &Path) {
     let output = pacquet_at(workspace)
         .with_args(["store", "prune"])
@@ -334,6 +347,114 @@ fn store_prune_keeps_global_virtual_store_packages_with_a_cli_only_modules_dir()
 
     assert_eq!(fs::read(&manifest).expect("the dependency link must remain valid"), installed);
     assert!(target.is_file(), "the global virtual store package must survive");
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_packages_with_a_cli_only_modules_dir_it_cannot_walk_to() {
+    for modules_dir in ["../external_modules", ".deps"] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        write_manifest(&workspace);
+        enable_gvs_in_workspace_yaml(&workspace, "");
+        pacquet_at(&workspace)
+            .with_args(["install", &format!("--modules-dir={modules_dir}"), "--reporter=silent"])
+            .assert()
+            .success();
+        let manifest = workspace.join(modules_dir).join("is-positive/package.json");
+        let installed = fs::read(&manifest).expect("read the installed package");
+        let target = dunce::canonicalize(&manifest).expect("resolve the installed package");
+
+        prune_outside_the_workspace(root.path(), &npmrc_info);
+
+        assert_eq!(
+            fs::read(&manifest).expect("the dependency link must remain valid"),
+            installed,
+            "{modules_dir}",
+        );
+        assert!(target.is_file(), "{modules_dir}: the global virtual store package must survive");
+    }
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_packages_of_a_workspace_package_with_a_hidden_cli_only_modules_dir()
+ {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(workspace.join("package.json"), "{}").expect("write the root manifest");
+    append_workspace_yaml(&workspace, "packages: [project]\n");
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create workspace package");
+    write_manifest(&project);
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--modules-dir=.deps", "--reporter=silent"])
+        .assert()
+        .success();
+    let manifest = project.join(".deps/is-positive/package.json");
+    let installed = fs::read(&manifest).expect("read the installed package");
+
+    prune_outside_the_workspace(root.path(), &npmrc_info);
+
+    assert_eq!(fs::read(&manifest).expect("the dependency link must remain valid"), installed);
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_packages_of_a_pnp_project_without_symlinks() {
+    for extra_yaml in ["lockfileDir: lock\n", ""] {
+        let CommandTempCwd {
+            root: _root, workspace, npmrc_info, ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry {
+            mock_instance: _mock_instance,
+            store_dir,
+            ..
+        } = npmrc_info;
+        write_manifest(&workspace);
+        enable_gvs_in_workspace_yaml(
+            &workspace,
+            &format!("nodeLinker: pnp\nsymlink: false\n{extra_yaml}"),
+        );
+        pacquet_at(&workspace)
+            .with_args(["install", "--reporter=silent"])
+            .assert()
+            .success();
+        let links = StoreDir::from(store_dir).links();
+        let slots =
+            || fs::read_dir(links.join("@/is-positive/1.0.0")).map(Iterator::count).unwrap_or(0);
+        assert_eq!(slots(), 1, "{extra_yaml:?}: the install must use the global virtual store");
+
+        prune(&workspace);
+
+        assert_eq!(
+            slots(),
+            1,
+            "{extra_yaml:?}: the PnP project's global virtual store package must survive",
+        );
+    }
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_packages_of_a_workspace_package_under_a_hidden_dir() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance: _mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write the root manifest");
+    append_workspace_yaml(&workspace, "packages: ['.packages/*']\n");
+    let project = workspace.join(".packages/app");
+    fs::create_dir_all(&project).expect("create workspace package");
+    write_manifest(&project);
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let manifest = project.join("node_modules/is-positive/package.json");
+    let installed = fs::read(&manifest).expect("read the installed package");
+
+    prune(&workspace);
+
+    assert_eq!(fs::read(&manifest).expect("the dependency link must remain valid"), installed);
 }
 
 #[test]
