@@ -39,7 +39,10 @@ use derive_more::{
     Display,
     Error,
 };
-use miette::Diagnostic;
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use std::{
     collections::HashSet,
     ffi::{
@@ -88,9 +91,11 @@ pub fn load_from_argv(
     argv: &[OsString],
     single_threaded: &pnpm_ffi_process::SingleThreaded,
 ) -> miette::Result<()> {
+    let mut vars = Vec::new();
     let names = load(&scan(argv).0, |name: &str, value: &str| {
-        single_threaded.set_var(name, value);
+        vars.push((name.to_owned(), value.to_owned()));
     })?;
+    single_threaded.set_vars(vars).into_diagnostic()?;
     crate::invocation_environment::record_env_file(names);
     Ok(())
 }

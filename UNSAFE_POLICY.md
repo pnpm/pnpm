@@ -113,12 +113,13 @@ does not go in.
 3. **A mutation of process-global state the standard library marks
    unsafe.** `std::env::set_var` and `std::env::remove_var` are unsound
    when another thread reads the environment concurrently, and the reader
-   can be inside a library the caller never calls directly. No value can
-   observe that the process still has one thread, so what a witness buys
-   is one place to make the argument rather than one per call site:
+   can be inside a library the caller never calls directly.
    `SingleThreaded` in [`pnpm-ffi-process`](./pnpm/crates/ffi-process) is
-   claimed once at the top of `main` and moved to each write, and
-   `.config/clippy.toml` leaves no other way to write the environment.
+   claimed once at the top of `main` and passed to each write. Its
+   `set_var` counts the process's threads before every write and refuses
+   while another one runs. Its module docs list the platforms that cannot
+   count. `.config/clippy.toml` leaves no other way to write the
+   environment.
    So does `EnvGuard` in
    [`pnpm-testing-utils`](./pnpm/crates/testing-utils), which holds a
    process-wide lock for a test's lifetime. A function that takes one of

@@ -71,7 +71,10 @@ use cli_args::{
 };
 use config_overrides::ConfigOverrides;
 use flag_relocation::relocate_pre_subcommand_flags;
-use miette::set_panic_hook;
+use miette::{
+    IntoDiagnostic,
+    set_panic_hook,
+};
 use pnpm_diagnostics::{
     enable_tracing_by_env,
     install_report_handler,
@@ -104,26 +107,14 @@ pub fn main() -> ExitCode {
     let argv: Vec<OsString> = std::env::args_os().collect();
     let launch = shim_dispatch::ShimLaunch::detect(&argv);
     let argv = if launch.is_shim() { argv } else { argv_with_alias_subcommand(argv) };
-    // Claimed here, before anything spawns, because the startup path has
-    // to change the environment and only a single-threaded process may.
-    let single_threaded = pnpm_ffi_process::SingleThreaded::claim()
-        .expect("the CLI claims the single-threaded witness once, at startup");
-    // Sets a variable, as the `--env-file` load below does, so it needs
-    // the witness and runs before the startup thread exists.
-    launch.mark_preparation(&single_threaded);
-    // Load `--env-file` variables here, before the startup thread below
-    // exists (see `env_file`). A shim launch is exempt: its arguments
-    // belong to the shim target and travel there untouched.
-    if !launch.is_shim()
-        && let Err(error) = env_file::load_from_argv(&argv, &single_threaded)
-    {
+    if let Err(error) = prepare_environment(&launch, &argv) {
         report_fatal_error(&error);
         return ExitCode::FAILURE;
     }
-    // Tracing reads `TRACE`/`TRACE_FORMAT`, which the files above may
-    // define, so it starts only after the load.
+    // Tracing reads `TRACE`/`TRACE_FORMAT`, which `--env-file` may define,
+    // so it starts only after the load.
     enable_tracing_by_env();
-    let result = run_on_big_stack(|| run_cli(&launch, argv, single_threaded));
+    let result = run_on_big_stack(|| run_cli(&launch, argv));
     match result.and_then(|()| flush_stdout()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -131,6 +122,26 @@ pub fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Make every change the startup path makes to the process environment.
+/// Runs before the startup thread exists, because a change is refused
+/// while another thread runs.
+///
+/// A shim launch takes only the preparation mark: its arguments belong to
+/// the shim target and travel there untouched.
+fn prepare_environment(
+    launch: &shim_dispatch::ShimLaunch,
+    argv: &[OsString],
+) -> miette::Result<()> {
+    let single_threaded = pnpm_ffi_process::SingleThreaded::claim()
+        .expect("the CLI claims the single-threaded witness once, at startup");
+    launch.mark_preparation(&single_threaded).into_diagnostic()?;
+    if launch.is_shim() {
+        return Ok(());
+    }
+    env_file::load_from_argv(argv, &single_threaded)?;
+    with_current::ignore_pm_check_if_requested(argv, &single_threaded).into_diagnostic()
 }
 
 /// Flush what `print!` left buffered, and fail with the first write to
@@ -207,11 +218,7 @@ fn is_reported_error(error: &miette::Report) -> bool {
 }
 
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
-fn run_cli(
-    launch: &shim_dispatch::ShimLaunch,
-    argv: Vec<OsString>,
-    single_threaded: pnpm_ffi_process::SingleThreaded,
-) -> miette::Result<()> {
+fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: Vec<OsString>) -> miette::Result<()> {
     if let Some(exit_code) = launch.dispatch(&argv) {
         // The shim dispatcher propagates the dispatched command's exit status.
         pnpm_executor::exit(exit_code);
@@ -221,7 +228,7 @@ fn run_cli(
         .skip(1)
         .collect();
     let (argv, builtin_command_forced) = pm_prefix::strip_prefix(argv);
-    let argv = with_current::rewrite(argv, single_threaded)?;
+    let argv = with_current::rewrite(argv)?;
     let (config_overrides, argv) = ConfigOverrides::extract(argv);
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
     let (command, argv) = prepare_cli_argv(argv);

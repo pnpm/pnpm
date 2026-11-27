@@ -5660,6 +5660,7 @@ name = "pnpm-ffi-process"
 version = "0.0.1"
 dependencies = [
  "command-extra",
+ "derive_more",
  "libc",
  "pipe-trait",
  "text-block-macros",
