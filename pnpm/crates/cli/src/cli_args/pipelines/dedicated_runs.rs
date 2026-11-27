@@ -55,22 +55,20 @@ impl DedicatedProjectRuns<'_> {
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
-        let prune = self.prune_excludes && self.projects.covers_workspace;
         let caches = DedicatedCaches {
-            pending_states: (prune
-                && self.pipelined
+            installed_states: (self.prunes_workspace()
+                && self.sync_injected_deps
                 && pnpm_package_manager::PrunedInstallExclusions::enabled(self.config))
             .then(Default::default),
             ..Default::default()
         };
-        let result = self.run_and_prune::<Rep, _, _>(&caches, run, prune).await;
-        if let Some(pending) = caches.pending_states {
+        let pruned = self.run_and_prune::<Rep, _, _>(&caches, run).await?;
+        if let Some(pending) = caches.installed_states {
             let writes = std::mem::take(&mut *pending.lock().expect("workspace states"));
             for (config, state) in writes {
-                state.finish::<Rep>(config, result.as_ref().ok());
+                state.record_pruned_exclusions::<Rep>(config, &pruned);
             }
         }
-        result?;
         if self.sync_injected_deps {
             let project_dirs: Vec<PathBuf> = self.projects.dependencies
                 .keys()
@@ -88,11 +86,14 @@ impl DedicatedProjectRuns<'_> {
         Ok(())
     }
 
+    const fn prunes_workspace(&self) -> bool {
+        self.prune_excludes && self.projects.covers_workspace
+    }
+
     async fn run_and_prune<Rep, Runner, RunFuture>(
         &self,
         caches: &DedicatedCaches,
         run: Runner,
-        prune: bool,
     ) -> miette::Result<pnpm_package_manager::PrunedInstallExclusions>
     where
         Rep: Reporter,
@@ -102,9 +103,9 @@ impl DedicatedProjectRuns<'_> {
         if self.pipelined {
             self.run_projects_pipelined(caches, run).await?;
         } else {
-            self.run_projects(run).await?;
+            self.run_projects(caches, run).await?;
         }
-        if !prune {
+        if !self.prunes_workspace() {
             return Ok(pnpm_package_manager::PrunedInstallExclusions::default());
         }
         let project_dirs = self.projects.dependencies
@@ -119,15 +120,18 @@ impl DedicatedProjectRuns<'_> {
         prune_after_dedicated_installs(self.config)
     }
 
-    async fn run_projects<Runner, RunFuture>(&self, run: Runner) -> miette::Result<()>
+    async fn run_projects<Runner, RunFuture>(
+        &self,
+        caches: &DedicatedCaches,
+        run: Runner,
+    ) -> miette::Result<()>
     where
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
-        let caches = DedicatedCaches::default();
         let first_error = Mutex::new(None);
         let run_node = |project_dir: PathBuf| {
-            let (first_error, run, caches) = (&first_error, &run, &caches);
+            let (first_error, run) = (&first_error, &run);
             async move {
                 let result = self.install_project(&project_dir, caches, None, run).await;
                 record_dedicated_result(first_error, result)
@@ -180,8 +184,19 @@ impl DedicatedProjectRuns<'_> {
         // A project's install blocks its thread in places, such as while its
         // lifecycle scripts run. On its own task, the other projects'
         // installs move to another worker then.
+        let config = state.config;
         tokio::spawn(run(state)).await
-            .unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic()))
+            .unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic()))?;
+        if let Some(states) = &caches.installed_states
+            && let Some(installed) =
+                pnpm_package_manager::InstalledWorkspaceState::from_project(project_dir, config)
+        {
+            states
+                .lock()
+                .expect("workspace states")
+                .push((config, installed));
+        }
+        Ok(())
     }
 }
 

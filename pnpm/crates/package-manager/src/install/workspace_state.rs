@@ -42,27 +42,26 @@ use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_reporter::Reporter;
 use pnpm_workspace_state::update_workspace_state_in_modules;
 
-/// A workspace state awaiting the policy edits made by this install.
-#[derive(Debug, Default, Clone)]
-pub struct PendingWorkspaceState(
-    std::sync::Arc<std::sync::Mutex<Option<(PathBuf, WorkspaceState)>>>,
-);
+/// The installed tree whose policy a workspace-wide prune can establish.
+pub struct InstalledWorkspaceState {
+    root: PathBuf,
+    state: WorkspaceState,
+}
 
-impl PendingWorkspaceState {
-    /// Publish the completed tree with the workspace policy its lockfile established.
-    pub fn finish<Reporter: self::Reporter>(
+impl InstalledWorkspaceState {
+    #[must_use]
+    pub fn from_project(root: &Path, config: &Config) -> Option<Self> {
+        let modules = config.workspace_state_modules_dir(root);
+        let state = pnpm_workspace_state::load_workspace_state_in_modules(&modules).ok()??;
+        Some(Self { root: root.to_owned(), state })
+    }
+
+    pub fn record_pruned_exclusions<Reporter: self::Reporter>(
         self,
         config: &Config,
-        pruned: Option<&crate::PrunedInstallExclusions>,
+        pruned: &crate::PrunedInstallExclusions,
     ) {
-        let Some((root, mut state)) = self.0
-            .lock()
-            .expect("pending workspace state")
-            .take()
-        else {
-            return;
-        };
-        let Some(pruned) = pruned else { return };
+        let Self { root, mut state } = self;
         let Some(digest) = pruned.lockfiles.get(&root) else { return };
         if pruned.edits.minimum_release_age.is_none()
             && pruned.edits.trust_policy.is_none()
@@ -80,19 +79,6 @@ impl PendingWorkspaceState {
                 update_workspace_state_or_warn::<Reporter>(&root, &state, config);
             }
         }
-    }
-}
-
-pub(crate) fn publish_workspace_state<Reporter: self::Reporter>(
-    workspace_root: &Path,
-    state: WorkspaceState,
-    config: &Config,
-    pending: Option<&PendingWorkspaceState>,
-) {
-    update_workspace_state_or_warn::<Reporter>(workspace_root, &state, config);
-    if let Some(pending) = pending {
-        *pending.0.lock().expect("pending workspace state") =
-            Some((workspace_root.to_owned(), state));
     }
 }
 

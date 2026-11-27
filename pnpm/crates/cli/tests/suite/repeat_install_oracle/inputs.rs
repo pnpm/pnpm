@@ -110,6 +110,25 @@ fn assert_pruned_state(scenario: &Scenario) {
 }
 
 #[test]
+fn recursive_update_records_pruned_exclusions_for_dedicated_lockfiles() {
+    let scenario = Scenario::new(Layout { shared_lockfile: false, ..SHARED });
+    scenario.install(&[]);
+    for setting in ["minimumReleaseAgeExclude", "trustPolicyExclude"] {
+        scenario.set_workspace_setting(&format!("{setting}Prune"), Some("true"));
+        scenario.set_workspace_setting(
+            setting,
+            Some("['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/fo?', '!example', obsolete]"),
+        );
+    }
+    let update = scenario.command_at(
+        scenario.workspace(),
+        ["--recursive", "--include-workspace-root", "update"],
+    );
+    super::assert_success(&update);
+    assert_pruned_state(&scenario);
+}
+
+#[test]
 fn a_dependent_script_can_read_workspace_state_before_exclusions_are_pruned() {
     let scenario = Scenario::new(Layout { shared_lockfile: false, ..SHARED });
     scenario.set_workspace_setting("minimumReleaseAgeExcludePrune", Some("true"));
@@ -152,13 +171,19 @@ fn frozen_then_filtered_install_after_a_scope_route_moves() {
     super::assert_success(&frozen);
     assert_eq!(scenario.snapshot(), previous);
     scenario.install(&["--filter", "a"]);
+    let state = pnpm_workspace_state::load_workspace_state(scenario.workspace()).unwrap().unwrap();
+    let validation = state.validation.unwrap();
+    assert!(validation.project("packages/b").is_none());
     assert!(scenario.exec(&["a"], "error"));
     assert!(scenario.install_takes_fast_path(&["--filter", "a"]));
     let accepted = scenario.exec(&["b"], "error");
     let before = scenario.selection_view(scenario.workspace(), &["b"]);
+    assert!(!scenario.install(&["--filter", "b"]));
+    let resolved = scenario.selection_view(scenario.workspace(), &["b"]);
     scenario.install(&["--config.optimistic-repeat-install=false"]);
     let after = scenario.selection_view(scenario.workspace(), &["b"]);
     assert_ne!(before, after);
+    assert_eq!(resolved, after);
     assert!(!accepted);
     scenario.assert_install_gate(super::AllowedRefusal::None);
 }

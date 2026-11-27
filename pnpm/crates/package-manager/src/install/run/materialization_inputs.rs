@@ -125,16 +125,12 @@ impl From<&super::InstallOwned> for crate::install::materialize::Materialization
 impl Lockfiles<'_> {
     pub(super) fn write_policy(
         &self,
-        save: &crate::install::InstallSaveOptions,
-    ) -> crate::install::state_options::InstallWritePolicy {
-        crate::install::state_options::InstallWritePolicy {
-            lockfile: crate::install::state_options::LockfileWritePolicy {
-                synthesized_from_current: self.wanted.synthesized_from_current(),
-                fast_updated: self.wanted.was_fast_updated(),
-                save: save.lockfile,
-            },
-            save_workspace_state: save.workspace_state,
-            pending_state: save.pending_state.clone(),
+        save: bool,
+    ) -> crate::install::state_options::LockfileWritePolicy {
+        crate::install::state_options::LockfileWritePolicy {
+            synthesized_from_current: self.wanted.synthesized_from_current(),
+            fast_updated: self.wanted.was_fast_updated(),
+            save,
         }
     }
 }

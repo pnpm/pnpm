@@ -36,8 +36,8 @@ use super::{
     Reporter,
     StateWrite,
     SummaryLog,
-    publish_workspace_state,
     recorded_workspace_state,
+    update_workspace_state_or_warn,
 };
 use crate::install_state::{
     ResolvedImporters,
@@ -56,7 +56,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(crate) projects: crate::install::state_options::ApplyProjectSelection<'a>,
     pub(crate) resolution: crate::install::state_options::ApplyResolutionState<'a>,
     pub(crate) scripts: crate::install::state_options::PendingProjectScripts<'a, 'selection>,
-    pub(crate) write: crate::install::state_options::InstallWritePolicy,
+    pub(crate) write: crate::install::state_options::LockfileWritePolicy,
     pub(super) materialized: Materialized,
 }
 
@@ -200,7 +200,7 @@ fn commit_apply_state<Reporter: self::Reporter>(
             is_inconsistent: inputs.prior.is_inconsistent,
             filtered_install: inputs.projects.filtered_install,
         },
-        write: inputs.write.lockfile,
+        write: inputs.write,
         force_prune: inputs.force_prune(),
     })?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
@@ -338,7 +338,7 @@ fn finish_apply<Reporter: self::Reporter>(
 
     // Refreshing the root here would hide stale bins in unselected projects
     // from the next install.
-    if inputs.write.save_workspace_state
+    if inputs.completion.save_workspace_state
         && !(inputs.prior.tree_moved && inputs.projects.filtered_install)
     {
         write_applied_workspace_state::<Reporter>(&inputs, materialized_dirs);
@@ -481,11 +481,10 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
         carried: applied_carried_settings(inputs),
         vouched: &vouched,
     });
-    publish_workspace_state::<Reporter>(
+    update_workspace_state_or_warn::<Reporter>(
         &inputs.projects.workspace_root,
-        state,
+        &state,
         inputs.completion.config,
-        inputs.write.pending_state.as_ref(),
     );
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 }

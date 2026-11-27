@@ -57,7 +57,6 @@ pub(crate) struct InstallSaveOptions {
     /// whose importers are not the workspace's projects, so that state
     /// keeps describing the workspace's last install.
     pub(crate) workspace_state: bool,
-    pub(crate) pending_state: Option<super::PendingWorkspaceState>,
     /// pnpm's `lockfileCheck`: the run hands the wanted lockfile to the sink
     /// instead of writing it, and must leave nothing else on disk changed
     /// either. Only `pacquet dedupe --check` sets it.
@@ -73,7 +72,6 @@ impl Default for InstallSaveOptions {
         InstallSaveOptions {
             lockfile: true,
             workspace_state: true,
-            pending_state: None,
             lockfile_check: None,
             recorded_trust_lockfile: None,
         }

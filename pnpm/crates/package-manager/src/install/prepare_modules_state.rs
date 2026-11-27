@@ -43,7 +43,7 @@ pub(super) struct PrepareModulesStateInputs<'a, 'install> {
     pub(crate) repeat: crate::install::state_options::RepeatInstallPolicy<'a>,
     pub(crate) verification:
         crate::install::state_options::LockfileVerificationInputs<'a, 'install>,
-    pub(crate) write: crate::install::state_options::InstallWritePolicy,
+    pub(crate) write: crate::install::state_options::LockfileWritePolicy,
     pub(super) resolve_only: bool,
     pub(super) installs_only: bool,
 }
@@ -247,7 +247,12 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
             trust_lockfile: inputs.verification.trust_lockfile,
             exotic_subdeps: inputs.verification.exotic_subdeps,
         },
-        write: inputs.write,
+        write: crate::install::state_options::LockfileWritePolicy {
+            synthesized_from_current: inputs.write.synthesized_from_current,
+            fast_updated: inputs.write.fast_updated,
+            save: inputs.write.save,
+        },
+
         wanted_lockfile,
         modules,
         supported_architectures: inputs.repeat.supported_architectures,

@@ -205,14 +205,10 @@ impl PrunedInstallExclusions {
             || (config.trust_policy_exclude_prune && config.trust_policy_exclude.is_some())
     }
 
-    fn load_lockfile(
+    fn load_and_record_lockfile(
         &mut self,
         root: &Path,
-        record_digest: bool,
     ) -> Result<Option<Lockfile>, LoadLockfileError> {
-        if !record_digest {
-            return Lockfile::load_wanted_from_dir(root);
-        }
         Ok(Lockfile::load_wanted_from_dir_with_digest(root)?
             .map(|(lockfile, digest)| {
                 self.lockfiles.insert(root.to_owned(), digest);
@@ -298,10 +294,12 @@ fn prune_from_project_lockfiles<'a>(
     let record_digests = PrunedInstallExclusions::enabled(config);
     for project_dir in project_dirs {
         let root = config.lockfile_dir_for(project_dir);
-        let Some(lockfile) = pruned
-            .load_lockfile(root, record_digests)
-            .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
-        else {
+        let loaded = if record_digests {
+            pruned.load_and_record_lockfile(root)
+        } else {
+            Lockfile::load_wanted_from_dir(root)
+        };
+        let Some(lockfile) = loaded.map_err(WriteWorkspaceCatalogsError::LoadLockfile)? else {
             return Ok(PrunedInstallExclusions::default());
         };
         record_resolved_package_versions(

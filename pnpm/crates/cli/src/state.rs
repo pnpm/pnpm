@@ -44,7 +44,8 @@ use std::{
     sync::Arc,
 };
 
-type DedicatedStateWrites = Vec<(&'static Config, pnpm_package_manager::PendingWorkspaceState)>;
+type DedicatedWorkspaceStates =
+    Vec<(&'static Config, pnpm_package_manager::InstalledWorkspaceState)>;
 
 /// What the per-project installs of a workspace whose projects keep their
 /// own lockfiles share: the tarball cache every [`State`] carries, the rest
@@ -54,7 +55,7 @@ pub(crate) struct DedicatedCaches {
     pub(crate) tarballs: Arc<MemCache>,
     pub(crate) install: SharedInstallCaches,
     pub(crate) dev_preinstall: SharedDevPreinstall,
-    pub(crate) pending_states: Option<Arc<std::sync::Mutex<DedicatedStateWrites>>>,
+    pub(crate) installed_states: Option<Arc<std::sync::Mutex<DedicatedWorkspaceStates>>>,
 }
 
 /// Application state when running `pacquet run` or `pacquet install`.
@@ -165,16 +166,6 @@ impl State {
                 caches: caches.install.clone(),
                 dependencies_installed,
                 dev_preinstall: caches.dev_preinstall.clone(),
-                pending_state: caches.pending_states
-                    .as_ref()
-                    .map(|states| {
-                        let pending = pnpm_package_manager::PendingWorkspaceState::default();
-                        states
-                            .lock()
-                            .expect("workspace states")
-                            .push((self.config, pending.clone()));
-                        pending
-                    }),
             }),
             discovered_workspace: workspace,
             ..self

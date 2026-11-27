@@ -70,14 +70,14 @@ pub(crate) use workspace_state::{
     build_project_manifests_list,
     lockfile_root_dir,
     lockfile_root_for,
-    publish_workspace_state,
     recorded_workspace_state,
     registry_keys_current,
     replace_project_manifest,
+    update_workspace_state_or_warn,
     workspace_packages_for_freshness,
 };
 pub use workspace_state::{
-    PendingWorkspaceState,
+    InstalledWorkspaceState,
     build_workspace_packages_map,
 };
 
@@ -625,7 +625,6 @@ pub struct DedicatedProjectInstall {
     /// waits for nothing.
     pub dependencies_installed: Option<WorkspaceDependenciesInstalled>,
     pub dev_preinstall: SharedDevPreinstall,
-    pub pending_state: Option<PendingWorkspaceState>,
 }
 
 /// Every project of a workspace and the workspace-package index built from

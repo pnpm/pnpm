@@ -357,7 +357,7 @@ where
                 lockfile: false,
                 workspace_state: false,
                 lockfile_check: None,
-                ..Default::default()
+                recorded_trust_lockfile: None,
             },
             manifests: InstallManifestOptions {
                 deploy_hook: true,

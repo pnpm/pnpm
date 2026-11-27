@@ -65,17 +65,12 @@ pub(crate) struct ApplyCompletionContext<'a> {
     pub(crate) catalog_context_present: bool,
     pub(crate) verified_file_integrity_baseline: VerifiedFileIntegrity,
     pub(crate) config: &'a Config,
-    /// Whether a person is at the terminal to answer for the run. See
-    /// `RunMode::can_prompt`.
-    pub(crate) can_prompt: bool,
-}
-
-pub(crate) struct InstallWritePolicy {
-    pub(crate) lockfile: LockfileWritePolicy,
     /// Whether the run may write the workspace state. See
     /// `InstallSaveOptions::workspace_state`.
     pub(crate) save_workspace_state: bool,
-    pub(crate) pending_state: Option<crate::install::PendingWorkspaceState>,
+    /// Whether a person is at the terminal to answer for the run. See
+    /// `RunMode::can_prompt`.
+    pub(crate) can_prompt: bool,
 }
 
 #[derive(Clone, Copy)]
