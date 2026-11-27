@@ -114,6 +114,10 @@ const UNDEFINED: [u8; 3] = [0xd4, 0x00, 0x00];
 const SLOT_LO: u8 = 0x40;
 const SLOT_HI: u8 = 0x7f;
 
+/// How many containers and records may nest. `rmp_serde`, which reads the
+/// output, stops at 1024 too, and a deeper row would overflow the stack.
+const MAX_DEPTH: usize = 1024;
+
 /// Error type of [`transcode_to_plain_msgpack`].
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -167,6 +171,10 @@ pub enum DecodeError {
     #[display("{count} bytes left over after decoding the top-level value")]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_MSGPACKR_RECORDS_TRAILING_BYTES))]
     TrailingBytes { count: usize },
+
+    #[display("Values nest more than {limit} levels deep at offset {offset}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_MSGPACKR_RECORDS_TOO_DEEP))]
+    TooDeep { limit: usize, offset: usize },
 }
 
 /// Expand msgpackr records into a pure-MessagePack byte stream that
@@ -205,6 +213,19 @@ pub fn transcode_to_plain_msgpack(bytes: &[u8]) -> Result<Vec<u8>, DecodeError> 
 struct TranscodeState {
     slots: HashMap<u8, Rc<[String]>>,
     records_mode: bool,
+    depth: usize,
+}
+
+impl TranscodeState {
+    /// Step into a container or record, or fail at [`MAX_DEPTH`]. A failed
+    /// transcode drops the state, so only a success has to step back out.
+    fn enter(&mut self, offset: usize) -> Result<(), DecodeError> {
+        if self.depth == MAX_DEPTH {
+            return Err(DecodeError::TooDeep { limit: MAX_DEPTH, offset });
+        }
+        self.depth += 1;
+        Ok(())
+    }
 }
 
 struct Reader<'a> {
@@ -297,6 +318,7 @@ fn transcode_container(
     state: &mut TranscodeState,
     head: u8,
 ) -> Result<(), DecodeError> {
+    state.enter(reader.pos)?;
     let count = if matches!(head, 0x80..=0x9f) {
         writer.push(reader.read_u8()?);
         (head & 0x0f) as usize
@@ -307,10 +329,12 @@ fn transcode_container(
         count
     };
     if matches!(head, 0x80..=0x8f | 0xde | 0xdf) {
-        transcode_pairs(reader, writer, state, count)
+        transcode_pairs(reader, writer, state, count)?;
     } else {
-        transcode_array(reader, writer, state, count)
+        transcode_array(reader, writer, state, count)?;
     }
+    state.depth -= 1;
+    Ok(())
 }
 
 fn transcode_scalar(
@@ -366,7 +390,11 @@ fn copy_payload(
     tag_bytes: usize,
 ) -> Result<(), DecodeError> {
     let count = peek_payload_length(reader, length_bytes)?;
-    copy_n(reader, writer, tag_bytes + length_bytes + count)
+    // A 4-byte length can reach `usize::MAX` on a 32-bit target.
+    let total = (tag_bytes + length_bytes)
+        .checked_add(count)
+        .ok_or(DecodeError::UnexpectedEof { offset: reader.pos })?;
+    copy_n(reader, writer, total)
 }
 
 /// msgpackr encodes large JS integers as floats, but `rmp_serde` requires
@@ -400,11 +428,13 @@ fn transcode_record(
     state: &mut TranscodeState,
     fields: &Rc<[String]>,
 ) -> Result<(), DecodeError> {
+    state.enter(reader.pos)?;
     write_map_header(writer, fields.len());
     for name in fields.iter() {
         write_str(writer, name);
         transcode_value(reader, writer, state)?;
     }
+    state.depth -= 1;
     Ok(())
 }
 
@@ -476,6 +506,12 @@ fn read_string_array(reader: &mut Reader<'_>) -> Result<Vec<String>, DecodeError
         0xdd => reader.read_u32()? as usize,
         _ => return Err(DecodeError::ExpectedArrayHeader { byte: head, offset: start }),
     };
+    // Every field name takes at least one byte, so a count beyond the bytes
+    // left is corrupt, and checking it first keeps the reservation within
+    // the row's size.
+    if len > reader.remaining() {
+        return Err(DecodeError::UnexpectedEof { offset: reader.bytes.len() });
+    }
     let mut out = Vec::with_capacity(len);
     for _ in 0..len {
         out.push(read_string(reader)?);
