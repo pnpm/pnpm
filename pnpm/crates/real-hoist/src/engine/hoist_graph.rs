@@ -240,9 +240,10 @@ fn place_at_root(pass: &mut Pass<'_>, child: &Rc<WorkNode>) {
             .borrow_mut()
             .insert(Rc::clone(name), Rc::clone(child));
         pass.next_wave.insert(RcByPtr(Rc::clone(child)));
-    } else {
+    } else if !Rc::ptr_eq(root, child) {
         // The root is this package under this name, so it serves the
-        // child's snapshot keys itself.
+        // child's snapshot keys itself. A child that is the root already
+        // serves them, and borrowing its set twice would panic.
         let references = child.references.borrow();
         root.references
             .borrow_mut()

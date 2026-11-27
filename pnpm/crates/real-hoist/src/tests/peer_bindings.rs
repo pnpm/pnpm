@@ -159,3 +159,30 @@ fn a_root_that_absorbs_its_own_package_serves_its_snapshot_key() {
     assert_eq!(served, ["a@1.0.0(p@1.0.0)", "a@1.0.0(p@2.0.0)"], "{result:#?}");
     assert!(child_of(&border, "b").dependencies.borrow().is_empty(), "b finds a above it");
 }
+
+/// `a` is a hoist border whose dependency `b` depends back on `a` itself,
+/// as `browserslist` and `update-browserslist-db` do. Hoisting that edge
+/// into `a` finds the root as the child, and merging `a`'s keys into its
+/// own set must not borrow the same set twice.
+#[test]
+fn a_root_that_is_its_own_dependency_s_dependency_keeps_its_snapshot_key() {
+    let border = tree_node("a", "a@1.0.0", &[], vec![]);
+    let holder = tree_node("b", "b@1.0.0", &[], vec![Rc::clone(&border)]);
+    border.dependencies
+        .borrow_mut()
+        .insert(RcByPtr(holder));
+    let root = tree_root(vec![border]);
+    let mut opts = HoistOpts::default();
+    opts.hoisting_limits.insert(".@".to_string(), BTreeSet::from(["a".to_string()]));
+
+    let result = nm_hoist(&root, &opts);
+
+    let border = child_of(&result, "a");
+    let served: Vec<String> = border.references
+        .borrow()
+        .iter()
+        .cloned()
+        .collect();
+    assert_eq!(served, ["a@1.0.0"], "{result:#?}");
+    assert!(child_of(&border, "b").dependencies.borrow().is_empty(), "b finds a above it");
+}
