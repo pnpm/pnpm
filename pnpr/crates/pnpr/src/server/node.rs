@@ -159,3 +159,6 @@ async fn document(
         .await?
         .ok_or(RegistryError::NotFound)
 }
+
+#[cfg(test)]
+mod tests;

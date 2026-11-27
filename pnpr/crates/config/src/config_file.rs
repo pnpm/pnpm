@@ -504,6 +504,16 @@ pub(super) fn is_false(value: &bool) -> bool {
 }
 
 impl UpstreamFile {
+    pub(super) fn required_origin_url(
+        &self,
+        name: &str,
+    ) -> Result<&str, pnpr_error::RegistryError> {
+        self.origin_url()
+            .ok_or_else(|| pnpr_error::RegistryError::InvalidConfig {
+                reason: format!("upstream registry {name:?} requires a URL"),
+            })
+    }
+
     pub(super) fn origin_url(&self) -> Option<&str> {
         self.url
             .as_deref()

@@ -281,12 +281,7 @@ pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
 ) -> Result<UpstreamConfig, RegistryError> {
     validate_upstream_access(name, &file)?;
     let upstream_config_file = UpstreamConfigFile {
-        url: file
-            .origin_url()
-            .ok_or_else(|| RegistryError::InvalidConfig {
-                reason: format!("upstream registry {name:?} requires a url"),
-            })?
-            .to_owned(),
+        url: file.required_origin_url(name)?.to_owned(),
         auth: file.auth,
         headers: file.headers,
         packument_ttl: file.packument_ttl,

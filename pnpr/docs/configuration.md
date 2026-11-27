@@ -167,13 +167,10 @@ one of pnpm's
 used as one. The `~` must arrive unencoded: `%7E` does not select the named
 registry.
 
-A registry also declares which package ecosystem it
-serves, through `ecosystem:` (`npm`, `cargo`, `pypi`, or `oci`; npm by default).
-Each ecosystem is addressed through its own path prefix (`/npm/`, `/cargo/`,
-`/pypi/`, or `/oci/`). Declare registries directly under `registries:` with
-unique names. See
-[Cargo and Python registries](ecosystems.md) and
-[Container images](container-images.md).
+Set `ecosystem:` to choose the protocol a registry serves. The default is npm.
+Each ecosystem has its own [path prefix](ecosystems.md#addressing-an-ecosystem).
+Declare registries directly under `registries:` with unique names.
+[Node.js distributions](node-distributions.md) support upstream registries only.
 
 ### The `packages` map
 

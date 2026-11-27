@@ -39,3 +39,7 @@ To select a named registry, use `/node/~runtimes` as the mirror and
 pnpr caches the release index, checksums, and detached signatures. It checks
 runtime archives, headers, and Windows import libraries against the release's
 `SHASUMS256.txt` before adding them to the artifact cache.
+
+The configured origin supplies the checksums pnpr trusts. Use an HTTPS origin
+you trust to distribute Node.js. pnpm also verifies the detached Node.js release
+signature when installing a stable runtime.

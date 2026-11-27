@@ -50,12 +50,19 @@ async fn serves_release_files_through_default_and_named_registries() {
     let tmp = TempDir::new().unwrap();
     let app = registry(&tmp, &origin.url());
     let filename = "node-v22.0.0-headers.tar.gz";
-    let sums = format!("{}  {filename}\n", sha256_hex(b"headers"));
+    let sums = format!(
+        "{}  {filename}\n{}  win-x64/node.lib\n{}  win-arm64/node.lib\n",
+        sha256_hex(b"headers"),
+        sha256_hex(b"x64 library"),
+        sha256_hex(b"arm64 library"),
+    );
     for (path, body) in [
         ("index.json".to_string(), "[]"),
         ("v22.0.0/SHASUMS256.txt".to_string(), sums.as_str()),
         ("v22.0.0/SHASUMS256.txt.sig".to_string(), "signature"),
         (format!("v22.0.0/{filename}"), "headers"),
+        ("v22.0.0/win-x64/node.lib".to_string(), "x64 library"),
+        ("v22.0.0/win-arm64/node.lib".to_string(), "arm64 library"),
     ] {
         let mock = origin
             .mock("GET", format!("/dist/{path}").as_str())
@@ -72,6 +79,8 @@ async fn serves_release_files_through_default_and_named_registries() {
         }
         mock.assert_async().await;
     }
+    let x64 = get(&app, "/node/release/v22.0.0/win-x64/node.lib").await;
+    assert_eq!(body_bytes(x64.into_body()).await, b"x64 library");
     let missing = get(&app, "/node/release/v22.0.0/node-v22.0.0-linux-arm64.tar.gz").await;
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
