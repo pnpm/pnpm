@@ -105,7 +105,7 @@ pub fn check_deps_status_before_run(
     } else {
         Scope::Selected(selected_project_dirs)
     };
-    let ignored_settings = run_ignored_settings(check, scope);
+    let ignored_settings = run_ignored_settings(check, state, scope);
     let policy = GatePolicy {
         gate: Gate::Run,
         ignored_settings: &ignored_settings,
@@ -123,6 +123,7 @@ pub fn check_deps_status_before_run(
 
 fn run_ignored_settings(
     check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
     scope: Scope<'_>,
 ) -> Vec<&'static str> {
     let mut ignored_settings = RUN_IGNORED_SETTINGS.to_vec();
@@ -131,7 +132,7 @@ fn run_ignored_settings(
         ignored_settings.push("autoDedupe");
     }
     // Only a full resolution can replace the recorded routes of every plain key.
-    if frozen || (matches!(scope, Scope::Selected(_)) && check.config.shares_one_lockfile()) {
+    if frozen || super::selected_routes_resolved(check, state, scope) {
         ignored_settings.push("registryRoutes");
     }
     ignored_settings

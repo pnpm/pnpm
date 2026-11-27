@@ -13,6 +13,7 @@ pub(crate) use lifecycle::{
     checked_projects_opts,
     load_workspace_projects,
     read_checked_workspace_projects,
+    read_install_project_manifests,
 };
 pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions,
@@ -62,7 +63,6 @@ pub(crate) use run::{
     hook_one_manifest,
     register_workspace_in_store,
 };
-pub use workspace_state::build_workspace_packages_map;
 pub(crate) use workspace_state::{
     CarriedSettings,
     StateProjects,
@@ -75,6 +75,10 @@ pub(crate) use workspace_state::{
     replace_project_manifest,
     update_workspace_state_or_warn,
     workspace_packages_for_freshness,
+};
+pub use workspace_state::{
+    InstalledWorkspaceState,
+    build_workspace_packages_map,
 };
 
 pub use lifecycle::SharedDevPreinstall;

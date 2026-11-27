@@ -46,63 +46,44 @@ use std::sync::Mutex;
 pub(crate) fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-    ignored_directories: Vec<std::path::PathBuf>,
-) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
-    let Some(manifest) = workspace_manifest else { return Ok(None) };
-    pnpm_workspace::find_workspace_projects(
-        workspace_root,
-        &workspace_projects_opts(manifest, ignored_directories),
-    )
-    .map(Some)
-}
-
-/// How [`load_workspace_projects`] discovers the projects of the workspace
-/// `workspace_manifest` declares.
-pub(super) fn workspace_projects_opts(
-    workspace_manifest: &pnpm_workspace::WorkspaceManifest,
-    ignored_directories: Vec<std::path::PathBuf>,
-) -> pnpm_workspace::FindWorkspaceProjectsOpts {
-    pnpm_workspace::FindWorkspaceProjectsOpts {
-        patterns: Some(pnpm_workspace::workspace_package_patterns(workspace_manifest)),
-        ignored_directories,
-    }
-}
-
-/// [`load_workspace_projects`] for the repeat-install checks, which read the
-/// projects the install itself would read: the `--workspace-packages`
-/// patterns when given, else the ones `workspace_manifest` declares.
-fn load_checked_workspace_projects(
     config: &Config,
-    workspace_root: &std::path::Path,
-    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
-    pnpm_workspace::find_workspace_projects(
-        workspace_root,
-        &checked_projects_opts(config, manifest),
-    )
-    .map(Some)
+    let options = pnpm_workspace::FindWorkspaceProjectsOpts {
+        patterns: Some(pnpm_workspace::workspace_package_patterns(manifest)),
+        ignored_directories: config.managed_directories(),
+    };
+    let paths = pnpm_workspace::find_workspace_project_manifests(workspace_root, &options)?;
+    read_install_project_manifests(config, paths).map(Some)
 }
 
-/// The workspace projects a repeat-install check compares: the ones `listed`
-/// names, or else [`load_checked_workspace_projects`], with
-/// [`crate::apply_runtime_on_fail`] applied as the install applies it.
+/// Read the importers as the install uses them, including its runtime policy.
+pub(crate) fn read_install_project_manifests(
+    config: &Config,
+    paths: Vec<pnpm_workspace::ProjectManifestPaths>,
+) -> Result<Vec<pnpm_workspace::Project>, pnpm_workspace::FindWorkspaceProjectsError> {
+    let mut projects = pnpm_workspace::read_workspace_projects(paths)?;
+    crate::apply_runtime_on_fail_to_projects(config, &mut projects);
+    Ok(projects)
+}
+
 pub(crate) fn read_checked_workspace_projects(
     config: &Config,
     (workspace_root, workspace_manifest): (&Path, Option<&pnpm_workspace::WorkspaceManifest>),
     listed: Option<Vec<pnpm_workspace::ProjectManifestPaths>>,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
-    let mut projects = match listed {
-        Some(listed) => pnpm_workspace::read_workspace_projects(listed).map(Some),
-        None => load_checked_workspace_projects(config, workspace_root, workspace_manifest),
-    }?;
-    if let Some(projects) = &mut projects {
-        crate::apply_runtime_on_fail_to_projects(config, projects);
-    }
-    Ok(projects)
+    let paths = match (listed, workspace_manifest) {
+        (Some(paths), _) => paths,
+        (None, Some(manifest)) => pnpm_workspace::find_workspace_project_manifests(
+            workspace_root,
+            &checked_projects_opts(config, manifest),
+        )?,
+        (None, None) => return Ok(None),
+    };
+    read_install_project_manifests(config, paths).map(Some)
 }
 
-/// The discovery options of [`load_checked_workspace_projects`].
+/// The discovery options of [`read_checked_workspace_projects`].
 pub(crate) fn checked_projects_opts(
     config: &Config,
     workspace_manifest: &pnpm_workspace::WorkspaceManifest,

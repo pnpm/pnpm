@@ -133,8 +133,9 @@ impl GateWorkspace {
             .get_or_init(|| {
                 let manifest = pnpm_workspace::read_workspace_manifest(&self.root).ok()??;
                 let opts = crate::install::checked_projects_opts(config, &manifest);
-                let mut projects = pnpm_workspace::find_workspace_projects(&self.root, &opts).ok()?;
-                crate::apply_runtime_on_fail_to_projects(config, &mut projects);
+                let paths =
+                    pnpm_workspace::find_workspace_project_manifests(&self.root, &opts).ok()?;
+                let projects = crate::install::read_install_project_manifests(config, paths).ok()?;
                 let key = opts.discovery_key(&self.root);
                 Some(DiscoveredProjects { manifest, key, projects })
             })

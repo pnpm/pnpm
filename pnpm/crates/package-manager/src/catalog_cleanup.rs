@@ -38,10 +38,12 @@ use pnpm_workspace::{
 };
 use pnpm_workspace_manifest_writer::{
     CatalogReferenceSources,
+    PrunedExclusions,
     ResolvedPackageVersions,
     UpdateWorkspaceManifestError,
     UpdateWorkspaceManifestOptions,
     update_workspace_manifest,
+    update_workspace_manifest_with_pruned_exclusions,
 };
 use std::path::{
     Path,
@@ -188,6 +190,33 @@ fn derive_workspace_dir(
     Ok(workspace_dir)
 }
 
+/// Workspace policy edits and the project lockfiles that established them.
+#[derive(Default)]
+pub struct PrunedInstallExclusions {
+    pub(crate) lockfiles: std::collections::BTreeMap<PathBuf, String>,
+    pub(crate) edits: PrunedExclusions,
+}
+
+impl PrunedInstallExclusions {
+    #[must_use]
+    pub fn enabled(config: &Config) -> bool {
+        (config.minimum_release_age_exclude_prune
+            && config.minimum_release_age_exclude.is_some())
+            || (config.trust_policy_exclude_prune && config.trust_policy_exclude.is_some())
+    }
+
+    fn load_and_record_lockfile(
+        &mut self,
+        root: &Path,
+    ) -> Result<Option<Lockfile>, LoadLockfileError> {
+        Ok(Lockfile::load_wanted_from_dir_with_digest(root)?
+            .map(|(lockfile, digest)| {
+                self.lockfiles.insert(root.to_owned(), digest);
+                lockfile
+            }))
+    }
+}
+
 /// Post-install pass under `minimumReleaseAgeExcludePrune` /
 /// `trustPolicyExcludePrune`: prune exclude entries whose versions the
 /// lockfile written by the just-finished install no longer records.
@@ -207,28 +236,15 @@ pub(crate) fn post_install_prune(
     config: &Config,
     workspace_dir: Option<&Path>,
     current_manifest: &PackageManifest,
-) -> Result<(), WriteWorkspaceCatalogsError> {
+) -> Result<PrunedInstallExclusions, WriteWorkspaceCatalogsError> {
     if !config.lockfile || !config.shares_one_lockfile() {
-        return Ok(());
+        return Ok(PrunedInstallExclusions::default());
     }
     let workspace_dir = match workspace_dir {
         Some(dir) => dir.to_path_buf(),
         None => derive_workspace_dir(config, current_manifest)?,
     };
-    // The entries live in the workspace's `pnpm-workspace.yaml`; the
-    // lockfile that proves what still resolves sits wherever
-    // `lockfileDir` put it.
-    let Some(lockfile) = Lockfile::load_wanted_from_dir(config.lockfile_dir_for(&workspace_dir))
-        .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
-    else {
-        return Ok(());
-    };
-    let mut resolved = ResolvedPackageVersions::new();
-    record_resolved_package_versions(
-        lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
-        &mut resolved,
-    );
-    prune_unresolved_entries(config, &workspace_dir, resolved)
+    prune_from_project_lockfiles(config, &workspace_dir, [workspace_dir.as_path()])
 }
 
 /// The post-install exclude prune for a workspace with a lockfile per project
@@ -245,9 +261,9 @@ pub(crate) fn post_install_prune(
 pub fn prune_against_project_lockfiles(
     config: &Config,
     workspace_dir: &Path,
-) -> Result<(), WriteWorkspaceCatalogsError> {
+) -> Result<PrunedInstallExclusions, WriteWorkspaceCatalogsError> {
     if !config.lockfile || config.shares_one_lockfile() {
-        return Ok(());
+        return Ok(PrunedInstallExclusions::default());
     }
     let mut project_dirs: Vec<PathBuf> =
         load_cleanup_projects(workspace_dir, config.managed_directories())?
@@ -255,7 +271,7 @@ pub fn prune_against_project_lockfiles(
             .map(|project| project.root_dir)
             .collect();
     if project_dirs.is_empty() {
-        return Ok(());
+        return Ok(PrunedInstallExclusions::default());
     }
     let normalized_root = pnpm_fs::lexical_normalize(workspace_dir);
     if pnpm_package_manifest::project_manifest_path(workspace_dir).is_file()
@@ -265,28 +281,43 @@ pub fn prune_against_project_lockfiles(
     {
         project_dirs.push(workspace_dir.to_path_buf());
     }
+    prune_from_project_lockfiles(config, workspace_dir, project_dirs.iter().map(PathBuf::as_path))
+}
+
+fn prune_from_project_lockfiles<'a>(
+    config: &Config,
+    workspace_dir: &Path,
+    project_dirs: impl IntoIterator<Item = &'a Path>,
+) -> Result<PrunedInstallExclusions, WriteWorkspaceCatalogsError> {
     let mut resolved = ResolvedPackageVersions::new();
-    for project_dir in &project_dirs {
-        let Some(lockfile) = Lockfile::load_wanted_from_dir(config.lockfile_dir_for(project_dir))
-            .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
-        else {
-            return Ok(());
+    let mut pruned = PrunedInstallExclusions::default();
+    let record_digests = PrunedInstallExclusions::enabled(config);
+    for project_dir in project_dirs {
+        let root = config.lockfile_dir_for(project_dir);
+        let loaded = if record_digests {
+            pruned.load_and_record_lockfile(root)
+        } else {
+            Lockfile::load_wanted_from_dir(root)
+        };
+        let Some(lockfile) = loaded.map_err(WriteWorkspaceCatalogsError::LoadLockfile)? else {
+            return Ok(PrunedInstallExclusions::default());
         };
         record_resolved_package_versions(
             lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
             &mut resolved,
         );
     }
-    prune_unresolved_entries(config, workspace_dir, resolved)
+    pruned.edits = prune_unresolved_entries(config, workspace_dir, resolved)?;
+    Ok(pruned)
 }
 
 fn prune_unresolved_entries(
     config: &Config,
     workspace_dir: &Path,
     mut resolved: ResolvedPackageVersions,
-) -> Result<(), WriteWorkspaceCatalogsError> {
+) -> Result<PrunedExclusions, WriteWorkspaceCatalogsError> {
     record_config_dependency_versions(config, workspace_dir, &mut resolved)?;
-    update_workspace_manifest(
+    update_workspace_manifest_with_pruned_exclusions(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
             prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,

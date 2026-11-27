@@ -228,6 +228,7 @@ pub(crate) fn read_owning_manifest(
 pub(crate) fn update_included_manifests(
     manifests: &WorkspaceManifests,
     opts: &UpdateWorkspaceManifestOptions<'_>,
+    pruned: &mut crate::PrunedExclusions,
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let merged = manifests.merged_text
         .as_deref()
@@ -254,7 +255,7 @@ pub(crate) fn update_included_manifests(
             },
             ..*opts
         };
-        if let Some(manifest) = edit_manifest_file(&target, &file_opts, merged.as_ref())? {
+        if let Some(manifest) = edit_manifest_file(&target, &file_opts, merged.as_ref(), pruned)? {
             edited.push((target, manifest));
         }
     }

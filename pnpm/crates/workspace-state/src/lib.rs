@@ -414,6 +414,10 @@ pub struct WorkspaceStateSettings {
     /// when they differ from [`Self::registry_routes`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub installed_registry_routes: Option<BTreeMap<String, String>>,
+    /// The validated importers were resolved under [`Self::installed_registry_routes`].
+    /// A frozen install can materialize the same routes without resolving any importer.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub selected_registry_routes_resolved: bool,
     /// `runtime`, recorded only while it is off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<bool>,

@@ -486,7 +486,7 @@ impl<'r> Settled<'r, '_> {
         options: &mut InstallRunOptions<'install, '_>,
     ) -> crate::install::state_options::LockfileVerificationInputs<'r, 'install> {
         let trust_lockfile =
-            options.save.recorded_trust_lockfile.unwrap_or(self.install.lockfile_policy.trust);
+            options.save.effective_trust_lockfile(self.install.lockfile_policy.trust);
         crate::install::state_options::LockfileVerificationInputs {
             verifiers: &self.verification.resolution_verifiers,
             exotic_subdeps: &self.verification.exotic_subdeps,

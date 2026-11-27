@@ -22,6 +22,7 @@ pub use agent_skills::{
 pub use build_resolution_verifiers::*;
 pub use build_snapshot::*;
 pub use catalog_cleanup::{
+    PrunedInstallExclusions,
     WriteWorkspaceCatalogsError,
     prune_against_project_lockfiles,
 };

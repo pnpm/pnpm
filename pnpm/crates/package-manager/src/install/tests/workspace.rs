@@ -128,9 +128,10 @@ fn workspace_without_packages_field_enumerates_root_only() {
         .expect("read workspace manifest")
         .expect("workspace manifest present");
 
-    let projects = load_workspace_projects(dir.path(), Some(&manifest), Vec::new())
-        .expect("load workspace projects")
-        .expect("workspace projects");
+    let projects =
+        load_workspace_projects(dir.path(), Some(&manifest), &pnpm_config::Config::new())
+            .expect("load workspace projects")
+            .expect("workspace projects");
     let names: Vec<&str> = projects
         .iter()
         .filter_map(|project| {
@@ -972,9 +973,10 @@ fn load_workspace_projects_discovers_symlinked_packages() {
         .expect("read workspace manifest")
         .expect("workspace manifest present");
 
-    let projects = load_workspace_projects(dir.path(), Some(&manifest), Vec::new())
-        .expect("load workspace projects")
-        .expect("workspace projects");
+    let projects =
+        load_workspace_projects(dir.path(), Some(&manifest), &pnpm_config::Config::new())
+            .expect("load workspace projects")
+            .expect("workspace projects");
 
     let names: Vec<&str> = projects
         .iter()

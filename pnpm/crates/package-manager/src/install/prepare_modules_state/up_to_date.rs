@@ -322,21 +322,14 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         filesystem_now_ms: filesystem_now_ms_in_modules(
             &context.tree.config.workspace_state_modules_dir(context.tree.workspace_root),
         ),
-        carried: crate::install::CarriedSettings {
-            trust_lockfile: context.verification.trust_lockfile,
-            established_auto_dedupe: context.carried_state.recorded_auto_dedupe,
-            registry_keys_verified: crate::install::registry_keys_current(
-                context.tree.config,
-                Some(context.wanted_lockfile),
-            ),
-            registry_routes: Some(crate::install_state::recorded_registry_routes_after_install(
-                context.tree.config,
-                context.carried_state.recorded_registry_routes.as_ref(),
-                Some(context.wanted_lockfile),
-                crate::install_state::ResolvedImporters::None,
-            )),
-            kept_settings: None,
-        },
+        carried: crate::install::CarriedSettings::after_install(
+            context.tree.config,
+            Some(context.wanted_lockfile),
+            context.carried_state.recorded_registry_routes.as_ref(),
+            crate::install_state::ResolvedImporters::None,
+            context.verification.trust_lockfile,
+            context.carried_state.recorded_auto_dedupe,
+        ),
         vouched: &crate::install_state::validation::Vouched::All,
     });
     update_workspace_state_or_warn::<Reporter>(

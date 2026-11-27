@@ -181,7 +181,7 @@ pub type ResolvedPackageVersions =
 ///   [`merge_package_version_specs`], an emptied one is dropped.
 /// - A bare `name` (no version part, no `*`) is dropped when the
 ///   lockfile no longer resolves the package at all.
-/// - Name patterns carrying `*` and specs that fail parsing are kept
+/// - Name patterns and specs that fail parsing are kept
 ///   verbatim, the pass never rejects a hand-written entry.
 #[must_use]
 pub fn drop_unresolved_package_version_specs(
@@ -217,7 +217,7 @@ fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Optio
     let Ok(parsed) = parse_version_policy_rule(spec) else {
         return Some(spec.to_string());
     };
-    if parsed.package_name.contains('*') {
+    if parsed.package_name.starts_with('!') || parsed.package_name.contains(['*', '?']) {
         return Some(spec.to_string());
     }
     let resolved_versions = resolved.get(parsed.package_name)?;

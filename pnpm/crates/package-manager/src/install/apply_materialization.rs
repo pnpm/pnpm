@@ -436,18 +436,14 @@ fn applied_carried_settings<'a>(
         (true, true) => ResolvedImporters::Selected,
         (true, false) => ResolvedImporters::All,
     };
-    CarriedSettings {
-        trust_lockfile: inputs.resolution.trust_lockfile,
-        established_auto_dedupe: (config.auto_dedupe && resolved.is_some()).then_some(true),
-        registry_keys_verified: crate::install::registry_keys_current(config, lockfile),
-        registry_routes: Some(crate::install_state::recorded_registry_routes_after_install(
-            config,
-            inputs.resolution.locked_registry_routes.as_ref(),
-            lockfile,
-            resolution,
-        )),
-        kept_settings: None,
-    }
+    CarriedSettings::after_install(
+        config,
+        lockfile,
+        inputs.resolution.locked_registry_routes.as_ref(),
+        resolution,
+        inputs.resolution.trust_lockfile,
+        (config.auto_dedupe && resolved.is_some()).then_some(true),
+    )
 }
 
 // Publish workspace freshness only after modules.yaml and the current lockfile are committed.
