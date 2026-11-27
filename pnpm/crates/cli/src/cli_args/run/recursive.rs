@@ -16,6 +16,8 @@
 //! it dispatched. The main-dispatch auto-exclusion of the workspace root
 //! is applied via [`AutoExcludeRoot::Enabled`].
 
+pub(in crate::cli_args) use selection::task_declaration;
+
 use super::{
     RunArgs,
     RunContext,
@@ -96,6 +98,7 @@ use pnpm_workspace_task_scheduler::{
     ScheduleTasksOptions,
     SequenceTasksOptions,
     TaskCompletion,
+    TaskDeclaration,
     TaskGraph,
     TaskKey,
     TaskNode,

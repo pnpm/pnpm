@@ -85,13 +85,9 @@ struct TestTask {
     concurrency: Option<i64>,
 }
 
-impl TaskDeclaration for TestTask {
-    fn depends_on(&self) -> Option<&[String]> {
-        self.depends_on.as_deref()
-    }
-
-    fn concurrency(&self) -> Option<i64> {
-        self.concurrency
+impl TestTask {
+    fn declaration(&self) -> TaskDeclaration<'_> {
+        TaskDeclaration { depends_on: self.depends_on.as_deref(), concurrency: self.concurrency }
     }
 }
 
@@ -164,6 +160,7 @@ fn build_graph(
         task_name,
         requested_projects: None,
         tasks: task_settings,
+        declaration: TestTask::declaration,
         is_selector_task: |_| false,
     })
 }
@@ -227,6 +224,7 @@ fn build_selector_graph(
         task_name,
         requested_projects: None,
         tasks: task_settings,
+        declaration: TestTask::declaration,
         is_selector_task: |name| name.starts_with('/') && name.ends_with('/'),
     })
 }
@@ -359,6 +357,7 @@ fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
         is_selector_task: |_| false,
         requested_projects: Some(&requested),
         tasks: None::<&IndexMap<String, TestTask>>,
+        declaration: TestTask::declaration,
     });
     let mut keys: Vec<TaskKey> = graph.keys().cloned().collect();
     keys.sort_by(|left, right| {

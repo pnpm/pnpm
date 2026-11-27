@@ -30,6 +30,7 @@ fn requested_projects_retain_transitive_dependencies_through_missing_scripts() {
         task_name: "build",
         requested_projects: Some(&requested),
         tasks: None::<&IndexMap<String, TestTask>>,
+        declaration: TestTask::declaration,
         is_selector_task: |_| false,
     };
     let mut graph = build_task_graph(&options);
@@ -69,6 +70,7 @@ fn requested_projects_pull_only_declared_tasks_from_other_projects() {
         task_name: "test",
         requested_projects: Some(&[dir("app")]),
         tasks: Some(&settings),
+        declaration: TestTask::declaration,
         is_selector_task: |_| false,
     });
     dbg!(&graph);
@@ -96,6 +98,7 @@ fn requested_projects_preserve_request_order_and_deduplicate_tasks() {
         task_name: "build",
         requested_projects: Some(&requested),
         tasks: None::<&IndexMap<String, TestTask>>,
+        declaration: TestTask::declaration,
         is_selector_task: |_| false,
     });
     dbg!(&graph);
@@ -119,6 +122,7 @@ fn empty_requested_projects_builds_no_tasks() {
         task_name: "build",
         requested_projects: Some(&[]),
         tasks: None::<&IndexMap<String, TestTask>>,
+        declaration: TestTask::declaration,
         is_selector_task: |_| false,
     });
     dbg!(&graph);

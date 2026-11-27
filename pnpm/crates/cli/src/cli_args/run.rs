@@ -6,6 +6,7 @@ pub(super) use execution::{
 };
 pub(crate) use injected_sync::project_modules_dirs;
 pub(super) use listing::ScriptSelector;
+pub(super) use recursive::task_declaration;
 
 use super::{
     exec::{
