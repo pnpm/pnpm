@@ -4,6 +4,7 @@
 
 use super::{
     CURRENT_DRIVER,
+    DependencyGroups,
     Driver,
     Layout,
     ProjectLockfileEntry,
@@ -117,7 +118,7 @@ impl LoneProject {
             .root()
             .with_file_name(format!("oracle-{}", self.oracle_runs));
         copy_sources(self.root(), &copy);
-        super::install_and_verify(&self.fixture, &copy, &[], || run_view(&copy));
+        super::install_and_verify(&self.fixture, &copy, DependencyGroups::All, || run_view(&copy));
         copy
     }
 
@@ -170,7 +171,7 @@ impl LoneProject {
 
 fn snapshot(root: &Path) -> Snapshot {
     Snapshot {
-        tree: TreeView::new(root).project(root, true),
+        tree: TreeView::new(root).project(root, DependencyGroups::All),
         bins: workspace_bins(root),
         lockfiles: workspace_lockfiles(root),
         modules: workspace_modules_manifests(root),
@@ -178,7 +179,11 @@ fn snapshot(root: &Path) -> Snapshot {
 }
 
 fn run_view(root: &Path) -> RunView {
-    (TreeView::new(root).project(root, true), workspace_bins(root), lockfile_entries(root, "."))
+    (
+        TreeView::new(root).project(root, DependencyGroups::All),
+        workspace_bins(root),
+        lockfile_entries(root, "."),
+    )
 }
 
 /// Edits that change no dependency, each kept by the next, then one that

@@ -1194,6 +1194,12 @@ pub fn workspace_modules_manifests(workspace: &Path) -> BTreeMap<String, Modules
         .collect()
 }
 
+#[derive(Clone, Copy)]
+pub enum DependencyGroups {
+    All,
+    Production,
+}
+
 /// Resolves dependencies through `node_modules` the way Node.js does, from
 /// each package's real path, and spells the result without absolute paths.
 pub struct TreeView {
@@ -1208,12 +1214,11 @@ impl TreeView {
         Self { root, memo: HashMap::new() }
     }
 
-    pub fn project(&mut self, project_dir: &Path, with_dev: bool) -> String {
+    pub fn project(&mut self, project_dir: &Path, groups: DependencyGroups) -> String {
         let manifest = read_manifest_or_null(project_dir);
-        let groups: &[&str] = if with_dev {
-            &["dependencies", "optionalDependencies", "devDependencies"]
-        } else {
-            &["dependencies", "optionalDependencies"]
+        let groups: &[&str] = match groups {
+            DependencyGroups::All => &["dependencies", "optionalDependencies", "devDependencies"],
+            DependencyGroups::Production => &["dependencies", "optionalDependencies"],
         };
         let dependencies = declared_dependencies(&manifest, groups);
         self.dependencies(project_dir, &dependencies)
