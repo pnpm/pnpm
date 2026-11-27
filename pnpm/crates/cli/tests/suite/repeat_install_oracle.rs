@@ -580,7 +580,7 @@ impl Scenario {
         } else if allowed != AllowedRefusal::Install && offered {
             assert_ne!(
                 self.snapshot(),
-                before,
+                before.clone(),
                 "{:?} ({:?}): the install fast path was refused, but the install changed nothing",
                 self.layout,
                 self.driver,
@@ -601,7 +601,7 @@ impl Scenario {
         );
         assert_eq!(
             self.snapshot(),
-            settled,
+            settled.clone(),
             "{:?} ({:?}): a {description} must be byte-identical",
             self.layout,
             self.driver,
