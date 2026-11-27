@@ -14,8 +14,8 @@ use serde_json::json;
 const IMPORTERS: usize = 13_800;
 const PACKAGES: usize = 256;
 
-/// All importers reach the same registry chain. One workspace link ensures
-/// local containment has to inspect the graph.
+/// A workspace link activates containment. Its per-importer walk should prune
+/// the shared registry chain because none of those snapshots references a local package.
 fn many_importers() -> Lockfile {
     let mut document = json!({
         "lockfileVersion": "9.0",

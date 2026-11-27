@@ -461,7 +461,8 @@ impl Scenario {
             .workspace()
             .with_file_name(format!("oracle-{}", self.oracle_runs));
         copy_sources(self.workspace(), &copy);
-        install_and_verify(&self.fixture, &copy, self.recorded_production_only());
+        let groups: &[&str] = if self.recorded_production_only() { &["--prod"] } else { &[] };
+        install_and_verify(&self.fixture, &copy, groups, || Self::tree(&copy, &PROJECTS, true));
         copy
     }
 
@@ -831,20 +832,22 @@ fn set_mtime(path: &Path, mtime: SystemTime) {
         .expect("set the mtime");
 }
 
-fn install_and_verify(fixture: &WorkspaceFixture, workspace: &Path, production_only: bool) {
-    for frozen in [false, true] {
-        let mut args = vec!["install"];
-        if frozen {
-            fixture.clear_lockfile_verification();
-            args.extend(["--frozen-lockfile", "--config.optimistic-repeat-install=false"]);
-        } else {
-            args.push("--no-frozen-lockfile");
-        }
-        if production_only {
-            args.push("--prod");
-        }
-        assert_success(&fixture.command_at(workspace, args));
-    }
+fn install_and_verify<Tree: std::fmt::Debug + PartialEq>(
+    fixture: &WorkspaceFixture,
+    workspace: &Path,
+    groups: &[&str],
+    tree: impl Fn() -> Tree,
+) {
+    let install = |args: &[&str]| {
+        assert_success(&fixture.command_at(workspace, args.iter().chain(groups)));
+    };
+    install(&["install", "--no-frozen-lockfile"]);
+    let expected_tree = tree();
+    let expected_lockfiles = workspace_lockfiles(workspace);
+    fixture.clear_lockfile_verification();
+    install(&["install", "--frozen-lockfile", "--config.optimistic-repeat-install=false"]);
+    assert_eq!(tree(), expected_tree);
+    assert_eq!(workspace_lockfiles(workspace), expected_lockfiles);
 }
 
 fn fetch_then_offline_frozen_install(layout: Layout) {
@@ -873,15 +876,27 @@ fn fetch_then_offline_frozen_install(layout: Layout) {
         copy_sources(seed, workspace);
         assert_success(&scenario.fixture.command_at(workspace, ["-r", "fetch"]));
     }
-    assert_success(&scenario.fixture.command_at(
-        workspace,
-        ["install", "--offline", "--frozen-lockfile"],
-    ));
-    assert_eq!(workspace_lockfiles(workspace), workspace_lockfiles(seed));
-    assert_eq!(
-        scenario.selection_view(workspace, &PROJECTS),
-        scenario.selection_view(seed, &PROJECTS),
-    );
+    let offline_install = || {
+        assert_success(&scenario.fixture.command_at(
+            workspace,
+            [
+                "install",
+                "--offline",
+                "--frozen-lockfile",
+                "--config.optimistic-repeat-install=false",
+            ],
+        ));
+        assert_eq!(workspace_lockfiles(workspace), workspace_lockfiles(seed));
+        assert_eq!(
+            Scenario::tree(workspace, &PROJECTS, true),
+            Scenario::tree(seed, &PROJECTS, true),
+        );
+        assert_eq!(workspace_bins(workspace), workspace_bins(seed));
+    };
+    // Preserve fetch's registry verdict across workspace discovery (pnpm/pnpm#18409).
+    offline_install();
+    scenario.fixture.clear_lockfile_verification();
+    offline_install();
 }
 
 fn a_full_install_converges(layout: Layout) {

@@ -117,7 +117,7 @@ impl LoneProject {
             .root()
             .with_file_name(format!("oracle-{}", self.oracle_runs));
         copy_sources(self.root(), &copy);
-        super::install_and_verify(&self.fixture, &copy, false);
+        super::install_and_verify(&self.fixture, &copy, &[], || run_view(&copy));
         copy
     }
 
