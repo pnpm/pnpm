@@ -412,3 +412,20 @@ fn a_publish_directory_at_another_project_root_keeps_that_project_manifest() {
 
     assert_eq!(context.linked_version(&b_dir).as_deref(), Some("2.0.0"));
 }
+
+#[test]
+fn linked_version_reads_a_yaml_or_json5_manifest_from_disk() {
+    let dir = tempdir().unwrap();
+    let config = Config::new();
+    let context = LinkedPackagesContext::new(&config, &[]);
+    for (basename, text) in [
+        ("package.yaml", "name: linked\nversion: 2.0.0\n"),
+        ("package.json5", "{name: 'linked', version: '2.0.0'}"),
+    ] {
+        let linked_dir = dir.path().join(basename);
+        fs::create_dir_all(&linked_dir).unwrap();
+        fs::write(linked_dir.join(basename), text).unwrap();
+
+        assert_eq!(context.linked_version(&linked_dir).as_deref(), Some("2.0.0"), "{basename}");
+    }
+}

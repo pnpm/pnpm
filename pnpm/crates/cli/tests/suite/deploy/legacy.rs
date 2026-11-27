@@ -75,6 +75,58 @@ fn legacy_deploy_includes_nested_linked_dependencies() {
     drop((root, mock_instance));
 }
 
+/// The deploy copies the project's manifest file as written and rewrites its
+/// local paths there, so the install that follows reads the format the
+/// project uses.
+#[test]
+fn legacy_deploy_installs_a_project_with_a_yaml_or_json5_manifest() {
+    for (basename, manifest) in [
+        (
+            "package.yaml",
+            "name: app\nversion: 1.0.0\ndependencies:\n  lib: workspace:*\n  linked: link:../../linked\n",
+        ),
+        (
+            "package.json5",
+            "{name: 'app', version: '1.0.0', dependencies: {lib: 'workspace:*', linked: 'link:../../linked'}}",
+        ),
+    ] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        append_workspace_yaml_key(&workspace, "packages", "\n  - packages/*");
+        write_project(&workspace, "lib", &serde_json::json!({ "name": "lib", "version": "1.0.0" }));
+        fs::write(workspace.join("packages/lib/index.js"), "module.exports = 'lib'").unwrap();
+        let linked = workspace.join("linked");
+        fs::create_dir_all(&linked).unwrap();
+        fs::write(linked.join("package.json"), r#"{"name":"linked","version":"1.0.0"}"#).unwrap();
+        fs::write(linked.join("index.js"), "module.exports = 'linked'").unwrap();
+        let app = workspace.join("packages/app");
+        fs::create_dir_all(&app).unwrap();
+        fs::write(app.join(basename), manifest).unwrap();
+        fs::write(app.join("index.js"), "console.log(require('lib'), require('linked'))").unwrap();
+
+        pacquet_cmd(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        pacquet_cmd(&workspace)
+            .with_args(["--filter", "app", "deploy", "--legacy", "deployed"])
+            .assert()
+            .success();
+
+        let deployed = workspace.join("deployed");
+        assert!(deployed.join(basename).exists(), "{basename} is deployed");
+        assert!(!deployed.join("package.json").exists(), "{basename} stays the only manifest");
+        Command::new("node")
+            .with_current_dir(&deployed)
+            .with_arg("index.js")
+            .assert()
+            .success()
+            .stdout("lib linked\n");
+        drop((root, mock_instance));
+    }
+}
+
 #[test]
 fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
