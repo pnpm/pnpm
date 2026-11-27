@@ -191,6 +191,7 @@ impl ColdMemCacheBatch {
                 supported_architectures: None,
                 known_requires_build: None,
                 known_bins: None,
+                rebuild: None,
             },
             ctx: &crate::InstallContext {
                 caches: crate::InstallCaches {
@@ -616,6 +617,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
             supported_architectures: None,
             known_requires_build: None,
             known_bins: None,
+            rebuild: None,
         },
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {

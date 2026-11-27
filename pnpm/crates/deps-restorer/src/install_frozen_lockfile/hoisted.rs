@@ -248,6 +248,11 @@ fn walk_hoisted_graph(
             .map_err(HoistedLinkerError::HoistedDepGraph)?;
     if let Some(files_by_pkg_id) = &inputs.graph.cas_paths_by_pkg_id {
         for node in walked.graph.values_mut() {
+            if inputs.prior.rebuild.is_some_and(|rebuild| {
+                !rebuild.settles_dependency(node.package.dep_path.as_str())
+            }) {
+                continue;
+            }
             if files_by_pkg_id
                 .get(&node.package.pkg_id_with_patch_hash)
                 .is_some_and(crate::HoistedPackageFiles::refreshes_installed_copy)

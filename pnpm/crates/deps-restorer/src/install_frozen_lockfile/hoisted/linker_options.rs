@@ -43,6 +43,7 @@ pub(super) fn hoisted_walker_options<'a>(
         force: config.force,
         include_incompatible_packages: config.installs_incompatible_packages(),
         current_hoisted_locations: inputs.prior.current_hoisted_locations,
+        rebuild: inputs.prior.rebuild,
     }
 }
 

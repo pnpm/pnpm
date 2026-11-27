@@ -384,10 +384,11 @@ fn record_injected_location(
             .push(dir.to_path_buf());
     }
 }
-/// Mutable directory dependencies need a fresh copy. Other packages must match both the previous
-/// recorded location and the on-disk manifest version, and retain their resolution. A patched
-/// package is no exception: `reference` carries its `patch_hash`, so a changed patch is recorded
-/// under another key.
+/// Mutable directory dependencies need a fresh copy unless a selected rebuild
+/// leaves them out. Other packages must match both the previous recorded
+/// location and the on-disk manifest version, and retain their resolution. A
+/// patched package is no exception: `reference` carries its `patch_hash`, so a
+/// changed patch is recorded under another key.
 pub(super) fn package_is_reusable(
     state: &WalkState<'_>,
     resolved: &ResolvedReference<'_>,
@@ -396,11 +397,20 @@ pub(super) fn package_is_reusable(
     modules: &Path,
     dir: &Path,
 ) -> bool {
-    let expected_version = resolved.metadata.version
-        .clone()
-        .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
+    let is_directory = matches!(resolved.metadata.resolution, LockfileResolution::Directory(_));
+    let reuse_directory = is_directory
+        && state.opts.rebuild.is_some_and(|rebuild| !rebuild.selects_snapshot(&resolved.pkg_key));
+    let expected_version = if is_directory {
+        resolved.metadata.version.clone()
+    } else {
+        Some(
+            resolved.metadata.version
+                .clone()
+                .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string()),
+        )
+    };
     !state.opts.force
-        && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
+        && (!is_directory || reuse_directory)
         && state.opts.current_hoisted_locations.is_some_and(|locations| {
             locations
                 .get(reference)
@@ -410,7 +420,7 @@ pub(super) fn package_is_reusable(
                 })
         })
         && !resolution_changed_at(state.prev_graph, dir, &resolved.metadata.resolution)
-        && package_present_at(modules, dir, &expected_version)
+        && package_present_at(modules, dir, expected_version.as_deref())
 }
 /// Workspace-kind hoister children are non-root workspace importers.
 /// Recurse into their (post-hoist, often-empty) dependencies under

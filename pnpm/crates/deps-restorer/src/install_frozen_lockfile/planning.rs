@@ -186,6 +186,7 @@ impl<'a> FrozenInputs<'a> {
                 supported_architectures: install.platform.supported_architectures,
                 known_requires_build,
                 known_bins: None,
+                rebuild: install.prior.rebuild,
             },
             ctx,
 

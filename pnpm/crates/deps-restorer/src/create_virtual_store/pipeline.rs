@@ -315,6 +315,7 @@ impl<'a> CreateVirtualStore<'a> {
                 force: config.force,
                 is_hoisted: self.is_hoisted(),
                 include_optional: self.selection.include_optional,
+                rebuild: self.selection.rebuild,
             },
             snapshots: wanted.snapshots,
             packages: wanted.packages,

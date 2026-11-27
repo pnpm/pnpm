@@ -21,8 +21,9 @@ use std::{
 };
 
 /// Whether a previous install left this package at `dir`, reached from
-/// `modules` without traversing a link: a real directory holding a
-/// regular `package.json` whose `version` is `version`.
+/// `modules` without traversing a link. Requires a real directory
+/// holding a regular `package.json` whose `version` matches
+/// `expected_version` when pinned in the lockfile.
 ///
 /// Mirrors pnpm's `dirHasPackageJsonWithVersion`, minus its fallback
 /// that trusts a directory whose manifest cannot be read, so an
@@ -35,7 +36,11 @@ use std::{
 /// the lockfile's contents to that path either way, though only the last
 /// component of the path is cleared first, so a linked parent survives
 /// with the right package behind it.
-pub(super) fn package_present_at(modules: &Path, dir: &Path, version: &str) -> bool {
+pub(super) fn package_present_at(
+    modules: &Path,
+    dir: &Path,
+    expected_version: Option<&str>,
+) -> bool {
     // `lstat` follows every component but the last, so the directory
     // holding the package needs a check of its own. `dir` is
     // `modules.join(alias)` for a valid npm package name, so that is
@@ -56,7 +61,9 @@ pub(super) fn package_present_at(modules: &Path, dir: &Path, version: &str) -> b
     };
     serde_json::from_slice::<serde_json::Value>(&raw)
         .is_ok_and(|manifest| {
-            manifest.get("version").and_then(serde_json::Value::as_str) == Some(version)
+            expected_version.is_none_or(|version| {
+                manifest.get("version").and_then(serde_json::Value::as_str) == Some(version)
+            })
         })
 }
 /// Whether the current lockfile resolves the package at `dir`

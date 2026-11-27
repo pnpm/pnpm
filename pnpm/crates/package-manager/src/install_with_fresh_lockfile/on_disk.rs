@@ -148,6 +148,7 @@ impl<'a> OnDiskInputs<'a> {
                 supported_architectures: self.install.projects.supported_architectures,
                 known_requires_build: self.runtime.known_requires_build,
                 known_bins: self.runtime.known_bins,
+                rebuild: None,
             },
             ctx: self.ctx,
 
@@ -439,6 +440,7 @@ impl<'a> super::FreshPriorInstall<'a> {
             prune: self.prune,
             hoisted_dependencies: self.hoisted_dependencies,
             hoisted_locations: self.hoisted_locations,
+            rebuild: None,
             // Rebuilds take the frozen path; a policy change rebuilds present packages here.
             build_present_packages: self.allow_builds_changed,
             unbuilt_builds: self.unbuilt_builds,
