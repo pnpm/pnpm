@@ -122,6 +122,22 @@ fn path_separators_in_name_are_an_error() {
     }
 }
 
+/// `jsr:@a_/b` and `jsr:@a/_b` would both fold into `@jsr/a___b`.
+#[test]
+fn underscores_in_the_scope_or_name_are_an_error() {
+    for (input, pkg_name) in [
+        ("jsr:@a_/b", "@a_/b"),
+        ("jsr:@a/_b", "@a/_b"),
+        ("jsr:@foo_bar/baz@^1.0.0", "@foo_bar/baz"),
+    ] {
+        assert_eq!(
+            parse_jsr_specifier(input, None),
+            Err(ParseJsrSpecifierError::InvalidPackageName { pkg_name: pkg_name.to_string() }),
+            "input: {input}",
+        );
+    }
+}
+
 #[test]
 fn version_only_specifier_without_alias_errors() {
     assert_eq!(
