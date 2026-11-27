@@ -48,8 +48,10 @@ use lockfile::{
 };
 use materialize::{
     DownloadOptions,
+    MaterializedSlots,
     add_cargo_checksum,
     download_crates,
+    missing_slots,
     slot_is_complete,
 };
 use miette::{
@@ -263,9 +265,7 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
     } = context;
     let checkout = checkout.as_deref();
     let store_lock = Arc::new(
-        config.store_dir
-            .lock_for_use_in(config.frozen_store)
-            .wrap_err("lock the store while installing Cargo workspaces")?,
+        config.lock_store_for_use().wrap_err("lock the store while installing Cargo workspaces")?,
     );
     let mut prepared = stream::iter(roots)
         .map(|root| {
@@ -303,22 +303,6 @@ pub(crate) struct Prepared {
     /// Keeps a store prune from removing the slots before the workspace
     /// links them. Set once every workspace is prepared.
     store_lock: Option<Arc<StoreOperationLock>>,
-    records: SlotRecords,
-}
-
-/// Which slots publication records as linked (see
-/// [`pnpm_store_dir::record_linked_crate_slot`]).
-#[derive(Debug, Clone, Copy)]
-enum SlotRecords {
-    /// None: the workspace is not registered, so a prune cannot see that it
-    /// links them.
-    None,
-    /// The slots whose link publication creates or replaces. The workspace
-    /// was registered already, so its other links were recorded when made.
-    Linked,
-    /// Every slot: the workspace was not registered, so its existing links
-    /// may come from an older pnpm, which records none.
-    All,
 }
 
 /// The store slots a workspace links, one list per Cargo source the
@@ -328,16 +312,17 @@ struct WorkspaceSlots {
     crates: Vec<(String, PathBuf)>,
     git: Vec<(String, PathBuf)>,
     git_sources: Vec<GitSource>,
+    /// The slots of `crates` and `git` this install created.
+    created: Vec<PathBuf>,
 }
 
 impl PreparedInstall for Prepared {
     fn publish(&mut self) -> Result<()> {
         if let Some(slots) = &self.slots {
-            let mut linked = link_workspace(&self.root, &CRATES_SOURCE_DIRECTORY, &slots.crates)?;
+            link_workspace(&self.root, &CRATES_SOURCE_DIRECTORY, &slots.crates)?;
             if !slots.git.is_empty() {
-                linked.extend(link_workspace(&self.root, &GIT_SOURCE_DIRECTORY, &slots.git)?);
+                link_workspace(&self.root, &GIT_SOURCE_DIRECTORY, &slots.git)?;
             }
-            record_linked_slots(self.records, slots, linked);
             write_sources_config(&self.root, &self.index_url, &slots.git_sources)?;
             write_cargo_config(&self.root)?;
         }
@@ -391,7 +376,6 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
             slots: None,
             index_url: config.cargo_index_url().to_string(),
             store_lock: None,
-            records: SlotRecords::None,
         });
     }
     let slots = prepare_workspace_slots::<Reporter>(
@@ -403,6 +387,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         http_client,
     )
     .await?;
+    register_in_store(config, root_dir, &slots.created);
 
     Ok(Prepared {
         root: root_dir.to_path_buf(),
@@ -410,50 +395,32 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         slots: Some(slots),
         index_url: config.cargo_index_url().to_string(),
         store_lock: None,
-        records: register_in_store(config, root_dir),
     })
 }
 
 /// Register the workspace in the store, so a store prune keeps the slots it
-/// links.
-fn register_in_store(config: &Config, root: &Path) -> SlotRecords {
+/// links, and record the `created` slots, which a prune may then remove once
+/// no registered workspace links them. A slot is recorded only once the
+/// workspace is registered.
+fn register_in_store(config: &Config, root: &Path, created: &[PathBuf]) {
     if config.frozen_store {
-        return SlotRecords::None;
+        return;
     }
-    match pnpm_store_dir::register_cargo_workspace(&config.store_dir, root) {
-        Ok(true) => SlotRecords::Linked,
-        Ok(false) => SlotRecords::All,
-        Err(error) => {
-            tracing::warn!(
-                target: "pacquet::cargo",
-                ?error,
-                "Failed to register a Cargo workspace in the store; install continues",
-            );
-            SlotRecords::None
-        }
+    if let Err(error) = pnpm_store_dir::register_cargo_workspace(&config.store_dir, root) {
+        tracing::warn!(
+            target: "pacquet::cargo",
+            ?error,
+            "Failed to register a Cargo workspace in the store; install continues",
+        );
+        return;
     }
-}
-
-/// Record the slots `records` selects, `linked` being the slots whose link
-/// publication created or replaced. A slot left unrecorded is one a prune
-/// keeps.
-fn record_linked_slots(records: SlotRecords, slots: &WorkspaceSlots, linked: Vec<&Path>) {
-    let recorded: Vec<&Path> = match records {
-        SlotRecords::None => return,
-        SlotRecords::Linked => linked,
-        SlotRecords::All => slots.crates
-            .iter()
-            .chain(&slots.git)
-            .map(|(_, slot)| slot.as_path())
-            .collect(),
-    };
-    for slot in recorded {
-        if let Err(error) = pnpm_store_dir::record_linked_crate_slot(slot) {
+    for slot in created {
+        if let Err(error) = pnpm_store_dir::record_created_crate_slot(slot) {
             tracing::warn!(
                 target: "pacquet::cargo",
                 ?error,
                 slot = %slot.display(),
-                "Failed to record a linked Cargo package slot; install continues",
+                "Failed to record a created Cargo package slot; install continues",
             );
         }
     }
@@ -484,7 +451,7 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
                 format!("initialize cargo package store at {}", store_dir.display())
             })?;
     }
-    let crates = download_crates::<Reporter>(DownloadOptions {
+    let mut crates = download_crates::<Reporter>(DownloadOptions {
         config,
         packages: packages.crates,
         http_client,
@@ -503,7 +470,13 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
     })
     .await?;
 
-    Ok(WorkspaceSlots { crates, git, git_sources })
+    crates.created.extend(git.created);
+    Ok(WorkspaceSlots {
+        crates: crates.linked,
+        git: git.linked,
+        git_sources,
+        created: crates.created,
+    })
 }
 
 mod workspace_directory;

@@ -297,6 +297,7 @@ fn vendor_from_offline(
         offline,
     })
     .unwrap()
+    .linked
 }
 
 #[test]

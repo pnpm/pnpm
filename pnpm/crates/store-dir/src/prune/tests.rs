@@ -460,6 +460,17 @@ fn prune_keeps_live_packages_and_ignores_a_real_dangling_directory_link() {
     assert!(!orphan.exists());
 }
 
+fn log_entries(dir: &Path) {
+    let entries = fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .map(Result::unwrap)
+                .map(|entry| entry.file_name())
+                .collect::<Vec<_>>()
+        });
+    eprintln!("{}: {entries:?}", dir.display());
+}
+
 /// A project directory with the generations `names`, under the store's
 /// Python environments, and a link back to `project`.
 fn python_environment_dir(store_dir: &StoreDir, project: &Path, names: &[&str]) -> PathBuf {
@@ -483,6 +494,7 @@ fn prune_keeps_only_the_python_environment_generation_the_project_runs() {
         .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
 
+    log_entries(&dir);
     assert!(dir.join("env-current").is_dir());
     assert!(!dir.join("env-old").exists());
     assert!(dir.join("project").exists(), "the link back to the project was removed");
@@ -499,23 +511,29 @@ fn prune_removes_every_python_environment_generation_a_project_without_venv_has(
         .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
 
+    log_entries(&dir);
     assert!(!dir.join("env-old").exists());
 }
 
+/// A moved project's `.venv` still links to the newest generation, while the
+/// link back names the old location.
 #[test]
-fn prune_removes_the_python_environments_of_a_removed_project() {
+fn prune_keeps_only_the_newest_python_environment_generation_of_a_moved_project() {
     let store = tempdir().unwrap();
     let store_dir = StoreDir::new(store.path().to_path_buf());
     let project = tempdir().unwrap();
-    let dir = python_environment_dir(&store_dir, project.path(), &["env-current"]);
-    symlink_dir(&dir.join("env-current"), &project.path().join(".venv")).unwrap();
+    let dir = python_environment_dir(&store_dir, project.path(), &["env-old"]);
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    fs::create_dir(dir.join("env-newest")).unwrap();
     drop(project);
 
     store_dir
         .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
 
-    assert!(!dir.exists());
+    log_entries(&dir);
+    assert!(dir.join("env-newest").is_dir());
+    assert!(!dir.join("env-old").exists());
 }
 
 #[test]
@@ -529,6 +547,7 @@ fn prune_keeps_a_python_environment_directory_without_a_link_back() {
         .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
 
+    log_entries(generation.parent().unwrap());
     assert!(generation.is_dir());
 }
 
@@ -543,7 +562,7 @@ fn crate_slot(store_dir: &StoreDir, name: &str, recorded: bool) -> PathBuf {
     fs::create_dir_all(&slot).unwrap();
     fs::write(slot.join("Cargo.toml"), b"").unwrap();
     if recorded {
-        crate::record_linked_crate_slot(&slot).unwrap();
+        crate::record_created_crate_slot(&slot).unwrap();
     }
     slot
 }
@@ -567,6 +586,7 @@ fn prune_removes_a_recorded_crate_slot_no_registered_workspace_links() {
         .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
 
+    log_entries(&store_dir.crates());
     assert!(linked.is_dir());
     assert!(unrecorded.is_dir());
     assert!(!unlinked.exists());

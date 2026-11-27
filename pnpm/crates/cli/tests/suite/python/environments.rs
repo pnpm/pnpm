@@ -135,7 +135,9 @@ async fn store_prune_removes_the_generations_the_project_does_not_run() {
 }
 
 #[tokio::test]
-async fn store_prune_removes_the_generations_of_a_removed_project() {
+/// A moved project's `.venv` still links to its newest generation, while the
+/// store's link back to the project names the old location.
+async fn store_prune_keeps_the_generation_a_moved_project_runs() {
     let root = tempfile::tempdir().unwrap();
     let project_dir = root.path().join("app");
     fs::create_dir_all(&project_dir).unwrap();
@@ -163,14 +165,27 @@ async fn store_prune_removes_the_generations_of_a_removed_project() {
         .with_arg("install")
         .assert()
         .success();
-    assert_eq!(generations(root.path()).len(), 1);
-    fs::remove_dir_all(&project_dir).unwrap();
-
-    pacquet_in(root.path())
-        .with_args(["store", "prune"])
+    pacquet_in(&project_dir)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
-    assert_eq!(project_directories(root.path()), Vec::<PathBuf>::new());
+    let current = environment(&project_dir);
+    assert_eq!(generations(root.path()).len(), 2);
+    let moved = root.path().join("moved");
+    fs::rename(&project_dir, &moved).unwrap();
+
+    let output = pacquet_in(root.path())
+        .with_args(["store", "prune"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(output.status.success());
+    assert_eq!(generations(root.path()), vec![current]);
+    python(&moved)
+        .with_args(["-c", "import alpha"])
+        .assert()
+        .success();
 }
 
 /// A project directory an older pnpm made has no link back to its project,

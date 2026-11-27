@@ -99,6 +99,7 @@ fn store_prune_removes_the_crates_only_a_removed_workspace_links() {
     for root in [&kept, &removed] {
         pnpm_in(root.path(), store.path(), &["install"]).assert().success();
     }
+    eprintln!("slots: {slots:?}");
     assert!(slots.iter().all(|slot| slot.is_dir()));
     fs::remove_dir_all(removed.path()).unwrap();
 
@@ -127,36 +128,47 @@ fn store_prune_keeps_a_crate_no_registered_workspace_has_linked() {
     let root = workspace(&registry, "demo = \"1\"\n");
     pnpm_in(root.path(), store.path(), &["install"]).assert().success();
     let slot = &slots[0];
-    fs::remove_file(linked_record(slot)).unwrap();
+    fs::remove_file(created_record(slot)).unwrap();
     fs::remove_dir_all(root.path()).unwrap();
 
     pnpm_in(store.path(), store.path(), &["store", "prune"]).assert().success();
+    eprintln!("slot: {}", slot.display());
     assert!(slot.is_dir());
 }
 
-/// The first install by this pnpm of a workspace an older pnpm installed
-/// records the crates the workspace already links.
+/// A workspace an older pnpm installed links crates without being
+/// registered. A crate it created stays unrecorded when a registered
+/// workspace links it too, so removing that workspace keeps the crate.
 #[test]
-fn store_prune_removes_a_crate_an_older_pnpm_linked_once_the_workspace_is_reinstalled() {
+fn store_prune_keeps_a_crate_an_older_pnpm_created_after_a_registered_workspace_links_it() {
     let store = TempDir::new().unwrap();
     let mut registry = mockito::Server::new();
     let (_mocks, slots) = serve_crates(&mut registry, store.path(), &["demo"]);
-    let root = workspace(&registry, "demo = \"1\"\n");
-    pnpm_in(root.path(), store.path(), &["install"]).assert().success();
+    let older = workspace(&registry, "demo = \"1\"\n");
+    pnpm_in(older.path(), store.path(), &["install"]).assert().success();
     let slot = &slots[0];
-    fs::remove_file(linked_record(slot)).unwrap();
+    fs::remove_file(created_record(slot)).unwrap();
     fs::remove_dir_all(store.path().join("v11/cargo-workspaces")).unwrap();
+    let registered = workspace(&registry, "demo = \"1\"\n");
+    pnpm_in(registered.path(), store.path(), &["install"]).assert().success();
+    eprintln!("record: {}", created_record(slot).display());
+    assert!(!created_record(slot).exists());
+    fs::remove_dir_all(registered.path()).unwrap();
 
-    pnpm_in(root.path(), store.path(), &["install"]).assert().success();
-    assert!(linked_record(slot).is_file());
-    fs::remove_dir_all(root.path()).unwrap();
     pnpm_in(store.path(), store.path(), &["store", "prune"]).assert().success();
-    assert!(!slot.exists());
+    eprintln!("slot: {}", slot.display());
+    assert!(slot.is_dir());
+    Command::new("cargo")
+        .with_current_dir(older.path())
+        .with_env("CARGO_HOME", store.path().join("cargo-home"))
+        .with_args(["check", "--locked", "--offline"])
+        .assert()
+        .success();
 }
 
-fn linked_record(slot: &Path) -> PathBuf {
+fn created_record(slot: &Path) -> PathBuf {
     slot.with_file_name(format!(
-        "{}.linked",
+        "{}.created",
         slot.file_name()
             .unwrap()
             .to_string_lossy(),

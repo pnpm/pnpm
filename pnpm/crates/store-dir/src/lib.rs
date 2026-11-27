@@ -5,7 +5,7 @@ pub use check_pkg_files_integrity::*;
 pub use crate_slots::{
     CARGO_GIT_LINK_DIR,
     CARGO_REGISTRY_LINK_DIR,
-    record_linked_crate_slot,
+    record_created_crate_slot,
     register_cargo_workspace,
 };
 pub use msgpackr_records::*;

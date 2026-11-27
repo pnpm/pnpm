@@ -64,10 +64,10 @@ pub(super) struct DownloadOptions {
 /// from the registry never asks it for anything.
 pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
     mut options: DownloadOptions,
-) -> Result<Vec<(String, PathBuf)>> {
+) -> Result<MaterializedSlots> {
     let store_dir = &options.config.store_dir;
     let packages = std::mem::take(&mut options.packages);
-    let (mut slots, pending) = if options.config.force {
+    let (linked, pending) = if options.config.force {
         (Vec::new(), packages)
     } else {
         tokio::task::spawn_blocking(move || partition_complete_slots(packages, store_dir))
@@ -75,11 +75,43 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
             .into_diagnostic()
             .wrap_err("join Cargo crate slot probe task")?
     };
+    let mut slots = MaterializedSlots { linked, created: Vec::new() };
     if pending.is_empty() {
         return Ok(slots);
     }
-    slots.extend(download_pending_crates::<Reporter>(&options, pending).await?);
+    slots.created = missing_slots(
+        pending
+            .iter()
+            .map(|package| package.store_slot(store_dir)),
+    );
+    slots.linked.extend(download_pending_crates::<Reporter>(&options, pending).await?);
     Ok(slots)
+}
+
+/// The slots of one install: every slot it links, and the ones among them it
+/// created.
+#[derive(Debug, Default)]
+pub(super) struct MaterializedSlots {
+    pub(super) linked: Vec<(String, PathBuf)>,
+    pub(super) created: Vec<PathBuf>,
+}
+
+impl FromIterator<MaterializedSlots> for MaterializedSlots {
+    fn from_iter<Slots: IntoIterator<Item = MaterializedSlots>>(slots: Slots) -> Self {
+        let mut all = Self::default();
+        for slots in slots {
+            all.linked.extend(slots.linked);
+            all.created.extend(slots.created);
+        }
+        all
+    }
+}
+
+/// The slots of `slots` that do not exist yet.
+pub(super) fn missing_slots(slots: impl Iterator<Item = PathBuf>) -> Vec<PathBuf> {
+    slots
+        .filter(|slot| !slot.exists())
+        .collect()
 }
 
 fn partition_complete_slots(

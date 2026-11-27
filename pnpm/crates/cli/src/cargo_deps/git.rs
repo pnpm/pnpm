@@ -8,7 +8,9 @@
 //! without a fetch of its own.
 
 use super::{
+    MaterializedSlots,
     add_cargo_checksum,
+    missing_slots,
     slot_is_complete,
 };
 use cargo_lock::package::GitReference;
@@ -184,7 +186,7 @@ impl GitPackage {
 /// `link name → store slot` pairs the workspace directory source links.
 pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
     options: VendorOptions,
-) -> Result<Vec<(String, PathBuf)>> {
+) -> Result<MaterializedSlots> {
     let VendorOptions {
         packages,
         store_dir,
@@ -223,8 +225,9 @@ pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
         .await
         .into_iter()
         .collect::<Result<Vec<_>>>()?
-        .concat();
-    vendored.sort();
+        .into_iter()
+        .collect::<MaterializedSlots>();
+    vendored.linked.sort();
     Ok(vendored)
 }
 
@@ -240,7 +243,7 @@ struct VendorSourceOptions<'a> {
 
 fn vendor_source<Reporter: self::Reporter>(
     options: &VendorSourceOptions<'_>,
-) -> Result<Vec<(String, PathBuf)>> {
+) -> Result<MaterializedSlots> {
     let mut linked = Vec::with_capacity(options.packages.len());
     let mut missing = Vec::new();
     for package in options.packages {
@@ -252,8 +255,9 @@ fn vendor_source<Reporter: self::Reporter>(
         }
     }
     if missing.is_empty() {
-        return Ok(linked);
+        return Ok(MaterializedSlots { linked, created: Vec::new() });
     }
+    let created = missing_slots(missing.iter().map(|(_, slot)| slot.clone()));
     let repository = redact_and_sanitize(&options.source.url);
     let checkout = checkout_source(options)?;
     let checked_out = Checkout::read(checkout.path())?;
@@ -280,7 +284,7 @@ fn vendor_source<Reporter: self::Reporter>(
         .wrap_err_with(|| format!("materialize cargo package at {}", slot.display()))?;
         linked.push((package.link_name(), slot));
     }
-    Ok(linked)
+    Ok(MaterializedSlots { linked, created })
 }
 
 struct ImportContext<'a> {

@@ -22,10 +22,14 @@ use std::{
 };
 
 /// In each project directory under `python_envs`, remove every generation
-/// but the one the project's `.venv` links to, and the whole directory when
-/// the project is gone. A project directory without a link back to its
-/// project is kept whole, since nothing tells which generation is in use.
-/// Returns how many generations went.
+/// but the one in use. Returns how many generations went.
+///
+/// - The generation in use is the one the project's `.venv` links to.
+/// - When the project is gone, it is the newest generation. A moved project's
+///   `.venv` still links to the generation it had, and the link back names
+///   the old location.
+/// - A project directory without a link back to its project is kept whole,
+///   since nothing tells which generation is in use.
 pub(super) fn remove_unused_generations(python_envs: &Path) -> Result<usize, PruneError> {
     let mut removed = 0;
     for name in list_subdirs(python_envs)? {
@@ -44,15 +48,11 @@ fn remove_unused_project_generations(dir: &Path) -> Result<usize, PruneError> {
         Err(error) => return Err(PruneError::ReadMarkLink { path: link, error }),
     };
     let generations = generations(dir)?;
-    match fs::metadata(&project) {
-        Ok(_) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => {
-            remove_slot_dir(dir)?;
-            return Ok(generations.len());
-        }
+    let used = match fs::metadata(&project) {
+        Ok(_) => used_generation(&project, dir)?,
+        Err(error) if error.kind() == ErrorKind::NotFound => newest_generation(dir, &generations)?,
         Err(error) => return Err(PruneError::ReadMarkDir { path: project, error }),
-    }
-    let used = used_generation(&project, dir)?;
+    };
     let mut removed = 0;
     for generation in generations {
         if used.as_ref() != Some(&generation) {
@@ -68,6 +68,23 @@ fn generations(dir: &Path) -> Result<Vec<OsString>, PruneError> {
         .into_iter()
         .filter(|name| name.to_string_lossy().starts_with(GENERATION_PREFIX))
         .collect())
+}
+
+fn newest_generation(dir: &Path, generations: &[OsString]) -> Result<Option<OsString>, PruneError> {
+    let mut newest = None;
+    for generation in generations {
+        let path = dir.join(generation);
+        let modified = fs::metadata(&path)
+            .and_then(|metadata| metadata.modified())
+            .map_err(|error| PruneError::ReadSweepDir { path, error })?;
+        if newest
+            .as_ref()
+            .is_none_or(|(time, _)| modified > *time)
+        {
+            newest = Some((modified, generation.clone()));
+        }
+    }
+    Ok(newest.map(|(_, generation)| generation))
 }
 
 /// The name of the generation in `dir` that `<project>/.venv` links to.

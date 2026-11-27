@@ -228,9 +228,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     let index = python_index(config)?;
     config.store_dir.init().into_diagnostic()?;
     let store_lock = Arc::new(
-        config.store_dir
-            .lock_for_use_in(config.frozen_store)
-            .wrap_err("lock the store while installing Python projects")?,
+        config.lock_store_for_use().wrap_err("lock the store while installing Python projects")?,
     );
     let store_index = StoreIndex::shared_for(&config.store_dir, config.frozen_store);
     let (writer, writer_task) = StoreIndexWriter::spawn_for(

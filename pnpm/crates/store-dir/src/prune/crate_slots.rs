@@ -10,7 +10,7 @@ use super::{
 use crate::crate_slots::{
     CARGO_GIT_LINK_DIR,
     CARGO_REGISTRY_LINK_DIR,
-    slot_of_linked_record,
+    slot_of_created_record,
 };
 use std::{
     collections::HashSet,
@@ -22,7 +22,7 @@ use std::{
     },
 };
 
-/// Remove every slot under `crates_dir` that has a linked record and that
+/// Remove every slot under `crates_dir` that has a created record and that
 /// no workspace in `projects` links. Returns how many slots went.
 pub(super) fn remove_unlinked_slots(
     crates_dir: &Path,
@@ -87,8 +87,8 @@ fn add_linked_slots(
     Ok(())
 }
 
-/// Remove the slots of one version that have a linked record and are not in
-/// `linked`, and every linked record whose slot is gone.
+/// Remove the slots of one version that have a created record and are not in
+/// `linked`, and every created record whose slot is gone.
 fn remove_unlinked_version_slots(
     version_dir: &Path,
     linked: &HashSet<PathBuf>,
@@ -96,8 +96,8 @@ fn remove_unlinked_version_slots(
     let canonical_version_dir = dunce::canonicalize(version_dir)
         .map_err(|error| PruneError::ReadSweepDir { path: version_dir.to_path_buf(), error })?;
     let mut removed = 0;
-    for record in linked_records(version_dir)? {
-        let Some(slot) = slot_of_linked_record(&record) else {
+    for record in created_records(version_dir)? {
+        let Some(slot) = slot_of_created_record(&record) else {
             continue;
         };
         let slot_name = slot.file_name().expect("a slot has a file name");
@@ -113,7 +113,7 @@ fn remove_unlinked_version_slots(
     Ok(removed)
 }
 
-fn linked_records(version_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
+fn created_records(version_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
     let entries = match fs::read_dir(version_dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
@@ -129,7 +129,7 @@ fn linked_records(version_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
         })?;
         let path = entry.path();
         if entry.file_type().is_ok_and(|file_type| file_type.is_file())
-            && slot_of_linked_record(&path).is_some()
+            && slot_of_created_record(&path).is_some()
         {
             records.push(path);
         }
