@@ -32,7 +32,7 @@ pub struct MissingWithCurrentCommand;
 pub fn ignore_pm_check_if_requested(
     argv: &[OsString],
     single_threaded: &pnpm_ffi_process::SingleThreaded,
-) -> Result<(), pnpm_ffi_process::SetVarError> {
+) -> Result<(), pnpm_ffi_process::OtherThreads> {
     if !is_requested(argv) {
         return Ok(());
     }

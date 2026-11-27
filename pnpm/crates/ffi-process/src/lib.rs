@@ -21,7 +21,7 @@ pub use credentials::real_user_id;
 #[cfg(target_vendor = "apple")]
 pub use descriptors::inherit_only_stdio;
 pub use environment::{
-    SetVarError,
+    OtherThreads,
     SingleThreaded,
 };
 #[cfg(unix)]

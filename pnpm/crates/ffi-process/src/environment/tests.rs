@@ -15,15 +15,18 @@ fn the_witness_is_claimable_once_and_refuses_a_shared_environment() {
     assert!(SingleThreaded::claim().is_none(), "a second claim is refused");
 
     let written = witness.set_var("PNPM_FFI_PROCESS_TEST_VAR", "set");
-    if cfg!(unix) {
+    if cfg!(any(
+        target_os = "linux",
+        target_os = "android",
+        target_vendor = "apple",
+        target_os = "freebsd",
+        target_os = "netbsd",
+    )) {
         let error = written.expect_err("another thread runs");
-        assert!(
-            matches!(error, super::SetVarError::OtherThreads { threads, .. } if threads >= 2),
-            "{error:?}",
-        );
+        assert!(error.threads >= 2, "{error:?}");
         assert_eq!(std::env::var_os("PNPM_FFI_PROCESS_TEST_VAR"), None);
     } else {
-        written.expect("this platform needs no thread check");
+        written.expect("this platform does not count threads");
         assert_eq!(std::env::var("PNPM_FFI_PROCESS_TEST_VAR").as_deref(), Ok("set"));
     }
 }

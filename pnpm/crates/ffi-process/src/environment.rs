@@ -6,21 +6,18 @@
 //! from inside a library the caller never calls directly. So the change is
 //! sound only while no other thread can read the table.
 //!
-//! [`SingleThreaded::set_var`] establishes that per platform:
+//! [`SingleThreaded::set_vars`] establishes that per platform:
 //!
 //! - Linux, Android, macOS, FreeBSD, NetBSD: the process has one thread
-//!   when the write starts. Only that thread could spawn another, and it
+//!   when the writes start. Only that thread could spawn another, and it
 //!   is busy writing.
 //! - Windows: nothing to check. The standard library documents `set_var`
 //!   as always safe there.
-//! - WebAssembly: the [`SingleThreaded`] witness. The guest cannot count
-//!   its threads.
-//! - Any other Unix: nothing, so the write is refused.
+//! - WebAssembly, any other Unix, and a count the kernel does not report:
+//!   the [`SingleThreaded`] witness alone.
 
 #[cfg(unix)]
 mod thread_count;
-
-use std::fmt;
 
 /// Evidence that the holder is the only thread able to reach the process
 /// environment.
@@ -31,11 +28,12 @@ use std::fmt;
 ///
 /// [`Self::claim`] hands out one per process, and the type is neither
 /// `Send` nor `Sync`, so the witness stays on the thread that claimed it.
-/// Where the thread count can be read, [`Self::set_var`] checks it before
-/// every write, and the witness only marks the stretch of `main` the writes
-/// belong to. On WebAssembly it is the whole argument: nothing checks that
-/// the holder has spawned nothing since the claim, so keeping the claim
-/// and the writes adjacent, ahead of the first spawn, is the caller's part.
+/// Where the thread count can be read, [`Self::set_vars`] checks it before
+/// writing, and the witness only marks the stretch of `main` the writes
+/// belong to. Where it cannot, the witness is the whole argument: nothing
+/// checks that the holder has spawned nothing since the claim, so keeping
+/// the claim and the writes adjacent, ahead of the first spawn, is the
+/// caller's part.
 #[must_use = "the witness is the proof that the environment may be changed"]
 pub struct SingleThreaded(std::marker::PhantomData<*const ()>);
 
@@ -57,79 +55,79 @@ impl SingleThreaded {
             .then_some(Self(std::marker::PhantomData))
     }
 
-    /// Set `name` to `value` in the process environment, where every later
-    /// read of it sees the new value, this process's children included.
+    /// Set `name` to `value`, as [`Self::set_vars`] does.
     ///
     /// # Errors
     ///
-    /// Refuses the write, leaving the environment unchanged, when another
-    /// thread runs or the thread count cannot be read.
-    pub fn set_var(&self, name: &str, value: &str) -> Result<(), SetVarError> {
-        ensure_sole_thread(name)?;
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "the one place the workspace writes the environment, which is what the \
-                      witness this takes is for"
-        )]
-        // SAFETY: the race `setenv` has is a concurrent read from another
-        // thread. `ensure_sole_thread` returned, so no other thread exists,
-        // or the platform needs no check; the table in the module docs
-        // gives the argument for each.
-        unsafe {
-            std::env::set_var(name, value);
+    /// See [`Self::set_vars`].
+    pub fn set_var(&self, name: &str, value: &str) -> Result<(), OtherThreads> {
+        self.set_vars([(name, value)])
+    }
+
+    /// Set each name to its value in the process environment, in order,
+    /// where every later read sees the new values, this process's children
+    /// included.
+    ///
+    /// The threads are counted once, after `vars` is drained and before
+    /// the first write.
+    ///
+    /// # Errors
+    ///
+    /// Refuses every write, leaving the environment unchanged, when another
+    /// thread runs.
+    pub fn set_vars<Name: AsRef<str>, Value: AsRef<str>>(
+        &self,
+        vars: impl IntoIterator<Item = (Name, Value)>,
+    ) -> Result<(), OtherThreads> {
+        let vars: Vec<(Name, Value)> = vars.into_iter().collect();
+        if vars.is_empty() {
+            return Ok(());
+        }
+        ensure_sole_thread()?;
+        for (name, value) in vars {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the one place the workspace writes the environment, which is what the \
+                          witness this takes is for"
+            )]
+            // SAFETY: the race `setenv` has is a concurrent read from
+            // another thread, and none can run here:
+            // - On a platform that counts threads, `ensure_sole_thread`
+            //   just read a count of one. Only this thread could spawn
+            //   another, and it runs nothing but these writes.
+            // - On Windows, std documents `set_var` as always safe.
+            // - Elsewhere, the witness was claimed at the top of `main`,
+            //   ahead of every spawn, and it cannot leave that thread.
+            unsafe {
+                std::env::set_var(name.as_ref(), value.as_ref());
+            }
         }
         Ok(())
     }
 }
 
-/// Why [`SingleThreaded::set_var`] refused to change a variable.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum SetVarError {
-    /// Other threads run, and one of them could read the environment while
-    /// it changes.
-    OtherThreads { name: String, threads: usize },
-    /// The process's thread count could not be read.
-    UncountedThreads { name: String, source: std::io::Error },
-}
-
-impl fmt::Display for SetVarError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::OtherThreads { name, threads } => write!(
-                formatter,
-                "Cannot set the environment variable {name}: the process runs {threads} threads, \
-                 and one of them could read the environment while it changes",
-            ),
-            Self::UncountedThreads { name, source } => write!(
-                formatter,
-                "Cannot set the environment variable {name}: failed to count the process's \
-                 threads: {source}",
-            ),
-        }
-    }
-}
-
-impl std::error::Error for SetVarError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::OtherThreads { .. } => None,
-            Self::UncountedThreads { source, .. } => Some(source),
-        }
-    }
+/// Raised when [`SingleThreaded::set_vars`] refuses to change the
+/// environment because other threads run, and one of them could read it
+/// while it changes.
+#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[display(
+    "Cannot change the process environment: the process runs {threads} threads, and one of them \
+     could read the environment while it changes"
+)]
+pub struct OtherThreads {
+    pub threads: usize,
 }
 
 #[cfg(unix)]
-fn ensure_sole_thread(name: &str) -> Result<(), SetVarError> {
+fn ensure_sole_thread() -> Result<(), OtherThreads> {
     match thread_count::thread_count() {
-        Ok(1) => Ok(()),
-        Ok(threads) => Err(SetVarError::OtherThreads { name: name.to_owned(), threads }),
-        Err(source) => Err(SetVarError::UncountedThreads { name: name.to_owned(), source }),
+        None | Some(1) => Ok(()),
+        Some(threads) => Err(OtherThreads { threads }),
     }
 }
 
 #[cfg(not(unix))]
-fn ensure_sole_thread(_name: &str) -> Result<(), SetVarError> {
+fn ensure_sole_thread() -> Result<(), OtherThreads> {
     Ok(())
 }
 

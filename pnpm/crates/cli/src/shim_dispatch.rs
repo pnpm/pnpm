@@ -210,7 +210,7 @@ impl ShimLaunch {
     pub(crate) fn mark_preparation(
         &self,
         single_threaded: &pnpm_ffi_process::SingleThreaded,
-    ) -> Result<(), pnpm_ffi_process::SetVarError> {
+    ) -> Result<(), pnpm_ffi_process::OtherThreads> {
         if !self.is_shim() || std::env::var_os(PREPARING_ENV).is_some() {
             return Ok(());
         }
