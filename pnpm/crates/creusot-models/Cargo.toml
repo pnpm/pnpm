@@ -12,10 +12,12 @@ repository.workspace = true
 
 [target.'cfg(creusot)'.dependencies]
 creusot-std = { workspace = true }
+num_cpus = { workspace = true }
 pipe-trait = { workspace = true }
 split-first-char = { workspace = true }
 
 [dev-dependencies]
+num_cpus = { workspace = true }
 pipe-trait = { workspace = true }
 proptest = { workspace = true }
 split-first-char = { workspace = true }

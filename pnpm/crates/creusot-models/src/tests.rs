@@ -50,6 +50,32 @@ proptest! {
     }
 
     #[test]
+    fn pipe_ref_matches_model(value in any::<u32>()) {
+        prop_assert_eq!(value.pipe_ref(|value| u64::from(*value)), u64::from(value));
+    }
+
+    #[test]
+    fn pipe_mut_matches_model(value in any::<u32>()) {
+        let mut piped = value;
+        piped.pipe_mut(|piped| *piped = piped.wrapping_add(1));
+        prop_assert_eq!(piped, value.wrapping_add(1));
+    }
+
+    #[test]
+    fn pipe_as_ref_passes_what_as_ref_returns(text in any::<String>()) {
+        let passed = text.pipe_as_ref(|param: &str| (param.as_ptr(), param.len()));
+        let as_ref: &str = text.as_ref();
+        prop_assert_eq!(passed, (as_ref.as_ptr(), as_ref.len()));
+    }
+
+    #[test]
+    fn pipe_deref_passes_what_deref_returns(text in any::<String>()) {
+        let passed = text.pipe_deref(|param: &str| (param.as_ptr(), param.len()));
+        let dereferenced: &str = &text;
+        prop_assert_eq!(passed, (dereferenced.as_ptr(), dereferenced.len()));
+    }
+
+    #[test]
     fn split_once_matches_model(text in "[a@/é]{0,12}", delimiter in prop::sample::select(vec!['@', '/', 'é'])) {
         match text.split_once(delimiter) {
             None => prop_assert!(!text.contains(delimiter)),
@@ -72,4 +98,9 @@ fn split_first_char_models_hold_at_the_edges() {
     for text in ["", "a", "ab", "é", "éa", "𝄞x"] {
         assert!(rejoins(text, split_first_char::split_first_char(text)), "{text:?}");
     }
+}
+
+#[test]
+fn num_cpus_counts_at_least_one() {
+    assert!(num_cpus::get() >= 1);
 }

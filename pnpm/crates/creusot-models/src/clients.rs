@@ -55,3 +55,39 @@ pub fn before_first_slash(text: &str) -> Option<&str> {
         None => None,
     }
 }
+
+#[requires(value@ < u32::MAX@)]
+#[ensures(result@ == value@ + 1)]
+pub fn successor_through_pipe_ref(value: u32) -> u32 {
+    value.pipe_ref(
+        #[requires((*value)@ < u32::MAX@)]
+        #[ensures(result@ == (*value)@ + 1)]
+        |value: &u32| *value + 1,
+    )
+}
+
+#[requires((*value)@ < u32::MAX@)]
+#[ensures((^value)@ == (*value)@ + 1)]
+pub fn increment_through_pipe_mut(value: &mut u32) {
+    value.pipe_mut(
+        #[requires((*value)@ < u32::MAX@)]
+        #[ensures((^value)@ == (*value)@ + 1)]
+        |value: &mut u32| *value += 1,
+    );
+}
+
+#[ensures(result@ == text@.to_bytes().len())]
+pub fn length_through_pipe_as_ref(text: &str) -> usize {
+    text.pipe_as_ref(str::len)
+}
+
+#[ensures(result@ == text@.to_bytes().len())]
+pub fn length_through_pipe_deref(text: &String) -> usize {
+    text.pipe_deref(str::len)
+}
+
+/// Dividing by the CPU count needs no zero check.
+#[ensures(result@ <= total@)]
+pub fn share_per_cpu(total: usize) -> usize {
+    total / num_cpus::get()
+}

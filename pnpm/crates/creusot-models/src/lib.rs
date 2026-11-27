@@ -29,6 +29,8 @@ pub mod str_model;
 #[cfg(creusot)]
 mod first_char_model;
 #[cfg(creusot)]
+mod num_cpus_model;
+#[cfg(creusot)]
 mod pipe_model;
 #[cfg(creusot)]
 mod slice_model;

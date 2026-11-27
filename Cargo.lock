@@ -5230,6 +5230,7 @@ name = "pnpm-creusot-models"
 version = "0.0.1"
 dependencies = [
  "creusot-std",
+ "num_cpus",
  "pipe-trait",
  "proptest",
  "split-first-char",
