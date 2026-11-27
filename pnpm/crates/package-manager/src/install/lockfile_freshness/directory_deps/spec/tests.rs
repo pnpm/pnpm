@@ -238,6 +238,16 @@ fn a_loaded_project_whose_manifest_file_links_outside_the_workspace_is_not_trust
     }
 }
 
+#[test]
+fn a_loaded_project_is_held_to_its_first_manifest_file_only() {
+    let (_fixture, workspace_root, outside) = loaded_link_fixture();
+    let target_dir = workspace_root.join("packages/pkg");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    std::fs::write(target_dir.join("package.json"), r#"{"name":"pkg","version":"1.2.3"}"#).unwrap();
+    link_file(&outside.join("package.json"), &target_dir.join("package.yaml"));
+    assert!(loaded_target_satisfies(&workspace_root, target_dir));
+}
+
 /// `(basename, text)` of a manifest for `pkg` at `version`, in each format a
 /// target without a `package.json` is read from.
 fn yaml_and_json5_manifests(version: &str) -> [(&'static str, String); 2] {
