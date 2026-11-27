@@ -17,6 +17,13 @@ use std::{
     path::Path,
 };
 
+/// Set permissions through a pinned Linux `O_PATH` handle, which rejects `fchmod`.
+#[cfg(target_os = "linux")]
+pub(crate) fn set_path_handle_mode(handle: &std::fs::File, mode: FileMode) -> io::Result<()> {
+    use std::os::fd::AsRawFd as _;
+    std::fs::set_permissions(format!("/proc/self/fd/{}", handle.as_raw_fd()), mode.into())
+}
+
 /// The POSIX mode `metadata` carries, or `None` off Unix.
 #[must_use]
 pub fn metadata_mode(metadata: &std::fs::Metadata) -> Option<FileMode> {

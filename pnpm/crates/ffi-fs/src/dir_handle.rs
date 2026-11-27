@@ -175,17 +175,25 @@ pub fn create_file_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result
 /// following a symlink at its name. The mode applies only to a new file.
 pub fn open_or_create_file_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result<File> {
     let name = entry_name(name)?;
-    let flags = libc::O_RDWR | libc::O_NOFOLLOW | libc::O_CLOEXEC;
-    let file = adopt(open_at(parent, &name, flags | libc::O_CREAT, Some(mode.narrow())));
-    // Darwin can return ENOENT when another caller wins the first creation.
+    let file = adopt(open_at(parent, &name, READ_WRITE_FLAGS | libc::O_CREAT, Some(mode.narrow())));
     #[cfg(target_os = "macos")]
-    if file
-        .as_ref()
-        .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
-    {
-        return adopt(open_at(parent, &name, flags, None));
-    }
+    let file = file.or_else(|error| open_after_concurrent_create(error, parent, &name));
     file
+}
+
+const READ_WRITE_FLAGS: libc::c_int = libc::O_RDWR | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+
+// Darwin can return ENOENT when another caller wins the first creation.
+#[cfg(any(test, target_os = "macos"))]
+fn open_after_concurrent_create(
+    error: io::Error,
+    parent: &File,
+    name: &CString,
+) -> io::Result<File> {
+    if error.kind() == io::ErrorKind::NotFound {
+        return adopt(open_at(parent, name, READ_WRITE_FLAGS, None));
+    }
+    Err(error)
 }
 
 /// Rename `from` to `to`, both inside `parent`, replacing whatever `to`

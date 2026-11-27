@@ -110,6 +110,26 @@ fn refuses_a_symlinked_lock_file() {
     assert!(open_secure_lock_file(&link).is_err());
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn restores_an_unreadable_owned_lock_directory() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let directory = super::secure_lock_dir(root.path().to_owned(), "locks").unwrap();
+    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o300)).unwrap();
+    let repaired = super::secure_lock_dir(root.path().to_owned(), "locks").unwrap();
+    assert_eq!(
+        std::fs::metadata(&repaired)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o700,
+    );
+    open_secure_lock_file(&repaired.join("lock")).unwrap();
+}
+
 #[test]
 fn concurrent_first_opens_share_the_lock_file() {
     use std::os::unix::fs::MetadataExt as _;

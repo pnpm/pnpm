@@ -38,10 +38,7 @@ fn secure_lock_dir(mut directory: PathBuf, name: &str) -> io::Result<PathBuf> {
     #[cfg(not(target_os = "wasi"))]
     fs::create_dir_all(&directory)?;
     #[cfg(unix)]
-    {
-        let handle = open_owned_directory(&directory)?;
-        handle.set_permissions(pnpm_ffi_fs::FileMode::from_mode(0o700).into())?;
-    }
+    secure_owned_directory(&directory)?;
     Ok(directory)
 }
 
@@ -116,7 +113,7 @@ pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    let directory = open_owned_directory(parent)?;
+    let directory = open_owned_directory(parent, libc::O_RDONLY)?;
     let file = pnpm_ffi_fs::open_or_create_file_at(
         &directory,
         name,
@@ -190,7 +187,25 @@ fn native_path_bytes(path: &Path) -> Vec<u8> {
 }
 
 #[cfg(unix)]
-fn open_owned_directory(directory: &Path) -> io::Result<fs::File> {
+fn secure_owned_directory(directory: &Path) -> io::Result<()> {
+    let mode = pnpm_ffi_fs::FileMode::from_mode(0o700);
+    match open_owned_directory(directory, libc::O_RDONLY) {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+            #[cfg(target_os = "linux")]
+            return crate::file_mode::set_path_handle_mode(
+                &open_owned_directory(directory, libc::O_PATH)?,
+                mode,
+            );
+            #[cfg(target_os = "macos")]
+            open_owned_directory(directory, libc::O_SEARCH)?.set_permissions(mode.into())
+        }
+        result => result?.set_permissions(mode.into()),
+    }
+}
+
+#[cfg(unix)]
+fn open_owned_directory(directory: &Path, access: libc::c_int) -> io::Result<fs::File> {
     use std::os::unix::fs::{
         MetadataExt as _,
         OpenOptionsExt as _,
@@ -198,7 +213,7 @@ fn open_owned_directory(directory: &Path) -> io::Result<fs::File> {
 
     let handle = fs::OpenOptions::new()
         .read(true)
-        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
+        .custom_flags(access | libc::O_DIRECTORY | libc::O_NOFOLLOW)
         .open(directory)?;
     let metadata = handle.metadata()?;
     let effective_user = pnpm_ffi_process::effective_user_id();
