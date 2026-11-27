@@ -598,3 +598,20 @@ fn prune_removes_a_recorded_crate_slot_no_registered_workspace_links() {
         "the emptied crate directory was kept",
     );
 }
+
+/// An install records a slot before creating it, so a failed install can
+/// leave a record without its slot.
+#[test]
+fn prune_removes_a_created_record_whose_slot_never_appeared() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let slot = store_dir.crates().join("demo/1.0.0/checksum");
+    crate::record_created_crate_slot(&slot).unwrap();
+
+    store_dir
+        .prune(&store_dir.root().join("cache"), &[])
+        .expect("prune");
+
+    log_entries(&store_dir.crates());
+    assert!(!store_dir.crates().join("demo").exists());
+}

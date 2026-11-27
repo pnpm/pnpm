@@ -130,6 +130,7 @@ fn download_options(config: &'static Config, package: &LockedCrate) -> DownloadO
         http_client: Arc::new(ThrottledClient::default()),
         logged_methods: Arc::new(AtomicU8::new(0)),
         requester: "test".to_string(),
+        created_slots: super::CreatedSlots::Ignore,
     }
 }
 
@@ -150,8 +151,7 @@ async fn links_a_complete_registry_crate_slot_without_asking_the_registry() {
             .await
             .unwrap();
 
-    assert_eq!(slots.linked, vec![(package.link_name(), slot)]);
-    assert_eq!(slots.created, Vec::<std::path::PathBuf>::new());
+    assert_eq!(slots, vec![(package.link_name(), slot)]);
 }
 
 #[tokio::test]

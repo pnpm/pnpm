@@ -295,9 +295,9 @@ fn vendor_from_offline(
         package_import_method: pnpm_config::PackageImportMethod::default(),
         logged_methods: &AtomicU8::new(0),
         offline,
+        created_slots: super::CreatedSlots::Ignore,
     })
     .unwrap()
-    .linked
 }
 
 #[test]
@@ -538,6 +538,7 @@ fn a_crate_the_checkout_does_not_hold_is_reported() {
         package_import_method: pnpm_config::PackageImportMethod::default(),
         logged_methods: &AtomicU8::new(0),
         offline: false,
+        created_slots: super::CreatedSlots::Ignore,
     })
     .unwrap_err()
     .to_string();
@@ -568,6 +569,7 @@ fn an_offline_install_does_not_check_out_a_missing_package() {
         package_import_method: pnpm_config::PackageImportMethod::default(),
         logged_methods: &AtomicU8::new(0),
         offline: true,
+        created_slots: super::CreatedSlots::Ignore,
     })
     .unwrap_err()
     .to_string();

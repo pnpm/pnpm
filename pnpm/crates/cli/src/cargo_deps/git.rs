@@ -8,9 +8,8 @@
 //! without a fetch of its own.
 
 use super::{
-    MaterializedSlots,
+    CreatedSlots,
     add_cargo_checksum,
-    missing_slots,
     slot_is_complete,
 };
 use cargo_lock::package::GitReference;
@@ -105,6 +104,7 @@ pub(crate) struct VendorOptions {
     pub(crate) logged_methods: Arc<AtomicU8>,
     pub(crate) concurrency: usize,
     pub(crate) offline: bool,
+    pub(crate) created_slots: CreatedSlots,
 }
 
 impl GitSource {
@@ -186,7 +186,7 @@ impl GitPackage {
 /// `link name → store slot` pairs the workspace directory source links.
 pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
     options: VendorOptions,
-) -> Result<MaterializedSlots> {
+) -> Result<Vec<(String, PathBuf)>> {
     let VendorOptions {
         packages,
         store_dir,
@@ -195,6 +195,7 @@ pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
         logged_methods,
         concurrency,
         offline,
+        created_slots,
     } = options;
     let sources = group_git_packages(packages);
     let mut vendored = stream::iter(sources)
@@ -213,6 +214,7 @@ pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
                         package_import_method,
                         logged_methods: &logged_methods,
                         offline,
+                        created_slots,
                     })
                 })
                 .await
@@ -225,9 +227,8 @@ pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
         .await
         .into_iter()
         .collect::<Result<Vec<_>>>()?
-        .into_iter()
-        .collect::<MaterializedSlots>();
-    vendored.linked.sort();
+        .concat();
+    vendored.sort();
     Ok(vendored)
 }
 
@@ -239,11 +240,12 @@ struct VendorSourceOptions<'a> {
     package_import_method: PackageImportMethod,
     logged_methods: &'a AtomicU8,
     offline: bool,
+    created_slots: CreatedSlots,
 }
 
 fn vendor_source<Reporter: self::Reporter>(
     options: &VendorSourceOptions<'_>,
-) -> Result<MaterializedSlots> {
+) -> Result<Vec<(String, PathBuf)>> {
     let mut linked = Vec::with_capacity(options.packages.len());
     let mut missing = Vec::new();
     for package in options.packages {
@@ -255,9 +257,9 @@ fn vendor_source<Reporter: self::Reporter>(
         }
     }
     if missing.is_empty() {
-        return Ok(MaterializedSlots { linked, created: Vec::new() });
+        return Ok(linked);
     }
-    let created = missing_slots(missing.iter().map(|(_, slot)| slot.clone()));
+    options.created_slots.record_missing(missing.iter().map(|(_, slot)| slot.clone()));
     let repository = redact_and_sanitize(&options.source.url);
     let checkout = checkout_source(options)?;
     let checked_out = Checkout::read(checkout.path())?;
@@ -284,7 +286,7 @@ fn vendor_source<Reporter: self::Reporter>(
         .wrap_err_with(|| format!("materialize cargo package at {}", slot.display()))?;
         linked.push((package.link_name(), slot));
     }
-    Ok(MaterializedSlots { linked, created })
+    Ok(linked)
 }
 
 struct ImportContext<'a> {

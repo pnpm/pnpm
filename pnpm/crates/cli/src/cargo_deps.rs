@@ -48,10 +48,8 @@ use lockfile::{
 };
 use materialize::{
     DownloadOptions,
-    MaterializedSlots,
     add_cargo_checksum,
     download_crates,
-    missing_slots,
     slot_is_complete,
 };
 use miette::{
@@ -312,8 +310,6 @@ struct WorkspaceSlots {
     crates: Vec<(String, PathBuf)>,
     git: Vec<(String, PathBuf)>,
     git_sources: Vec<GitSource>,
-    /// The slots of `crates` and `git` this install created.
-    created: Vec<PathBuf>,
 }
 
 impl PreparedInstall for Prepared {
@@ -387,7 +383,6 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         http_client,
     )
     .await?;
-    register_in_store(config, root_dir, &slots.created);
 
     Ok(Prepared {
         root: root_dir.to_path_buf(),
@@ -398,30 +393,52 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
     })
 }
 
-/// Register the workspace in the store, so a store prune keeps the slots it
-/// links, and record the `created` slots, which a prune may then remove once
-/// no registered workspace links them. A slot is recorded only once the
-/// workspace is registered.
-fn register_in_store(config: &Config, root: &Path, created: &[PathBuf]) {
-    if config.frozen_store {
-        return;
+/// Whether an install records the slots it creates (see
+/// [`pnpm_store_dir::record_created_crate_slot`]).
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum CreatedSlots {
+    /// The workspace is registered, so a prune can see that it links them.
+    Record,
+    /// The workspace is not registered, so a prune must keep them.
+    Ignore,
+}
+
+impl CreatedSlots {
+    /// Register the workspace at `root` in the store, which lets the install
+    /// record the slots it creates.
+    fn register(config: &Config, root: &Path) -> Self {
+        if config.frozen_store {
+            return Self::Ignore;
+        }
+        match pnpm_store_dir::register_cargo_workspace(&config.store_dir, root) {
+            Ok(()) => Self::Record,
+            Err(error) => {
+                tracing::warn!(
+                    target: "pacquet::cargo",
+                    ?error,
+                    "Failed to register a Cargo workspace in the store; install continues",
+                );
+                Self::Ignore
+            }
+        }
     }
-    if let Err(error) = pnpm_store_dir::register_cargo_workspace(&config.store_dir, root) {
-        tracing::warn!(
-            target: "pacquet::cargo",
-            ?error,
-            "Failed to register a Cargo workspace in the store; install continues",
-        );
-        return;
-    }
-    for slot in created {
-        if let Err(error) = pnpm_store_dir::record_created_crate_slot(slot) {
-            tracing::warn!(
-                target: "pacquet::cargo",
-                ?error,
-                slot = %slot.display(),
-                "Failed to record a created Cargo package slot; install continues",
-            );
+
+    /// Record each of `slots` that does not exist yet, before the install
+    /// creates it, so a failed install leaves no created slot unrecorded. A
+    /// prune drops the record of a slot that never appears.
+    pub(super) fn record_missing(self, slots: impl Iterator<Item = PathBuf>) {
+        if matches!(self, Self::Ignore) {
+            return;
+        }
+        for slot in slots.filter(|slot| !slot.exists()) {
+            if let Err(error) = pnpm_store_dir::record_created_crate_slot(&slot) {
+                tracing::warn!(
+                    target: "pacquet::cargo",
+                    ?error,
+                    slot = %slot.display(),
+                    "Failed to record a created Cargo package slot; install continues",
+                );
+            }
         }
     }
 }
@@ -451,12 +468,14 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
                 format!("initialize cargo package store at {}", store_dir.display())
             })?;
     }
-    let mut crates = download_crates::<Reporter>(DownloadOptions {
+    let created_slots = CreatedSlots::register(config, root_dir);
+    let crates = download_crates::<Reporter>(DownloadOptions {
         config,
         packages: packages.crates,
         http_client,
         logged_methods: Arc::clone(&logged_methods),
         requester: format!("cargo workspace at {}", root_dir.display()),
+        created_slots,
     })
     .await?;
     let git = git::vendor::<Reporter>(git::VendorOptions {
@@ -467,16 +486,11 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
         logged_methods,
         concurrency: config.network_concurrency.clamp(1, 16),
         offline: config.offline,
+        created_slots,
     })
     .await?;
 
-    crates.created.extend(git.created);
-    Ok(WorkspaceSlots {
-        crates: crates.linked,
-        git: git.linked,
-        git_sources,
-        created: crates.created,
-    })
+    Ok(WorkspaceSlots { crates, git, git_sources })
 }
 
 mod workspace_directory;

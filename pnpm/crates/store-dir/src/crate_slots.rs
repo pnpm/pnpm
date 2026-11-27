@@ -62,6 +62,9 @@ pub fn register_cargo_workspace(
 /// record. `store prune` keeps a slot without it.
 pub fn record_created_crate_slot(slot: &Path) -> io::Result<()> {
     let record = created_record_path(slot);
+    if let Some(parent) = record.parent() {
+        fs::create_dir_all(parent)?;
+    }
     match fs::OpenOptions::new()
         .write(true)
         .create_new(true)
