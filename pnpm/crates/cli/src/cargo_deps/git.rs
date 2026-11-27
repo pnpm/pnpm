@@ -65,7 +65,7 @@ use std::{
 /// Cargo workspace root. Registry crates keep their own directory: a git
 /// package and a registry crate of the same name and version are distinct
 /// packages, and one directory source cannot hold both.
-pub(crate) const GIT_SOURCE_DIRECTORY: [&str; 3] = [".pnpm", "crates", "git"];
+pub(crate) const GIT_SOURCE_DIRECTORY: [&str; 3] = pnpm_store_dir::CARGO_GIT_LINK_DIR;
 /// Name of the Cargo directory source every replaced git source points at.
 pub(crate) const GIT_SOURCE_NAME: &str = "pnpm-git";
 /// The dependency kinds a manifest can declare, each of them inheritable.
@@ -171,9 +171,9 @@ impl GitPackage {
     /// The commit identifies the source tree the package was vendored from,
     /// so it takes the place the registry checksum holds in
     /// [`super::LockedCrate::store_slot`].
-    fn store_slot(&self, store_root: &Path) -> PathBuf {
-        store_root
-            .join("crates")
+    fn store_slot(&self, store_dir: &StoreDir) -> PathBuf {
+        store_dir
+            .crates()
             .join(&self.name)
             .join(&self.version)
             .join(format!("git-submodules-v1-{}", self.source.commit))
@@ -244,7 +244,7 @@ fn vendor_source<Reporter: self::Reporter>(
     let mut linked = Vec::with_capacity(options.packages.len());
     let mut missing = Vec::new();
     for package in options.packages {
-        let slot = package.store_slot(options.store_dir.root());
+        let slot = package.store_slot(options.store_dir);
         if slot_is_complete(&slot, None) {
             linked.push((package.link_name(), slot));
         } else {

@@ -57,6 +57,15 @@ impl StoreDir {
         lock_files(self, LockMode::Shared)
     }
 
+    /// [`Self::lock_for_frozen_use`] for a `frozenStore`, [`Self::lock_for_use`]
+    /// otherwise.
+    pub fn lock_for_use_in(
+        &self,
+        frozen_store: bool,
+    ) -> Result<StoreOperationLock, StoreLockError> {
+        if frozen_store { self.lock_for_frozen_use() } else { self.lock_for_use() }
+    }
+
     /// Keep consumers out of the store while destructive maintenance runs.
     pub fn lock_for_prune(&self) -> Result<StoreOperationLock, StoreLockError> {
         lock_files(self, LockMode::Exclusive)

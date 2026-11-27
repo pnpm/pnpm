@@ -85,6 +85,7 @@ use pnpm_store_dir::{
     StoreDir,
     StoreIndex,
     StoreIndexWriter,
+    StoreOperationLock,
 };
 use pnpm_tarball::{
     ArchiveStoreProjection,
@@ -145,7 +146,7 @@ const WORKSPACE_INSTALL_CONCURRENCY: usize = 8;
 
 /// Directory the registry crates are linked into, relative to the Cargo
 /// workspace root.
-const CRATES_SOURCE_DIRECTORY: [&str; 3] = [".pnpm", "crates", "crates-io"];
+const CRATES_SOURCE_DIRECTORY: [&str; 3] = pnpm_store_dir::CARGO_REGISTRY_LINK_DIR;
 /// Directory, relative to the Cargo workspace root, of [`SOURCES_CONFIG`].
 const SOURCES_CONFIG_DIRECTORY: [&str; 2] = [".pnpm", "crates"];
 /// The source replacement for the vendored crates. `.cargo/config.toml`
@@ -261,6 +262,11 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
         frozen_lockfile,
     } = context;
     let checkout = checkout.as_deref();
+    let store_lock = Arc::new(
+        config.store_dir
+            .lock_for_use_in(config.frozen_store)
+            .wrap_err("lock the store while installing Cargo workspaces")?,
+    );
     let mut prepared = stream::iter(roots)
         .map(|root| {
             let http_client = Arc::clone(&http_client);
@@ -283,6 +289,9 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
         .into_iter()
         .collect::<Result<Vec<_>>>()?;
     prepared.sort_by(|left, right| left.root.cmp(&right.root));
+    for workspace in &mut prepared {
+        workspace.store_lock = Some(Arc::clone(&store_lock));
+    }
     Ok(prepared)
 }
 
@@ -291,6 +300,9 @@ pub(crate) struct Prepared {
     lock: String,
     slots: Option<WorkspaceSlots>,
     index_url: String,
+    /// Keeps a store prune from removing the slots before the workspace
+    /// links them. Set once every workspace is prepared.
+    store_lock: Option<Arc<StoreOperationLock>>,
 }
 
 /// The store slots a workspace links, one list per Cargo source the
@@ -361,6 +373,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
             lock: cargo_lock,
             slots: None,
             index_url: config.cargo_index_url().to_string(),
+            store_lock: None,
         });
     }
     let slots = prepare_workspace_slots::<Reporter>(
@@ -372,13 +385,43 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         http_client,
     )
     .await?;
+    register_in_store(config, root_dir, &slots);
 
     Ok(Prepared {
         root: root_dir.to_path_buf(),
         lock: cargo_lock,
         slots: Some(slots),
         index_url: config.cargo_index_url().to_string(),
+        store_lock: None,
     })
+}
+
+/// Register the workspace in the store and record that it links `slots`,
+/// so a store prune keeps them while the workspace links them. A slot is
+/// recorded only once the workspace is registered, since a prune removes a
+/// recorded slot that no registered workspace links.
+fn register_in_store(config: &Config, root: &Path, slots: &WorkspaceSlots) {
+    if config.frozen_store {
+        return;
+    }
+    if let Err(error) = pnpm_store_dir::register_cargo_workspace(&config.store_dir, root) {
+        tracing::warn!(
+            target: "pacquet::cargo",
+            ?error,
+            "Failed to register a Cargo workspace in the store; install continues",
+        );
+        return;
+    }
+    for (_, slot) in slots.crates.iter().chain(&slots.git) {
+        if let Err(error) = pnpm_store_dir::record_linked_crate_slot(slot) {
+            tracing::warn!(
+                target: "pacquet::cargo",
+                ?error,
+                slot = %slot.display(),
+                "Failed to record a linked Cargo package slot; install continues",
+            );
+        }
+    }
 }
 
 #[cfg(test)]

@@ -27,7 +27,7 @@ use std::{
 /// store can be cloned or hardlinked.
 #[derive(Clone)]
 pub(crate) struct EnvironmentStore {
-    root: PathBuf,
+    store_dir: pnpm_store_dir::StoreDir,
     frozen: bool,
 }
 
@@ -46,7 +46,7 @@ pub(crate) enum EnvironmentLink {
 
 impl EnvironmentStore {
     pub(crate) fn new(config: &pnpm_config::Config) -> Self {
-        Self { root: config.store_dir.root().join("python-envs"), frozen: config.frozen_store }
+        Self { store_dir: config.store_dir.clone(), frozen: config.frozen_store }
     }
 
     /// A fresh generation for the project at `root`, which publication
@@ -54,11 +54,6 @@ impl EnvironmentStore {
     pub(crate) fn new_generation(&self, root: &Path) -> Result<Generation> {
         self.validate_link(root)?;
         let directory = self.project_directory(root)?;
-        fs::create_dir_all(&directory)
-            .into_diagnostic()
-            .wrap_err_with(|| {
-                format!("create Python environment directory {}", directory.display())
-            })?;
         // `.venv` links to the generation by this path, so it is made
         // absolute and physical here rather than at every reader.
         let directory = dunce::canonicalize(&directory)
@@ -74,9 +69,8 @@ impl EnvironmentStore {
     }
 
     /// The directory holding the generations of the project at `root`,
-    /// named by the project's location so that two projects never share
-    /// one. A frozen store is not written, so a project installed from one
-    /// keeps its generations beside it, where 12.4 kept them.
+    /// created. A frozen store is not written, so a project installed from
+    /// one keeps its generations beside it, where 12.4 kept them.
     fn project_directory(&self, root: &Path) -> Result<PathBuf> {
         if self.frozen {
             return ensure_beside_project(root.to_path_buf());
@@ -84,7 +78,7 @@ impl EnvironmentStore {
         let root = dunce::canonicalize(root)
             .into_diagnostic()
             .wrap_err_with(|| format!("resolve Python project directory {}", root.display()))?;
-        Ok(self.root.join(pnpm_crypto_hash::create_short_hash(&root.to_string_lossy())))
+        Ok(self.store_dir.python_environment_dir(&root)?)
     }
 
     /// The generation the project's `.venv` currently links to, or `None`
@@ -124,14 +118,15 @@ impl EnvironmentStore {
     /// Whether `generation` is a generation directory of a project
     /// directory of this store.
     fn holds(&self, generation: &Path) -> Result<bool> {
-        let root = match dunce::canonicalize(&self.root) {
+        let environments = self.store_dir.python_envs();
+        let root = match dunce::canonicalize(&environments) {
             Ok(root) => root,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
             Err(error) => {
                 return Err(error)
                     .into_diagnostic()
                     .wrap_err_with(|| {
-                        format!("resolve Python environment store {}", self.root.display())
+                        format!("resolve Python environment store {}", environments.display())
                     });
             }
         };

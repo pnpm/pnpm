@@ -41,6 +41,12 @@ pub(super) fn generations(root: &Path) -> Vec<PathBuf> {
         .map(fs::read_dir)
         .flat_map(Result::unwrap)
         .map(Result::unwrap)
+        .filter(|value| {
+            value
+                .file_name()
+                .to_string_lossy()
+                .starts_with("env-")
+        })
         .map(|value| value.path())
         .collect::<Vec<_>>();
     generations.sort();
@@ -92,6 +98,104 @@ async fn generations_live_in_the_store_and_the_project_holds_only_its_link() {
     assert_ne!(second, first);
     assert_eq!(second.parent(), first.parent());
     let mut expected = vec![first, second];
+    expected.sort();
+    assert_eq!(generations(root.path()), expected);
+}
+
+#[tokio::test]
+async fn store_prune_removes_the_generations_the_project_does_not_run() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    pacquet_in(root.path())
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_in(root.path())
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    let current = environment(root.path());
+    assert_eq!(generations(root.path()).len(), 2);
+
+    let output = pacquet_in(root.path())
+        .with_args(["store", "prune"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(output.status.success());
+    assert!(stderr.contains("Removed 1 unused Python environment\n"), "{stderr}");
+    assert_eq!(generations(root.path()), vec![current]);
+    python(root.path())
+        .with_args(["-c", "import alpha"])
+        .assert()
+        .success();
+}
+
+#[tokio::test]
+async fn store_prune_removes_the_generations_of_a_removed_project() {
+    let root = tempfile::tempdir().unwrap();
+    let project_dir = root.path().join("app");
+    fs::create_dir_all(&project_dir).unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(&project_dir, &server.url(), &["alpha>=1"]);
+    let store = root.path().join("store");
+    let manifest = project_dir.join("pnpm-workspace.yaml");
+    let settings = fs::read_to_string(&manifest)
+        .unwrap()
+        .replace(
+            &project_dir
+                .join("store")
+                .display()
+                .to_string(),
+            &store.display().to_string(),
+        );
+    fs::write(&manifest, settings).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!("storeDir: '{}'\n", store.display()),
+    )
+    .unwrap();
+    pacquet_in(&project_dir)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(generations(root.path()).len(), 1);
+    fs::remove_dir_all(&project_dir).unwrap();
+
+    pacquet_in(root.path())
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+    assert_eq!(project_directories(root.path()), Vec::<PathBuf>::new());
+}
+
+/// A project directory an older pnpm made has no link back to its project,
+/// so nothing tells which of its generations is in use.
+#[tokio::test]
+async fn store_prune_keeps_the_generations_of_a_project_directory_without_a_link_back() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    pacquet_in(root.path())
+        .with_arg("install")
+        .assert()
+        .success();
+    let current = environment(root.path());
+    let directory = current.parent().unwrap();
+    pnpm_fs::remove_symlink_dir(&directory.join("project")).unwrap();
+    let older = directory.join("env-older");
+    fs::create_dir(&older).unwrap();
+
+    pacquet_in(root.path())
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+    let mut expected = vec![current, older];
     expected.sort();
     assert_eq!(generations(root.path()), expected);
 }

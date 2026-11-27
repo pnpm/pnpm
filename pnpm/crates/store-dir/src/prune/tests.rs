@@ -459,3 +459,122 @@ fn prune_keeps_live_packages_and_ignores_a_real_dangling_directory_link() {
     assert!(live.exists());
     assert!(!orphan.exists());
 }
+
+/// A project directory with the generations `names`, under the store's
+/// Python environments, and a link back to `project`.
+fn python_environment_dir(store_dir: &StoreDir, project: &Path, names: &[&str]) -> PathBuf {
+    let project = dunce::canonicalize(project).unwrap();
+    let dir = store_dir.python_environment_dir(&project).unwrap();
+    for name in names {
+        fs::create_dir(dir.join(name)).unwrap();
+    }
+    dir
+}
+
+#[test]
+fn prune_keeps_only_the_python_environment_generation_the_project_runs() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let project = tempdir().unwrap();
+    let dir = python_environment_dir(&store_dir, project.path(), &["env-old", "env-current"]);
+    symlink_dir(&dir.join("env-current"), &project.path().join(".venv")).unwrap();
+
+    store_dir
+        .prune(&store_dir.root().join("cache"), &[])
+        .expect("prune");
+
+    assert!(dir.join("env-current").is_dir());
+    assert!(!dir.join("env-old").exists());
+    assert!(dir.join("project").exists(), "the link back to the project was removed");
+}
+
+#[test]
+fn prune_removes_every_python_environment_generation_a_project_without_venv_has() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let project = tempdir().unwrap();
+    let dir = python_environment_dir(&store_dir, project.path(), &["env-old"]);
+
+    store_dir
+        .prune(&store_dir.root().join("cache"), &[])
+        .expect("prune");
+
+    assert!(!dir.join("env-old").exists());
+}
+
+#[test]
+fn prune_removes_the_python_environments_of_a_removed_project() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let project = tempdir().unwrap();
+    let dir = python_environment_dir(&store_dir, project.path(), &["env-current"]);
+    symlink_dir(&dir.join("env-current"), &project.path().join(".venv")).unwrap();
+    drop(project);
+
+    store_dir
+        .prune(&store_dir.root().join("cache"), &[])
+        .expect("prune");
+
+    assert!(!dir.exists());
+}
+
+#[test]
+fn prune_keeps_a_python_environment_directory_without_a_link_back() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let generation = store_dir.python_envs().join("0123456789abcdef/env-old");
+    fs::create_dir_all(&generation).unwrap();
+
+    store_dir
+        .prune(&store_dir.root().join("cache"), &[])
+        .expect("prune");
+
+    assert!(generation.is_dir());
+}
+
+/// A crate slot under `<store>/crates/<name>/1.0.0/<checksum>`, with a linked
+/// record when `recorded`.
+fn crate_slot(store_dir: &StoreDir, name: &str, recorded: bool) -> PathBuf {
+    let slot = store_dir
+        .crates()
+        .join(name)
+        .join("1.0.0")
+        .join("checksum");
+    fs::create_dir_all(&slot).unwrap();
+    fs::write(slot.join("Cargo.toml"), b"").unwrap();
+    if recorded {
+        crate::record_linked_crate_slot(&slot).unwrap();
+    }
+    slot
+}
+
+#[test]
+fn prune_removes_a_recorded_crate_slot_no_registered_workspace_links() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let linked = crate_slot(&store_dir, "linked", true);
+    let unlinked = crate_slot(&store_dir, "unlinked", true);
+    let unrecorded = crate_slot(&store_dir, "unrecorded", false);
+    let workspace = tempdir().unwrap();
+    let link_dir = workspace
+        .path()
+        .join(crate::CARGO_REGISTRY_LINK_DIR.join("/"));
+    fs::create_dir_all(&link_dir).unwrap();
+    symlink_dir(&linked, &link_dir.join("linked-1.0.0")).unwrap();
+    crate::register_cargo_workspace(&store_dir, workspace.path()).unwrap();
+
+    store_dir
+        .prune(&store_dir.root().join("cache"), &[])
+        .expect("prune");
+
+    assert!(linked.is_dir());
+    assert!(unrecorded.is_dir());
+    assert!(!unlinked.exists());
+    assert!(
+        !store_dir
+            .crates()
+            .join("unlinked")
+            .exists(),
+        "the emptied crate directory was kept",
+    );
+}

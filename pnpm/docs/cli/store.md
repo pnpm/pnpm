@@ -107,6 +107,19 @@ not fail the install. A project installed by an earlier pnpm version is not
 registered until it is installed again. Pruning stops if a registered
 project's `pylock.toml` cannot be parsed.
 
+Since v12.25.0, `pnpm store prune` removes the Python environments in the store
+that no project uses. A project keeps the environment its `.venv` links to. If
+the project directory no longer exists, all of its environments are removed.
+Environments created by an earlier pnpm version are kept until the project is
+installed again.
+
+Since v12.25.0, `pnpm store prune` also removes the Cargo crates in the store
+that no Cargo workspace links. Unless `frozenStore` is enabled, an install
+registers each Cargo workspace in the store. A crate linked only by a workspace
+that an earlier pnpm version installed is kept until that workspace is installed
+again. A workspace keeps every crate it has linked, including the crates its
+`Cargo.lock` no longer uses.
+
 `pnpm store prune` fails with `ERR_PNPM_FROZEN_STORE_WRITE` when
 [`frozenStore`](../settings/store.md#frozenstore) is enabled.
 

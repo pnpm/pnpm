@@ -2,11 +2,18 @@ pub mod store_index;
 pub use add_files_from_dir::*;
 pub use cas_file::*;
 pub use check_pkg_files_integrity::*;
+pub use crate_slots::{
+    CARGO_GIT_LINK_DIR,
+    CARGO_REGISTRY_LINK_DIR,
+    record_linked_crate_slot,
+    register_cargo_workspace,
+};
 pub use msgpackr_records::*;
 pub use pkg_content_check::*;
 pub use private_install::*;
 pub use project_registry::*;
 pub use prune::*;
+pub use python_environments::PythonEnvironmentDirError;
 pub use staging::staging_dir_name;
 pub use store_dir::*;
 pub use store_index::*;
@@ -28,6 +35,7 @@ pub use loader_references::loader_blob_path;
 mod add_files_from_dir;
 mod cas_file;
 mod check_pkg_files_integrity;
+mod crate_slots;
 mod msgpackr_records;
 mod pkg_content_check;
 mod private_install;
@@ -35,6 +43,7 @@ mod project_registry;
 mod prune;
 mod prune_cached_metadata;
 mod prune_cas;
+mod python_environments;
 mod staging;
 mod store_dir;
 mod store_lock;

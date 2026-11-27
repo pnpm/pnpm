@@ -44,7 +44,9 @@ use std::{
     },
 };
 
+mod crate_slots;
 mod mark;
+mod python_environments;
 
 /// What the installs of the registered projects use, which
 /// [`StoreDir::prune_keeping`] keeps.
@@ -162,6 +164,7 @@ impl StoreDir {
         let in_use = in_use()?;
         references.files.extend(in_use.files);
         self.prune_global_virtual_store(&references.package_roots, &in_use.modules_dirs)?;
+        self.prune_python_and_cargo_installs()?;
         remove_slot_dir(&self.dir_clone_cache())?;
         self.remove_cached_metadata(cache_dir, protected_dirs)?;
         let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)
@@ -184,6 +187,22 @@ impl StoreDir {
                 if stats.undecodable_packages == 1 { "y" } else { "ies" },
             );
         }
+        Ok(())
+    }
+
+    /// Remove the Python environment generations and the Cargo package slots
+    /// that no registered project uses.
+    fn prune_python_and_cargo_installs(&self) -> Result<(), PruneError> {
+        report_removed(
+            python_environments::remove_unused_generations(&self.python_envs())?,
+            "Python environment",
+        );
+        let cargo_workspaces = crate::project_registry::registered_in(self.cargo_workspaces())
+            .map_err(PruneError::ListProjects)?;
+        report_removed(
+            crate_slots::remove_unlinked_slots(&self.crates(), &cargo_workspaces)?,
+            "crate",
+        );
         Ok(())
     }
 
@@ -230,6 +249,15 @@ impl StoreDir {
             pnpm_diagnostics::eprintln!("No unused packages found in global virtual store");
         }
         Ok(())
+    }
+}
+
+fn report_removed(count: usize, noun: &str) {
+    if count > 0 {
+        pnpm_diagnostics::eprintln!(
+            "Removed {count} unused {noun}{}",
+            if count == 1 { "" } else { "s" },
+        );
     }
 }
 

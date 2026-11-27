@@ -15,6 +15,7 @@ use super::{
     PathBuf,
     PnprClient,
     Result,
+    StoreDir,
     StreamExt,
     ThrottledClient,
     TryStreamExt,
@@ -477,9 +478,9 @@ impl LockedCrate {
     /// final identity component is the registry checksum rather than a graph
     /// hash. Cargo's workspace directory source supplies the graph-specific
     /// view, and Cargo writes compilation artifacts outside this slot.
-    pub(super) fn store_slot(&self, store_root: &Path) -> PathBuf {
-        store_root
-            .join("crates")
+    pub(super) fn store_slot(&self, store_dir: &StoreDir) -> PathBuf {
+        store_dir
+            .crates()
             .join(&self.name)
             .join(&self.version)
             .join(&self.checksum)

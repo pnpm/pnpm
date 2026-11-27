@@ -53,12 +53,9 @@ pub(super) fn lock_config_dependency_store<Reporter: self::Reporter>(
         level: LogLevel::Debug,
         message: "Waiting for the configuration dependency store operation lock".to_string(),
     }));
-    let store_lock = if config.frozen_store {
-        config.store_dir.lock_for_frozen_use()
-    } else {
-        config.store_dir.lock_for_use()
-    }
-    .wrap_err("lock the store while installing configuration dependencies")?;
+    let store_lock = config.store_dir
+        .lock_for_use_in(config.frozen_store)
+        .wrap_err("lock the store while installing configuration dependencies")?;
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Debug,
         message: "Acquired the configuration dependency store operation lock".to_string(),

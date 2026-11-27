@@ -68,7 +68,7 @@ pub enum RegisterProjectError {
     },
 
     #[display(
-        "Failed to create the project registry symlink at {link_path:?} pointing to {project_dir:?}: {error}"
+        "Failed to create the project link at {link_path:?} pointing to {project_dir:?}: {error}"
     )]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_REGISTER_PROJECT_CREATE_SYMLINK))]
     CreateSymlink {
@@ -114,16 +114,30 @@ pub fn register_loaded_project(
     store_dir: &StoreDir,
     project_dir: &Path,
 ) -> Result<(), RegisterProjectError> {
-    let registry_dir = store_dir.projects();
-    fs::create_dir_all(&registry_dir)
+    register_in(&store_dir.projects(), project_dir)
+}
+
+/// Register `project_dir` in the registry at `registry_dir`.
+pub(crate) fn register_in(
+    registry_dir: &Path,
+    project_dir: &Path,
+) -> Result<(), RegisterProjectError> {
+    fs::create_dir_all(registry_dir)
         .map_err(|error| RegisterProjectError::CreateRegistryDir {
-            dir: registry_dir.clone(),
+            dir: registry_dir.to_path_buf(),
             error,
         })?;
 
     let project_dir_str = project_dir.to_string_lossy();
-    let link_path = registry_dir.join(create_short_hash(&project_dir_str));
+    link_to_project(project_dir, registry_dir.join(create_short_hash(&project_dir_str)))
+}
 
+/// Make `link_path` a link to `project_dir`, replacing a link to anything
+/// else.
+pub(crate) fn link_to_project(
+    project_dir: &Path,
+    link_path: PathBuf,
+) -> Result<(), RegisterProjectError> {
     // Fast path: link doesn't exist yet, just create it.
     match link_project(project_dir, &link_path) {
         Ok(()) => Ok(()),
@@ -259,7 +273,13 @@ pub enum GetRegisteredProjectsError {
 pub fn get_registered_projects(
     store_dir: &StoreDir,
 ) -> Result<Vec<PathBuf>, GetRegisteredProjectsError> {
-    let registry_dir = store_dir.projects();
+    registered_in(store_dir.projects())
+}
+
+/// [`get_registered_projects`] of the registry at `registry_dir`.
+pub(crate) fn registered_in(
+    registry_dir: PathBuf,
+) -> Result<Vec<PathBuf>, GetRegisteredProjectsError> {
     let entries = match fs::read_dir(&registry_dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),

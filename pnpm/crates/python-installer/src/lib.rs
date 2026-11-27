@@ -144,6 +144,9 @@ struct Prepared {
     lock: String,
     environment: Option<Generation>,
     previous_environment: Option<Option<PathBuf>>,
+    /// Keeps a store prune from removing the generation before `.venv` links
+    /// to it. Set once every project is prepared.
+    store_lock: Option<Arc<pnpm_store_dir::StoreOperationLock>>,
 }
 
 /// Prepare the selected project manifests as one participant in an install plan.
@@ -224,6 +227,11 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     let Discovery { roots, workspace, .. } = discovery;
     let index = python_index(config)?;
     config.store_dir.init().into_diagnostic()?;
+    let store_lock = Arc::new(
+        config.store_dir
+            .lock_for_use_in(config.frozen_store)
+            .wrap_err("lock the store while installing Python projects")?,
+    );
     let store_index = StoreIndex::shared_for(&config.store_dir, config.frozen_store);
     let (writer, writer_task) = StoreIndexWriter::spawn_for(
         &config.store_dir,
@@ -245,8 +253,11 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         .wrap_err("join Python artifact store index writer")?
         .into_diagnostic()
         .wrap_err("flush Python artifact store index")?;
-    let prepared = result?;
+    let mut prepared = result?;
     register_in_store(&context, &prepared);
+    for project in &mut prepared {
+        project.store_lock = Some(Arc::clone(&store_lock));
+    }
     Ok(prepared)
 }
 
@@ -286,12 +297,11 @@ impl PythonPrepare<'_> {
         let (mut registry, mut inputs) = self.configured_registry(&requirements.all, &rules)?;
         inputs.set_members(recorded_members);
         workspace::offer(&mut registry.resolution.packages, &local);
-        let lock_path = root.join("pylock.toml");
         let lock = self.project_lock::<Reporter>(
             &mut registry,
             LockfileInputs {
                 existing: None,
-                lock_path: &lock_path,
+                lock_path: &root.join("pylock.toml"),
                 requirements: &requirements.all,
                 inputs,
                 requires_python: projects::requires_python_of(&members)?,
@@ -316,6 +326,7 @@ impl PythonPrepare<'_> {
             lock: toml::to_string_pretty(&lock).into_diagnostic()?,
             environment,
             previous_environment: None,
+            store_lock: None,
         })
     }
 
