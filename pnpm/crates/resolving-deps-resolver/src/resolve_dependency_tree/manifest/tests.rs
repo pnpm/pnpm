@@ -50,7 +50,7 @@ async fn invalid_fetched_manifest_name_error_hides_url_secrets() {
     for scheme in ["https", "git+https"] {
         let mut result = manifest_result(serde_json::json!({ "name": "fake-pkg(" }));
         result.id = PkgResolutionId::from(format!(
-            "{scheme}://fake-user:fake-secret@example.test/fake-pkg.tgz?token=fake-token"
+            "{scheme}://fake-user:fake-secret@example.test/fake-pkg.tgz?token=fake-token",
         ));
         let message = super::build_pkg_id_with_patch_hash(&ctx, &result).await
             .expect_err("invalid fetched manifest name")
