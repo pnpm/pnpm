@@ -7,6 +7,8 @@ pub use pnpm_package_name as validate_npm_package_name;
 pub use git_specifier::git_specifiers_are_equivalent;
 pub use validate_npm_package_name::is_valid_old_npm_package_name;
 
+use pnpm_pkg_name_split::split_name_suffix;
+
 mod git_specifier;
 
 /// The `(alias, bareSpecifier)` split for a raw dependency string. At
@@ -30,13 +32,12 @@ pub struct ParsedWantedDependency {
 /// bare specifier.
 #[must_use]
 pub fn parse_wanted_dependency(raw_wanted_dependency: &str) -> ParsedWantedDependency {
-    let version_delimiter = find_version_delimiter(raw_wanted_dependency);
-    if let Some(idx) = version_delimiter {
-        let alias = &raw_wanted_dependency[..idx];
+    if let Ok((alias, bare_specifier)) = split_name_suffix(raw_wanted_dependency) {
+        let alias = alias.as_str();
         if is_valid_old_npm_package_name(alias) {
             return ParsedWantedDependency {
                 alias: Some(alias.to_string()),
-                bare_specifier: Some(raw_wanted_dependency[idx + 1..].to_string()),
+                bare_specifier: Some(bare_specifier.to_string()),
             };
         }
         return ParsedWantedDependency {
@@ -51,18 +52,6 @@ pub fn parse_wanted_dependency(raw_wanted_dependency: &str) -> ParsedWantedDepen
         };
     }
     ParsedWantedDependency { alias: None, bare_specifier: Some(raw_wanted_dependency.to_string()) }
-}
-
-/// Find the first `@` byte index strictly after index 0.
-///
-/// Index 0 is skipped so the scope-prefix `@` of `@scope/foo` does not
-/// split the input.
-fn find_version_delimiter(input: &str) -> Option<usize> {
-    input
-        .bytes()
-        .enumerate()
-        .skip(1)
-        .find_map(|(i, b)| (b == b'@').then_some(i))
 }
 
 #[cfg(test)]

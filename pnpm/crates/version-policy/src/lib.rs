@@ -21,6 +21,7 @@ use pnpm_matcher::{
     Matcher,
     create_matcher,
 };
+use pnpm_pkg_name_split::split_name_suffix;
 use std::collections::HashSet;
 
 /// Error from [`expand_package_version_specs`] or
@@ -371,23 +372,10 @@ struct ParsedRule<'a> {
 }
 
 fn parse_version_policy_rule(pattern: &str) -> Result<ParsedRule<'_>, VersionPolicyError> {
-    // Scoped name (`@scope/foo`) starts with `@`, so the version
-    // separator is the *second* `@`. Otherwise the first.
-    let at_index = if pattern.starts_with('@') {
-        pattern
-            .char_indices()
-            .skip(1)
-            .find_map(|(i, c)| (c == '@').then_some(i))
-    } else {
-        pattern.find('@')
-    };
-
-    let Some(at) = at_index else {
+    let Ok((package_name, versions_part)) = split_name_suffix(pattern) else {
         return Ok(ParsedRule { package_name: pattern, exact_versions: Vec::new() });
     };
-
-    let package_name = &pattern[..at];
-    let versions_part = &pattern[at + 1..];
+    let package_name = package_name.as_str();
 
     let exact_versions = parse_exact_versions_union(versions_part)
         .ok_or_else(|| VersionPolicyError::InvalidVersionUnion { pattern: pattern.to_string() })?;

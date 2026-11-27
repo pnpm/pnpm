@@ -10,5 +10,8 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+pnpm-pkg-name-split = { workspace = true }
+
 [lints]
 workspace = true

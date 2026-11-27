@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-matcher = { workspace = true }
+pnpm-pkg-name-split = { workspace = true }
 
 derive_more = { workspace = true }
 indexmap = { workspace = true }

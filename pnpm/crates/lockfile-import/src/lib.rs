@@ -34,6 +34,7 @@ use derive_more::{
     Error,
 };
 use miette::Diagnostic;
+use pnpm_pkg_name_split::split_name_suffix;
 use pnpm_resolving_resolver_base::{
     PreferredVersions,
     REQUESTED_VERSION_SELECTOR_WEIGHT,
@@ -191,9 +192,8 @@ fn add_version(versions: &mut VersionsByPackageName, name: &str, version: &str) 
 /// Split `<name>@<spec>` at the first `@` after the leading character, keeping
 /// a scoped package name's leading `@` intact.
 pub(crate) fn split_descriptor(descriptor: &str) -> Option<(&str, &str)> {
-    let first_len = descriptor.chars().next()?.len_utf8();
-    let index = descriptor[first_len..].find('@')? + first_len;
-    Some((&descriptor[..index], &descriptor[index + 1..]))
+    let (name, spec) = split_name_suffix(descriptor).ok()?;
+    Some((name.as_str(), spec))
 }
 
 #[cfg(test)]

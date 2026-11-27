@@ -16,6 +16,7 @@
 //! `pnpm-workspace-range-resolver`'s `resolve_workspace_range` for
 //! the matching range-pick logic.
 
+use pnpm_pkg_name_split::split_name_suffix;
 use std::fmt;
 
 /// Parsed `workspace:` bare specifier, a record of `(alias, version)`
@@ -81,18 +82,13 @@ pub fn is_workspace_path_specifier(bare_specifier: &str) -> bool {
 /// followed by a literal `@`. The borrowed form of [`WorkspaceSpec::parse`].
 #[must_use]
 pub fn split_alias_version(suffix: &str) -> (Option<&str>, &str) {
-    let mut chars = suffix.char_indices();
-    let Some((_, first)) = chars.next() else {
-        return (None, suffix);
-    };
-    if matches!(first, '.' | '_' | '/') {
+    if suffix.starts_with(['.', '_', '/']) {
         return (None, suffix);
     }
-    let Some(at_offset) = suffix[first.len_utf8()..].find('@') else {
-        return (None, suffix);
-    };
-    let split_at = first.len_utf8() + at_offset;
-    (Some(&suffix[..split_at]), &suffix[split_at + 1..])
+    match split_name_suffix(suffix) {
+        Ok((alias, version)) => (Some(alias.as_str()), version),
+        Err(_) => (None, suffix),
+    }
 }
 
 #[cfg(test)]

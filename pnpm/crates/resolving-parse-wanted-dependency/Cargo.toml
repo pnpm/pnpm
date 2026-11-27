@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-package-name = { workspace = true }
+pnpm-pkg-name-split = { workspace = true }
 
 [lints]
 workspace = true

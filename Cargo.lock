@@ -5343,6 +5343,7 @@ dependencies = [
  "derive_more",
  "node-semver",
  "pnpm-crypto-hash",
+ "pnpm-pkg-name-split",
  "pnpm-tool-protocol",
 ]
 
@@ -6004,6 +6005,7 @@ name = "pnpm-local-spec"
 version = "0.0.1"
 dependencies = [
  "pnpm-fs",
+ "pnpm-pkg-name-split",
  "pnpm-workspace-spec",
  "pretty_assertions",
 ]
@@ -6046,6 +6048,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
+ "pnpm-pkg-name-split",
  "pnpm-resolving-resolver-base",
  "pretty_assertions",
  "serde_json",
@@ -6506,6 +6509,7 @@ dependencies = [
  "indexmap 2.14.2",
  "miette 7.6.0",
  "node-semver",
+ "pnpm-pkg-name-split",
  "pretty_assertions",
  "sha2 0.10.9",
  "tempfile",
@@ -6953,6 +6957,7 @@ name = "pnpm-resolving-parse-wanted-dependency"
 version = "0.0.1"
 dependencies = [
  "pnpm-package-name",
+ "pnpm-pkg-name-split",
 ]
 
 [[package]]
@@ -7236,6 +7241,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pnpm-matcher",
+ "pnpm-pkg-name-split",
  "pretty_assertions",
 ]
 
@@ -7386,6 +7392,9 @@ dependencies = [
 [[package]]
 name = "pnpm-workspace-spec"
 version = "0.0.1"
+dependencies = [
+ "pnpm-pkg-name-split",
+]
 
 [[package]]
 name = "pnpm-workspace-state"

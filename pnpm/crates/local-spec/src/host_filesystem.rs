@@ -2,6 +2,7 @@ use crate::{
     bare_path_is_unambiguous,
     is_drive_letter_prefix,
 };
+use pnpm_pkg_name_split::split_name_suffix;
 
 /// Whether `spec`, declared by an importer at POSIX-relative `importer_dir`
 /// (`.` for the workspace root), resolves against the host filesystem outside
@@ -82,11 +83,8 @@ fn is_non_local_filesystem_subdep_ref(
 /// `@`, and a `file:`, `link:`, `path:`, or `git+file:` specifier.
 #[must_use]
 pub fn strip_package_name_from_local_spec(spec: &str) -> Option<&str> {
-    let name_end = match spec.strip_prefix('@') {
-        Some(scoped) => scoped.find('@')? + 1,
-        None => spec.find('@')?,
-    };
-    let (name, rest) = (&spec[..name_end], &spec[name_end + 1..]);
+    let (name, rest) = split_name_suffix(spec).ok()?;
+    let name = name.as_str();
     let scope_slashes = usize::from(name.starts_with('@'));
     let is_package_name = name.matches('/').count() == scope_slashes
         && !name.ends_with('/')

@@ -1,5 +1,6 @@
-//! Where a lockfile package key splits: the scope and bare name of
-//! `@{scope}/{bare}`, and the name and suffix of `{name}@{suffix}`.
+//! Where a package name or a `{name}@{suffix}` key splits: the scope and
+//! bare name of `@{scope}/{bare}`, and the name and suffix of
+//! `{name}@{suffix}`, as lockfile keys, specifiers and descriptors write it.
 //!
 //! Creusot proves both splits, see `pnpm/VERIFICATION.md`. Each part is a
 //! substring of the input, the parts and their separator rejoin to the
@@ -112,7 +113,7 @@ impl<'key> KeyName<'key> {
     }
 }
 
-/// Why a lockfile key has no name and suffix split.
+/// Why a key has no name and suffix split.
 #[derive(Debug, Clone, Copy)]
 pub enum SplitNameSuffixError {
     /// The key is empty.

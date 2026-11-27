@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-fs = { workspace = true }
+pnpm-pkg-name-split = { workspace = true }
 pnpm-workspace-spec = { workspace = true }
 
 [dev-dependencies]

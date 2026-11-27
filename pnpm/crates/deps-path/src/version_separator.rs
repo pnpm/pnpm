@@ -1,3 +1,5 @@
+use pnpm_pkg_name_split::split_name_suffix;
+
 /// Byte index of the `@` that separates `<name>` from `<version>` in a
 /// package identifier or dependency path.
 ///
@@ -5,10 +7,9 @@
 /// the first `@` after it; for unscoped inputs it is the first `@`.
 #[must_use]
 pub fn version_separator_index(value: &str) -> Option<usize> {
-    match value.strip_prefix('@') {
-        Some(rest) => rest.find('@').map(|offset| offset + 1),
-        None => value.find('@'),
-    }
+    split_name_suffix(value)
+        .ok()
+        .map(|(name, _)| name.as_str().len())
 }
 
 #[cfg(test)]

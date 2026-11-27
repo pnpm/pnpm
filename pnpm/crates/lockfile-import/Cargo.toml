@@ -11,6 +11,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-pkg-name-split = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 
 derive_more = { workspace = true }

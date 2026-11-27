@@ -1,4 +1,5 @@
 use node_semver::Version;
+use pnpm_pkg_name_split::split_name_suffix;
 
 /// Result of parsing a `patchedDependencies` key.
 ///
@@ -18,21 +19,10 @@ pub struct ParsedKey<'a> {
 /// the entire key as a bare package name (wildcard match).
 #[must_use]
 pub fn parse_key(input: &str) -> ParsedKey<'_> {
-    // Skip a leading `@` so scoped names (`@scope/foo`) match on the
-    // *second* `@`.
-    let bytes = input.as_bytes();
-    let sep_index = bytes
-        .iter()
-        .enumerate()
-        .skip(1)
-        .find_map(|(i, &b)| (b == b'@').then_some(i));
-
-    let Some(sep) = sep_index else {
+    let Ok((name, version)) = split_name_suffix(input) else {
         return ParsedKey::default();
     };
-
-    let name = &input[..sep];
-    let version = &input[sep + 1..];
+    let name = name.as_str();
     if version.is_empty() {
         return ParsedKey::default();
     }
