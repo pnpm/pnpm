@@ -61,3 +61,43 @@ fn check_removal(bundle: Option<&OsStr>, auto_install: bool, format: &str) {
         "{bundle:?}, {auto_install}, {format}: {snapshot:?}",
     );
 }
+
+#[test]
+fn conversion_resolves_peers_when_no_provider_set_matches_the_v9_hash() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("peersSuffixMaxLength: 1\n");
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { prod: &[(CONSUMER, "1.0.0"), (PROVIDER, "1.0.0")], ..Default::default() },
+    );
+    let install = || {
+        assert_success(&fixture.command_at(
+            &fixture.workspace,
+            ["install", "--lockfile-only", "--no-frozen-lockfile"],
+        ));
+    };
+    install();
+    let path = fixture.workspace.join("pnpm-lock.yaml");
+    let original = std::fs::read_to_string(&path).unwrap();
+    let key = Lockfile::load_wanted_from_dir(&fixture.workspace)
+        .unwrap()
+        .unwrap()
+        .snapshots
+        .unwrap()
+        .into_keys()
+        .find(|key| key.name.to_string() == CONSUMER)
+        .unwrap();
+    let suffix = key.suffix.peer();
+    assert_eq!(suffix.len(), 34);
+    let unmatched = original.replace(suffix, "(00000000000000000000000000000000)");
+    assert!(unmatched != original, "the v9 lockfile must contain the peer suffix");
+    std::fs::write(&path, unmatched).unwrap();
+    fixture.append_workspace_yaml("lockfile:\n  format: v13\n");
+    install();
+    let converted = std::fs::read_to_string(&path).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    install();
+    let fresh = std::fs::read_to_string(&path).unwrap();
+    eprintln!("Converted v9:\n{converted}\nFresh v13:\n{fresh}");
+    assert_eq!(converted, fresh);
+}

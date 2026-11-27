@@ -2,6 +2,7 @@
 //! settings that change how peers bind. For each fixture and settings row,
 //! starting from a fresh resolution of the manifests:
 //!
+//! - converting a fresh v9 lockfile to v13 writes the fresh v13 lockfile,
 //! - a frozen install accepts the fresh lockfile and leaves it unchanged,
 //! - `dedupe --check` passes,
 //! - every project deploys, and its deployed lockfile installs frozen,
@@ -20,7 +21,7 @@
 //!
 //! With `PNPM_V11_BUNDLE` naming the pnpm v11 bundle (`pnpm/test-oracles/node_modules/pnpm-v11/dist/pnpm.mjs`),
 //! every fixture also runs through v11, apart from the rows that set the
-//! v12-only `autoDedupe`, and each row's fresh v11 lockfile has to equal the
+//! v12-only `autoDedupe` or write v13, and each row's fresh v11 lockfile has to equal the
 //! v12 one.
 
 mod cyclic_locked_contexts;
