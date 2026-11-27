@@ -1,5 +1,8 @@
 use super::SettingsComparison;
-use pnpm_config::version_policy::drop_unresolved_package_version_specs;
+use pnpm_config::version_policy::{
+    drop_unresolved_package_version_specs,
+    prune_project_version_specs,
+};
 
 impl SettingsComparison<'_> {
     fn excludes_match(
@@ -16,16 +19,13 @@ impl SettingsComparison<'_> {
             return false;
         }
         self.prune_versions
-            .get_or_init(|| {
-                crate::catalog_cleanup::installed_prune_versions(
-                    self.config,
-                    self.lockfile_root,
-                    self.validation,
-                )
-            })
             .as_ref()
             .is_some_and(|versions| {
-                let pruned = drop_unresolved_package_version_specs(recorded, versions);
+                let pruned = if self.config.shares_one_lockfile() {
+                    drop_unresolved_package_version_specs(recorded, versions)
+                } else {
+                    prune_project_version_specs(recorded, live.unwrap_or_default(), versions)
+                };
                 (!pruned.is_empty()).then_some(pruned.as_slice()) == live
                     && recorded
                         .iter()

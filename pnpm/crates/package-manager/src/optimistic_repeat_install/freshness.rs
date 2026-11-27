@@ -47,6 +47,7 @@ use std::collections::HashSet;
 
 mod drift;
 mod missing_lockfile;
+mod pruned_excludes;
 mod registry_keys;
 mod stand_in_writes;
 
@@ -259,7 +260,7 @@ fn check_settings_and_workspace_freshness(
     if let Some(setting) = first_setting_drift(
         state,
         config,
-        check.workspace_root,
+        &|| pruned_excludes::installed_versions(check, state, scope),
         check.layout,
         policy.ignored_settings,
     ) {
@@ -344,9 +345,10 @@ fn settle_proven_tree(
             .get()
             .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
     }
-    let excludes_pruned = state.settings.minimum_release_age_exclude
-        != check.config.minimum_release_age_exclude
-        || state.settings.trust_policy_exclude != check.config.trust_policy_exclude;
+    let excludes_pruned = pruned_excludes::changed(check, state)
+        && state.validation
+            .as_ref()
+            .is_some_and(|validation| validation.lockfiles.is_empty());
     stand_in_writes::refuse(check, drift.lockfile_changed || drift.rehashed || excludes_pruned)?;
     let restored = settle_missing_wanted_lockfile(check, policy, &drift.current)?;
     let vouched = drift.proven_dirs(&[]);
@@ -385,7 +387,10 @@ fn refresh_state(
     if !drift.rehashed && !refresh_records {
         return;
     }
-    let new_state = refreshed_state(check, state, vouched, validation_now(check), policy);
+    let Some(new_state) = refreshed_state(check, state, vouched, validation_now(check), policy)
+    else {
+        return;
+    };
     let trusted = new_state.validation.as_ref().is_some_and(trusts_every_file);
     if trusted && (drift.rehashed || !records_stale(&new_state)) {
         write_state(check, &new_state, policy);
@@ -474,7 +479,9 @@ fn record_state_at(
     policy: &GatePolicy<'_>,
     filesystem_now: Option<i64>,
 ) {
-    let new_state = refreshed_state(check, state, vouched, filesystem_now, policy);
+    let Some(new_state) = refreshed_state(check, state, vouched, filesystem_now, policy) else {
+        return;
+    };
     write_state(check, &new_state, policy);
 }
 
@@ -514,8 +521,16 @@ fn refreshed_state(
     vouched: &HashSet<PathBuf>,
     filesystem_now: Option<i64>,
     policy: &GatePolicy<'_>,
-) -> WorkspaceState {
-    crate::install::recorded_workspace_state(&crate::install::StateWrite {
+) -> Option<WorkspaceState> {
+    // A selected check cannot update the policy for a sibling installed against another lockfile.
+    if pruned_excludes::changed(check, state)
+        && state.validation
+            .as_ref()
+            .is_some_and(|validation| !validation.lockfiles.is_empty())
+    {
+        return None;
+    }
+    Some(crate::install::recorded_workspace_state(&crate::install::StateWrite {
         workspace_root: check.workspace_root,
         config: check.config,
         layout: check.layout,
@@ -540,5 +555,5 @@ fn refreshed_state(
             ),
         },
         vouched: &Vouched::Projects { dirs: vouched, previous: Some(state) },
-    })
+    }))
 }

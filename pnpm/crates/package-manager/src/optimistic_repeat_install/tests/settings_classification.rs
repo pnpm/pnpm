@@ -423,7 +423,7 @@ fn install_gate_drift(state: &WorkspaceState, config: &Config) -> Option<&'stati
     first_setting_drift(
         state,
         config,
-        std::path::Path::new("."),
+        &|| None,
         crate::RepeatInstallLayout {
             node_linker: NodeLinker::Isolated,
             included: isolated_included(),

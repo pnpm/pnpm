@@ -47,10 +47,7 @@ use pnpm_workspace_state::{
     WorkspaceState,
     WorkspaceStateSettings,
 };
-use std::{
-    cell::OnceCell,
-    path::Path,
-};
+use std::cell::LazyCell;
 
 /// The workspace-state key of [`global_virtual_store_layout_version`]. It is
 /// not a setting a user can name, so a message words it separately.
@@ -115,7 +112,7 @@ pub(crate) fn recorded_supported_architectures_match(
 pub(crate) fn first_setting_drift(
     state: &WorkspaceState,
     config: &Config,
-    lockfile_root: &Path,
+    load_prune_versions: &dyn Fn() -> Option<ResolvedPackageVersions>,
     layout: crate::RepeatInstallLayout<'_>,
     ignored_workspace_state_settings: &[&str],
 ) -> Option<&'static str> {
@@ -130,9 +127,7 @@ pub(crate) fn first_setting_drift(
         live: &current,
         ignored: ignored_workspace_state_settings,
         config,
-        lockfile_root,
-        validation: state.validation.as_ref(),
-        prune_versions: OnceCell::new(),
+        prune_versions: LazyCell::new(load_prune_versions),
     }
     .first_drift()
 }
@@ -152,9 +147,8 @@ struct SettingsComparison<'a> {
     live: &'a WorkspaceStateSettings,
     ignored: &'a [&'a str],
     config: &'a Config,
-    lockfile_root: &'a Path,
-    validation: Option<&'a pnpm_workspace_state::Validation>,
-    prune_versions: OnceCell<Option<ResolvedPackageVersions>>,
+    prune_versions:
+        LazyCell<Option<ResolvedPackageVersions>, &'a dyn Fn() -> Option<ResolvedPackageVersions>>,
 }
 
 impl SettingsComparison<'_> {

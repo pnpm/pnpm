@@ -1162,6 +1162,35 @@ fn verify_deps_after_pruning_excludes() {
 }
 
 #[test]
+fn verify_selected_project_after_filtered_install_prunes_excludes() {
+    let (_root, workspace, _anchor) = setup();
+    write_manifest(&workspace, "{}");
+    write_exclude_workspace_projects(&workspace);
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "packages: ['packages/*']\nverifyDepsBeforeRun: error\nminimumReleaseAgeExcludePrune: true\nminimumReleaseAgeExclude: ['{FOO}@1.0.0']\n",
+        ),
+    );
+    run_ok(&workspace, &["install"]);
+    let manifest = workspace.join("packages/a/package.json");
+    let mut json: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest).unwrap()).unwrap();
+    json["dependencies"][FOO] = "2.0.0".into();
+    fs::write(&manifest, json.to_string()).unwrap();
+    run_ok(&workspace, &["--filter", "a", "install"]);
+    assert!(!read(&workspace, "pnpm-workspace.yaml").contains(&format!("{FOO}@1.0.0")));
+    run_ok(&workspace, &["--filter", "a", "exec", "node", "--version"]);
+    let output =
+        pacquet(&workspace, ["--filter", "b", "exec", "node", "--version"]).output().unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("minimumReleaseAgeExclude setting has changed"),
+    );
+}
+
+#[test]
 fn verify_deps_after_pruning_the_last_exclusion_in_an_empty_project() {
     let (_root, workspace, _anchor) = setup();
     write_manifest(&workspace, "{}");
@@ -1253,6 +1282,11 @@ fn verify_deps_after_pruning_excludes_across_project_lockfiles() {
     append_workspace_yaml(&workspace, "verifyDepsBeforeRun: error\n");
     run_ok(&workspace, &["install"]);
     assert_excludes_pruned_across_projects(&workspace);
+    let sibling_lockfile = workspace.join("packages/b/pnpm-lock.yaml");
+    let sibling_contents = fs::read(&sibling_lockfile).unwrap();
+    fs::remove_file(&sibling_lockfile).unwrap();
+    run_ok(&workspace.join("packages/a"), &["exec", "node", "--version"]);
+    fs::write(sibling_lockfile, sibling_contents).unwrap();
     run_ok(&workspace, &["-r", "exec", "node", "--version"]);
     for dir in [workspace.clone(), workspace.join("packages/a"), workspace.join("packages/b")] {
         run_ok(&dir, &["exec", "node", "--version"]);
@@ -1421,6 +1455,10 @@ fn per_project_lockfile_workspace_with_stale_exclude(workspace: &Path) {
              - '@pnpm.e2e/foobar@100.0.0'\n",
         ),
     );
+    write_exclude_workspace_projects(workspace);
+}
+
+fn write_exclude_workspace_projects(workspace: &Path) {
     for (name, dependency, version) in [("a", FOO, "1.0.0"), ("b", "@pnpm.e2e/bar", "100.0.0")] {
         let project = workspace.join("packages").join(name);
         fs::create_dir_all(&project).expect("create the package dir");

@@ -210,7 +210,7 @@ fn a_patch_file_recorded_by_its_absolute_path_matches_its_configured_path() {
         first_setting_drift(
             &state,
             config,
-            std::path::Path::new("."),
+            &|| None,
             crate::RepeatInstallLayout {
                 node_linker: pnpm_config::NodeLinker::Isolated,
                 included: isolated_included(),
@@ -252,7 +252,7 @@ fn a_patch_file_recorded_by_its_absolute_path_matches_its_configured_path() {
         first_setting_drift(
             &empty,
             &Config::new(),
-            std::path::Path::new("."),
+            &|| None,
             crate::RepeatInstallLayout {
                 node_linker: pnpm_config::NodeLinker::Isolated,
                 included: isolated_included(),

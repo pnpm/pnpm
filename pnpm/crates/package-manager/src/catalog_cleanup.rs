@@ -249,23 +249,13 @@ pub fn prune_against_project_lockfiles(
     if !config.lockfile || config.shares_one_lockfile() {
         return Ok(());
     }
-    let Some(resolved) = dedicated_resolved_versions(config, workspace_dir)? else {
-        return Ok(());
-    };
-    prune_unresolved_entries(config, workspace_dir, resolved)
-}
-
-fn dedicated_resolved_versions(
-    config: &Config,
-    workspace_dir: &Path,
-) -> Result<Option<ResolvedPackageVersions>, WriteWorkspaceCatalogsError> {
     let mut project_dirs: Vec<PathBuf> =
         load_cleanup_projects(workspace_dir, config.managed_directories())?
             .into_iter()
             .map(|project| project.root_dir)
             .collect();
     if project_dirs.is_empty() {
-        return Ok(None);
+        return Ok(());
     }
     let normalized_root = pnpm_fs::lexical_normalize(workspace_dir);
     if pnpm_package_manifest::project_manifest_path(workspace_dir).is_file()
@@ -280,14 +270,14 @@ fn dedicated_resolved_versions(
         let Some(lockfile) = Lockfile::load_wanted_from_dir(config.lockfile_dir_for(project_dir))
             .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
         else {
-            return Ok(None);
+            return Ok(());
         };
         record_resolved_package_versions(
             lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
             &mut resolved,
         );
     }
-    Ok(Some(resolved))
+    prune_unresolved_entries(config, workspace_dir, resolved)
 }
 
 fn prune_unresolved_entries(
@@ -334,24 +324,20 @@ fn record_config_dependency_versions(
 pub(crate) fn installed_prune_versions(
     config: &Config,
     lockfile_root: &Path,
-    validation: Option<&pnpm_workspace_state::Validation>,
+    digest: &str,
+    covers_projects: impl FnOnce(&Lockfile) -> bool,
 ) -> Option<ResolvedPackageVersions> {
-    let validation = validation?;
-    if !validation.lockfiles.is_empty() {
-        return None;
-    }
     let workspace = config.workspace_dir.as_deref().unwrap_or(lockfile_root);
     let path = lockfile_root.join(config.wanted_lockfile_name());
     let content = std::fs::read_to_string(&path).ok()?;
-    if pnpm_crypto_hash::create_short_hash(&content) != *validation.lockfile.as_ref()? {
+    if pnpm_crypto_hash::create_short_hash(&content) != digest {
         return None;
     }
     let installed = Lockfile::parse(&content, &path).ok()??;
-    let mut versions = if config.shares_one_lockfile() {
-        ResolvedPackageVersions::new()
-    } else {
-        dedicated_resolved_versions(config, workspace).ok()??
-    };
+    if !covers_projects(&installed) {
+        return None;
+    }
+    let mut versions = ResolvedPackageVersions::new();
     record_config_dependency_versions(config, workspace, &mut versions).ok()?;
     record_resolved_package_versions(
         installed.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
