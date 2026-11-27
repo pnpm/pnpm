@@ -143,14 +143,16 @@ pub fn stacked_push(stack: Seq<usize>, item: usize) {}
     stacked(base.subsequence(0, len - 1), node))]
 pub fn stacked_prefix_pop(base: Seq<usize>, len: Int) {}
 
+/// Stated over [`StronglyConnectedComponents::ids`] and
+/// [`StronglyConnectedComponents::count`] rather than the private fields, so
+/// a verified crate downstream can read it.
 #[cfg(creusot)]
 impl Invariant for StronglyConnectedComponents {
-    #[logic(open(crate))]
+    #[logic(open)]
     fn invariant(self) -> bool {
         pearlite! {
-            forall<node> 0 <= node && node < self.component_of@.len() ==>
-                self.component_of@[node]@ == none()
-                    || self.component_of@[node]@ < self.component_size@.len()
+            forall<node> 0 <= node && node < self.ids().len() ==>
+                self.ids()[node]@ == none() || self.ids()[node]@ < self.count()
         }
     }
 }

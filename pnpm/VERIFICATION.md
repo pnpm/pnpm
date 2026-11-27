@@ -35,6 +35,19 @@ A run writes three things at the repository root, all ignored by git: `verif/` h
 - **Logic and lemmas** go in a `spec` module, and properties stated for all inputs in a `theorems` module, both `#[cfg(creusot)]`. A theorem is a verified function whose contract is the property. Proving it is a test that passes on every input at once.
 - **Calls into the standard library or a third-party crate** need a contract. `creusot-std` covers much of `std`. The rest goes in `pnpm-creusot-models`, whose crate documentation says how each contract is checked against the function it describes.
 
+## Passing a fact between functions
+
+A fact about one value travels in the value's type, not in a precondition that every consumer restates.
+
+- Wrap the value in a type with private fields, and state the fact as the type's `impl Invariant`. Creusot proves the invariant wherever code passes the value to a function or returns it, and wherever a `&mut` borrow of it ends. Every verified function that takes the value assumes it.
+- Give the type one constructor whose `#[requires]` is the fact, so the code that builds the value proves the fact once, at that call.
+- Keep that constructor private. Only `cargo creusot` checks a precondition, so a caller in another crate could build the type with the fact false. Code outside the crate gets the type from a function that establishes the fact itself, as `split_name_suffix` does.
+- Mark the invariant `#[logic(open)]` and state it over public logic functions rather than the private fields, so a verified crate downstream can read it. A logic function that reads a field stays `open(crate)`.
+- A consumer or a theorem takes the type instead of a precondition. `written_key_reads_back` takes a `KeyName` and states nothing about the name.
+- A fact that relates several values, such as a key being a name and a suffix joined by `@`, stays a `#[requires]`, since no one argument can carry it.
+
+`KeyName` and `Scope` in `pnpm-pkg-name-split` are examples, and so is `StronglyConnectedComponents`.
+
 ## Writing proofs
 
 - Import from `creusot_std::prelude` by name. Its glob also brings a `vec!` that conflicts with the standard one.

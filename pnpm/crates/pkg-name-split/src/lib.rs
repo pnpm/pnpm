@@ -5,6 +5,10 @@
 //! substring of the input, the parts and their separator rejoin to the
 //! input, and the split is at the first separator the syntax allows there.
 //! Neither function panics, the slicing included.
+//!
+//! [`KeyName`] and [`Scope`] carry what makes each split unique as their
+//! type invariant, so a verified caller that holds one has the fact without
+//! restating it.
 
 #[cfg(creusot)]
 pub mod spec;
@@ -16,16 +20,39 @@ use creusot_std::prelude::{
     Seq,
     ensures,
     proof_assert,
+    requires,
 };
 #[cfg(creusot)]
 use pnpm_creusot_models as _;
 use split_first_char::SplitFirstChar;
 
+/// The scope of `@{scope}/{bare}`, which holds no `/`.
+#[derive(Debug, Clone, Copy)]
+pub struct Scope<'name>(&'name str);
+
+impl<'name> Scope<'name> {
+    /// The only constructor. It is private because only `cargo creusot`
+    /// checks its precondition, so a caller in another crate could
+    /// otherwise break the type invariant.
+    #[cfg_attr(creusot, requires(spec::is_scope(text@)))]
+    #[cfg_attr(creusot, ensures(result@ == text@))]
+    fn new(text: &'name str) -> Self {
+        Scope(text)
+    }
+
+    /// The scope as written in the name, without its `@`.
+    #[cfg_attr(creusot, ensures(result@ == self@))]
+    #[must_use]
+    pub fn as_str(self) -> &'name str {
+        self.0
+    }
+}
+
 /// Where the scope of a package name ends.
 #[derive(Debug, Clone, Copy)]
 pub enum ScopeSplit<'name> {
     /// `@{scope}/{bare}`.
-    Scoped { scope: &'name str, bare: &'name str },
+    Scoped { scope: Scope<'name>, bare: &'name str },
     /// A name with no leading `@`, which is a bare name throughout.
     Unscoped,
 }
@@ -46,8 +73,8 @@ pub enum SplitScopeError {
     Err(SplitScopeError::MissingBare) => name@.len() > 0 && name@[0] == '@'
         && !name@.subsequence(1, name@.len()).contains('/'),
     Ok(ScopeSplit::Unscoped) => name@.len() > 0 && name@[0] != '@',
-    Ok(ScopeSplit::Scoped { scope, bare }) => !scope@.contains('/')
-        && name@ == Seq::singleton('@').concat(scope@).concat(Seq::singleton('/')).concat(bare@),
+    Ok(ScopeSplit::Scoped { scope, bare }) =>
+        name@ == Seq::singleton('@').concat(scope@).concat(Seq::singleton('/')).concat(bare@),
 }))]
 pub fn split_scope(name: &str) -> Result<ScopeSplit<'_>, SplitScopeError> {
     let Some((first, rest)) = name.split_first_char() else {
@@ -57,8 +84,31 @@ pub fn split_scope(name: &str) -> Result<ScopeSplit<'_>, SplitScopeError> {
         return Ok(ScopeSplit::Unscoped);
     }
     match rest.split_once('/') {
-        Some((scope, bare)) => Ok(ScopeSplit::Scoped { scope, bare }),
+        Some((scope, bare)) => Ok(ScopeSplit::Scoped { scope: Scope::new(scope), bare }),
         None => Err(SplitScopeError::MissingBare),
+    }
+}
+
+/// The name of a `{name}@{suffix}` key, which is non-empty and holds no `@`
+/// after its first character. A scoped name keeps its leading `@`.
+#[derive(Debug, Clone, Copy)]
+pub struct KeyName<'key>(&'key str);
+
+impl<'key> KeyName<'key> {
+    /// The only constructor. It is private because only `cargo creusot`
+    /// checks its precondition, so a caller in another crate could
+    /// otherwise break the type invariant.
+    #[cfg_attr(creusot, requires(spec::is_key_name(text@)))]
+    #[cfg_attr(creusot, ensures(result@ == text@))]
+    fn new(text: &'key str) -> Self {
+        KeyName(text)
+    }
+
+    /// The name as written in the key.
+    #[cfg_attr(creusot, ensures(result@ == self@))]
+    #[must_use]
+    pub fn as_str(self) -> &'key str {
+        self.0
     }
 }
 
@@ -77,16 +127,17 @@ pub enum SplitNameSuffixError {
     Err(SplitNameSuffixError::EmptyInput) => key@.len() == 0,
     Err(SplitNameSuffixError::MissingSuffix) => key@.len() > 0
         && !key@.subsequence(1, key@.len()).contains('@'),
-    Ok((name, suffix)) => name@.len() > 0
-        && !name@.subsequence(1, name@.len()).contains('@')
-        && key@ == name@.concat(Seq::singleton('@')).concat(suffix@),
+    Ok((name, suffix)) => key@ == name@.concat(Seq::singleton('@')).concat(suffix@),
 }))]
-pub fn split_name_suffix(key: &str) -> Result<(&str, &str), SplitNameSuffixError> {
+pub fn split_name_suffix(key: &str) -> Result<(KeyName<'_>, &str), SplitNameSuffixError> {
     let Some((first, rest)) = key.split_first_char() else {
         return Err(SplitNameSuffixError::EmptyInput);
     };
     if first != '@' {
-        return key.split_once('@').ok_or(SplitNameSuffixError::MissingSuffix);
+        let Some((name, suffix)) = key.split_once('@') else {
+            return Err(SplitNameSuffixError::MissingSuffix);
+        };
+        return Ok((KeyName::new(name), suffix));
     }
     let Some((name_without_at, suffix)) = rest.split_once('@') else {
         return Err(SplitNameSuffixError::MissingSuffix);
@@ -108,9 +159,11 @@ pub fn split_name_suffix(key: &str) -> Result<(&str, &str), SplitNameSuffixError
             Seq::singleton('@').concat(name_without_at@),
             Seq::singleton('@').concat(suffix@),
         );
+        name@.concat_assoc(Seq::singleton('@'), suffix@);
         name@ == Seq::singleton('@').concat(name_without_at@)
+            && key@ == name@.concat(Seq::singleton('@')).concat(suffix@)
     };
-    Ok((name, suffix))
+    Ok((KeyName::new(name), suffix))
 }
 
 #[cfg(test)]

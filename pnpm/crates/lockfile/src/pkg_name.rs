@@ -49,7 +49,7 @@ impl PkgName {
     {
         match split_scope(input.as_ref()) {
             Ok(ScopeSplit::Scoped { scope, bare }) => {
-                let scope = scope.to_string().pipe(Some);
+                let scope = scope.as_str().to_string().pipe(Some);
                 let bare = bare.to_string();
                 Ok(PkgName { scope, bare })
             }

@@ -68,7 +68,8 @@ impl<Suffix: FromStr> FromStr for PkgNameSuffix<Suffix> {
                 SplitNameSuffixError::EmptyInput => ParsePkgNameSuffixError::EmptyInput,
                 SplitNameSuffixError::MissingSuffix => ParsePkgNameSuffixError::MissingSuffix,
             })?;
-        // `split_name_suffix` never returns an empty name; Creusot proves it.
+        // A `KeyName` is never empty; Creusot proves it.
+        let name = name.as_str();
         if matches!(name, "@" | "@/") {
             return Err(ParsePkgNameSuffixError::EmptyName);
         }

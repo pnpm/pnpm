@@ -1,6 +1,10 @@
-//! Properties stated for every input, each as a verified caller.
+//! Properties stated for every input, each as a verified caller. A theorem
+//! that takes a [`KeyName`] or a [`Scope`] holds for every value of that
+//! type, and assumes the type's invariant rather than restating it.
 
 use crate::{
+    KeyName,
+    Scope,
     ScopeSplit,
     SplitNameSuffixError,
     SplitScopeError,
@@ -18,10 +22,7 @@ use creusot_std::prelude::{
     requires,
 };
 
-/// A key written as `{name}@{suffix}` reads back as that name and suffix
-/// whenever the name is non-empty and holds no `@` after its first
-/// character, which every package name satisfies.
-#[requires(name@.len() > 0 && !name@.subsequence(1, name@.len()).contains('@'))]
+/// A key written as `{name}@{suffix}` reads back as that name and suffix.
 #[requires(key@ == name@.concat(Seq::singleton('@')).concat(suffix@))]
 #[ensures(match result {
     Ok((read_name, read_suffix)) => read_name@ == name@ && read_suffix@ == suffix@,
@@ -29,9 +30,9 @@ use creusot_std::prelude::{
 })]
 pub fn written_key_reads_back<'key>(
     key: &'key str,
-    name: &str,
+    name: KeyName<'_>,
     suffix: &str,
-) -> Result<(&'key str, &'key str), SplitNameSuffixError> {
+) -> Result<(KeyName<'key>, &'key str), SplitNameSuffixError> {
     proof_assert!(key@.subsequence(1, key@.len())[name@.len() - 1] == '@');
     let result = split_name_suffix(key);
     proof_assert! {
@@ -47,8 +48,7 @@ pub fn written_key_reads_back<'key>(
 }
 
 /// A name written as `@{scope}/{bare}` reads back as that scope and bare
-/// name whenever the scope holds no `/`.
-#[requires(!scope@.contains('/'))]
+/// name.
 #[requires(name@ == Seq::singleton('@').concat(scope@).concat(Seq::singleton('/')).concat(bare@))]
 #[ensures(match result {
     Ok(ScopeSplit::Scoped { scope: read_scope, bare: read_bare }) =>
@@ -57,7 +57,7 @@ pub fn written_key_reads_back<'key>(
 })]
 pub fn written_name_reads_back<'name>(
     name: &'name str,
-    scope: &str,
+    scope: Scope<'_>,
     bare: &str,
 ) -> Result<ScopeSplit<'name>, SplitScopeError> {
     proof_assert!(name@.subsequence(1, name@.len())[scope@.len()] == '/');

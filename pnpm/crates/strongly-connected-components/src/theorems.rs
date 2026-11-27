@@ -13,6 +13,17 @@ use creusot_std::prelude::{
     requires,
 };
 
+/// Every node of a [`StronglyConnectedComponents`] is labelled removed or
+/// with a component below the count. The type invariant carries this, so a
+/// caller that holds the value needs no precondition to rely on it.
+#[requires(node@ < components.ids().len())]
+#[ensures(components.ids()[node@]@ == none() || components.ids()[node@]@ < components.count())]
+pub fn every_label_is_removed_or_a_component(
+    components: &StronglyConnectedComponents,
+    node: usize,
+) {
+}
+
 /// With nothing removed, every node has a component below the count. The
 /// audit graph indexes per-component tables by `component_ids` on that
 /// promise.
