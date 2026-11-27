@@ -136,32 +136,46 @@ fn project_or_disk_manifest<'a>(
         // A project passed in memory may have no manifest file. One whose
         // manifest file links outside its boundary is not trusted, as the
         // disk read below does not trust it.
-        let escapes = manifest_file(target_dir)
-            .is_some_and(|manifest_path| {
-                !dirs.canonical_paths
-                    .canonicalize(&manifest_path)
-                    .is_ok_and(|canonical| pnpm_fs::is_subdir(&canonical_root, &canonical))
-            });
+        let escapes = match manifest_file(dirs.canonical_paths, target_dir) {
+            Ok(Some(file)) => !pnpm_fs::is_subdir(&canonical_root, &file.canonical),
+            Ok(None) => false,
+            Err(_) => true,
+        };
         return (!escapes).then_some(Cow::Borrowed(manifest.value()));
     }
     let canonical_root =
         target_dir_within_workspace(dirs.canonical_paths, dirs.workspace_root, target_dir).ok()?;
-    let manifest_path = manifest_file(target_dir)?;
-    let canonical_manifest = dirs.canonical_paths.canonicalize(&manifest_path).ok()?;
-    if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
+    let file = manifest_file(dirs.canonical_paths, target_dir).ok()??;
+    if !pnpm_fs::is_subdir(&canonical_root, &file.canonical) {
         return None;
     }
-    let content = std::fs::read_to_string(&canonical_manifest).ok()?;
-    pnpm_package_manifest::parse_project_manifest(&manifest_path, &content).ok().map(Cow::Owned)
+    let content = std::fs::read_to_string(&file.canonical).ok()?;
+    pnpm_package_manifest::parse_project_manifest(&file.path, &content).ok().map(Cow::Owned)
 }
 
-/// The first of [`PROJECT_MANIFEST_BASENAMES`] that `dir` holds. A link
-/// counts whatever it points at, so the caller decides whether to follow it.
-fn manifest_file(dir: &Path) -> Option<PathBuf> {
-    PROJECT_MANIFEST_BASENAMES
-        .iter()
-        .map(|basename| dir.join(basename))
-        .find(|path| std::fs::symlink_metadata(path).is_ok())
+struct ManifestFile {
+    /// Where the directory holds it, which names its format.
+    path: PathBuf,
+    canonical: PathBuf,
+}
+
+/// The first of [`PROJECT_MANIFEST_BASENAMES`] that `dir` holds, as
+/// [`pnpm_package_manifest::safe_read_project_manifest_from_dir`] picks it: a
+/// link that leads nowhere is passed over. An error when one cannot be
+/// resolved.
+fn manifest_file(
+    canonical_paths: &pnpm_fs::CanonicalPaths,
+    dir: &Path,
+) -> std::io::Result<Option<ManifestFile>> {
+    for basename in PROJECT_MANIFEST_BASENAMES {
+        let path = dir.join(basename);
+        match canonical_paths.canonicalize(&path) {
+            Ok(canonical) => return Ok(Some(ManifestFile { path, canonical })),
+            Err(error) if pnpm_fs::is_not_found(&error) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(None)
 }
 
 fn loaded_project_boundary(

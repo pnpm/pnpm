@@ -279,6 +279,31 @@ fn a_workspace_range_reads_a_yaml_or_json5_target_from_disk() {
 }
 
 #[test]
+fn a_manifest_link_that_leads_nowhere_is_passed_over() {
+    for dangling in ["package.json", "package.json5"] {
+        let fixture = tempfile::tempdir().unwrap();
+        let workspace_root = fixture.path().to_path_buf();
+        let project_dir = workspace_root.join("packages/app");
+        let target_dir = workspace_root.join("packages/pkg");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::create_dir_all(&target_dir).unwrap();
+        link_file(&workspace_root.join("missing"), &target_dir.join(dangling));
+        std::fs::write(target_dir.join("package.yaml"), "name: pkg\nversion: 1.2.3\n").unwrap();
+
+        assert!(
+            super::importer_link_satisfies(
+                &dirs(&workspace_root, &workspace_root),
+                &project_dir,
+                "pkg",
+                "workspace:^1.0.0",
+                "../pkg",
+            ),
+            "{dangling}",
+        );
+    }
+}
+
+#[test]
 fn a_yaml_or_json5_target_linking_outside_the_workspace_is_not_read() {
     for (basename, text) in yaml_and_json5_manifests("1.2.3") {
         let fixture = tempfile::tempdir().unwrap();
