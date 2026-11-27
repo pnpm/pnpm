@@ -12,7 +12,6 @@ use super::{
     copy_sources,
     driver_command_at,
     lockfile_entries,
-    pnpm_at,
     run_across_drivers,
     took_install_fast_path,
     workspace_bins,
@@ -58,7 +57,7 @@ struct LoneProject {
 impl LoneProject {
     fn new(layout: Layout) -> Self {
         let driver = CURRENT_DRIVER.with(|driver| driver.borrow().clone());
-        let fixture = WorkspaceFixture::new();
+        let fixture = WorkspaceFixture::with_lockfile_verification();
         fixture.append_workspace_yaml(&layout.workspace_yaml());
         let project = Self { driver, fixture, oracle_runs: 0 };
         project.write_manifest(json!({}));
@@ -118,8 +117,7 @@ impl LoneProject {
             .root()
             .with_file_name(format!("oracle-{}", self.oracle_runs));
         copy_sources(self.root(), &copy);
-        let output = pnpm_at(&self.fixture, None, &copy, ["install", "--no-frozen-lockfile"]);
-        super::assert_success(&output);
+        super::install_and_verify(&self.fixture, &copy, false);
         copy
     }
 

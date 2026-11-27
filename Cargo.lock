@@ -6076,6 +6076,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-catalogs-types",
  "pnpm-lockfile",
+ "pnpm-lockfile-verification",
  "pnpm-network",
  "pnpm-package-manifest",
  "pnpm-registry",

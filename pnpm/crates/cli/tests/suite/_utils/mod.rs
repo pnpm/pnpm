@@ -381,6 +381,21 @@ impl WorkspaceFixture {
         fixture
     }
 
+    #[must_use]
+    pub fn with_lockfile_verification() -> Self {
+        let fixture = Self::new();
+        fixture.append_workspace_yaml("blockExoticSubdeps: true\ntrustLockfile: false\n");
+        fixture
+    }
+
+    /// A newly written lockfile can already have a successful verification record.
+    pub fn clear_lockfile_verification(&self) {
+        let record = self.registry.cache_dir.join(pnpm_lockfile_verification::CACHE_FILE_NAME);
+        if record.exists() {
+            fs::remove_file(record).expect("remove lockfile verification record");
+        }
+    }
+
     pub fn append_workspace_yaml(&self, text: &str) {
         let path = self.workspace.join("pnpm-workspace.yaml");
         let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");

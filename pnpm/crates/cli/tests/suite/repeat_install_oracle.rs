@@ -163,7 +163,7 @@ impl Scenario {
     /// a project it did not name, and whose `b` has a dev dependency.
     fn new(layout: Layout) -> Self {
         let driver = CURRENT_DRIVER.with(|driver| driver.borrow().clone());
-        let fixture = WorkspaceFixture::new();
+        let fixture = WorkspaceFixture::with_lockfile_verification();
         fixture.append_workspace_yaml(&layout.workspace_yaml());
         fixture.write_root_manifest("root", ManifestDeps::default());
         let scenario = Self {
@@ -461,12 +461,7 @@ impl Scenario {
             .workspace()
             .with_file_name(format!("oracle-{}", self.oracle_runs));
         copy_sources(self.workspace(), &copy);
-        let mut args = vec!["install", "--no-frozen-lockfile"];
-        if self.recorded_production_only() {
-            args.push("--prod");
-        }
-        let output = self.command_at_with(None, &copy, args);
-        assert_success(&output);
+        install_and_verify(&self.fixture, &copy, self.recorded_production_only());
         copy
     }
 
@@ -834,6 +829,59 @@ fn set_mtime(path: &Path, mtime: SystemTime) {
         .open(path)
         .and_then(|file| file.set_modified(mtime))
         .expect("set the mtime");
+}
+
+fn install_and_verify(fixture: &WorkspaceFixture, workspace: &Path, production_only: bool) {
+    for frozen in [false, true] {
+        let mut args = vec!["install"];
+        if frozen {
+            fixture.clear_lockfile_verification();
+            args.extend(["--frozen-lockfile", "--config.optimistic-repeat-install=false"]);
+        } else {
+            args.push("--no-frozen-lockfile");
+        }
+        if production_only {
+            args.push("--prod");
+        }
+        assert_success(&fixture.command_at(workspace, args));
+    }
+}
+
+fn fetch_then_offline_frozen_install(layout: Layout) {
+    let scenario = Scenario::new(layout);
+    let seed = scenario.workspace();
+    assert_success(&scenario.fixture.command_at(
+        seed,
+        [
+            "install",
+            "--no-frozen-lockfile",
+            "--store-dir",
+            "../seed-store",
+            "--config.cache-dir=../seed-cache",
+        ],
+    ));
+    let workspace = &seed.with_file_name("offline");
+    if layout.shared_lockfile {
+        fs::create_dir(workspace).unwrap();
+        for name in [".npmrc", "pnpm-workspace.yaml", "pnpm-lock.yaml"] {
+            fs::copy(seed.join(name), workspace.join(name)).unwrap();
+        }
+        assert_success(&scenario.fixture.command_at(workspace, ["fetch"]));
+        fs::copy(seed.join("package.json"), workspace.join("package.json")).unwrap();
+        copy_sources(&seed.join("packages"), &workspace.join("packages"));
+    } else {
+        copy_sources(seed, workspace);
+        assert_success(&scenario.fixture.command_at(workspace, ["-r", "fetch"]));
+    }
+    assert_success(&scenario.fixture.command_at(
+        workspace,
+        ["install", "--offline", "--frozen-lockfile"],
+    ));
+    assert_eq!(workspace_lockfiles(workspace), workspace_lockfiles(seed));
+    assert_eq!(
+        scenario.selection_view(workspace, &PROJECTS),
+        scenario.selection_view(seed, &PROJECTS),
+    );
 }
 
 fn a_full_install_converges(layout: Layout) {
@@ -1357,6 +1405,11 @@ macro_rules! matrix {
                 use super::Layout;
 
                 const LAYOUT: Layout = $layout;
+
+                #[test]
+                fn fetch_then_offline_frozen_install() {
+                    super::fetch_then_offline_frozen_install(LAYOUT);
+                }
 
                 matrix!(@tests
                     a_full_install_converges,
