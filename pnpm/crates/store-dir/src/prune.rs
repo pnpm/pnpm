@@ -56,6 +56,9 @@ pub struct InUse {
     /// Modules directories whose links keep global virtual store slots, in
     /// addition to every `node_modules` under a registered project.
     pub modules_dirs: Vec<PathBuf>,
+    /// Package directories whose global virtual store slots are kept, for an
+    /// install that reaches them without links, such as a PnP loader.
+    pub package_dirs: Vec<PathBuf>,
 }
 
 /// Error type of [`StoreDir::prune`].
@@ -162,6 +165,7 @@ impl StoreDir {
             .map_err(PruneError::LoaderReferences)?;
         let in_use = in_use()?;
         references.files.extend(in_use.files);
+        references.package_roots.extend(in_use.package_dirs);
         self.prune_global_virtual_store(&references.package_roots, &in_use.modules_dirs)?;
         remove_slot_dir(&self.dir_clone_cache())?;
         self.remove_cached_metadata(cache_dir, protected_dirs)?;

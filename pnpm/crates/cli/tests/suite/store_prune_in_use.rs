@@ -337,6 +337,61 @@ fn store_prune_keeps_global_virtual_store_packages_with_a_cli_only_modules_dir()
 }
 
 #[test]
+fn store_prune_keeps_global_virtual_store_packages_with_a_cli_only_modules_dir_it_cannot_walk_to() {
+    for modules_dir in ["../external_modules", ".deps"] {
+        let CommandTempCwd {
+            root: _root, workspace, npmrc_info, ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance: _mock_instance, .. } = npmrc_info;
+        write_manifest(&workspace);
+        enable_gvs_in_workspace_yaml(&workspace, "");
+        pacquet_at(&workspace)
+            .with_args(["install", &format!("--modules-dir={modules_dir}"), "--reporter=silent"])
+            .assert()
+            .success();
+        let manifest = workspace.join(modules_dir).join("is-positive/package.json");
+        let installed = fs::read(&manifest).expect("read the installed package");
+        let target = dunce::canonicalize(&manifest).expect("resolve the installed package");
+
+        prune(&workspace);
+
+        assert_eq!(
+            fs::read(&manifest).expect("the dependency link must remain valid"),
+            installed,
+            "{modules_dir}",
+        );
+        assert!(target.is_file(), "{modules_dir}: the global virtual store package must survive");
+    }
+}
+
+#[test]
+fn store_prune_keeps_global_virtual_store_packages_of_a_pnp_project_without_symlinks() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    enable_gvs_in_workspace_yaml(&workspace, "nodeLinker: pnp\nsymlink: false\n");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    let links = StoreDir::from(store_dir).links();
+    let slots = || {
+        fs::read_dir(links.join("@/is-positive/1.0.0")).map(|entries| entries.count()).unwrap_or(0)
+    };
+    assert_eq!(slots(), 1, "the install must use the global virtual store");
+
+    prune(&workspace);
+
+    assert_eq!(slots(), 1, "the PnP project's global virtual store package must survive");
+}
+
+#[test]
 fn store_prune_keeps_global_virtual_store_slots_from_package_configs_modules_dir() {
     assert_prune_keeps_global_virtual_store_slots(|workspace| {
         move_dependencies_to_a_project_with_its_own_lockfile(

@@ -74,6 +74,56 @@ fn render_pnp_loader(registry: &str, modules_dir: &str) -> String {
     loader
 }
 
+/// Error type of [`read_pnp_package_dirs`].
+#[derive(Debug, Display, Error)]
+pub enum ReadPnpFileError {
+    #[display("failed to read {path:?}: {error}")]
+    Read {
+        path: PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
+}
+
+/// The package directories the `.pnp.cjs` in `lockfile_dir` resolves to, as
+/// its loader resolves them. Empty when there is no `.pnp.cjs` or pnpm did
+/// not write it, as with Yarn's.
+pub fn read_pnp_package_dirs(lockfile_dir: &Path) -> Result<Vec<PathBuf>, ReadPnpFileError> {
+    let path = lockfile_dir.join(PNP_FILENAME);
+    let contents = match std::fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(ReadPnpFileError::Read { path, error }),
+    };
+    Ok(package_dirs_of_loader(&contents, lockfile_dir).unwrap_or_default())
+}
+
+/// Parses the values [`render_pnp_loader`] wrote. Each is single-line JSON,
+/// which cannot hold a raw newline, so it ends where its line does.
+fn package_dirs_of_loader(contents: &str, lockfile_dir: &Path) -> Option<Vec<PathBuf>> {
+    let line_value = |prefix: &str, suffix: &str| {
+        contents
+            .lines()
+            .find_map(|line| line.strip_prefix(prefix)?.strip_suffix(suffix))
+    };
+    let registry: serde_json::Value =
+        serde_json::from_str(line_value("const registry = ", ".packages")?).ok()?;
+    let modules_dir: String =
+        serde_json::from_str(line_value("const modulesDir = path.resolve(__dirname, ", ")")?).ok()?;
+    let modules_dir_url = url::Url::from_directory_path(lockfile_dir.join(modules_dir)).ok()?;
+    registry
+        .get("packages")?
+        .as_object()?
+        .values()
+        .map(|package| {
+            let url = modules_dir_url
+                .join(package.get("url")?.as_str()?)
+                .ok()?;
+            url.to_file_path().ok()
+        })
+        .collect()
+}
+
 #[must_use]
 pub fn pnp_path_for_execution(config: &pnpm_config::Config, dir: &Path) -> Option<PathBuf> {
     find_execution_file(config, dir, Path::new(PNP_FILENAME))
