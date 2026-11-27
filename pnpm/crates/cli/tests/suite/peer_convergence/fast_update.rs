@@ -89,11 +89,15 @@ fn conversion_resolves_peers_when_no_provider_set_matches_the_v9_hash() {
         .unwrap();
     let suffix = key.suffix.peer();
     assert_eq!(suffix.len(), 34);
-    std::fs::write(&path, original.replace(suffix, "(00000000000000000000000000000000)")).unwrap();
+    let unmatched = original.replace(suffix, "(00000000000000000000000000000000)");
+    assert!(unmatched != original, "the v9 lockfile must contain the peer suffix");
+    std::fs::write(&path, unmatched).unwrap();
     fixture.append_workspace_yaml("lockfile:\n  format: v13\n");
     install();
     let converted = std::fs::read_to_string(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
     install();
-    assert_eq!(converted, std::fs::read_to_string(&path).unwrap());
+    let fresh = std::fs::read_to_string(&path).unwrap();
+    eprintln!("Converted v9:\n{converted}\nFresh v13:\n{fresh}");
+    assert_eq!(converted, fresh);
 }

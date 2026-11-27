@@ -4,6 +4,7 @@ use crate::_utils::{
     read_v11_bundle_path,
     write_project_manifest,
 };
+use pnpm_lockfile::LockfileFormat;
 use serde_json::Value;
 use std::{
     cell::RefCell,
@@ -88,7 +89,7 @@ pub(super) struct Row {
     pub(super) dedupe_peer_dependents: bool,
     pub(super) inject_workspace_packages: bool,
     pub(super) auto_dedupe: bool,
-    v13: bool,
+    format: LockfileFormat,
     hash_peers: bool,
 }
 
@@ -102,17 +103,17 @@ impl Row {
                 dedupe_peer_dependents: bits & 2 != 0,
                 inject_workspace_packages: bits & 4 != 0,
                 auto_dedupe: bits & 8 != 0,
-                v13: bits & 16 != 0,
+                format: if bits & 16 != 0 { LockfileFormat::V13 } else { LockfileFormat::V9 },
                 hash_peers: bits & 32 != 0,
             })
             .filter(move |row| with_workspace_deps || !row.inject_workspace_packages)
     }
 
     fn yaml(self) -> String {
-        let format = if self.v13 { "v13" } else { "v9" };
+        let major = self.format.version().major;
         let suffix = if self.hash_peers { "peersSuffixMaxLength: 1\n" } else { "" };
         format!(
-            "{suffix}lockfile:\n  format: {format}\nautoInstallPeers: {}\ndedupePeerDependents: {}\ninjectWorkspacePackages: {}\nautoDedupe: {}\n",
+            "{suffix}lockfile:\n  format: v{major}\nautoInstallPeers: {}\ndedupePeerDependents: {}\ninjectWorkspacePackages: {}\nautoDedupe: {}\n",
             self.auto_install_peers,
             self.dedupe_peer_dependents,
             self.inject_workspace_packages,
@@ -125,12 +126,12 @@ impl fmt::Display for Row {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "autoInstallPeers={} dedupePeerDependents={} injectWorkspacePackages={} autoDedupe={} v13={} hashPeers={}",
+            "autoInstallPeers={} dedupePeerDependents={} injectWorkspacePackages={} autoDedupe={} lockfile.format=v{} hashPeers={}",
             self.auto_install_peers,
             self.dedupe_peer_dependents,
             self.inject_workspace_packages,
             self.auto_dedupe,
-            self.v13,
+            self.format.version().major,
             self.hash_peers,
         )
     }
@@ -145,7 +146,7 @@ enum Cli {
 
 impl Cli {
     fn runs(&self, row: Row) -> bool {
-        matches!(self, Self::V12) || (!row.auto_dedupe && !row.v13)
+        matches!(self, Self::V12) || (!row.auto_dedupe && row.format == LockfileFormat::V9)
     }
 }
 
@@ -235,10 +236,10 @@ impl Harness {
             }
         }
         for row in Row::all(with_workspace_deps)
-            .filter(|row| row.v13)
+            .filter(|row| row.format == LockfileFormat::V13)
             .filter(|row| self.cli.runs(*row))
         {
-            let v9 = Row { v13: false, ..row };
+            let v9 = Row { format: LockfileFormat::V9, ..row };
             if let (Some(source), Some(expected)) =
                 (fresh.get(&v9.to_string()), fresh.get(&row.to_string()))
             {
