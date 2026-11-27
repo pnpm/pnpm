@@ -81,94 +81,46 @@ pub(crate) fn attached_short_option_prefix(
     None
 }
 
-/// Where [`scan_for_positional`] stopped: at a positional token, or at
-/// the `--` terminator.
-pub(crate) enum PositionalScan {
-    Positional(usize),
-    Separator(usize),
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PositionalTarget {
+    Subcommand,
+    Package,
 }
 
-/// The index of the next positional token at or after `index`, stepping
-/// over option tokens (and the values they consume, per the arity tables).
-/// `None` when argv ends or a `--` terminator is reached first.
+/// A package must follow recognized options. An unknown option leaves its
+/// arity ambiguous, so the following token cannot select the add grammar.
+pub(crate) fn scan_for_positional(
+    argv: &[OsString],
+    mut index: usize,
+    top_level: &ArgTable,
+    subcommand_table: &ArgTable,
+    target: PositionalTarget,
+) -> Option<usize> {
+    loop {
+        let raw = argv.get(index)?;
+        if raw == "--" {
+            return (target == PositionalTarget::Package && index + 1 < argv.len()).then_some(
+                index + 1,
+            );
+        }
+        let Some(option) = scan_option(raw, top_level, subcommand_table) else {
+            return raw.to_str().map(|_| index);
+        };
+        if target == PositionalTarget::Package && option.owner == OptionOwner::Unknown {
+            return None;
+        }
+        index += option.width;
+    }
+}
+
+/// Find the next positional before the separator while looking for a command.
 pub(crate) fn find_positional(
     argv: &[OsString],
     index: usize,
     top_level: &ArgTable,
     subcommand_union: &ArgTable,
 ) -> Option<usize> {
-    match scan_for_positional(argv, index, top_level, subcommand_union)? {
-        PositionalScan::Positional(index) => Some(index),
-        PositionalScan::Separator(_) => None,
-    }
-}
-
-/// [`find_positional`]'s scan with the stop reason kept: a caller that
-/// mirrors nopt (which strips the `--` terminator and treats what
-/// follows as positionals) needs to tell the terminator apart from
-/// running out of argv (`None`).
-pub(crate) fn scan_for_positional(
-    argv: &[OsString],
-    mut index: usize,
-    top_level: &ArgTable,
-    subcommand_union: &ArgTable,
-) -> Option<PositionalScan> {
-    loop {
-        let raw = argv.get(index)?;
-        let Some(token) = raw.to_str() else {
-            if is_non_utf8_option(raw, top_level, subcommand_union) {
-                index += 1;
-                continue;
-            }
-            return None;
-        };
-        if token == "--" {
-            return Some(PositionalScan::Separator(index));
-        }
-        let Some(width) = option_token_width(token, top_level, subcommand_union) else {
-            return Some(PositionalScan::Positional(index));
-        };
-        index += width;
-    }
-}
-
-fn is_non_utf8_option(raw: &OsStr, top_level: &ArgTable, subcommand_union: &ArgTable) -> bool {
-    let consumes = |short| {
-        top_level
-            .short_consumes_value(short)
-            .or_else(|| subcommand_union.short_consumes_value(short))
-    };
-    inline_long_option_name(raw).is_some() || attached_short_option_prefix(raw, consumes).is_some()
-}
-
-/// The number of argv tokens the option `token` occupies, or `None` when
-/// `token` is not an option at all. A name neither grammar declares
-/// consumes nothing.
-fn option_token_width(
-    token: &str,
-    top_level: &ArgTable,
-    subcommand_union: &ArgTable,
-) -> Option<usize> {
-    if let Some(rest) = token.strip_prefix("--") {
-        let (name, has_inline_value) = rest
-            .split_once('=')
-            .map(|(name, _)| (name, true))
-            .unwrap_or((rest, false));
-        let consumes_value = top_level
-            .long_consumes_value(name)
-            .or_else(|| subcommand_union.long_consumes_value(name))
-            .unwrap_or(false);
-        return Some(token_width(consumes_value, has_inline_value));
-    }
-    let rest = token
-        .strip_prefix('-')
-        .filter(|rest| !rest.is_empty())?;
-    let consumes_value = short_cluster_consumes_value(rest, |short| {
-        top_level
-            .short_consumes_value(short)
-            .or_else(|| subcommand_union.short_consumes_value(short))
-    });
-    Some(token_width(consumes_value, false))
+    scan_for_positional(argv, index, top_level, subcommand_union, PositionalTarget::Subcommand)
 }
 
 /// Move pre-subcommand option tokens that belong to a subcommand's
@@ -230,11 +182,10 @@ fn moved_option_indexes(
     let mut moved_indexes = HashSet::new();
     let mut index = 1;
     while index < subcommand_index {
-        let Some(scanned) = scan_pre_subcommand_token(argv, index, top_level, subcommand_table)
-        else {
+        let Some(scanned) = scan_option(&argv[index], top_level, subcommand_table) else {
             break;
         };
-        if scanned.moves {
+        if scanned.owner == OptionOwner::Subcommand {
             for offset in 0..scanned.width.min(subcommand_index - index) {
                 moved_indexes.insert(index + offset);
             }
@@ -248,18 +199,22 @@ fn moved_option_indexes(
 /// subcommand's grammar rather than the top-level one.
 struct ScannedToken {
     width: usize,
-    moves: bool,
+    owner: OptionOwner,
 }
 
-/// The token at `index`, or `None` at the `--` terminator, at a token that
-/// is not an option, or at one that is not valid UTF-8.
-fn scan_pre_subcommand_token(
-    argv: &[OsString],
-    index: usize,
+#[derive(PartialEq, Eq)]
+enum OptionOwner {
+    TopLevel,
+    Subcommand,
+    Unknown,
+}
+
+/// Classify an option, including one with an attached non-UTF-8 value.
+fn scan_option(
+    raw: &OsStr,
     top_level: &ArgTable,
     subcommand_table: &ArgTable,
 ) -> Option<ScannedToken> {
-    let raw = argv.get(index)?;
     let Some(token) = raw.to_str() else {
         return scan_non_utf8_option(raw, top_level, subcommand_table);
     };
@@ -307,12 +262,18 @@ fn scan_long_option_parts(
     subcommand_table: &ArgTable,
 ) -> ScannedToken {
     if let Some(consumes_value) = top_level.long_consumes_value(name) {
-        return ScannedToken { width: token_width(consumes_value, has_inline_value), moves: false };
+        return ScannedToken {
+            width: token_width(consumes_value, has_inline_value),
+            owner: OptionOwner::TopLevel,
+        };
     }
     let Some(consumes_value) = subcommand_table.long_consumes_value(name) else {
-        return ScannedToken { width: token_width(false, has_inline_value), moves: false };
+        return ScannedToken { width: 1, owner: OptionOwner::Unknown };
     };
-    ScannedToken { width: token_width(consumes_value, has_inline_value), moves: true }
+    ScannedToken {
+        width: token_width(consumes_value, has_inline_value),
+        owner: OptionOwner::Subcommand,
+    }
 }
 
 /// A cluster is judged by every short it stacks, not by its first one:
@@ -325,24 +286,22 @@ fn scan_short_cluster(
     top_level: &ArgTable,
     subcommand_table: &ArgTable,
 ) -> ScannedToken {
-    let mut has_subcommand_short = false;
-    let mut has_unknown_short = false;
+    let mut owner = OptionOwner::TopLevel;
     let consumes_value = short_cluster_consumes_value(rest, |short| {
         if let Some(consumes_value) = top_level.short_consumes_value(short) {
             return Some(consumes_value);
         }
         if let Some(consumes_value) = subcommand_table.short_consumes_value(short) {
-            has_subcommand_short = true;
+            if owner != OptionOwner::Unknown {
+                owner = OptionOwner::Subcommand;
+            }
             Some(consumes_value)
         } else {
-            has_unknown_short = true;
+            owner = OptionOwner::Unknown;
             None
         }
     });
-    ScannedToken {
-        width: token_width(consumes_value, false),
-        moves: has_subcommand_short && !has_unknown_short,
-    }
+    ScannedToken { width: token_width(consumes_value, false), owner }
 }
 
 /// Rebuild argv with the marked tokens lifted to directly after the
@@ -419,17 +378,19 @@ impl ArgTable {
     /// owns an option, so it serves only the scan that has yet to find the
     /// subcommand and needs a token's width to step over it.
     pub(crate) fn subcommand_union(cmd: &Command) -> Self {
+        Self::from_subcommands(cmd.get_subcommands())
+    }
+
+    pub(crate) fn from_subcommands<'a>(commands: impl IntoIterator<Item = &'a Command>) -> Self {
         let mut table = Self::default();
-        table.absorb(cmd.get_subcommands().flat_map(Command::get_arguments));
+        table.absorb(commands.into_iter().flat_map(Command::get_arguments));
         table
     }
 
     /// One subcommand's own args, which decide whether a token written
     /// before it belongs to the command being invoked.
     pub(crate) fn subcommand(cmd: &Command) -> Self {
-        let mut table = Self::default();
-        table.absorb(cmd.get_arguments());
-        table
+        Self::from_subcommands([cmd])
     }
 
     /// The options a command line invoking `subcommand` of `root` accepts:

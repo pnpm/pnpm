@@ -20,7 +20,7 @@
 
 use crate::flag_relocation::{
     ArgTable,
-    PositionalScan,
+    PositionalTarget,
     find_positional,
     relocate_pre_subcommand_flags,
     scan_for_positional,
@@ -37,21 +37,23 @@ pub(crate) fn rewrite(cmd: &Command, mut argv: Vec<OsString>) -> Vec<OsString> {
     let Some(subcommand_index) = find_positional(&argv, 1, &top_level, &subcommand_union) else {
         return argv;
     };
-    let names_install = cmd
+    let Some(install) = cmd
         .find_subcommand(&argv[subcommand_index])
-        .is_some_and(|subcommand| subcommand.get_name() == "install");
-    if !names_install {
+        .filter(|subcommand| subcommand.get_name() == "install")
+    else {
         return argv;
-    }
-    let names_package =
-        match scan_for_positional(&argv, subcommand_index + 1, &top_level, &subcommand_union) {
-            Some(PositionalScan::Positional(_)) => true,
-            // nopt strips the `--` terminator and treats what follows as
-            // positionals, so `pnpm install -- <pkg>` names a package too.
-            Some(PositionalScan::Separator(separator_index)) => separator_index + 1 < argv.len(),
-            None => false,
-        };
-    if !names_package {
+    };
+    let add = cmd.find_subcommand("add").expect("`add` is a subcommand");
+    let package_options = ArgTable::from_subcommands([install, add]);
+    if scan_for_positional(
+        &argv,
+        subcommand_index + 1,
+        &top_level,
+        &package_options,
+        PositionalTarget::Package,
+    )
+    .is_none()
+    {
         return argv;
     }
     argv[subcommand_index] = OsString::from("add");
