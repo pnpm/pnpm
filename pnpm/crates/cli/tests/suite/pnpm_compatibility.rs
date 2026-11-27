@@ -603,10 +603,11 @@ fn read_normalized_workspace_state(workspace: &Path) -> Option<NormalizedWorkspa
 
 fn differential_snapshot(workspace: &Path, shared_lockfile: bool) -> DifferentialSnapshot {
     let mut resolver = TreeView::new(workspace);
-    let mut tree = BTreeMap::from([(".".to_string(), resolver.project(workspace, true))]);
+    let mut tree =
+        BTreeMap::from([(".".to_string(), resolver.project(workspace, DependencyGroups::All))]);
     for project in DIFFERENTIAL_PROJECTS {
         let dir = workspace.join("packages").join(project);
-        tree.insert(project.to_string(), resolver.project(&dir, true));
+        tree.insert(project.to_string(), resolver.project(&dir, DependencyGroups::All));
     }
     DifferentialSnapshot {
         tree,

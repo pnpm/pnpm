@@ -197,7 +197,7 @@ impl Harness {
         moves: Vec<Move>,
         divergences: Vec<Divergence>,
     ) -> Self {
-        let fixture = WorkspaceFixture::new();
+        let fixture = WorkspaceFixture::with_lockfile_verification();
         write_project_manifest(&fixture.workspace, "root", ManifestDeps::default());
         let base_yaml = fs::read_to_string(fixture.workspace.join("pnpm-workspace.yaml"))
             .expect("read pnpm-workspace.yaml");
@@ -270,6 +270,7 @@ impl Harness {
 
     fn check_frozen(&self, row: Row, fresh: &str) {
         self.remove_node_modules();
+        self.fixture.clear_lockfile_verification();
         let output = self.run(self.workspace(), &["install", "--frozen-lockfile"]);
         if !output.status.success() {
             self.violation(row, "a frozen install rejected the fresh lockfile", Some(&output));
@@ -299,6 +300,7 @@ impl Harness {
             fs::copy(self.workspace().join(".npmrc"), deploy_dir.join(".npmrc"))
                 .expect("copy .npmrc into the deploy directory");
             remove_dir(&deploy_dir.join("node_modules"));
+            self.fixture.clear_lockfile_verification();
             let output = self.run(&deploy_dir, &["install", "--frozen-lockfile"]);
             if !output.status.success() {
                 let what = format!("a frozen install of the deployed {} failed", project.dir);
@@ -359,6 +361,7 @@ impl Harness {
         let Some(moved) = self.install(row, "a fresh install of the moved manifests") else {
             return;
         };
+        self.check_frozen(row, &moved);
         self.clean();
         self.write_manifests(self.dep_count(), false);
         if self.install(row, "a fresh install before moving").is_none() {

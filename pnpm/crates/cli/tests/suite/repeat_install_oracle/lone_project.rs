@@ -4,6 +4,7 @@
 
 use super::{
     CURRENT_DRIVER,
+    DependencyGroups,
     Driver,
     Layout,
     ProjectLockfileEntry,
@@ -12,7 +13,6 @@ use super::{
     copy_sources,
     driver_command_at,
     lockfile_entries,
-    pnpm_at,
     run_across_drivers,
     took_install_fast_path,
     workspace_bins,
@@ -58,7 +58,7 @@ struct LoneProject {
 impl LoneProject {
     fn new(layout: Layout) -> Self {
         let driver = CURRENT_DRIVER.with(|driver| driver.borrow().clone());
-        let fixture = WorkspaceFixture::new();
+        let fixture = WorkspaceFixture::with_lockfile_verification();
         fixture.append_workspace_yaml(&layout.workspace_yaml());
         let project = Self { driver, fixture, oracle_runs: 0 };
         project.write_manifest(json!({}));
@@ -118,8 +118,7 @@ impl LoneProject {
             .root()
             .with_file_name(format!("oracle-{}", self.oracle_runs));
         copy_sources(self.root(), &copy);
-        let output = pnpm_at(&self.fixture, None, &copy, ["install", "--no-frozen-lockfile"]);
-        super::assert_success(&output);
+        super::install_and_verify(&self.fixture, &copy, DependencyGroups::All, || run_view(&copy));
         copy
     }
 
@@ -172,7 +171,7 @@ impl LoneProject {
 
 fn snapshot(root: &Path) -> Snapshot {
     Snapshot {
-        tree: TreeView::new(root).project(root, true),
+        tree: TreeView::new(root).project(root, DependencyGroups::All),
         bins: workspace_bins(root),
         lockfiles: workspace_lockfiles(root),
         modules: workspace_modules_manifests(root),
@@ -180,7 +179,11 @@ fn snapshot(root: &Path) -> Snapshot {
 }
 
 fn run_view(root: &Path) -> RunView {
-    (TreeView::new(root).project(root, true), workspace_bins(root), lockfile_entries(root, "."))
+    (
+        TreeView::new(root).project(root, DependencyGroups::All),
+        workspace_bins(root),
+        lockfile_entries(root, "."),
+    )
 }
 
 /// Edits that change no dependency, each kept by the next, then one that

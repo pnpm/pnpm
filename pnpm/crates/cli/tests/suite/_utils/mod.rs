@@ -381,6 +381,21 @@ impl WorkspaceFixture {
         fixture
     }
 
+    #[must_use]
+    pub fn with_lockfile_verification() -> Self {
+        let fixture = Self::new();
+        fixture.append_workspace_yaml("blockExoticSubdeps: true\ntrustLockfile: false\n");
+        fixture
+    }
+
+    /// A newly written lockfile can already have a successful verification record.
+    pub fn clear_lockfile_verification(&self) {
+        let record = self.registry.cache_dir.join(pnpm_lockfile_verification::CACHE_FILE_NAME);
+        if record.exists() {
+            fs::remove_file(record).expect("remove lockfile verification record");
+        }
+    }
+
     pub fn append_workspace_yaml(&self, text: &str) {
         let path = self.workspace.join("pnpm-workspace.yaml");
         let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
@@ -1179,6 +1194,12 @@ pub fn workspace_modules_manifests(workspace: &Path) -> BTreeMap<String, Modules
         .collect()
 }
 
+#[derive(Clone, Copy)]
+pub enum DependencyGroups {
+    All,
+    Production,
+}
+
 /// Resolves dependencies through `node_modules` the way Node.js does, from
 /// each package's real path, and spells the result without absolute paths.
 pub struct TreeView {
@@ -1193,12 +1214,11 @@ impl TreeView {
         Self { root, memo: HashMap::new() }
     }
 
-    pub fn project(&mut self, project_dir: &Path, with_dev: bool) -> String {
+    pub fn project(&mut self, project_dir: &Path, groups: DependencyGroups) -> String {
         let manifest = read_manifest_or_null(project_dir);
-        let groups: &[&str] = if with_dev {
-            &["dependencies", "optionalDependencies", "devDependencies"]
-        } else {
-            &["dependencies", "optionalDependencies"]
+        let groups: &[&str] = match groups {
+            DependencyGroups::All => &["dependencies", "optionalDependencies", "devDependencies"],
+            DependencyGroups::Production => &["dependencies", "optionalDependencies"],
         };
         let dependencies = declared_dependencies(&manifest, groups);
         self.dependencies(project_dir, &dependencies)

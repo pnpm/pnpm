@@ -163,7 +163,7 @@ impl Scenario {
     /// a project it did not name, and whose `b` has a dev dependency.
     fn new(layout: Layout) -> Self {
         let driver = CURRENT_DRIVER.with(|driver| driver.borrow().clone());
-        let fixture = WorkspaceFixture::new();
+        let fixture = WorkspaceFixture::with_lockfile_verification();
         fixture.append_workspace_yaml(&layout.workspace_yaml());
         fixture.write_root_manifest("root", ManifestDeps::default());
         let scenario = Self {
@@ -402,21 +402,25 @@ impl Scenario {
     }
 
     /// Where every dependency of `projects` resolves from in the tree under
-    /// `workspace`. Dev dependencies count only when `with_dev` is set.
-    fn tree(workspace: &Path, projects: &[&str], with_dev: bool) -> BTreeMap<String, String> {
+    /// `workspace`.
+    fn tree(
+        workspace: &Path,
+        projects: &[&str],
+        groups: DependencyGroups,
+    ) -> BTreeMap<String, String> {
         let mut resolver = TreeView::new(workspace);
         projects
             .iter()
             .map(|project| {
                 let dir = workspace.join("packages").join(project);
-                ((*project).to_string(), resolver.project(&dir, with_dev))
+                ((*project).to_string(), resolver.project(&dir, groups))
             })
             .collect()
     }
 
     fn snapshot(&self) -> Snapshot {
         Snapshot {
-            tree: Self::tree(self.workspace(), &PROJECTS, true),
+            tree: Self::tree(self.workspace(), &PROJECTS, DependencyGroups::All),
             bins: workspace_bins(self.workspace()),
             dependency_files: dependency_files(self.workspace()),
             lockfiles: workspace_lockfiles(self.workspace()),
@@ -451,7 +455,11 @@ impl Scenario {
                 .iter()
                 .any(|project| *importer == format!("packages/{project}"))
         });
-        (Self::tree(workspace, selection, false), bins, self.importers(workspace, selection))
+        (
+            Self::tree(workspace, selection, DependencyGroups::Production),
+            bins,
+            self.importers(workspace, selection),
+        )
     }
 
     /// Clean-installed copy of the sources.
@@ -461,12 +469,14 @@ impl Scenario {
             .workspace()
             .with_file_name(format!("oracle-{}", self.oracle_runs));
         copy_sources(self.workspace(), &copy);
-        let mut args = vec!["install", "--no-frozen-lockfile"];
-        if self.recorded_production_only() {
-            args.push("--prod");
-        }
-        let output = self.command_at_with(None, &copy, args);
-        assert_success(&output);
+        let groups = if self.recorded_production_only() {
+            DependencyGroups::Production
+        } else {
+            DependencyGroups::All
+        };
+        install_and_verify(&self.fixture, &copy, groups, || {
+            Self::tree(&copy, &PROJECTS, DependencyGroups::All)
+        });
         copy
     }
 
@@ -834,6 +844,77 @@ fn set_mtime(path: &Path, mtime: SystemTime) {
         .open(path)
         .and_then(|file| file.set_modified(mtime))
         .expect("set the mtime");
+}
+
+fn install_and_verify<Tree: std::fmt::Debug + PartialEq>(
+    fixture: &WorkspaceFixture,
+    workspace: &Path,
+    groups: DependencyGroups,
+    tree: impl Fn() -> Tree,
+) {
+    let install = |args: &[&str]| {
+        let groups: &[&str] = match groups {
+            DependencyGroups::All => &[],
+            DependencyGroups::Production => &["--prod"],
+        };
+        assert_success(&fixture.command_at(workspace, args.iter().chain(groups)));
+    };
+    install(&["install", "--no-frozen-lockfile"]);
+    let expected_tree = tree();
+    let expected_lockfiles = workspace_lockfiles(workspace);
+    fixture.clear_lockfile_verification();
+    install(&["install", "--frozen-lockfile", "--config.optimistic-repeat-install=false"]);
+    assert_eq!(tree(), expected_tree);
+    assert_eq!(workspace_lockfiles(workspace), expected_lockfiles);
+}
+
+fn fetch_then_offline_frozen_install(layout: Layout) {
+    let scenario = Scenario::new(layout);
+    let seed = scenario.workspace();
+    assert_success(&scenario.fixture.command_at(
+        seed,
+        [
+            "install",
+            "--no-frozen-lockfile",
+            "--store-dir",
+            "../seed-store",
+            "--config.cache-dir=../seed-cache",
+        ],
+    ));
+    let workspace = &seed.with_file_name("offline");
+    if layout.shared_lockfile {
+        fs::create_dir(workspace).unwrap();
+        for name in [".npmrc", "pnpm-workspace.yaml", "pnpm-lock.yaml"] {
+            fs::copy(seed.join(name), workspace.join(name)).unwrap();
+        }
+        assert_success(&scenario.fixture.command_at(workspace, ["fetch"]));
+        fs::copy(seed.join("package.json"), workspace.join("package.json")).unwrap();
+        copy_sources(&seed.join("packages"), &workspace.join("packages"));
+    } else {
+        copy_sources(seed, workspace);
+        assert_success(&scenario.fixture.command_at(workspace, ["-r", "fetch"]));
+    }
+    let offline_install = || {
+        assert_success(&scenario.fixture.command_at(
+            workspace,
+            [
+                "install",
+                "--offline",
+                "--frozen-lockfile",
+                "--config.optimistic-repeat-install=false",
+            ],
+        ));
+        assert_eq!(workspace_lockfiles(workspace), workspace_lockfiles(seed));
+        assert_eq!(
+            Scenario::tree(workspace, &PROJECTS, DependencyGroups::All),
+            Scenario::tree(seed, &PROJECTS, DependencyGroups::All),
+        );
+        assert_eq!(workspace_bins(workspace), workspace_bins(seed));
+    };
+    // Preserve fetch's registry verdict across workspace discovery (pnpm/pnpm#18409).
+    offline_install();
+    scenario.fixture.clear_lockfile_verification();
+    offline_install();
 }
 
 fn a_full_install_converges(layout: Layout) {
@@ -1357,6 +1438,11 @@ macro_rules! matrix {
                 use super::Layout;
 
                 const LAYOUT: Layout = $layout;
+
+                #[test]
+                fn fetch_then_offline_frozen_install() {
+                    super::fetch_then_offline_frozen_install(LAYOUT);
+                }
 
                 matrix!(@tests
                     a_full_install_converges,
