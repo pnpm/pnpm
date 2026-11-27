@@ -6,11 +6,14 @@ use derive_more::{
     Display,
     Error,
 };
+use pnpm_pkg_name_split::{
+    SplitNameSuffixError,
+    split_name_suffix,
+};
 use serde::{
     Deserialize,
     Serialize,
 };
-use split_first_char::SplitFirstChar;
 use std::{
     borrow::Cow,
     str::FromStr,
@@ -60,24 +63,13 @@ pub enum ParsePkgNameSuffixError<ParseSuffixError> {
 impl<Suffix: FromStr> FromStr for PkgNameSuffix<Suffix> {
     type Err = ParsePkgNameSuffixError<Suffix::Err>;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        // The parsing code of PkgName is insufficient for this, so the code have to be duplicated for now.
-        // TODO: use parser combinator pattern to enable code reuse
-        let (name, suffix) = match value.split_first_char() {
-            None => return Err(ParsePkgNameSuffixError::EmptyInput),
-            Some(('@', rest)) => {
-                let (name_without_at, suffix) =
-                    rest.split_once('@').ok_or(ParsePkgNameSuffixError::MissingSuffix)?;
-                let name = &value[..=name_without_at.len()];
-                #[cfg(debug_assertions)]
-                {
-                    let expected = format!("@{name_without_at}");
-                    debug_assert_eq!(name, expected);
-                }
-                (name, suffix)
-            }
-            Some((_, _)) => value.split_once('@').ok_or(ParsePkgNameSuffixError::MissingSuffix)?,
-        };
-        if matches!(name, "" | "@" | "@/") {
+        let (name, suffix) = split_name_suffix(value)
+            .map_err(|error| match error {
+                SplitNameSuffixError::EmptyInput => ParsePkgNameSuffixError::EmptyInput,
+                SplitNameSuffixError::MissingSuffix => ParsePkgNameSuffixError::MissingSuffix,
+            })?;
+        // `split_name_suffix` never returns an empty name; Creusot proves it.
+        if matches!(name, "@" | "@/") {
             return Err(ParsePkgNameSuffixError::EmptyName);
         }
         if suffix.is_empty() {

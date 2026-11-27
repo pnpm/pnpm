@@ -3,11 +3,15 @@ use derive_more::{
     Error,
 };
 use pipe_trait::Pipe;
+use pnpm_pkg_name_split::{
+    ScopeSplit,
+    SplitScopeError,
+    split_scope,
+};
 use serde::{
     Deserialize,
     Serialize,
 };
-use split_first_char::SplitFirstChar;
 use std::{
     borrow::Cow,
     fmt,
@@ -43,19 +47,19 @@ impl PkgName {
     where
         Input: Into<String> + AsRef<str>,
     {
-        match input.as_ref().split_first_char() {
-            Some(('@', rest)) => {
-                let (scope, bare) = rest.split_once('/').ok_or(ParsePkgNameError::MissingName)?;
+        match split_scope(input.as_ref()) {
+            Ok(ScopeSplit::Scoped { scope, bare }) => {
                 let scope = scope.to_string().pipe(Some);
                 let bare = bare.to_string();
                 Ok(PkgName { scope, bare })
             }
-            Some(_) => {
+            Ok(ScopeSplit::Unscoped) => {
                 let scope = None;
                 let bare = input.into();
                 Ok(PkgName { scope, bare })
             }
-            None => Err(ParsePkgNameError::EmptyName),
+            Err(SplitScopeError::MissingBare) => Err(ParsePkgNameError::MissingName),
+            Err(SplitScopeError::Empty) => Err(ParsePkgNameError::EmptyName),
         }
     }
 }

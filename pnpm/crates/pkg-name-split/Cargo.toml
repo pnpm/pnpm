@@ -1,0 +1,24 @@
+[package]
+name = "pnpm-pkg-name-split"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+split-first-char = { workspace = true }
+
+[target.'cfg(creusot)'.dependencies]
+creusot-std = { workspace = true }
+pnpm-creusot-models = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

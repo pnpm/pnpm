@@ -50,6 +50,17 @@ proptest! {
     }
 
     #[test]
+    fn split_once_matches_model(text in "[a@/é]{0,12}", delimiter in prop::sample::select(vec!['@', '/', 'é'])) {
+        match text.split_once(delimiter) {
+            None => prop_assert!(!text.contains(delimiter)),
+            Some((before, after)) => {
+                prop_assert_eq!(format!("{before}{delimiter}{after}"), text.as_str());
+                prop_assert!(!before.contains(delimiter));
+            }
+        }
+    }
+
+    #[test]
     fn slice_contains_matches_model(items in vec(0_u8..8, 0..16), item in 0_u8..8) {
         let found_at_an_index = (0..items.len()).any(|index| items[index] == item);
         prop_assert_eq!(items.contains(&item), found_at_an_index);

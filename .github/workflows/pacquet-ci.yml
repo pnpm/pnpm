@@ -115,6 +115,7 @@ jobs:
             # proves, the models they rely on, and the pinned toolchain.
             creusot:
               - 'pnpm/crates/creusot-models/**'
+              - 'pnpm/crates/pkg-name-split/**'
               - 'pnpm/crates/strongly-connected-components/**'
               - 'pnpm/scripts/creusot.mjs'
               - 'pnpm/scripts/install-creusot.mjs'

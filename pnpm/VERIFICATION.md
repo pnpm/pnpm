@@ -40,6 +40,7 @@ A run writes three things at the repository root, all ignored by git: `verif/` h
 - Import from `creusot_std::prelude` by name. Its glob also brings a `vec!` that conflicts with the standard one.
 - A logic function that reads a private field is `#[logic(open(self))]`. Mark a predicate that is a conjunction `inline` too, so Why3 proves each conjunct as its own goal.
 - `proof_assert!` keeps only its last expression as a fact. When it calls a lemma, end it with the lemma's conclusion.
+- `str` methods take byte offsets and the contracts speak of characters. `to_bytes` relates the two, and `injective_to_bytes` shows that two strings with equal bytes are equal. The `spec` module of `pnpm-pkg-name-split` holds lemmas for slicing a `str` at the byte length of a substring.
 - The solvers rarely find an existential witness. Wrap `exists` in a named predicate with lemmas for each way the program changes it, as `stacked` in `pnpm-strongly-connected-components` does.
 - `cargo creusot --dry-run-why3find` prints the `why3find` command it runs. Run that command with `-X` and the failed `.coma` file to print the goal and its context.
 

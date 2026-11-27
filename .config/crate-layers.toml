@@ -70,6 +70,7 @@ crates = [
   "pnpm-package-manifest",
   "pnpm-package-name",
   "pnpm-patching-config",
+  "pnpm-pkg-name-split",
   "pnpm-release-notes",
   "pnpm-release-record",
   "pnpm-resolving-jsr-specifier-parser",
@@ -93,7 +94,7 @@ crates = [
 [[layer]]
 name = "service"
 description = "One capability each: resolve, fetch, link, patch, run scripts, talk to a registry. Takes its settings as values and never reads the configuration."
-max_transitive_dependencies = 42
+max_transitive_dependencies = 43
 crates = [
   "pnpm-cargo-resolver",
   "pnpm-cmd-shim",
@@ -329,7 +330,7 @@ pnpm-injected-deps-syncer = 7
 pnpm-install-coordinator = 3
 pnpm-integrated-benchmark = 6
 pnpm-local-spec = 2
-pnpm-lockfile = 11
+pnpm-lockfile = 12
 pnpm-lockfile-import = 1
 pnpm-lockfile-preferred-versions = 6
 pnpm-lockfile-verification = 9

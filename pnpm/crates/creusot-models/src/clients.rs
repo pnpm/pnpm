@@ -44,3 +44,14 @@ pub fn piped_successor(value: u32) -> u32 {
 pub fn starts_with_zero(items: &[usize]) -> bool {
     !items.is_empty() && items[..1].contains(&0)
 }
+
+#[ensures(match result {
+    None => !text@.contains('/'),
+    Some(before) => before@.len() < text@.len() && !before@.contains('/'),
+})]
+pub fn before_first_slash(text: &str) -> Option<&str> {
+    match text.split_once('/') {
+        Some((before, _)) => Some(before),
+        None => None,
+    }
+}

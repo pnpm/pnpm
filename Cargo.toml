@@ -68,6 +68,7 @@ pnpm-python-installer = { path = "pnpm/crates/python-installer" }
 pnpm-rust-toolchain = { path = "pnpm/crates/rust-toolchain" }
 pnpm-python-resolver = { path = "pnpm/crates/python-resolver" }
 pnpm-package-name = { path = "pnpm/crates/package-name" }
+pnpm-pkg-name-split = { path = "pnpm/crates/pkg-name-split" }
 pnpm-package-extensions = { path = "pnpm/crates/package-extensions" }
 pnpm-package-manifest = { path = "pnpm/crates/package-manifest" }
 pnpm-package-manager = { path = "pnpm/crates/package-manager", default-features = false }
