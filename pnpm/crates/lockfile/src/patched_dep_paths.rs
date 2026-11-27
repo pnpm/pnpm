@@ -15,7 +15,10 @@ use pnpm_patching_config::{
     group_patched_dependencies,
     parse_key,
 };
-use segments::split_suffix;
+use pnpm_pkg_name_split::groups::{
+    Group,
+    split_trailing_groups,
+};
 use std::collections::{
     BTreeMap,
     BTreeSet,
@@ -318,10 +321,14 @@ impl<'a> Checker<'a> {
     fn judge_own_hash(&self, key: &PackageKey) -> (Verdict, Vec<PackageKey>) {
         let suffix = key.suffix.peer();
         let has_marker = suffix.contains(PATCH_HASH_PREFIX);
-        let Some((locator, segments)) = split_suffix(suffix) else {
+        let Some((locator, groups)) = split_trailing_groups(suffix) else {
             let verdict = if has_marker { Verdict::Indeterminate } else { self.judge(key, None) };
             return (verdict, Vec::new());
         };
+        let segments: Vec<&str> = groups
+            .into_iter()
+            .map(Group::as_str)
+            .collect();
         // The hash is only read from the leading segment.
         if has_marker
             && (locator.contains(PATCH_HASH_PREFIX)
@@ -476,8 +483,6 @@ pub fn applied_patch_keys<'a>(
     }
     Some(applied)
 }
-
-mod segments;
 
 #[cfg(test)]
 mod tests;

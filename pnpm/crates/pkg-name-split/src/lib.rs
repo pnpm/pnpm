@@ -10,7 +10,13 @@
 //! [`KeyName`] and [`Scope`] carry what makes each split unique as their
 //! type invariant, so a verified caller that holds one has the fact without
 //! restating it.
+//!
+//! [`groups`] splits the parenthesized suffix of a dep path. Creusot proves
+//! that its functions do not panic, that each group it reports opens with
+//! the `(` that its `)` closes, that the groups and the text in front of
+//! them are the input's bytes in order, and where the suffix scan stops.
 
+pub mod groups;
 #[cfg(creusot)]
 pub mod spec;
 #[cfg(creusot)]

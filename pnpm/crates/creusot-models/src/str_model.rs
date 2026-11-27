@@ -6,6 +6,7 @@ use core::{
         Index,
         Range,
         RangeFrom,
+        RangeTo,
     },
     slice::SliceIndex,
     str::pattern::Pattern,
@@ -133,6 +134,18 @@ impl StrIndex for RangeFrom<usize> {
         pearlite! {
             part.to_bytes() == text.to_bytes().subsequence(self.start@, text.to_bytes().len())
         }
+    }
+}
+
+impl StrIndex for RangeTo<usize> {
+    #[logic(open)]
+    fn in_bounds(self, text: Seq<char>) -> bool {
+        pearlite! { self.end@ <= text.to_bytes().len() && is_boundary(text, self.end@) }
+    }
+
+    #[logic(open)]
+    fn has_value(self, text: Seq<char>, part: Seq<char>) -> bool {
+        pearlite! { part.to_bytes() == text.to_bytes().subsequence(0, self.end@) }
     }
 }
 

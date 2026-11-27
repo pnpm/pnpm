@@ -1,3 +1,5 @@
+use pnpm_pkg_name_split::groups::dep_path_suffix_start;
+
 /// Index pair returned by [`index_of_dep_path_suffix`]. Both fields are
 /// byte offsets into the original depPath, or `None` when the suffix is
 /// absent.
@@ -12,29 +14,10 @@ pub struct DepPathSuffixIndex {
 /// segments.
 #[must_use]
 pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
-    let bytes = dep_path.as_bytes();
-    let absent = DepPathSuffixIndex { peers_index: None, patch_hash_index: None };
-    if !dep_path.ends_with(')') {
-        return absent;
+    match dep_path_suffix_start(dep_path) {
+        Some(start) => suffix_index_from_start(dep_path, start),
+        None => DepPathSuffixIndex { peers_index: None, patch_hash_index: None },
     }
-
-    let mut open: i32 = 1;
-    // Scan from second-to-last byte down to byte 0. The scan is
-    // byte-level: depPath is ASCII outside of the package-name slot, and
-    // pnpm doesn't permit non-ASCII there either.
-    let mut cursor = bytes.len().checked_sub(2);
-    while let Some(idx) = cursor {
-        match bytes[idx] {
-            b'(' => open -= 1,
-            b')' => open += 1,
-            _ if open == 0 => {
-                return suffix_index_from_start(dep_path, idx + 1);
-            }
-            _ => {}
-        }
-        cursor = idx.checked_sub(1);
-    }
-    absent
 }
 
 fn suffix_index_from_start(dep_path: &str, start: usize) -> DepPathSuffixIndex {

@@ -16,6 +16,7 @@ use pnpm_deps_path::{
     create_peer_dep_graph_hash,
     index_of_dep_path_suffix,
 };
+use pnpm_pkg_name_split::groups::split_trailing_groups;
 
 /// Providers recorded before a snapshot's peer suffix was hashed.
 #[derive(Debug, Clone)]
@@ -256,29 +257,16 @@ impl PeerBindings {
 /// anything but a flat run of balanced parenthesised groups.
 #[must_use]
 pub fn split_peer_suffix_segments(suffix: &str) -> Option<Vec<String>> {
-    let mut segments = Vec::new();
-    let mut rest = suffix;
-    while !rest.is_empty() {
-        let body = rest.strip_prefix('(')?;
-        let close = matching_close_paren(body)?;
-        segments.push(body[..close].to_string());
-        rest = &body[close + 1..];
+    let (front, groups) = split_trailing_groups(suffix)?;
+    if !front.is_empty() {
+        return None;
     }
-    Some(segments)
-}
-
-/// Index of the `)` that closes a group whose `(` precedes `body`.
-fn matching_close_paren(body: &str) -> Option<usize> {
-    let mut depth = 0_u32;
-    for (idx, byte) in body.bytes().enumerate() {
-        match byte {
-            b'(' => depth += 1,
-            b')' if depth == 0 => return Some(idx),
-            b')' => depth -= 1,
-            _ => {}
-        }
-    }
-    None
+    Some(
+        groups
+            .into_iter()
+            .map(|group| group.body().to_string())
+            .collect(),
+    )
 }
 
 /// Whether a segment is the hash [`PeerBindings::suffix_of`] writes for an

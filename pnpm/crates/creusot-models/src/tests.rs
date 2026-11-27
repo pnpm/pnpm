@@ -162,6 +162,15 @@ proptest! {
     }
 
     #[test]
+    fn str_range_to_index_matches_model(text in "[a/é𝄞]{0,6}", end in 0_usize..16) {
+        let in_bounds = end <= text.len() && is_boundary(&text, end);
+        prop_assert_eq!(text.get(..end).is_some(), in_bounds);
+        if in_bounds {
+            prop_assert_eq!(&text[..end], chars_in(&text, 0..end));
+        }
+    }
+
+    #[test]
     fn slice_contains_matches_model(items in vec(0_u8..8, 0..16), item in 0_u8..8) {
         let found_at_an_index = (0..items.len()).any(|index| items[index] == item);
         prop_assert_eq!(items.contains(&item), found_at_an_index);
