@@ -365,6 +365,31 @@ fn store_prune_keeps_global_virtual_store_packages_with_a_cli_only_modules_dir_i
 }
 
 #[test]
+fn store_prune_keeps_global_virtual_store_packages_of_a_workspace_package_with_a_hidden_cli_only_modules_dir()
+ {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance: _mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write the root manifest");
+    append_workspace_yaml(&workspace, "packages: [project]\n");
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create workspace package");
+    write_manifest(&project);
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--modules-dir=.deps", "--reporter=silent"])
+        .assert()
+        .success();
+    let manifest = project.join(".deps/is-positive/package.json");
+    let installed = fs::read(&manifest).expect("read the installed package");
+
+    prune(&workspace);
+
+    assert_eq!(fs::read(&manifest).expect("the dependency link must remain valid"), installed);
+}
+
+#[test]
 fn store_prune_keeps_global_virtual_store_packages_of_a_pnp_project_without_symlinks() {
     let CommandTempCwd {
         root: _root, workspace, npmrc_info, ..

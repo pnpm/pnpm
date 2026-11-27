@@ -213,7 +213,8 @@ pub(super) fn report_already_up_to_date<Reporter: self::Reporter>(
 ///
 /// Store prune removes every global virtual store slot that no registered
 /// project links to, so a global virtual store install fails when it cannot
-/// register, see [`register_global_virtual_store_user`]. Into a frozen store,
+/// register, see [`register_global_virtual_store_user`]. A hoisted install
+/// writes no slots, so it registers like one without the global virtual store. Into a frozen store,
 /// which is externally managed and may be read-only, it only logs the
 /// failure. Other installs register best-effort and log a failure, because
 /// hard links keep their store files. Loaded installs register the directory
@@ -226,7 +227,8 @@ pub(crate) fn register_workspace_in_store(
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
         return register_loaded_install(config, workspace_root);
     }
-    if config.enable_global_virtual_store {
+    if config.enable_global_virtual_store && config.node_linker != pnpm_config::NodeLinker::Hoisted
+    {
         return register_global_virtual_store_install(config, workspace_root);
     }
     if config.frozen_store {

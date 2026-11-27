@@ -3,7 +3,10 @@
     reason = "test setup starts processes the executor does not run"
 )]
 use super::{
+    PNP_FILENAME,
+    ReadPnpFileError,
     package_dirs_of_loader,
+    read_pnp_package_dirs,
     render_pnp_loader,
 };
 use command_extra::CommandExtra;
@@ -146,4 +149,32 @@ fn package_dirs_are_read_back_as_the_loader_resolves_them() {
 #[test]
 fn a_loader_without_the_registry_is_unrecognized() {
     assert_eq!(package_dirs_of_loader("module.exports = {}\n", std::path::Path::new("/p")), None);
+}
+
+#[test]
+fn reading_a_loader_skips_foreign_and_rejects_unreadable_pnpm_loaders() {
+    let dir = tempfile::tempdir().unwrap();
+    let pnp = dir.path().join(PNP_FILENAME);
+
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap(), Vec::<std::path::PathBuf>::new());
+
+    std::fs::write(&pnp, "#!/usr/bin/env node\n/* yarn */\n").unwrap();
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap(), Vec::<std::path::PathBuf>::new());
+
+    let registry = serde_json::json!({ "packages": { ".": { "url": "../", "dependencies": {} } } });
+    let loader = render_pnp_loader(&registry.to_string(), r#""node_modules""#);
+    std::fs::write(&pnp, &loader).unwrap();
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap().len(), 1);
+
+    std::fs::write(&pnp, loader.replace("const registry = ", "const registry =\n  ")).unwrap();
+    assert!(matches!(read_pnp_package_dirs(dir.path()), Err(ReadPnpFileError::Unreadable { .. }),));
+}
+
+#[cfg(unix)]
+#[test]
+fn reading_a_loader_does_not_follow_a_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    std::os::unix::fs::symlink("/dev/zero", dir.path().join(PNP_FILENAME)).unwrap();
+
+    assert_eq!(read_pnp_package_dirs(dir.path()).unwrap(), Vec::<std::path::PathBuf>::new());
 }

@@ -5,6 +5,10 @@ use pnpm_fs::{
 };
 use std::{
     collections::HashSet,
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
     io::{
         self,
@@ -44,6 +48,7 @@ pub(super) fn mark_reachable_slots<Sys: FsReadLink>(
         dunce::canonicalize(links_dir).unwrap_or_else(|_| links_dir.to_path_buf());
     let mut walk = Walk {
         canonical_links: &canonical_links,
+        hidden_modules_dir_names: hidden_names(projects),
         reachable: HashSet::new(),
         visited: HashSet::new(),
     };
@@ -78,8 +83,21 @@ fn mark_loader_roots<Sys: FsReadLink>(
     Ok(())
 }
 
+/// The hidden names among the registered directories. An install registers a
+/// modules directory with another name than `node_modules`, and each workspace
+/// project's modules directory has that name too.
+fn hidden_names(projects: &[PathBuf]) -> HashSet<OsString> {
+    projects
+        .iter()
+        .filter_map(|project| project.file_name())
+        .filter(|name| name.to_string_lossy().starts_with('.'))
+        .map(OsStr::to_os_string)
+        .collect()
+}
+
 struct Walk<'links> {
     canonical_links: &'links Path,
+    hidden_modules_dir_names: HashSet<OsString>,
     reachable: HashSet<PathBuf>,
     visited: HashSet<PathBuf>,
 }
@@ -89,7 +107,8 @@ impl Walk<'_> {
     /// under it, including those of workspace packages, is walked by
     /// [`walk_symlinks_to_store`]. A store link anywhere else in a non-hidden
     /// directory is followed too, so a modules directory with another name
-    /// keeps its slots even when no setting records that name.
+    /// keeps its slots even when no setting records that name. A hidden
+    /// directory is walked only under the name of a registered one.
     fn mark_project<Sys: FsReadLink>(&mut self, project_dir: &Path) -> Result<(), PruneError> {
         let project =
             dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
@@ -107,13 +126,10 @@ impl Walk<'_> {
             }
         }
         for subdir in subdirs {
-            let name = subdir
-                .file_name()
-                .expect("directory entry has a name")
-                .to_string_lossy();
-            if name == "node_modules" {
+            let name = subdir.file_name().expect("directory entry has a name");
+            if name == "node_modules" || self.hidden_modules_dir_names.contains(name) {
                 self.walk::<Sys>(&subdir)?;
-            } else if !name.starts_with('.') {
+            } else if !name.to_string_lossy().starts_with('.') {
                 self.scan_project_dir::<Sys>(&subdir)?;
             }
         }
