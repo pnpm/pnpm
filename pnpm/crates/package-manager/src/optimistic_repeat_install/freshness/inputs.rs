@@ -14,7 +14,6 @@ use super::{
         },
     },
     GatePolicy,
-    InputDrift,
     NewerPatch,
     ProjectStatus,
     Stale,
@@ -42,13 +41,17 @@ use std::{
 struct ComparedInputs {
     manifest: String,
     workspace_bins: Option<String>,
+}
+
+struct CurrentInputs {
+    projects: BTreeMap<String, ComparedInputs>,
     files: BTreeMap<String, String>,
+    settings: WorkspaceStateSettings,
 }
 
 pub(super) fn check_recorded_inputs(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    drift: &InputDrift<'_>,
     held: &[&ManifestStat<'_>],
     policy: &GatePolicy<'_>,
 ) -> Result<(), Stale> {
@@ -58,26 +61,22 @@ pub(super) fn check_recorded_inputs(
     if validation.inputs.is_empty() {
         return Ok(());
     }
-    let current_settings = current_settings_with_catalogs(
-        check.config,
-        check.layout.node_linker,
-        check.layout.included,
-        check.layout.supported_architectures,
-        check.catalogs,
-    );
-    let current = current_inputs(check, state, drift);
+    if held.is_empty() {
+        return Ok(());
+    }
+    let current = current_inputs(check, state, held);
     let patches: HashSet<PathBuf> = check.config.patch_file_paths().collect();
     for stat in held {
         let importer_id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
         let (Some(recorded), Some(now)) =
-            (validation.inputs.get(&importer_id), current.get(&importer_id))
+            (validation.inputs.get(&importer_id), current.projects.get(&importer_id))
         else {
             continue;
         };
         let matches = inputs_match(
             recorded,
             now,
-            &current_settings,
+            &current,
             policy,
             &patches,
             check.config.workspace_dir.as_deref(),
@@ -93,16 +92,16 @@ pub(super) fn check_recorded_inputs(
 fn inputs_match(
     recorded: &InstallInputs,
     current: &ComparedInputs,
-    current_settings: &WorkspaceStateSettings,
+    shared: &CurrentInputs,
     policy: &GatePolicy<'_>,
     patches: &HashSet<PathBuf>,
     workspace_dir: Option<&Path>,
     status: ProjectStatus,
 ) -> Result<bool, Stale> {
     let files_match = if matches!(policy.newer_patch, NewerPatch::CompareHash) {
-        visible_files(&recorded.files, patches).eq(visible_files(&current.files, patches))
+        visible_files(&recorded.files, patches).eq(visible_files(&shared.files, patches))
     } else {
-        recorded.files == current.files
+        recorded.files.iter().eq(shared.files.iter())
     };
     // The content check has just proved this manifest against the changed
     // lockfile, so the proof recorded under the old lockfile cannot hold it.
@@ -111,7 +110,7 @@ fn inputs_match(
     if !manifest_matches || recorded.workspace_bins != current.workspace_bins || !files_match {
         return Ok(false);
     }
-    settings_match(&recorded.settings, current_settings, policy.ignored_settings, workspace_dir)
+    settings_match(&recorded.settings, &shared.settings, policy.ignored_settings, workspace_dir)
         .map_err(|_| Stale::Unprovable)
 }
 
@@ -127,8 +126,15 @@ fn visible_files<'a>(
 fn current_inputs(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    drift: &InputDrift<'_>,
-) -> BTreeMap<String, ComparedInputs> {
+    held: &[&ManifestStat<'_>],
+) -> CurrentInputs {
+    let settings = current_settings_with_catalogs(
+        check.config,
+        check.layout.node_linker,
+        check.layout.included,
+        check.layout.supported_architectures,
+        check.catalogs,
+    );
     let bins = workspace_bins_digest(check.workspace_root, check.bin_projects());
     let digests = FileDigests::new(state.validation.as_ref());
     let files = shared_input_paths(check.config, &state.pnpmfiles)
@@ -138,14 +144,15 @@ fn current_inputs(
             Some((path.to_string_lossy().into_owned(), digest))
         })
         .collect::<BTreeMap<_, _>>();
-    drift.stats
+    let projects = held
         .iter()
         .map(|stat| {
             let importer_id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
             let manifest = install_input_digest(stat.manifest);
             let workspace_bins = project_bins_digest(&importer_id, stat.manifest, bins.as_deref())
                 .map(str::to_string);
-            (importer_id, ComparedInputs { manifest, workspace_bins, files: files.clone() })
+            (importer_id, ComparedInputs { manifest, workspace_bins })
         })
-        .collect()
+        .collect();
+    CurrentInputs { projects, files, settings }
 }

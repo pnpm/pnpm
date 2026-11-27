@@ -529,9 +529,9 @@ impl Scenario {
         let before = self.snapshot();
         self.assert_initial_install(&before, oracle, allowed);
         let settled = self.snapshot();
-        self.assert_repeat_install(&settled, false);
+        self.assert_repeat_install(&settled, "repeat install");
         if matches!(self.driver, Driver::Mixed { .. }) {
-            self.assert_repeat_install(&settled, true);
+            self.assert_repeat_install(&settled, "cross-CLI repeat install");
         }
         let frozen = self.command_at(self.workspace(), ["install", "--frozen-lockfile"]);
         assert_success(&frozen);
@@ -589,8 +589,7 @@ impl Scenario {
     }
 
     #[track_caller]
-    fn assert_repeat_install(&self, settled: &Snapshot, cross_cli: bool) {
-        let description = if cross_cli { "cross-CLI repeat install" } else { "repeat install" };
+    fn assert_repeat_install(&self, settled: &Snapshot, description: &str) {
         let raw_modules_before = workspace_raw_modules_manifests(self.workspace());
         let offered = self.offers_next_install_fast_path();
         assert!(
