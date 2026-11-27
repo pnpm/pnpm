@@ -161,6 +161,9 @@ one-off that no script covers.
   `just test-pnpr`) — one product's crates.
 - `pnpm lint:rust` (`just lint`) — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
 - `pnpm check:rust` (`just check`) — `cargo check --locked --workspace --all-targets`.
+- `pnpm prove:rust` (`just creusot`) — the Creusot proofs of the verified crates. See
+  [`VERIFICATION.md`](./VERIFICATION.md) for the one-time install and for how a
+  crate is verified.
 - `pnpm build:pnpm` — `cargo build --release --bin pnpm`.
 - `just fmt` — the pinned fork (`node pnpm/scripts/rustfmt.mjs --all`) + `taplo format`.
 - `just cli -- <args>` — run the pacquet binary.

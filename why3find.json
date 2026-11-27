@@ -1,0 +1,16 @@
+{
+  "fast": 0.2,
+  "time": 1.0,
+  "depth": 6,
+  "packages": [ "creusot" ],
+  "provers": [ "alt-ergo", "z3", "cvc5", "cvc4" ],
+  "tactics": [ "compute_specified", "split_vc" ],
+  "drivers": [],
+  "warnoff": [ "unused_variable", "axiom_abstract" ],
+  "profile": [
+    { "prover": "cvc5@", "size": 47, "time": 0.541 },
+    { "prover": "z3@", "size": 33, "time": 0.793 },
+    { "prover": "alt-ergo@", "size": 17, "time": 0.58 },
+    { "prover": "cvc4@", "size": 45, "time": 0.432 }
+  ]
+}

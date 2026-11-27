@@ -38,6 +38,11 @@ ignore = [
     # already references / borrows that the macro forwards once);
     # hoisting to a `let` is purely noise.
     "params",
+    # Creusot's `proof_assert!` takes a Pearlite formula, which nothing
+    # evaluates: an ordinary build drops the `#[cfg(creusot)]` call, and
+    # `cargo creusot` proves it. The lint sees the call because it runs
+    # before `cfg` stripping.
+    "proof_assert",
 ]
 
 [perfectionist]

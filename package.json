@@ -19,6 +19,7 @@
     "check:rust": "just check",
     "lint:rust": "just lint",
     "fix:rust": "just fix",
+    "prove:rust": "just creusot",
     "pre-push:rust": "bash pnpm/scripts/pre-push-rust.sh",
     "update-manifests": "pn meta-updater && pn install",
     "meta-updater": "pn exec meta-updater",
@@ -38,7 +39,8 @@
     "ci:rust-layers": "cargo run --locked --quiet -p pnpm-crate-layers -- check",
     "ci:rust-fmt": "node pnpm/scripts/rustfmt.mjs --all -- --check",
     "ci:toml-fmt": "taplo format --check",
-    "ci:rust-dylint": "node pnpm/scripts/cargo-dylint.mjs --all -- --all-targets --workspace"
+    "ci:rust-dylint": "node pnpm/scripts/cargo-dylint.mjs --all -- --all-targets --workspace",
+    "ci:rust-creusot": "node pnpm/scripts/creusot.mjs"
   },
   "devDependencies": {
     "@pnpm/eslint-config": "catalog:",

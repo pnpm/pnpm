@@ -5,7 +5,7 @@ use super::{
     Include,
     PackageKey,
 };
-use pnpm_workspace_task_scheduler::StronglyConnectedComponents;
+use pnpm_strongly_connected_components::StronglyConnectedComponents;
 
 /// A component stays live while it has a pending target or a live dependency.
 pub(super) struct LiveGraph {

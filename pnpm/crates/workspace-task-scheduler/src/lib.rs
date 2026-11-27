@@ -29,7 +29,6 @@ pub use graph::{
 pub use graph_sequencer::{
     GraphSequencerResult,
     PathNode,
-    StronglyConnectedComponents,
     graph_sequencer,
 };
 pub use synchronous::{

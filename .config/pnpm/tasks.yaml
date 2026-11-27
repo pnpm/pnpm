@@ -14,6 +14,7 @@ pipelines:
   rust-layers: [ci:rust-layers]
   rust-format: [ci:rust-fmt, ci:toml-fmt]
   rust-dylint: [ci:rust-dylint]
+  rust-creusot: [ci:rust-creusot]
 
 # Every entry names a script the root manifest alone defines. A name a
 # workspace package also defines must not appear here: the entry would drop
@@ -31,6 +32,8 @@ tasks:
   fix:rust:
     concurrencyGroup: cargo
   lint:rust:
+    concurrencyGroup: cargo
+  prove:rust:
     concurrencyGroup: cargo
   pre-push:rust:
     concurrencyGroup: cargo
@@ -57,6 +60,8 @@ tasks:
     concurrencyGroup: cargo
     outputs: []
     env: [RUSTFLAGS, RUSTDOCFLAGS]
+  ci:rust-creusot:
+    concurrencyGroup: cargo
   ci:rust-dylint:
     concurrencyGroup: cargo
   ci:rust-layers:

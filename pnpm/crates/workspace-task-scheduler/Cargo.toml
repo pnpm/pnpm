@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-fs = { workspace = true }
 pnpm-reporter = { workspace = true }
+pnpm-strongly-connected-components = { workspace = true }
 
 derive_more = { workspace = true }
 futures-util = { workspace = true }

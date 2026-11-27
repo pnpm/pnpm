@@ -12,6 +12,7 @@ name = "foundation"
 description = "Runtime and OS access, hashing, diagnostics, text and pattern utilities. Knows nothing about packages."
 crates = [
   "pnpm-config-dir",
+  "pnpm-creusot-models",
   "pnpm-crypto-hash",
   "pnpm-crypto-shasums-file",
   "pnpm-detect-libc",
@@ -38,6 +39,7 @@ crates = [
   "pnpm-reporter",
   "pnpm-semver-include-prerelease",
   "pnpm-signal-registry",
+  "pnpm-strongly-connected-components",
   "pnpm-text-sanitize",
   "pnpm-text-section",
   "pnpm-time",
@@ -292,7 +294,7 @@ pnpm-auth-commands = 9
 pnpm-catalogs-config = 2
 pnpm-catalogs-protocol-parser = 1
 pnpm-catalogs-resolver = 3
-pnpm-cli = 83
+pnpm-cli = 84
 pnpm-cmd-shim = 2
 pnpm-config = 22
 pnpm-config-parse-overrides = 3
@@ -366,6 +368,7 @@ pnpm-resolving-resolver-base = 6
 pnpm-resolving-tarball-resolver = 9
 pnpm-rust-toolchain = 9
 pnpm-store-dir = 9
+pnpm-strongly-connected-components = 1
 pnpm-tarball = 8
 pnpm-testing-utils-registry = 5
 pnpm-version-policy = 1
@@ -378,7 +381,7 @@ pnpm-workspace-projects-filter = 7
 pnpm-workspace-projects-graph = 7
 pnpm-workspace-range-resolver = 1
 pnpm-workspace-state = 2
-pnpm-workspace-task-scheduler = 2
+pnpm-workspace-task-scheduler = 3
 pnpr = 41
 pnpr-auth = 6
 pnpr-cargo = 2

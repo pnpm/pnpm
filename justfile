@@ -147,6 +147,15 @@ dylint:
 dylint-fix:
   cargo dylint --all --fix -- --all-targets --workspace --allow-dirty --allow-staged
 
+# Prove the crates Creusot verifies. Arguments go to `cargo creusot`, such
+# as `--no-cache`. See `pnpm/VERIFICATION.md`.
+creusot *args:
+  node pnpm/scripts/creusot.mjs {{args}}
+
+# Install Creusot, its nightly, and its SMT solvers.
+install-creusot:
+  bash pnpm/scripts/install-creusot.sh
+
 # Get code coverage
 codecov:
   cargo codecov --html

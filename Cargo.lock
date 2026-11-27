@@ -1245,6 +1245,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "creusot-std"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c258fc3bed45edeb0509fce569f66565cae19b583d24a827faaa4e1abe51d2b"
+dependencies = [
+ "creusot-std-proc",
+]
+
+[[package]]
+name = "creusot-std-proc"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "848b1d0c5b674f9eb80e144602ab64d8ddcef5033d60a07a5be112b1c931d029"
+dependencies = [
+ "pearlite-syn",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+ "uuid",
+]
+
+[[package]]
 name = "criterion"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4570,6 +4592,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 
 [[package]]
+name = "pearlite-syn"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff7afb8267bb550980a04ce048a1f1592af3741fab76d1b364678696efbe2570"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5038,6 +5071,7 @@ dependencies = [
  "pnpm-rust-toolchain",
  "pnpm-semver-include-prerelease",
  "pnpm-store-dir",
+ "pnpm-strongly-connected-components",
  "pnpm-tarball",
  "pnpm-testing-utils-registry",
  "pnpm-text-sanitize",
@@ -5189,6 +5223,16 @@ dependencies = [
  "serde",
  "tempfile",
  "toml",
+]
+
+[[package]]
+name = "pnpm-creusot-models"
+version = "0.0.1"
+dependencies = [
+ "creusot-std",
+ "pipe-trait",
+ "proptest",
+ "split-first-char",
 ]
 
 [[package]]
@@ -7035,6 +7079,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-strongly-connected-components"
+version = "0.0.1"
+dependencies = [
+ "creusot-std",
+ "pnpm-creusot-models",
+ "pretty_assertions",
+]
+
+[[package]]
 name = "pnpm-tarball"
 version = "0.0.1"
 dependencies = [
@@ -7347,6 +7400,7 @@ dependencies = [
  "miette 7.6.0",
  "pnpm-fs",
  "pnpm-reporter",
+ "pnpm-strongly-connected-components",
  "pretty_assertions",
  "regex",
  "rustc-hash 2.1.3",

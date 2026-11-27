@@ -1,7 +1,4 @@
-pub use strongly_connected_components::StronglyConnectedComponents;
-
-mod strongly_connected_components;
-
+use pnpm_strongly_connected_components::StronglyConnectedComponents;
 use rustc_hash::FxHashMap;
 use std::{
     collections::{
