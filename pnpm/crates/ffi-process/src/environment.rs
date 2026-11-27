@@ -8,12 +8,14 @@
 //!
 //! [`SingleThreaded::set_var`] establishes that per platform:
 //!
-//! | Platform | What makes the write sound |
-//! | --- | --- |
-//! | Linux, Android, macOS, FreeBSD, NetBSD | The process has one thread when the write starts. Only that thread could spawn another, and it is busy writing. |
-//! | Windows | Nothing to check. The standard library documents `set_var` as always safe there. |
-//! | WebAssembly | The [`SingleThreaded`] witness. The guest cannot count its threads. |
-//! | Any other Unix | Nothing. The write is refused. |
+//! - Linux, Android, macOS, FreeBSD, NetBSD: the process has one thread
+//!   when the write starts. Only that thread could spawn another, and it
+//!   is busy writing.
+//! - Windows: nothing to check. The standard library documents `set_var`
+//!   as always safe there.
+//! - WebAssembly: the [`SingleThreaded`] witness. The guest cannot count
+//!   its threads.
+//! - Any other Unix: nothing, so the write is refused.
 
 #[cfg(unix)]
 mod thread_count;
@@ -97,12 +99,12 @@ impl fmt::Display for SetVarError {
             Self::OtherThreads { name, threads } => write!(
                 formatter,
                 "Cannot set the environment variable {name}: the process runs {threads} threads, \
-                 and one of them could read the environment while it changes"
+                 and one of them could read the environment while it changes",
             ),
             Self::UncountedThreads { name, source } => write!(
                 formatter,
                 "Cannot set the environment variable {name}: failed to count the process's \
-                 threads: {source}"
+                 threads: {source}",
             ),
         }
     }
