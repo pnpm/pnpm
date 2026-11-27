@@ -198,3 +198,37 @@ fn the_loaded_linker_links_a_workspace_project_bin_from_its_yaml_or_json5_manife
         );
     }
 }
+
+#[test]
+fn the_loaded_linker_builds_a_copied_directory_with_a_yaml_or_json5_manifest() {
+    for basename in ["package.yaml", "package.json5"] {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml(
+            "nodeLinker: loaded\nallowBuilds:\n  'tool@file:tool': true\n",
+        );
+        fixture.write_root_manifest("root", ManifestDeps::default());
+        write_tool(
+            &fixture.workspace.join("tool"),
+            basename,
+            &json!({
+                "name": "tool",
+                "version": "1.0.0",
+                "bin": { "tool-cli": "dist/cli.js" },
+                "scripts": { "postinstall": write_marker_script("built.txt") },
+            }),
+        );
+        let app = fixture.project(
+            "app",
+            "app",
+            ManifestDeps { prod: &[("tool", "file:../../tool")], ..Default::default() },
+        );
+
+        fixture.run(["install"]);
+
+        assert_bin_linked(
+            &app.join("node_modules")
+                .join(".bin")
+                .join("tool-cli"),
+        );
+    }
+}

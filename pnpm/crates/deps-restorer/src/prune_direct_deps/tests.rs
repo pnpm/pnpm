@@ -1,4 +1,7 @@
-use super::prune_direct_deps_excluded_by_groups;
+use super::{
+    prune_direct_deps_excluded_by_groups,
+    remove_extraneous_direct_dep,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::{
     ComVer,
@@ -365,4 +368,28 @@ fn prune_direct_deps_respects_trusted_importer_allow_set() {
             .is_err(),
     );
     assert!(is_symlink_or_junction(&unselected_modules.join("unselected-dev")).unwrap());
+}
+
+#[test]
+fn removes_the_bins_a_yaml_or_json5_manifest_declares() {
+    let manifests = [
+        ("package.json5", "{name: 'tool', version: '1.0.0', bin: {'tool-cli': 'cli.js'}}"),
+        ("package.yaml", "name: tool\nversion: 1.0.0\nbin:\n  tool-cli: cli.js\n"),
+    ];
+    for (basename, contents) in manifests {
+        let dir = tempdir().unwrap();
+        let modules_dir = dir.path().join("node_modules");
+        let tool = modules_dir.join("tool");
+        fs::create_dir_all(&tool).unwrap();
+        fs::write(tool.join(basename), contents).unwrap();
+        fs::write(tool.join("cli.js"), b"#!/usr/bin/env node\n").unwrap();
+        let shim = modules_dir.join(".bin").join("tool-cli");
+        fs::create_dir_all(shim.parent().unwrap()).unwrap();
+        fs::write(&shim, b"#!/bin/sh\n").unwrap();
+
+        let removed = remove_extraneous_direct_dep(&modules_dir, "tool").unwrap();
+
+        assert_eq!(removed, Some(Some("1.0.0".to_string())), "{basename}");
+        assert!(!shim.exists(), "{basename}: the shim is removed");
+    }
 }
