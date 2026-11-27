@@ -393,3 +393,17 @@ fn removes_the_bins_a_yaml_or_json5_manifest_declares() {
         assert!(!shim.exists(), "{basename}: the shim is removed");
     }
 }
+
+#[test]
+fn removes_a_dependency_whose_yaml_manifest_is_not_utf8() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+    let tool = modules_dir.join("tool");
+    fs::create_dir_all(&tool).unwrap();
+    fs::write(tool.join("package.yaml"), b"name: \xff\n").unwrap();
+
+    let removed = remove_extraneous_direct_dep(&modules_dir, "tool").unwrap();
+
+    assert_eq!(removed, Some(None));
+    assert!(!tool.exists());
+}

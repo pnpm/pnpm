@@ -10,6 +10,7 @@ use super::{
 };
 use pnpm_package_manifest::{
     PROJECT_MANIFEST_BASENAMES,
+    PackageManifestError,
     parse_manifest_bytes,
     parse_project_manifest,
 };
@@ -130,8 +131,9 @@ fn parse_package_manifest(path: PathBuf, bytes: &[u8]) -> Result<Value, LinkBins
     let contents = match str::from_utf8(bytes) {
         Ok(contents) => contents,
         Err(error) => {
-            let error = io::Error::new(io::ErrorKind::InvalidData, error);
-            return Err(LinkBinsError::ReadManifest { path, error });
+            let source = io::Error::new(io::ErrorKind::InvalidData, error);
+            let error = PackageManifestError::Read { path, source };
+            return Err(LinkBinsError::ReadProjectManifest(error));
         }
     };
     parse_project_manifest(&path, contents).map_err(LinkBinsError::ReadProjectManifest)
