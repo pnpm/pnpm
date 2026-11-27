@@ -30,7 +30,6 @@ pub(crate) use manifest_files::{
     records_need_refresh,
 };
 
-use super::settings::settings_json;
 use file_stat::{
     signature_trusted,
     stat_trusted,
@@ -38,13 +37,13 @@ use file_stat::{
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::{
     FileSignature,
-    InstallInputs,
+    ManifestFile,
     Validation,
     WorkspaceState,
 };
+use recorded_projects::record_projects;
 use sha2::{
     Digest as _,
     Sha256,
@@ -66,6 +65,7 @@ mod bins;
 mod file_stat;
 mod local_dependencies;
 mod manifest_files;
+mod recorded_projects;
 
 /// How many hex digits of a SHA-256 digest a record keeps.
 const DIGEST_LEN: usize = 32;
@@ -268,15 +268,7 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
         Vouched::All => None,
         Vouched::Projects { previous, .. } => *previous,
     };
-    let ((lockfile_path, lockfile), files) = recorded_files(state, inputs, previous);
-    let manifest_stats = inputs.config.source_date_epoch
-        .is_none()
-        .then(|| {
-            manifest_files::stat_vouched(
-                inputs,
-                previous.and_then(|previous| previous.validation.as_ref()),
-            )
-        });
+    let recorded = recorded_files(state, inputs, previous);
     let Some(recorded_at_ns) = recorded_validation_time_ns(inputs) else {
         state.validation = None;
         state.filtered_install = true;
@@ -284,33 +276,21 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
     };
     let shared_inputs = shared_input_paths(inputs.config, &state.pnpmfiles);
     let carried = previous
-        .filter(|previous| shared_inputs_match(previous, state, &shared_inputs, &files))
+        .filter(|previous| shared_inputs_match(previous, state, &shared_inputs, &recorded.files))
         .and_then(|previous| previous.validation.as_ref());
-    let input_files = files
-        .iter()
-        .filter(|(path, _)| Path::new(path.as_str()) != lockfile_path)
-        .map(|(path, signature)| (path.clone(), signature.digest.clone()))
-        .collect();
+    let input_files = recorded_input_files(&recorded.files, &recorded.lockfile_path);
     let mut validation =
-        Validation { recorded_at_ns, files, lockfile: lockfile.clone(), ..Validation::default() };
-    let recorded = record_projects(
+        Validation { recorded_at_ns, lockfile: recorded.lockfile.clone(), ..Validation::default() };
+    let recorded_projects = record_projects(
         &mut validation,
         inputs,
         carried,
-        lockfile.as_deref(),
+        recorded.lockfile.as_deref(),
         &input_files,
         &state.settings,
     );
-    if let Some(manifest_stats) = manifest_stats {
-        manifest_files::insert(&mut validation, manifest_stats, carried);
-    }
-    local_dependencies::record_for_write(
-        &mut validation,
-        inputs,
-        carried,
-        (lockfile.as_deref(), &lockfile_path),
-    );
-    state.filtered_install = recorded != inputs.project_manifests.len();
+    recorded.finish(&mut validation, inputs, carried);
+    state.filtered_install = recorded_projects != inputs.project_manifests.len();
     state.validation = Some(validation);
 }
 
@@ -323,13 +303,40 @@ fn recorded_validation_time_ns(inputs: &RecordValidation<'_>) -> Option<i64> {
     ))
 }
 
-/// The lockfile digest and the signatures of the shared input files, read
-/// the way the next check reads them.
+struct RecordedFiles {
+    lockfile_path: PathBuf,
+    lockfile: Option<String>,
+    files: BTreeMap<String, FileSignature>,
+    manifest_stats: Option<BTreeMap<String, ManifestFile>>,
+}
+
+impl RecordedFiles {
+    fn finish(
+        self,
+        validation: &mut Validation,
+        inputs: &RecordValidation<'_>,
+        carried: Option<&Validation>,
+    ) {
+        validation.files = self.files;
+        if let Some(manifest_stats) = self.manifest_stats {
+            manifest_files::insert(validation, manifest_stats, carried);
+        }
+        local_dependencies::record_for_write(
+            validation,
+            inputs,
+            carried,
+            (self.lockfile.as_deref(), &self.lockfile_path),
+        );
+    }
+}
+
+/// The lockfile digest, the signatures of the shared input files, and the
+/// vouched manifest stats, read the way the next check reads them.
 fn recorded_files(
     state: &WorkspaceState,
     inputs: &RecordValidation<'_>,
     previous: Option<&WorkspaceState>,
-) -> ((PathBuf, Option<String>), BTreeMap<String, FileSignature>) {
+) -> RecordedFiles {
     let digests = FileDigests::new(previous.and_then(|state| state.validation.as_ref()));
     let (lockfile_path, lockfile) = digests.lockfile(inputs.workspace_root, inputs.config);
     let shared_inputs = shared_input_paths(inputs.config, &state.pnpmfiles);
@@ -350,7 +357,31 @@ fn recorded_files(
             FileDigest::Absent | FileDigest::Unreadable => None,
         })
         .collect();
-    ((lockfile_path, lockfile.digest().map(str::to_string)), files)
+    let manifest_stats = inputs.config.source_date_epoch
+        .is_none()
+        .then(|| {
+            manifest_files::stat_vouched(
+                inputs,
+                previous.and_then(|previous| previous.validation.as_ref()),
+            )
+        });
+    RecordedFiles {
+        lockfile_path,
+        lockfile: lockfile.digest().map(str::to_string),
+        files,
+        manifest_stats,
+    }
+}
+
+fn recorded_input_files(
+    files: &BTreeMap<String, FileSignature>,
+    lockfile_path: &Path,
+) -> BTreeMap<String, String> {
+    files
+        .iter()
+        .filter(|(path, _)| Path::new(path.as_str()) != lockfile_path)
+        .map(|(path, signature)| (path.clone(), signature.digest.clone()))
+        .collect()
 }
 
 /// `signature` as a write records it: under `SOURCE_DATE_EPOCH`, without the
@@ -361,95 +392,6 @@ pub(super) fn recordable_signature(config: &Config, mut signature: FileSignature
         signature.ctime_ns = None;
     }
     signature
-}
-
-struct RecordedProject {
-    importer_id: String,
-    manifest: String,
-    input_manifest: Option<String>,
-    lockfile: Option<String>,
-    bins: Option<String>,
-    vouched: bool,
-}
-
-/// Record in `validation` each project the write vouches for, proven against
-/// `lockfile`, and each other one `carried` still proves. Returns how many it
-/// recorded.
-fn record_projects(
-    validation: &mut Validation,
-    inputs: &RecordValidation<'_>,
-    carried: Option<&Validation>,
-    lockfile: Option<&str>,
-    files: &BTreeMap<String, String>,
-    settings: &pnpm_workspace_state::WorkspaceStateSettings,
-) -> usize {
-    let bins = workspace_bins_digest(
-        inputs.workspace_root,
-        inputs.workspace_projects.unwrap_or(inputs.project_manifests.as_slice()),
-    );
-    let settings = settings_json(settings);
-    let records = inputs.project_manifests
-        .iter()
-        .filter_map(|(root_dir, manifest)| {
-            let importer_id = importer_id_from_root_dir(inputs.workspace_root, root_dir);
-            let vouched = match inputs.vouched {
-                Vouched::All => true,
-                Vouched::Projects { dirs, .. } => dirs.contains(root_dir),
-            };
-            if vouched {
-                let project_bins = project_bins_digest(&importer_id, manifest, bins.as_deref());
-                return Some(RecordedProject {
-                    importer_id,
-                    manifest: manifest_digest(manifest),
-                    input_manifest: Some(install_input_digest(manifest)),
-                    lockfile: lockfile.map(str::to_string),
-                    bins: project_bins.map(str::to_string),
-                    vouched: true,
-                });
-            }
-            let previous = carried?;
-            let record = previous.project(&importer_id)?;
-            let bins = previous.workspace_bins.get(&importer_id).cloned();
-            Some(RecordedProject {
-                importer_id,
-                manifest: record.manifest.to_string(),
-                input_manifest: None,
-                lockfile: record.lockfile.map(str::to_string),
-                bins,
-                vouched: false,
-            })
-        })
-        .collect::<Vec<_>>();
-    let recorded = records.len();
-    for record in records {
-        let RecordedProject {
-            importer_id,
-            manifest,
-            input_manifest,
-            lockfile,
-            bins,
-            vouched,
-        } = record;
-        let recorded_inputs = if vouched {
-            input_manifest.map(|manifest| InstallInputs {
-                settings: settings.clone(),
-                manifest,
-                lockfile: lockfile.clone(),
-                workspace_bins: bins.clone(),
-                files: files.clone(),
-            })
-        } else {
-            carried.and_then(|validation| validation.inputs.get(&importer_id).cloned())
-        };
-        if let Some(bins) = bins {
-            validation.workspace_bins.insert(importer_id.clone(), bins);
-        }
-        if let Some(inputs) = recorded_inputs {
-            validation.inputs.insert(importer_id.clone(), inputs);
-        }
-        validation.insert_project(importer_id, manifest, lockfile.as_deref());
-    }
-    recorded
 }
 
 /// The input files every project shares besides the lockfile: the patch

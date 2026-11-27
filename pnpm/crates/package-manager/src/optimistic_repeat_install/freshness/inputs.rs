@@ -16,6 +16,7 @@ use super::{
     GatePolicy,
     InputDrift,
     NewerPatch,
+    ProjectStatus,
     Stale,
 };
 use crate::install_state::{
@@ -80,6 +81,7 @@ pub(super) fn check_recorded_inputs(
             policy,
             &patches,
             check.config.workspace_dir.as_deref(),
+            stat.status,
         )?;
         if !matches {
             return Err(Stale::InputsChanged(importer_id));
@@ -95,18 +97,18 @@ fn inputs_match(
     policy: &GatePolicy<'_>,
     patches: &HashSet<PathBuf>,
     workspace_dir: Option<&Path>,
+    status: ProjectStatus,
 ) -> Result<bool, Stale> {
     let files_match = if matches!(policy.newer_patch, NewerPatch::CompareHash) {
         visible_files(&recorded.files, patches).eq(visible_files(&current.files, patches))
     } else {
         recorded.files == current.files
     };
-    // The content check compares the config-selected lockfile. A whole-file
-    // digest here would reject rewrites that leave the dependencies unchanged.
-    if recorded.manifest != current.manifest
-        || recorded.workspace_bins != current.workspace_bins
-        || !files_match
-    {
+    // The content check has just proved this manifest against the changed
+    // lockfile, so the proof recorded under the old lockfile cannot hold it.
+    let manifest_matches =
+        status == ProjectStatus::LockfileChanged || recorded.manifest == current.manifest;
+    if !manifest_matches || recorded.workspace_bins != current.workspace_bins || !files_match {
         return Ok(false);
     }
     settings_match(&recorded.settings, current_settings, policy.ignored_settings, workspace_dir)

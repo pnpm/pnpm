@@ -52,6 +52,26 @@ fn recorded_installed_registry_routes_match_current_routes() {
 }
 
 #[test]
+fn recorded_lockfile_routes_still_differ_from_installed_routes() {
+    let installed =
+        BTreeMap::from([("@scope".to_string(), "https://installed.example.test".to_string())]);
+    let lockfile =
+        BTreeMap::from([("@scope".to_string(), "https://lockfile.example.test".to_string())]);
+    let recorded = serde_json::to_string(&WorkspaceStateSettings {
+        installed_registry_routes: Some(installed.clone()),
+        registry_routes: Some(lockfile),
+        ..WorkspaceStateSettings::default()
+    })
+    .expect("serialize recorded settings");
+    let current = WorkspaceStateSettings {
+        registry_routes: Some(installed),
+        ..WorkspaceStateSettings::default()
+    };
+
+    assert!(!settings_match(&recorded, &current, &[], None).expect("parse recorded settings"));
+}
+
+#[test]
 fn malformed_recorded_settings_do_not_panic() {
     assert!(settings_match("{", &WorkspaceStateSettings::default(), &[], None).is_err());
 }

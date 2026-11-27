@@ -531,10 +531,10 @@ impl Scenario {
         if self.install(&[]) {
             let after = self.snapshot();
             let mut expected = before.clone();
-            if let Some(oracle) = oracle {
-                if after.lockfiles != before.lockfiles {
-                    expected.lockfiles = workspace_lockfiles(oracle);
-                }
+            if let Some(oracle) = oracle
+                && after.lockfiles != before.lockfiles
+            {
+                expected.lockfiles = workspace_lockfiles(oracle);
             }
             assert_eq!(
                 after, expected,
@@ -954,6 +954,18 @@ fn a_filtered_install_then_a_deleted_lockfile(layout: Layout) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&["--filter", "b"]);
     fs::remove_file(scenario.lockfile_of("b")).expect("delete the lockfile");
+    // pnpm v11 uses the current lockfile as a stand-in without writing the
+    // wanted one, so only v12's refusal and restoring install are asserted.
+    if matches!(&scenario.driver, Driver::V12) {
+        assert!(
+            !scenario.exec(&["b"], "error"),
+            "{:?}: the run gate must refuse a missing lockfile",
+            scenario.layout,
+        );
+        scenario.exec_installing(&["b"]);
+    } else {
+        scenario.install(&[]);
+    }
     scenario.check_gates();
 }
 
