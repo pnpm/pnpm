@@ -101,7 +101,7 @@ fn local_tarball_whose_name_forges_a_registry_package_id_is_rejected() {
         &serde_json::json!({
             "name": "fake-pkg(",
             "version": "1.0.0",
-            "scripts": { "postinstall": "node -e \"require('fs').writeFileSync('built', '')\"" },
+            "scripts": { "postinstall": r#"node -e "require('fs').writeFileSync('built', '')""# },
         }),
     );
     fs::write(
@@ -123,7 +123,7 @@ fn local_tarball_whose_name_forges_a_registry_package_id_is_rejected() {
         .expect("run pnpm install");
     assert!(!output.status.success(), "the install must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("has an invalid name: \"fake-pkg(\""), "{stderr}");
+    assert!(stderr.contains(r#"has an invalid name: "fake-pkg(""#), "{stderr}");
     assert!(!workspace.join("pnpm-lock.yaml").exists(), "no lockfile may be written");
     assert!(!workspace.join("node_modules").exists(), "nothing may be installed");
 
