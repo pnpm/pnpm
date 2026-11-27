@@ -21,12 +21,7 @@ use std::path::Path;
 /// wait nothing else reports.
 pub(super) fn lock_store(config: &Config) -> Result<StoreOperationLock, InstallError> {
     let _span = tracing::debug_span!(target: "pacquet::install", "lock_store").entered();
-    if config.frozen_store {
-        config.store_dir.lock_for_frozen_use()
-    } else {
-        config.store_dir.lock_for_use()
-    }
-    .map_err(InstallError::StoreLock)
+    config.lock_store_for_use().map_err(InstallError::StoreLock)
 }
 
 /// Everything the optimistic repeat-install short-circuit consults.

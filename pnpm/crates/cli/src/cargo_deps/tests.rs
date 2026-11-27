@@ -130,6 +130,7 @@ fn download_options(config: &'static Config, package: &LockedCrate) -> DownloadO
         http_client: Arc::new(ThrottledClient::default()),
         logged_methods: Arc::new(AtomicU8::new(0)),
         requester: "test".to_string(),
+        created_slots: super::CreatedSlots::Ignore,
     }
 }
 
@@ -142,7 +143,7 @@ async fn links_a_complete_registry_crate_slot_without_asking_the_registry() {
         version: "1.0.0".to_string(),
         checksum: CHECKSUM.to_string(),
     };
-    let slot = package.store_slot(config.store_dir.root());
+    let slot = package.store_slot(&config.store_dir);
     write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
 
     let slots =
@@ -162,7 +163,7 @@ async fn force_materializes_a_complete_registry_crate_slot_again() {
         version: "1.0.0".to_string(),
         checksum: CHECKSUM.to_string(),
     };
-    let slot = package.store_slot(config.store_dir.root());
+    let slot = package.store_slot(&config.store_dir);
     write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
     let mut forced = config.clone();
     forced.force = true;
@@ -306,9 +307,11 @@ fn crate_store_slots_are_grouped_by_name_version_and_content() {
         checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e".to_string(),
     };
 
+    let store_dir = StoreDir::new(PathBuf::from("store/v11"));
     assert_eq!(
-        package.store_slot(std::path::Path::new("store/v11")),
-        std::path::Path::new("store/v11")
+        package.store_slot(&store_dir),
+        store_dir
+            .root()
             .join("crates")
             .join("serde")
             .join("1.0.228")
@@ -498,7 +501,7 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
         version: "1.0.0".to_string(),
         checksum: checksum.to_string(),
     };
-    let slot = package.store_slot(store_dir.root());
+    let slot = package.store_slot(store_dir);
     fs::create_dir_all(slot.join("src")).unwrap();
     fs::write(slot.join("package.json"), "{}").unwrap();
     fs::write(slot.join("Cargo.toml"), "attacker controlled").unwrap();

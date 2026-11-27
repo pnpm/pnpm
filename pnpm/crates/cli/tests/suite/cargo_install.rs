@@ -816,6 +816,7 @@ fn install_does_not_parse_or_modify_excluded_cargo_workspaces() {
 }
 
 mod lockfile_features;
+mod store_prune;
 
 #[test]
 fn remove_aliased_crates_by_name_and_package_url() {

@@ -8,6 +8,7 @@ use super::{
     CARGO_CHECKSUM_FILE,
     CafsFileInfo,
     Config,
+    CreatedSlots,
     Deserialize,
     ImportIndexedDirOpts,
     IngestTarballToStore,
@@ -55,6 +56,7 @@ pub(super) struct DownloadOptions {
     pub(super) http_client: Arc<ThrottledClient>,
     pub(super) logged_methods: Arc<AtomicU8>,
     pub(super) requester: String,
+    pub(super) created_slots: CreatedSlots,
 }
 
 /// Download every registry crate the lockfile pins into its store slot.
@@ -65,12 +67,12 @@ pub(super) struct DownloadOptions {
 pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
     mut options: DownloadOptions,
 ) -> Result<Vec<(String, PathBuf)>> {
-    let store_root = options.config.store_dir.root();
+    let store_dir = &options.config.store_dir;
     let packages = std::mem::take(&mut options.packages);
     let (mut slots, pending) = if options.config.force {
         (Vec::new(), packages)
     } else {
-        tokio::task::spawn_blocking(move || partition_complete_slots(packages, store_root))
+        tokio::task::spawn_blocking(move || partition_complete_slots(packages, store_dir))
             .await
             .into_diagnostic()
             .wrap_err("join Cargo crate slot probe task")?
@@ -78,22 +80,27 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
     if pending.is_empty() {
         return Ok(slots);
     }
+    options.created_slots.record_missing(
+        pending
+            .iter()
+            .map(|package| package.store_slot(store_dir)),
+    );
     slots.extend(download_pending_crates::<Reporter>(&options, pending).await?);
     Ok(slots)
 }
 
 fn partition_complete_slots(
     packages: Vec<LockedCrate>,
-    store_root: &Path,
+    store_dir: &StoreDir,
 ) -> (Vec<(String, PathBuf)>, Vec<LockedCrate>) {
     let (complete, pending): (Vec<LockedCrate>, Vec<LockedCrate>) = packages
         .into_par_iter()
         .partition(|package| {
-            slot_is_complete(&package.store_slot(store_root), Some(&package.checksum))
+            slot_is_complete(&package.store_slot(store_dir), Some(&package.checksum))
         });
     let slots = complete
         .into_iter()
-        .map(|package| (package.link_name(), package.store_slot(store_root)))
+        .map(|package| (package.link_name(), package.store_slot(store_dir)))
         .collect();
     (slots, pending)
 }
@@ -198,7 +205,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
     options: MaterializeOptions,
 ) -> Result<(String, PathBuf)> {
     let link_name = options.package.link_name();
-    let slot = options.package.store_slot(options.store.dir.root());
+    let slot = options.package.store_slot(options.store.dir);
     let mut cas_paths = ingest_crate::<Reporter>(&options).await?;
 
     let slot_for_import = slot.clone();

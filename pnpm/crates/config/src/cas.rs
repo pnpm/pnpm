@@ -16,6 +16,18 @@ use std::{
 };
 
 impl Config {
+    /// Keep the store stable while this operation uses it, with the
+    /// `frozenStore` lock when the store is frozen.
+    pub fn lock_store_for_use(
+        &self,
+    ) -> Result<pnpm_store_dir::StoreOperationLock, pnpm_store_dir::StoreLockError> {
+        if self.frozen_store {
+            self.store_dir.lock_for_frozen_use()
+        } else {
+            self.store_dir.lock_for_use()
+        }
+    }
+
     pub(super) fn apply_cas_layout(&mut self) {
         if self.node_linker == NodeLinker::Loaded {
             self.global_virtual_store_before_loaded.get_or_insert(self.enable_global_virtual_store);

@@ -8,6 +8,7 @@
 //! without a fetch of its own.
 
 use super::{
+    CreatedSlots,
     add_cargo_checksum,
     slot_is_complete,
 };
@@ -65,7 +66,7 @@ use std::{
 /// Cargo workspace root. Registry crates keep their own directory: a git
 /// package and a registry crate of the same name and version are distinct
 /// packages, and one directory source cannot hold both.
-pub(crate) const GIT_SOURCE_DIRECTORY: [&str; 3] = [".pnpm", "crates", "git"];
+pub(crate) const GIT_SOURCE_DIRECTORY: [&str; 3] = pnpm_store_dir::CARGO_GIT_LINK_DIR;
 /// Name of the Cargo directory source every replaced git source points at.
 pub(crate) const GIT_SOURCE_NAME: &str = "pnpm-git";
 /// The dependency kinds a manifest can declare, each of them inheritable.
@@ -103,6 +104,7 @@ pub(crate) struct VendorOptions {
     pub(crate) logged_methods: Arc<AtomicU8>,
     pub(crate) concurrency: usize,
     pub(crate) offline: bool,
+    pub(crate) created_slots: CreatedSlots,
 }
 
 impl GitSource {
@@ -171,9 +173,9 @@ impl GitPackage {
     /// The commit identifies the source tree the package was vendored from,
     /// so it takes the place the registry checksum holds in
     /// [`super::LockedCrate::store_slot`].
-    fn store_slot(&self, store_root: &Path) -> PathBuf {
-        store_root
-            .join("crates")
+    fn store_slot(&self, store_dir: &StoreDir) -> PathBuf {
+        store_dir
+            .crates()
             .join(&self.name)
             .join(&self.version)
             .join(format!("git-submodules-v1-{}", self.source.commit))
@@ -193,6 +195,7 @@ pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
         logged_methods,
         concurrency,
         offline,
+        created_slots,
     } = options;
     let sources = group_git_packages(packages);
     let mut vendored = stream::iter(sources)
@@ -211,6 +214,7 @@ pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
                         package_import_method,
                         logged_methods: &logged_methods,
                         offline,
+                        created_slots,
                     })
                 })
                 .await
@@ -236,6 +240,7 @@ struct VendorSourceOptions<'a> {
     package_import_method: PackageImportMethod,
     logged_methods: &'a AtomicU8,
     offline: bool,
+    created_slots: CreatedSlots,
 }
 
 fn vendor_source<Reporter: self::Reporter>(
@@ -244,7 +249,7 @@ fn vendor_source<Reporter: self::Reporter>(
     let mut linked = Vec::with_capacity(options.packages.len());
     let mut missing = Vec::new();
     for package in options.packages {
-        let slot = package.store_slot(options.store_dir.root());
+        let slot = package.store_slot(options.store_dir);
         if slot_is_complete(&slot, None) {
             linked.push((package.link_name(), slot));
         } else {
@@ -254,6 +259,7 @@ fn vendor_source<Reporter: self::Reporter>(
     if missing.is_empty() {
         return Ok(linked);
     }
+    options.created_slots.record_missing(missing.iter().map(|(_, slot)| slot.clone()));
     let repository = redact_and_sanitize(&options.source.url);
     let checkout = checkout_source(options)?;
     let checked_out = Checkout::read(checkout.path())?;
