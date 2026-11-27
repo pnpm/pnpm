@@ -154,7 +154,7 @@ creusot *args:
 
 # Install Creusot, its nightly, and its SMT solvers.
 install-creusot:
-  bash pnpm/scripts/install-creusot.sh
+  node pnpm/scripts/install-creusot.mjs
 
 # Get code coverage
 codecov:

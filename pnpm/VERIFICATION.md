@@ -14,7 +14,7 @@ just install-creusot
 export PATH="$HOME/.local/share/creusot/bin:$PATH"
 ```
 
-`just install-creusot` installs the release `.github/scripts/creusot-prebuilt-install.py` pins, from [creusot-prebuilt](https://github.com/KSXGitHub/creusot-prebuilt), with the nightly it builds with and the SMT solvers. That file is the release's own installer, unchanged, so its checksum matches the release's `SHA256SUMS`. A newer release replaces it.
+`just install-creusot` installs the release of [creusot-prebuilt](https://github.com/KSXGitHub/creusot-prebuilt) that `pnpm/scripts/install-creusot.mjs` pins, with the nightly it builds with and the SMT solvers. The script pins the release by the SHA-256 of its `release.json`, which records every asset's checksum. Moving to a newer release means changing the tag and that hash.
 
 Then, from the repository root:
 
