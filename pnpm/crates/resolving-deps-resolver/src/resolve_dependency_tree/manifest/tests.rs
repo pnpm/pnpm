@@ -47,16 +47,18 @@ async fn invalid_fetched_manifest_name_error_hides_url_secrets() {
         ),
         pnpm_resolving_resolver_base::ResolveOptions::default(),
     );
-    let mut result = manifest_result(serde_json::json!({ "name": "fake-pkg(" }));
-    result.id = PkgResolutionId::from(
-        "https://fake-user:fake-secret@example.test/fake-pkg.tgz?token=fake-token",
-    );
-    let message = super::build_pkg_id_with_patch_hash(&ctx, &result).await
-        .expect_err("invalid fetched manifest name")
-        .to_string();
-    assert!(message.contains("example.test/fake-pkg.tgz"), "{message}");
-    assert!(!message.contains("fake-secret"), "{message}");
-    assert!(!message.contains("fake-token"), "{message}");
+    for scheme in ["https", "git+https"] {
+        let mut result = manifest_result(serde_json::json!({ "name": "fake-pkg(" }));
+        result.id = PkgResolutionId::from(format!(
+            "{scheme}://fake-user:fake-secret@example.test/fake-pkg.tgz?token=fake-token"
+        ));
+        let message = super::build_pkg_id_with_patch_hash(&ctx, &result).await
+            .expect_err("invalid fetched manifest name")
+            .to_string();
+        assert!(message.contains("example.test/fake-pkg.tgz"), "{message}");
+        assert!(!message.contains("fake-secret"), "{message}");
+        assert!(!message.contains("fake-token"), "{message}");
+    }
 }
 
 #[tokio::test]

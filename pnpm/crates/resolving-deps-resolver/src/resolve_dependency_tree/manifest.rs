@@ -118,7 +118,7 @@ fn pkg_name_and_version(
     };
     if !is_valid_fetched_manifest_name(name) {
         return Err(ResolveDependencyTreeError::InvalidManifestName {
-            id: pnpm_network::redact_specifier_for_display(result.id.as_str()),
+            id: display_pkg_id(result.id.as_str()),
             name: pnpm_network::redact_and_sanitize(name),
         });
     }
@@ -480,6 +480,16 @@ const NON_EXOTIC_RESOLVED_VIA: &[&str] = &[
 
 pub(super) fn is_exotic_resolved_via(resolved_via: &str) -> bool {
     !NON_EXOTIC_RESOLVED_VIA.contains(&resolved_via)
+}
+
+/// A resolver id for an error message. A URL id of any scheme, such as
+/// `git+https:`, loses its credentials and its query, which can carry a token.
+fn display_pkg_id(id: &str) -> String {
+    let redacted = pnpm_network::redact_and_sanitize(id);
+    match redacted.split_once('?') {
+        Some((before_query, _)) if redacted.contains("://") => before_query.to_string(),
+        _ => redacted,
+    }
 }
 
 /// Whether a fetched manifest's `name` may prefix a package id. The name
