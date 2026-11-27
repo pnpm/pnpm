@@ -139,7 +139,7 @@ fn leaked_items(
 }
 
 /// The name a crate is imported by in Rust source.
-fn lib_name(crate_name: &str) -> String {
+pub fn lib_name(crate_name: &str) -> String {
     crate_name.replace('-', "_")
 }
 

@@ -5185,6 +5185,7 @@ dependencies = [
  "clap",
  "command-extra",
  "pretty_assertions",
+ "prost",
  "serde",
  "tempfile",
  "toml",

@@ -57,6 +57,8 @@ For each cluster, read every fix's message and diff (`git show <sha>`) and its i
 - **A settings matrix without a test matrix.** Behavior depends on a combination (linker, injected, filtered, frozen, workspace lockfile shared or not), and tests cover one row at a time.
 - **Order-dependent setup.** A value is read before the layer that can change it ran (pnpmfile hooks, pinned-version switch, workspace settings).
 
+For Rust code, `just crate-layers overlaps` lists candidates for the first flaw, and `just crate-layers fields` for the third. The [crate-layers README](../../../pnpm/tasks/crate-layers/README.md#field-accesses) says how to make the index they read.
+
 Name the flaw by where it lives, with file paths. "The verify-deps gate and the install's own up-to-date check each decide freshness" is a finding. "This area is complex" is not.
 
 ## 5. Propose the change

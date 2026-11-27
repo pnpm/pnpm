@@ -24,9 +24,12 @@ use std::collections::{
 
 mod boundary;
 mod dsm;
+mod fields;
 mod git_log;
 mod leaks;
 mod modules;
+mod overlaps;
+mod program;
 
 struct MemoryTree(BTreeMap<&'static str, &'static str>);
 

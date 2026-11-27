@@ -14,6 +14,10 @@ use clap::{
 use cochange::CoChange;
 use dependencies::Reach;
 use graph::CrateGraph;
+use indexed::{
+    FieldsArgs,
+    OverlapsArgs,
+};
 use layers::Layers;
 use problem::Metric;
 use std::{
@@ -39,16 +43,21 @@ mod dependencies;
 mod diff;
 mod dsm;
 mod extent;
+mod fields;
 mod graph;
+mod indexed;
 mod item;
 mod layers;
 mod leaks;
 mod lexer;
 mod modules;
+mod overlaps;
 mod page;
 mod problem;
+mod program;
 mod ratchet;
 mod report;
+mod scip;
 mod surface;
 mod tree;
 mod use_tree;
@@ -119,6 +128,12 @@ enum Command {
     /// Write a dependency structure matrix of the workspace crates as an HTML
     /// page, shaded by how often each pair changed in the same commit.
     Dsm(DsmArgs),
+    /// Print the groups of functions in different top-level modules that
+    /// access the same fields, read from a rust-analyzer SCIP index.
+    Overlaps(OverlapsArgs),
+    /// Print the types whose fields functions in several top-level modules
+    /// access, read from a rust-analyzer SCIP index.
+    Fields(FieldsArgs),
 }
 
 #[derive(Debug, Args)]
@@ -153,6 +168,8 @@ fn main() -> ExitCode {
             dependencies(args.root, &View::new(crate_name.as_deref(), *baseline))
         }
         Command::Dsm(dsm_args) => dsm(&args.root, dsm_args),
+        Command::Overlaps(overlaps_args) => indexed::overlaps(args.root, overlaps_args),
+        Command::Fields(fields_args) => indexed::fields(args.root, fields_args),
     };
     result.unwrap_or_else(|error| {
         eprintln!("{error}");

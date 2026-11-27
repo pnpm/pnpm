@@ -240,6 +240,7 @@ p256 = { version = "0.14.0", default-features = false, features = ["ecdsa", "pkc
 pathdiff = { version = "0.2.3" }
 percent-encoding = { version = "2.3.2" }
 pipe-trait = { version = "0.4.0" }
+prost = { version = "0.12.6" }
 pubgrub = { version = "0.4.0" }
 pep440_rs = { version = "0.7.3" }
 pep508_rs = { version = "0.9.2" }
