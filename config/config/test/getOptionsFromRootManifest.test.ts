@@ -202,6 +202,22 @@ test('getOptionsFromPnpmSettings() ignores env variables inside proxy settings',
   expect(JSON.stringify(options)).not.toContain('secret')
 })
 
+test('getOptionsFromPnpmSettings() ignores env variables inside userAgent setting', () => {
+  process.env.PNPM_TEST_TOKEN = 'secret'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    userAgent: 'agent/${PNPM_TEST_TOKEN}', // eslint-disable-line
+  } as any) as any // eslint-disable-line
+  expect(options.userAgent).toBeUndefined()
+  expect(JSON.stringify(options)).not.toContain('secret')
+})
+
+test('getOptionsFromPnpmSettings() keeps a userAgent setting without env placeholders', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    userAgent: 'my-agent/2.0',
+  } as any) as any // eslint-disable-line
+  expect(options.userAgent).toBe('my-agent/2.0')
+})
+
 test('getOptionsFromPnpmSettings() keeps a registry setting without env placeholders', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     registry: 'https://registry.example.com/npm/',
