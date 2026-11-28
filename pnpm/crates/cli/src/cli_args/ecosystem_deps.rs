@@ -10,6 +10,7 @@ pub(crate) use outdated::{
     ecosystem_project_name,
     requires_ecosystem_lockfile,
 };
+pub(crate) use rust_toolchain::NewerRustReleases;
 pub(crate) use selectors::{
     EcosystemFilterKind,
     excludes_only,
@@ -23,6 +24,7 @@ pub(crate) use standalone::{
 };
 
 mod outdated;
+mod rust_toolchain;
 
 use crate::ecosystem_install::InstallContext;
 use cargo::{

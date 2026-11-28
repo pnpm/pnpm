@@ -17,7 +17,10 @@ use pnpm_rust_toolchain::{
 };
 use std::{
     collections::BTreeSet,
-    path::PathBuf,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A task for each toolchain file governing `project_dirs` whose pin has a
@@ -38,13 +41,19 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
 }
 
 fn governing_files(config: &Config, project_dirs: &[PathBuf]) -> BTreeSet<PathBuf> {
-    let workspace = config.workspace_dir.as_deref().and_then(checkout);
     project_dirs
         .iter()
-        .filter_map(|dir| {
-            let dir = dunce::canonicalize(dir).ok()?;
-            let boundary = workspace.clone().unwrap_or_else(|| dir.clone());
-            find_toolchain_file(&dir, &boundary)
-        })
+        .filter_map(|dir| governing_file(config, dir))
         .collect()
+}
+
+/// The toolchain file that governs `dir`, searched for no higher than the
+/// workspace, or than `dir` outside one.
+pub(crate) fn governing_file(config: &Config, dir: &Path) -> Option<PathBuf> {
+    let dir = dunce::canonicalize(dir).ok()?;
+    let boundary = config.workspace_dir
+        .as_deref()
+        .and_then(checkout)
+        .unwrap_or_else(|| dir.clone());
+    find_toolchain_file(&dir, &boundary)
 }

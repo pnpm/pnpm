@@ -1,6 +1,8 @@
 use super::{
+    BareUpdateNames,
     EcosystemFilterKind,
     RustToolchainSelector,
+    parse_update_selection,
     parse_update_selectors,
     patterns_for_ecosystem,
     validate_ecosystem_selectors,
@@ -257,4 +259,14 @@ fn rust_names_the_toolchain_only_where_cargo_is_enabled() {
     let parsed = parse_update_selectors(&["!rust".to_string()], &config).unwrap();
     assert_eq!(parsed.rust_toolchain, Some(RustToolchainSelector::Exclude));
     assert_eq!(parsed.cargo_exclusions, vec!["rust"]);
+}
+
+#[test]
+fn an_interactive_pick_of_rust_names_the_toolchain() {
+    let mut config = Config::default();
+    config.cargo.enabled = true;
+    let picks = ["rust".to_string(), "foo".to_string()];
+    let parsed = parse_update_selection(&picks, &config, BareUpdateNames::NodeOnly).unwrap();
+    assert_eq!(parsed.rust_toolchain, Some(RustToolchainSelector::Include));
+    assert_eq!(parsed.node_selectors, vec!["foo"]);
 }

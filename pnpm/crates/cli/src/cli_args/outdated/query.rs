@@ -61,6 +61,7 @@ pub(crate) struct OutdatedRun {
     pub(crate) http_client: Arc<ThrottledClient>,
     pub(crate) raw_packages: Vec<String>,
     pub(crate) python_index_cache: pnpm_python_installer::PythonIndexCache,
+    pub(crate) rust_releases: crate::cli_args::ecosystem_deps::NewerRustReleases,
     pub(super) resolver: DefaultResolver,
     pub(super) resolve_options: ResolveOptions,
     pub(super) catalogs: Catalogs,
@@ -108,6 +109,7 @@ impl OutdatedRun {
             http_client,
             raw_packages: Vec::new(),
             python_index_cache: pnpm_python_installer::PythonIndexCache::default(),
+            rust_releases: crate::cli_args::ecosystem_deps::NewerRustReleases::default(),
             resolver,
             resolve_options: ResolveOptions {
                 version: pnpm_resolving_resolver_base::VersionSelectionOptions {

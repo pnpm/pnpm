@@ -14,6 +14,12 @@ runtimes, or package managers by providing arguments, including `crate:<name>`
 for Cargo crates and `pypi:<name>` for Python packages. Patterns support `*`
 wildcards, and a leading `!` excludes matching names. Python selectors ignore case and treat runs of dots, underscores, and hyphens as one hyphen. Cargo selectors match both the dependency alias and the crate name.
 
+Since v12.25.0, with `cargo.enabled`, `pnpm outdated` also lists the Rust
+release that a [toolchain file](../cargo.md#rust-toolchain) pins, as `rust`,
+when a newer release of its channel is out. Select it with `rust` or leave it
+out with `!rust`. `--compatible` does not list it, because a pinned release
+moves only with [`pnpm update --latest`](./update.md#--latest--l).
+
 `pnpm outdated` exits with code 1 when any dependency is outdated.
 Without a lockfile, the `Current` column shows the version installed in
 `node_modules`. If the dependency is not installed, it shows the lowest version

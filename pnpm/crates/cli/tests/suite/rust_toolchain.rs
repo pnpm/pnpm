@@ -304,15 +304,38 @@ fn workspace_pinning_an_old_release() -> CommandTempCwd<()> {
     env
 }
 
-fn update(workspace: &std::path::Path, server: &mockito::ServerGuard, args: &[&str]) {
+fn with_mirror(
+    workspace: &std::path::Path,
+    server: &mockito::ServerGuard,
+    args: &[&str],
+) -> std::process::Output {
     let tools = json!({ "rust": { "mirror": server.url() } }).to_string();
-    let output = pacquet_in(workspace)
+    pacquet_in(workspace)
         .with_env("PNPM_CONFIG_TOOLS", tools)
-        .with_arg("update")
         .with_args(args)
         .output()
-        .unwrap();
+        .unwrap()
+}
+
+fn update(workspace: &std::path::Path, server: &mockito::ServerGuard, args: &[&str]) {
+    let output = with_mirror(workspace, server, &[&["update"], args].concat());
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+}
+
+fn outdated(
+    workspace: &std::path::Path,
+    server: &mockito::ServerGuard,
+    args: &[&str],
+) -> serde_json::Value {
+    let output =
+        with_mirror(workspace, server, &[&["outdated", "--format", "json"], args].concat());
+    assert!(
+        output.status
+            .code()
+            .is_some_and(|code| code <= 1),
+        "{output:?}",
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
 }
 
 fn pinned_channel(workspace: &std::path::Path) -> String {
@@ -353,5 +376,23 @@ fn the_pinned_rust_release_is_kept_without_latest_or_when_excluded() {
     update(&workspace, &server, &["--latest", "--no-save"]);
 
     assert_eq!(pinned_channel(&workspace), "[toolchain]\nchannel = \"1.7.0\"\n");
+    drop(root);
+}
+
+/// `pnpm outdated` lists the pinned release beside the dependencies, with
+/// the release `pnpm update --latest` would move it to.
+#[test]
+fn outdated_lists_a_pinned_rust_release_that_has_a_newer_one() {
+    let CommandTempCwd { workspace, root, .. } = workspace_pinning_an_old_release();
+    let server = stable_dist_server();
+
+    let report = outdated(&workspace, &server, &[]);
+    assert_eq!(report["rust"]["current"], "1.7.0");
+    assert_eq!(report["rust"]["latest"], "1.8.0");
+    assert_eq!(outdated(&workspace, &server, &["rust"])["rust"]["latest"], "1.8.0");
+
+    for args in [&["--compatible"][..], &["!rust"], &["--prod"]] {
+        assert_eq!(outdated(&workspace, &server, args).get("rust"), None, "{args:?}");
+    }
     drop(root);
 }

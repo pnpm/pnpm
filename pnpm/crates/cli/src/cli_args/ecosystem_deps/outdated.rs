@@ -17,6 +17,11 @@ use super::{
         has_python_lockfile,
         python_project_name,
     },
+    rust_toolchain::{
+        RUST,
+        collect_rust_toolchain_outdated,
+        declares_rust_toolchain,
+    },
 };
 use crate::cli_args::outdated::{
     OutdatedPackage,
@@ -69,6 +74,9 @@ pub(crate) fn declared_ecosystem_dep_names(
 ) -> Result<Vec<String>> {
     let mut names = Vec::new();
     let workspace_root = config.workspace_dir.as_deref();
+    if declares_rust_toolchain(project_dir, config, include)? {
+        names.push(RUST.to_string());
+    }
     if config.cargo.enabled {
         names.extend(
             declared_cargo_dep_names(project_dir, workspace_root, include)?
@@ -133,6 +141,10 @@ pub(crate) async fn collect_ecosystem_outdated(
         && let Some(cargo_matcher) = ecosystem_matcher(raw_packages, EcosystemFilterKind::Cargo)?
     {
         let cargo_query = query_for_ecosystem(query, raw_packages, cargo_matcher.as_ref());
+        out.extend(
+            collect_rust_toolchain_outdated(project_dir, workspace_name.clone(), &cargo_query, run)
+                .await?,
+        );
         out.extend(
             collect_cargo_outdated(
                 project_dir,
