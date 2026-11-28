@@ -240,15 +240,10 @@ fn parallel_build_leaves_precede_their_root() {
     assert_eq!(order[2], key("root", "1.0.0"));
 }
 
-/// The subgraph-trim case for [#397] item `#16`. Pacquet's
-/// existing [`unrelated_subgraph_excluded`] covers a stronger
-/// scenario (an entirely unreachable subgraph); this one pins the
-/// behavior where an importer that's still in the install set gets
-/// dropped from the build sequence.
-///
-/// [#397]: https://github.com/pnpm/pacquet/issues/397
+/// `b` builds nothing, and the walk from `a` reaches `c` first. `b`
+/// stays in the graph after `c`, which runs nothing for it.
 #[test]
-fn non_builder_importer_with_shared_builder_child_is_trimmed() {
+fn non_builder_importer_with_shared_builder_child_is_kept() {
     let snapshots = HashMap::from([
         (key("a", "1.0.0"), snap(&[("c", "1.0.0")])),
         (key("b", "1.0.0"), snap(&[("c", "1.0.0")])),
@@ -269,7 +264,118 @@ fn non_builder_importer_with_shared_builder_child_is_trimmed() {
         None,
         &SkippedSnapshots::default(),
     );
-    assert_eq!(order(&graph), vec![key("c", "1.0.0"), key("a", "1.0.0")]);
+    assert_eq!(order(&graph), vec![key("c", "1.0.0"), key("a", "1.0.0"), key("b", "1.0.0")]);
+}
+
+/// `x` builds and depends on `c`, which builds, through `b`, which does
+/// not. The walk from `a` reaches `c` before the walk from `x` reaches it
+/// through `b`. The graph keeps `b`, so `x` builds after `c` rather than
+/// alongside it.
+#[test]
+fn a_builder_waits_for_a_builder_it_reaches_through_a_shared_non_builder() {
+    let snapshots = HashMap::from([
+        (key("a", "1.0.0"), snap(&[("c", "1.0.0")])),
+        (key("x", "1.0.0"), snap(&[("b", "1.0.0")])),
+        (key("b", "1.0.0"), snap(&[("c", "1.0.0")])),
+        (key("c", "1.0.0"), snap(&[])),
+    ]);
+    let requires_build = requires([
+        (key("a", "1.0.0"), false),
+        (key("x", "1.0.0"), true),
+        (key("b", "1.0.0"), false),
+        (key("c", "1.0.0"), true),
+    ]);
+    let importers = root_importers(&[("a", "1.0.0"), ("x", "1.0.0")]);
+
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
+    assert_eq!(graph.get(&key("x", "1.0.0")), Some(&vec![key("b", "1.0.0")]));
+    assert_eq!(graph.get(&key("b", "1.0.0")), Some(&vec![key("c", "1.0.0")]));
+    let order = order(&graph);
+    let position = |name: &str| {
+        order
+            .iter()
+            .position(|key| key.name.to_string() == name)
+            .expect("every node is ordered")
+    };
+    assert!(position("c") < position("b") && position("b") < position("x"), "{order:?}");
+}
+
+/// `x` builds and reaches `c`, which builds, through `b` and `a`, which
+/// depend on each other and build nothing. The walk from `a` enters `b`
+/// before `c`, and `b`'s only way to `c` is the edge back to `a`. The graph
+/// keeps `b`, so `x` builds after `c` rather than alongside it.
+#[test]
+fn a_builder_waits_for_a_builder_it_reaches_through_a_dependency_cycle() {
+    let snapshots = HashMap::from([
+        (key("a", "1.0.0"), snap(&[("b", "1.0.0"), ("c", "1.0.0")])),
+        (key("b", "1.0.0"), snap(&[("a", "1.0.0")])),
+        (key("c", "1.0.0"), snap(&[])),
+        (key("x", "1.0.0"), snap(&[("b", "1.0.0")])),
+    ]);
+    let requires_build = requires([(key("c", "1.0.0"), true), (key("x", "1.0.0"), true)]);
+    let importers = root_importers(&[("a", "1.0.0"), ("x", "1.0.0")]);
+
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
+    assert_eq!(graph.get(&key("x", "1.0.0")), Some(&vec![key("b", "1.0.0")]));
+    assert_eq!(graph.get(&key("b", "1.0.0")), Some(&vec![key("a", "1.0.0")]));
+    let order = order(&graph);
+    let position = |name: &str| {
+        order
+            .iter()
+            .position(|key| key.name.to_string() == name)
+            .expect("every node is ordered")
+    };
+    assert!(position("c") < position("x"), "{order:?}");
+}
+
+/// A chain tens of thousands of snapshots deep is walked on a test
+/// thread's stack: the walk keeps its own frames rather than recursing per
+/// snapshot.
+#[test]
+fn a_deep_chain_does_not_overflow_the_stack() {
+    const LENGTH: usize = 50_000;
+    let names: Vec<String> = (0..LENGTH)
+        .map(|index| format!("p{index}"))
+        .collect();
+    let snapshots: HashMap<PackageKey, SnapshotEntry> = names
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            let children: Vec<(&str, &str)> = names
+                .get(index + 1)
+                .map(|child| (child.as_str(), "1.0.0"))
+                .into_iter()
+                .collect();
+            (key(name, "1.0.0"), snap(&children))
+        })
+        .collect();
+    let requires_build = requires([(key(&names[LENGTH - 1], "1.0.0"), true)]);
+    let importers = root_importers(&[("p0", "1.0.0")]);
+
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
+    assert_eq!(graph.len(), LENGTH);
+    assert_eq!(graph.first().map(|(key, _)| key), Some(&key(&names[LENGTH - 1], "1.0.0")));
 }
 
 /// A snapshot marked in the skip set must NOT enter the build queue
