@@ -97,7 +97,7 @@ crates = [
 [[layer]]
 name = "service"
 description = "One capability each: resolve, fetch, link, patch, run scripts, talk to a registry. Takes its settings as values and never reads the configuration."
-max_transitive_dependencies = 45
+max_transitive_dependencies = 46
 crates = [
   "pnpm-cargo-resolver",
   "pnpm-cmd-shim",
@@ -334,7 +334,7 @@ pnpm-injected-deps-syncer = 7
 pnpm-install-coordinator = 3
 pnpm-integrated-benchmark = 6
 pnpm-local-spec = 3
-pnpm-lockfile = 12
+pnpm-lockfile = 13
 pnpm-lockfile-import = 2
 pnpm-lockfile-preferred-versions = 6
 pnpm-lockfile-verification = 9

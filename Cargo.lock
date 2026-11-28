@@ -6041,6 +6041,7 @@ dependencies = [
  "pnpm-pkg-name-split",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-semver-include-prerelease",
+ "pnpm-strongly-connected-components",
  "pnpm-tool-protocol",
  "pretty_assertions",
  "rayon",

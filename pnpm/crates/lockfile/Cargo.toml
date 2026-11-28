@@ -20,6 +20,7 @@ pnpm-local-spec = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-patching-config = { workspace = true }
 pnpm-pkg-name-split = { workspace = true }
+pnpm-strongly-connected-components = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-semver-include-prerelease = { workspace = true }
 pnpm-tool-protocol = { workspace = true }
