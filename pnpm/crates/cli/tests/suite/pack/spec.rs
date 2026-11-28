@@ -1,13 +1,15 @@
 //! `pack <spec>`: packing a positional package spec (a registry package,
-//! a tarball URL, a local directory, or a local tarball file) instead of
-//! the project in the working directory. Registry tests run against the
-//! mocked registry; URL tests against a `mockito` server.
+//! a git repository, a tarball URL, a local directory, or a local tarball
+//! file) instead of the project in the working directory. Registry tests
+//! run against the mocked registry, URL tests against a `mockito` server,
+//! and git tests against a local repository over `git+file://`.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils_registry::{
     bin::CommandTempCwd,
     fixtures::minimal_tarball,
+    git_repo::GitRepoFixture,
 };
 use serde_json::{
     Value,
@@ -256,22 +258,100 @@ fn dry_run_reports_a_url_spec_without_writing() {
 }
 
 #[test]
-fn rejects_a_git_spec() {
-    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+fn packs_a_git_spec() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "git-pkg");
+    repo.write_file("package.json", r#"{"name":"git-pkg","version":"1.0.0"}"#);
+    repo.write_file("index.js", "module.exports = true\n");
+    let commit = repo.commit("init");
 
     let output = pacquet
-        .with_args(["pack", "user/repo"])
-        .output()
-        .expect("spawn pacquet pack");
+        .with_args(["pack", &repo.git_url_at(&commit), "--json"])
+        .assert()
+        .success();
 
-    assert!(!output.status.success(), "a git spec must fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let result: Value =
+        serde_json::from_str(&String::from_utf8_lossy(&output.get_output().stdout)).unwrap();
+    assert_eq!(result["name"], "git-pkg");
+    let entries = tarball_entry_names(&workspace.join("git-pkg-1.0.0.tgz"));
+    assert!(entries.contains(&"package/index.js".to_string()), "{entries:?}");
     assert!(
-        stderr.contains("packing a git dependency is not supported yet"),
-        "stderr must say why; got:\n{stderr}",
+        !entries
+            .iter()
+            .any(|entry| entry.contains(".git/")),
+        "the checkout's git metadata is not packed: {entries:?}",
     );
 
     drop(root);
+}
+
+#[test]
+fn packs_a_git_spec_subdirectory() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "monorepo");
+    repo.write_file("package.json", r#"{"name":"monorepo-root","version":"0.0.0"}"#);
+    repo.write_file("packages/sdk/package.json", r#"{"name":"sdk","version":"2.0.0"}"#);
+    repo.write_file("packages/sdk/index.js", "module.exports = true\n");
+    let commit = repo.commit("init");
+    let spec = format!("{}&path:/packages/sdk", repo.git_url_at(&commit));
+
+    pacquet
+        .with_args(["pack", &spec])
+        .assert()
+        .success();
+
+    assert!(workspace.join("sdk-2.0.0.tgz").exists(), "the sub-directory's package is packed");
+    assert!(!workspace.join("monorepo-root-0.0.0.tgz").exists());
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_git_spec_runs_its_prepare_script() {
+    let (entries, root) = pack_git_repo_with_prepare_script(&[]);
+    assert!(
+        entries.contains(&"package/built.js".to_string()),
+        "`prepare` builds the named package without an `allowBuilds` entry: {entries:?}",
+    );
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn ignore_scripts_skips_a_git_spec_prepare_script() {
+    let (entries, root) = pack_git_repo_with_prepare_script(&["--ignore-scripts"]);
+    assert!(!entries.contains(&"package/built.js".to_string()), "{entries:?}");
+    drop(root);
+}
+
+/// Pack a git repo whose `prepare` script writes `built.js`, and return the
+/// tarball's entry names.
+#[cfg(unix)]
+fn pack_git_repo_with_prepare_script(extra_args: &[&str]) -> (Vec<String>, tempfile::TempDir) {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "built-pkg");
+    repo.write_file(
+        "package.json",
+        &json!({
+            "name": "built-pkg",
+            "version": "1.0.0",
+            "scripts": { "prepare": r#"node -e "require('fs').writeFileSync('built.js', '')""# },
+        })
+        .to_string(),
+    );
+    let commit = repo.commit("init");
+
+    pacquet
+        .with_args(["pack", &repo.git_url_at(&commit)])
+        .with_args(extra_args)
+        .assert()
+        .success();
+
+    (tarball_entry_names(&workspace.join("built-pkg-1.0.0.tgz")), root)
 }
 
 #[test]
@@ -392,9 +472,8 @@ fn a_git_spec_error_redacts_credentials() {
         .output()
         .expect("spawn pacquet pack");
 
-    assert!(!output.status.success(), "a git spec must fail");
+    assert!(!output.status.success(), "an unreachable git repo must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("git dependency"), "stderr must say why; got:\n{stderr}");
     assert!(!stderr.contains("secret"), "credentials are redacted; got:\n{stderr}");
 
     drop(root);

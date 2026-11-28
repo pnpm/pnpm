@@ -106,8 +106,8 @@ impl Reporter for PackJsonReporter {
 #[derive(Debug, Args)]
 pub struct PackArgs {
     /// Package specs to pack instead of the project in the current
-    /// directory: a registry package (`name[@version|tag|range]`), a
-    /// tarball URL, a local directory, or a local tarball file.
+    /// directory: a registry package (`name[@version|tag|range]`), a git
+    /// repository, a tarball URL, a local directory, or a local tarball file.
     pub packages: Vec<String>,
 
     /// Do everything `pack` would do except writing the tarball to disk.
@@ -158,7 +158,8 @@ impl PackArgs {
     /// Pack the project at `dir` (or the `--filter`-selected workspace
     /// projects when `recursive`), returning the text/JSON the CLI prints.
     /// With positional package specs, pack those instead: a registry
-    /// package, a tarball URL, a local directory, or a local tarball file.
+    /// package, a git repository, a tarball URL, a local directory, or a
+    /// local tarball file.
     pub async fn run<Reporter: self::Reporter>(
         &self,
         dir: &Path,

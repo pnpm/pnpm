@@ -31,6 +31,8 @@ pub use fetcher::{
     GitFetchOutput,
     GitFetcher,
     GitManifestQuery,
+    PrepareGitCheckout,
+    PreparedCheckout,
     cache_checkout_bundles,
     checkout_cached_bundles,
     checkout_commit,

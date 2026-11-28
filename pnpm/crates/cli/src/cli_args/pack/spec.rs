@@ -1,8 +1,7 @@
 //! `pack <spec>`: pack a package spec instead of the project in the
 //! working directory. A spec names a registry package
-//! (`name[@version|tag|range]`), a tarball URL, a local directory, or a
-//! local tarball file. Git specs are rejected: packing one would need the
-//! git fetcher's clone-and-prepare pipeline, which `pack` does not drive.
+//! (`name[@version|tag|range]`), a git repository, a tarball URL, a local
+//! directory, or a local tarball file.
 
 use super::{
     PackArgs,
@@ -114,6 +113,9 @@ async fn pack_spec<Reporter: self::Reporter>(
         PackSpec::LocalDir(path) => {
             pack_local_dir::<Reporter>(args, dir, config, before_packing_hooks, path).await
         }
+        PackSpec::Git => {
+            git::pack_git_spec::<Reporter>(args, dir, config, before_packing_hooks, spec).await
+        }
         PackSpec::LocalTarball(path) => {
             let bytes = std::fs::read(&path)
                 .into_diagnostic()
@@ -173,15 +175,45 @@ async fn pack_local_dir<Reporter: self::Reporter>(
     before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     path: PathBuf,
 ) -> miette::Result<PackResult> {
-    // A directory outside the current workspace is packed without the
-    // workspace's context: its catalogs, workspace package versions,
-    // composed changelog, and root LICENSE belong to the calling project,
-    // not to the packed one.
     let in_workspace = config.workspace_dir
         .as_deref()
         .is_some_and(|workspace_dir| {
             path.starts_with(pnpm_pack::canonicalize_pack_dir(workspace_dir))
         });
+    pack_dir::<Reporter>(
+        args,
+        dir,
+        config,
+        before_packing_hooks,
+        PackDir { path, in_workspace, scripts_already_ran: false },
+    )
+    .await
+}
+
+/// A directory [`pack_dir`] packs.
+struct PackDir {
+    path: PathBuf,
+    /// A directory outside the current workspace is packed without the
+    /// workspace's context: its catalogs, workspace package versions,
+    /// composed changelog, and root LICENSE belong to the calling project,
+    /// not to the packed one.
+    in_workspace: bool,
+    /// The `prepack` / `prepare` scripts already ran, so packing skips the
+    /// lifecycle scripts.
+    scripts_already_ran: bool,
+}
+
+async fn pack_dir<Reporter: self::Reporter>(
+    args: &PackArgs,
+    dir: &Path,
+    config: &Config,
+    before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+    PackDir {
+        path,
+        in_workspace,
+        scripts_already_ran,
+    }: PackDir,
+) -> miette::Result<PackResult> {
     let shared = PackSharedContext {
         catalogs: if in_workspace { configured_catalogs(config)? } else { Catalogs::default() },
         output_base_dir: Some(dir.to_path_buf()),
@@ -198,6 +230,7 @@ async fn pack_local_dir<Reporter: self::Reporter>(
         options.manifest.catalogs_dir = None;
         options.manifest.workspace_packages = None;
     }
+    options.scripts.ignore |= scripts_already_ran;
     Ok(api::<Reporter, Host>(&options).await?)
 }
 
@@ -268,16 +301,14 @@ async fn download_tarball(config: &Config, url: &str) -> miette::Result<Vec<u8>>
 enum PackSpec {
     LocalDir(PathBuf),
     LocalTarball(PathBuf),
+    Git,
     RemoteTarballUrl(String),
     Registry,
 }
 
 fn classify(spec: &str, dir: &Path) -> Result<PackSpec, PackSpecError> {
     if pnpm_resolving_git_resolver::parse_bare_specifier(spec).is_some() {
-        return Err(PackSpecError::UnsupportedSpec {
-            spec: redact_spec(spec),
-            reason: "packing a git dependency is not supported yet",
-        });
+        return Ok(PackSpec::Git);
     }
     if let Some(id) = pnpm_resolving_tarball_resolver::remote_tarball_id(spec) {
         return id
@@ -318,3 +349,5 @@ fn local_spec_path(spec: &str, dir: &Path) -> PathBuf {
     }
     pnpm_pack::canonicalize_pack_dir(&dir.join(path))
 }
+
+mod git;
