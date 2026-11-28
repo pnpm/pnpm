@@ -81,12 +81,14 @@ pub(crate) fn check_header_block(
 /// parses the next block as a header.
 ///
 /// node-tar reads the checksum from a 12-byte field that runs on into the
-/// typeflag and the link name. It does not decode a field of an entry that
-/// a pending PAX record, for which `extended` holds, sets.
+/// typeflag and the link name. It does not decode a field that a pending PAX
+/// record, for which `extended` holds, sets. That holds for every entry type
+/// for `atime` and `ctime`, and only for normal entries for the others.
 pub(crate) fn reads_as_header(block: &[u8; 512], extended: impl Fn(&str) -> bool) -> bool {
     let extensions_apply = is_normal_fs_type(block[156]);
     let decodes = |key: &str, field: &[u8]| {
-        (extensions_apply && extended(key)) || node_tar_number(field).is_ok()
+        let applies = extensions_apply || matches!(key, "atime" | "ctime");
+        (applies && extended(key)) || node_tar_number(field).is_ok()
     };
     let Ok(Some(stored)) = node_tar_number(&block[148..160]) else {
         return false;

@@ -604,3 +604,18 @@ async fn reads_the_manifest_of_a_gzip_member_that_ends_inside_it() {
         .expect("node-tar reads the manifest across the members");
     assert_eq!(metadata.manifest.unwrap()["name"], "diffdemo");
 }
+
+/// node-tar takes `atime` and `ctime` from pending PAX records for every
+/// entry type, a GNU long name header among them.
+#[test]
+fn reads_a_long_name_header_whose_atime_a_global_pax_record_sets() {
+    let name = padded(b"package/lib.js\0");
+    let mut long_name = header("././@LongLink", 15, b'L');
+    long_name[476..488].copy_from_slice(&[0x81; 12]);
+    seal(&mut long_name);
+    let tar =
+        [base(), pax(b'g', &[("atime", "1")]), long_name, name, hidden(), END.to_vec()].concat();
+    let (_store_keep, files) = extract_files(&tar);
+    assert_file(&files, "index.js", BENIGN);
+    assert_file(&files, "lib.js", DIFFERENT);
+}
