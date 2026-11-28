@@ -5,10 +5,12 @@ use super::{
     PackageBin,
     PackageFilesIndex,
     StoreDir,
+    TarEnd,
     TarLimits,
     TarballError,
-    extract_tarball_entries_alongside,
+    collect_pending_tar_entries,
     stream_extract_gzipped_tarball_with_tar,
+    write_pending_tar,
 };
 use ssri::Integrity;
 use tracing::instrument;
@@ -179,13 +181,19 @@ pub(crate) fn extract_gzipped_tarball_with_tar(
     }
     match decompress_gzip(gz_data, unpacked_size) {
         Ok(tar_data) => {
-            let ((files, index, bins), tar) = extract_tarball_entries_alongside(
-                &tar_data,
-                limits,
-                store_dir,
-                ignore_file_pattern,
-                || eager_tar_integrity(gz_data, &tar_data),
-            )?;
+            let pending = collect_pending_tar_entries(&tar_data, limits, ignore_file_pattern)?;
+            // The eager decoder reads one gzip member and cannot tell whether
+            // another follows, which node-tar would read as more of the tar.
+            if pending.end == TarEnd::Input {
+                return stream_extract_gzipped_tarball_with_tar(
+                    gz_data,
+                    limits,
+                    store_dir,
+                    ignore_file_pattern,
+                );
+            }
+            let ((files, index, bins), tar) =
+                write_pending_tar(store_dir, pending, || eager_tar_integrity(gz_data, &tar_data))?;
             Ok((files, index, bins, tar))
         }
         Err(error) if is_eager_decode_limit_exceeded(&error) => {

@@ -48,6 +48,7 @@ pub struct ArchiveInner<R: ?Sized> {
     ignore_zeros: bool,
     max_metadata_size: Option<u64>,
     read_like_node_tar: bool,
+    ended_at_end_marker: Cell<bool>,
     obj: RefCell<R>,
 }
 
@@ -82,6 +83,7 @@ impl<R: Read> Archive<R> {
                 ignore_zeros: false,
                 max_metadata_size: None,
                 read_like_node_tar: false,
+                ended_at_end_marker: Cell::new(false),
                 obj: RefCell::new(obj),
                 pos: Cell::new(0),
             },
@@ -209,6 +211,13 @@ impl<R: Read> Archive<R> {
     /// default.
     pub fn set_read_like_node_tar(&mut self, read_like_node_tar: bool) {
         self.inner.read_like_node_tar = read_like_node_tar;
+    }
+
+    /// Whether entry iteration stopped at an end-of-archive marker: two
+    /// zero blocks. `false` while entries remain, and when the input ended
+    /// at a header boundary or after a single zero block.
+    pub fn ended_at_end_marker(&self) -> bool {
+        self.inner.ended_at_end_marker.get()
     }
 }
 
@@ -435,6 +444,9 @@ impl<'a> EntriesFields<'a> {
         (&self.archive.inner).take(BLOCK_SIZE).read_to_end(&mut block)?;
         if block.iter().any(|byte| *byte != 0) {
             return Err(other("archive has data after a single zero block"));
+        }
+        if block.len() == BLOCK_SIZE as usize {
+            self.archive.inner.ended_at_end_marker.set(true);
         }
         Ok(None)
     }

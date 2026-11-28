@@ -48,12 +48,18 @@ fn is_pax_type(typeflag: u8) -> bool {
 ///
 /// node-tar skips a header block with no path, or with a link name on an
 /// entry that is not a link, and parses the next block as a header. It reads
-/// a Solaris `X` header as a PAX header, which this crate does not.
+/// a Solaris `X` header as a PAX header and an old GNU `N` header as a GNU
+/// long name, which this crate does not.
 pub(crate) fn check_header_block(header: &Header) -> io::Result<()> {
     let typeflag = header.as_old().linkflag[0];
     if typeflag == b'X' {
         return Err(other("Solaris extended headers are not supported"));
     }
+    if typeflag == b'N' {
+        return Err(other("old GNU long name headers are not supported"));
+    }
+    check_checksum_field(header)?;
+    check_name_fields(header)?;
     if !is_normal_fs_type(typeflag) && header.path_bytes().is_empty() {
         return Err(other("archive header has no path"));
     }
@@ -61,6 +67,56 @@ pub(crate) fn check_header_block(header: &Header) -> io::Result<()> {
         return Err(entry_error(&header.path_bytes(), "is not a link but has a link name"));
     }
     Ok(())
+}
+
+/// node-tar reads the checksum as a 12-byte field that runs on into the
+/// typeflag. This crate reads 8 bytes. The two differ when the 8 bytes hold
+/// no NUL, end in an octal digit, and the typeflag is an octal digit.
+fn check_checksum_field(header: &Header) -> io::Result<()> {
+    let old = header.as_old();
+    let is_octal = |byte: u8| matches!(byte, b'0'..=b'7');
+    if !old.cksum.contains(&0) && is_octal(old.cksum[7]) && is_octal(old.linkflag[0]) {
+        return Err(other("archive header checksum field has no terminator"));
+    }
+    Ok(())
+}
+
+/// Checks the name, link name, and ustar prefix fields.
+///
+/// node-tar cuts a field at its first NUL, but only up to a line
+/// terminator, and keeps what follows it. This crate cuts at the first NUL.
+/// node-tar also reads a ustar prefix whenever byte 130 of the prefix field
+/// is set, and then joins an empty prefix to the name as `/name`. This crate
+/// ignores a prefix that starts with a NUL.
+fn check_name_fields(header: &Header) -> io::Result<()> {
+    let old = header.as_old();
+    let ustar_prefix = header.as_ustar().map(|ustar| &ustar.prefix);
+    let fields = [&old.name[..], &old.linkname[..]]
+        .into_iter()
+        .chain(ustar_prefix.map(|prefix| &prefix[..]));
+    for field in fields {
+        if has_line_terminator_after_nul(field) {
+            return Err(other("archive header name field has a line terminator after a NUL"));
+        }
+    }
+    if ustar_prefix.is_some_and(|prefix| prefix[0] == 0 && prefix[130] != 0) {
+        return Err(other("archive header has an empty ustar prefix and a set byte 475"));
+    }
+    Ok(())
+}
+
+/// The line terminators of a JavaScript regular expression, which `.` does
+/// not match: LF, CR, and U+2028 and U+2029 in UTF-8.
+fn has_line_terminator_after_nul(field: &[u8]) -> bool {
+    let Some(nul) = field.iter().position(|byte| *byte == 0) else {
+        return false;
+    };
+    let rest = &field[nul..];
+    rest.iter()
+        .any(|byte| matches!(byte, b'\n' | b'\r'))
+        || rest
+            .windows(3)
+            .any(|bytes| matches!(bytes, [0xe2, 0x80, 0xa8 | 0xa9]))
 }
 
 fn entry_error(path: &[u8], problem: &str) -> io::Error {

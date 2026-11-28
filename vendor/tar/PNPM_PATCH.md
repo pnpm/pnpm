@@ -28,4 +28,11 @@ does instead: a sized directory and a repeated PAX key.
 `EntryType::is_file` also counts contiguous files, which node-tar extracts as
 regular files.
 
+`octal_from` trims only ASCII white space from a numeric header field.
+node-tar trims with JavaScript's `trim`, which keeps U+0085.
+
+`Archive::ended_at_end_marker` reports whether iteration stopped at two zero
+blocks. A reader that decodes only the first gzip member uses it to refuse a
+tar that node-tar would read on into the next member.
+
 Keep this patch for as long as pnpm reads npm packages with this crate.
