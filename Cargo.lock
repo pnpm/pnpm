@@ -5395,6 +5395,7 @@ dependencies = [
  "pnpm-patching",
  "pnpm-pnpr-client",
  "pnpm-process",
+ "pnpm-reachability",
  "pnpm-real-hoist",
  "pnpm-reporter",
  "pnpm-resolving-npm-resolver",

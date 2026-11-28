@@ -42,6 +42,7 @@ pnpm-patching = { workspace = true }
 pnpm-pnpr-client = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }
 pnpm-real-hoist = { workspace = true }
+pnpm-reachability = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }

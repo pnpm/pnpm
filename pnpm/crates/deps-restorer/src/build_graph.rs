@@ -7,6 +7,7 @@ use pnpm_lockfile::{
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::ExtendedPatchInfo;
+use pnpm_reachability::reaching;
 use std::collections::{
     HashMap,
     HashSet,
@@ -41,21 +42,12 @@ pub fn build_graph(
     let children = build_children_map(snapshots);
     let root_dep_paths = collect_root_dep_paths(importers, snapshots, dependency_groups);
 
-    let mut nodes_to_build_set: HashSet<PackageKey> = HashSet::new();
-    let mut nodes_to_build: Vec<PackageKey> = Vec::new();
-    let mut walked: HashSet<PackageKey> = HashSet::new();
     let ctx = GetSubgraphCtx { children: &children, requires_build, patches, skipped };
-    get_subgraph_to_build(
-        &root_dep_paths,
-        &ctx,
-        &mut nodes_to_build_set,
-        &mut nodes_to_build,
-        &mut walked,
-    );
-
+    let nodes_to_build = subgraph_to_build(&root_dep_paths, &ctx);
     if nodes_to_build.is_empty() {
         return IndexMap::new();
     }
+    let nodes_to_build_set: HashSet<&PackageKey> = nodes_to_build.iter().collect();
 
     nodes_to_build
         .iter()
@@ -94,12 +86,11 @@ fn build_children_map(
                 .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
                 .filter(|resolved| snapshots.contains_key(resolved))
                 .collect();
-        // Sort for the same reason `collect_root_dep_paths` sorts
-        // its output: `get_subgraph_to_build` walks children in
-        // sequence, and a shared transitive descendant gets trimmed
-        // off whichever sibling visits it second. Both the entry
-        // nodes and every child list must be in a deterministic
-        // order for the build graph to be reproducible.
+        // Sorted for the same reason `collect_root_dep_paths` sorts
+        // its output: the build graph lists its nodes in the order
+        // `subgraph_to_build` walks them, so both the entry nodes and
+        // every child list must be in a deterministic order for the
+        // build graph to be reproducible.
         child_keys.sort_by_key(std::string::ToString::to_string);
         children.insert(key.clone(), child_keys);
     }
@@ -135,25 +126,18 @@ fn collect_root_dep_paths(
         .filter(|key| snapshots.contains_key(key))
         .filter(|key| seen.insert(key.clone()))
         .collect();
-    // [`get_subgraph_to_build`] is order-sensitive (a node walked
-    // first via root A may mark a shared child as already-walked, so
-    // a second root B sharing that child gets trimmed). Upstream's
-    // input arrives in JS-object insertion order; pacquet sources
-    // these from `HashMap<_, ProjectSnapshot>` and
-    // `HashMap<PkgName, ResolvedDependencySpec>`, so iteration order
-    // is non-deterministic. Sort by `PackageKey` string repr so the
-    // build sequence (and the trim behavior) is reproducible run to
-    // run. Long-term fix is to preserve lockfile declaration order
-    // via `IndexMap`; until then, an alphabetical sort is enough to
-    // make the build path deterministic.
+    // The build graph lists its nodes in the order
+    // [`subgraph_to_build`] walks them from these roots, which arrive
+    // from `HashMap<_, ProjectSnapshot>` and
+    // `HashMap<PkgName, ResolvedDependencySpec>` in an order that
+    // changes from run to run. Sort by `PackageKey` string repr so the
+    // build sequence is reproducible run to run.
     roots.sort_by_key(std::string::ToString::to_string);
     roots
 }
 
-/// Per-walk invariant inputs to [`get_subgraph_to_build`]. Bundled
-/// into a struct so the recursive call doesn't have to thread eight
-/// arguments through every level, the three mutable accumulators
-/// stay as `&mut` params (one each because they're typed differently).
+/// What [`subgraph_to_build`] walks: each package's children, and what
+/// makes a package a build candidate.
 struct GetSubgraphCtx<'a> {
     children: &'a HashMap<PackageKey, Vec<PackageKey>>,
     requires_build: &'a HashMap<PackageKey, bool>,
@@ -161,44 +145,82 @@ struct GetSubgraphCtx<'a> {
     skipped: &'a SkippedSnapshots,
 }
 
-/// Walk the dep graph from `entry_nodes`, filling `nodes_to_build` with
-/// packages whose subtree (including themselves) contains a build candidate.
+/// The packages of the build graph: every package the walk from
+/// `entry_nodes` enters that is a build candidate or reaches one, in the
+/// order the walk finishes them, each after the children it entered.
 ///
 /// A node is a candidate when `requires_build` is set OR when an entry
 /// for the peer-stripped key is present in `patches`, *unless* the
 /// node is in `skipped`, in which case its virtual-store slot was never
 /// created so neither the requires-build nor patch path can run.
 ///
-/// Returns whether *any* of the entry nodes (or their subtrees) needs to build.
-fn get_subgraph_to_build(
-    entry_nodes: &[PackageKey],
-    ctx: &GetSubgraphCtx<'_>,
-    nodes_to_build_set: &mut HashSet<PackageKey>,
-    nodes_to_build: &mut Vec<PackageKey>,
-    walked: &mut HashSet<PackageKey>,
-) -> bool {
-    let mut current_should_be_built = false;
-    for dep_path in entry_nodes {
-        if !enters_build_graph(dep_path, ctx, walked) {
-            continue;
+/// A package is kept even when its only path to a candidate passes through a
+/// package the walk entered from an earlier root, so that the edges
+/// between kept packages order every candidate after each candidate it
+/// reaches.
+fn subgraph_to_build(entry_nodes: &[PackageKey], ctx: &GetSubgraphCtx<'_>) -> Vec<PackageKey> {
+    let walked = walk_order(entry_nodes, ctx);
+    let index_of: HashMap<&PackageKey, usize> = walked
+        .iter()
+        .enumerate()
+        .map(|(index, key)| (key, index))
+        .collect();
+    let adjacency: Vec<Vec<usize>> = walked
+        .iter()
+        .map(|key| {
+            ctx.children
+                .get(key)
+                .into_iter()
+                .flatten()
+                .filter_map(|child| index_of.get(child).copied())
+                .collect()
+        })
+        .collect();
+    let candidates: Vec<bool> = walked
+        .iter()
+        .map(|key| node_builds(key, ctx))
+        .collect();
+    let reaches_candidate = reaching(&adjacency, &candidates);
+    walked
+        .into_iter()
+        .zip(reaches_candidate)
+        .filter_map(|(key, reaches_candidate)| reaches_candidate.then_some(key))
+        .collect()
+}
+
+/// Every package the walk from `entry_nodes` enters, each listed once the
+/// walk has entered all of its children, with the walk's frames on a
+/// stack of its own rather than one per dependency on the thread's.
+fn walk_order(entry_nodes: &[PackageKey], ctx: &GetSubgraphCtx<'_>) -> Vec<PackageKey> {
+    let mut walked: HashSet<PackageKey> = HashSet::new();
+    let mut order: Vec<PackageKey> = Vec::new();
+    // Each frame holds a package and the index of its next child.
+    let mut frames: Vec<(&PackageKey, usize)> = Vec::new();
+    for entry in entry_nodes {
+        if enters_build_graph(entry, ctx, &mut walked) {
+            walked.insert(entry.clone());
+            frames.push((entry, 0));
         }
-        walked.insert(dep_path.clone());
-
-        let child_paths = ctx.children
-            .get(dep_path)
-            .cloned()
-            .unwrap_or_default();
-        let child_should_be_built =
-            get_subgraph_to_build(&child_paths, ctx, nodes_to_build_set, nodes_to_build, walked);
-
-        if child_should_be_built || node_builds(dep_path, ctx) {
-            if nodes_to_build_set.insert(dep_path.clone()) {
-                nodes_to_build.push(dep_path.clone());
+        while let Some(frame) = frames.last_mut() {
+            let (node, next) = *frame;
+            frame.1 += 1;
+            match ctx.children
+                .get(node)
+                .and_then(|children| children.get(next))
+            {
+                Some(child) if enters_build_graph(child, ctx, &mut walked) => {
+                    walked.insert(child.clone());
+                    frames.push((child, 0));
+                }
+                Some(_) => {}
+                None => {
+                    order.push(node.clone());
+                    frames.pop();
+                }
             }
-            current_should_be_built = true;
         }
     }
-    current_should_be_built
+    order
 }
 
 /// Whether the walk descends through this node at all. A node outside the
@@ -208,8 +230,8 @@ fn get_subgraph_to_build(
 /// A skipped snapshot never had its virtual-store slot created, so neither
 /// requires-build nor a configured patch can produce work. A skipped depPath
 /// is dropped from the build graph entirely: a child reachable only via a
-/// skipped edge doesn't enter the build graph either. Gated *before* the
-/// recursion so a skipped optional doesn't drag its transitive deps into the
+/// skipped edge doesn't enter the build graph either. Gated before the
+/// walk enters the node so a skipped optional doesn't drag its transitive deps into the
 /// walk via an edge that should not be followed, which is why a skipped node
 /// is still marked walked.
 fn enters_build_graph(
