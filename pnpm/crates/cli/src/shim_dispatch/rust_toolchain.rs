@@ -239,7 +239,9 @@ pub(super) fn run_toolchain_override(
         ToolchainOverride::Dir(dir) => {
             let toolchain = InstalledToolchain { dir };
             let program = toolchain.executable(shim.name);
-            if !program.is_file() {
+            // A directory whose `bin` holds the shims would run this
+            // dispatcher again.
+            if !program.is_file() || is_this_shim(&program) {
                 return run_next_on_path(shim, args);
             }
             exec_program_with_bin_dirs(&program, &[toolchain.bin_dir()], args)
@@ -348,6 +350,11 @@ pub(super) fn run_next_on_path(shim: &ShimInvocation<'_>, args: &[OsString]) -> 
         return 127;
     };
     exec_program_with_bin_dirs(&program, &[], args)
+}
+
+fn is_this_shim(program: &Path) -> bool {
+    pnpm_executor::current_executable()
+        .is_ok_and(|shim| same_file::is_same_file(program, shim).unwrap_or(false))
 }
 
 fn next_program(shim: &ShimInvocation<'_>) -> Option<PathBuf> {

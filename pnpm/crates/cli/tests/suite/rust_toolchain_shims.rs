@@ -278,6 +278,17 @@ fn a_toolchain_directory_override_runs_its_own_tool() {
     let mut lines = stdout.lines();
     assert_eq!(lines.next(), Some("directory-cargo build"));
     assert_eq!(lines.next().map(Path::new), Some(toolchain.join("bin/rustc").as_path()));
+
+    // The directory that holds the shims is not a toolchain: the shim does
+    // not run itself.
+    let system = root.path().join("system-bin");
+    write_script(&system.join("cargo"), r#"echo system-cargo "$@""#);
+    let output = shim(&root, &project, "cargo", &[&global_bin, &system, Path::new("/bin")])
+        .with_env("RUSTUP_TOOLCHAIN", global_bin.parent().unwrap())
+        .with_args(["build"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "system-cargo build");
 }
 
 /// Put a fake toolchain for `channel`, as a bare `channel` request asks for
