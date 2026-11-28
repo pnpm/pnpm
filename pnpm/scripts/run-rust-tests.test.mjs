@@ -39,6 +39,17 @@ test('runs nextest with a cache and a config directory of its own, removed after
   assert.ok(!fs.existsSync(call.env.XDG_CONFIG_HOME), 'the config directory is removed after the run')
 })
 
+test('drops the proxy variables pnpm reads from the environment', () => {
+  const { calls, spawn } = recordingSpawn()
+  const env = { PATH: '/bin', HTTPS_PROXY: 'http://proxy.test', http_proxy: 'http://proxy.test', NO_PROXY: 'localhost', PROXY: 'http://proxy.test' }
+
+  runRustTests([], { spawn, env })
+
+  const [{ env: passed }] = calls
+  assert.deepEqual(['HTTPS_PROXY', 'http_proxy', 'NO_PROXY', 'PROXY'].filter((name) => name in passed), [])
+  assert.equal(passed.PATH, '/bin')
+})
+
 test('drops npm and pnpm configuration from the environment', () => {
   const { calls, spawn } = recordingSpawn()
   const env = { PATH: '/bin', npm_config_registry: 'https://example.test', PNPM_CONFIG_STORE_DIR: '/store' }

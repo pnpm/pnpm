@@ -5,6 +5,9 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+// The variables pnpm reads as proxy settings, in any case.
+const PROXY_VARIABLES = new Set(['http_proxy', 'https_proxy', 'proxy', 'no_proxy'])
+
 /**
  * Run `cargo nextest run` with `args` in an environment that reads no npm or
  * pnpm configuration of the user's and writes nothing to the user's pnpm
@@ -17,7 +20,7 @@ export function runRustTests (args, { spawn = spawnSync, env: parentEnv = proces
   try {
     const env = Object.fromEntries(Object.entries(parentEnv).filter(([name]) => {
       const lowerName = name.toLowerCase()
-      return !lowerName.startsWith('npm_config_') && !lowerName.startsWith('pnpm_config_')
+      return !lowerName.startsWith('npm_config_') && !lowerName.startsWith('pnpm_config_') && !PROXY_VARIABLES.has(lowerName)
     }))
     const npmrcPath = path.join(configDir, 'npmrc')
     fs.writeFileSync(npmrcPath, '')
