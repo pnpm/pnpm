@@ -38,7 +38,9 @@ pub(super) fn extract_first_member(
     let walked =
         extract_tarball_entries_streaming_to_end(&mut tar, limits, store_dir, ignore_file_pattern);
     let tar_integrity = finish_tar_of(&walked, tar, limits, package_url);
-    let data_follows = !matches!(std::io::BufRead::fill_buf(&mut compressed), Ok([]));
+    // A failed walk reports at once, without waiting on more of the body.
+    let data_follows =
+        walked.is_ok() && !matches!(std::io::BufRead::fill_buf(&mut compressed), Ok([]));
     let tar_integrity = tar_integrity.and_then(|tar| {
         if data_follows {
             return Err(TarballError::IncompleteTar {
