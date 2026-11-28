@@ -16,9 +16,12 @@ fn handshake_body(ecosystems: &[&str]) -> String {
     .to_string()
 }
 
-fn config_for_pnpr(server: &str) -> Config {
+/// Each test gets its own server path: the answer to whether a server
+/// resolves Cargo is cached per URL for the process, and mockito reuses
+/// server addresses across tests.
+fn config_for_pnpr(server: &str, test: &str) -> Config {
     let mut config = Config::new();
-    config.pnpr_server = Some(server.to_string());
+    config.pnpr_server = Some(format!("{server}/{test}"));
     config
 }
 
@@ -36,14 +39,14 @@ async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
     }"#;
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/cargo_resolution_is_offloaded_to_the_pnpr_server/-/pnpr")
         .with_body(handshake_body(&["npm", "cargo"]))
         .create_async()
         .await;
     let sent_metadata = pnpm_cargo_resolver::resolve_inputs(METADATA).unwrap();
     assert!(!sent_metadata.contains("private-workspace"), "{sent_metadata}");
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock("POST", "/cargo_resolution_is_offloaded_to_the_pnpr_server/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(serde_json::json!({
             "ecosystem": "cargo",
             "metadata": sent_metadata,
@@ -55,9 +58,12 @@ async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
         .create_async()
         .await;
 
-    let lockfile = resolve_via_pnpr(&config_for_pnpr(&server.url()), METADATA)
-        .await
-        .unwrap();
+    let lockfile = resolve_via_pnpr(
+        &config_for_pnpr(&server.url(), "cargo_resolution_is_offloaded_to_the_pnpr_server"),
+        METADATA,
+    )
+    .await
+    .unwrap();
 
     assert_eq!(lockfile.as_deref(), Some("version = 4\n"));
     handshake.assert_async().await;
@@ -68,12 +74,12 @@ async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
 async fn a_request_the_pnpr_server_refuses_resolves_locally() {
     let mut server = mockito::Server::new_async().await;
     let _handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/a_request_the_pnpr_server_refuses_resolves_locally/-/pnpr")
         .with_body(handshake_body(&["cargo"]))
         .create_async()
         .await;
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock("POST", "/a_request_the_pnpr_server_refuses_resolves_locally/-/pnpr/v0/resolve")
         .with_status(400)
         .with_header("content-type", "application/json")
         .with_body(r#"{"error":"refused","code":"ERR_PNPR_UNSUPPORTED_REQUEST_FIELD"}"#)
@@ -82,7 +88,7 @@ async fn a_request_the_pnpr_server_refuses_resolves_locally() {
         .await;
 
     let lockfile = resolve_via_pnpr(
-        &config_for_pnpr(&server.url()),
+        &config_for_pnpr(&server.url(), "a_request_the_pnpr_server_refuses_resolves_locally"),
         r#"{"packages":[],"workspace_members":[]}"#,
     )
     .await
@@ -96,12 +102,12 @@ async fn a_request_the_pnpr_server_refuses_resolves_locally() {
 async fn configured_cargo_registry_is_sent_to_the_pnpr_server() {
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/configured_cargo_registry_is_sent_to_the_pnpr_server/-/pnpr")
         .with_body(handshake_body(&["cargo"]))
         .create_async()
         .await;
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock("POST", "/configured_cargo_registry_is_sent_to_the_pnpr_server/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(serde_json::json!({
             "ecosystem": "cargo",
             "registry": "https://registry.example.test/index/",
@@ -110,7 +116,8 @@ async fn configured_cargo_registry_is_sent_to_the_pnpr_server() {
         .with_body("{\"type\":\"done\",\"lockfileFormat\":\"cargo-lock\",\"lockfile\":\"version = 4\\n\"}\n")
         .create_async()
         .await;
-    let mut config = config_for_pnpr(&server.url());
+    let mut config =
+        config_for_pnpr(&server.url(), "configured_cargo_registry_is_sent_to_the_pnpr_server");
     config.indexes_by_ecosystem.insert(
         pnpm_config::Ecosystem::Cargo,
         vec!["https://registry.example.test/index/".to_string().into()],
@@ -129,17 +136,22 @@ async fn configured_cargo_registry_is_sent_to_the_pnpr_server() {
 async fn a_server_without_cargo_support_leaves_resolution_local() {
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/a_server_without_cargo_support_leaves_resolution_local/-/pnpr")
         .with_body(handshake_body(&["npm"]))
         .create_async()
         .await;
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock("POST", "/a_server_without_cargo_support_leaves_resolution_local/-/pnpr/v0/resolve")
         .expect(0)
         .create_async()
         .await;
 
-    let lockfile = resolve_via_pnpr(&config_for_pnpr(&server.url()), "{}").await.unwrap();
+    let lockfile = resolve_via_pnpr(
+        &config_for_pnpr(&server.url(), "a_server_without_cargo_support_leaves_resolution_local"),
+        "{}",
+    )
+    .await
+    .unwrap();
 
     assert_eq!(lockfile, None);
     handshake.assert_async().await;
@@ -150,21 +162,30 @@ async fn a_server_without_cargo_support_leaves_resolution_local() {
 async fn an_unterminated_pnpr_response_does_not_grow_without_bound() {
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/an_unterminated_pnpr_response_does_not_grow_without_bound/-/pnpr")
         .with_body(handshake_body(&["npm", "cargo"]))
         .create_async()
         .await;
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock(
+            "POST",
+            "/an_unterminated_pnpr_response_does_not_grow_without_bound/-/pnpr/v0/resolve",
+        )
         .with_header("content-type", "application/x-ndjson")
         .with_body("x".repeat(33 * 1024 * 1024))
         .create_async()
         .await;
 
     let metadata = r#"{"packages":[],"workspace_members":[]}"#;
-    let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata)
-        .await
-        .unwrap_err();
+    let error = resolve_via_pnpr(
+        &config_for_pnpr(
+            &server.url(),
+            "an_unterminated_pnpr_response_does_not_grow_without_bound",
+        ),
+        metadata,
+    )
+    .await
+    .unwrap_err();
 
     assert!(
         error
@@ -181,12 +202,12 @@ async fn an_unterminated_pnpr_response_does_not_grow_without_bound() {
 async fn a_second_terminal_frame_fails_the_resolve() {
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/a_second_terminal_frame_fails_the_resolve/-/pnpr")
         .with_body(handshake_body(&["npm", "cargo"]))
         .create_async()
         .await;
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock("POST", "/a_second_terminal_frame_fails_the_resolve/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
         .with_body(concat!(
             "{\"type\":\"done\",\"lockfileFormat\":\"cargo-lock\",\"lockfile\":\"version = 4\\n\"}\n",
@@ -196,9 +217,12 @@ async fn a_second_terminal_frame_fails_the_resolve() {
         .await;
 
     let metadata = r#"{"packages":[],"workspace_members":[]}"#;
-    let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata)
-        .await
-        .unwrap_err();
+    let error = resolve_via_pnpr(
+        &config_for_pnpr(&server.url(), "a_second_terminal_frame_fails_the_resolve"),
+        metadata,
+    )
+    .await
+    .unwrap_err();
 
     assert!(
         error
@@ -216,19 +240,19 @@ async fn concurrent_roots_share_one_handshake() {
     const METADATA: &str = r#"{"packages":[],"workspace_members":[]}"#;
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/concurrent_roots_share_one_handshake/-/pnpr")
         .with_body(handshake_body(&["npm", "cargo"]))
         .expect(1)
         .create_async()
         .await;
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock("POST", "/concurrent_roots_share_one_handshake/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
         .with_body("{\"type\":\"done\",\"lockfileFormat\":\"cargo-lock\",\"lockfile\":\"version = 4\\n\"}\n")
         .expect(4)
         .create_async()
         .await;
-    let config = config_for_pnpr(&server.url());
+    let config = config_for_pnpr(&server.url(), "concurrent_roots_share_one_handshake");
 
     let roots = (0..4).map(|_| resolve_via_pnpr(&config, METADATA));
     for resolved in futures_util::future::join_all(roots).await {
@@ -244,12 +268,12 @@ async fn concurrent_roots_share_one_failed_handshake() {
     const METADATA: &str = r#"{"packages":[],"workspace_members":[]}"#;
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/concurrent_roots_share_one_failed_handshake/-/pnpr")
         .with_status(500)
         .expect(1)
         .create_async()
         .await;
-    let config = config_for_pnpr(&server.url());
+    let config = config_for_pnpr(&server.url(), "concurrent_roots_share_one_failed_handshake");
 
     let roots = (0..4).map(|_| resolve_via_pnpr(&config, METADATA));
     for resolved in futures_util::future::join_all(roots).await {
@@ -268,19 +292,19 @@ async fn the_handshake_is_asked_once_per_server() {
     const METADATA: &str = r#"{"packages":[],"workspace_members":[]}"#;
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/the_handshake_is_asked_once_per_server/-/pnpr")
         .with_body(handshake_body(&["npm", "cargo"]))
         .expect(1)
         .create_async()
         .await;
     let resolve = server
-        .mock("POST", "/-/pnpr/v0/resolve")
+        .mock("POST", "/the_handshake_is_asked_once_per_server/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
         .with_body("{\"type\":\"done\",\"lockfileFormat\":\"cargo-lock\",\"lockfile\":\"version = 4\\n\"}\n")
         .expect(2)
         .create_async()
         .await;
-    let config = config_for_pnpr(&server.url());
+    let config = config_for_pnpr(&server.url(), "the_handshake_is_asked_once_per_server");
 
     for _ in 0..2 {
         resolve_via_pnpr(&config, METADATA).await.unwrap().expect("the server resolves Cargo");
@@ -294,11 +318,12 @@ async fn the_handshake_is_asked_once_per_server() {
 async fn an_offline_install_does_not_reach_the_pnpr_server() {
     let mut server = mockito::Server::new_async().await;
     let handshake = server
-        .mock("GET", "/-/pnpr")
+        .mock("GET", "/an_offline_install_does_not_reach_the_pnpr_server/-/pnpr")
         .expect(0)
         .create_async()
         .await;
-    let mut config = config_for_pnpr(&server.url());
+    let mut config =
+        config_for_pnpr(&server.url(), "an_offline_install_does_not_reach_the_pnpr_server");
     config.offline = true;
 
     let lockfile = resolve_via_pnpr(&config, "{}").await.unwrap();
