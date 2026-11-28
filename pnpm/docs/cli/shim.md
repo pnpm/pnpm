@@ -67,7 +67,7 @@ A shim resolves the project you are standing in, walking up from the current wor
 
 A `+<toolchain>` argument or `RUSTUP_TOOLCHAIN` outranks the toolchain file, as it does for rustup:
 
-* A release, such as `cargo +nightly-2026-01-01 build`, goes to rustup when the next command on `PATH` is a rustup proxy. Since v12.25.0, without rustup, pnpm installs the release into the store and runs it, with the profile, components, and targets of the nearest toolchain file.
+* A release, such as `cargo +nightly-2026-01-01 build`, goes to rustup when the next command on `PATH` is a rustup proxy. Since v12.25.0, without rustup, pnpm installs the release into the store and runs it. The release gets the profile, components, and targets of the nearest toolchain file, unless that file is one pnpm leaves to rustup.
 * Since v12.25.0, a `RUSTUP_TOOLCHAIN` that is the absolute path of a toolchain directory runs the command from that directory.
 * Any other name, such as a toolchain linked with `rustup toolchain link`, goes to the next command on `PATH`.
 

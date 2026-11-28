@@ -246,9 +246,11 @@ pub(super) fn run_toolchain_override(
             }
             exec_program_with_bin_dirs(&program, &[toolchain.bin_dir()], args)
         }
-        ToolchainOverride::Release { channel, selector_args }
-            if !next_program(shim).is_some_and(|program| is_rustup_proxy(&program)) =>
-        {
+        ToolchainOverride::Release { channel, selector_args } => {
+            let next = next_program(shim);
+            if next.as_deref().is_some_and(is_rustup_proxy) {
+                return run_program_on_path(shim, next, args);
+            }
             let request = std::env::current_dir()
                 .map_err(miette::Report::msg)
                 .and_then(|cwd| {
@@ -267,13 +269,13 @@ pub(super) fn run_toolchain_override(
                 }
             }
         }
-        ToolchainOverride::Release { .. } | ToolchainOverride::Rustup => {
-            run_next_on_path(shim, args)
-        }
+        ToolchainOverride::Rustup => run_next_on_path(shim, args),
     }
 }
 
 /// Whether `program` is one of rustup's proxies: they sit beside `rustup`.
+/// A proxy is not always a link to `rustup`. Homebrew installs each one as
+/// a wrapper script.
 fn is_rustup_proxy(program: &Path) -> bool {
     program
         .parent()
@@ -341,7 +343,16 @@ fn prepare_toolchain(
 /// project whose toolchain pnpm does not manage, or a shim that is switched
 /// off.
 pub(super) fn run_next_on_path(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
-    let Some(program) = next_program(shim) else {
+    run_program_on_path(shim, next_program(shim), args)
+}
+
+/// Run `program`, what [`next_program`] found for `shim`.
+fn run_program_on_path(
+    shim: &ShimInvocation<'_>,
+    program: Option<PathBuf>,
+    args: &[OsString],
+) -> i32 {
+    let Some(program) = program else {
         pnpm_diagnostics::eprintln!(
             "ERR_PNPM_SHIM_NO_TARGET  No rust-toolchain.toml names a toolchain for {} here, and no other {} is on PATH.",
             shim.name,

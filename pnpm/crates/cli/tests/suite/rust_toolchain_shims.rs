@@ -208,9 +208,6 @@ fn rustup_toolchain_overrides_reach_rustup() {
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "rustup-cargo build");
 }
 
-/// Without rustup, the shim runs the release `cargo +<toolchain>` or
-/// `RUSTUP_TOOLCHAIN` names from the store, whatever the toolchain file
-/// says and whatever other `cargo` is on `PATH`.
 #[cfg(unix)]
 #[test]
 fn without_rustup_a_release_override_runs_from_the_store() {
@@ -251,8 +248,6 @@ fn without_rustup_a_release_override_runs_from_the_store() {
     );
 }
 
-/// A `RUSTUP_TOOLCHAIN` that is a directory runs that toolchain's tool,
-/// with or without rustup.
 #[cfg(unix)]
 #[test]
 fn a_toolchain_directory_override_runs_its_own_tool() {
