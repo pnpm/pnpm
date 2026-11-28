@@ -286,6 +286,28 @@ fn rejects_truncated_buffer() {
     assert!(matches!(err, DecodeError::UnexpectedEof { .. }), "got {err:?}");
 }
 
+#[test]
+fn rejects_a_field_count_larger_than_the_row() {
+    let err =
+        transcode_to_plain_msgpack(&[0xd4, 0x72, 0x40, 0xdd, 0xff, 0xff, 0xff, 0xff]).unwrap_err();
+    assert!(matches!(err, DecodeError::UnexpectedEof { .. }), "got {err:?}");
+}
+
+#[test]
+fn rejects_nesting_deeper_than_the_limit() {
+    let mut row = vec![0x91; 1_000_000];
+    row.push(0xc0);
+    let err = transcode_to_plain_msgpack(&row).unwrap_err();
+    assert!(matches!(err, DecodeError::TooDeep { limit: 1024, .. }), "got {err:?}");
+}
+
+#[test]
+fn accepts_nesting_at_the_limit() {
+    let mut row = vec![0x91; 1024];
+    row.push(0xc0);
+    assert_eq!(transcode_to_plain_msgpack(&row).unwrap(), row);
+}
+
 // Encoder tests
 //
 // The round-trip pattern is: `encode` → `transcode_to_plain_msgpack`
