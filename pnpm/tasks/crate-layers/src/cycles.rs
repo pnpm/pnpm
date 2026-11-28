@@ -46,9 +46,9 @@ impl CycleReport {
     }
 }
 
-/// The strongly connected components of the module graph, in the order
-/// `pnpm-strongly-connected-components` closes them.
-fn components(graph: &TopLevelGraph) -> Vec<Vec<String>> {
+/// Each module's successors, with an entry for every module that has code
+/// lines or an edge of its own.
+fn successors(graph: &TopLevelGraph) -> BTreeMap<&str, BTreeSet<&str>> {
     let mut successors: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
     for module in graph.code_lines.keys() {
         successors.entry(module).or_default();
@@ -59,6 +59,13 @@ fn components(graph: &TopLevelGraph) -> Vec<Vec<String>> {
             .or_default()
             .insert(to);
     }
+    successors
+}
+
+/// The strongly connected components of the module graph, in the order
+/// `pnpm-strongly-connected-components` closes them.
+fn components(graph: &TopLevelGraph) -> Vec<Vec<String>> {
+    let successors = successors(graph);
     // A module that only an edge reaches comes after every module with an
     // entry, so the walk meets it through that edge, not as a root.
     let mut modules: Vec<&str> = successors.keys().copied().collect();
