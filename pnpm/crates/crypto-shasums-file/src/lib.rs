@@ -419,6 +419,9 @@ fn node_shasums_network_error(
 }
 
 /// Parse a `SHASUMS256.txt` body into rows.
+///
+/// A row whose hash is not 64 hex digits is skipped, so no integrity is
+/// recorded for its file.
 #[must_use]
 pub fn parse_shasums_file(body: &str) -> Vec<ShasumsFileItem> {
     body.lines()
@@ -429,8 +432,9 @@ pub fn parse_shasums_file(body: &str) -> Vec<ShasumsFileItem> {
             let mut parts = line.split_whitespace();
             let sha256 = parts.next()?;
             let file_name = parts.next()?;
+            let digest = decode_hex(sha256).filter(|digest| digest.len() == SHA256_LEN)?;
             Some(ShasumsFileItem {
-                integrity: encode_sri(sha256),
+                integrity: sha256_sri(&digest),
                 file_name: file_name.to_string(),
             })
         })
@@ -455,13 +459,11 @@ pub fn pick_file_checksum_from_shasums_file(
         .split_whitespace()
         .next()
         .unwrap_or("");
-    if !is_sha256_hex(sha256) {
-        return Err(PickFileChecksumError::Malformed {
+    sha256_hex_to_sri(sha256)
+        .ok_or_else(|| PickFileChecksumError::Malformed {
             file_name: file_name.to_string(),
             sha256: sha256.to_string(),
-        });
-    }
-    Ok(encode_sri(sha256))
+        })
 }
 
 /// Encode a sha256 hex digest as the `sha256-<base64>` integrity string
@@ -471,19 +473,18 @@ pub fn pick_file_checksum_from_shasums_file(
 /// than installed unverified.
 #[must_use]
 pub fn sha256_hex_to_sri(hex: &str) -> Option<String> {
-    is_sha256_hex(hex).then(|| encode_sri(hex))
+    if !is_sha256_hex(hex) {
+        return None;
+    }
+    decode_hex(hex).map(|digest| sha256_sri(&digest))
 }
 
-/// Decode a 64-character lower-case hex string into `sha256-<base64>`.
-///
-/// Pre-condition: `hex` is the value [`is_sha256_hex`] already
-/// validated *or* an upstream-trusted row that came straight out of a
-/// well-formed `SHASUMS256.txt`. The decode is infallible under that
-/// pre-condition; we still fall back to an empty string on a decode
-/// failure so a hex hash that slipped past validation does not panic.
-fn encode_sri(hex: &str) -> String {
-    let bytes = decode_hex(hex).unwrap_or_default();
-    format!("sha256-{}", BASE64_STANDARD.encode(bytes))
+/// The number of bytes in a SHA-256 digest.
+const SHA256_LEN: usize = 32;
+
+/// `sha256-<base64>` for a decoded digest.
+fn sha256_sri(digest: &[u8]) -> String {
+    format!("sha256-{}", BASE64_STANDARD.encode(digest))
 }
 
 fn is_sha256_hex(value: &str) -> bool {
@@ -497,14 +498,26 @@ fn is_sha256_hex(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
 }
 
+/// Decode hex digits two at a time. `None` on an odd length or on any byte
+/// that is not a hex digit, a leading `+` included, which
+/// `u8::from_str_radix` accepts.
 fn decode_hex(hex: &str) -> Option<Vec<u8>> {
-    if !hex.len().is_multiple_of(2) {
+    let (pairs, []) = hex.as_bytes().as_chunks::<2>() else {
         return None;
-    }
-    (0..hex.len())
-        .step_by(2)
-        .map(|index| u8::from_str_radix(hex.get(index..index + 2)?, 16).ok())
+    };
+    pairs
+        .iter()
+        .map(|&[high, low]| Some((hex_digit(high)? << 4) | hex_digit(low)?))
         .collect()
+}
+
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
