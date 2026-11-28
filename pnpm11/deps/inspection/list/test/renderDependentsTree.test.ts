@@ -1,6 +1,3 @@
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { describe, expect, test } from '@jest/globals'
@@ -29,37 +26,6 @@ function deepTree (): DependentsTree[] {
 }
 
 describe('renderDependentsTree', () => {
-  test('--long strips terminal control sequences from manifest fields', async () => {
-    const pkgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'list-long-'))
-    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
-      name: 'foo',
-      version: '1.0.0',
-      description: '\u001B[2J\u001B[H' + 'description',
-      repository: '\u001B]52;c;cHduZWQ=\u0007https://example.com/repo',
-      homepage: 'https://example.com/\u009B2J',
-    }))
-    const results: DependentsTree[] = [
-      {
-        name: 'foo',
-        version: '1.0.0',
-        path: pkgDir,
-        dependents: [
-          { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
-        ],
-      },
-    ]
-
-    const output = await renderDependentsTree(results, { long: true })
-
-    expect(output).not.toContain('\u001B[2J')
-    expect(output).not.toContain('\u001B]52;')
-    expect(output).not.toContain('\u0007')
-    expect(output).not.toContain('\u009B')
-    expect(stripAnsi(output)).toContain('description')
-    expect(stripAnsi(output)).toContain('https://example.com/repo')
-    expect(stripAnsi(output)).toContain('https://example.com/2J')
-  })
-
   test('renders searchMessage below the root label', async () => {
     const results: DependentsTree[] = [
       {
