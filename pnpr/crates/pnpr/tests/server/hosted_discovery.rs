@@ -707,7 +707,9 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
         [
             (
                 "private".to_string(),
-                Registry::Hosted { patterns: vec![PackagePattern::Scope("secret".to_string())] },
+                Registry::Hosted {
+                    patterns: vec![PackagePattern::parse("@secret/*", Ecosystem::Npm).unwrap()],
+                },
             ),
             ("crates".to_string(), Registry::Hosted { patterns: vec![] }),
             ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),

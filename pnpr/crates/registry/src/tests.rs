@@ -1,11 +1,13 @@
 use super::{
     ConcreteKind,
     Ecosystem,
+    Namespace,
     PackagePattern,
     Registries,
     Registry,
     RegistryConfigError,
     Resolved,
+    Scope,
 };
 
 fn pattern(raw: &str) -> PackagePattern {
@@ -49,7 +51,10 @@ fn registries(entries: Vec<(&str, Registry)>, default_registry: Option<&str>) ->
 fn parses_recognized_shapes() {
     assert_eq!(pattern("**"), PackagePattern::All);
     assert_eq!(pattern("@*/*"), PackagePattern::AnyScoped);
-    assert_eq!(pattern("@acme/*"), PackagePattern::Scope("acme".to_string()));
+    assert_eq!(
+        pattern("@acme/*"),
+        PackagePattern::Scope(Scope::new("acme".to_string()).expect("a valid scope")),
+    );
     assert_eq!(pattern("@acme/foo"), PackagePattern::Exact("@acme/foo".to_string()));
     assert_eq!(pattern("foo"), PackagePattern::Exact("foo".to_string()));
 }
@@ -666,14 +671,20 @@ fn image_pattern(raw: &str) -> PackagePattern {
 #[test]
 fn parses_image_shapes() {
     assert_eq!(image_pattern("**"), PackagePattern::All);
-    assert_eq!(image_pattern("acme/*"), PackagePattern::Namespace("acme".to_string()));
+    assert_eq!(
+        image_pattern("acme/*"),
+        PackagePattern::Namespace(Namespace::new("acme".to_string()).expect("a valid namespace")),
+    );
     assert_eq!(image_pattern("acme/app"), PackagePattern::Exact("acme/app".to_string()));
     assert_eq!(image_pattern("alpine"), PackagePattern::Exact("alpine".to_string()));
 }
 
 #[test]
 fn canonicalizes_image_patterns() {
-    assert_eq!(image_pattern("ACME/*"), PackagePattern::Namespace("acme".to_string()));
+    assert_eq!(
+        image_pattern("ACME/*"),
+        PackagePattern::Namespace(Namespace::new("acme".to_string()).expect("a valid namespace")),
+    );
     assert_eq!(image_pattern("ACME/App"), PackagePattern::Exact("acme/app".to_string()));
 }
 

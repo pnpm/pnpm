@@ -4,6 +4,13 @@ use super::{
     RegistryConfigError,
     fmt,
 };
+use pnpr_package_pattern::{
+    Namespace,
+    Scope,
+    Shape,
+    split_namespace,
+    split_scoped_name,
+};
 
 /// A package-name pattern: one member of a concrete registry's declared
 /// namespace.
@@ -22,11 +29,11 @@ pub enum PackagePattern {
     AnyScoped,
     /// `@<scope>/*`: every package in one scope. Stores the scope without its
     /// leading `@`.
-    Scope(String),
+    Scope(Scope),
     /// `<namespace>/*`: every image repository under one leading path
     /// component. One component only, so two namespace patterns are either
     /// equal or disjoint and the specificity chain stays strict.
-    Namespace(String),
+    Namespace(Namespace),
     /// A literal package name (`foo`, `@scope/foo`, or `namespace/image`).
     Exact(String),
 }
@@ -78,7 +85,11 @@ impl PackagePattern {
                     pattern: pattern.to_string(),
                 });
             }
-            return Ok(PackagePattern::Scope(scope.to_string()));
+            return Scope::new(scope.to_string())
+                .map(PackagePattern::Scope)
+                .ok_or_else(|| RegistryConfigError::ScopePatternNotAScope {
+                    pattern: pattern.to_string(),
+                });
         }
         Self::parse_exact(pattern, Ecosystem::Npm)
     }
@@ -94,8 +105,10 @@ impl PackagePattern {
             return Err(invalid_pattern(pattern.to_owned(), Ecosystem::Oci));
         }
         pnpr_package_name::canonicalize_oci_name(namespace)
+            .ok()
+            .and_then(Namespace::new)
             .map(PackagePattern::Namespace)
-            .map_err(|_| RegistryConfigError::NamespacePatternNotANamespace {
+            .ok_or_else(|| RegistryConfigError::NamespacePatternNotANamespace {
                 pattern: pattern.to_string(),
             })
     }
@@ -137,7 +150,7 @@ impl PackagePattern {
     /// malformed name. The scope-tier key a specificity lookup consults.
     #[must_use]
     pub fn scope_of(package: &str) -> Option<&str> {
-        scoped_name(package).map(|(scope, _)| scope)
+        split_scoped_name(package).map(|(scope, _)| scope)
     }
 
     /// The leading path component of a multi-component image repository name
@@ -145,25 +158,13 @@ impl PackagePattern {
     /// namespace-tier key a specificity lookup consults.
     #[must_use]
     pub fn namespace_of(package: &str) -> Option<&str> {
-        package.split_once('/').map(|(namespace, _)| namespace)
+        split_namespace(package)
     }
 
     /// Whether this pattern matches `package`.
     #[must_use]
     pub fn matches(&self, package: &str) -> bool {
-        match self {
-            PackagePattern::All => true,
-            // A scoped pattern matches only a well-formed `@scope/name`, never a
-            // bare `@scope` with no name segment.
-            PackagePattern::AnyScoped => scoped_name(package).is_some(),
-            PackagePattern::Scope(scope) => {
-                scoped_name(package).is_some_and(|(package_scope, _)| package_scope == scope)
-            }
-            PackagePattern::Namespace(namespace) => {
-                Self::namespace_of(package).is_some_and(|leading| leading == namespace)
-            }
-            PackagePattern::Exact(name) => name == package,
-        }
+        pnpr_package_pattern::matches(self.shape(), package)
     }
 
     /// Whether this pattern matches every package the `other` pattern matches
@@ -175,33 +176,18 @@ impl PackagePattern {
     /// coverage is sufficient for union coverage in this language.
     #[must_use]
     pub fn covers(&self, other: &PackagePattern) -> bool {
-        use PackagePattern::{
-            All,
-            AnyScoped,
-            Exact,
-            Namespace,
-            Scope,
-        };
+        pnpr_package_pattern::covers(self.shape(), other.shape())
+    }
+
+    /// The pattern as `pnpr-package-pattern` decides matching and coverage
+    /// for it.
+    fn shape(&self) -> Shape<'_> {
         match self {
-            All => true,
-            AnyScoped => match other {
-                All | Namespace(_) => false,
-                AnyScoped | Scope(_) => true,
-                // Consistent with `matches`: an exact name is scoped only when
-                // it is a well-formed `@scope/name`, never a bare `@scope`.
-                Exact(name) => scoped_name(name).is_some(),
-            },
-            Scope(scope) => match other {
-                Scope(other_scope) => other_scope == scope,
-                Exact(name) => scoped_name(name).is_some_and(|(name_scope, _)| name_scope == scope),
-                All | AnyScoped | Namespace(_) => false,
-            },
-            Namespace(namespace) => match other {
-                Namespace(other_namespace) => other_namespace == namespace,
-                Exact(name) => Self::namespace_of(name).is_some_and(|leading| leading == namespace),
-                All | AnyScoped | Scope(_) => false,
-            },
-            Exact(name) => matches!(other, Exact(other_name) if other_name == name),
+            PackagePattern::All => Shape::All,
+            PackagePattern::AnyScoped => Shape::AnyScoped,
+            PackagePattern::Scope(scope) => Shape::Scope(scope),
+            PackagePattern::Namespace(namespace) => Shape::Namespace(namespace),
+            PackagePattern::Exact(name) => Shape::Exact(name),
         }
     }
 }
@@ -211,19 +197,11 @@ impl fmt::Display for PackagePattern {
         match self {
             PackagePattern::All => f.write_str("**"),
             PackagePattern::AnyScoped => f.write_str("@*/*"),
-            PackagePattern::Scope(scope) => write!(f, "@{scope}/*"),
-            PackagePattern::Namespace(namespace) => write!(f, "{namespace}/*"),
+            PackagePattern::Scope(scope) => write!(f, "@{}/*", scope.as_str()),
+            PackagePattern::Namespace(namespace) => write!(f, "{}/*", namespace.as_str()),
             PackagePattern::Exact(name) => f.write_str(name),
         }
     }
-}
-
-/// The `(scope, name)` of a well-formed scoped package (`@acme/foo` →
-/// `("acme", "foo")`), or `None` when it is unscoped or missing either segment
-/// (`@acme`, `@/foo`, `@acme/`).
-pub(super) fn scoped_name(package: &str) -> Option<(&str, &str)> {
-    let (scope, name) = package.strip_prefix('@')?.split_once('/')?;
-    (!scope.is_empty() && !name.is_empty()).then_some((scope, name))
 }
 
 /// The wildcard shapes an ecosystem's names can carry, for the message an

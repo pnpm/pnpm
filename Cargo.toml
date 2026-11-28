@@ -146,6 +146,7 @@ pnpr-libsql = { path = "pnpr/crates/libsql" }
 pnpr-oci = { path = "pnpr/crates/oci" }
 pnpr-osv = { path = "pnpr/crates/osv" }
 pnpr-package-name = { path = "pnpr/crates/package-name" }
+pnpr-package-pattern = { path = "pnpr/crates/package-pattern" }
 pnpr-policy = { path = "pnpr/crates/policy" }
 pnpr-pypi = { path = "pnpr/crates/pypi" }
 pnpr-registry = { path = "pnpr/crates/registry" }

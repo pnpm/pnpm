@@ -171,6 +171,12 @@ proptest! {
     }
 
     #[test]
+    fn is_empty_matches_model(text in "[a/é]{0,3}") {
+        prop_assert_eq!(str::is_empty(&text), text.chars().count() == 0);
+        prop_assert_eq!(String::is_empty(&text), text.chars().count() == 0);
+    }
+
+    #[test]
     fn slice_contains_matches_model(items in vec(0_u8..8, 0..16), item in 0_u8..8) {
         let found_at_an_index = (0..items.len()).any(|index| items[index] == item);
         prop_assert_eq!(items.contains(&item), found_at_an_index);

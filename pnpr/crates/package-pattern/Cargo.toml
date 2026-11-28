@@ -1,0 +1,24 @@
+[package]
+name = "pnpr-package-pattern"
+version = "0.0.1"
+description = "what a registry's package patterns match, and when one covers another"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license-file = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+split-first-char = { workspace = true }
+
+[target.'cfg(creusot)'.dependencies]
+creusot-std = { workspace = true }
+pnpm-creusot-models = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

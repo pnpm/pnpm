@@ -7773,6 +7773,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpr-package-pattern"
+version = "0.0.1"
+dependencies = [
+ "creusot-std",
+ "pnpm-creusot-models",
+ "pretty_assertions",
+ "split-first-char",
+]
+
+[[package]]
 name = "pnpr-pipeline-runs"
 version = "0.0.1"
 dependencies = [
@@ -7816,6 +7826,7 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.2",
  "pnpr-package-name",
+ "pnpr-package-pattern",
 ]
 
 [[package]]

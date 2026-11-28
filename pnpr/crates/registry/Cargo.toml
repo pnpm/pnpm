@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpr-package-name = { workspace = true }
+pnpr-package-pattern = { workspace = true }
 derive_more = { workspace = true }
 indexmap = { workspace = true }
 

@@ -122,6 +122,7 @@ jobs:
               - 'pnpm/crates/strongly-connected-components/**'
               - 'pnpm/scripts/creusot.mjs'
               - 'pnpm/scripts/install-creusot.mjs'
+              - 'pnpr/crates/package-pattern/**'
               - 'why3find.json'
               - 'Cargo.toml'
               - 'Cargo.lock'
@@ -1093,7 +1094,7 @@ jobs:
         continue-on-error: true
         with:
           path: why3find.proofs
-          key: creusot-proofs-${{ runner.os }}-${{ hashFiles('pnpm/scripts/install-creusot.mjs', 'Cargo.lock', 'why3find.json') }}-${{ hashFiles('pnpm/crates/**/*.rs') }}
+          key: creusot-proofs-${{ runner.os }}-${{ hashFiles('pnpm/scripts/install-creusot.mjs', 'Cargo.lock', 'why3find.json') }}-${{ hashFiles('pnpm/crates/**/*.rs', 'pnpr/crates/**/*.rs') }}
           restore-keys: |
             creusot-proofs-${{ runner.os }}-${{ hashFiles('pnpm/scripts/install-creusot.mjs', 'Cargo.lock', 'why3find.json') }}-
 

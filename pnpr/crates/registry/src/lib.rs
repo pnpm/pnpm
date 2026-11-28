@@ -31,6 +31,11 @@ pub use package_pattern::PackagePattern;
 
 pub use pnpr_package_name::Ecosystem;
 
+pub use pnpr_package_pattern::{
+    Namespace,
+    Scope,
+};
+
 mod config_error;
 
 mod package_pattern;

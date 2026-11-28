@@ -90,6 +90,7 @@ crates = [
   "pnpm-workspace-state",
   "pnpr-error",
   "pnpr-package-name",
+  "pnpr-package-pattern",
   "pnpr-policy",
   "pnpr-registry",
 ]
@@ -400,7 +401,7 @@ pnpr-package-name = 2
 pnpr-pipeline-runs = 2
 pnpr-policy = 1
 pnpr-pypi = 2
-pnpr-registry = 1
+pnpr-registry = 2
 pnpr-route = 5
 pnpr-search = 3
 pnpr-shared-artifacts = 3

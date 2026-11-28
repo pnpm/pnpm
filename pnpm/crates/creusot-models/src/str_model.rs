@@ -77,6 +77,9 @@ extern_spec! {
         #[ensures(result == !free_of(self@, pat))]
         fn contains<P: Pattern>(&self, pat: P) -> bool
             where P: CharPattern;
+
+        #[ensures(result == (self@.len() == 0))]
+        fn is_empty(&self) -> bool;
     }
 
     impl String {
@@ -88,6 +91,9 @@ extern_spec! {
 
         #[ensures((^self)@ == (*self)@.concat(string@))]
         fn push_str(&mut self, string: &str);
+
+        #[ensures(result == (self@.len() == 0))]
+        fn is_empty(&self) -> bool;
     }
 
     impl char {
