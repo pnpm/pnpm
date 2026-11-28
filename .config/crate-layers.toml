@@ -41,6 +41,7 @@ crates = [
   "pnpm-semver-include-prerelease",
   "pnpm-shell-quote",
   "pnpm-signal-registry",
+  "pnpm-star-glob",
   "pnpm-strongly-connected-components",
   "pnpm-text-sanitize",
   "pnpm-text-section",
@@ -98,7 +99,7 @@ crates = [
 [[layer]]
 name = "service"
 description = "One capability each: resolve, fetch, link, patch, run scripts, talk to a registry. Takes its settings as values and never reads the configuration."
-max_transitive_dependencies = 46
+max_transitive_dependencies = 47
 crates = [
   "pnpm-cargo-resolver",
   "pnpm-cmd-shim",
@@ -340,6 +341,7 @@ pnpm-lockfile = 13
 pnpm-lockfile-import = 2
 pnpm-lockfile-preferred-versions = 6
 pnpm-lockfile-verification = 9
+pnpm-matcher = 1
 pnpm-micro-benchmark = 13
 pnpm-modules-yaml = 2
 pnpm-napi = 30

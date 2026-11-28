@@ -49,6 +49,7 @@ pnpm-ffi-sqlite = { path = "pnpm/crates/ffi-sqlite" }
 pnpm-ffi-terminal = { path = "pnpm/crates/ffi-terminal" }
 pnpm-ffi-webcontainer = { path = "pnpm/crates/ffi-webcontainer" }
 pnpm-shell-quote = { path = "pnpm/crates/shell-quote" }
+pnpm-star-glob = { path = "pnpm/crates/star-glob" }
 pnpm-signal-registry = { path = "pnpm/crates/signal-registry" }
 pnpm-strongly-connected-components = { path = "pnpm/crates/strongly-connected-components" }
 pnpm-webcontainer-sys = { path = "pnpm/crates/webcontainer-sys" }

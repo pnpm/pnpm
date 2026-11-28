@@ -9,9 +9,13 @@ use core::{
         RangeTo,
     },
     slice::SliceIndex,
-    str::pattern::Pattern,
+    str::pattern::{
+        Pattern,
+        ReverseSearcher,
+    },
 };
 use creusot_std::prelude::{
+    Int,
     Seq,
     ensures,
     extern_spec,
@@ -50,6 +54,30 @@ pub fn free_of<Pattern: CharPattern>(text: Seq<char>, pattern: Pattern) -> bool 
     }
 }
 
+/// A pattern that matches one run of characters: the `&str` patterns the
+/// [`str`] contracts here are specified for.
+pub trait TextPattern {
+    /// The characters the pattern matches.
+    #[logic]
+    fn text(self) -> Seq<char>;
+}
+
+impl TextPattern for &str {
+    #[logic(open)]
+    fn text(self) -> Seq<char> {
+        pearlite! { self@ }
+    }
+}
+
+/// Whether `part` occurs in `text` starting `at` characters in.
+#[logic(open)]
+pub fn occurs_at(text: Seq<char>, part: Seq<char>, at: Int) -> bool {
+    pearlite! {
+        0 <= at && at + part.len() <= text.len()
+            && text.subsequence(at, at + part.len()) == part
+    }
+}
+
 /// Whether `character` is an ASCII letter.
 #[logic(open)]
 pub fn is_ascii_letter(character: char) -> bool {
@@ -80,6 +108,29 @@ extern_spec! {
 
         #[ensures(result == (self@.len() == 0))]
         fn is_empty(&self) -> bool;
+
+        #[ensures(match result {
+            None => forall<at: Int> !occurs_at(self@, pat.text(), at),
+            Some(index) => exists<at: Int> occurs_at(self@, pat.text(), at)
+                && index@ == self@.subsequence(0, at).to_bytes().len()
+                && forall<earlier: Int> earlier < at ==> !occurs_at(self@, pat.text(), earlier),
+        })]
+        fn find<P: Pattern>(&self, pat: P) -> Option<usize>
+            where P: TextPattern;
+
+        #[ensures(match result {
+            None => !occurs_at(self@, prefix.text(), 0),
+            Some(rest) => self@ == prefix.text().concat(rest@),
+        })]
+        fn strip_prefix<P: Pattern>(&self, prefix: P) -> Option<&str>
+            where P: TextPattern;
+
+        #[ensures(match result {
+            None => !occurs_at(self@, suffix.text(), self@.len() - suffix.text().len()),
+            Some(rest) => self@ == rest@.concat(suffix.text()),
+        })]
+        fn strip_suffix<P: Pattern>(&self, suffix: P) -> Option<&str>
+            where P: TextPattern, for<'a> P::Searcher<'a>: ReverseSearcher<'a>;
     }
 
     impl String {

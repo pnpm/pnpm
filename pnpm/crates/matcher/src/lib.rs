@@ -5,12 +5,13 @@
 //! character is matched literally. Pattern lists also interpret a leading `!`
 //! as an ignore rule; [`WildcardMatcher`] treats it literally.
 //!
-//! The glob matcher is hand-rolled rather than backed by a regex engine.
-//! Patterns without `?` use a literal-segment walk; the character-aware
-//! fallback handles `?` patterns.
+//! A pattern without `?` is matched by [`pnpm_star_glob::StarGlob`], whose
+//! match Creusot proves. A pattern with `?` compiles to an anchored regular
+//! expression.
 
 use std::sync::Arc;
 
+use pnpm_star_glob::StarGlob;
 use regex::Regex;
 
 /// Compile a list of patterns into a matcher returning the index of the
@@ -258,79 +259,47 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
 
 /// A compiled glob pattern. `*` matches any sequence including empty,
 /// `?` matches one character, and every other character is literal. The
-/// match is anchored, pattern must consume the whole input.
+/// match is anchored: the pattern must consume the whole input.
+#[derive(Clone)]
+pub struct WildcardMatcher(Glob);
 
 #[derive(Clone)]
-pub struct WildcardMatcher {
-    /// Segments between `*`s. For pattern `a*b*c` this is
-    /// `["a", "b", "c"]`. For `*` alone it is `["", ""]`. For pure
-    /// literal `foo` it is `["foo"]` and `had_wildcard` is false.
-    segments: Arc<[String]>,
-    had_wildcard: bool,
-    question_pattern: Option<Regex>,
+enum Glob {
+    /// A pattern without `?`.
+    Star(Arc<StarGlob>),
+    /// A pattern with `?`, as an anchored regular expression.
+    Question(Regex),
 }
 
 impl WildcardMatcher {
     /// Compiles a pattern. A leading `!` is literal, not an ignore rule.
     #[must_use]
     pub fn new(pattern: &str) -> Self {
-        let segments: Vec<String> = pattern
-            .split('*')
-            .map(str::to_owned)
-            .collect();
-        let had_wildcard = segments.len() > 1;
-        let question_pattern = pattern
-            .contains('?')
-            .then(|| {
-                let mut regex_pattern = String::from(r"\A");
-                for character in pattern.chars() {
-                    match character {
-                        '*' => regex_pattern.push_str("(?s:.*)"),
-                        '?' => regex_pattern.push_str("(?s:.)"),
-                        literal => regex_pattern.push_str(&regex::escape(&literal.to_string())),
-                    }
-                }
-                regex_pattern.push_str(r"\z");
-                Regex::new(&regex_pattern)
-                    .expect("escaped wildcard patterns are valid regular expressions")
-            });
-        WildcardMatcher { segments: segments.into(), had_wildcard, question_pattern }
+        if !pattern.contains('?') {
+            return WildcardMatcher(Glob::Star(Arc::new(StarGlob::new(pattern))));
+        }
+        let mut regex_pattern = String::from(r"\A");
+        for character in pattern.chars() {
+            match character {
+                '*' => regex_pattern.push_str("(?s:.*)"),
+                '?' => regex_pattern.push_str("(?s:.)"),
+                literal => regex_pattern.push_str(&regex::escape(&literal.to_string())),
+            }
+        }
+        regex_pattern.push_str(r"\z");
+        let compiled = Regex::new(&regex_pattern)
+            .expect("escaped wildcard patterns are valid regular expressions");
+        WildcardMatcher(Glob::Question(compiled))
     }
 
     /// Returns whether the pattern consumes the whole input.
     #[must_use]
     pub fn matches(&self, input: &str) -> bool {
-        if let Some(pattern) = &self.question_pattern {
-            return pattern.is_match(input);
+        match &self.0 {
+            Glob::Star(glob) => glob.matches(input),
+            Glob::Question(pattern) => pattern.is_match(input),
         }
-        if !self.had_wildcard {
-            return self.segments[0] == input;
-        }
-        let first = &self.segments[0];
-        let last = &self.segments[self.segments.len() - 1];
-        let Some(rest) = input.strip_prefix(first.as_str()) else { return false };
-        if first.len() + last.len() > input.len() {
-            return false;
-        }
-        let Some(middle) = rest.strip_suffix(last.as_str()) else { return false };
-        // The prefix-strip already advanced past `first`; the
-        // suffix-strip already accounted for `last`. Walk the
-        // middle segments greedily.
-        contains_in_order(middle, &self.segments[1..self.segments.len() - 1])
     }
-}
-
-/// Whether `segments` all occur in `input`, in order and without overlap.
-/// An empty segment is two adjacent wildcards and constrains nothing.
-fn contains_in_order(mut input: &str, segments: &[String]) -> bool {
-    for segment in segments {
-        if segment.is_empty() {
-            continue;
-        }
-        let Some(index) = input.find(segment.as_str()) else { return false };
-        input = &input[index + segment.len()..];
-    }
-    true
 }
 
 #[cfg(test)]

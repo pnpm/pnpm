@@ -1,9 +1,12 @@
 //! Verified callers of each contract, which fail to prove if a contract is
 //! too weak to be used.
 
+use crate::str_model::occurs_at;
 use creusot_std::prelude::{
+    Int,
     Seq,
     ensures,
+    proof_assert,
     requires,
 };
 use pipe_trait::Pipe;
@@ -124,4 +127,25 @@ pub fn joined_by_slash(left: &str, right: &str) -> String {
 #[ensures(result == ((65 <= letter@ && letter@ <= 90) || (97 <= letter@ && letter@ <= 122)))]
 pub fn is_drive_letter(letter: char) -> bool {
     letter.is_ascii_alphabetic()
+}
+
+#[ensures(result == exists<at: Int> occurs_at(text@, part@, at))]
+pub fn holds_text(text: &str, part: &str) -> bool {
+    text.find(part).is_some()
+}
+
+#[ensures(match result {
+    None => !occurs_at(text@, prefix@, 0)
+        || !occurs_at(text@.subsequence(prefix@.len(), text@.len()), suffix@,
+            text@.len() - prefix@.len() - suffix@.len()),
+    Some(middle) => text@ == prefix@.concat(middle@).concat(suffix@),
+})]
+pub fn between<'text>(text: &'text str, prefix: &str, suffix: &str) -> Option<&'text str> {
+    match text.strip_prefix(prefix) {
+        Some(rest) => {
+            proof_assert! { rest@ == text@.subsequence(prefix@.len(), text@.len()) };
+            rest.strip_suffix(suffix)
+        }
+        None => None,
+    }
 }

@@ -6121,6 +6121,7 @@ dependencies = [
 name = "pnpm-matcher"
 version = "0.0.1"
 dependencies = [
+ "pnpm-star-glob",
  "regex",
 ]
 
@@ -7093,6 +7094,15 @@ dependencies = [
 [[package]]
 name = "pnpm-signal-registry"
 version = "0.0.1"
+
+[[package]]
+name = "pnpm-star-glob"
+version = "0.0.1"
+dependencies = [
+ "creusot-std",
+ "pnpm-creusot-models",
+ "pretty_assertions",
+]
 
 [[package]]
 name = "pnpm-store-dir"

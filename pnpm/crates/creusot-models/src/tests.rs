@@ -177,6 +177,42 @@ proptest! {
     }
 
     #[test]
+    fn find_matches_model(text in "[ab/é]{0,10}", part in "[ab/é]{0,3}") {
+        let text_chars: Vec<char> = text.chars().collect();
+        let part_chars: Vec<char> = part.chars().collect();
+        let occurs_at = |at: usize| {
+            at + part_chars.len() <= text_chars.len()
+                && text_chars[at..at + part_chars.len()] == part_chars[..]
+        };
+        match text.find(part.as_str()) {
+            None => prop_assert!(!(0..=text_chars.len()).any(occurs_at)),
+            Some(index) => {
+                prop_assert!(is_boundary(&text, index));
+                let at = text[..index].chars().count();
+                prop_assert!(occurs_at(at));
+                prop_assert!(!(0..at).any(occurs_at));
+            }
+        }
+    }
+
+    #[test]
+    fn strip_prefix_and_suffix_match_model(text in "[ab/é]{0,8}", part in "[ab/é]{0,3}") {
+        let text_chars: Vec<char> = text.chars().collect();
+        let part_chars: Vec<char> = part.chars().collect();
+        let fits = part_chars.len() <= text_chars.len();
+        match text.strip_prefix(part.as_str()) {
+            None => prop_assert!(!(fits && text_chars[..part_chars.len()] == part_chars[..])),
+            Some(rest) => prop_assert_eq!(format!("{part}{rest}"), text.as_str()),
+        }
+        match text.strip_suffix(part.as_str()) {
+            None => prop_assert!(
+                !(fits && text_chars[text_chars.len() - part_chars.len()..] == part_chars[..])
+            ),
+            Some(rest) => prop_assert_eq!(format!("{rest}{part}"), text.as_str()),
+        }
+    }
+
+    #[test]
     fn slice_contains_matches_model(items in vec(0_u8..8, 0..16), item in 0_u8..8) {
         let found_at_an_index = (0..items.len()).any(|index| items[index] == item);
         prop_assert_eq!(items.contains(&item), found_at_an_index);
