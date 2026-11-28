@@ -178,8 +178,13 @@ pub(in super::super) fn repo<'a>(
 pub(in super::super) fn docs<'a>(
     ctx: &RunCtx<'a>,
     args: DocsArgs,
+    command_name: &'a str,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.loaders.config)()?;
+    if let Some(run_args) = script_override::resolve(ctx, cfg, command_name, args.packages.clone())?
+    {
+        return dispatch_script::run(ctx, run_args);
+    }
     Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg).await }))
 }
 

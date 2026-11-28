@@ -144,7 +144,7 @@ pnpm ends what it started in two cases only:
 
 ## Built-in command and script name conflicts
 
-The following built-in commands prefer user scripts: `clean` (and its alias `purge`), `setup`, `deploy`, `rebuild` (and its alias `rb`), and `tasks`. If your `package.json` defines a script with one of these names, `pnpm <name>` will execute the script instead of the built-in command.
+The following built-in commands prefer user scripts: `clean` (and its alias `purge`), `setup`, `deploy`, `rebuild` (and its alias `rb`), `docs` (and its alias `home`), and `tasks`. If your `package.json` defines a script with one of these names, `pnpm <name>` will execute the script instead of the built-in command.
 
 To force the built-in command, use [`pnpm pm <name>`](./cli/pm.md).
 

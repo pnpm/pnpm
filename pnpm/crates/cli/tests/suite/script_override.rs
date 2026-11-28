@@ -93,6 +93,77 @@ fn tasks_script_overrides_the_builtin_and_receives_arguments() {
 }
 
 #[test]
+fn docs_and_home_scripts_override_the_builtin_and_receive_arguments() {
+    for command in ["docs", "home"] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        write_manifest(
+            &workspace,
+            "docs-project",
+            &serde_json::json!({ command: "node docs.cjs" }),
+        );
+        write_workspace_yaml(&workspace);
+        fs::write(
+            workspace.join("docs.cjs"),
+            "require('fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)))",
+        )
+        .unwrap();
+
+        for args in [vec![command], vec![command, "check"], vec![command, "check", "strict"]] {
+            let output = run(&workspace, &args);
+            assert!(output.status.success(), "{output:?}");
+            let forwarded: Vec<String> =
+                serde_json::from_str(&fs::read_to_string(workspace.join("args.json")).unwrap())
+                    .unwrap();
+            assert_eq!(forwarded, args[1..]);
+        }
+
+        drop(root);
+    }
+}
+
+#[test]
+fn docs_script_does_not_override_home_and_the_reverse() {
+    for (script, command) in [("docs", "home"), ("home", "docs")] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        write_manifest(
+            &workspace,
+            "docs-project",
+            &serde_json::json!({ script: "echo script-executed" }),
+        );
+        write_workspace_yaml(&workspace);
+
+        let output = run(&workspace, &[command]);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "the built-in needs a package name: {stdout}");
+        assert!(!stdout.contains("script-executed"), "the script must not run: {stdout}");
+        assert!(stderr.contains("ERR_PNPM_DOCS_PACKAGE_NAME"), "{stderr}");
+
+        drop(root);
+    }
+}
+
+#[test]
+fn pm_docs_runs_the_builtin_when_a_docs_script_exists() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        "docs-project",
+        &serde_json::json!({ "docs": "echo script-executed" }),
+    );
+    write_workspace_yaml(&workspace);
+
+    let output = run(&workspace, &["pm", "docs"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "the built-in needs a package name: {stdout}");
+    assert!(!stdout.contains("script-executed"), "the script must not run: {stdout}");
+    assert!(stderr.contains("ERR_PNPM_DOCS_PACKAGE_NAME"), "{stderr}");
+
+    drop(root);
+}
+
+#[test]
 fn tasks_from_a_workspace_subdirectory_refuses_when_the_root_declares_the_script() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, "root-pkg", &serde_json::json!({ "tasks": "echo tasks-script" }));

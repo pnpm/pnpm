@@ -12,6 +12,7 @@ These commands run a same-named script when one exists:
 * [`clean`](./clean.md) and its alias `purge`
 * [`rebuild`](./rebuild.md) and its alias `rb`
 * [`deploy`](./deploy.md)
+* [`docs`](./docs.md) and its alias `home`
 * [`setup`](./setup.md)
 * [`tasks`](./tasks.md)
 

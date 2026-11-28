@@ -901,6 +901,7 @@ fn npm_command_name_reports_the_command_the_way_pnpm_11_does() {
         (&["pacquet", "ll"][..], "list"),
         (&["pacquet", "rb"][..], "rebuild"),
         (&["pacquet", "purge"][..], "clean"),
+        (&["pacquet", "home", "is-negative"][..], "docs"),
     ] {
         assert_eq!(command(argv).npm_command_name(), expected, "argv: {argv:?}");
     }

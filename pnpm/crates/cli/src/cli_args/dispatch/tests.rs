@@ -73,6 +73,17 @@ fn store_use_decides_where_the_config_load_places_the_store() {
 }
 
 #[test]
+fn commands_a_script_can_replace_place_the_store_the_way_run_does() {
+    use super::configuration::StoreUse;
+
+    let run = CliArgs::parse_from(["pacquet", "run", "docs"]).command;
+    for argv in [["pacquet", "docs", "is-negative"], ["pacquet", "home", "is-negative"]] {
+        let command = CliArgs::parse_from(argv).command;
+        assert!(StoreUse::of(&command) == StoreUse::of(&run), "argv: {argv:?}");
+    }
+}
+
+#[test]
 fn structured_stdout_commands_route_reporter_to_stderr() {
     for argv in [
         ["pacquet", "stage", "publish", "--json"].as_slice(),

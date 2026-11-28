@@ -26,7 +26,7 @@ fn docs_fails_without_package_name() {
     assert!(!output.status.success(), "docs without args should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("required arguments were not provided"),
+        stderr.contains("ERR_PNPM_DOCS_PACKAGE_NAME"),
         "should show error about missing package name: {stderr}",
     );
     drop(root);
@@ -43,7 +43,7 @@ fn home_alias_fails_without_package_name() {
     assert!(!output.status.success(), "home without args should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("required arguments were not provided"),
+        stderr.contains("ERR_PNPM_DOCS_PACKAGE_NAME"),
         "should show error about missing package name: {stderr}",
     );
     drop(root);

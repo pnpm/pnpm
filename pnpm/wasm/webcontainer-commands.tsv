@@ -105,6 +105,7 @@ prune	routed	available
 fetch	routed	available
 unlink	partial	available
 docs	partial	host-limited
+home	partial	host-limited
 repo	routed	host-limited
 self-update	partial	implementation-gap
 setup	partial	implementation-gap
@@ -132,7 +133,6 @@ alias:ci=ic	partial	available
 alias:ci=install-clean	partial	available
 alias:config=c	partial	available
 alias:dist-tag=dist-tags	partial	available
-alias:docs=home	partial	host-limited
 alias:install-test=it	partial	available
 alias:install=i	partial	available
 alias:licenses=licences	partial	available

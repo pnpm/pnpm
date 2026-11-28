@@ -59,6 +59,7 @@ const PAGE_NAMES: &[(&str, &str)] = &[
     ("approve", "permissions"),
     ("dlx", "pnx"),
     ("get", "config"),
+    ("home", "docs"),
     ("ll", "list"),
     ("purge", "clean"),
     ("rb", "rebuild"),

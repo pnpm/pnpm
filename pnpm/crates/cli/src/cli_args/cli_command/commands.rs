@@ -328,8 +328,14 @@ pub enum CliCommand {
     #[clap(visible_aliases = ["dislink"])]
     Unlink(UnlinkArgs),
     /// Opens the documentation of a package in the browser.
-    #[clap(visible_alias = "home")]
+    /// A same-named script takes precedence. Use `pnpm pm docs` to force the built-in.
     Docs(DocsArgs),
+    // A variant of its own rather than a `visible_alias` of `docs`, for
+    // the reason given on `Rb`.
+    /// Alias of `docs`: same behavior, except a `home` script
+    /// (not a `docs` script) overrides it when present.
+    #[clap(name = "home")]
+    Home(DocsArgs),
     /// Opens the URL of the package's repository in a browser.
     Repo(RepoArgs),
     /// Updates pnpm to the latest version (or the one specified)
@@ -375,6 +381,7 @@ impl CliCommand {
             CliCommand::Ll(_) => "list",
             CliCommand::Rb(_) => "rebuild",
             CliCommand::Purge(_) => "clean",
+            CliCommand::Home(_) => "docs",
             command => command.into(),
         }
     }

@@ -156,7 +156,6 @@ fn talks_only_to_the_registry(command: &CliCommand) -> bool {
             | CliCommand::Bugs(_)
             | CliCommand::Deprecate(_)
             | CliCommand::DistTag(_)
-            | CliCommand::Docs(_)
             | CliCommand::Login(_)
             | CliCommand::Logout(_)
             | CliCommand::Owner(_)
@@ -192,7 +191,11 @@ impl StoreUse {
             | CliCommand::Start(_)
             | CliCommand::Stop(_)
             | CliCommand::Restart(_)
-            | CliCommand::External(_) => StoreUse::ConfigDependencies,
+            | CliCommand::External(_)
+            // A same-named script can replace these two, and it then runs
+            // the way `pnpm run` does.
+            | CliCommand::Docs(_)
+            | CliCommand::Home(_) => StoreUse::ConfigDependencies,
             _ => StoreUse::Opens,
         }
     }

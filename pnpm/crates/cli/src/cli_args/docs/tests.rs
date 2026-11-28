@@ -99,7 +99,7 @@ async fn requested_version_uses_its_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { registry: None, package: "is-negative@1.0.0".to_string() };
+    let args = DocsArgs { registry: None, packages: vec!["is-negative@1.0.0".to_string()] };
 
     args.run::<RecordingBrowser>(&config_for(&server.url())).await
         .expect("docs URL must open");
@@ -117,7 +117,7 @@ async fn unversioned_spec_uses_the_latest_tag_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { registry: None, package: "is-negative".to_string() };
+    let args = DocsArgs { registry: None, packages: vec!["is-negative".to_string()] };
 
     let url = args
         .documentation_url(&config_for(&server.url()))
@@ -137,7 +137,7 @@ async fn named_tag_uses_the_tagged_version_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { registry: None, package: "is-negative@legacy".to_string() };
+    let args = DocsArgs { registry: None, packages: vec!["is-negative@legacy".to_string()] };
 
     let url = args
         .documentation_url(&config_for(&server.url()))
@@ -157,7 +157,7 @@ async fn semver_range_uses_the_highest_matching_version_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { registry: None, package: "is-negative@^1.0.0".to_string() };
+    let args = DocsArgs { registry: None, packages: vec!["is-negative@^1.0.0".to_string()] };
 
     let url = args
         .documentation_url(&config_for(&server.url()))
@@ -193,7 +193,7 @@ async fn missing_requested_version_fails() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { registry: None, package: "is-negative@9999.0.0".to_string() };
+    let args = DocsArgs { registry: None, packages: vec!["is-negative@9999.0.0".to_string()] };
 
     let error = args
         .documentation_url(&config_for(&server.url()))
@@ -216,7 +216,8 @@ async fn docs_supports_registry_override() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { registry: Some(server.url()), package: "is-negative@1.0.0".to_string() };
+    let args =
+        DocsArgs { registry: Some(server.url()), packages: vec!["is-negative@1.0.0".to_string()] };
 
     let url = args
         .documentation_url(&Config::default())
