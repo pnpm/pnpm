@@ -1,4 +1,5 @@
 use super::output_retrying_busy;
+use command_extra::CommandExtra;
 use std::{
     fs,
     os::unix::fs::PermissionsExt,
@@ -30,7 +31,7 @@ fn retries_a_shim_whose_exec_of_a_busy_file_fails() {
         drop(writer);
     });
 
-    let output = output_retrying_busy(Command::new(&shim).env("LC_ALL", "de_DE.UTF-8"));
+    let output = output_retrying_busy(&mut Command::new(&shim).with_env("LC_ALL", "de_DE.UTF-8"));
 
     release.join().unwrap();
     assert!(output.status.success(), "{output:?}");
