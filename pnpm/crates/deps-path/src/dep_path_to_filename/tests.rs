@@ -187,3 +187,36 @@ fn multibyte_utf8_package_names_do_not_panic() {
         "ä@https+++example.invalid+a+b.tgz_1e2b5d665e065394578a5d949b14cddc",
     );
 }
+
+#[test]
+fn urls_escaping_to_underscore_do_not_collide_with_literal_underscore() {
+    let pairs = [
+        ("pkg@https://example.com/a(b.tgz", "pkg@https://example.com/a_b.tgz"),
+        ("pkg@https://example.com/a(b).tgz", "pkg@https://example.com/a_b_.tgz"),
+        ("pkg@https://example.com/a.tgz(peer@1.0.0)", "pkg@https://example.com/a.tgz_peer@1.0.0"),
+    ];
+    for (escaped, literal) in pairs {
+        assert_ne!(dep_path_to_filename(escaped, 120), dep_path_to_filename(literal, 120));
+    }
+    assert_eq!(
+        dep_path_to_filename("pkg@https://example.com/a_b.tgz", 120),
+        "pkg@https+++example.com+a_b.tgz",
+    );
+}
+
+#[test]
+fn literal_hash_suffix_does_not_collide_with_a_hashed_name() {
+    let hashed = dep_path_to_filename("pkg@https://example.com/t+p.tgz", 120);
+    let (prefix, hash) = hashed.rsplit_once('_').unwrap();
+    assert_eq!(prefix, "pkg@https+++example.com+t+p.tgz");
+    let lookalike = format!("pkg@https://example.com/t/p.tgz_{hash}");
+    assert_ne!(dep_path_to_filename(&lookalike, 120), hashed);
+}
+
+#[test]
+fn local_paths_with_peers_are_not_hashed() {
+    assert_eq!(
+        dep_path_to_filename("foo@file:packages/foo(react@18.0.0)", 120),
+        "foo@file+packages+foo_react@18.0.0",
+    );
+}
