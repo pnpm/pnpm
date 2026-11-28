@@ -5326,6 +5326,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-config-parse-overrides",
+ "pnpm-intervals",
  "pnpm-lockfile",
  "pnpm-matcher",
  "pnpm-package-manifest",
@@ -6011,6 +6012,15 @@ dependencies = [
  "tempfile",
  "tokio",
  "which 8.0.6",
+]
+
+[[package]]
+name = "pnpm-intervals"
+version = "0.0.1"
+dependencies = [
+ "creusot-std",
+ "pnpm-creusot-models",
+ "pretty_assertions",
 ]
 
 [[package]]

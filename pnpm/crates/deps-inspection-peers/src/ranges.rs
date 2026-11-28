@@ -1,38 +1,19 @@
-use std::cmp::Ordering;
+use pnpm_intervals::{
+    Bound,
+    intersect_intervals,
+    is_valid_interval,
+    max_lower,
+    merge_overlapping_intervals,
+    min_upper,
+};
 
 use super::{
     Version,
     fmt,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Bound<Value> {
-    Inclusive(Value),
-    Exclusive(Value),
-    Unbounded,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Interval {
-    lower: Bound<Version>,
-    upper: Bound<Version>,
-}
-
-impl Interval {
-    pub(super) fn contains(&self, version: &Version) -> bool {
-        let above_lower = match &self.lower {
-            Bound::Inclusive(lower) => lower <= version,
-            Bound::Exclusive(lower) => lower < version,
-            Bound::Unbounded => true,
-        };
-        let below_upper = match &self.upper {
-            Bound::Inclusive(upper) => version <= upper,
-            Bound::Exclusive(upper) => version < upper,
-            Bound::Unbounded => true,
-        };
-        above_lower && below_upper
-    }
-}
+/// The versions between two bounds.
+pub(super) type Interval = pnpm_intervals::Interval<Version>;
 
 /// The bound as a user reads it, without the trailing `-0`.
 ///
@@ -51,15 +32,19 @@ fn without_derived_suffix(version: &Version) -> String {
     }
 }
 
-impl fmt::Display for Interval {
+/// An interval written as a semver range.
+struct RangeText<'interval>(&'interval Interval);
+
+impl fmt::Display for RangeText<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let upper = match &self.upper {
+        let interval = self.0;
+        let upper = match &interval.upper {
             Bound::Inclusive(version) | Bound::Exclusive(version) => {
                 without_derived_suffix(version)
             }
             Bound::Unbounded => String::new(),
         };
-        match (&self.lower, &self.upper) {
+        match (&interval.lower, &interval.upper) {
             (Bound::Unbounded, Bound::Unbounded) => write!(formatter, "*"),
             (Bound::Inclusive(version_lower), Bound::Unbounded) => {
                 write!(formatter, ">={version_lower}")
@@ -85,75 +70,6 @@ impl fmt::Display for Interval {
             (Bound::Exclusive(version_lower), Bound::Exclusive(_)) => {
                 write!(formatter, ">{version_lower} <{upper}")
             }
-        }
-    }
-}
-
-/// The tighter of two lower bounds.
-fn max_lower(left_bound: &Bound<Version>, right_bound: &Bound<Version>) -> Bound<Version> {
-    match (lower_rank(left_bound), lower_rank(right_bound)) {
-        (None, _) => right_bound.clone(),
-        (_, None) => left_bound.clone(),
-        (left, right) => {
-            if left >= right {
-                left_bound.clone()
-            } else {
-                right_bound.clone()
-            }
-        }
-    }
-}
-
-/// The tighter of two upper bounds.
-fn min_upper(left_bound: &Bound<Version>, right_bound: &Bound<Version>) -> Bound<Version> {
-    match (upper_rank(left_bound), upper_rank(right_bound)) {
-        (None, _) => right_bound.clone(),
-        (_, None) => left_bound.clone(),
-        (left, right) => {
-            if left <= right {
-                left_bound.clone()
-            } else {
-                right_bound.clone()
-            }
-        }
-    }
-}
-
-/// Orders lower bounds by the versions they admit, `None` for unbounded. At
-/// the same version the exclusive bound is the higher one: it excludes that
-/// version, the inclusive one admits it.
-fn lower_rank(bound: &Bound<Version>) -> Option<(&Version, u8)> {
-    match bound {
-        Bound::Unbounded => None,
-        Bound::Inclusive(version) => Some((version, 0)),
-        Bound::Exclusive(version) => Some((version, 1)),
-    }
-}
-
-/// Orders upper bounds by the versions they admit, `None` for unbounded. At
-/// the same version the exclusive bound is the lower one.
-fn upper_rank(bound: &Bound<Version>) -> Option<(&Version, u8)> {
-    match bound {
-        Bound::Unbounded => None,
-        Bound::Exclusive(version) => Some((version, 0)),
-        Bound::Inclusive(version) => Some((version, 1)),
-    }
-}
-
-fn is_valid_interval(lower: &Bound<Version>, upper: &Bound<Version>) -> bool {
-    match (lower, upper) {
-        (Bound::Unbounded, _) | (_, Bound::Unbounded) => true,
-        (Bound::Inclusive(left_version), Bound::Inclusive(right_version)) => {
-            left_version <= right_version
-        }
-        (Bound::Inclusive(left_version), Bound::Exclusive(right_version)) => {
-            left_version < right_version
-        }
-        (Bound::Exclusive(left_version), Bound::Inclusive(right_version)) => {
-            left_version < right_version
-        }
-        (Bound::Exclusive(left_version), Bound::Exclusive(right_version)) => {
-            left_version < right_version
         }
     }
 }
@@ -225,7 +141,7 @@ pub(super) fn at(major: u64, minor: u64, patch: u64) -> Version {
 /// `^1.2.3` desugars to `<2.0.0-0`, not `<2.0.0`, so that no prerelease
 /// of 2.0.0 slips in. A bound the user spelled in full (`<2.0.0`) keeps
 /// its plain form and does admit `2.0.0-rc.1`. The suffix is dropped
-/// again when the interval is rendered; see [`Interval`]'s `Display`.
+/// again when the interval is rendered; see [`RangeText`].
 fn derived_upper(version: Version) -> Version {
     Version { pre_release: vec![node_semver::Identifier::Numeric(0)], ..version }
 }
@@ -366,8 +282,8 @@ fn parse_comparator_set(part: &str) -> Option<Interval> {
     let mut interval = Interval { lower: Bound::Unbounded, upper: Bound::Unbounded };
     for comparator in part.split_whitespace() {
         let comparator_interval = parse_comparator(comparator)?;
-        let lower = max_lower(&interval.lower, &comparator_interval.lower);
-        let upper = min_upper(&interval.upper, &comparator_interval.upper);
+        let lower = max_lower(&interval.lower, &comparator_interval.lower).clone();
+        let upper = min_upper(&interval.upper, &comparator_interval.upper).clone();
         if !is_valid_interval(&lower, &upper) {
             let zero = Version::parse("0.0.0").expect("0.0.0 is a valid version");
             return Some(Interval {
@@ -380,61 +296,13 @@ fn parse_comparator_set(part: &str) -> Option<Interval> {
     Some(interval)
 }
 
-/// The intersection of two unions, each sorted by lower bound with no two
-/// intervals overlapping, as [`merge_overlapping_intervals`] leaves them.
-/// The result keeps that shape. A single sweep pairs only the intervals
-/// that can overlap, so the work is linear in the two unions.
-fn intersect_intervals(left_intervals: &[Interval], right_intervals: &[Interval]) -> Vec<Interval> {
-    let mut result = Vec::new();
-    let (mut left_index, mut right_index) = (0, 0);
-    while let (Some(left_interval), Some(right_interval)) =
-        (left_intervals.get(left_index), right_intervals.get(right_index))
-    {
-        let lower = max_lower(&left_interval.lower, &right_interval.lower);
-        let upper = min_upper(&left_interval.upper, &right_interval.upper);
-        if is_valid_interval(&lower, &upper) {
-            result.push(Interval { lower, upper });
-        }
-        if compare_upper(&left_interval.upper, &right_interval.upper).is_lt() {
-            left_index += 1;
-        } else {
-            right_index += 1;
-        }
-    }
-    result
-}
-
-/// The same set of versions as a union sorted by lower bound, with every
-/// group of overlapping intervals merged into one.
-fn merge_overlapping_intervals(mut intervals: Vec<Interval>) -> Vec<Interval> {
-    intervals.sort_by(|left, right| compare_lower(&left.lower, &right.lower));
-    let mut merged: Vec<Interval> = Vec::with_capacity(intervals.len());
-    for interval in intervals {
-        match merged.last_mut() {
-            Some(last) if is_valid_interval(&interval.lower, &last.upper) => {
-                if compare_upper(&interval.upper, &last.upper).is_gt() {
-                    last.upper = interval.upper;
-                }
-            }
-            _ => merged.push(interval),
-        }
-    }
-    merged
-}
-
-/// Orders lower bounds from the one admitting the most versions.
-fn compare_lower(left: &Bound<Version>, right: &Bound<Version>) -> Ordering {
-    lower_rank(left).cmp(&lower_rank(right))
-}
-
-/// Orders upper bounds up to the one admitting the most versions.
-fn compare_upper(left: &Bound<Version>, right: &Bound<Version>) -> Ordering {
-    match (upper_rank(left), upper_rank(right)) {
-        (None, None) => Ordering::Equal,
-        (None, Some(_)) => Ordering::Greater,
-        (Some(_), None) => Ordering::Less,
-        (Some(left), Some(right)) => left.cmp(&right),
-    }
+/// The intersection of two unions in the shape [`merge_overlapping_intervals`]
+/// leaves them, in that shape too.
+fn intersect(left: &[Interval], right: &[Interval]) -> Vec<Interval> {
+    intersect_intervals(left, right)
+        .into_iter()
+        .map(|(lower, upper)| Interval { lower: lower.clone(), upper: upper.clone() })
+        .collect()
 }
 
 pub(super) fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<String> {
@@ -452,7 +320,7 @@ pub(super) fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<Str
         let next_intervals = merge_overlapping_intervals(parse_range_to_intervals(
             &preprocess_hyphen_ranges(range),
         )?);
-        current_intervals = intersect_intervals(&current_intervals, &next_intervals);
+        current_intervals = intersect(&current_intervals, &next_intervals);
         if current_intervals.is_empty() {
             return None;
         }
@@ -460,7 +328,8 @@ pub(super) fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<Str
     Some(
         current_intervals
             .iter()
-            .map(std::string::ToString::to_string)
+            .map(RangeText)
+            .map(|text| text.to_string())
             .collect::<Vec<_>>()
             .join(" || "),
     )

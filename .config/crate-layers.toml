@@ -32,6 +32,7 @@ crates = [
   "pnpm-graph-hasher",
   "pnpm-http",
   "pnpm-install-coordinator",
+  "pnpm-intervals",
   "pnpm-matcher",
   "pnpm-network",
   "pnpm-network-web-auth",
@@ -308,7 +309,7 @@ pnpm-crate-layers = 1
 pnpm-crypto-shasums-file = 4
 pnpm-default-reporter = 7
 pnpm-deps-inspection = 11
-pnpm-deps-inspection-peers = 11
+pnpm-deps-inspection-peers = 12
 pnpm-deps-path = 3
 pnpm-deps-restorer = 34
 pnpm-detect-libc = 1

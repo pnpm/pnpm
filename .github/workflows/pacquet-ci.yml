@@ -116,6 +116,7 @@ jobs:
             creusot:
               - 'pnpm/crates/creusot-models/**'
               - 'pnpm/crates/env-placeholders/**'
+              - 'pnpm/crates/intervals/**'
               - 'pnpm/crates/pkg-name-split/**'
               - 'pnpm/crates/relative-path/**'
               - 'pnpm/crates/shell-quote/**'

@@ -66,6 +66,7 @@ A fact about one value travels in the value's type, not in a precondition that e
 - Prove a new or changed proof cold before pushing it: remove `target/creusot`, `verif/`, `why3find.proofs` and `.why3find`, then run `just creusot`. `why3find.proofs` is not committed, so CI meets a new goal without the hint an earlier local run left, and a goal the solvers found once by search can fail there. Halving `time` in `why3find.json` for that run shows the goals close to the limit.
 - A run records each goal's result in `why3find.proofs`, a failure included, and a later run that replays a recorded failure can fail a goal that now proves. After a run that is meant to fail, such as one checking that a contract is not vacuous, delete the crate's entries there.
 - Creusot does not know what a string literal holds, so `text == ".."` proves nothing about `text`. Classify the string by its characters instead, as `segment_kind` in `pnpm-relative-path` does with `split_first_char`.
+- A proof over a generic `T: OrdLogic` has the laws of `PartialOrdLogic` from its `<` and `<=`, but the totality law `lt_log_total` only once the goal names an item of `OrdLogic` itself. Name `cmp_log` in a postcondition, as `past` in `pnpm-intervals` does.
 - Re-associating `concat` is a step the solvers can miss. Cite `Seq::concat_assoc` for it rather than leaving it to search.
 - `cargo creusot --dry-run-why3find` prints the `why3find` command it runs. Run that command with `-X` and the failed `.coma` file to print the goal and its context.
 
