@@ -5906,6 +5906,7 @@ dependencies = [
  "pnpm-detect-libc",
  "pnpm-fs",
  "pnpm-process",
+ "pnpm-strongly-connected-components",
  "pretty_assertions",
  "serde_json",
  "sha2 0.10.9",

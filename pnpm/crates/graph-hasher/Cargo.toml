@@ -16,6 +16,7 @@ indexmap = { workspace = true }
 pnpm-detect-libc = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-process = { path = "../process" }
+pnpm-strongly-connected-components = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 

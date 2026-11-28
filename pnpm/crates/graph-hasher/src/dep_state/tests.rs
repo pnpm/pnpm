@@ -484,3 +484,24 @@ fn dep_graph_hash_matches_the_object_hash_of_the_value_it_models() {
         assert_eq!(actual, expected, "dep-graph hash diverged for {dep_path:?}");
     }
 }
+
+/// A chain hundreds of thousands of packages deep hashes on a test thread's
+/// stack: the walk keeps its own frames rather than recursing per package.
+#[test]
+fn a_deep_dependency_chain_does_not_overflow_the_stack() {
+    let depth = 200_000;
+    let graph: HashMap<String, DepsGraphNode<String>> = (0..depth)
+        .map(|node| {
+            let mut children = IndexMap::new();
+            if node + 1 < depth {
+                children.insert("next".to_string(), format!("chain-{}", node + 1));
+            }
+            let full_pkg_id = format!("chain-{node}@1.0.0:sha512-x");
+            (format!("chain-{node}"), DepsGraphNode { full_pkg_id, children })
+        })
+        .collect();
+    let mut cache = HashMap::new();
+    let hash = calc_dep_graph_hash(&graph, &mut cache, &"chain-0".to_string());
+    assert!(!hash.is_empty());
+    assert_eq!(cache.len(), depth);
+}

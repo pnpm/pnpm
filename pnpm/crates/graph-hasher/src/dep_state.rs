@@ -6,6 +6,7 @@ use crate::{
     },
 };
 use indexmap::IndexMap;
+use pnpm_strongly_connected_components::StronglyConnectedComponents;
 use serde_json::{
     Value,
     json,
@@ -42,8 +43,8 @@ pub struct DepsGraphNode<Key> {
 }
 
 /// Memoized per-depPath state cache: the result of `hash_object` for
-/// each visited node is stashed so the recursive walk over diamond-shaped
-/// graphs stays linear.
+/// each visited node is stashed so the walk over diamond-shaped graphs
+/// stays linear.
 pub type DepsStateCache<Key> = HashMap<Key, String>;
 
 /// Inputs to [`calc_dep_state`].
@@ -156,83 +157,81 @@ where
     let Some((dep_path, _)) = graph.get_key_value(dep_path) else {
         return String::new();
     };
-    let mut walk = ComponentWalk {
-        graph,
-        cache,
-        visits: HashMap::new(),
-        stack: Vec::new(),
-        scratch: Vec::with_capacity(8192),
-    };
-    walk.visit(dep_path);
+    let uncached = UncachedGraph::reachable_from(graph, cache, dep_path);
+    let components = StronglyConnectedComponents::compute(
+        &uncached.adjacency,
+        &vec![false; uncached.keys.len()],
+    );
+    let mut walk = ComponentWalk { graph, cache, scratch: Vec::with_capacity(8192) };
+    for members in components.components() {
+        let members: Vec<&Key> = members
+            .iter()
+            .map(|&node| uncached.keys[node])
+            .collect();
+        walk.hash_component(&members);
+    }
     cache[dep_path].clone()
 }
 
-/// Tarjan's strongly-connected-components search over the nodes that
-/// are not in `cache` yet. It finishes a component only after every
-/// component the component depends on, so a component's external
-/// children are always hashed by the time it is.
+/// The nodes reachable from one root that are not in the cache yet, indexed
+/// for `pnpm-strongly-connected-components`, whose walk closes a component
+/// only after every component the component depends on. So a component's
+/// external children are always hashed by the time it is.
+struct UncachedGraph<'graph, Key> {
+    keys: Vec<&'graph Key>,
+    adjacency: Vec<Vec<usize>>,
+}
+
+impl<'graph, Key> UncachedGraph<'graph, Key>
+where
+    Key: Eq + std::hash::Hash,
+{
+    /// Every node `root` reaches through children that are in `graph` and
+    /// not in `cache`, with `root` at index 0 and each node's edges in the
+    /// order of its children.
+    fn reachable_from(
+        graph: &'graph HashMap<Key, DepsGraphNode<Key>>,
+        cache: &DepsStateCache<Key>,
+        root: &'graph Key,
+    ) -> Self {
+        let mut index_of: HashMap<&'graph Key, usize> = HashMap::from([(root, 0)]);
+        let mut keys = vec![root];
+        let mut adjacency: Vec<Vec<usize>> = Vec::new();
+        while let Some(&node) = keys.get(adjacency.len()) {
+            let mut edges = Vec::new();
+            for child_key in graph[node].children.values() {
+                let Some((child_key, _)) = graph.get_key_value(child_key) else { continue };
+                if cache.contains_key(child_key) {
+                    continue;
+                }
+                let next = keys.len();
+                let index = *index_of
+                    .entry(child_key)
+                    .or_insert_with(|| {
+                        keys.push(child_key);
+                        next
+                    });
+                edges.push(index);
+            }
+            adjacency.push(edges);
+        }
+        UncachedGraph { keys, adjacency }
+    }
+}
+
+/// Hashes the components of one walk, each after every component it
+/// depends on.
 struct ComponentWalk<'graph, 'cache, Key> {
     graph: &'graph HashMap<Key, DepsGraphNode<Key>>,
     cache: &'cache mut DepsStateCache<Key>,
-    visits: HashMap<&'graph Key, Visit>,
-    stack: Vec<&'graph Key>,
     /// Reused by every [`digest_node`] of the walk.
     scratch: Vec<u8>,
-}
-
-struct Visit {
-    index: usize,
-    low_link: usize,
-    on_stack: bool,
 }
 
 impl<'graph, Key> ComponentWalk<'graph, '_, Key>
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    fn visit(&mut self, dep_path: &'graph Key) {
-        let index = self.visits.len();
-        self.visits.insert(dep_path, Visit { index, low_link: index, on_stack: true });
-        self.stack.push(dep_path);
-        for child_key in self.graph[dep_path].children.values() {
-            if let Some(reached) = self.visit_child(child_key) {
-                let visit = self.visits.get_mut(dep_path).expect("visited above");
-                visit.low_link = visit.low_link.min(reached);
-            }
-        }
-        if self.visits[dep_path].low_link == index {
-            self.finish_component(dep_path);
-        }
-    }
-
-    /// The lowest index `child_key` reaches back to, or `None` for a
-    /// child that is missing from the graph or in a finished component.
-    fn visit_child(&mut self, child_key: &Key) -> Option<usize> {
-        let (child_key, _) = self.graph.get_key_value(child_key)?;
-        if self.cache.contains_key(child_key) {
-            return None;
-        }
-        match self.visits.get(child_key) {
-            None => {
-                self.visit(child_key);
-                Some(self.visits[child_key].low_link)
-            }
-            Some(child) => child.on_stack.then_some(child.index),
-        }
-    }
-
-    fn finish_component(&mut self, root: &'graph Key) {
-        let start = self.stack
-            .iter()
-            .rposition(|member| *member == root)
-            .expect("a visited node stays on the stack until its component is finished");
-        let members = self.stack.split_off(start);
-        for member in &members {
-            self.visits.get_mut(*member).expect("visited above").on_stack = false;
-        }
-        self.hash_component(&members);
-    }
-
     fn hash_component(&mut self, members: &[&'graph Key]) {
         if let [dep_path] = members {
             let node = &self.graph[*dep_path];
