@@ -210,13 +210,15 @@ fn accepts_a_sha1_declared_integrity() {
 
 #[test]
 fn rejects_a_manifest_identity_that_escapes_the_destination() {
-    let dir = tempdir().unwrap();
+    let outer = tempdir().unwrap();
+    let dir = outer.path().join("work");
+    std::fs::create_dir(&dir).unwrap();
     for manifest in [
         json!({ "name": "foo", "version": "../backup" }),
         json!({ "name": "../evil", "version": "1.0.0" }),
     ] {
         let bytes = minimal_tgz(&manifest, &[]);
-        let error = pack_fetched_tarball::<Host>(&fetched(dir.path(), &bytes)).unwrap_err();
+        let error = pack_fetched_tarball::<Host>(&fetched(&dir, &bytes)).unwrap_err();
         assert!(
             matches!(
                 error,
@@ -225,14 +227,7 @@ fn rejects_a_manifest_identity_that_escapes_the_destination() {
             "manifest {manifest} is rejected: {error}"
         );
     }
-    assert!(
-        !dir.path()
-            .parent()
-            .unwrap()
-            .join("backup.tgz")
-            .exists(),
-        "nothing written outside the destination"
-    );
+    assert!(!outer.path().join("backup.tgz").exists(), "nothing written outside the destination");
 }
 
 #[test]

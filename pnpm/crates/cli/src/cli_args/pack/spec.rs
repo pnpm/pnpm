@@ -167,7 +167,9 @@ async fn pack_local_dir<Reporter: self::Reporter>(
     // not to the packed one.
     let in_workspace = config.workspace_dir
         .as_deref()
-        .is_some_and(|workspace_dir| path.starts_with(workspace_dir));
+        .is_some_and(|workspace_dir| {
+            path.starts_with(pnpm_pack::canonicalize_pack_dir(workspace_dir))
+        });
     let shared = PackSharedContext {
         catalogs: if in_workspace { configured_catalogs(config)? } else { Default::default() },
         output_base_dir: Some(dir.to_path_buf()),
@@ -266,8 +268,10 @@ fn classify(spec: &str, dir: &Path) -> Result<PackSpec, PackSpecError> {
 }
 
 /// The filesystem path a `file:` / `link:` / path-shaped spec names,
-/// resolved against the CLI directory and lexically normalized, so a
-/// workspace-membership check can compare prefixes.
+/// resolved against the CLI directory. Symlink segments resolve before
+/// `..` is applied (`./link/../pkg` reads `<link-target>/../pkg`, the way
+/// the filesystem reads it), so a workspace-membership check can compare
+/// prefixes safely.
 fn local_spec_path(spec: &str, dir: &Path) -> PathBuf {
     let path = spec
         .strip_prefix("file:")
@@ -276,7 +280,7 @@ fn local_spec_path(spec: &str, dir: &Path) -> PathBuf {
     if let Some(home_relative) = path.strip_prefix("~/")
         && let Some(home) = home_dir()
     {
-        return pnpm_fs::lexical_normalize(&home.join(home_relative));
+        return pnpm_pack::canonicalize_pack_dir(&home.join(home_relative));
     }
-    pnpm_fs::lexical_normalize(&dir.join(path))
+    pnpm_pack::canonicalize_pack_dir(&dir.join(path))
 }

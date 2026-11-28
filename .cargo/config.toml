@@ -24,38 +24,7 @@ rustflags = ["-C", "link-arg=-B.github/scripts/rust-lld"]
 rustflags = ["--cfg", "tokio_unstable"]
 
 # >>> pnpm-managed cargo sources >>>
-# TEMPORARILY DISABLED (local network workaround): the vendored sources under
-# .pnpm/crates are stale relative to Cargo.lock and github.com is unreachable.
-# Restore this include once the network can reach github and `pnpm install`
-# has re-vendored the crates.
-# [[include]]
-# path = "../.pnpm/crates/config.toml"
-# optional = true
+[[include]]
+path = "../.pnpm/crates/config.toml"
+optional = true
 # <<< pnpm-managed cargo sources <<<
-
-# TEMPORARY: crates.io mirror while the vendored sources are stale.
-[source.crates-io]
-replace-with = "rsproxy-sparse"
-
-[source.rsproxy-sparse]
-registry = "sparse+https://rsproxy.cn/index/"
-
-# TEMPORARY: github.com is unreachable from this network; resolve the git
-# patches from the (stale but present) vendored copies under .pnpm/crates/git.
-[source.pnpm-git]
-directory = ".pnpm/crates/git"
-
-[source."git+https://github.com/pnpm/dashmap?rev=4401b5c0b2626266dd5d5a9202677bca8b53e57a"]
-git = "https://github.com/pnpm/dashmap"
-rev = "4401b5c0b2626266dd5d5a9202677bca8b53e57a"
-replace-with = "pnpm-git"
-
-[source."git+https://github.com/pnpm/libsql?rev=ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4"]
-git = "https://github.com/pnpm/libsql"
-rev = "ab8a7516c7d32d6fdd0f68d59956c6233f9f11d4"
-replace-with = "pnpm-git"
-
-[source."git+https://github.com/pnpm/node-semver-rs?rev=3d74d6b7f4de1de2006cf2f7663aac09de65b1f6"]
-git = "https://github.com/pnpm/node-semver-rs"
-rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6"
-replace-with = "pnpm-git"
