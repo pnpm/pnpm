@@ -118,6 +118,7 @@ jobs:
               - 'pnpm/crates/env-placeholders/**'
               - 'pnpm/crates/intervals/**'
               - 'pnpm/crates/pkg-name-split/**'
+              - 'pnpm/crates/reachability/**'
               - 'pnpm/crates/relative-path/**'
               - 'pnpm/crates/shell-quote/**'
               - 'pnpm/crates/star-glob/**'

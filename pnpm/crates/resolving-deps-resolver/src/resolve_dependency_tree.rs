@@ -103,6 +103,7 @@ mod importer;
 mod locked_resolution;
 mod manifest;
 mod override_reframe;
+mod region;
 mod reuse;
 mod tree_ctx;
 mod walk;

@@ -108,6 +108,7 @@ pnpm-which = { path = "pnpm/crates/which" }
 pnpm-injected-deps-syncer = { path = "pnpm/crates/injected-deps-syncer" }
 pnpm-install-coordinator = { path = "pnpm/crates/install-coordinator" }
 pnpm-intervals = { path = "pnpm/crates/intervals" }
+pnpm-reachability = { path = "pnpm/crates/reachability" }
 pnpm-store-dir = { path = "pnpm/crates/store-dir" }
 pnpm-reporter = { path = "pnpm/crates/reporter" }
 pnpm-patching = { path = "pnpm/crates/patching" }

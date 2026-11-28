@@ -6710,6 +6710,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-reachability"
+version = "0.0.1"
+dependencies = [
+ "creusot-std",
+ "pnpm-creusot-models",
+ "pretty_assertions",
+]
+
+[[package]]
 name = "pnpm-real-hoist"
 version = "0.0.1"
 dependencies = [
@@ -6869,6 +6878,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-patching",
+ "pnpm-reachability",
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",

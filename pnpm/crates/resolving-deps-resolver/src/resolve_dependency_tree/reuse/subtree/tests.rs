@@ -258,3 +258,38 @@ fn peers_require_the_manifest_even_when_the_suffix_is_absent() {
         }
     }
 }
+
+/// `p0` depends on `p1`, which depends on `p2`, and so on: a chain of
+/// `length` snapshots.
+fn chain(length: usize) -> String {
+    let mut packages = String::new();
+    let mut snapshots = String::new();
+    for index in 0..length {
+        writeln!(packages, "  p{index}@1.0.0:\n    resolution: {{integrity: sha512-p{index}}}")
+            .expect("write to a string");
+        if index + 1 < length {
+            writeln!(
+                snapshots,
+                "  p{index}@1.0.0:\n    dependencies:\n      p{}: 1.0.0",
+                index + 1,
+            )
+            .expect("write to a string");
+        } else {
+            writeln!(snapshots, "  p{index}@1.0.0: {{}}").expect("write to a string");
+        }
+    }
+    format!("lockfileVersion: '9.0'\npackages:\n{packages}snapshots:\n{snapshots}")
+}
+
+/// A chain tens of thousands of snapshots deep is decided on a test
+/// thread's stack: the walk keeps its own frames rather than recursing per
+/// snapshot.
+#[test]
+fn a_deep_chain_does_not_overflow_the_stack() {
+    const LENGTH: usize = 50_000;
+    let (ctx, lockfile) = ctx_for(&chain(LENGTH), &[]);
+    assert!(reusable(&ctx, &lockfile, "p0@1.0.0"));
+    assert_eq!(memoised_answers(&ctx), LENGTH);
+}
+
+mod definition;
