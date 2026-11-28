@@ -79,9 +79,9 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode, mode: u32) ->
     if let Some(parent) = dir {
         fs::create_dir_all(parent)?;
     }
-    // Registered before the create, so no interrupt finds the temp file
-    // unregistered. A colliding random name is retried under a new one,
-    // whose registration replaces the old.
+    // Tracked around the create, so no interrupt finds the temp file
+    // unregistered. A colliding random name fails the create, which releases
+    // its registration, and is retried under a new one.
     let inherited = match inherit {
         InheritMode::Yes => existing_mode(path),
         InheritMode::No => None,
@@ -92,8 +92,11 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode, mode: u32) ->
     let mut _pending_temp = None;
     let mut tmp = tempfile::Builder::new()
         .make_in(dir.unwrap_or_else(|| Path::new(".")), |path| {
-            _pending_temp = Some(crate::pending_temp::track_temp_file(path));
-            create_new_file(path, creation_mode)
+            let (pending_temp, file) = crate::pending_temp::track_temp_file(path, || {
+                create_new_file(path, creation_mode)
+            })?;
+            _pending_temp = Some(pending_temp);
+            Ok(file)
         })?;
     tmp.write_all(bytes)?;
     crate::sync_file(tmp.as_file())?;
