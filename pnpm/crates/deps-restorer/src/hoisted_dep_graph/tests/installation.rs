@@ -465,7 +465,7 @@ fn selected_rebuild_marks_unselected_directory_dep_present() {
     assert!(!selected.graph[&modules.join("dep1")].present, "selected directory dep re-imports");
     assert!(
         selected.graph[&modules.join("dep2")].present,
-        "unselected directory dep stays present"
+        "unselected directory dep stays present",
     );
 
     let forced = lockfile_to_hoisted_dep_graph(
@@ -494,7 +494,7 @@ fn selected_rebuild_marks_unselected_directory_dep_present() {
         .expect("normal install walk succeeds");
     assert!(
         !normal.graph[&modules.join("dep2")].present,
-        "normal install re-imports directory deps"
+        "normal install re-imports directory deps",
     );
 
     std::fs::remove_file(modules.join("dep2/package.json")).expect("remove dep2 manifest");
