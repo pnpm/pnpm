@@ -7,7 +7,7 @@ use super::{
     is_compatible_and_has_more_deps,
     sort_variants,
 };
-use crate::strongly_connected_components::SccPass;
+use pnpm_strongly_connected_components::StronglyConnectedComponents;
 
 struct Component<'a> {
     groups: Vec<&'a Vec<DepPath>>,
@@ -80,23 +80,21 @@ fn cycle_components<'a>(
         .iter()
         .map(|group| group_dependencies(graph, group, &by_id))
         .collect();
-    let mut components = SccPass::default();
-    for root in 0..duplicates.len() {
-        if !components.index_of.contains_key(&root) {
-            components.visit_root(&root, &|index| adjacency[*index].clone());
-        }
-    }
-    components.sccs
-        .into_iter()
+    let found = StronglyConnectedComponents::compute(&adjacency, &vec![false; adjacency.len()]);
+    found
+        .components()
+        .iter()
         .enumerate()
-        .map(|(index, nodes)| component(index, nodes, &components.scc_of, &adjacency, duplicates))
+        .map(|(index, nodes)| {
+            component(index, nodes.clone(), found.component_ids(), &adjacency, duplicates)
+        })
         .collect()
 }
 
 fn component<'a>(
     index: usize,
     mut nodes: Vec<usize>,
-    component_of: &HashMap<usize, usize>,
+    component_of: &[usize],
     adjacency: &[Vec<usize>],
     duplicates: &'a [Vec<DepPath>],
 ) -> Component<'a> {
@@ -105,7 +103,7 @@ fn component<'a>(
     let mut dependencies = HashSet::default();
     for node in &nodes {
         for child in &adjacency[*node] {
-            let child_component = component_of[child];
+            let child_component = component_of[*child];
             if child_component != index {
                 dependencies.insert(child_component);
             }

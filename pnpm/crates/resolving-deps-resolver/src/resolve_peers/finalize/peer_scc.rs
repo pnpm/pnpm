@@ -8,9 +8,8 @@ use super::{
     NodeId,
     Walker,
 };
+use crate::strongly_connected_components::components_of;
 use pnpm_strongly_connected_components::StronglyConnectedComponents;
-
-type PeerSccPass = crate::strongly_connected_components::SccPass<crate::NodeId>;
 
 impl Walker<'_> {
     pub(super) fn is_cyclic_peer(
@@ -316,8 +315,8 @@ impl Walker<'_> {
 
     /// Strongly-connected components of the peer graph (node → resolved
     /// peers, restricted to peers that themselves carry peers, peerless
-    /// peers can't close a cycle). Iterative Tarjan, returning the SCCs
-    /// in reverse-topological order plus a `NodeId → SCC index` map.
+    /// peers can't close a cycle), in reverse-topological order, plus a
+    /// `NodeId → SCC index` map.
     ///
     /// Vertices and edge targets are canonicalized through
     /// [`Self::cache_owner_node_id`] to match the owner-keyed lookups
@@ -346,13 +345,6 @@ impl Walker<'_> {
             out
         };
 
-        let mut pass = PeerSccPass::default();
-        for root in &participants {
-            if pass.index_of.contains_key(root) {
-                continue;
-            }
-            pass.visit_root(root, &neighbors);
-        }
-        (pass.sccs, pass.scc_of)
+        components_of(&participants, neighbors)
     }
 }

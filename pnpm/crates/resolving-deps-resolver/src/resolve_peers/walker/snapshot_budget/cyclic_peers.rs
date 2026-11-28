@@ -6,7 +6,7 @@ use super::{
     PeerWalkAbort,
     Walker,
 };
-use crate::strongly_connected_components::SccPass;
+use crate::strongly_connected_components::components_of;
 use std::{
     cell::Cell,
     collections::VecDeque,
@@ -177,16 +177,8 @@ impl Walker<'_> {
             out.dedup();
             out
         };
-        let mut pass = SccPass::default();
-        for root in participants {
-            if cancelled.get() || self.traversal.snapshot_budget.cancel.poll_probe_amortized() {
-                return None;
-            }
-            if !pass.index_of.contains_key(root) {
-                pass.visit_root(root, &neighbors);
-            }
-        }
-        (!cancelled.get()).then_some(pass.sccs)
+        let (components, _) = components_of(participants, neighbors);
+        (!cancelled.get()).then_some(components)
     }
 
     fn apply_peer_scc(&mut self, scc: Vec<NodeId>, changed: &mut HashSet<NodeId>) {
