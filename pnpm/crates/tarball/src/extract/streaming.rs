@@ -19,7 +19,6 @@ use super::{
     TarBudget,
     TarLimits,
     TarballError,
-    check_trailer,
     clean_archive_entry_path,
     file_mode,
     is_tar_block,
@@ -376,7 +375,6 @@ fn walk_tar_stream(
         extract.triggers.add_file(&meta.cleaned_path);
         extract.add_entry(&mut entry, meta)?;
     }
-    check_trailer(archive.into_inner())?;
     budget.ensure_within()?;
     budget.check_not_empty()?;
     extract.finish()

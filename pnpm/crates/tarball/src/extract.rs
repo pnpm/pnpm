@@ -235,19 +235,58 @@ pub(crate) fn extract_tarball_entries_alongside<Side>(
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
     side: impl FnOnce() -> Side,
 ) -> Result<(ExtractedEntries, Side), TarballError> {
-    let (pending, manifest, requires_build) =
-        collect_pending_tar_entries(tar_data, limits, ignore_file_pattern)?;
-    let bins = resolve_pending_bins(manifest.as_ref(), &pending);
-    let (written, side) = write_pending_files_alongside(store_dir, &pending, side);
+    let pending = collect_pending_tar_entries(tar_data, limits, ignore_file_pattern)?;
+    write_pending_tar(store_dir, pending, side)
+}
+
+/// Where a tar walk stopped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TarEnd {
+    /// At an end-of-archive marker, two zero blocks.
+    Marker,
+    /// At the end of its input.
+    Input,
+}
+
+impl TarEnd {
+    /// Where the walk over `archive`, which has run to its end, stopped.
+    pub(crate) fn of<Source: Read>(archive: &Archive<Source>) -> Self {
+        if archive.ended_at_end_marker() { TarEnd::Marker } else { TarEnd::Input }
+    }
+}
+
+/// The regular files of a buffered tar, read and not yet written.
+pub(crate) struct PendingTar<'a> {
+    files: Vec<PendingFile<'a>>,
+    manifest: Option<serde_json::Value>,
+    requires_build: bool,
+    pub(crate) end: TarEnd,
+}
+
+/// Write `pending` into the CAFS, running `side` on the calling thread
+/// meanwhile.
+pub(crate) fn write_pending_tar<Side>(
+    store_dir: &StoreDir,
+    pending: PendingTar<'_>,
+    side: impl FnOnce() -> Side,
+) -> Result<(ExtractedEntries, Side), TarballError> {
+    let PendingTar {
+        files,
+        manifest,
+        requires_build,
+        end: _,
+    } = pending;
+    let bins = resolve_pending_bins(manifest.as_ref(), &files);
+    let (written, side) = write_pending_files_alongside(store_dir, &files, side);
     let (files, index) = assemble_extract_output(written?, manifest, requires_build);
     Ok(((files, index, bins), side))
 }
 
-fn collect_pending_tar_entries<'a>(
+pub(crate) fn collect_pending_tar_entries<'a>(
     tar_data: &'a [u8],
     limits: TarLimits,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(Vec<PendingFile<'a>>, Option<serde_json::Value>, bool), TarballError> {
+) -> Result<PendingTar<'a>, TarballError> {
     let budget = TarBudget::new(limits);
     let mut archive = Archive::new(Cursor::new(tar_data));
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
@@ -287,8 +326,9 @@ fn collect_pending_tar_entries<'a>(
             mode: meta.mode,
         });
     }
-    budget.check_buffered_end(tar_data, archive.into_inner().position())?;
-    Ok((pending, manifest, triggers.requires_build()))
+    let end = TarEnd::of(&archive);
+    budget.check_buffered_end(archive.into_inner().position())?;
+    Ok(PendingTar { files: pending, manifest, requires_build: triggers.requires_build(), end })
 }
 
 fn resolve_pending_bins(

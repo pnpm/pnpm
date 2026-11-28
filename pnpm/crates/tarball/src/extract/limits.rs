@@ -140,21 +140,14 @@ impl TarBudget {
     }
 
     /// Check a walk over a buffered archive that stopped `consumed` bytes in:
-    /// the non-payload limit, an archive that is not empty, and its trailer.
-    pub(crate) fn check_buffered_end(
-        &self,
-        tar_data: &[u8],
-        consumed: u64,
-    ) -> Result<(), TarballError> {
+    /// the non-payload limit and an archive that is not empty. What follows
+    /// the end-of-archive marker is ignored, as node-tar ignores it.
+    pub(crate) fn check_buffered_end(&self, consumed: u64) -> Result<(), TarballError> {
         self.check_consumed(consumed)?;
         if consumed == 0 {
             return Err(empty_archive_error());
         }
-        let rest = usize::try_from(consumed)
-            .ok()
-            .and_then(|start| tar_data.get(start..))
-            .unwrap_or_default();
-        check_trailer(rest)
+        Ok(())
     }
 
     /// Fail a walk whose reader overran a limit that a caller swallowed, as
@@ -324,7 +317,13 @@ fn rejected_entry_path_error(error: RejectedEntryPathError) -> TarballError {
 /// pass the `to_string_lossy` rendering, which coerces non-UTF-8 bytes
 /// to U+FFFD per component.
 pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
-    let Some(mut parts) = archive_entry_segments(raw) else {
+    // npm's `strip: 1` drops the empty first component of a path that starts
+    // with `/`, and node-tar then drops the leading `/` of what is left.
+    let (relative, has_top_level_dir) = match raw.strip_prefix('/') {
+        Some(_) => (raw.trim_start_matches('/'), false),
+        None => (raw, true),
+    };
+    let Some(mut parts) = archive_entry_segments(relative) else {
         return Err(rejected_entry_path_error(RejectedEntryPathError::NonNormalComponent {
             raw: raw.to_string(),
         }));
@@ -334,7 +333,9 @@ pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError
             raw: raw.to_string(),
         }));
     }
-    if parts.len() > 1 {
+    // The removed component is the top-level directory, or else a leading
+    // `.` that names the package directory itself.
+    if parts.len() > 1 && (has_top_level_dir || parts[0] == ".") {
         parts.remove(0);
     }
     Ok(parts.join("/"))

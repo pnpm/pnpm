@@ -5,10 +5,12 @@ use super::{
     PackageBin,
     PackageFilesIndex,
     StoreDir,
+    TarEnd,
     TarLimits,
     TarballError,
-    extract_tarball_entries_alongside,
+    collect_pending_tar_entries,
     stream_extract_gzipped_tarball_with_tar,
+    write_pending_tar,
 };
 use ssri::Integrity;
 use tracing::instrument;
@@ -118,7 +120,7 @@ pub(crate) const STREAM_EXTRACT_COMPRESSED_THRESHOLD: usize = 16 * 1024 * 1024;
 /// Whether a downloaded tarball should be extracted through the
 /// streaming path ([`stream_extract_gzipped_tarball_with_tar`]) instead of the
 /// eager whole-archive decompression
-/// ([`decompress_gzip`] + [`extract_tarball_entries_alongside`]).
+/// ([`decompress_gzip`] + [`write_pending_tar`]).
 ///
 /// The eager path materializes the entire decompressed archive as one
 /// contiguous buffer, which for a large package multiplies across every
@@ -179,13 +181,23 @@ pub(crate) fn extract_gzipped_tarball_with_tar(
     }
     match decompress_gzip(gz_data, unpacked_size) {
         Ok(tar_data) => {
-            let ((files, index, bins), tar) = extract_tarball_entries_alongside(
-                &tar_data,
-                limits,
-                store_dir,
-                ignore_file_pattern,
-                || eager_tar_integrity(gz_data, &tar_data),
-            )?;
+            // The eager decoder reads one gzip member. A tar that stops before
+            // its end-of-archive marker, or fails, may go on in the next
+            // member, which node-tar reads and the streaming path reads too.
+            let pending = match collect_pending_tar_entries(&tar_data, limits, ignore_file_pattern)
+            {
+                Ok(pending) if pending.end == TarEnd::Marker => pending,
+                _ => {
+                    return stream_extract_gzipped_tarball_with_tar(
+                        gz_data,
+                        limits,
+                        store_dir,
+                        ignore_file_pattern,
+                    );
+                }
+            };
+            let ((files, index, bins), tar) =
+                write_pending_tar(store_dir, pending, || eager_tar_integrity(gz_data, &tar_data))?;
             Ok((files, index, bins, tar))
         }
         Err(error) if is_eager_decode_limit_exceeded(&error) => {

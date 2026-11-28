@@ -48,6 +48,9 @@ pub struct Entry<'a, R: 'a + Read> {
 pub struct EntryFields<'a> {
     pub long_pathname: Option<Vec<u8>>,
     pub long_linkname: Option<Vec<u8>>,
+    /// The path and link name in the header's own fields, when the archive
+    /// decodes them as node-tar does.
+    pub header_names: Option<(Vec<u8>, Option<Vec<u8>>)>,
     pub pax_extensions: Option<Vec<u8>>,
     pub mask: u32,
     pub header: Header,
@@ -339,7 +342,10 @@ impl<'a> EntryFields<'a> {
                         return Cow::Borrowed(field);
                     }
                 }
-                self.header.path_bytes()
+                match self.header_names {
+                    Some((ref path, _)) => Cow::Borrowed(path),
+                    None => self.header.path_bytes(),
+                }
             }
         }
     }
@@ -375,7 +381,10 @@ impl<'a> EntryFields<'a> {
                         return Some(Cow::Borrowed(field));
                     }
                 }
-                self.header.link_name_bytes()
+                match self.header_names {
+                    Some((_, ref link_name)) => link_name.as_deref().map(Cow::Borrowed),
+                    None => self.header.link_name_bytes(),
+                }
             }
         }
     }
