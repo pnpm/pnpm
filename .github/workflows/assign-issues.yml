@@ -10,10 +10,6 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: assign-issue-${{ github.event.issue.number }}
-  cancel-in-progress: false
-
 jobs:
   assign:
     name: Assign the issue
@@ -37,30 +33,8 @@ jobs:
           # Passed as env, never inlined into the script, so the free-form
           # bodies cannot be interpreted as shell code.
           ISSUE_BODY: ${{ github.event.issue.body }}
-          # Empty unless the edit changed the body.
+          BODY_CHANGED: ${{ github.event.changes.body != null }}
           PREVIOUS_BODY: ${{ github.event.changes.body.from }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
           AUTHOR: ${{ github.event.issue.user.login }}
-        run: |
-          fix_state=$(.github/scripts/issue-fix-intent.sh <<<"$ISSUE_BODY")
-          case "$ACTION" in
-            opened)
-              if [ "$fix_state" = checked ]; then
-                assignee=$AUTHOR
-              else
-                assignee=$MAINTAINER
-              fi
-              # GitHub refuses some authors as assignees.
-              gh issue edit "$ISSUE_URL" --add-assignee "$assignee" ||
-                echo "::warning::Could not assign the issue to $assignee"
-              ;;
-            edited)
-              # Act only on the edit that ticks the checkbox, so a maintainer
-              # who later unassigns the author is not overridden by other edits.
-              [ "$fix_state" = checked ] || exit 0
-              [ -n "$PREVIOUS_BODY" ] || exit 0
-              [ "$(.github/scripts/issue-fix-intent.sh <<<"$PREVIOUS_BODY")" != checked ] || exit 0
-              gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR" ||
-                echo "::warning::Could not assign the issue to $AUTHOR"
-              ;;
-          esac
+        run: .github/scripts/assign-issue.sh
