@@ -48,7 +48,10 @@ use std::{
         AtomicUsize,
         Ordering,
     },
-    time::Duration,
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The registered path as the cleanup reads it: a C string on Unix, where
@@ -66,6 +69,8 @@ static PENDING: PendingTempFiles = PendingTempFiles::new(EXIT_WAIT_LIMIT);
 /// microseconds. The limit covers a signal that lands on a thread mid
 /// creation, which cannot finish while the handler runs. That temp file is
 /// either registered and created, so the walk unlinks it, or never created.
+/// A create on another thread that outlasts the limit removes its own temp
+/// file.
 const EXIT_WAIT_LIMIT: Duration = Duration::from_millis(100);
 
 /// How long the cleanup sleeps between two checks of the writes past the
@@ -100,14 +105,23 @@ impl PendingTempFiles {
         path: &Path,
         create: impl FnOnce() -> io::Result<Created>,
     ) -> io::Result<(PendingTempFile, Created)> {
-        let _creating = self.pass_gate();
+        let creating = self.pass_gate();
         // Registered before the create, so a signal landing on this thread
         // between the two cannot leave the fresh temp file behind.
         let registration = store_path(path).map(|path| self.registry.register(path));
         // A failed create means the path was never ours. Returning drops the
-        // registration before `_creating`, so the cleanup, which waits for
-        // `_creating`, cannot unlink a file that belongs to someone else.
+        // registration before `creating`, so the cleanup, which waits for
+        // `creating`, cannot unlink a file that belongs to someone else.
         let created = create()?;
+        if self.exiting.load(Ordering::SeqCst) {
+            // The cleanup stops waiting at its limit, so it may have walked
+            // before this create finished.
+            drop(created);
+            let _ = std::fs::remove_file(path);
+            drop(registration);
+            drop(creating);
+            block_until_exit();
+        }
         Ok((PendingTempFile { _registration: registration }, created))
     }
 
@@ -131,18 +145,17 @@ impl PendingTempFiles {
     /// unlink every registered temp file. For the path that ends the
     /// process, since no temp file is created afterwards.
     ///
-    /// Async-signal-safe: the wait reads an atomic and sleeps, and
-    /// `std::thread::sleep` is a `nanosleep` loop on Unix.
+    /// Async-signal-safe: the wait reads an atomic and the monotonic clock
+    /// and sleeps, and `std::thread::sleep` is a `nanosleep` loop on Unix.
     #[cfg_attr(
         not(any(unix, windows, test)),
         expect(dead_code, reason = "only the Unix and Windows interrupt handlers end the process")
     )]
     fn remove_before_exit(&self) {
         self.exiting.store(true, Ordering::SeqCst);
-        let mut remaining = self.exit_wait_limit;
-        while self.creating.load(Ordering::SeqCst) != 0 && !remaining.is_zero() {
+        let deadline = Instant::now() + self.exit_wait_limit;
+        while self.creating.load(Ordering::SeqCst) != 0 && Instant::now() < deadline {
             std::thread::sleep(EXIT_WAIT_STEP);
-            remaining = remaining.saturating_sub(EXIT_WAIT_STEP);
         }
         self.remove_all();
     }

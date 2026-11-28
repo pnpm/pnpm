@@ -162,6 +162,7 @@ fn the_exit_cleanup_waits_for_a_temp_file_being_created() {
     let dir = tempfile::tempdir().expect("tempdir");
     let temp = dir.path().join("staged.tmp");
     let (entered, entered_receiver) = mpsc::channel();
+    let (staged, staged_receiver) = mpsc::channel();
     let (release, release_receiver) = mpsc::channel::<()>();
     let writer = thread::spawn({
         let temp = temp.clone();
@@ -171,7 +172,9 @@ fn the_exit_cleanup_waits_for_a_temp_file_being_created() {
                     .send(())
                     .expect("report the create");
                 release_receiver.recv().expect("wait for the release");
-                fs::write(&temp, "partial")
+                let staging = fs::write(&temp, "partial");
+                staged.send(staging.is_ok()).expect("report the staged temp file");
+                staging
             })
         }
     });
@@ -185,17 +188,15 @@ fn the_exit_cleanup_waits_for_a_temp_file_being_created() {
     release
         .send(())
         .expect("release the writer");
-    let (guard, ()) = writer
-        .join()
-        .expect("join the writer")
-        .expect("the writer creates its temp file");
+    assert!(staged_receiver.recv().expect("the writer stages its temp file"));
     cleanup.join().expect("join the cleanup");
     assert!(!temp.exists(), "the temp file created during the cleanup is unlinked: {temp:?}");
-    drop(guard);
+    // The writer blocks for good once it finds the gate closed, as it would
+    // until the process ended, so its thread is left behind rather than
+    // joined.
+    drop(writer);
 }
 
-/// A write that reaches the gate after the cleanup closed it never runs its
-/// create, so it leaves no temp file for the cleanup to miss.
 #[test]
 fn a_write_after_the_exit_cleanup_never_creates_its_temp_file() {
     static FILES: PendingTempFiles = PendingTempFiles::new(Duration::from_secs(60));
@@ -204,12 +205,16 @@ fn a_write_after_the_exit_cleanup_never_creates_its_temp_file() {
     FILES.remove_before_exit();
 
     let created = Arc::new(AtomicBool::new(false));
+    let (started, started_receiver) = mpsc::channel();
     // The writer blocks for good, as it would until the process ended, so
     // its thread is left behind rather than joined.
     drop(thread::spawn({
         let temp = temp.clone();
         let created = Arc::clone(&created);
         move || {
+            started
+                .send(())
+                .expect("report reaching the gate");
             FILES.track(&temp, || {
                 created.store(true, Ordering::SeqCst);
                 fs::write(&temp, "late")
@@ -217,46 +222,50 @@ fn a_write_after_the_exit_cleanup_never_creates_its_temp_file() {
         }
     }));
 
+    started_receiver.recv().expect("the writer reaches the gate");
     thread::sleep(Duration::from_millis(100));
     assert!(!created.load(Ordering::SeqCst), "a write after the cleanup must not create");
     assert!(!temp.exists(), "no temp file appears after the cleanup: {temp:?}");
 }
 
-/// A create that does not finish, like one the signal interrupted on the
-/// handler's own thread, holds the cleanup only until the limit.
 #[test]
-fn the_exit_cleanup_stops_waiting_at_the_limit() {
+fn a_create_that_outlasts_the_exit_wait_removes_its_own_temp_file() {
     static FILES: PendingTempFiles = PendingTempFiles::new(Duration::from_millis(20));
     let dir = tempfile::tempdir().expect("tempdir");
     let temp = dir.path().join("stuck.tmp");
     let (entered, entered_receiver) = mpsc::channel();
+    let (staged, staged_receiver) = mpsc::channel();
     let (release, release_receiver) = mpsc::channel::<()>();
-    let writer = thread::spawn(move || {
-        FILES.track(&temp, || {
-            entered
-                .send(())
-                .expect("report the create");
-            release_receiver.recv().expect("wait for the release");
-            Ok(())
-        })
-    });
+    // The writer blocks for good after removing its temp file, as it would
+    // until the process ended, so its thread is left behind rather than
+    // joined.
+    drop(thread::spawn({
+        let temp = temp.clone();
+        move || {
+            FILES.track(&temp, || {
+                entered
+                    .send(())
+                    .expect("report the create");
+                release_receiver.recv().expect("wait for the release");
+                let staging = fs::write(&temp, "late");
+                staged.send(staging.is_ok()).expect("report the staged temp file");
+                staging
+            })
+        }
+    }));
     entered_receiver.recv().expect("the writer enters its create");
 
     let cleanup = thread::spawn(|| FILES.remove_before_exit());
     wait_for("the cleanup ending", || cleanup.is_finished());
+    cleanup.join().expect("join the cleanup");
 
     release
         .send(())
         .expect("release the writer");
-    writer
-        .join()
-        .expect("join the writer")
-        .expect("the writer's create succeeds");
-    cleanup.join().expect("join the cleanup");
+    assert!(staged_receiver.recv().expect("the writer stages its temp file"));
+    wait_for("the removal of the late temp file", || !temp.exists());
 }
 
-/// A create that fails on a path someone else already holds releases its
-/// registration, so the cleanup leaves that file alone.
 #[test]
 fn a_failed_create_leaves_the_file_at_its_path_alone() {
     static FILES: PendingTempFiles = PendingTempFiles::new(Duration::from_secs(60));
