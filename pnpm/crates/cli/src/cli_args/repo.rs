@@ -43,7 +43,7 @@ use std::{
     collections::HashMap,
 };
 
-/// Opens the URL of the package's repository in a browser.
+/// Prints the URL of a package's repository and opens it in the browser.
 #[derive(Debug, Args)]
 pub struct RepoArgs {
     /// The base URL of the npm registry.
@@ -103,17 +103,13 @@ impl RepoArgs {
 }
 
 fn open_repo_url<Sys: OpenUrlAndWait, Rep: Reporter>(url: &str, prefix: &str) {
-    match Sys::open_url_and_wait(url) {
-        Ok(()) => {}
-        Err(e) => {
-            let redacted = redact_url_for_display(url);
-            Rep::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!("Could not open browser: {e}"),
-                prefix: prefix.to_string(),
-            }));
-            pnpm_diagnostics::println!("{redacted}");
-        }
+    pnpm_diagnostics::println!("{}", redact_url_for_display(url));
+    if let Err(e) = Sys::open_url_and_wait(url) {
+        Rep::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: format!("Could not open browser: {e}"),
+            prefix: prefix.to_string(),
+        }));
     }
 }
 

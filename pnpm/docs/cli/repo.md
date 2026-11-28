@@ -3,7 +3,7 @@ id: repo
 title: pnpm repo
 ---
 
-Opens the URL of a package's repository in the browser.
+Prints the URL of a package's repository and opens it in the browser.
 
 ```sh
 pnpm repo [<pkg>[@<version>] ...]

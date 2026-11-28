@@ -13,7 +13,7 @@ pnpm docs <pkg>[@<version>]
 
 pnpm fetches the package's metadata from the registry.
 
-If the package does not declare a valid `homepage`, pnpm falls back to `https://npmx.dev/package/<name>`. When no browser can be opened, pnpm prints the URL.
+If the package does not declare a valid `homepage`, pnpm falls back to `https://npmx.dev/package/<name>`. pnpm prints the URL before opening the browser.
 
 ## Options
 

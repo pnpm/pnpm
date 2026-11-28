@@ -940,3 +940,30 @@ fn update_and_why_accept_depth_infinity() {
 mod global_options;
 
 mod docs_command_pages;
+
+#[test]
+#[expect(clippy::disallowed_methods, reason = "capture command output from the test process")]
+fn browser_commands_print_the_destination_before_opening_it() {
+    use command_extra::CommandExtra;
+    use std::process::Command;
+
+    for (test, url) in [
+        ("cli_args::docs::tests::requested_version_uses_its_homepage", "https://v1.example/docs"),
+        (
+            "cli_args::repo::tests::test_opens_repository_url_from_local_manifest",
+            "https://github.com/test/pkg",
+        ),
+    ] {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .with_args(["--exact", test, "--nocapture", "--format=terse"])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        let events: Vec<_> = stdout
+            .lines()
+            .filter(|line| line.starts_with("https://") || *line == "browser opened")
+            .collect();
+        assert_eq!(events, [url, "browser opened"], "{test}: {stdout}");
+    }
+}
