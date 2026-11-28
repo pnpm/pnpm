@@ -407,3 +407,105 @@ fn prev_graph_includes_orphan_even_when_now_incompatible() {
     assert!(result.graph.is_empty(), "wanted graph stays empty");
     assert!(result.skipped.is_empty(), "skipped from wanted walk only, not prev walk");
 }
+
+#[test]
+fn selected_rebuild_marks_unselected_directory_dep_present() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let lockfile_dir = temp_dir.path().to_path_buf();
+    let modules = lockfile_dir.join("node_modules");
+    for name in ["dep1", "dep2"] {
+        let dir = modules.join(name);
+        std::fs::create_dir_all(&dir).expect("create hoisted package dir");
+        std::fs::write(
+            dir.join("package.json"),
+            format!(r#"{{"name":"{name}","version":"1.0.0"}}"#),
+        )
+        .expect("write hoisted package manifest");
+    }
+
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("dep1"), resolved_dep("file:../dep1"));
+    root_deps.insert(pkg_name("dep2"), resolved_dep("file:../dep2"));
+
+    let mut packages = HashMap::new();
+    packages.insert(
+        dep_key("dep1", "file:../dep1"),
+        PackageMetadata { resolution: directory_resolution("../dep1"), ..metadata_stub() },
+    );
+    packages.insert(
+        dep_key("dep2", "file:../dep2"),
+        PackageMetadata { resolution: directory_resolution("../dep2"), ..metadata_stub() },
+    );
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(dep_key("dep1", "file:../dep1"), SnapshotEntry::default());
+    snapshots.insert(dep_key("dep2", "file:../dep2"), SnapshotEntry::default());
+
+    let lockfile = lockfile_with(root_deps, packages, snapshots);
+    let hoisted_locations = BTreeMap::from([
+        ("dep1@file:../dep1".to_string(), vec!["node_modules/dep1".to_string()]),
+        ("dep2@file:../dep2".to_string(), vec!["node_modules/dep2".to_string()]),
+    ]);
+    let selected_rebuild = crate::RebuildOptions {
+        selected_names: Some(std::collections::HashSet::from(["dep1".to_string()])),
+        ..Default::default()
+    };
+    let base_opts = LockfileToHoistedDepGraphOptions {
+        modules_dirs: crate::ImporterModulesDirs::node_modules(&lockfile_dir),
+        current_hoisted_locations: Some(&hoisted_locations),
+        ..LockfileToHoistedDepGraphOptions::default()
+    };
+
+    let selected = lockfile_to_hoisted_dep_graph(
+        &lockfile,
+        Some(&lockfile),
+        &LockfileToHoistedDepGraphOptions { rebuild: Some(&selected_rebuild), ..base_opts.clone() },
+    )
+    .expect("selected rebuild walk succeeds");
+    assert!(!selected.graph[&modules.join("dep1")].present, "selected directory dep re-imports");
+    assert!(
+        selected.graph[&modules.join("dep2")].present,
+        "unselected directory dep stays present",
+    );
+
+    let forced = lockfile_to_hoisted_dep_graph(
+        &lockfile,
+        Some(&lockfile),
+        &LockfileToHoistedDepGraphOptions {
+            force: true,
+            rebuild: Some(&selected_rebuild),
+            ..base_opts.clone()
+        },
+    )
+    .expect("forced rebuild walk succeeds");
+    assert!(!forced.graph[&modules.join("dep1")].present, "--force re-imports dep1");
+    assert!(!forced.graph[&modules.join("dep2")].present, "--force re-imports dep2");
+
+    let full_rebuild = crate::RebuildOptions::default();
+    let full = lockfile_to_hoisted_dep_graph(
+        &lockfile,
+        Some(&lockfile),
+        &LockfileToHoistedDepGraphOptions { rebuild: Some(&full_rebuild), ..base_opts.clone() },
+    )
+    .expect("full rebuild walk succeeds");
+    assert!(!full.graph[&modules.join("dep2")].present, "full rebuild re-imports directory deps");
+
+    let normal = lockfile_to_hoisted_dep_graph(&lockfile, Some(&lockfile), &base_opts)
+        .expect("normal install walk succeeds");
+    assert!(
+        !normal.graph[&modules.join("dep2")].present,
+        "normal install re-imports directory deps",
+    );
+
+    std::fs::remove_file(modules.join("dep2/package.json")).expect("remove dep2 manifest");
+    let incomplete = lockfile_to_hoisted_dep_graph(
+        &lockfile,
+        Some(&lockfile),
+        &LockfileToHoistedDepGraphOptions { rebuild: Some(&selected_rebuild), ..base_opts },
+    )
+    .expect("incomplete dir walk succeeds");
+    assert!(
+        !incomplete.graph[&modules.join("dep2")].present,
+        "incomplete directory dep without package.json must be re-imported",
+    );
+}

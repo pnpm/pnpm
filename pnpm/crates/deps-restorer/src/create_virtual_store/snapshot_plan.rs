@@ -204,7 +204,13 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
         .get(&snapshot_key.without_peer())
         .map(|meta| &meta.resolution)
     {
-        Some(LockfileResolution::Directory(_)) => return Ok(false),
+        Some(LockfileResolution::Directory(_))
+            if probe.policy.rebuild.is_none_or(|rebuild| {
+                rebuild.selects_snapshot(snapshot_key)
+            }) =>
+        {
+            return Ok(false);
+        }
         Some(LockfileResolution::Variations(_))
             if !probe.layout.enable_global_virtual_store()
                 && probe.runtime_archives.schedule_if_stale(
@@ -342,4 +348,7 @@ pub(crate) struct SnapshotReusePolicy<'b> {
     pub force: bool,
     pub is_hoisted: bool,
     pub include_optional: bool,
+    /// Forced-rebuild selection. Unselected directory dependencies keep their
+    /// existing slot rather than being re-imported without running their build.
+    pub rebuild: Option<&'b crate::RebuildOptions>,
 }

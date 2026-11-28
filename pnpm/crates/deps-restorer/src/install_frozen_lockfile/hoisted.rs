@@ -246,22 +246,37 @@ fn walk_hoisted_graph(
     let mut walked =
         lockfile_to_hoisted_dep_graph(lockfile, inputs.prior.current_lockfile, &walker_opts)
             .map_err(HoistedLinkerError::HoistedDepGraph)?;
-    if let Some(files_by_pkg_id) = &inputs.graph.cas_paths_by_pkg_id {
-        for node in walked.graph.values_mut() {
-            if files_by_pkg_id
-                .get(&node.package.pkg_id_with_patch_hash)
-                .is_some_and(crate::HoistedPackageFiles::refreshes_installed_copy)
-            {
-                node.present = false;
-            }
-        }
-    }
+    mark_refreshed_copies_absent(inputs, &mut walked);
     for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
         if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
             skipped.insert_installability(key);
         }
     }
     Ok(walked)
+}
+
+/// Marks a present package absent when its source is mutable, so the
+/// linker imports it again. A selected rebuild refreshes only the
+/// packages it selects and leaves the build output of the others alone.
+fn mark_refreshed_copies_absent(
+    inputs: &HoistedLinkerInputs<'_>,
+    walked: &mut crate::hoisted_dep_graph::LockfileToDepGraphResult,
+) {
+    let Some(files_by_pkg_id) = &inputs.graph.cas_paths_by_pkg_id else {
+        return;
+    };
+    for node in walked.graph.values_mut() {
+        let selected = inputs.prior.rebuild.is_none_or(|rebuild| {
+            rebuild.settles_dependency(node.package.dep_path.as_str())
+        });
+        if selected
+            && files_by_pkg_id
+                .get(&node.package.pkg_id_with_patch_hash)
+                .is_some_and(crate::HoistedPackageFiles::refreshes_installed_copy)
+        {
+            node.present = false;
+        }
+    }
 }
 
 fn link_hoisted<Reporter: self::Reporter>(

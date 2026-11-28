@@ -207,16 +207,31 @@ impl PlanFixture {
     }
 
     fn plan(&self, force: bool) -> SnapshotPlan<'_> {
-        self.plan_inner(false, force)
+        self.plan_inner(false, force, None)
     }
 
     /// Plan with a current lockfile that matches the wanted one, as a
     /// completed previous install would have recorded it.
     fn plan_with_matching_current(&self, force: bool) -> SnapshotPlan<'_> {
-        self.plan_inner(true, force)
+        self.plan_inner(true, force, None)
     }
 
-    fn plan_inner(&self, current_matches_wanted: bool, force: bool) -> SnapshotPlan<'_> {
+    /// [`Self::plan_with_matching_current`] for a rebuild with this selection.
+    fn plan_with_rebuild(&self, rebuild: &crate::RebuildOptions) -> SnapshotPlan<'_> {
+        self.plan_inner(true, false, Some(rebuild))
+    }
+
+    /// [`Self::plan_with_rebuild`] with `--force`.
+    fn plan_forced_with_rebuild(&self, rebuild: &crate::RebuildOptions) -> SnapshotPlan<'_> {
+        self.plan_inner(true, true, Some(rebuild))
+    }
+
+    fn plan_inner(
+        &self,
+        current_matches_wanted: bool,
+        force: bool,
+        rebuild: Option<&crate::RebuildOptions>,
+    ) -> SnapshotPlan<'_> {
         let mut cache_keys = self.snapshots
             .keys()
             .map(|snapshot_key| {
@@ -236,6 +251,7 @@ impl PlanFixture {
                 force,
                 is_hoisted: false,
                 include_optional: true,
+                rebuild,
             },
             snapshots: &self.snapshots,
             packages: &self.packages,
@@ -479,4 +495,64 @@ fn existing_slot_without_gvs_still_survives_without_a_current_lockfile() {
         1,
         "a project-local slot is not content-addressed, so existence alone must not skip it",
     );
+}
+
+#[test]
+fn selected_rebuild_reuses_unselected_directory_slot() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let dep1_key: PackageKey = "dep1@file:../dep1".parse().expect("parse dep1 key");
+    let dep2_key: PackageKey = "dep2@file:../dep2".parse().expect("parse dep2 key");
+    let dir_metadata = |directory: &str| PackageMetadata {
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: directory.to_string(),
+        }),
+        ..registry_metadata()
+    };
+    let snapshots = HashMap::from([
+        (dep1_key.clone(), SnapshotEntry::default()),
+        (dep2_key.clone(), SnapshotEntry::default()),
+    ]);
+    let packages = HashMap::from([
+        (dep1_key.clone(), dir_metadata("../dep1")),
+        (dep2_key.clone(), dir_metadata("../dep2")),
+    ]);
+    let layout = VirtualStoreLayout::legacy(temp_dir.path().join("virtual-store"), 120);
+    let fixture = PlanFixture { snapshots, packages, layout };
+    for key in [&dep1_key, &dep2_key] {
+        let dir = fixture.layout
+            .slot_dir(key)
+            .join("node_modules")
+            .join(key.name.to_string());
+        fs::create_dir_all(&dir).expect("materialize directory slot");
+        fs::write(dir.join("package.json"), "{}").expect("write slot manifest");
+    }
+
+    let selected_rebuild = crate::RebuildOptions {
+        selected_names: Some(HashSet::from(["dep1".to_string()])),
+        ..Default::default()
+    };
+    let plan = fixture.plan_with_rebuild(&selected_rebuild);
+    let survivor_keys: HashSet<&PackageKey> = plan.survivors
+        .iter()
+        .map(|(key, _, _)| *key)
+        .collect();
+    assert_eq!(
+        survivor_keys,
+        HashSet::from([&dep1_key]),
+        "selected directory dependency is re-imported while unselected directory slot is reused",
+    );
+
+    let forced_plan = fixture.plan_forced_with_rebuild(&selected_rebuild);
+    assert_eq!(forced_plan.survivors.len(), 2, "--force must re-import every directory slot");
+
+    let full_rebuild = crate::RebuildOptions::default();
+    let full_plan = fixture.plan_with_rebuild(&full_rebuild);
+    assert_eq!(
+        full_plan.survivors.len(),
+        2,
+        "a plain rebuild selects every snapshot and re-imports both directory slots",
+    );
+
+    let normal_plan = fixture.plan_with_matching_current(false);
+    assert_eq!(normal_plan.survivors.len(), 2, "a normal install re-imports every directory slot");
 }

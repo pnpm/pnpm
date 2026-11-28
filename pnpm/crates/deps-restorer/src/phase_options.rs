@@ -93,6 +93,8 @@ pub struct PriorLinkState<'a> {
     /// `.modules.yaml`; lets the hoisted linker leave packages that are
     /// already in place alone. `None` on a first install.
     pub hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`crate::PriorMaterialization::rebuild`].
+    pub rebuild: Option<&'a crate::RebuildOptions>,
     /// See [`crate::PriorHoistedState::build_present_packages`].
     pub build_present_packages: bool,
     /// See [`crate::PriorHoistedState::unbuilt_builds`].
@@ -111,6 +113,7 @@ impl<'a> PriorLinkState<'a> {
             current_lockfile,
             hoisted_dependencies: self.hoisted_dependencies,
             current_hoisted_locations: self.hoisted_locations,
+            rebuild: self.rebuild,
             previously_skipped: self.previously_skipped,
             unbuilt_builds: self.unbuilt_builds,
             build_present_packages: self.build_present_packages,
@@ -148,6 +151,8 @@ pub struct PriorHoistedState<'a> {
     /// so the walker can mark packages that are already on disk. `None`
     /// on a first install.
     pub current_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`crate::PriorMaterialization::rebuild`].
+    pub rebuild: Option<&'a crate::RebuildOptions>,
     /// See [`crate::PriorLinkState::previously_skipped`].
     pub previously_skipped: &'a crate::SkippedSnapshots,
     /// Packages the previous install's `.modules.yaml` recorded as not

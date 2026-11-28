@@ -90,6 +90,8 @@ pub struct SnapshotSelection<'a> {
     /// Precalculated bin commands and shebang runtimes from resolution metadata
     /// (`dist.pnpr.bins`).
     pub known_bins: Option<&'a crate::PackageBins>,
+    /// See [`crate::PriorMaterialization::rebuild`].
+    pub rebuild: Option<&'a crate::RebuildOptions>,
 }
 
 #[derive(Clone, Copy)]

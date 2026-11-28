@@ -99,9 +99,10 @@ pub struct DependenciesGraphNode {
     /// holds a `package.json` of the recorded version. The linker
     /// neither re-imports such a directory nor hands it to the build
     /// phase, as pnpm's walker does through `skipFetch` and
-    /// `isBuilt`. Always `false` on a `force` walk, for a directory
-    /// (`file:`) dependency, whose source is mutable, and for a patched
-    /// package, whose patch is applied on a fresh copy.
+    /// `isBuilt`. Always `false` on a `force` walk and for a patched
+    /// package, whose patch is applied on a fresh copy. Directory
+    /// (`file:`) dependencies are also `false` unless a selected
+    /// rebuild leaves them out.
     pub present: bool,
 
     /// Alias → child `dir` of this node's listed dependencies, as
@@ -211,6 +212,10 @@ pub struct LockfileToHoistedDepGraphOptions<'a> {
     /// linker skips it. `None` on a first install, and ignored when
     /// `force` is set.
     pub current_hoisted_locations: Option<&'a HoistedLocations>,
+    /// Forced-rebuild selection. Unselected directory dependencies are
+    /// marked present when still at their recorded location, so the
+    /// linker keeps their build output.
+    pub rebuild: Option<&'a crate::RebuildOptions>,
 }
 
 impl Default for LockfileToHoistedDepGraphOptions<'_> {
@@ -240,6 +245,7 @@ impl Default for LockfileToHoistedDepGraphOptions<'_> {
             // `..Default::default()`-style construction at the call
             // site doesn't silently disable workspace hoisting.
             current_hoisted_locations: None,
+            rebuild: None,
         }
     }
 }

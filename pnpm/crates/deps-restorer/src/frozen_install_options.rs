@@ -274,6 +274,7 @@ impl<'a> PriorMaterialization<'a> {
             prune: self.prune,
             hoisted_dependencies: self.hoisted_dependencies,
             hoisted_locations: self.hoisted_locations,
+            rebuild: self.rebuild,
             build_present_packages: self.rebuild.is_some() || self.allow_builds_changed,
             unbuilt_builds: self.unbuilt_builds,
             previously_skipped: self.previously_skipped,
