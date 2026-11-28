@@ -136,7 +136,7 @@ struct Scenario {
 /// dependency resolves from each project, the commands each project's
 /// `node_modules/.bin` offers, the files of every registry dependency a
 /// project declares, every lockfile, and every `.modules.yaml` manifest.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Snapshot {
     tree: BTreeMap<String, String>,
     bins: BTreeMap<String, Vec<String>>,
@@ -525,84 +525,13 @@ impl Scenario {
     /// `pnpm install` takes its fast path exactly when a full install changes
     /// nothing, and takes it on the next run.
     #[track_caller]
-    fn assert_install_gate(&self, allowed: AllowedRefusal) {
+    fn assert_install_gate(&self, oracle: Option<&Path>, allowed: AllowedRefusal) {
         let before = self.snapshot();
-        let offered = self.offers_next_install_fast_path();
-        if self.install(&[]) {
-            assert_eq!(
-                self.snapshot(),
-                before,
-                "{:?} ({:?}): the install fast path modified the snapshot",
-                self.layout,
-                self.driver,
-            );
-            assert!(!self.install(&["--config.optimistic-repeat-install=false"]));
-            assert_eq!(
-                self.snapshot(),
-                before,
-                "{:?} ({:?}): the install fast path was taken, but a full install changes the tree",
-                self.layout,
-                self.driver,
-            );
-        } else if allowed != AllowedRefusal::Install && offered {
-            assert_ne!(
-                self.snapshot(),
-                before,
-                "{:?} ({:?}): the install fast path was refused, but the install changed nothing",
-                self.layout,
-                self.driver,
-            );
-        }
+        self.assert_initial_install(&before, oracle, allowed);
         let settled = self.snapshot();
-        let raw_modules_before_repeat = workspace_raw_modules_manifests(self.workspace());
-        let repeat_offered = self.offers_next_install_fast_path();
-        assert!(
-            self.install_takes_fast_path(&[]),
-            "{:?} ({:?}): a repeat install must take the fast path",
-            self.layout,
-            self.driver,
-        );
-        assert_eq!(
-            self.snapshot(),
-            settled,
-            "{:?} ({:?}): a repeat install must be byte-identical",
-            self.layout,
-            self.driver,
-        );
-        if repeat_offered {
-            assert_eq!(
-                workspace_raw_modules_manifests(self.workspace()),
-                raw_modules_before_repeat,
-                "{:?} ({:?}): a fast-path repeat install must not rewrite .modules.yaml",
-                self.layout,
-                self.driver,
-            );
-        }
+        self.assert_repeat_install(&settled, "repeat install");
         if matches!(self.driver, Driver::Mixed { .. }) {
-            let raw_modules_before_cross = workspace_raw_modules_manifests(self.workspace());
-            let cross_repeat_offered = self.offers_next_install_fast_path();
-            assert!(
-                self.install_takes_fast_path(&[]),
-                "{:?} ({:?}): a cross-CLI repeat install must take the fast path",
-                self.layout,
-                self.driver,
-            );
-            assert_eq!(
-                self.snapshot(),
-                settled,
-                "{:?} ({:?}): a cross-CLI repeat install must be byte-identical",
-                self.layout,
-                self.driver,
-            );
-            if cross_repeat_offered {
-                assert_eq!(
-                    workspace_raw_modules_manifests(self.workspace()),
-                    raw_modules_before_cross,
-                    "{:?} ({:?}): a cross-CLI fast-path repeat install must not rewrite .modules.yaml",
-                    self.layout,
-                    self.driver,
-                );
-            }
+            self.assert_repeat_install(&settled, "cross-CLI repeat install");
         }
         let frozen = self.command_at(self.workspace(), ["install", "--frozen-lockfile"]);
         assert_success(&frozen);
@@ -616,6 +545,74 @@ impl Scenario {
         if self.layout.shared_lockfile {
             let dedupe = self.command_at(self.workspace(), ["dedupe", "--check"]);
             assert_success(&dedupe);
+        }
+    }
+
+    #[track_caller]
+    fn assert_initial_install(
+        &self,
+        before: &Snapshot,
+        oracle: Option<&Path>,
+        allowed: AllowedRefusal,
+    ) {
+        let offered = self.offers_next_install_fast_path();
+        if self.install(&[]) {
+            let after = self.snapshot();
+            let mut expected = before.clone();
+            if let Some(oracle) = oracle
+                && after.lockfiles != before.lockfiles
+            {
+                expected.lockfiles = workspace_lockfiles(oracle);
+            }
+            assert_eq!(
+                after, expected,
+                "{:?} ({:?}): the install fast path modified the snapshot",
+                self.layout, self.driver,
+            );
+            assert!(!self.install(&["--config.optimistic-repeat-install=false"]));
+            assert_eq!(
+                self.snapshot(),
+                expected,
+                "{:?} ({:?}): the install fast path was taken, but a full install changes the tree",
+                self.layout,
+                self.driver,
+            );
+        } else if allowed != AllowedRefusal::Install && offered {
+            assert_ne!(
+                self.snapshot(),
+                *before,
+                "{:?} ({:?}): the install fast path was refused, but the install changed nothing",
+                self.layout,
+                self.driver,
+            );
+        }
+    }
+
+    #[track_caller]
+    fn assert_repeat_install(&self, settled: &Snapshot, description: &str) {
+        let raw_modules_before = workspace_raw_modules_manifests(self.workspace());
+        let offered = self.offers_next_install_fast_path();
+        assert!(
+            self.install_takes_fast_path(&[]),
+            "{:?} ({:?}): a {description} must take the fast path",
+            self.layout,
+            self.driver,
+        );
+        assert_eq!(
+            self.snapshot(),
+            *settled,
+            "{:?} ({:?}): a {description} must be byte-identical",
+            self.layout,
+            self.driver,
+        );
+        if offered {
+            assert_eq!(
+                workspace_raw_modules_manifests(self.workspace()),
+                raw_modules_before,
+                "{:?} ({:?}): a fast-path {description} must not rewrite .modules.yaml",
+                self.layout,
+                self.driver,
+            );
         }
     }
 
@@ -637,7 +634,7 @@ impl Scenario {
         for selection in [&["a"][..], &["b"], &["c"], &PROJECTS] {
             self.assert_run_gate(&oracle, selection, allowed);
         }
-        self.assert_install_gate(allowed);
+        self.assert_install_gate(Some(oracle.as_path()), allowed);
         for selection in [&["a"][..], &["b"], &["c"], &PROJECTS] {
             assert!(
                 self.exec(selection, "error"),
@@ -943,6 +940,38 @@ fn a_filtered_install_into_a_fresh_workspace(layout: Layout) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&["--filter", "b"]);
     scenario.check_gates();
+}
+
+fn a_filtered_install_then_a_deleted_lockfile(layout: Layout) {
+    let mut scenario = Scenario::new(layout);
+    scenario.install(&["--filter", "b"]);
+    fs::remove_file(scenario.lockfile_of("b")).expect("delete the lockfile");
+    // pnpm v11 uses the current lockfile as a stand-in without writing the
+    // wanted one, so only v12's refusal and restoring install are asserted.
+    if matches!(&scenario.driver, Driver::V12) {
+        assert!(
+            !scenario.exec(&["b"], "error"),
+            "{:?}: the run gate must refuse a missing lockfile",
+            scenario.layout,
+        );
+        scenario.exec_installing(&["b"]);
+    } else {
+        scenario.install(&[]);
+    }
+    scenario.check_gates();
+}
+
+fn a_filtered_install_an_edit_then_a_deleted_lockfile(layout: Layout) {
+    for project in ["a", "b", "c"] {
+        let mut scenario = Scenario::new(layout);
+        scenario.install(&[]);
+        scenario.install(&["--filter", project]);
+        scenario.set_dependencies(project, &json!({ "@pnpm.e2e/foo": "100.0.0" }));
+        if matches!(scenario.driver, Driver::V12) {
+            fs::remove_file(scenario.lockfile_of(project)).expect("delete the lockfile");
+        }
+        scenario.check_gates_after_a_workspace_input_edit();
+    }
 }
 
 /// A filtered install for `c` installs its workspace dependency `a` too.
@@ -1330,7 +1359,7 @@ fn a_scope_route_moved(layout: Layout) {
         !scenario.exec(&["b"], "error"),
         "{layout:?}: b's locked dependency is not served by the registry its scope moved to",
     );
-    scenario.assert_install_gate(AllowedRefusal::None);
+    scenario.assert_install_gate(None, AllowedRefusal::None);
     for selection in [&["a"][..], &["b"], &["c"], &PROJECTS] {
         assert!(
             scenario.exec(selection, "error"),
@@ -1352,6 +1381,7 @@ fn manifest_fields_edited(layout: Layout) {
         ("description", json!("edited"), AllowedRefusal::None),
         ("scripts", json!({ "build": r#"node -e """# }), AllowedRefusal::None),
         ("version", json!("1.0.1"), AllowedRefusal::None),
+        ("engines", json!({ "node": ">=1" }), AllowedRefusal::None),
     ] {
         manifest[field] = value;
         scenario.write_manifest("b", manifest.clone());
@@ -1448,6 +1478,8 @@ macro_rules! matrix {
                     a_full_install_converges,
                     a_pull_then_a_filtered_command_for_one_project,
                     a_filtered_install_into_a_fresh_workspace,
+                    a_filtered_install_then_a_deleted_lockfile,
+                    a_filtered_install_an_edit_then_a_deleted_lockfile,
                     a_filtered_install_reaching_a_workspace_dependency,
                     an_edit_outside_the_next_filtered_install,
                     filtered_commands_for_every_project_after_a_pull,

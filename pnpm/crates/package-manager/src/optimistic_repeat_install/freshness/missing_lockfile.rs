@@ -26,27 +26,17 @@ pub(super) fn settle_missing_wanted_lockfile(
             )?;
             regenerate_wanted_lockfile_if_missing(check, current).map_err(Stale::Content)
         }
-        MissingWantedLockfile::RequireStandIn => {
-            missing_wanted_lockfile_stand_in_ok(check, current).map(|()| false)
+        MissingWantedLockfile::RequireWantedLockfile => {
+            require_wanted_lockfile(check).map(|()| false)
         }
     }
 }
 
-/// The current lockfile can stand in for a missing wanted one. Nothing is
-/// written.
-fn missing_wanted_lockfile_stand_in_ok(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    current: &CurrentLockfile<'_>,
-) -> Result<(), Stale> {
-    if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
-        return Ok(());
+/// A missing wanted lockfile has to reach an install. Nothing is written by a
+/// check that refuses it.
+fn require_wanted_lockfile(check: &OptimisticRepeatInstallCheck<'_>) -> Result<(), Stale> {
+    if check.config.lockfile && !check.lockfile.is_loaded_or_on_disk() {
+        return Err(Stale::NoLockfile);
     }
-    if check.config.use_git_branch_lockfile {
-        return Err(Stale::MissingBranchLockfile);
-    }
-    match current.get() {
-        Some(Some(_)) => Ok(()),
-        Some(None) => Err(Stale::NoLockfile),
-        None => Err(Stale::Content("the current lockfile cannot be loaded")),
-    }
+    Ok(())
 }

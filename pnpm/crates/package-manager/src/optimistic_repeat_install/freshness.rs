@@ -72,14 +72,13 @@ pub(super) enum Gate {
     Run,
 }
 
-/// What a gate does when `pnpm-lock.yaml` is missing and the current lockfile
-/// can stand in for it.
+/// What a gate does when `pnpm-lock.yaml` is missing.
 pub(super) enum MissingWantedLockfile {
     /// Write `pnpm-lock.yaml` from the current lockfile, as a full install
     /// would.
     Restore,
-    /// Leave the project untouched and only require the stand-in to exist.
-    RequireStandIn,
+    /// Refuse the check without writing the lockfile.
+    RequireWantedLockfile,
 }
 
 /// What a gate does with a patch file whose content changed since the last

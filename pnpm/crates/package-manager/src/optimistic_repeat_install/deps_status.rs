@@ -111,7 +111,7 @@ pub fn check_deps_status_before_run(
         ignored_settings: &ignored_settings,
         check_local_file_deps: false,
         check_dangling_direct_links: false,
-        missing_wanted_lockfile: MissingWantedLockfile::RequireStandIn,
+        missing_wanted_lockfile: MissingWantedLockfile::RequireWantedLockfile,
         newer_patch: NewerPatch::CompareHash,
         recorded_groups: RecordedGroups::Kept,
     };
