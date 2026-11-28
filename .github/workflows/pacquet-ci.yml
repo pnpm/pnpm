@@ -593,9 +593,9 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     environment: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'remote-cache' || '' }}
-    # `#[cfg(windows)]` code is invisible to a Linux-only lint, and the test
-    # job only type-checks it, so Windows gets its own Clippy row. macOS does
-    # not: it shares the `#[cfg(unix)]` blocks the Ubuntu row already lints.
+    # A run lints only the code compiled for its own target, so Windows and
+    # macOS each get a row for their `#[cfg(windows)]` and
+    # `#[cfg(target_os = "macos")]` code.
     strategy:
       fail-fast: false
       matrix:
@@ -604,6 +604,8 @@ jobs:
             os_label: ubuntu
           - os: blacksmith-4vcpu-windows-2025
             os_label: windows
+          - os: blacksmith-12vcpu-macos-latest
+            os_label: macos
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
