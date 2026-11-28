@@ -121,7 +121,7 @@ fn wait_for_gate(ready: std::os::fd::RawFd, gate: std::os::fd::RawFd) -> std::io
 /// through a shim. A child that a concurrent test forks in the meantime
 /// inherits the write descriptor and holds it until its own `exec`, and
 /// Linux refuses to run a file open for writing. A shell that hits this
-/// exits unsuccessfully and reports it on stderr.
+/// exits with 126 and a diagnostic line ending in `: Text file busy`.
 ///
 /// # Panics
 ///
@@ -135,7 +135,7 @@ pub fn output_retrying_busy(command: &mut std::process::Command) -> std::process
             reason = "a test helper starts processes the executor does not run"
         )]
         match command.output() {
-            Ok(output) if !output.status.success() && reports_busy_text_file(&output.stderr) => {
+            Ok(output) if is_busy_shell_exec(&output) => {
                 last_busy = Some(format!("{output:?}"));
             }
             Ok(output) => return output,
@@ -149,6 +149,9 @@ pub fn output_retrying_busy(command: &mut std::process::Command) -> std::process
     panic!("{command:?} stayed busy: {last_busy:?}");
 }
 
-fn reports_busy_text_file(stderr: &[u8]) -> bool {
-    String::from_utf8_lossy(stderr).contains("Text file busy")
+fn is_busy_shell_exec(output: &std::process::Output) -> bool {
+    output.status.code() == Some(126)
+        && String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .any(|line| line.trim_end().ends_with(": Text file busy"))
 }
