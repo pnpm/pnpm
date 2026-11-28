@@ -29,6 +29,7 @@ pub(super) use super::{
         serve_ready,
     },
     hosted_storage,
+    node,
     not_found,
     oci,
     pnpr_protocols_disabled,
@@ -373,6 +374,7 @@ fn registry_routes(router: Router<AppState>) -> Router<AppState> {
     router
         .nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm))
         .merge(cargo::routes())
+        .merge(node::routes())
         .merge(pypi::routes())
         .merge(oci::routes())
 }

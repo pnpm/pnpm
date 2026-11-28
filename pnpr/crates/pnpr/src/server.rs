@@ -234,6 +234,7 @@ mod client_ip;
 mod compiler_cache;
 mod documents;
 mod health;
+mod node;
 use health::shutdown_signal;
 mod keyed_semaphores;
 mod local_registry;

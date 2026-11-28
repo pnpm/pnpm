@@ -119,7 +119,7 @@ pub fn parse_blob_key(key: &str) -> Option<(BlobId, u64)> {
 fn algorithm_of(ecosystem: Ecosystem) -> Algorithm {
     match ecosystem {
         Ecosystem::Npm => Algorithm::Sha512,
-        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => Algorithm::Sha256,
+        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci | Ecosystem::Node => Algorithm::Sha256,
     }
 }
 

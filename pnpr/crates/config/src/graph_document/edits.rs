@@ -139,7 +139,7 @@ impl RegistryGraphDocument {
     #[must_use]
     pub fn upstream_url(&self, name: &str) -> Option<&str> {
         match self.registries.get(name)? {
-            RegistryFile::Upstream(upstream) => Some(&upstream.url),
+            RegistryFile::Upstream(upstream) => upstream.origin_url(),
             RegistryFile::Hosted(_) | RegistryFile::Router(_) => None,
         }
     }

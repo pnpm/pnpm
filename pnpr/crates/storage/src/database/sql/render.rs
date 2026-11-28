@@ -62,8 +62,8 @@ enum ListedRows {
 }
 
 impl ListedRows {
-    fn take(ecosystem: Ecosystem, results: &mut impl Iterator<Item = Vec<Row>>) -> Self {
-        match ecosystem {
+    fn take(ecosystem: Ecosystem, results: &mut impl Iterator<Item = Vec<Row>>) -> Option<Self> {
+        Some(match ecosystem {
             Ecosystem::Npm => {
                 Self::Npm(results.next().unwrap_or_default(), results.next().unwrap_or_default())
             }
@@ -71,10 +71,11 @@ impl ListedRows {
             Ecosystem::Pypi => {
                 Self::Pypi(results.next().unwrap_or_default(), results.next().unwrap_or_default())
             }
+            Ecosystem::Node => return None,
             Ecosystem::Oci => {
                 Self::Oci(results.next().unwrap_or_default(), results.next().unwrap_or_default())
             }
-        }
+        })
     }
 }
 
@@ -104,8 +105,9 @@ pub(super) fn read_view_with<'read>(
     let Some(package) = package_row_from(key, results.next().unwrap_or_default())? else {
         return Ok((None, extra_rows));
     };
-    let listed =
-        (cached != Some(package.generation)).then(|| ListedRows::take(key.ecosystem, &mut results));
+    let listed = (cached != Some(package.generation))
+        .then(|| ListedRows::take(key.ecosystem, &mut results))
+        .flatten();
     let generation = key.generation(package.generation);
     let bytes = cached_or_rendered(snapshot, cache, view_key, &package, listed)?;
     Ok((Some(PackageView { bytes, generation }), extra_rows))
@@ -123,6 +125,7 @@ fn view_reads<'read>(
         }
         Ecosystem::Cargo => extra.push(cargo_rows::view_query(key, unless)),
         Ecosystem::Pypi => extra.extend(pypi_rows::view_queries(key, unless)),
+        Ecosystem::Node => {}
         Ecosystem::Oci => extra.extend(oci_rows::view_queries(key, unless)),
     }
     extra
@@ -173,6 +176,7 @@ fn render_uncached(
             };
             pypi_rows::assemble(snapshot, key, package, pypi_listed, NO_GENERATION)
         }
+        Ecosystem::Node => Err(key.unsupported_hosted_ecosystem()),
         Ecosystem::Oci => {
             let oci_listed = match listed {
                 Some(ListedRows::Oci(manifests, tags)) => Some((manifests, tags)),

@@ -10,7 +10,7 @@ use std::{
 
 pub fn multi_ecosystem_config(root: &Path, npm_access: &str) -> Config {
     let mut yaml = String::from("storage: ./storage\nregistries:\n");
-    for ecosystem in Ecosystem::all() {
+    for ecosystem in Ecosystem::hosted() {
         let access = if ecosystem == Ecosystem::Npm { npm_access } else { "$all" };
         write!(yaml,
             "  {ecosystem}-internal:\n    type: hosted\n    ecosystem: {ecosystem}\n    namespace: internal\n    access: '{access}'\n  {ecosystem}-main:\n    type: router\n    sources: [{ecosystem}-internal]\n",

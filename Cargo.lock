@@ -7404,6 +7404,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-config-dir",
  "pnpm-crypto-hash",
+ "pnpm-crypto-shasums-file",
  "pnpm-diagnostics",
  "pnpm-env-replace",
  "pnpm-ffi-mimalloc",

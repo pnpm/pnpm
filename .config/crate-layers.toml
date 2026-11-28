@@ -211,6 +211,7 @@ crates = [
   "pnpm-config",
   "pnpm-config-dir",
   "pnpm-crypto-hash",
+  "pnpm-crypto-shasums-file",
   "pnpm-deps-path",
   "pnpm-diagnostics",
   "pnpm-env-replace",
@@ -379,7 +380,7 @@ pnpm-workspace-projects-graph = 7
 pnpm-workspace-range-resolver = 1
 pnpm-workspace-state = 2
 pnpm-workspace-task-scheduler = 2
-pnpr = 41
+pnpr = 42
 pnpr-auth = 6
 pnpr-cargo = 2
 pnpr-config = 9

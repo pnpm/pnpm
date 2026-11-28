@@ -459,7 +459,7 @@ pub(crate) const fn resolves(ecosystem: Ecosystem) -> bool {
     match ecosystem {
         Ecosystem::Npm | Ecosystem::Cargo | Ecosystem::Pypi => true,
         // An image has no dependency graph to resolve.
-        Ecosystem::Oci => false,
+        Ecosystem::Oci | Ecosystem::Node => false,
     }
 }
 

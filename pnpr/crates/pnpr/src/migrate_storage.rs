@@ -60,7 +60,7 @@ pub async fn migrate_local_to_s3(
     }
 
     for namespace in crate::hosted_storage::configured_hosted_namespaces(config) {
-        for ecosystem in Ecosystem::all() {
+        for ecosystem in Ecosystem::hosted() {
             let src = source.for_hosted(&namespace, ecosystem);
             let tgt = target.for_hosted(&namespace, ecosystem);
             migrate_namespace(&src, &tgt, options, &mut report).await?;

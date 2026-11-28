@@ -213,6 +213,11 @@ pub(super) fn build_hosted_entry(
     hosted: &IndexMap<String, HostedConfig>,
     ecosystems: &IndexMap<String, Ecosystem>,
 ) -> Result<(HostedConfig, Ecosystem, Vec<PackagePattern>), RegistryError> {
+    if registry.ecosystem == Some(Ecosystem::Node) {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!("Node.js registry {name:?} must be an upstream"),
+        });
+    }
     let namespace = registry.namespace.unwrap_or_default();
     validate_namespace(name, &namespace)?;
     let ecosystem = registry.ecosystem.unwrap_or_default();
@@ -276,7 +281,7 @@ pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
 ) -> Result<UpstreamConfig, RegistryError> {
     validate_upstream_access(name, &file)?;
     let upstream_config_file = UpstreamConfigFile {
-        url: file.url,
+        url: file.required_origin_url(name)?.to_owned(),
         auth: file.auth,
         headers: file.headers,
         packument_ttl: file.packument_ttl,

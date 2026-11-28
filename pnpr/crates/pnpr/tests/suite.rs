@@ -40,6 +40,7 @@ mod htpasswd_import;
 mod listening;
 mod managed_refresh;
 mod multi_replica;
+mod node_distribution;
 mod oci_registry;
 mod package_ownership;
 mod policy;

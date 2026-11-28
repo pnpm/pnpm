@@ -70,14 +70,15 @@ fn check_stored_upstream(
     upstream: &UpstreamFile,
     registry_env: &[String],
 ) -> Result<(), RegistryError> {
-    if carries_credentials(&upstream.url) {
+    let url = upstream.required_origin_url(name)?;
+    if carries_credentials(url) {
         return Err(invalid_stored(
             name,
             "`url` must not carry a user name, password, or query string; use `auth` or `headers` with a `${VAR}` reference",
         ));
     }
     if (upstream.auth.is_some() || !upstream.headers.is_empty())
-        && !pnpm_network::is_url_secure_for_credentials(&upstream.url)
+        && !pnpm_network::is_url_secure_for_credentials(url)
     {
         return Err(invalid_stored(name, "`auth` and `headers` require HTTPS or loopback HTTP"));
     }

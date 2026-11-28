@@ -48,6 +48,7 @@ fn ecosystem_package_tables(ecosystem: Ecosystem) -> &'static [&'static str] {
         ],
         Ecosystem::Cargo => &["cargo_versions"],
         Ecosystem::Pypi => &["pypi_files"],
+        Ecosystem::Node => &[],
         Ecosystem::Oci => &["oci_tags", "oci_manifests"],
     }
 }
@@ -262,6 +263,7 @@ fn record_removed_entries(
             RECORD_REMOVED_PYPI_FILES.get(connection.dialect()),
             params![namespace, name, column_gen],
         ),
+        Ecosystem::Node => Err(key.unsupported_hosted_ecosystem()),
         Ecosystem::Oci => record_removed_all_oci_digests(connection, key, generation),
     }
 }

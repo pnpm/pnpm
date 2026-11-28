@@ -161,7 +161,7 @@ pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
             "/requests/",
             "/pypi/files/requests/requests-1.0.0-py3-none-any.whl",
         ),
-        Ecosystem::Npm | Ecosystem::Oci => unreachable!(),
+        Ecosystem::Npm | Ecosystem::Oci | Ecosystem::Node => unreachable!(),
     };
     upstream
         .mock("GET", "/config.json")
