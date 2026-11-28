@@ -277,6 +277,6 @@ fn a_failed_create_leaves_the_file_at_its_path_alone() {
     FILES.remove_before_exit();
     assert!(
         taken.exists(),
-        "the cleanup must not unlink a file the write never created: {taken:?}"
+        "the cleanup must not unlink a file the write never created: {taken:?}",
     );
 }
