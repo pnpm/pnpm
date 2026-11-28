@@ -6,7 +6,7 @@ import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import chalk from 'chalk'
 
-import { getPkgInfo } from './getPkgInfo.js'
+import { getPkgInfo, renderLongInfoLines } from './getPkgInfo.js'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, hasPkgNamePrefix, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import type { PackageDependencyHierarchy } from './types.js'
 
@@ -152,7 +152,10 @@ async function renderNodeLabelLines (
   }
   if (opts.long) {
     const pkg = await getPkgInfo(node)
-    labelLines.push(...[pkg.description, pkg.repository, pkg.homepage, pkg.path].filter(Boolean) as string[])
+    labelLines.push(...renderLongInfoLines(pkg))
+    if (pkg.path) {
+      labelLines.push(pkg.path)
+    }
   }
   return labelLines
 }

@@ -2,7 +2,7 @@ import { type DependentNode, type DependentsTree, getDependentNodeRootPaths } fr
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 
-import { getPkgInfo } from './getPkgInfo.js'
+import { getPkgInfo, renderLongInfoLines } from './getPkgInfo.js'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 
 export async function renderDependentsTree (trees: DependentsTree[], opts: { long: boolean, depth?: number }): Promise<string> {
@@ -42,7 +42,7 @@ async function buildRootLabel (
   }
   if (opts.long && result.path) {
     const pkg = await getPkgInfo({ name: result.name, version: result.version, path: result.path, alias: undefined })
-    rootLabelParts.push(...[pkg.description, pkg.repository, pkg.homepage].filter(Boolean) as string[])
+    rootLabelParts.push(...renderLongInfoLines(pkg))
     rootLabelParts.push(pkg.path)
   }
   return rootLabelParts.join('\n')
