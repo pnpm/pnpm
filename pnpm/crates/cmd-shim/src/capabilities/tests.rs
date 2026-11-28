@@ -6,6 +6,7 @@ use super::{
     FsWrite,
     Host,
 };
+use pnpm_testing_utils::spawn::output_retrying_busy;
 use std::{
     fs,
     os::unix::fs::PermissionsExt,
@@ -29,7 +30,7 @@ fn atomic_replacement_publishes_an_executable_shim() {
                 & 0o777,
             0o755,
         );
-        let output = Command::new(&shim).output().unwrap();
+        let output = output_retrying_busy(&mut Command::new(&shim));
         assert!(output.status.success(), "shim failed: {output:?}");
         assert_eq!(output.stdout, format!("{message}\n").as_bytes());
     }

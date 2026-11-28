@@ -13,6 +13,7 @@
 //! steps write there instead of clobbering the caller's real pnpm.
 
 use command_extra::CommandExtra;
+use pnpm_testing_utils::spawn::output_retrying_busy;
 use pnpm_testing_utils_registry::bin::{
     AddMockedRegistry,
     CommandTempCwd,
@@ -84,11 +85,11 @@ fn self_update_refuses_a_pnpm_installed_by_homebrew() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let brewed_pnpm = install_into_homebrew_keg(&pacquet, root.path());
 
-    let output = command_with_env_of(&pacquet, &brewed_pnpm)
-        .with_current_dir(&workspace)
-        .with_arg("self-update")
-        .output()
-        .expect("run the Homebrew pnpm");
+    let output = output_retrying_busy(
+        &mut command_with_env_of(&pacquet, &brewed_pnpm)
+            .with_current_dir(&workspace)
+            .with_arg("self-update"),
+    );
 
     assert!(!output.status.success(), "self-update must refuse a Homebrew pnpm");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -101,11 +102,11 @@ fn self_update_rewrites_the_project_pin_of_a_pnpm_installed_by_homebrew() {
     let project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
     let brewed_pnpm = install_into_homebrew_keg(&project.pacquet, project.root.path());
 
-    let output = command_with_env_of(&project.pacquet, &brewed_pnpm)
-        .with_current_dir(&project.workspace)
-        .with_arg("self-update")
-        .output()
-        .expect("run the Homebrew pnpm");
+    let output = output_retrying_busy(
+        &mut command_with_env_of(&project.pacquet, &brewed_pnpm)
+            .with_current_dir(&project.workspace)
+            .with_arg("self-update"),
+    );
 
     assert_pin_updated_and_global_switch_skipped(
         &output,

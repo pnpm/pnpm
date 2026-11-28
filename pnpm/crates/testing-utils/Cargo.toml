@@ -17,7 +17,7 @@ command-extra = { workspace = true }
 dunce = { workspace = true }
 flate2 = { workspace = true }
 futures-util = { workspace = true }
-rustls = { workspace = true }
+rustls = { workspace = true, features = ["aws-lc-rs"] }
 serde_json = { workspace = true }
 ssri = { workspace = true }
 sysinfo = { workspace = true }
@@ -41,3 +41,6 @@ windows-sys = { workspace = true, features = [
   "Win32_System_Threading",
   "Win32_UI_WindowsAndMessaging",
 ] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

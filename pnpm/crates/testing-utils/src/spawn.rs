@@ -113,3 +113,53 @@ fn wait_for_gate(ready: std::os::fd::RawFd, gate: std::os::fd::RawFd) -> std::io
     };
     if succeeded { Ok(()) } else { Err(std::io::Error::last_os_error()) }
 }
+
+/// Run `command` to completion, retrying while it or a program it runs
+/// fails with `ETXTBSY`.
+///
+/// For a test that runs an executable it has just written, directly or
+/// through a shim. A child that a concurrent test forks in the meantime
+/// inherits the write descriptor and holds it until its own `exec`, and
+/// Linux refuses to run a file open for writing. A shell that hits this
+/// exits with 126 and a diagnostic line ending in `: Text file busy`.
+///
+/// Runs `command` with `LC_ALL=C`, so the shell's diagnostic is not
+/// translated.
+///
+/// # Panics
+///
+/// When the spawn fails otherwise, or the file is still busy after two
+/// seconds.
+pub fn output_retrying_busy(command: &mut std::process::Command) -> std::process::Output {
+    command.env("LC_ALL", "C");
+    let mut last_busy = None;
+    for _ in 0..200 {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "a test helper starts processes the executor does not run"
+        )]
+        match command.output() {
+            Ok(output) if is_busy_shell_exec(&output) => {
+                last_busy = Some(format!("{output:?}"));
+            }
+            Ok(output) => return output,
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                last_busy = Some(format!("{error:?}"));
+            }
+            Err(error) => panic!("run {command:?}: {error:?}"),
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("{command:?} stayed busy: {last_busy:?}");
+}
+
+fn is_busy_shell_exec(output: &std::process::Output) -> bool {
+    output.status.code() == Some(126)
+        && String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .map(str::trim_end)
+            .any(|line| line.ends_with(": Text file busy"))
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests;

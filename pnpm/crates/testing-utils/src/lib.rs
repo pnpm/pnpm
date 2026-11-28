@@ -20,7 +20,6 @@ pub mod privileges;
 pub mod process_liveness;
 #[cfg(unix)]
 pub mod signal_delivery;
-#[cfg(unix)]
 pub mod spawn;
 pub mod stall_report;
 #[cfg(unix)]

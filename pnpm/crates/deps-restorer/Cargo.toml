@@ -75,6 +75,7 @@ url = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]
+pnpm-testing-utils = { workspace = true }
 pnpm-fs = { workspace = true, features = ["test"] }
 pnpm-testing-utils-registry = { workspace = true }
 
