@@ -17,22 +17,27 @@ Remove this patch when upstream provides an equivalent metadata bound.
 
 ## Agreement with node-tar
 
-`src/agreement.rs` rejects every header shape that node-tar, the reader npm,
-Yarn, and Bun use, would read differently from this crate. Each check there
-documents the disagreement it closes. Entry iteration calls them from
+`src/agreement.rs` reads header shapes that node-tar, the reader npm, Yarn,
+and Bun use, would read differently from this crate, or rejects them. Each
+item there documents the shape it covers. Entry iteration calls them from
 `src/archive.rs` and `Header::entry_size`.
-Upstream tests that build those shapes now fail on purpose.
-`Archive::set_read_like_node_tar(true)` reads two of the shapes as node-tar
-does instead: a sized directory and a repeated PAX key.
+Upstream tests that build the rejected shapes now fail on purpose.
+`Archive::set_read_like_node_tar(true)` reads these shapes as node-tar does:
+
+- a checksum, size, name, link name, or ustar prefix field, decoded with
+  node-tar's rules,
+- a block node-tar cannot read as a header, skipped,
+- a single zero block, followed by more headers,
+- a sized directory,
+- a repeated PAX key.
+
+An old GNU `N` header is read as a GNU long name.
 
 `EntryType::is_file` also counts contiguous files, which node-tar extracts as
 regular files.
 
-`octal_from` trims only ASCII white space from a numeric header field.
-node-tar trims with JavaScript's `trim`, which keeps U+0085.
-
 `Archive::ended_at_end_marker` reports whether iteration stopped at two zero
-blocks. A reader that decodes only the first gzip member uses it to refuse a
-tar that node-tar would read on into the next member.
+blocks. A reader that decodes only the first gzip member uses it to find a
+tar that goes on into the next member.
 
 Keep this patch for as long as pnpm reads npm packages with this crate.

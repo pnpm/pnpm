@@ -254,9 +254,9 @@ fn refuses_a_pax_header_before_an_entry_type_it_does_not_apply_to() {
 }
 
 #[test]
-fn refuses_data_after_a_single_zero_block() {
+fn reads_a_header_after_a_single_zero_block() {
     let tar = [base(), vec![0; 512], hidden(), END.to_vec()].concat();
-    assert_refused(&tar, "data after a single zero block");
+    assert_index_js(&tar, b"module.exports = 'DIFFERENT';\n");
 }
 
 #[test]
@@ -281,12 +281,12 @@ fn refuses_an_entry_without_a_path() {
 }
 
 #[test]
-fn refuses_a_negative_base256_size() {
+fn reads_a_negative_base256_size_as_no_data() {
     let mut notes = header("package/NOTES", 0, b'0');
     notes[124..136].copy_from_slice(&[0xff; 12]);
     seal(&mut notes);
     let tar = [base(), notes, hidden(), END.to_vec()].concat();
-    assert_refused(&tar, "invalid base-256 size");
+    assert_index_js(&tar, b"module.exports = 'DIFFERENT';\n");
 }
 
 #[test]
@@ -380,17 +380,50 @@ fn refuses_a_pax_header_node_tar_would_skip() {
     assert_refused(&tar, "exceeds the 1048576-byte limit");
 }
 
+/// The regular files both paths extract from `tar`, which must agree, and
+/// the store they are in.
+#[track_caller]
+fn extract_files(tar: &[u8]) -> (tempfile::TempDir, pnpm_fs::CasPaths) {
+    let (store_keep, store_dir) = tempdir_with_leaked_path();
+    let (eager, _) =
+        extract_tarball_entries(tar, crate::TarLimits::default(), store_dir, None).unwrap();
+    let (streamed, _) = stream_extract_gzipped_tarball(
+        &gzip_bytes(tar),
+        crate::TarLimits::default(),
+        store_dir,
+        None,
+    )
+    .unwrap();
+    assert_eq!(eager, streamed);
+    (store_keep, eager)
+}
+
+#[track_caller]
+fn assert_file(files: &pnpm_fs::CasPaths, path: &str, expected: &[u8]) {
+    let stored = files
+        .get(path)
+        .unwrap_or_else(|| panic!("no {path:?} in {files:?}"));
+    assert_eq!(std::fs::read(stored).unwrap(), expected);
+}
+
+const BENIGN: &[u8] = b"module.exports = 'benign';\n";
+const DIFFERENT: &[u8] = b"module.exports = 'DIFFERENT';\n";
+
 #[test]
-fn refuses_an_old_gnu_long_name_header() {
-    let name = padded(b"package/index.js\0");
+fn reads_an_old_gnu_long_name_header() {
+    let name = padded(b"package/lib.js\0");
     let tar =
         [base(), header("././@LongLink", name.len() as u64, b'N'), name, hidden(), END.to_vec()]
             .concat();
-    assert_refused(&tar, "old GNU long name headers");
+    let (_store_keep, files) = extract_files(&tar);
+    assert_file(&files, "index.js", BENIGN);
+    assert_file(&files, "lib.js", DIFFERENT);
 }
 
+/// node-tar reads 12 checksum bytes, which run into the typeflag, and skips
+/// a block whose checksum does not match.
 #[test]
-fn refuses_a_checksum_that_runs_into_the_typeflag() {
+fn skips_a_header_whose_checksum_runs_into_the_typeflag() {
     let mut entry = hidden();
     entry[148..156].copy_from_slice(b"        ");
     let sum: u32 = entry[..512]
@@ -399,39 +432,77 @@ fn refuses_a_checksum_that_runs_into_the_typeflag() {
         .sum();
     entry[148..156].copy_from_slice(format!("{sum:08o}").as_bytes());
     let tar = [base(), entry, END.to_vec()].concat();
-    assert_refused(&tar, "checksum field has no terminator");
+    let (_store_keep, files) = extract_files(&tar);
+    assert_file(&files, "index.js", BENIGN);
+    assert_eq!(files.len(), 2, "{files:?}");
 }
 
+/// node-tar cuts a name at its first NUL only up to a line terminator, and
+/// keeps what follows.
 #[test]
-fn refuses_a_line_terminator_after_a_nul_in_a_name_field() {
-    for offset in [0, 157, 345] {
-        for terminator in ["\n", "\r", "\u{2028}"] {
-            let mut entry = hidden();
-            let field = format!("x\0{terminator}y");
-            entry[offset + 80..offset + 80 + field.len()].copy_from_slice(field.as_bytes());
-            seal(&mut entry[..512]);
-            let tar = [base(), entry, END.to_vec()].concat();
-            assert_refused(&tar, "line terminator after a NUL");
-        }
+fn reads_a_name_with_a_line_terminator_after_a_nul() {
+    for terminator in ["\n", "\r", "\u{2028}"] {
+        let mut entry = hidden();
+        let rest = format!("\0{terminator}");
+        entry[16..16 + rest.len()].copy_from_slice(rest.as_bytes());
+        entry[16 + rest.len()..100].fill(b'y');
+        seal(&mut entry[..512]);
+        let tar = [base(), entry, END.to_vec()].concat();
+        let (_store_keep, files) = extract_files(&tar);
+        assert_file(&files, "index.js", BENIGN);
+        let name = format!("index.js{terminator}{}", "y".repeat(84 - rest.len()));
+        assert_file(&files, &name, DIFFERENT);
     }
 }
 
+/// Node.js refuses a path with a NUL byte, so npm fails on these.
 #[test]
-fn refuses_an_empty_ustar_prefix_with_byte_475_set() {
+fn refuses_a_name_that_keeps_a_nul() {
+    for offset in [0, 345] {
+        let mut entry = hidden();
+        entry[offset + 80..offset + 84].copy_from_slice(b"x\0\ny");
+        seal(&mut entry[..512]);
+        let tar = [base(), entry, END.to_vec()].concat();
+        assert_refused(&tar, "NUL byte in its path");
+    }
+}
+
+/// The link name node-tar decodes is the one the link name checks see.
+#[test]
+fn refuses_a_regular_file_whose_decoded_link_name_is_not_empty() {
+    let mut entry = hidden();
+    entry[157..160].copy_from_slice(b"\0\nx");
+    entry[160..257].fill(b'y');
+    seal(&mut entry[..512]);
+    let tar = [base(), entry, END.to_vec()].concat();
+    assert_refused(&tar, "is not a link but has a link name");
+}
+
+/// node-tar joins an empty ustar prefix to the name when the prefix field's
+/// last byte is set, and npm's `strip: 1` then drops the empty first
+/// component of `/package/index.js`.
+#[test]
+fn joins_an_empty_ustar_prefix_when_byte_475_is_set() {
     let mut entry = hidden();
     entry[475] = b'x';
     seal(&mut entry[..512]);
     let tar = [base(), entry, END.to_vec()].concat();
-    assert_refused(&tar, "empty ustar prefix");
+    let (_store_keep, files) = extract_files(&tar);
+    assert_file(&files, "index.js", BENIGN);
+    assert_file(&files, "package/index.js", DIFFERENT);
 }
 
+/// JavaScript's `trim` keeps U+0085, so `parseInt` reads no number and the
+/// entry has no data.
 #[test]
-fn refuses_a_size_with_white_space_javascript_does_not_trim() {
+fn reads_a_size_javascript_cannot_parse_as_no_data() {
     let mut entry = header("package/NOTES", 0, b'0');
     entry[124..136].copy_from_slice(b" \xc2\x8500002000\0");
     seal(&mut entry[..512]);
     let tar = [base(), entry, hidden(), END.to_vec()].concat();
-    assert_refused(&tar, "numeric field was not a number");
+    let (_store_keep, files) = extract_files(&tar);
+    assert_file(&files, "NOTES", b"");
+    assert_file(&files, "index.js", DIFFERENT);
 }
 
 /// node-tar reads the gzip members of a `.tgz` as one tar.
@@ -443,47 +514,31 @@ fn split_tgz(first_end: &[u8]) -> Vec<u8> {
     .concat()
 }
 
+#[track_caller]
+fn assert_tgz_index_js(tgz: &[u8], expected: &[u8]) {
+    let (_store_keep, store_dir) = tempdir_with_leaked_path();
+    let (eager, _) =
+        extract_gzipped_tarball(tgz, None, crate::TarLimits::default(), store_dir, None).unwrap();
+    let (streamed, _) =
+        stream_extract_gzipped_tarball(tgz, crate::TarLimits::default(), store_dir, None).unwrap();
+    for files in [&eager, &streamed] {
+        assert_file(files, "index.js", expected);
+    }
+}
+
 #[test]
-fn refuses_a_tar_that_continues_into_a_second_gzip_member() {
+fn reads_a_tar_that_continues_into_a_second_gzip_member() {
     for first_end in [&[][..], &[0; 512]] {
-        let tgz = split_tgz(first_end);
-        let (_store_keep, store_dir) = tempdir_with_leaked_path();
-        let eager =
-            extract_gzipped_tarball(&tgz, None, crate::TarLimits::default(), store_dir, None);
-        let streamed =
-            stream_extract_gzipped_tarball(&tgz, crate::TarLimits::default(), store_dir, None);
-        for (path, result) in [("eager", eager.err()), ("streamed", streamed.err())] {
-            let error = result.unwrap_or_else(|| panic!("the {path} path extracted the archive"));
-            assert!(
-                format!("{error:?}").contains("before the tar's end-of-archive marker"),
-                "{path}: {error:?}",
-            );
-        }
+        assert_tgz_index_js(&split_tgz(first_end), DIFFERENT);
     }
 }
 
 #[test]
 fn ignores_a_gzip_member_after_the_end_of_archive_marker() {
-    let tgz = split_tgz(&END);
-    let (_store_keep, store_dir) = tempdir_with_leaked_path();
-    let (eager, _) =
-        extract_gzipped_tarball(&tgz, None, crate::TarLimits::default(), store_dir, None).unwrap();
-    let (streamed, _) =
-        stream_extract_gzipped_tarball(&tgz, crate::TarLimits::default(), store_dir, None).unwrap();
-    for files in [&eager, &streamed] {
-        assert_eq!(std::fs::read(&files["index.js"]).unwrap(), b"module.exports = 'benign';\n");
-    }
+    assert_tgz_index_js(&split_tgz(&END), BENIGN);
 }
 
 #[test]
 fn extracts_a_single_gzip_member_without_an_end_of_archive_marker() {
-    let tgz = gzip_bytes(&base());
-    let (_store_keep, store_dir) = tempdir_with_leaked_path();
-    let (eager, _) =
-        extract_gzipped_tarball(&tgz, None, crate::TarLimits::default(), store_dir, None).unwrap();
-    let (streamed, _) =
-        stream_extract_gzipped_tarball(&tgz, crate::TarLimits::default(), store_dir, None).unwrap();
-    for files in [&eager, &streamed] {
-        assert_eq!(std::fs::read(&files["index.js"]).unwrap(), b"module.exports = 'benign';\n");
-    }
+    assert_tgz_index_js(&gzip_bytes(&base()), BENIGN);
 }

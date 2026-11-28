@@ -1454,9 +1454,7 @@ fn octal_from(slice: &[u8]) -> io::Result<u64> {
             )));
         }
     };
-    // Only ASCII white space: node-tar trims with JavaScript's `trim`, which
-    // keeps U+0085 that `str::trim` removes.
-    match u64::from_str_radix(num.trim_matches(|ch: char| ch.is_ascii_whitespace()), 8) {
+    match u64::from_str_radix(num.trim(), 8) {
         Ok(n) => Ok(n),
         Err(_) => Err(other(&format!("numeric field was not a number: {}", num))),
     }

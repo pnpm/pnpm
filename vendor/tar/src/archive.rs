@@ -67,6 +67,10 @@ struct EntriesFields<'a> {
     next: u64,
     done: bool,
     raw: bool,
+    /// Whether a header was read, and whether a block was skipped as one
+    /// node-tar cannot read.
+    read_header: bool,
+    skipped_block: bool,
 }
 
 impl<R: Read> Archive<R> {
@@ -248,7 +252,15 @@ impl Archive<dyn Read + '_> {
                  position 0",
             ));
         }
-        Ok(EntriesFields { archive: self, seekable_archive, done: false, next: 0, raw: false })
+        Ok(EntriesFields {
+            archive: self,
+            seekable_archive,
+            done: false,
+            next: 0,
+            raw: false,
+            read_header: false,
+            skipped_block: false,
+        })
     }
 
     fn _unpack(&mut self, dst: &Path) -> io::Result<()> {
@@ -319,7 +331,8 @@ impl<'a> EntriesFields<'a> {
         pax_extensions: Option<&[u8]>,
     ) -> io::Result<Option<Entry<'a, io::Empty>>> {
         let mut header = Header::new_old();
-        let mut header_pos = self.next;
+        let read_like_node_tar = self.archive.inner.read_like_node_tar;
+        let mut saw_null_block = false;
         loop {
             // Seek to the start of the next header in the archive
             let delta = self.next - self.archive.inner.pos.get();
@@ -327,44 +340,70 @@ impl<'a> EntriesFields<'a> {
 
             // EOF is an indicator that we are at the end of the archive.
             if !try_read_all(&mut &self.archive.inner, header.as_mut_bytes())? {
-                return Ok(None);
+                return self.end_of_input();
             }
 
-            // If a header is not all zeros, we have another valid header.
+            self.next += BLOCK_SIZE;
+            // If a header is not a zero block, we have another header.
             // Otherwise, check if we are ignoring zeros and continue, or break as if this is the
             // end of the archive.
-            if !header
-                .as_bytes()
-                .iter()
-                .all(|i| *i == 0)
-            {
-                self.next += BLOCK_SIZE;
+            let block = header.as_bytes();
+            if read_like_node_tar && agreement::is_null_block(block) {
+                // node-tar ends the archive at two null blocks in a row, and
+                // reads a header after a single one.
+                if saw_null_block && !self.archive.inner.ignore_zeros {
+                    self.archive.inner.ended_at_end_marker.set(true);
+                    return self.end_of_input();
+                }
+                saw_null_block = true;
+                continue;
+            }
+            saw_null_block = false;
+            if read_like_node_tar {
+                // node-tar skips a block it cannot read as a header.
+                if !Self::reads_as_node_tar_header(block, pax_extensions)? {
+                    self.skipped_block = true;
+                    continue;
+                }
                 break;
             }
-
+            if !block.iter().all(|byte| *byte == 0) {
+                break;
+            }
             if !self.archive.inner.ignore_zeros {
                 return self.end_at_zero_block();
             }
-            self.next += BLOCK_SIZE;
-            header_pos = self.next;
         }
+        let header_pos = self.next - BLOCK_SIZE;
+        self.read_header = true;
 
-        // Make sure the checksum is ok
-        let sum = header.as_bytes()[..148]
-            .iter()
-            .chain(&header.as_bytes()[156..])
-            .fold(0, |a, b| a + (*b as u32))
-            + 8 * 32;
-        let cksum = header.cksum()?;
-        if sum != cksum {
-            return Err(other("archive header checksum mismatch"));
+        if !self.archive.inner.read_like_node_tar {
+            let sum = header.as_bytes()[..148]
+                .iter()
+                .chain(&header.as_bytes()[156..])
+                .fold(0, |a, b| a + (*b as u32))
+                + 8 * 32;
+            let cksum = header.cksum()?;
+            if sum != cksum {
+                return Err(other("archive header checksum mismatch"));
+            }
         }
-        agreement::check_header_block(&header)?;
+        let header_names =
+            self.archive.inner.read_like_node_tar.then(|| agreement::header_names(&header));
+        match &header_names {
+            Some((path, link_name)) => {
+                agreement::check_header_block(&header, (path, link_name.as_deref()))?;
+            }
+            None => agreement::check_header_block(
+                &header,
+                (&header.path_bytes(), header.link_name_bytes().as_deref()),
+            )?,
+        }
 
         // PAX extensions describe the *next file entry*, not intermediary
         // extension headers (GNU LongName `L`, GNU LongLink `K`, PAX `x`/`g`).
         let entry_type = header.entry_type();
-        let is_extension_header = entry_type.is_gnu_longname()
+        let is_extension_header = agreement::is_gnu_long_name_type(entry_type.as_byte())
             || entry_type.is_gnu_longlink()
             || entry_type.is_pax_local_extensions()
             || entry_type.is_pax_global_extensions();
@@ -383,13 +422,17 @@ impl<'a> EntriesFields<'a> {
         }
 
         let file_pos = self.next;
-        let mut size = header.entry_size()?;
         // If this exists, it must override the header size. Disagreement among
         // parsers allows construction of malicious archives that appear different
         // when parsed.
-        if let Some(pax_size) = pax_size {
-            size = pax_size;
-        }
+        let mut size = match pax_size {
+            Some(pax_size) => pax_size,
+            None if self.archive.inner.read_like_node_tar => {
+                agreement::header_size(&header.as_old().size)
+                    .ok_or_else(|| other("archive header has a size node-tar cannot read"))?
+            }
+            None => header.entry_size()?,
+        };
         if !is_extension_header {
             if self.archive.inner.read_like_node_tar && header.entry_type().is_dir() {
                 size = 0;
@@ -414,6 +457,7 @@ impl<'a> EntriesFields<'a> {
             header,
             long_pathname: None,
             long_linkname: None,
+            header_names,
             pax_extensions: None,
             mask: self.archive.inner.mask,
             unpack_xattrs: self.archive.inner.unpack_xattrs,
@@ -435,10 +479,36 @@ impl<'a> EntriesFields<'a> {
         Ok(Some(ret.into_entry()))
     }
 
-    /// Ends the archive at a zero block, unless data follows it.
-    ///
-    /// node-tar ends an archive only at two zero blocks in a row and parses
-    /// a header after a single one.
+    /// Ends the entries. An archive whose every block node-tar skipped is not
+    /// a tar.
+    fn end_of_input(&self) -> io::Result<Option<Entry<'a, io::Empty>>> {
+        if self.skipped_block && !self.read_header {
+            return Err(other("archive has no header that node-tar can read"));
+        }
+        Ok(None)
+    }
+
+    /// Whether node-tar reads `block` as a header, rather than skipping it.
+    /// node-tar does not decode the size field of an entry that a pending
+    /// PAX `size` applies to.
+    fn reads_as_node_tar_header(
+        block: &[u8; BLOCK_SIZE as usize],
+        pax_extensions: Option<&[u8]>,
+    ) -> io::Result<bool> {
+        if !agreement::is_valid_header_block(block) {
+            return Ok(false);
+        }
+        let pax_sets_size = match pax_extensions {
+            Some(records) if agreement::is_normal_fs_type(block[156]) => {
+                agreement::pax_size(records)?.is_some()
+            }
+            _ => false,
+        };
+        Ok(pax_sets_size || agreement::header_size(&block[124..136]).is_some())
+    }
+
+    /// Ends the archive at a zero block, unless data follows it, which
+    /// node-tar would read as a header.
     fn end_at_zero_block(&mut self) -> io::Result<Option<Entry<'a, io::Empty>>> {
         let mut block = Vec::with_capacity(BLOCK_SIZE as usize);
         (&self.archive.inner).take(BLOCK_SIZE).read_to_end(&mut block)?;
@@ -493,7 +563,7 @@ impl<'a> EntriesFields<'a> {
             let is_recognized_header =
                 entry.header().as_gnu().is_some() || entry.header().as_ustar().is_some();
             let entry_type = entry.header().entry_type();
-            let is_extension_type = entry_type.is_gnu_longname()
+            let is_extension_type = agreement::is_gnu_long_name_type(entry_type.as_byte())
                 || entry_type.is_gnu_longlink()
                 || entry_type.is_pax_local_extensions()
                 || entry_type.is_pax_global_extensions();
@@ -518,20 +588,14 @@ impl<'a> EntriesFields<'a> {
                 return Ok(Some(fields.into_entry()));
             }
 
-            if is_recognized_header
-                && entry
-                    .header()
-                    .entry_type()
-                    .is_gnu_longname()
-            {
+            if is_recognized_header && agreement::is_gnu_long_name_type(entry_type.as_byte()) {
                 if gnu_longname.is_some() {
                     return Err(other(
                         "two long name entries describing \
                          the same member",
                     ));
                 }
-                let value = EntryFields::from(entry).read_all()?;
-                agreement::check_gnu_long_value(&value)?;
+                let value = agreement::node_tar_string(&EntryFields::from(entry).read_all()?);
                 gnu_longname = Some(value);
                 continue;
             }
@@ -548,8 +612,7 @@ impl<'a> EntriesFields<'a> {
                          the same member",
                     ));
                 }
-                let value = EntryFields::from(entry).read_all()?;
-                agreement::check_gnu_long_value(&value)?;
+                let value = agreement::node_tar_string(&EntryFields::from(entry).read_all()?);
                 gnu_longlink = Some(value);
                 continue;
             }

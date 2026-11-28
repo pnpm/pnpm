@@ -255,20 +255,14 @@ async fn a_tgz_is_not_held_to_its_unpacked_size() {
     fetch(&url, None, Some(1), store_dir).await.expect("the tgz must extract");
 }
 
+/// node-tar stops at the end-of-archive marker and ignores what follows it.
 #[tokio::test]
-async fn data_after_the_end_of_archive_fails_the_package() {
+async fn data_after_the_end_of_archive_is_ignored() {
     let mut tar = small_tar();
-    let zero_padding = vec![0u8; 10 * 1024];
-    let mut padded = tar.clone();
-    padded.extend_from_slice(&zero_padding);
     tar.extend_from_slice(b"trailing junk");
-    for (body, accepted) in [(padded, true), (tar, false)] {
-        let (_store_keep, store_dir) = tempdir_with_leaked_path();
-        let (_server, _mock, url) = serve(body, None).await;
-        let received = fetch(&url, None, None, store_dir).await;
-        dbg!(accepted, received.as_ref().err());
-        assert_eq!(received.is_ok(), accepted);
-    }
+    let (_store_keep, store_dir) = tempdir_with_leaked_path();
+    let (_server, _mock, url) = serve(tar, None).await;
+    fetch(&url, None, None, store_dir).await.expect("the tar before the marker must extract");
 }
 
 #[tokio::test]

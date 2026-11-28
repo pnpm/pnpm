@@ -327,7 +327,7 @@ pub(crate) fn collect_pending_tar_entries<'a>(
         });
     }
     let end = TarEnd::of(&archive);
-    budget.check_buffered_end(tar_data, archive.into_inner().position())?;
+    budget.check_buffered_end(archive.into_inner().position())?;
     Ok(PendingTar { files: pending, manifest, requires_build: triggers.requires_build(), end })
 }
 

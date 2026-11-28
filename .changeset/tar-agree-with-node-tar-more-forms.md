@@ -3,4 +3,4 @@
 "@pnpm/pnpr": patch
 ---
 
-pnpm now refuses more package tarballs that npm reads differently. Among them are a tarball whose tar continues into a second gzip member and a tar header whose checksum field has no terminator. Such a tarball could install different files with pnpm than with npm.
+pnpm now reads more malformed package tarballs the way npm does, and installs the same files from them. Among them are a tar that continues into a second gzip member, a header whose checksum runs into its type field, and a header after a single zero block. pnpm also ignores data after the end-of-archive marker, as npm does.

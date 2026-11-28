@@ -115,8 +115,7 @@ fn read_publication_archive_within(
         }
         scan.visit(&mut entry.map_err(|err| unreadable(&err))?)?;
     }
-    // An installer refuses data after the end-of-archive marker, so the
-    // archive is refused here too.
+    // Older pnpm releases refuse data after the end-of-archive marker.
     check_trailer(archive.into_inner())
         .map_err(|err| err.to_string())
         .map_err(PublicationArchiveError::Unreadable)?;

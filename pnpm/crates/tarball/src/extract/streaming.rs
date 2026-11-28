@@ -17,10 +17,8 @@ use super::{
     StoreDir,
     TAR_BLOCK,
     TarBudget,
-    TarEnd,
     TarLimits,
     TarballError,
-    check_trailer,
     clean_archive_entry_path,
     file_mode,
     is_tar_block,
@@ -349,17 +347,6 @@ pub(crate) fn extract_tarball_entries_streaming(
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<ExtractedEntries, TarballError> {
-    extract_tarball_entries_streaming_to_end(reader, limits, store_dir, ignore_file_pattern)
-        .map(|(extracted, _)| extracted)
-}
-
-/// [`extract_tarball_entries_streaming`], also reporting where the tar ended.
-pub(super) fn extract_tarball_entries_streaming_to_end(
-    reader: impl Read,
-    limits: TarLimits,
-    store_dir: &StoreDir,
-    ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(ExtractedEntries, TarEnd), TarballError> {
     let budget = TarBudget::new(limits);
     walk_tar_stream(budget.reader(reader), &budget, store_dir, ignore_file_pattern)
         .map_err(|error| budget.explain(error))
@@ -370,7 +357,7 @@ fn walk_tar_stream(
     budget: &TarBudget,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(ExtractedEntries, TarEnd), TarballError> {
+) -> Result<ExtractedEntries, TarballError> {
     let mut archive = Archive::new(reader);
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     archive.set_read_like_node_tar(true);
@@ -388,11 +375,9 @@ fn walk_tar_stream(
         extract.triggers.add_file(&meta.cleaned_path);
         extract.add_entry(&mut entry, meta)?;
     }
-    let end = TarEnd::of(&archive);
-    check_trailer(archive.into_inner())?;
     budget.ensure_within()?;
     budget.check_not_empty()?;
-    Ok((extract.finish()?, end))
+    extract.finish()
 }
 
 /// The header fields of one regular-file tar entry, with its path validated

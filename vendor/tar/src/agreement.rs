@@ -1,9 +1,10 @@
-//! Rejects header shapes that node-tar reads differently from this crate.
+//! Reads header shapes the way node-tar does, or rejects them.
 //!
 //! npm, Yarn, and Bun read packages with node-tar. When the two readers
 //! disagree on an entry's size or path, or on where the next header starts,
-//! one tarball holds different files for each of them. Each check here
-//! rejects one such shape instead of picking a side.
+//! one tarball holds different files for each of them. The readers here
+//! decode a field as node-tar does. Each check rejects one shape that this
+//! crate does not read that way yet.
 
 use std::{
     collections::{
@@ -44,79 +45,187 @@ fn is_pax_type(typeflag: u8) -> bool {
     matches!(typeflag, b'x' | b'g')
 }
 
+/// Whether `typeflag` names a GNU long name header. node-tar reads an old
+/// GNU `N` header as one.
+pub(crate) fn is_gnu_long_name_type(typeflag: u8) -> bool {
+    matches!(typeflag, b'L' | b'N')
+}
+
 /// Checks one header block on its own, before its size is used.
 ///
 /// node-tar skips a header block with no path, or with a link name on an
 /// entry that is not a link, and parses the next block as a header. It reads
-/// a Solaris `X` header as a PAX header and an old GNU `N` header as a GNU
-/// long name, which this crate does not.
-pub(crate) fn check_header_block(header: &Header) -> io::Result<()> {
+/// a Solaris `X` header as a PAX header, which this crate does not.
+///
+/// The path and link name are the ones the header's own fields hold.
+pub(crate) fn check_header_block(
+    header: &Header,
+    (path, link_name): (&[u8], Option<&[u8]>),
+) -> io::Result<()> {
     let typeflag = header.as_old().linkflag[0];
     if typeflag == b'X' {
         return Err(other("Solaris extended headers are not supported"));
     }
-    if typeflag == b'N' {
-        return Err(other("old GNU long name headers are not supported"));
-    }
-    check_checksum_field(header)?;
-    check_name_fields(header)?;
-    if !is_normal_fs_type(typeflag) && header.path_bytes().is_empty() {
+    if !is_normal_fs_type(typeflag) && path.is_empty() {
         return Err(other("archive header has no path"));
     }
-    if !is_link_type(typeflag) && !is_pax_type(typeflag) && header.link_name_bytes().is_some() {
-        return Err(entry_error(&header.path_bytes(), "is not a link but has a link name"));
+    if !is_link_type(typeflag) && !is_pax_type(typeflag) && link_name.is_some() {
+        return Err(entry_error(path, "is not a link but has a link name"));
     }
     Ok(())
 }
 
-/// node-tar reads the checksum as a 12-byte field that runs on into the
-/// typeflag. This crate reads 8 bytes. The two differ when the 8 bytes hold
-/// no NUL, end in an octal digit, and the typeflag is an octal digit.
-fn check_checksum_field(header: &Header) -> io::Result<()> {
-    let old = header.as_old();
-    let is_octal = |byte: u8| matches!(byte, b'0'..=b'7');
-    if !old.cksum.contains(&0) && is_octal(old.cksum[7]) && is_octal(old.linkflag[0]) {
-        return Err(other("archive header checksum field has no terminator"));
-    }
-    Ok(())
-}
-
-/// Checks the name, link name, and ustar prefix fields.
+/// Whether node-tar reads `block` as a header. It skips a block whose
+/// checksum does not match, or whose numbers it cannot decode, and parses
+/// the next block as a header.
 ///
-/// node-tar cuts a field at its first NUL, but only up to a line
-/// terminator, and keeps what follows it. This crate cuts at the first NUL.
-/// node-tar also reads a ustar prefix whenever byte 130 of the prefix field
-/// is set, and then joins an empty prefix to the name as `/name`. This crate
-/// ignores a prefix that starts with a NUL.
-fn check_name_fields(header: &Header) -> io::Result<()> {
-    let old = header.as_old();
-    let ustar_prefix = header.as_ustar().map(|ustar| &ustar.prefix);
-    let fields = [&old.name[..], &old.linkname[..]]
-        .into_iter()
-        .chain(ustar_prefix.map(|prefix| &prefix[..]));
-    for field in fields {
-        if has_line_terminator_after_nul(field) {
-            return Err(other("archive header name field has a line terminator after a NUL"));
-        }
+/// node-tar reads the checksum from a 12-byte field that runs on into the
+/// typeflag and the link name.
+pub(crate) fn is_valid_header_block(block: &[u8; 512]) -> bool {
+    let Ok(Some(stored)) = node_tar_number(&block[148..160]) else {
+        return false;
+    };
+    stored == header_block_sum(block)
+}
+
+/// Whether node-tar reads `block` as one of the two blocks of the
+/// end-of-archive marker: no checksum, and zero bytes outside it.
+pub(crate) fn is_null_block(block: &[u8; 512]) -> bool {
+    matches!(node_tar_number(&block[148..160]), Ok(None)) && header_block_sum(block) == 8 * 32
+}
+
+/// The checksum of `block`, counting its 8-byte checksum field as spaces.
+fn header_block_sum(block: &[u8; 512]) -> i64 {
+    block[..148]
+        .iter()
+        .chain(&block[156..])
+        .map(|byte| i64::from(*byte))
+        .sum::<i64>()
+        + 8 * 32
+}
+
+/// The entry size in a header's `size` field, as node-tar reads it. A
+/// field it reads as no number, or as a negative one, means no data.
+/// `None` when node-tar cannot decode the field, and skips the block.
+pub(crate) fn header_size(field: &[u8]) -> Option<u64> {
+    let size = node_tar_number(field).ok()?;
+    Some(
+        size.and_then(|size| u64::try_from(size).ok())
+            .unwrap_or(0),
+    )
+}
+
+/// A numeric header field as node-tar decodes it. `Ok(None)` is a field it
+/// reads as no number. An error is a field it cannot decode.
+///
+/// A field whose first byte has its high bit set is base-256: `0x80` starts
+/// a positive number and `0xff` a negative one. Otherwise node-tar decodes
+/// the field as UTF-8 and cuts it with `/\0.*$/`. It then trims it with
+/// JavaScript's `trim` and reads it with `parseInt(text, 8)`, which reads
+/// the leading octal digits after an optional sign.
+fn node_tar_number(field: &[u8]) -> Result<Option<i64>, ()> {
+    if field[0] & 0x80 != 0 {
+        return base256_number(field).map(Some);
     }
-    if ustar_prefix.is_some_and(|prefix| prefix[0] == 0 && prefix[130] != 0) {
-        return Err(other("archive header has an empty ustar prefix and a set byte 475"));
+    let text = String::from_utf8_lossy(field);
+    let after_last_line = text.rfind(is_line_terminator).unwrap_or(0);
+    let text = match text[after_last_line..].find('\0') {
+        Some(nul) => &text[..after_last_line + nul],
+        None => &text[..],
+    };
+    let text = text.trim_matches(is_javascript_white_space);
+    let (negative, digits) = match text.as_bytes().first() {
+        Some(b'-') => (true, &text[1..]),
+        Some(b'+') => (false, &text[1..]),
+        _ => (false, text),
+    };
+    let digits = &digits[..digits
+        .find(|ch: char| !matches!(ch, '0'..='7'))
+        .unwrap_or(digits.len())];
+    if digits.is_empty() {
+        return Ok(None);
     }
-    Ok(())
+    let value = i64::from_str_radix(digits, 8).map_err(|_| ())?;
+    Ok(Some(if negative { -value } else { value }))
+}
+
+/// node-tar's base-256 reader. It reads every byte after the marker.
+fn base256_number(field: &[u8]) -> Result<i64, ()> {
+    let negative = match field[0] {
+        0x80 => false,
+        0xff => true,
+        _ => return Err(()),
+    };
+    let bytes = if negative { field } else { &field[1..] };
+    let mut magnitude: u64 = 0;
+    for byte in bytes {
+        let byte = if negative { !byte } else { *byte };
+        magnitude = magnitude
+            .checked_mul(256)
+            .and_then(|value| value.checked_add(u64::from(byte)))
+            .filter(|value| *value <= MAX_SAFE_INTEGER)
+            .ok_or(())?;
+    }
+    if negative {
+        // `!byte` drops the 1 that two's complement adds.
+        let magnitude = magnitude
+            .checked_add(1)
+            .filter(|value| *value <= MAX_SAFE_INTEGER)
+            .ok_or(())?;
+        return i64::try_from(magnitude)
+            .map(|value| -value)
+            .map_err(|_| ());
+    }
+    i64::try_from(magnitude).map_err(|_| ())
+}
+
+/// JavaScript's white space and line terminators, which `trim` removes.
+fn is_javascript_white_space(ch: char) -> bool {
+    matches!(
+        ch,
+        '\t' | '\u{b}' | '\u{c}' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200a}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
+    ) || is_line_terminator(ch)
 }
 
 /// The line terminators of a JavaScript regular expression, which `.` does
-/// not match: LF, CR, and U+2028 and U+2029 in UTF-8.
-fn has_line_terminator_after_nul(field: &[u8]) -> bool {
-    let Some(nul) = field.iter().position(|byte| *byte == 0) else {
-        return false;
+/// not match.
+fn is_line_terminator(ch: char) -> bool {
+    matches!(ch, '\n' | '\r' | '\u{2028}' | '\u{2029}')
+}
+
+/// A text field as node-tar decodes it: UTF-8, cut by `/\0.*/`. The cut
+/// runs from the first NUL to the next line terminator, which `.` does not
+/// match, and keeps the rest.
+pub(crate) fn node_tar_string(field: &[u8]) -> Vec<u8> {
+    let text = String::from_utf8_lossy(field);
+    let Some(nul) = text.find('\0') else {
+        return text.into_owned().into_bytes();
     };
-    let rest = &field[nul..];
-    rest.iter()
-        .any(|byte| matches!(byte, b'\n' | b'\r'))
-        || rest
-            .windows(3)
-            .any(|bytes| matches!(bytes, [0xe2, 0x80, 0xa8 | 0xa9]))
+    let rest = &text[nul..];
+    let kept = rest
+        .find(is_line_terminator)
+        .map_or("", |end| &rest[end..]);
+    [&text[..nul], kept].concat().into_bytes()
+}
+
+/// The path and link name in a header's own fields, as node-tar reads them.
+///
+/// node-tar joins the ustar prefix to the name whenever the prefix field's
+/// last byte is set, even when the prefix is empty. Otherwise it reads the
+/// prefix from its first 130 bytes and joins it when it is not empty.
+pub(crate) fn header_names(header: &Header) -> (Vec<u8>, Option<Vec<u8>>) {
+    let old = header.as_old();
+    let mut path = node_tar_string(&old.name);
+    if let Some(ustar) = header.as_ustar() {
+        let joined = ustar.prefix[130] != 0;
+        let prefix = node_tar_string(if joined { &ustar.prefix } else { &ustar.prefix[..130] });
+        if joined || !prefix.is_empty() {
+            path = [&prefix[..], b"/", &path[..]].concat();
+        }
+    }
+    let link_name = Some(node_tar_string(&old.linkname)).filter(|name| !name.is_empty());
+    (path, link_name)
 }
 
 fn entry_error(path: &[u8], problem: &str) -> io::Error {
@@ -130,18 +239,6 @@ fn entry_error(path: &[u8], problem: &str) -> io::Error {
 pub(crate) fn check_entry_size(header: &Header, size: u64) -> io::Result<()> {
     if size != 0 && matches!(header.as_old().linkflag[0], b'1'..=b'6') {
         return Err(entry_error(&header.path_bytes(), "cannot hold data but has a nonzero size"));
-    }
-    Ok(())
-}
-
-/// Checks a GNU long name or long link payload.
-///
-/// node-tar cuts the value at its first NUL. This crate drops only one
-/// trailing NUL.
-pub(crate) fn check_gnu_long_value(value: &[u8]) -> io::Result<()> {
-    let value = value.strip_suffix(b"\0").unwrap_or(value);
-    if value.contains(&0) {
-        return Err(other("GNU long name or long link contains a NUL byte"));
     }
     Ok(())
 }
@@ -317,6 +414,10 @@ pub(crate) fn check_resolved_entry(
     }
     if path.is_empty() {
         return Err(other("archive entry has no path"));
+    }
+    // Node.js refuses a path with a NUL byte, so npm fails on the entry.
+    if path.contains(&0) {
+        return Err(entry_error(path, "has a NUL byte in its path"));
     }
     let has_link_name = link_name.is_some_and(|name| !name.is_empty());
     if is_link_type(typeflag) != has_link_name {

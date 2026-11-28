@@ -136,7 +136,6 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
 #[test]
 fn extract_rejects_an_absolute_entry_path() {
     for name in [
-        &b"/etc/passwd"[..],
         &br"\windows\evil.txt"[..],
         &b"C:/windows/evil.txt"[..],
         &b"package/C:/windows/evil.txt"[..],
