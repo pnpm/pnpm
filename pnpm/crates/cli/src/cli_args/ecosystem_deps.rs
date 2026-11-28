@@ -53,6 +53,7 @@ use python::{
     update_python_projects,
     validate_explicit_python_requests,
 };
+use rust_toolchain::RUST;
 use selectors::{
     RustToolchainSelector,
     parse_update_selectors,
@@ -226,7 +227,9 @@ async fn update_ecosystem_targets<Reporter: self::Reporter + 'static>(
 }
 
 /// The toolchain pin moves only to the latest release, when the update
-/// names `rust` or covers everything `!rust` does not exclude.
+/// names `rust` or covers everything `!rust` does not exclude. It is a dev
+/// dependency, which `updateConfig.ignoreDependencies` can hold back as it
+/// holds back a crate, even one the update names.
 fn updates_rust_toolchain(
     options: &EcosystemUpdateStepOptions<'_>,
     parsed: &selectors::ParsedUpdateSelectors,
@@ -236,7 +239,12 @@ fn updates_rust_toolchain(
         Some(RustToolchainSelector::Exclude) => false,
         None => options.selectors.is_empty() || excludes_only(options.selectors),
     };
-    selected && options.latest && !options.no_save
+    let ignored = options.ignore_matcher.is_some_and(|matcher| matcher.matches(RUST));
+    selected
+        && !ignored
+        && options.include_groups.contains(&DependencyGroup::Dev)
+        && options.latest
+        && !options.no_save
 }
 
 /// Pinned before the crates update, so their lockfile is resolved with the

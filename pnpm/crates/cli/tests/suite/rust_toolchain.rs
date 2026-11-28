@@ -342,8 +342,6 @@ fn pinned_channel(workspace: &std::path::Path) -> String {
     fs::read_to_string(workspace.join("rust-toolchain.toml")).unwrap()
 }
 
-/// `pnpm update --latest` moves the pinned release to the newest stable
-/// one, as it moves an exact dependency version.
 #[test]
 fn update_latest_moves_the_pinned_rust_release() {
     let CommandTempCwd { workspace, root, .. } = workspace_pinning_an_old_release();
@@ -374,13 +372,17 @@ fn the_pinned_rust_release_is_kept_without_latest_or_when_excluded() {
     update(&workspace, &server, &[]);
     update(&workspace, &server, &["--latest", "!rust"]);
     update(&workspace, &server, &["--latest", "--no-save"]);
+    update(&workspace, &server, &["--latest", "--prod"]);
+    let workspace_manifest = workspace.join("pnpm-workspace.yaml");
+    let mut settings = fs::read_to_string(&workspace_manifest).unwrap();
+    settings.push_str("updateConfig:\n  ignoreDependencies:\n    - rust\n");
+    fs::write(&workspace_manifest, settings).unwrap();
+    update(&workspace, &server, &["--latest", "rust"]);
 
     assert_eq!(pinned_channel(&workspace), "[toolchain]\nchannel = \"1.7.0\"\n");
     drop(root);
 }
 
-/// `pnpm outdated` lists the pinned release beside the dependencies, with
-/// the release `pnpm update --latest` would move it to.
 #[test]
 fn outdated_lists_a_pinned_rust_release_that_has_a_newer_one() {
     let CommandTempCwd { workspace, root, .. } = workspace_pinning_an_old_release();

@@ -28,8 +28,12 @@ use std::{
         Path,
         PathBuf,
     },
-    sync::Mutex,
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
+use tokio::sync::OnceCell;
 
 /// The name the toolchain is listed and selected under.
 pub(crate) const RUST: &str = "rust";
@@ -48,10 +52,13 @@ pub(super) fn declares_rust_toolchain(
     Ok(read_toolchain_file(&file)?.is_ok())
 }
 
-/// The newer release found for each toolchain file, so the projects of a
-/// workspace that share one ask the distribution server once.
+/// The newer release found for each toolchain file. The projects of a
+/// workspace that share one wait on a single lookup, so the distribution
+/// server is asked once.
 #[derive(Default)]
-pub(crate) struct NewerRustReleases(Mutex<HashMap<PathBuf, Option<(Channel, Channel)>>>);
+pub(crate) struct NewerRustReleases(Mutex<HashMap<PathBuf, Arc<OnceCell<PinAndNewer>>>>);
+
+type PinAndNewer = Option<(Channel, Channel)>;
 
 /// The `rust` row for the toolchain file governing `project_dir`, when its
 /// pin has a newer release. Only a query for the latest versions lists it:
@@ -73,32 +80,22 @@ pub(super) async fn collect_rust_toolchain_outdated(
     Ok(Some(outdated_row(&pin, &newer, workspace_name)))
 }
 
-async fn pin_and_newer_release(
-    file: &Path,
-    run: &OutdatedRun,
-) -> Result<Option<(Channel, Channel)>> {
-    if let Some(known) = cached(&run.rust_releases, file) {
-        return Ok(known);
-    }
-    let found = match read_toolchain_file(file)? {
-        Ok(request) => newer_release(&run.config, &run.http_client, &request.channel)
-            .await?
-            .map(|newer| (request.channel, newer)),
-        Err(_) => None,
-    };
-    run.rust_releases.0
-        .lock()
-        .expect("the Rust release cache is not poisoned")
-        .insert(file.to_path_buf(), found.clone());
-    Ok(found)
+async fn pin_and_newer_release(file: &Path, run: &OutdatedRun) -> Result<PinAndNewer> {
+    let lookup = Arc::clone(
+        run.rust_releases.0
+            .lock()
+            .expect("the Rust release cache is not poisoned")
+            .entry(file.to_path_buf())
+            .or_default(),
+    );
+    let found = lookup.get_or_try_init(|| look_up_newer_release(file, run)).await?;
+    Ok(found.clone())
 }
 
-fn cached(releases: &NewerRustReleases, file: &Path) -> Option<Option<(Channel, Channel)>> {
-    releases.0
-        .lock()
-        .expect("the Rust release cache is not poisoned")
-        .get(file)
-        .cloned()
+async fn look_up_newer_release(file: &Path, run: &OutdatedRun) -> Result<PinAndNewer> {
+    let Ok(request) = read_toolchain_file(file)? else { return Ok(None) };
+    let newer = newer_release(&run.config, &run.http_client, &request.channel).await?;
+    Ok(newer.map(|newer| (request.channel, newer)))
 }
 
 fn outdated_row(pin: &Channel, newer: &Channel, workspace: Option<String>) -> OutdatedPackage {
