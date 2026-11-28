@@ -1,6 +1,6 @@
 //! The Rust tool shims `pnpm shim add rust` writes: the toolchain a
-//! project's `rust-toolchain.toml` names runs, and outside such a project
-//! the next program of the same name on `PATH` does.
+//! project's `rust-toolchain.toml` or a rustup override names runs, and
+//! outside such a project the next program of the same name on `PATH` does.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -17,7 +17,7 @@ use tempfile::TempDir;
 
 /// The command, isolated from the developer's pnpm and from the rustup
 /// that may have started the test run: rustup sets `RUSTUP_TOOLCHAIN` for
-/// what it runs, which the shims leave to rustup.
+/// what it runs, which outranks a toolchain file for the shims.
 fn isolated(mut command: Command, root: &TempDir, cwd: &Path) -> Command {
     command = command.without_env("RUSTUP_TOOLCHAIN");
     command
@@ -167,8 +167,8 @@ fn without_a_toolchain_file_the_next_cargo_on_path_runs() {
     assert!(stderr.contains("ERR_PNPM_SHIM_NO_TARGET"), "{stderr}");
 }
 
-/// `cargo +nightly` and `RUSTUP_TOOLCHAIN` choose a toolchain the way only
-/// rustup can, so they reach the next `cargo` on `PATH` even in a project
+/// With a rustup proxy next on `PATH`, `cargo +nightly` and a
+/// `RUSTUP_TOOLCHAIN` that names a release reach it, even in a project
 /// whose toolchain file pnpm manages.
 #[cfg(unix)]
 #[test]
@@ -182,6 +182,7 @@ fn rustup_toolchain_overrides_reach_rustup() {
     fs::write(project.join("rust-toolchain.toml"), "1.95.0").unwrap();
     let rustup = root.path().join("rustup-bin");
     write_script(&rustup.join("cargo"), r#"echo rustup-cargo "$@""#);
+    write_script(&rustup.join("rustup"), "exit 1");
     let global_bin = global_bin(&root);
     let path = [global_bin.as_path(), rustup.as_path(), Path::new("/bin")];
 
@@ -205,6 +206,84 @@ fn rustup_toolchain_overrides_reach_rustup() {
         .output()
         .unwrap();
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "rustup-cargo build");
+}
+
+#[cfg(unix)]
+#[test]
+fn without_rustup_a_release_override_runs_from_the_store() {
+    let root = tempfile::tempdir().unwrap();
+    add_rust_shims(&root);
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(project.join("rust-toolchain.toml"), "1.95.0").unwrap();
+    seed_toolchain(&root, "nightly-2026-01-01", "nightly-cargo");
+    let system = root.path().join("system-bin");
+    write_script(&system.join("cargo"), r#"echo system-cargo "$@""#);
+    let global_bin = global_bin(&root);
+    let path = [global_bin.as_path(), system.as_path(), Path::new("/bin")];
+
+    let output = shim(&root, &project, "cargo", &path)
+        .with_args(["+nightly-2026-01-01", "build"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "nightly-cargo build");
+
+    let output = shim(&root, &project, "cargo", &path)
+        .with_env("RUSTUP_TOOLCHAIN", "nightly-2026-01-01")
+        .with_args(["build"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "nightly-cargo build");
+
+    // A name that is not a release is left to the next `cargo`.
+    let output = shim(&root, &project, "cargo", &path)
+        .with_args(["+my-linked-toolchain", "build"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "system-cargo +my-linked-toolchain build",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_toolchain_directory_override_runs_its_own_tool() {
+    let root = tempfile::tempdir().unwrap();
+    add_rust_shims(&root);
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(project.join("rust-toolchain.toml"), "1.95.0").unwrap();
+    let toolchain = root.path().join("some-toolchain");
+    write_script(&toolchain.join("bin/cargo"), r#"echo directory-cargo "$@"; command -v rustc"#);
+    write_script(&toolchain.join("bin/rustc"), "echo directory-rustc");
+    let global_bin = global_bin(&root);
+
+    let output =
+        shim(&root, &project, "cargo", &[&global_bin, Path::new("/usr/bin"), Path::new("/bin")])
+            .with_env("RUSTUP_TOOLCHAIN", &toolchain)
+            .with_args(["build"])
+            .output()
+            .unwrap();
+
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut lines = stdout.lines();
+    assert_eq!(lines.next(), Some("directory-cargo build"));
+    assert_eq!(lines.next().map(Path::new), Some(toolchain.join("bin/rustc").as_path()));
+
+    // The directory that holds the shims is not a toolchain: the shim does
+    // not run itself.
+    let system = root.path().join("system-bin");
+    write_script(&system.join("cargo"), r#"echo system-cargo "$@""#);
+    let output = shim(&root, &project, "cargo", &[&global_bin, &system, Path::new("/bin")])
+        .with_env("RUSTUP_TOOLCHAIN", global_bin.parent().unwrap())
+        .with_args(["build"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "system-cargo build");
 }
 
 /// Put a fake toolchain for `channel`, as a bare `channel` request asks for
