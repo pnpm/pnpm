@@ -129,32 +129,14 @@ impl GitFetcher<'_> {
     }
 
     fn run_sync<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
-        let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
-        let temp_location = temp.path();
-        self.copy_source(temp_location)?;
-
-        let prepared =
-            prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.source.path)
-                .map_err(|err| wrap_prepare_error(self.source.repo, err))?;
-        if prepared.ignored_build {
-            tracing::warn!(
-                target: "pacquet::git_fetcher",
-                repo = %self.source.repo,
-                "the git-hosted package fetched from {} has to be built but the build scripts were ignored",
-                self.source.repo,
-            );
+        let PreparedCheckout { checkout: _checkout, prepared } = PrepareGitCheckout {
+            scripts: self.scripts,
+            source: self.source,
+            allow_build: self.allow_build,
+            package_id: self.package_id,
+            package_name: self.package_name,
         }
-
-        // Delete `.git` before computing CAS contents so the resulting
-        // files-index is git-history-free. Ignore `NotFound` in case
-        // `prepare_package` already wiped it on the rare manifests that
-        // do so themselves.
-        let dot_git = temp_location.join(".git");
-        if let Err(err) = fs::remove_dir_all(&dot_git)
-            && err.kind() != std::io::ErrorKind::NotFound
-        {
-            return Err(GitFetcherError::Io(err));
-        }
+        .run::<Reporter>()?;
 
         let files = packlist_of(&prepared.pkg_dir)?;
         let ImportedFiles { cas_paths, files_index } =
@@ -178,6 +160,63 @@ impl GitFetcher<'_> {
 
         Ok(GitFetchOutput { cas_paths, built: prepared.should_be_built })
     }
+}
+
+/// Check out one git resolution into a temporary directory and run
+/// [`crate::prepare_package()`] on it. [`GitFetcher`] imports the result
+/// into the store; `pnpm pack <git spec>` packs it.
+pub struct PrepareGitCheckout<'a> {
+    pub scripts: crate::PrepareScriptOptions<'a>,
+    pub source: crate::GitSource<'a>,
+    /// See [`GitFetcher::allow_build`].
+    pub allow_build: AllowBuildRef<'a>,
+    /// See [`GitFetcher::package_id`].
+    pub package_id: &'a str,
+    /// See [`GitFetcher::package_name`].
+    pub package_name: &'a str,
+}
+
+/// Output of [`PrepareGitCheckout::run`].
+#[derive(Debug)]
+pub struct PreparedCheckout {
+    /// The checkout, without its `.git` directory. Dropping it deletes the
+    /// files, so it has to outlive every use of [`Self::prepared`].
+    pub checkout: tempfile::TempDir,
+    pub prepared: crate::PreparedPackage,
+}
+
+impl PrepareGitCheckout<'_> {
+    /// Blocking: runs the git CLI and the package's lifecycle scripts.
+    pub fn run<Reporter: self::Reporter>(&self) -> Result<PreparedCheckout, GitFetcherError> {
+        let checkout = tempfile::tempdir().map_err(GitFetcherError::Io)?;
+        let temp_location = checkout.path();
+        self.copy_source(temp_location)?;
+
+        let prepared =
+            prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.source.path)
+                .map_err(|err| wrap_prepare_error(self.source.repo, err))?;
+        if prepared.ignored_build {
+            tracing::warn!(
+                target: "pacquet::git_fetcher",
+                repo = %self.source.repo,
+                "the git-hosted package fetched from {} has to be built but the build scripts were ignored",
+                self.source.repo,
+            );
+        }
+
+        // Delete `.git` so the prepared tree is git-history-free. Ignore
+        // `NotFound` in case `prepare_package` already wiped it on the rare
+        // manifests that do so themselves.
+        let dot_git = temp_location.join(".git");
+        if let Err(err) = fs::remove_dir_all(&dot_git)
+            && err.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(GitFetcherError::Io(err));
+        }
+
+        Ok(PreparedCheckout { checkout, prepared })
+    }
+
     fn copy_source(&self, temp_location: &Path) -> Result<(), GitFetcherError> {
         let source = self.source.cache
             .get(&self.source)
@@ -201,10 +240,8 @@ impl GitFetcher<'_> {
 
         Ok(())
     }
-}
 
-impl<'a> GitFetcher<'a> {
-    fn prepare_options(&self) -> PreparePackageOptions<'a> {
+    fn prepare_options(&self) -> PreparePackageOptions<'_> {
         let allow_build = self.allow_build;
         PreparePackageOptions {
             scripts: self.scripts,

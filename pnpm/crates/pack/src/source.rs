@@ -173,7 +173,7 @@ fn published_identity(publish_manifest: &mut Value) -> Result<(String, String), 
     Ok((normalize_tarball_name(published_name), published_version))
 }
 
-fn is_invalid_tarball_version(version: &str) -> bool {
+pub(crate) fn is_invalid_tarball_version(version: &str) -> bool {
     version.is_empty()
         || version == "."
         || version == ".."

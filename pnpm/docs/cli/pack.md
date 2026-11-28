@@ -5,6 +5,18 @@ title: pnpm pack
 
 Create a tarball from a package.
 
+## Packing a package spec
+
+`pnpm pack` also accepts package specs, like `npm pack <spec>`:
+
+- `pnpm pack foo@1.0.0` downloads the tarball the registry resolves for the spec and saves it to the current directory. The spec may be a name, a version, a dist-tag, or a version range. pnpm verifies a registry download against the integrity declared in the registry metadata.
+- `pnpm pack github:user/repo` clones a git repository and saves the tarball of the package it holds. It accepts the git specs `pnpm add` accepts, such as `#<branch>`, `#semver:<range>`, and `#path:<dir>` for a package in a sub-directory. If the package has a `prepare` script, pnpm installs the package's dependencies and runs the script, as it does for a git dependency on install. The package does not need an `allowBuilds` entry for this. `--ignore-scripts` skips the scripts. Packing a git repository needs `git` on the `PATH`.
+- `pnpm pack https://example.com/foo.tgz` downloads a tarball URL and saves it under the name and version from the tarball's own `package.json`. The URL does not need to end in `.tgz`.
+- `pnpm pack ./dir` packs the project in `./dir`, saving the tarball to the current directory.
+- `pnpm pack ./foo.tgz` saves a local tarball file to the destination under the name and version from its `package.json`.
+
+`--dry-run`, `--out`, and `--pack-destination` apply to specs the same way they apply to a project. With more than one spec, `--json` prints an array.
+
 ## Files included in the tarball
 
 Use the `files` field in `package.json` to select files and directories. Patterns

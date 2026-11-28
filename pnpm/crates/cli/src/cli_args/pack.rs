@@ -105,6 +105,11 @@ impl Reporter for PackJsonReporter {
 /// Create a tarball from a package.
 #[derive(Debug, Args)]
 pub struct PackArgs {
+    /// Package specs to pack instead of the project in the current
+    /// directory: a registry package (`name[@version|tag|range]`), a git
+    /// repository, a tarball URL, a local directory, or a local tarball file.
+    pub packages: Vec<String>,
+
     /// Do everything `pack` would do except writing the tarball to disk.
     #[clap(long)]
     pub dry_run: bool,
@@ -152,6 +157,9 @@ struct PackSharedContext {
 impl PackArgs {
     /// Pack the project at `dir` (or the `--filter`-selected workspace
     /// projects when `recursive`), returning the text/JSON the CLI prints.
+    /// With positional package specs, pack those instead: a registry
+    /// package, a git repository, a tarball URL, a local directory, or a
+    /// local tarball file.
     pub async fn run<Reporter: self::Reporter>(
         &self,
         dir: &Path,
@@ -159,6 +167,11 @@ impl PackArgs {
         recursive: bool,
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
+        if !self.packages.is_empty() {
+            return spec::run_specs::<Reporter>(self, dir, config, recursive, before_packing_hooks)
+                .await
+                .wrap_err(PACK_ERROR_CONTEXT);
+        }
         if recursive {
             self.run_recursive::<Reporter>(dir, config, before_packing_hooks).await
         } else {
@@ -363,3 +376,4 @@ pub(crate) async fn set_injected_changelog(
 }
 
 mod recursive;
+mod spec;

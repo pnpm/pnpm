@@ -203,9 +203,9 @@ pub(super) fn cached_manifest(
 /// `dist.shasum` hex digest, which pins the bytes just as well, so it is
 /// promoted to its `sha1-` SRI form. `None` when the version pins
 /// nothing at all.
-pub(crate) fn dist_integrity(
+pub fn dist_integrity(
     dist: &PackageDistribution,
-) -> Result<Option<Integrity>, ResolveError> {
+) -> Result<Option<Integrity>, InvalidTarballIntegrityError> {
     if let Some(integrity) = &dist.integrity {
         return Ok(Some(integrity.clone()));
     }
@@ -217,9 +217,7 @@ pub(crate) fn dist_integrity(
     };
     Integrity::from_hex(shasum, Algorithm::Sha1)
         .map(Some)
-        .map_err(|_| {
-            Box::new(InvalidTarballIntegrityError::new(&dist.tarball, shasum)) as ResolveError
-        })
+        .map_err(|_| InvalidTarballIntegrityError::new(&dist.tarball, shasum))
 }
 
 /// The `(specifier, pin)` pair a manifest-ready specifier is computed

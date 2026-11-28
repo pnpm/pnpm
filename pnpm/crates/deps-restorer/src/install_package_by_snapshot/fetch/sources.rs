@@ -2,7 +2,7 @@ use super::{
     super::{
         InstallPackageBySnapshot,
         InstallPackageBySnapshotError,
-        PNPM_EXECPATH,
+        git_prepare_script_options,
         runtime::{
             archive_filter_for,
             fetch_binary_resolution_to_cas,
@@ -19,7 +19,6 @@ use super::{
     download_tarball,
 };
 use crate::custom_fetcher::CustomFetchOutcome;
-use pnpm_config::PmOnFail;
 use pnpm_git_fetcher::{
     GitFetchOutput,
     GitFetcher,
@@ -207,7 +206,7 @@ impl InstallPackageBySnapshot<'_> {
         let files_index_file = git_hosted_store_index_key(fetch.package_id, built);
         let package_name = fetch.package_key.name.to_string();
         let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
-            scripts: prepare_script_options(config),
+            scripts: git_prepare_script_options(config),
             source: pnpm_git_fetcher::GitSource {
                 cache: self.ctx.caches.git_source_cache,
                 repo: &git_resolution.repo,
@@ -303,7 +302,7 @@ impl InstallPackageBySnapshot<'_> {
                     .unwrap_or(true),
         );
         let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
-            scripts: prepare_script_options(config),
+            scripts: git_prepare_script_options(config),
             store: pnpm_git_fetcher::GitStoreContext {
                 dir: &config.store_dir,
                 index_writer: self.fetching.store_index_writer,
@@ -320,23 +319,5 @@ impl InstallPackageBySnapshot<'_> {
         .await
         .map_err(InstallPackageBySnapshotError::GitFetch)?;
         Ok(cas_paths)
-    }
-}
-
-/// How a git-hosted dependency's prepare scripts run for this install.
-fn prepare_script_options(
-    config: &pnpm_config::Config,
-) -> pnpm_git_fetcher::PrepareScriptOptions<'_> {
-    pnpm_git_fetcher::PrepareScriptOptions {
-        ignore: config.ignore_scripts,
-        unsafe_perm: config.unsafe_perm,
-        user_agent: Some(&config.user_agent),
-        shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        running_pnpm: pnpm_git_fetcher::RunningPnpm {
-            execpath: PNPM_EXECPATH.as_deref(),
-            pm_on_fail: config.pm_on_fail.map(PmOnFail::as_str),
-        },
     }
 }

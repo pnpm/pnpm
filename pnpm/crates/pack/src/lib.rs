@@ -20,6 +20,10 @@ pub use capabilities::{
     Host,
 };
 pub use contents::sort_paths_en_locale;
+pub use fetched::{
+    FetchedPackOptions,
+    pack_fetched_tarball,
+};
 pub use options::{
     PackManifestOptions,
     PackOptions,
@@ -38,6 +42,7 @@ pub use source::static_pack_sources;
 
 mod capabilities;
 mod collation;
+mod fetched;
 mod manifest_entry;
 mod options;
 mod source;
@@ -278,6 +283,46 @@ pub enum PackError {
         )
     )]
     BinCrlf { path: String },
+
+    #[display("Failed to read the tarball from {source}: {message}")]
+    #[diagnostic(code(ERR_PNPM_PACK_FETCHED_TARBALL))]
+    FetchedTarballUnreadable {
+        #[error(not(source))]
+        source: String,
+        #[error(not(source))]
+        message: String,
+    },
+
+    #[display("Failed to parse package.json in the tarball from {source}: {message}")]
+    #[diagnostic(code(ERR_PNPM_PACK_FETCHED_TARBALL))]
+    FetchedManifestInvalid {
+        #[error(not(source))]
+        source: String,
+        #[error(not(source))]
+        message: String,
+    },
+
+    #[display(
+        "Failed to verify the integrity of {source}: expected {expected} but the actual integrity is {actual}"
+    )]
+    #[diagnostic(code(ERR_PNPM_TARBALL_INTEGRITY))]
+    FetchedIntegrityMismatch {
+        #[error(not(source))]
+        source: String,
+        #[error(not(source))]
+        expected: String,
+        #[error(not(source))]
+        actual: String,
+    },
+
+    #[display("The tarball from {source} exceeds the {limit}-byte unpacked size limit")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
+    FetchedTarballTooLarge {
+        #[error(not(source))]
+        source: String,
+        #[error(not(source))]
+        limit: u64,
+    },
 }
 
 pub async fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>

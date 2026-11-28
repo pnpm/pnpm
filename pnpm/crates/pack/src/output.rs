@@ -122,7 +122,7 @@ pub(super) fn resolve_output(
     )
 }
 
-fn resolve_output_values(
+pub(super) fn resolve_output_values(
     out: Option<&str>,
     pack_destination: Option<&str>,
     normalized_name: &str,
@@ -200,7 +200,10 @@ pub(super) fn resolve_dest_dir(
     resolve_dest_dir_from_base(base_dir, pack_destination)
 }
 
-fn resolve_dest_dir_from_base(base_dir: &Path, pack_destination: Option<&str>) -> PathBuf {
+pub(super) fn resolve_dest_dir_from_base(
+    base_dir: &Path,
+    pack_destination: Option<&str>,
+) -> PathBuf {
     match pack_destination {
         Some(destination) if Path::new(destination).is_absolute() => PathBuf::from(destination),
         Some(destination) => base_dir.join(destination),

@@ -25,6 +25,7 @@ use std::{
 mod output;
 mod private_dependency;
 mod publish_directory;
+mod spec;
 
 #[test]
 fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {

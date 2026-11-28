@@ -19,6 +19,25 @@ pub(crate) fn running_pnpm_execpath() -> Option<&'static std::path::Path> {
     PNPM_EXECPATH.as_deref()
 }
 
+/// How a git-hosted package's prepare scripts run under `config`.
+#[must_use]
+pub fn git_prepare_script_options(
+    config: &pnpm_config::Config,
+) -> pnpm_git_fetcher::PrepareScriptOptions<'_> {
+    pnpm_git_fetcher::PrepareScriptOptions {
+        ignore: config.ignore_scripts,
+        unsafe_perm: config.unsafe_perm,
+        user_agent: Some(&config.user_agent),
+        shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        running_pnpm: pnpm_git_fetcher::RunningPnpm {
+            execpath: running_pnpm_execpath(),
+            pm_on_fail: config.pm_on_fail.map(pnpm_config::PmOnFail::as_str),
+        },
+    }
+}
+
 mod fetch;
 
 mod runtime;
