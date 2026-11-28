@@ -63,6 +63,12 @@ To change one field of a YAML setting and keep its sibling fields, use a dotted 
 pnpm config set -g globalPackagesConfig.virtualStoreType project
 ```
 
+Dotted keys address fields as written in YAML. A flat catalog can contain a package named `mode`; use `catalogMode` to set the policy independently of the catalog layout. pnpm accepts plain numbers and booleans when the field requires them. Use `--json` to supply an explicitly typed value:
+
+```sh
+pnpm config set --location=project --json tasks.build.priority 1
+```
+
 Setting the top-level key with `--json` replaces the whole value.
 
 `pnpm config set` refuses to write a setting to a project's `pnpm-workspace.yaml` that pnpm does not read from there, such as `configDir`, `pnpmHomeDir`, `stateDir`, and the other settings that name machine-level state. Since v12.1.0, this includes `scope`, which controls the machine-wide default for `pnpm login`. The command fails with `ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING`, naming where the setting belongs when it belongs somewhere. `pnpm config delete` still clears such a key from a file that already carries it.

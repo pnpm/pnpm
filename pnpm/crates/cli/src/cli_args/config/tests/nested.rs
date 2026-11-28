@@ -22,7 +22,7 @@ fn dotted_set_edits_only_the_named_global_field() {
         &config,
         tmp.path(),
         flags(true, None, false),
-        "globalPackagesConfig.virtualStoreType".into(),
+        "globalPackagesConfig.virtual-store-type".into(),
         Some("project".into()),
     )
     .unwrap();
@@ -127,4 +127,40 @@ fn dotted_set_keeps_delegated_settings_with_their_owner() {
             .contains("catalogMode"),
     );
     assert_eq!(std::fs::read_to_string(include).unwrap(), original);
+}
+
+#[test]
+fn dotted_set_refuses_a_second_spelling_of_the_default_catalog() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("pnpm-workspace.yaml");
+    let config = config_with_dir(tmp.path());
+    for (original, key) in [
+        ("catalog: {example: '1'}\n", "catalogs.default.other"),
+        ("catalogs: {default: {example: '1'}}\n", "catalog.other"),
+    ] {
+        std::fs::write(&path, original).unwrap();
+        let err = config_set(
+            &config,
+            tmp.path(),
+            flags(false, Some(ConfigLocation::Project), false),
+            key.into(),
+            Some("1".into()),
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("default catalog"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    }
+}
+
+#[test]
+fn dotted_set_uses_the_field_type_for_plain_numbers() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(tmp.path());
+    let project = flags(false, Some(ConfigLocation::Project), false);
+    for (key, raw) in [("tasks.compile.priority", "1"), ("catalog.priority", "1")] {
+        config_set(&config, tmp.path(), project, key.into(), Some(raw.into())).unwrap();
+    }
+    let yaml = read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap();
+    assert_eq!(yaml["tasks"]["compile"]["priority"], json!(1));
+    assert_eq!(yaml["catalog"]["priority"], json!("1"));
 }
