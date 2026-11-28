@@ -223,7 +223,7 @@ object = { version = "0.41.0", default-features = false, features = ["read", "st
 object_store = { version = "0.14.2", features = ["aws"] }
 open = { version = "5.4.5" }
 os_display = { version = "0.1.4" }
-owo-colors = { version = "4.4.0", features = ["supports-colors"] }
+owo-colors = { version = "4.4.1", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.33" }
 junction = { version = "2.1.0" }
 libc = { version = "0.2.191" }
@@ -279,7 +279,7 @@ sigstore-sign = { version = "0.17.0" }
 # record verifier also builds for WebAssembly.
 signed_note = { version = "0.2.0" }
 smart-default = { version = "0.7.1" }
-spdx = { version = "0.13.6" }
+spdx = { version = "0.13.7" }
 split-first-char = { version = "2.0.1" }
 ssri = { version = "9.2.0" }
 strum = { version = "0.28.0", features = ["derive"] }
@@ -313,7 +313,7 @@ yamlpath = { version = "1.33.1" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.6" }
 zeroize = { version = "1.9.2" }
-zip = { version = "9.8.2", default-features = false, features = ["deflate"] }
+zip = { version = "9.9.0", default-features = false, features = ["deflate"] }
 zstd = { version = "0.14.5", default-features = false }
 zune-inflate = { version = "0.2.54" }
 
