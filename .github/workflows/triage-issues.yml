@@ -1,8 +1,13 @@
 name: Triage New Issues
 
-# Runs an Oz cloud agent with the repo's "triage" skill whenever a new issue is
+# Runs an Oz agent with the repo's "triage" skill whenever a new issue is
 # opened, classifying it into exactly one implementation-readiness state and
 # applying the matching pnpm `state:` label.
+#
+# The agent reads text written by the issue author, so it gets a read-only
+# token. It only proposes a label and a comment. The `apply` job, which runs no
+# agent and holds no Warp key, validates the proposal and writes it to the
+# issue that triggered the run.
 #
 # Setup:
 #   - The WARP_API_KEY repository secret must hold a team-scoped Oz API key.
@@ -15,22 +20,22 @@ on:
   issues:
     types: [opened]
 
+permissions: {}
+
 # Avoid duplicate triage runs if the same issue fires overlapping events.
 concurrency:
   group: triage-issue-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
-  triage:
-    name: Triage issue
+  ask-author:
+    name: Assign the author or ask about a fix
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Skip automated issues (Renovate, Dependabot, bots) — they are not user
-    # reports and each triage run consumes Warp credits.
     if: github.event.issue.user.type != 'Bot'
-    timeout-minutes: 30
+    timeout-minutes: 5
     permissions:
-      contents: read   # let the agent inspect the checked-out codebase
-      issues: write     # let the agent apply labels and comment
+      contents: read
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,12 +64,29 @@ jobs:
               ;;
           esac
 
+  triage:
+    name: Triage issue
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Skip automated issues (Renovate, Dependabot, bots) — they are not user
+    # reports and each triage run consumes Warp credits.
+    if: github.event.issue.user.type != 'Bot'
+    timeout-minutes: 30
+    permissions:
+      contents: read   # let the agent inspect the checked-out codebase
+      issues: read     # let the agent read the issue and related issues
+    outputs:
+      result: ${{ steps.result.outputs.result }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Triage with Oz agent
         uses: warpdotdev/oz-agent-action@b0c640eb560d1f2fc283244c582830aa16cefd8c # v1.0.39
-        id: triage
         timeout-minutes: 20
         env:
-          # Authenticates the `gh` CLI the agent uses to read/label/comment.
+          # Read-only. Authenticates the `gh` CLI the agent uses to read issues.
           GH_TOKEN: ${{ github.token }}
         with:
           # Uses .agents/skills/triage/SKILL.md as the base prompt.
@@ -82,12 +104,72 @@ jobs:
             Follow the triage skill: use the `gh` CLI to fetch the full issue
             (title, body, comments, existing labels) and related open issues,
             inspect this checked-out codebase, then choose exactly one
-            implementation-readiness state and apply the matching pnpm `state:`
-            label as defined in the skill's pnpm label mapping. Post status
-            comments as directed by the triage skill, using only an Oz run or Oz
-            session URL as the follow-along link. Do not use the GitHub Actions
-            workflow URL as the follow-along link. After labeling, post your
-            triage result as a comment on the issue using
-            `gh issue comment #${{ github.event.issue.number }}`.
+            implementation-readiness state and the matching pnpm `state:`
+            label as defined in the skill's pnpm label mapping.
+
+            This run is read-only. Do not post comments or change labels with
+            `gh`; skip the skill's status comments. Instead, write your result
+            to `triage-result.json` in the current working directory as a JSON
+            object with two string fields:
+
+            - `label`: the `state:` label to apply, or an empty string if the
+              skill says to apply none.
+            - `comment`: the triage result comment, in Markdown. If an Oz run or
+              Oz session URL is available, include it as the follow-along link.
+              Do not use the GitHub Actions workflow URL as the link.
+
+            The workflow applies the label and posts the comment for you.
           warp_api_key: ${{ secrets.WARP_API_KEY }}
           profile: ${{ vars.WARP_AGENT_PROFILE || '' }}
+
+      - name: Pass the proposed result to the apply job
+        id: result
+        run: |
+          # A compact JSON value fits on one line, so it cannot inject other
+          # outputs. The apply job validates it.
+          echo "result=$(jq -c . triage-result.json)" >> "$GITHUB_OUTPUT"
+
+  apply:
+    name: Apply triage result
+    needs: triage
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Apply the label and post the comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The issue comes from the event, never from the agent's output.
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          # Written by the agent, which read attacker-controlled text. Passed as
+          # env and validated here.
+          RESULT: ${{ needs.triage.outputs.result }}
+        run: |
+          set -euo pipefail
+
+          if ! label=$(jq -er '.label | strings' <<<"$RESULT") ||
+            ! comment=$(jq -er '.comment | strings | select(length > 0)' <<<"$RESULT"); then
+            echo "::error::The agent did not produce a valid triage result"
+            exit 1
+          fi
+
+          case "$label" in
+            ''|'state: accepted'|'state: needs design'|'state: needs steps to repro'|'state: blocked'|'state: rejected') ;;
+            *)
+              echo "::error::The agent proposed a label outside the triage states: $label"
+              exit 1
+              ;;
+          esac
+
+          if [ -n "$label" ]; then
+            # Never override a state a maintainer already chose.
+            existing=$(gh issue view "$ISSUE_URL" --json labels --jq '[.labels[].name | select(startswith("state:"))] | join(", ")')
+            if [ -n "$existing" ]; then
+              echo "::notice::Keeping the existing state label ($existing) instead of adding $label"
+            else
+              gh issue edit "$ISSUE_URL" --add-label "$label"
+            fi
+          fi
+
+          gh issue comment "$ISSUE_URL" --body-file - <<<"$comment"
