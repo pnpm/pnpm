@@ -28,6 +28,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../../text/sanitize"
+    },
+    {
       "path": "../../text/tree-renderer"
     },
     {

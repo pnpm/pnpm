@@ -1,5 +1,6 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type LicensePackage } from '@pnpm/license-scanner'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import chalk from 'chalk'
 import { table } from '@zkochan/table'
 import { groupBy, sortWith, omit, pick } from 'ramda'
@@ -16,7 +17,8 @@ function sortLicensesPackages (licensePackages: readonly LicensePackage[]): Lice
   )
 }
 
-function renderPackageName ({ belongsTo, name: packageName }: LicensePackage): string {
+function renderPackageName ({ belongsTo, name }: LicensePackage): string {
+  const packageName = sanitizeInline(name)
   switch (belongsTo) {
   case 'devDependencies':
     return `${packageName} ${chalk.dim('(dev)')}`
@@ -28,7 +30,7 @@ function renderPackageName ({ belongsTo, name: packageName }: LicensePackage): s
 }
 
 function renderPackageLicense ({ license }: LicensePackage): string {
-  const output = license ?? 'Unknown'
+  const output = sanitizeInline(license ?? 'Unknown')
   return output as string
 }
 
@@ -43,7 +45,7 @@ function renderDetails (licensePackage: LicensePackage): string {
   if (licensePackage.homepage) {
     outputs.push(licensePackage.homepage)
   }
-  return outputs.join('\n')
+  return outputs.map((value) => value.split('\n').map(sanitizeInline).join('\n')).join('\n')
 }
 
 export function renderLicences (

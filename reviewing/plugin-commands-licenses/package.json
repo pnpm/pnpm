@@ -41,6 +41,7 @@
     "@pnpm/license-scanner": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/store-path": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
     "ramda": "catalog:",

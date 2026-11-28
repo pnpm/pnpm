@@ -4,7 +4,7 @@ import { renderTree as renderArchyTree, type TreeNode, type TreeNodeGroup } from
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import chalk from 'chalk'
-import { getPkgInfo } from './getPkgInfo.js'
+import { getPkgInfo, renderLongInfoLines } from './getPkgInfo.js'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import { type PackageDependencyHierarchy } from './types.js'
 
@@ -119,15 +119,7 @@ export async function toArchyTree (
       }
       if (opts.long) {
         const pkg = await getPkgInfo(node)
-        if (pkg.description) {
-          labelLines.push(pkg.description)
-        }
-        if (pkg.repository) {
-          labelLines.push(pkg.repository)
-        }
-        if (pkg.homepage) {
-          labelLines.push(pkg.homepage)
-        }
+        labelLines.push(...renderLongInfoLines(pkg))
         if (pkg.path) {
           labelLines.push(pkg.path)
         }

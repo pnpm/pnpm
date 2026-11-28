@@ -7880,6 +7880,9 @@ importers:
       '@pnpm/reviewing.dependencies-hierarchy':
         specifier: workspace:*
         version: link:../dependencies-hierarchy
+      '@pnpm/text.sanitize':
+        specifier: workspace:*
+        version: link:../../text/sanitize
       '@pnpm/text.tree-renderer':
         specifier: workspace:*
         version: link:../../text/tree-renderer
@@ -8011,6 +8014,9 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
+      '@pnpm/text.sanitize':
+        specifier: workspace:*
+        version: link:../../text/sanitize
       '@zkochan/table':
         specifier: 'catalog:'
         version: 2.0.1
@@ -8835,6 +8841,12 @@ importers:
         version: 1.2.0
     devDependencies:
       '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: 'link:'
+
+  text/sanitize:
+    devDependencies:
+      '@pnpm/text.sanitize':
         specifier: workspace:*
         version: 'link:'
 
