@@ -1,7 +1,7 @@
 name: Notify Discord on Regression
 
-# Posts a message to Discord whenever an issue is labeled `regression` (applied
-# by the Oz triage agent or a maintainer). The `labeled` event fires each time
+# Posts a message to Discord whenever an issue is labeled `regression`. The
+# `labeled` event fires each time
 # the label is added, so the job only runs for that specific label.
 #
 # Setup:
