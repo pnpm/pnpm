@@ -1,6 +1,6 @@
+import path from 'path'
 import { sanitizeInline } from '@pnpm/text.sanitize'
 import { type ProjectManifest } from '@pnpm/types'
-import path from 'path'
 import { readPkg } from './readPkg.js'
 
 interface PkgData {
@@ -48,11 +48,11 @@ export async function getPkgInfo (pkg: PkgData): Promise<PkgInfo> {
 
 /**
  * The `--long` label lines taken from the package's own manifest. The
- * manifest is authored by the package publisher, so each line is stripped
- * of terminal control characters.
+ * manifest is authored by the package publisher, so each line of each field
+ * is stripped of terminal control characters.
  */
 export function renderLongInfoLines (pkg: PkgInfo): string[] {
   return [pkg.description, pkg.repository, pkg.homepage]
-    .filter((line): line is string => typeof line === 'string' && line !== '')
-    .map(sanitizeInline)
+    .filter((field): field is string => typeof field === 'string' && field !== '')
+    .flatMap((field) => field.split('\n').map(sanitizeInline))
 }
