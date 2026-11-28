@@ -1,8 +1,8 @@
 name: Notify Discord on Regression
 
 # Posts a message to Discord whenever an issue is labeled `regression`. The
-# `labeled` event fires each time
-# the label is added, so the job only runs for that specific label.
+# `labeled` event fires each time the label is added, so the job only runs for
+# that specific label.
 #
 # Setup:
 #   - The DISCORD_WEBHOOK_REGRESSION repository secret must hold the target
