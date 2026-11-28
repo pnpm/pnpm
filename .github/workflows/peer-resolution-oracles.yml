@@ -38,7 +38,7 @@ jobs:
         run: pnpm runtime set node 22 --global
 
       - name: Install test tools
-        uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
+        uses: taiki-e/install-action@073e1fd0bc889c9aee68dbaaa927cde1b5653a83 # v2.90.11
         with:
           tool: just,cargo-nextest
 
