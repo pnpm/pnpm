@@ -112,13 +112,6 @@ pub struct WorkspaceState {
 /// The inputs each project was last proven installed against.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(
-    dylint_lib = "perfectionist",
-    expect(
-        perfectionist::too_many_struct_fields,
-        reason = "The fields mirror the validation record in pnpm-workspace-state-v1.json."
-    )
-)]
 pub struct Validation {
     /// Filesystem time, in nanoseconds since the Unix epoch, by which every
     /// entry of [`Self::files`] was stat'd. A file whose mtime is this close to
@@ -157,26 +150,6 @@ pub struct Validation {
     /// without an entry has its manifest read and hashed by the next check.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub manifest_files: BTreeMap<String, ManifestFile>,
-    /// The inputs a full install used for each project it vouched for, keyed
-    /// by importer id. States written before this record do not have it.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub inputs: BTreeMap<String, InstallInputs>,
-}
-
-/// The inputs an install used for one project, in the form a later check
-/// recomputes them. Settings are the canonical JSON of the recorded snapshot;
-/// a check removes the keys its gate ignores before comparing.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InstallInputs {
-    pub settings: String,
-    pub manifest: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lockfile: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub workspace_bins: Option<String>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub files: BTreeMap<String, String>,
 }
 
 /// A project manifest's stat when the validation confirmed its digest, and

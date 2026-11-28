@@ -305,8 +305,10 @@ This setting allows the checking of the state of dependencies before running scr
 - `install` - Automatically runs install if `node_modules` is not up to date. If that install fails, for example because the store is read-only or there is no network, pnpm prints a warning and runs the command anyway.
 - `warn` - Prints a warning if `node_modules` is not up to date.
 - `prompt` - Prompts the user for permission to run install if `node_modules` is not up to date.
-- `error` - Throws an error if `node_modules` is not up to date or the wanted lockfile is missing. Run `pnpm install` to restore the lockfile; the `install` action runs it for you.
+- `error` - Throws an error if `node_modules` is not up to date.
 - `false` - Disables dependency checks.
+
+A missing lockfile also counts as not up to date. `pnpm install` restores it from the installed dependencies.
 
 Changing [`trustLockfile`](./dependency-resolution.md#trustlockfile) alone does not trigger a dependency reinstall before a script runs. An explicit `pnpm install` verifies the lockfile when that setting is off.
 

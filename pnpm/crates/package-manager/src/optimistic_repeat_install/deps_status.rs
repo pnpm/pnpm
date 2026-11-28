@@ -9,13 +9,13 @@ use super::{
     Scope,
     WorkspaceState,
     freshness::{
-        FreshnessDecision,
         Gate,
         GatePolicy,
         MissingWantedLockfile,
         NewerPatch,
         RecordedGroups,
         Stale,
+        check_freshness,
     },
     relocation::relocated_state,
     wanted_lockfile_file_has_content,
@@ -115,8 +115,7 @@ pub fn check_deps_status_before_run(
         newer_patch: NewerPatch::CompareHash,
         recorded_groups: RecordedGroups::Kept,
     };
-    let decision = FreshnessDecision { check, state, moved };
-    match decision.decide(scope, &policy) {
+    match check_freshness(check, state, moved, &policy, scope) {
         Ok(()) => RunDepsStatus::UpToDate,
         Err(stale) => outdated(stale_issue(check, stale)),
     }
@@ -173,9 +172,6 @@ fn stale_issue(check: &OptimisticRepeatInstallCheck<'_>, stale: Stale) -> String
         }
         Stale::NothingInstalled => {
             "The lockfile requires dependencies but none were installed".to_string()
-        }
-        Stale::InputsChanged(id) => {
-            format!("The inputs recorded for workspace package {id} have changed")
         }
     }
 }

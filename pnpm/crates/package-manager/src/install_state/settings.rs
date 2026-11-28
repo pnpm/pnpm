@@ -1,15 +1,12 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
-pub(crate) use current::{
-    current_settings,
-    current_settings_with_catalogs,
-};
 pub(crate) use install_policy::recorded_extend_node_path_matches;
 pub(crate) use recorded_values::{
     catalogs_to_json,
     empty_json_object,
     filter_null_object_values,
     link_workspace_packages_to_json,
+    map_node_linker,
 };
 pub(crate) use registry_prefixes::{
     ResolvedImporters,
@@ -22,7 +19,6 @@ pub(crate) use registry_prefixes::{
 };
 
 mod agent_skills;
-mod current;
 mod equivalence;
 mod install_policy;
 mod recorded_values;
@@ -42,17 +38,16 @@ use recorded_values::map_trust_policy;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{
     Config,
+    NodeLinker,
     version_policy::ResolvedPackageVersions,
 };
+use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_workspace_state::{
     WorkspaceState,
     WorkspaceStateSettings,
 };
-use std::{
-    cell::LazyCell,
-    path::Path,
-};
+use std::cell::LazyCell;
 
 /// The workspace-state key of [`global_virtual_store_layout_version`]. It is
 /// not a setting a user can name, so a message words it separately.
@@ -62,37 +57,6 @@ pub(crate) fn global_virtual_store_layout_version(config: &Config) -> Option<u8>
     config.enable_global_virtual_store.then_some(
         pnpm_deps_restorer::GLOBAL_VIRTUAL_STORE_LAYOUT_VERSION,
     )
-}
-
-pub(crate) fn settings_json(settings: &WorkspaceStateSettings) -> String {
-    serde_json::to_string(settings).expect("serialize workspace state settings")
-}
-
-/// Compare settings an install recorded against today's settings with the
-/// same equivalence rules the freshness gate applies to workspace state.
-pub(crate) fn settings_match<'a>(
-    recorded: &'a str,
-    current: &'a WorkspaceStateSettings,
-    ignored: &'a [&'a str],
-    config: &'a Config,
-    load_prune_versions: &'a dyn Fn() -> Option<ResolvedPackageVersions>,
-) -> Result<bool, serde_json::Error> {
-    let mut recorded: WorkspaceStateSettings = serde_json::from_str(recorded)?;
-    if recorded.registry_routes.is_none()
-        && let Some(installed) = recorded.installed_registry_routes.take()
-    {
-        recorded.registry_routes = Some(installed);
-    }
-    Ok(SettingsComparison {
-        recorded: &recorded,
-        live: current,
-        ignored,
-        config,
-        workspace_dir: config.workspace_dir.as_deref(),
-        prune_versions: LazyCell::new(load_prune_versions),
-    }
-    .first_drift()
-    .is_none())
 }
 
 /// Whether the `supportedArchitectures` recorded by the last install
@@ -163,7 +127,6 @@ pub(crate) fn first_setting_drift(
         live: &current,
         ignored: ignored_workspace_state_settings,
         config,
-        workspace_dir: config.workspace_dir.as_deref(),
         prune_versions: LazyCell::new(load_prune_versions),
     }
     .first_drift()
@@ -179,16 +142,13 @@ macro_rules! return_drift_if {
 
 mod release_policy;
 
-type LazyPruneVersions<'a> =
-    LazyCell<Option<ResolvedPackageVersions>, &'a dyn Fn() -> Option<ResolvedPackageVersions>>;
-
 struct SettingsComparison<'a> {
     recorded: &'a WorkspaceStateSettings,
     live: &'a WorkspaceStateSettings,
     ignored: &'a [&'a str],
     config: &'a Config,
-    workspace_dir: Option<&'a Path>,
-    prune_versions: LazyPruneVersions<'a>,
+    prune_versions:
+        LazyCell<Option<ResolvedPackageVersions>, &'a dyn Fn() -> Option<ResolvedPackageVersions>>,
 }
 
 impl SettingsComparison<'_> {
@@ -343,7 +303,7 @@ impl SettingsComparison<'_> {
         let recorded = self.recorded;
         let live = self.live;
         let patched_dependencies_drift =
-            !patched_dependencies_match(recorded, live, self.workspace_dir);
+            !patched_dependencies_match(recorded, live, self.config.workspace_dir.as_deref());
         return_drift_if!(self, "patchedDependencies", patched_dependencies_drift);
         return_drift_if!(
             self,
@@ -370,6 +330,140 @@ impl SettingsComparison<'_> {
     }
 }
 
+fn recorded_package_extensions(config: &Config) -> Option<serde_json::Value> {
+    config.package_extensions
+        .as_ref()
+        .map(serde_json::to_value)
+        .and_then(Result::ok)
+}
+
+/// Build the [`WorkspaceStateSettings`] that today's install would
+/// write. Shared with `install::build_workspace_state` so the
+/// freshness check sees the same byte shape the writer produced,
+/// when one side grows a field, the other automatically does too.
+pub(crate) fn current_settings(
+    config: &Config,
+    node_linker: NodeLinker,
+    included: IncludedDependencies,
+    supported_architectures: Option<&SupportedArchitectures>,
+) -> WorkspaceStateSettings {
+    WorkspaceStateSettings {
+        allow_builds: recorded_allow_builds(config),
+        auto_install_peers: Some(config.auto_install_peers),
+        dedupe_direct_deps: Some(config.dedupe_direct_deps),
+        dedupe_injected_deps: Some(config.dedupe_injected_deps),
+        dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
+        dedupe_peers: Some(config.dedupe_peers),
+        auto_dedupe: config.auto_dedupe.then_some(true),
+        dev: Some(included.dev_dependencies),
+        // Mirror pnpm's writer, which omits the key for its `undefined`
+        // default and records a concrete value only when forced. pacquet
+        // has no `--global` flow, so the only "on" value it ever writes
+        // is `true`; an off store maps back to the omitted `None`.
+        enable_global_virtual_store: config.enable_global_virtual_store.then_some(true),
+        exclude_links_from_lockfile: Some(config.exclude_links_from_lockfile),
+        hoist_pattern: config.hoist_pattern.clone(),
+        hoist_workspace_packages: Some(config.hoist_workspace_packages),
+        ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+        add_missing_peer_types: config.add_missing_peer_types.then_some(true),
+        inject_workspace_packages: Some(config.inject_workspace_packages),
+        link_workspace_packages: Some(link_workspace_packages_to_json(
+            config.link_workspace_packages,
+        )),
+        node_linker: Some(map_node_linker(node_linker)),
+        node_linker_excluded: (node_linker == NodeLinker::Loaded).then(|| {
+            config.node_linker_excluded.clone()
+        }),
+        optional: Some(included.optional_dependencies),
+        overrides: recorded_overrides(config),
+        package_extensions: recorded_package_extensions(config),
+        patched_dependencies: config.patched_dependencies.clone(),
+        peers_suffix_max_length: Some(
+            u32::try_from(config.peers_suffix_max_length).unwrap_or(u32::MAX),
+        ),
+        prefer_workspace_packages: Some(config.prefer_workspace_packages),
+        production: Some(included.dependencies),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        // The CLI-merged effective value (yaml plus `--cpu` / `--os` /
+        // `--libc`), like `included` above: a change through either
+        // channel re-evaluates the skipped optionals on the next run.
+        supported_architectures: supported_architectures.and_then(|value| {
+            serde_json::to_value(value).ok()
+        }),
+        ..current_policy_settings(config)
+    }
+}
+
+fn recorded_allow_builds(
+    config: &Config,
+) -> Option<std::collections::BTreeMap<String, serde_json::Value>> {
+    (!config.allow_builds.is_empty()).then(|| {
+        config.allow_builds
+            .iter()
+            .map(|(k, v)| (k.clone(), serde_json::Value::Bool(*v)))
+            .collect()
+    })
+}
+
+fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
+    WorkspaceStateSettings {
+        block_exotic_subdeps: Some(config.block_exotic_subdeps),
+        lockfile_format: (config.lockfile_format == pnpm_lockfile::LockfileFormat::V13).then(
+            || "v13".to_string(),
+        ),
+        lockfile_include_resolution_settings: config
+            .lockfile_records_resolution_settings()
+            .then_some(true),
+        lockfile_integrity_target: (config.lockfile_integrity_target
+            != pnpm_lockfile::IntegrityTarget::Resource)
+            .then(|| "tar".to_string()),
+        minimum_release_age: config.minimum_release_age,
+        minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
+        minimum_release_age_ignore_missing_time: Some(
+            config.minimum_release_age_ignore_missing_time,
+        ),
+        // The resolved form pnpm records; see
+        // `WorkspaceStateSettings::minimum_release_age_strict`.
+        minimum_release_age_strict: config.minimum_release_age_strict.or_else(|| {
+            config.resolved_minimum_release_age_strict().then_some(true)
+        }),
+        reference_time: config.reference_time
+            .filter(|_| config.reference_time_applies())
+            .map(|time| time.to_string()),
+        project_scoped_optional_peers: config.project_scoped_optional_peers.then_some(true),
+        registry_prefixes: recorded_registry_prefixes(config),
+        default_registry: recorded_default_registry(config),
+        registry_routes: Some(recorded_registry_routes(config)),
+        side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
+        // pnpm records the raw config value, which stays `undefined`
+        // until the user configures the setting, `explicit_settings` is
+        // how pacquet tells its resolved default apart from a real
+        // `trustPolicy: off`.
+        trust_policy: config.explicit_settings
+            .contains_key("trustPolicy")
+            .then(|| map_trust_policy(config.trust_policy)),
+        trust_policy_exclude: config.trust_policy_exclude.clone(),
+        trust_policy_ignore_after: config.trust_policy_ignore_after,
+        workspace_package_patterns: config.workspace_package_patterns.clone(),
+        ..store_location::store_location_settings(
+            config,
+            install_policy_settings(config, agent_skills_settings(config)),
+        )
+    }
+}
+
+pub(crate) fn current_settings_with_catalogs(
+    config: &Config,
+    node_linker: NodeLinker,
+    included: IncludedDependencies,
+    supported_architectures: Option<&SupportedArchitectures>,
+    catalogs: &Catalogs,
+) -> WorkspaceStateSettings {
+    let mut settings = current_settings(config, node_linker, included, supported_architectures);
+    settings.catalogs = Some(catalogs_to_json(catalogs));
+    settings
+}
+
 pub(crate) fn catalogs_cache_matches(
     recorded: Option<&serde_json::Value>,
     current: &Catalogs,
@@ -377,6 +471,16 @@ pub(crate) fn catalogs_cache_matches(
     let recorded = recorded.cloned().map_or_else(empty_json_object, filter_null_object_values);
     let current = filter_null_object_values(catalogs_to_json(current));
     recorded == current
+}
+
+fn recorded_overrides(config: &Config) -> Option<std::collections::BTreeMap<String, String>> {
+    config.overrides
+        .as_ref()
+        .map(|map| {
+            map.iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
 }
 
 #[cfg(test)]

@@ -29,7 +29,6 @@ pub(crate) use settings::{
     recorded_registry_routes_after_install,
     recorded_supported_architectures_match,
     records_registry_keys_of,
-    settings_match,
 };
 pub(crate) use timestamps::{
     file_mtime,

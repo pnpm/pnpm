@@ -1,12 +1,9 @@
 use super::{
     current_fields,
-    install_input_digest,
     recorded_fields,
 };
-use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ManifestFile;
 use serde_json::json;
-use std::path::PathBuf;
 
 #[test]
 fn records_dev_engines_for_project_host_checks() {
@@ -36,63 +33,4 @@ fn refuses_manifest_fields_from_an_old_revision() {
     };
 
     assert!(current_fields(&file).is_none());
-}
-
-#[test]
-fn install_input_digest_ignores_unchecked_manifest_fields() {
-    let manifest = |description: &str, version: &str| {
-        PackageManifest::from_value(
-            PathBuf::from("package.json"),
-            json!({
-                "name": "app",
-                "dependencies": { "is-positive": version },
-                "description": description,
-            }),
-        )
-    };
-
-    assert_eq!(
-        install_input_digest(&manifest("first", "1.0.0")),
-        install_input_digest(&manifest("edited", "1.0.0")),
-    );
-    assert_ne!(
-        install_input_digest(&manifest("first", "1.0.0")),
-        install_input_digest(&manifest("first", "2.0.0")),
-    );
-}
-
-#[test]
-fn install_input_digest_ignores_project_version() {
-    let manifest = |version: &str| {
-        PackageManifest::from_value(
-            PathBuf::from("package.json"),
-            json!({
-                "name": "app",
-                "version": version,
-                "dependencies": { "is-positive": "1.0.0" },
-            }),
-        )
-    };
-
-    assert_eq!(install_input_digest(&manifest("1.0.0")), install_input_digest(&manifest("1.0.1")));
-}
-
-#[test]
-fn install_input_digest_leaves_workspace_bins_to_their_own_check() {
-    let manifest = |value: serde_json::Value| {
-        PackageManifest::from_value(PathBuf::from("package.json"), value)
-    };
-
-    assert_eq!(
-        install_input_digest(&manifest(json!({ "name": "app", "bin": { "app-one": "one.js" } }))),
-        install_input_digest(&manifest(json!({ "name": "app", "bin": { "app-two": "two.js" } }))),
-    );
-    assert_eq!(
-        install_input_digest(&manifest(
-            json!({ "name": "app", "directories": { "bin": "commands" } })
-        )),
-        install_input_digest(&manifest(
-            json!({ "name": "app", "directories": { "bin": "scripts" } })
-        )),
-    );
 }

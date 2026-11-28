@@ -148,24 +148,15 @@ fn a_filtered_write_carries_the_other_records_while_the_shared_inputs_stand() {
     let only_a = HashSet::from([root.join("a")]);
     let mut filtered = WorkspaceState::default();
     record(&mut filtered, &Vouched::Projects { dirs: &only_a, previous: Some(&previous) });
-    let validation = filtered.validation.as_ref().unwrap();
-    let manifests = &validation.manifests;
+    let manifests = &filtered.validation.as_ref().unwrap().manifests;
     assert_eq!(manifests.keys().collect::<Vec<_>>(), ["a", "b"]);
     assert!(!filtered.filtered_install);
-    assert_eq!(validation.inputs.keys().collect::<Vec<_>>(), ["a", "b"]);
-    assert_eq!(
-        validation.inputs["b"],
-        previous.validation.as_ref().unwrap().inputs["b"],
-        "the unselected project keeps the inputs the full install recorded",
-    );
 
     let mut drifted = WorkspaceState::default();
     drifted.settings.dedupe_peers = Some(true);
     record(&mut drifted, &Vouched::Projects { dirs: &only_a, previous: Some(&previous) });
-    let validation = drifted.validation.as_ref().unwrap();
-    let manifests = &validation.manifests;
+    let manifests = &drifted.validation.as_ref().unwrap().manifests;
     assert_eq!(manifests.keys().collect::<Vec<_>>(), ["a"]);
-    assert!(!validation.inputs.contains_key("b"));
     assert!(drifted.filtered_install, "a project left unproven makes the state filtered");
 }
 

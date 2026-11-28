@@ -22,12 +22,6 @@ fn auto_dedupe_baseline_survives_install_and_run_content_checks() {
         let config = config.leak();
         let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
         state.settings.auto_dedupe = Some(true);
-        let recorded_settings = serde_json::to_string(&state.settings).unwrap();
-        if let Some(validation) = state.validation.as_mut() {
-            for inputs in validation.inputs.values_mut() {
-                inputs.settings.clone_from(&recorded_settings);
-            }
-        }
         update_workspace_state(dir.path(), &state).unwrap();
         fs::write(dir.path().join("package.json"), super::FOO_MANIFEST_EDITED).unwrap();
         let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();

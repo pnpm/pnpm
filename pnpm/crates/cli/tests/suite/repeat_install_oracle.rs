@@ -580,7 +580,7 @@ impl Scenario {
         } else if allowed != AllowedRefusal::Install && offered {
             assert_ne!(
                 self.snapshot(),
-                before.clone(),
+                *before,
                 "{:?} ({:?}): the install fast path was refused, but the install changed nothing",
                 self.layout,
                 self.driver,
@@ -600,7 +600,7 @@ impl Scenario {
         );
         assert_eq!(
             self.snapshot(),
-            settled.clone(),
+            *settled,
             "{:?} ({:?}): a {description} must be byte-identical",
             self.layout,
             self.driver,
@@ -961,7 +961,7 @@ fn a_filtered_install_then_a_deleted_lockfile(layout: Layout) {
     scenario.check_gates();
 }
 
-fn generated_filtered_install_edit_and_lockfile_sequences(layout: Layout) {
+fn a_filtered_install_an_edit_then_a_deleted_lockfile(layout: Layout) {
     for project in ["a", "b", "c"] {
         let mut scenario = Scenario::new(layout);
         scenario.install(&[]);
@@ -1381,6 +1381,7 @@ fn manifest_fields_edited(layout: Layout) {
         ("description", json!("edited"), AllowedRefusal::None),
         ("scripts", json!({ "build": r#"node -e """# }), AllowedRefusal::None),
         ("version", json!("1.0.1"), AllowedRefusal::None),
+        ("engines", json!({ "node": ">=1" }), AllowedRefusal::None),
     ] {
         manifest[field] = value;
         scenario.write_manifest("b", manifest.clone());
@@ -1478,7 +1479,7 @@ macro_rules! matrix {
                     a_pull_then_a_filtered_command_for_one_project,
                     a_filtered_install_into_a_fresh_workspace,
                     a_filtered_install_then_a_deleted_lockfile,
-                    generated_filtered_install_edit_and_lockfile_sequences,
+                    a_filtered_install_an_edit_then_a_deleted_lockfile,
                     a_filtered_install_reaching_a_workspace_dependency,
                     an_edit_outside_the_next_filtered_install,
                     filtered_commands_for_every_project_after_a_pull,

@@ -4,9 +4,9 @@ use super::{
     Path,
     PathBuf,
     Validation,
+    importer_id_from_root_dir,
     value_digest,
 };
-use pnpm_workspace::importer_id_from_root_dir;
 
 pub(crate) fn workspace_bins_digest(
     workspace_root: &Path,

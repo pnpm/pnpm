@@ -15,14 +15,13 @@ impl SettingsComparison<'_> {
             return true;
         }
         let Some(recorded) = recorded else { return false };
-        let config = self.config;
-        if !prune || !config.lockfile || recorded.is_empty() {
+        if !prune || !self.config.lockfile || recorded.is_empty() {
             return false;
         }
         self.prune_versions
             .as_ref()
             .is_some_and(|versions| {
-                let pruned = if config.shares_one_lockfile() {
+                let pruned = if self.config.shares_one_lockfile() {
                     drop_unresolved_package_version_specs(recorded, versions)
                 } else {
                     prune_project_version_specs(recorded, live.unwrap_or_default(), versions)
