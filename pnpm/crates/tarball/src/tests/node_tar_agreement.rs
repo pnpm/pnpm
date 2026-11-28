@@ -542,3 +542,65 @@ fn ignores_a_gzip_member_after_the_end_of_archive_marker() {
 fn extracts_a_single_gzip_member_without_an_end_of_archive_marker() {
     assert_tgz_index_js(&gzip_bytes(&base()), BENIGN);
 }
+
+/// node-tar skips a header with a base-256 number whose first byte is
+/// neither `0x80` nor `0xff`, unless a PAX record sets that field.
+#[test]
+fn skips_a_header_with_a_number_node_tar_cannot_decode() {
+    let mut entry = hidden();
+    entry[108..116].copy_from_slice(&[0x81, 0, 0, 0, 0, 0, 0, 0]);
+    seal(&mut entry[..512]);
+    let tar = [base(), entry.clone(), END.to_vec()].concat();
+    assert_index_js(&tar, BENIGN);
+
+    let tar = [base(), pax(b'x', &[("uid", "1000")]), entry, END.to_vec()].concat();
+    assert_index_js(&tar, DIFFERENT);
+}
+
+/// Node.js refuses a name with a NUL byte, so npm fails on these.
+#[test]
+fn refuses_a_gnu_long_name_that_keeps_a_nul() {
+    let name = b"package/lib.js\0\n\0";
+    let tar = [
+        base(),
+        header("././@LongLink", name.len() as u64, b'L'),
+        padded(name),
+        hidden(),
+        END.to_vec(),
+    ]
+    .concat();
+    assert_refused(&tar, "keeps a NUL byte");
+}
+
+/// npm's `strip: 1` takes the empty first component, which leaves `./`
+/// naming the package directory.
+#[test]
+fn reads_a_path_that_starts_with_a_slash_and_a_dot() {
+    for raw in ["/./package.json", "//./package.json", "/package.json"] {
+        assert_eq!(crate::clean_archive_entry_path(raw).unwrap(), "package.json", "{raw}");
+    }
+}
+
+/// A gzip member may end inside an entry. node-tar reads on into the next
+/// member.
+fn tgz_split_inside(offset: usize) -> Vec<u8> {
+    let tar = [base(), hidden(), END.to_vec()].concat();
+    [gzip_bytes(&tar[..offset]), gzip_bytes(&tar[offset..])].concat()
+}
+
+#[test]
+fn reads_a_gzip_member_that_ends_inside_an_entry() {
+    let inside_the_last_header = base().len() + 100;
+    assert_tgz_index_js(&tgz_split_inside(inside_the_last_header), DIFFERENT);
+}
+
+#[tokio::test]
+async fn reads_the_manifest_of_a_gzip_member_that_ends_inside_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("pkg.tgz");
+    std::fs::write(&path, tgz_split_inside(530)).unwrap();
+    let metadata = crate::read_local_tarball_metadata(&path, crate::IntegrityKind::Resource)
+        .await
+        .expect("node-tar reads the manifest across the members");
+    assert_eq!(metadata.manifest.unwrap()["name"], "diffdemo");
+}

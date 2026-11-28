@@ -22,6 +22,7 @@ use crate::{
         PAX_LINKPATH,
         PAX_PATH,
         PAX_SIZE,
+        PaxExtensions,
     },
 };
 
@@ -76,16 +77,38 @@ pub(crate) fn check_header_block(
 }
 
 /// Whether node-tar reads `block` as a header. It skips a block whose
-/// checksum does not match, or whose numbers it cannot decode, and parses
-/// the next block as a header.
+/// checksum does not match, or with a number field it cannot decode, and
+/// parses the next block as a header.
 ///
 /// node-tar reads the checksum from a 12-byte field that runs on into the
-/// typeflag and the link name.
-pub(crate) fn is_valid_header_block(block: &[u8; 512]) -> bool {
+/// typeflag and the link name. It does not decode a field of an entry that
+/// a pending PAX record, for which `extended` holds, sets.
+pub(crate) fn reads_as_header(block: &[u8; 512], extended: impl Fn(&str) -> bool) -> bool {
+    let extensions_apply = is_normal_fs_type(block[156]);
+    let decodes = |key: &str, field: &[u8]| {
+        (extensions_apply && extended(key)) || node_tar_number(field).is_ok()
+    };
     let Ok(Some(stored)) = node_tar_number(&block[148..160]) else {
         return false;
     };
-    stored == header_block_sum(block)
+    let fields_decode = decodes("mode", &block[100..108])
+        && decodes("uid", &block[108..116])
+        && decodes("gid", &block[116..124])
+        && decodes("size", &block[124..136])
+        && decodes("mtime", &block[136..148]);
+    let ustar_fields_decode = block[257..265] != *b"ustar\x0000"
+        || (node_tar_number(&block[329..337]).is_ok()
+            && node_tar_number(&block[337..345]).is_ok()
+            && (block[475] != 0
+                || (decodes("atime", &block[476..488]) && decodes("ctime", &block[488..500]))));
+    fields_decode && ustar_fields_decode && stored == header_block_sum(block)
+}
+
+/// The keys of the PAX records node-tar applies to header fields.
+pub(crate) fn pax_field_keys(records: &[u8]) -> impl Iterator<Item = &str> {
+    PaxExtensions::new(records)
+        .filter_map(|record| record.ok()?.key().ok())
+        .filter(|key| ["mode", "uid", "gid", "size", "mtime", "atime", "ctime"].contains(key))
 }
 
 /// Whether node-tar reads `block` as one of the two blocks of the
@@ -207,6 +230,16 @@ pub(crate) fn node_tar_string(field: &[u8]) -> Vec<u8> {
         .find(is_line_terminator)
         .map_or("", |end| &rest[end..]);
     [&text[..nul], kept].concat().into_bytes()
+}
+
+/// A GNU long name or long link payload as node-tar decodes it. Node.js
+/// refuses a name with a NUL byte, so npm fails on one that keeps a NUL.
+pub(crate) fn gnu_long_value(payload: &[u8]) -> io::Result<Vec<u8>> {
+    let value = node_tar_string(payload);
+    if value.contains(&0) {
+        return Err(other("GNU long name or long link keeps a NUL byte"));
+    }
+    Ok(value)
 }
 
 /// The path and link name in a header's own fields, as node-tar reads them.

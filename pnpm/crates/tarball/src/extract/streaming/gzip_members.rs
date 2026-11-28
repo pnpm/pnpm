@@ -33,14 +33,20 @@ pub(super) fn extract_first_member(
     let mut tar = HashingReader { inner: &mut members, hasher: tar_hasher, failure: None };
     let extracted =
         extract_tarball_entries_streaming(&mut tar, limits, store_dir, ignore_file_pattern);
+    let data_follows = || TarballError::IncompleteTar {
+        url: package_url.to_string(),
+        reason: "data follows the first gzip member".to_string(),
+    };
+    // A tar that went on into later members has no first-member integrity,
+    // so nothing more is decoded for it.
+    if extracted.is_ok() && tar.inner.went_past_first() {
+        return (extracted, Err(data_follows()));
+    }
     tar.inner.stay_in_current_member();
     let tar_integrity = finish_tar_of(&extracted, tar, limits, package_url)
         .and_then(|tar| match members.data_follows_first() {
             Ok(false) => Ok(tar),
-            _ => Err(TarballError::IncompleteTar {
-                url: package_url.to_string(),
-                reason: "data follows the first gzip member".to_string(),
-            }),
+            _ => Err(data_follows()),
         });
     (extracted, tar_integrity)
 }
@@ -63,9 +69,13 @@ impl<Compressed: BufRead> GzipMembers<Compressed> {
         Self { decoder: Some(first), may_cross: true }
     }
 
-    /// End the decoded stream at the end of the member being read.
+    /// End the decoded stream at the end of the first member.
     fn stay_in_current_member(&mut self) {
         self.may_cross = false;
+    }
+
+    fn went_past_first(&self) -> bool {
+        matches!(self.decoder, Some(GzipMember::Rest(_)))
     }
 
     /// Whether data follows the first member: a read went past it, or the

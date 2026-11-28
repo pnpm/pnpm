@@ -9,6 +9,7 @@ use super::{
     Path,
     PathBuf,
     Read,
+    TarEnd,
     TarballError,
     allocate_tarball_buffer,
     clean_archive_entry_path,
@@ -310,11 +311,18 @@ pub(crate) fn read_bundled_manifest_from_archive(
     gz_data: &[u8],
     tarball_path: &str,
 ) -> Result<(Option<serde_json::Value>, bool), TarballError> {
+    let streamed = || {
+        read_bundled_manifest_streaming(flate2::read::MultiGzDecoder::new(gz_data), tarball_path)
+    };
     match decompress_gzip(gz_data, None) {
-        Ok(tar_data) => read_bundled_manifest(&tar_data, tarball_path),
-        Err(error) if is_eager_decode_limit_exceeded(&error) => {
-            read_bundled_manifest_streaming(flate2::read::GzDecoder::new(gz_data), tarball_path)
-        }
+        // The eager decoder reads one gzip member. A tar that stops before
+        // its end-of-archive marker, or fails, may go on in the next member,
+        // which node-tar reads.
+        Ok(tar_data) => match read_bundled_manifest(&tar_data, tarball_path) {
+            Ok((manifest, TarEnd::Marker)) => Ok(manifest),
+            _ => streamed(),
+        },
+        Err(error) if is_eager_decode_limit_exceeded(&error) => streamed(),
         Err(error) => Err(error),
     }
 }
@@ -334,10 +342,12 @@ pub(crate) fn read_bundled_manifest_from_archive(
 /// The returned flag reports whether a root `package.json` existed,
 /// which `None` alone cannot: narrowing also yields `None` for a
 /// non-object manifest, or one whose every field was dropped.
-pub(crate) fn read_bundled_manifest(
+///
+/// Also returns where the tar ended.
+fn read_bundled_manifest(
     tar_data: &[u8],
     tarball_path: &str,
-) -> Result<(Option<serde_json::Value>, bool), TarballError> {
+) -> Result<((Option<serde_json::Value>, bool), TarEnd), TarballError> {
     let mut archive = Archive::new(Cursor::new(tar_data));
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     archive.set_read_like_node_tar(true);
@@ -356,8 +366,9 @@ pub(crate) fn read_bundled_manifest(
         // that a later one supersedes can't fail the read.
         payload = Some(tar_entry_payload(tar_data, &entry)?);
     }
-    let Some(payload) = payload else { return Ok((None, false)) };
-    finish_bundled_manifest(payload, tarball_path)
+    let end = TarEnd::of(&archive);
+    let Some(payload) = payload else { return Ok(((None, false), end)) };
+    Ok((finish_bundled_manifest(payload, tarball_path)?, end))
 }
 
 /// [`read_bundled_manifest`] over a tar stream that is not held in

@@ -4,6 +4,7 @@ use std::{
         RefCell,
     },
     cmp,
+    collections::HashSet,
     convert::TryFrom,
     fs,
     io::{
@@ -71,6 +72,8 @@ struct EntriesFields<'a> {
     /// node-tar cannot read.
     read_header: bool,
     skipped_block: bool,
+    /// The header fields that global PAX records have set so far.
+    global_pax_field_keys: HashSet<String>,
 }
 
 impl<R: Read> Archive<R> {
@@ -260,6 +263,7 @@ impl Archive<dyn Read + '_> {
             raw: false,
             read_header: false,
             skipped_block: false,
+            global_pax_field_keys: HashSet::new(),
         })
     }
 
@@ -361,7 +365,7 @@ impl<'a> EntriesFields<'a> {
             saw_null_block = false;
             if read_like_node_tar {
                 // node-tar skips a block it cannot read as a header.
-                if !Self::reads_as_node_tar_header(block, pax_extensions)? {
+                if !self.reads_as_node_tar_header(block, pax_extensions) {
                     self.skipped_block = true;
                     continue;
                 }
@@ -488,23 +492,19 @@ impl<'a> EntriesFields<'a> {
         Ok(None)
     }
 
-    /// Whether node-tar reads `block` as a header, rather than skipping it.
-    /// node-tar does not decode the size field of an entry that a pending
-    /// PAX `size` applies to.
+    /// Whether node-tar reads `block` as a header, rather than skipping it,
+    /// with `pax_extensions` and the global PAX records pending.
     fn reads_as_node_tar_header(
+        &self,
         block: &[u8; BLOCK_SIZE as usize],
         pax_extensions: Option<&[u8]>,
-    ) -> io::Result<bool> {
-        if !agreement::is_valid_header_block(block) {
-            return Ok(false);
-        }
-        let pax_sets_size = match pax_extensions {
-            Some(records) if agreement::is_normal_fs_type(block[156]) => {
-                agreement::pax_size(records)?.is_some()
-            }
-            _ => false,
-        };
-        Ok(pax_sets_size || agreement::header_size(&block[124..136]).is_some())
+    ) -> bool {
+        agreement::reads_as_header(block, |key| {
+            self.global_pax_field_keys.contains(key)
+                || pax_extensions.is_some_and(|records| {
+                    agreement::pax_field_keys(records).any(|set| set == key)
+                })
+        })
     }
 
     /// Ends the archive at a zero block, unless data follows it, which
@@ -584,6 +584,9 @@ impl<'a> EntriesFields<'a> {
                 let records = fields.read_all()?;
                 let records = self.keep_last_pax_records(records)?;
                 agreement::check_pax_records(&records, true)?;
+                self.global_pax_field_keys.extend(
+                    agreement::pax_field_keys(&records).map(str::to_string),
+                );
                 fields.pax_extensions = Some(records);
                 return Ok(Some(fields.into_entry()));
             }
@@ -595,7 +598,7 @@ impl<'a> EntriesFields<'a> {
                          the same member",
                     ));
                 }
-                let value = agreement::node_tar_string(&EntryFields::from(entry).read_all()?);
+                let value = agreement::gnu_long_value(&EntryFields::from(entry).read_all()?)?;
                 gnu_longname = Some(value);
                 continue;
             }
@@ -612,7 +615,7 @@ impl<'a> EntriesFields<'a> {
                          the same member",
                     ));
                 }
-                let value = agreement::node_tar_string(&EntryFields::from(entry).read_all()?);
+                let value = agreement::gnu_long_value(&EntryFields::from(entry).read_all()?)?;
                 gnu_longlink = Some(value);
                 continue;
             }

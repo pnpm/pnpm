@@ -33,6 +33,7 @@ pub(crate) use extract::{
     STREAM_ENTRY_BUFFER_MAX,
     STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    TarEnd,
     allocate_tarball_buffer,
     apply_append_manifest,
     apply_placeholder_manifest,

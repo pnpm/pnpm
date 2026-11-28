@@ -181,17 +181,21 @@ pub(crate) fn extract_gzipped_tarball_with_tar(
     }
     match decompress_gzip(gz_data, unpacked_size) {
         Ok(tar_data) => {
-            let pending = collect_pending_tar_entries(&tar_data, limits, ignore_file_pattern)?;
-            // The eager decoder reads one gzip member and cannot tell whether
-            // another follows, which node-tar would read as more of the tar.
-            if pending.end == TarEnd::Input {
-                return stream_extract_gzipped_tarball_with_tar(
-                    gz_data,
-                    limits,
-                    store_dir,
-                    ignore_file_pattern,
-                );
-            }
+            // The eager decoder reads one gzip member. A tar that stops before
+            // its end-of-archive marker, or fails, may go on in the next
+            // member, which node-tar reads and the streaming path reads too.
+            let pending = match collect_pending_tar_entries(&tar_data, limits, ignore_file_pattern)
+            {
+                Ok(pending) if pending.end == TarEnd::Marker => pending,
+                _ => {
+                    return stream_extract_gzipped_tarball_with_tar(
+                        gz_data,
+                        limits,
+                        store_dir,
+                        ignore_file_pattern,
+                    );
+                }
+            };
             let ((files, index, bins), tar) =
                 write_pending_tar(store_dir, pending, || eager_tar_integrity(gz_data, &tar_data))?;
             Ok((files, index, bins, tar))

@@ -333,7 +333,9 @@ pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError
             raw: raw.to_string(),
         }));
     }
-    if has_top_level_dir && parts.len() > 1 {
+    // The removed component is the top-level directory, or else a leading
+    // `.` that names the package directory itself.
+    if parts.len() > 1 && (has_top_level_dir || parts[0] == ".") {
         parts.remove(0);
     }
     Ok(parts.join("/"))
