@@ -2,7 +2,7 @@ import { type DependentsTree, type DependentNode } from '@pnpm/reviewing.depende
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
-import { getPkgInfo } from './getPkgInfo.js'
+import { getPkgInfo, renderLongInfoLines } from './getPkgInfo.js'
 
 export async function renderDependentsTree (trees: DependentsTree[], opts: { long: boolean, depth?: number }): Promise<string> {
   if (trees.length === 0) return ''
@@ -18,15 +18,7 @@ export async function renderDependentsTree (trees: DependentsTree[], opts: { lon
       }
       if (opts.long && result.path) {
         const pkg = await getPkgInfo({ name: result.name, version: result.version, path: result.path, alias: undefined })
-        if (pkg.description) {
-          rootLabelParts.push(pkg.description)
-        }
-        if (pkg.repository) {
-          rootLabelParts.push(pkg.repository)
-        }
-        if (pkg.homepage) {
-          rootLabelParts.push(pkg.homepage)
-        }
+        rootLabelParts.push(...renderLongInfoLines(pkg))
         rootLabelParts.push(pkg.path)
       }
       const rootLabel = rootLabelParts.join('\n')
