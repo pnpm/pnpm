@@ -41,6 +41,7 @@ pub use dir_handle::{
     open_directory_for_traversal,
     open_file_at,
     open_file_at_without_blocking,
+    open_or_create_file_at,
     open_search_directory,
     read_link_at,
     remove_directory_at,

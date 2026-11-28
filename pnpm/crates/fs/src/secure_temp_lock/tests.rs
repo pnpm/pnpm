@@ -110,6 +110,88 @@ fn refuses_a_symlinked_lock_file() {
     assert!(open_secure_lock_file(&link).is_err());
 }
 
+#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+#[test]
+fn restores_an_unreadable_owned_lock_directory() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let directory = super::secure_lock_dir(root.path().to_owned(), "locks").unwrap();
+    #[cfg(target_os = "macos")]
+    let initial_modes = [0o300];
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    let initial_modes = [0o300, 0];
+    for initial_mode in initial_modes {
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(initial_mode))
+            .unwrap();
+        let repaired = super::secure_lock_dir(root.path().to_owned(), "locks").unwrap();
+        assert_eq!(
+            std::fs::metadata(&repaired)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700,
+        );
+        open_secure_lock_file(&repaired.join("lock")).unwrap();
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn reports_a_lock_directory_that_cannot_be_opened_for_reading_or_search() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    if pnpm_ffi_process::effective_user_id() == 0 {
+        return;
+    }
+    let root = tempfile::tempdir().unwrap();
+    let directory = super::secure_lock_dir(root.path().to_owned(), "locks").unwrap();
+    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0)).unwrap();
+    let error = super::secure_lock_dir(root.path().to_owned(), "locks").unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    assert!(error.to_string().contains("Restore owner read or search permission"));
+    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+}
+
+#[test]
+fn concurrent_first_opens_share_the_lock_file() {
+    use std::os::unix::fs::MetadataExt as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let lock = root.path().join("lock");
+    let callers = 8;
+    let start = std::sync::Barrier::new(callers);
+    std::thread::scope(|scope| {
+        let threads: Vec<_> = (0..callers)
+            .map(|_| {
+                scope.spawn(|| {
+                    start.wait();
+                    open_secure_lock_file(&lock)
+                        .unwrap()
+                        .metadata()
+                        .unwrap()
+                        .ino()
+                })
+            })
+            .collect();
+        for thread in threads {
+            assert_eq!(thread.join().unwrap(), std::fs::metadata(&lock).unwrap().ino());
+        }
+    });
+}
+
+#[test]
+fn refuses_a_symlinked_lock_directory() {
+    let root = tempfile::tempdir().unwrap();
+    let directory = root.path().join("directory");
+    std::fs::create_dir(&directory).unwrap();
+    let alias = root.path().join("alias");
+    std::os::unix::fs::symlink(&directory, &alias).unwrap();
+    assert!(open_secure_lock_file(&alias.join("lock")).is_err());
+    assert!(!directory.join("lock").exists());
+}
+
 #[cfg(unix)]
 #[test]
 fn refuses_a_hardlinked_lock_file() {

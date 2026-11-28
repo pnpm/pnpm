@@ -200,9 +200,7 @@ fn chmod_search_only_directory(
     child: &std::fs::File,
     mode: FileMode,
 ) -> io::Result<()> {
-    use std::os::unix::io::AsRawFd as _;
-    let path = format!("/proc/self/fd/{}", child.as_raw_fd());
-    std::fs::set_permissions(path, mode.into())
+    super::set_path_handle_mode(child, mode)
 }
 
 #[cfg(all(unix, not(target_os = "linux")))]

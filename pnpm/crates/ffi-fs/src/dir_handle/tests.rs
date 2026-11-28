@@ -24,6 +24,24 @@ fn open_root(path: &Path) -> fs::File {
     fs::File::open(path).expect("open the fixture root")
 }
 
+#[test]
+fn darwin_concurrent_create_recovery_opens_only_an_existing_file() {
+    let fixture = tempfile::tempdir().unwrap();
+    let root = open_root(fixture.path());
+    let name = super::entry_name(OsStr::new("lock")).unwrap();
+    let recover =
+        || super::open_after_concurrent_create(io::ErrorKind::NotFound.into(), &root, &name);
+    assert_eq!(recover().unwrap_err().kind(), io::ErrorKind::NotFound);
+    fs::write(fixture.path().join("lock"), "existing").unwrap();
+    assert_eq!(io::read_to_string(recover().unwrap()).unwrap(), "existing");
+    assert_eq!(
+        super::open_after_concurrent_create(io::ErrorKind::PermissionDenied.into(), &root, &name)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::PermissionDenied,
+    );
+}
+
 /// Pins that the directory a handle names is the one entries are resolved
 /// in, which is the property the whole module exists for.
 #[test]
