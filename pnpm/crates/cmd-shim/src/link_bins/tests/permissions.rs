@@ -13,6 +13,7 @@ use super::{
     link_bins_of_packages,
     tempdir,
 };
+use pnpm_testing_utils::spawn::output_retrying_busy;
 use std::{
     fs,
     io,
@@ -121,7 +122,7 @@ fn linking_workspace_bins_preserves_source_permissions() {
                     0o644,
                     "linked={linked}, prefer_symlinked_executables={prefer_symlinked_executables}",
                 );
-                let output = Command::new(bins.join("foo")).output().unwrap();
+                let output = output_retrying_busy(&mut Command::new(bins.join("foo")));
                 assert!(output.status.success(), "bin failed: {output:?}");
                 assert_eq!(String::from_utf8(output.stdout).unwrap(), "workspace bin\n");
             }
@@ -150,7 +151,7 @@ fn linking_a_bin_symlink_preserves_external_source_permissions() {
             & 0o777,
         0o644,
     );
-    let output = Command::new(bins.join("foo")).output().unwrap();
+    let output = output_retrying_busy(&mut Command::new(bins.join("foo")));
     assert!(output.status.success(), "bin failed: {output:?}");
     assert_eq!(String::from_utf8(output.stdout).unwrap(), "workspace bin\n");
 }
@@ -192,7 +193,7 @@ fn unsuitable_workspace_bins_use_executable_shims() {
                 fs::symlink_metadata(bins.join("foo")).unwrap().is_file(),
                 "the bin must use a wrapper",
             );
-            let output = Command::new(bins.join("foo")).output().unwrap();
+            let output = output_retrying_busy(&mut Command::new(bins.join("foo")));
             assert!(output.status.success(), "bin failed: {output:?}");
             assert_eq!(String::from_utf8(output.stdout).unwrap(), "workspace bin\n");
         }

@@ -639,6 +639,7 @@ fn a_reinstall_anchors_a_shim_written_without_the_physical_basedir() {
 #[test]
 fn a_shim_in_a_symlinked_bin_dir_names_its_target_from_the_physical_dir() {
     use crate::path_util::lexical_normalize;
+    use pnpm_testing_utils::spawn::output_retrying_busy;
     use std::os::unix::fs::{
         PermissionsExt,
         symlink,
@@ -666,7 +667,7 @@ fn a_shim_in_a_symlinked_bin_dir_names_its_target_from_the_physical_dir() {
     write_file(&node, "#!/bin/sh\nprintf '%s' \"$1\"\n").unwrap();
     std::fs::set_permissions(&node, std::fs::Permissions::from_mode(0o755)).unwrap();
 
-    let output = std::process::Command::new(bins_dir.join("tool")).output().unwrap();
+    let output = output_retrying_busy(&mut std::process::Command::new(bins_dir.join("tool")));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "stderr:\n{stderr}");
     let script_path = PathBuf::from(String::from_utf8(output.stdout).unwrap());

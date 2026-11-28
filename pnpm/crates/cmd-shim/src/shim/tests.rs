@@ -928,6 +928,7 @@ fn generate_pwsh_shim_emits_direct_exec_when_no_runtime() {
 #[cfg(unix)]
 #[test]
 fn shim_execution_resolves_symlink_chain() {
+    use pnpm_testing_utils::spawn::output_retrying_busy;
     use std::{
         fs,
         os::unix::fs::symlink,
@@ -961,7 +962,7 @@ fn shim_execution_resolves_symlink_chain() {
     let hop2 = hop2_dir.join("tsc");
     symlink("../../symlink_hop_1", &hop2).unwrap();
 
-    let output = Command::new(&hop2).output().expect("execute shim through symlink chain");
+    let output = output_retrying_busy(&mut Command::new(&hop2));
     assert!(
         output.status.success(),
         "Shim execution failed: {:?}",

@@ -41,6 +41,7 @@ fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
 #[test]
 fn relative_node_path_segments_are_sh_escaped() {
     use super::write_executable;
+    use pnpm_testing_utils::spawn::output_retrying_busy;
     use std::{
         fs,
         process::Command,
@@ -62,11 +63,9 @@ fn relative_node_path_segments_are_sh_escaped() {
     let node_path = [entry.to_string_lossy().into_owned()];
     write_executable(&shim, &generate_sh_shim(&target, &shim, None, &node_path, Some(root)));
 
-    let output = Command::new(&shim)
-        .with_current_dir(root)
-        .without_env("NODE_PATH")
-        .output()
-        .unwrap();
+    let output = output_retrying_busy(
+        &mut Command::new(&shim).with_current_dir(root).without_env("NODE_PATH"),
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STATUS: {:?}\nSTDERR:\n{stderr}", output.status);
     assert!(output.status.success());
@@ -81,6 +80,7 @@ fn relative_node_path_segments_are_sh_escaped() {
 #[test]
 fn shell_metacharacters_in_target_and_node_path_are_literal() {
     use super::write_executable;
+    use pnpm_testing_utils::spawn::output_retrying_busy;
     use std::{
         fs,
         process::Command,
@@ -97,11 +97,9 @@ fn shell_metacharacters_in_target_and_node_path_are_literal() {
     let node_path = [hostile.to_string_lossy().into_owned()];
     write_executable(&shim, &generate_sh_shim(&target, &shim, None, &node_path, None));
 
-    let output = Command::new(&shim)
-        .with_current_dir(root)
-        .without_env("NODE_PATH")
-        .output()
-        .unwrap();
+    let output = output_retrying_busy(
+        &mut Command::new(&shim).with_current_dir(root).without_env("NODE_PATH"),
+    );
 
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout), node_path[0]);

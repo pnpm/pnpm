@@ -113,3 +113,33 @@ fn wait_for_gate(ready: std::os::fd::RawFd, gate: std::os::fd::RawFd) -> std::io
     };
     if succeeded { Ok(()) } else { Err(std::io::Error::last_os_error()) }
 }
+
+/// Run `command` to completion, retrying while `exec` fails with `ETXTBSY`.
+///
+/// For a test that runs an executable it has just written. A child that a
+/// concurrent test forks in the meantime inherits the write descriptor and
+/// holds it until its own `exec`, and Linux refuses to run a file open for
+/// writing.
+///
+/// # Panics
+///
+/// When the spawn fails otherwise, or the file is still busy after two
+/// seconds.
+pub fn output_retrying_busy(command: &mut std::process::Command) -> std::process::Output {
+    let mut last_busy = None;
+    for _ in 0..200 {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "a test helper starts processes the executor does not run"
+        )]
+        match command.output() {
+            Ok(output) => return output,
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                last_busy = Some(error);
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(error) => panic!("run {command:?}: {error:?}"),
+        }
+    }
+    panic!("{command:?} stayed busy: {last_busy:?}");
+}

@@ -12,6 +12,7 @@ use super::{
     link_options,
 };
 use pnpm_cmd_shim::link_bins;
+use pnpm_testing_utils::spawn::output_retrying_busy;
 use std::{
     fs,
     process::Command,
@@ -56,7 +57,7 @@ fn refreshes_the_physical_hoisted_bin_container_for_scoped_and_unscoped_packages
             link_bins::<Host>(&directory, &directory.join(".bin"), &link_options(&options, true))
                 .expect("refresh selected bins");
         }
-        let output = run_bin(&modules.join(".bin/tool"));
+        let output = output_retrying_busy(&mut Command::new(modules.join(".bin/tool")));
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
         assert_eq!(output.stdout, b"built binary\n");
     }
@@ -91,7 +92,7 @@ fn final_hoisted_refresh_reuses_discovery_and_completed_provider_reads() {
     let roots = HashMap::from([(key.clone(), vec![root.clone()])]);
     let mutated = HashSet::from([key]);
     assert!(super::refresh_cached_directory(&plans, &modules, &roots, &mutated, &options).unwrap());
-    let output = run_bin(&modules.join(".bin/tool"));
+    let output = output_retrying_busy(&mut Command::new(modules.join(".bin/tool")));
     assert!(output.status.success());
     assert_eq!(output.stdout, b"refreshed\n");
     fs::write(root.join("package.json"), "completed provider must not be reread").unwrap();
@@ -172,22 +173,7 @@ fn private_hoist_refresh_updates_symlinked_virtual_store_package_bins() {
         .refresh_private_hoist(&HashSet::from([key]), &options)
         .unwrap();
 
-    let output = run_bin(&hoisted_modules.join(".bin/tool"));
+    let output = output_retrying_busy(&mut Command::new(hoisted_modules.join(".bin/tool")));
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(output.stdout, b"private hoist refreshed\n");
-}
-
-fn run_bin(path: &std::path::Path) -> std::process::Output {
-    let mut last_busy = None;
-    for _ in 0..200 {
-        match Command::new(path).output() {
-            Ok(output) => return output,
-            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
-                last_busy = Some(error);
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-            Err(error) => panic!("run refreshed bin {}: {error:?}", path.display()),
-        }
-    }
-    panic!("refreshed bin stayed busy {}: {last_busy:?}", path.display());
 }
