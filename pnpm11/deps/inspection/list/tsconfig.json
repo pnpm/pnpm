@@ -25,6 +25,9 @@
       "path": "../../../text/ordinal-comparator"
     },
     {
+      "path": "../../../text/sanitize"
+    },
+    {
       "path": "../../../text/tree-renderer"
     },
     {
