@@ -41,6 +41,7 @@ use pnpm_config::{
     validate_structured_setting,
 };
 use pnpm_workspace_manifest_writer::{
+    SettingInput,
     update_manifest_field,
     update_private_manifest_field,
     update_workspace_setting,
@@ -327,18 +328,21 @@ fn config_set(
     let segments = config_key_path(key)?;
 
     // The cast/parsed value. `None` (delete) and JSON `null` both delete.
-    let value: Value = match value {
-        None => Value::Null,
-        Some(raw) if flags.json => serde_json::from_str(&raw).map_err(ConfigError::InvalidJson)?,
-        Some(raw) => Value::String(raw),
+    let input = match value {
+        None => SettingInput::Json(Value::Null),
+        Some(raw) if flags.json => {
+            SettingInput::Json(serde_json::from_str(&raw).map_err(ConfigError::InvalidJson)?)
+        }
+        Some(raw) => SettingInput::Plain(raw),
     };
 
     let mut key = match segments.as_slice() {
         [] => return Err(ConfigError::SetEmptyKey.into()),
         [single] => segment_to_string(single),
-        path if !deleting => return nested::set(config, dir, flags, path, value),
+        path if !deleting => return nested::set(config, dir, flags, path, input),
         _ => return Err(ConfigError::SetDeepKey.into()),
     };
+    let value = Value::from(input);
     if config_types::is_ini_config_key(&key) {
         return set_auth_setting(config, dir, global, key, &value);
     }

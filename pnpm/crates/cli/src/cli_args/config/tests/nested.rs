@@ -164,3 +164,32 @@ fn dotted_set_uses_the_field_type_for_plain_numbers() {
     assert_eq!(yaml["tasks"]["compile"]["priority"], json!(1));
     assert_eq!(yaml["catalog"]["priority"], json!("1"));
 }
+
+#[test]
+fn dotted_set_records_build_decisions_and_preserves_explicit_strings() {
+    for (key, global, json_input, raw, expected) in [
+        ("allowBuilds.example", false, false, "true", json!(true)),
+        ("permissions.example.build", false, false, "false", json!(false)),
+        ("permissions.rules.example.build", false, false, "true", json!(true)),
+        ("globalPackagesConfig.allowBuilds.example", true, false, "true", json!(true)),
+        ("allowBuilds.example", false, true, r#""true""#, json!("true")),
+        ("catalog.example", false, false, "true", json!("true")),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let location = if global { None } else { Some(ConfigLocation::Project) };
+        config_set(
+            &config_with_dir(tmp.path()),
+            tmp.path(),
+            flags(global, location, json_input),
+            key.into(),
+            Some(raw.into()),
+        )
+        .unwrap();
+        let filename = if global { "config.yaml" } else { "pnpm-workspace.yaml" };
+        let document = read_yaml(&tmp.path().join(filename)).unwrap();
+        let value = key
+            .split('.')
+            .fold(&document, |node, field| &node[field]);
+        assert_eq!(value, &expected, "{key}");
+    }
+}

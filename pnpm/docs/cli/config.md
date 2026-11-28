@@ -63,7 +63,7 @@ To change one field of a YAML setting and keep its sibling fields, use a dotted 
 pnpm config set -g globalPackagesConfig.virtualStoreType project
 ```
 
-Dotted keys address fields as written in YAML. A flat catalog can contain a package named `mode`; use `catalogMode` to set the policy independently of the catalog layout. pnpm accepts plain numbers and booleans when the field requires them. Use `--json` to supply an explicitly typed value:
+Dotted keys address fields as written in YAML. A flat catalog can contain a package named `mode`; use `catalogMode` to set the policy independently of the catalog layout. pnpm accepts plain numbers and booleans when the field requires them. For build permissions, plain `true` and `false` record a decision. Use `--json` to supply an explicitly typed value:
 
 ```sh
 pnpm config set --location=project --json tasks.build.priority 1

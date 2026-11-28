@@ -4,7 +4,6 @@ use super::{
     ConfigFlags,
     Path,
     Segment,
-    Value,
     YamlConfigTarget,
     config_types,
     get_config_file_info,
@@ -12,14 +11,17 @@ use super::{
     resolve_global,
     validate_yaml_target_key,
 };
-use pnpm_workspace_manifest_writer::update_nested_setting;
+use pnpm_workspace_manifest_writer::{
+    SettingInput,
+    update_nested_setting,
+};
 
 pub(super) fn set(
     config: &Config,
     dir: &Path,
     flags: ConfigFlags,
     segments: &[Segment],
-    value: Value,
+    input: SettingInput,
 ) -> miette::Result<()> {
     if let Some(key) = pnpm_config::property_path::unsafe_key(segments) {
         miette::bail!("Key {key:?} is not allowed in a property path");
@@ -47,5 +49,5 @@ pub(super) fn set(
         normalized = naming_cases::to_camel_case(fields[0]);
         fields[0] = &normalized;
     }
-    update_nested_setting(&dir, scope, &key, fields, value, !flags.json)
+    update_nested_setting(&dir, scope, &key, fields, input)
 }

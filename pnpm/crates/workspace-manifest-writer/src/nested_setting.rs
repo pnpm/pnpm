@@ -27,14 +27,59 @@ use serde_json::{
 };
 use std::path::Path;
 
+pub enum SettingInput {
+    Plain(String),
+    Json(Value),
+}
+
+impl From<SettingInput> for Value {
+    fn from(input: SettingInput) -> Self {
+        match input {
+            SettingInput::Plain(text) => Self::String(text),
+            SettingInput::Json(value) => value,
+        }
+    }
+}
+
+impl SettingInput {
+    fn candidates(self, key: &str, fields: &[&str]) -> (Value, Option<Value>) {
+        let text = match self {
+            Self::Plain(text) => text,
+            Self::Json(value) => return (value, None),
+        };
+        let raw = text.trim();
+        if let Ok(boolean) = raw.parse::<bool>() {
+            if is_build_decision(key, fields) {
+                return (Value::Bool(boolean), None);
+            }
+            return (Value::String(text), Some(Value::Bool(boolean)));
+        }
+        let number = raw
+            .parse::<serde_json::Number>()
+            .ok()
+            .map(Value::Number);
+        (Value::String(text), number)
+    }
+}
+
+fn is_build_decision(root: &str, fields: &[&str]) -> bool {
+    let (key, path) = match (root, fields) {
+        ("globalPackagesConfig", [setting, rest @ ..]) => (*setting, rest),
+        path => path,
+    };
+    matches!(
+        (key, path),
+        ("allowBuilds", [_]) | ("permissions", [_, "build"] | ["rules", _, "build"]),
+    )
+}
+
 /// Set a field in the raw YAML mapping owned by this scope, preserving sibling entries.
 pub fn update_nested_setting(
     dir: &Path,
     scope: YamlConfigTarget,
     key: &str,
     fields: &[&str],
-    value: Value,
-    infer_scalar: bool,
+    input: SettingInput,
 ) -> miette::Result<()> {
     let (target, includes) = setting_target(dir, scope, key, fields)?;
     let text = read_if_present(&target.path)?.unwrap_or_default();
@@ -44,12 +89,13 @@ pub fn update_nested_setting(
     if document.is_null() {
         document = Value::Object(Map::new());
     }
+    let (value, fallback) = input.candidates(key, fields);
     let value =
         if target.included { rebase_field(&target, dir, key, fields, value)? } else { value };
     if !set_field(&mut document, key, fields, value)? {
         return Ok(());
     }
-    validate_section(&mut document, key, fields, scope, infer_scalar)?;
+    validate_section(&mut document, key, fields, scope, fallback)?;
     let section = &document[key];
     if let Some(includes) = includes {
         includes.check_setting_write(
@@ -77,7 +123,7 @@ fn validate_section(
     key: &str,
     fields: &[&str],
     scope: YamlConfigTarget,
-    infer_scalar: bool,
+    fallback: Option<Value>,
 ) -> miette::Result<()> {
     if matches!(key, "catalog" | "catalogs")
         && document.get("catalog").is_some()
@@ -89,23 +135,13 @@ fn validate_section(
     }
     if let Err(reason) = validate_nested_setting(key, &document[key], scope) {
         let error = miette::miette!("Invalid value for {key:?}: {reason}");
-        if !infer_scalar {
+        let Some(scalar) = fallback else {
             return Err(error);
-        }
-        let Some(field) = fields
+        };
+        let field = fields
             .iter()
             .try_fold(&mut document[key], |node, name| node.get_mut(*name))
-        else {
-            return Err(error);
-        };
-        let scalar = field
-            .as_str()
-            .map(str::trim)
-            .map(serde_json::from_str)
-            .and_then(Result::ok);
-        let Some(scalar @ (Value::Number(_) | Value::Bool(_))) = scalar else {
-            return Err(error);
-        };
+            .expect("set_field inserted this field");
         *field = scalar;
         validate_nested_setting(key, &document[key], scope).map_err(|_| error)?;
     }
