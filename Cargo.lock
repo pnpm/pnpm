@@ -5136,6 +5136,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-fs",
  "pnpm-package-manifest",
+ "pnpm-shell-quote",
  "rayon",
  "same-file",
  "serde_json",
@@ -7072,6 +7073,17 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "pnpm-shell-quote"
+version = "0.0.1"
+dependencies = [
+ "creusot-std",
+ "pnpm-creusot-models",
+ "pnpm-process",
+ "pretty_assertions",
+ "split-first-char",
 ]
 
 [[package]]

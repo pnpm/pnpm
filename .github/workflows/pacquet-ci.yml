@@ -118,6 +118,7 @@ jobs:
               - 'pnpm/crates/env-placeholders/**'
               - 'pnpm/crates/pkg-name-split/**'
               - 'pnpm/crates/relative-path/**'
+              - 'pnpm/crates/shell-quote/**'
               - 'pnpm/crates/strongly-connected-components/**'
               - 'pnpm/scripts/creusot.mjs'
               - 'pnpm/scripts/install-creusot.mjs'

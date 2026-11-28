@@ -4,11 +4,11 @@ pub use pnpm_package_manifest::{
     parse_shebang,
     parse_shebang_from_bytes,
 };
-pub use powershell::generate_pwsh_shim;
-pub use quoting::{
+pub use pnpm_shell_quote::{
     cmd_escape,
     sh_single_quote,
 };
+pub use powershell::generate_pwsh_shim;
 pub(crate) use relocatable::{
     is_relocatable_shim,
     is_within_root,
@@ -327,8 +327,6 @@ fn relative_path_from(from: &Path, to: &Path) -> PathBuf {
 mod tests;
 
 mod powershell;
-
-mod quoting;
 
 mod relocatable;
 

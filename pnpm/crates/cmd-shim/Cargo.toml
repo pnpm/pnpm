@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-fs = { workspace = true }
 pnpm-package-manifest = { workspace = true }
+pnpm-shell-quote = { workspace = true }
 
 derive_more = { workspace = true }
 dunce = { workspace = true }
