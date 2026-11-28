@@ -49,7 +49,11 @@ pub fn pack_fetched_tarball<Sys: FsCreateDirAll + FsAtomicWrite>(
     opts: &FetchedPackOptions<'_>,
 ) -> Result<PackResult, PackError> {
     verify_declared_integrity(opts)?;
-    let archive = read_fetched_archive(opts.bytes, opts.source)?;
+    let archive = read_fetched_archive(
+        opts.bytes,
+        opts.source,
+        pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE,
+    )?;
     let manifest = archive_manifest(&archive, opts.source)?;
     let (name, version) = manifest_identity(&manifest)?;
     let (tarball_name, pack_destination) = super::output::resolve_output_values(
@@ -98,29 +102,30 @@ fn verify_declared_integrity(opts: &FetchedPackOptions<'_>) -> Result<(), PackEr
     Ok(())
 }
 
-fn read_fetched_archive(
+/// Scan the archive, reading at most `limit` decoded bytes: a small hostile
+/// gzip must not expand without bound. The written file keeps the original
+/// bytes; the bound is on the scan only.
+pub(crate) fn read_fetched_archive(
     bytes: &[u8],
     source: &str,
+    limit: u64,
 ) -> Result<pnpm_tarball::PublicationArchive, PackError> {
     let decoded: Box<dyn Read> = if bytes.starts_with(&GZIP_MAGIC) {
         Box::new(GzDecoder::new(bytes))
     } else {
         Box::new(bytes)
     };
-    // Bound the decoded stream: a small hostile gzip must not expand
-    // without limit while the reader scans the archive. The written file
-    // keeps the original bytes regardless; this bound is on the scan.
-    let limit = pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE;
     let mut bounded = decoded.take(limit + 1);
-    let archive = pnpm_tarball::read_publication_archive(&mut bounded)
-        .map_err(|error| PackError::FetchedTarballUnreadable {
-            source: source.to_string(),
-            message: error.to_string(),
-        })?;
+    let scanned = pnpm_tarball::read_publication_archive(&mut bounded);
+    // Checked before the scan's own result: hitting the bound truncates the
+    // stream, which the reader reports as a malformed archive.
     if bounded.limit() == 0 {
         return Err(PackError::FetchedTarballTooLarge { source: source.to_string(), limit });
     }
-    Ok(archive)
+    scanned.map_err(|error| PackError::FetchedTarballUnreadable {
+        source: source.to_string(),
+        message: error.to_string(),
+    })
 }
 
 /// The manifest inside the archive, parsed.

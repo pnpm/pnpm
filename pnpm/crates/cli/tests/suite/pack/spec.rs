@@ -38,7 +38,7 @@ fn packs_a_registry_package_spec() {
     assert!(
         result["integrity"]
             .as_str()
-            .is_some_and(|i| i.starts_with("sha512-"))
+            .is_some_and(|i| i.starts_with("sha512-")),
     );
     assert!(result["size"].as_u64().unwrap() > 0);
     assert!(
@@ -46,7 +46,7 @@ fn packs_a_registry_package_spec() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|f| f["path"] == "package.json")
+            .any(|f| f["path"] == "package.json"),
     );
     assert_eq!(result["manifest"]["name"], "@pnpm.e2e/foo");
 

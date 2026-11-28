@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{
     FetchedPackOptions,
+    fetched::read_fetched_archive,
     pack_fetched_tarball,
 };
 use flate2::{
@@ -93,7 +94,7 @@ fn packs_a_fetched_tarball_under_the_manifest_name_and_version() {
     assert!(
         result.unpacked_size > 0,
         "unpacked size sums the archive's entries: {}",
-        result.unpacked_size
+        result.unpacked_size,
     );
 }
 
@@ -120,14 +121,14 @@ fn checks_the_registry_declared_integrity() {
     let error = pack_fetched_tarball::<Host>(&opts).unwrap_err();
     assert!(
         matches!(error, PackError::FetchedIntegrityMismatch { .. }),
-        "mismatched bytes fail the integrity check: {error}"
+        "mismatched bytes fail the integrity check: {error}",
     );
     assert!(
         !mismatch_dir
             .path()
             .join("foo-1.0.0.tgz")
             .exists(),
-        "nothing written on mismatch"
+        "nothing written on mismatch",
     );
 }
 
@@ -138,7 +139,7 @@ fn rejects_an_archive_without_a_manifest() {
     let error = pack_fetched_tarball::<Host>(&fetched(dir.path(), &bytes)).unwrap_err();
     assert!(
         matches!(error, PackError::FetchedTarballUnreadable { .. }),
-        "a manifestless archive is unreadable: {error}"
+        "a manifestless archive is unreadable: {error}",
     );
 }
 
@@ -156,7 +157,7 @@ fn dry_run_writes_nothing_and_reports_no_digest() {
         !dir.path()
             .join("foo-1.0.0.tgz")
             .exists(),
-        "a dry run writes no file"
+        "a dry run writes no file",
     );
 }
 
@@ -173,7 +174,7 @@ fn honors_the_out_template_and_pack_destination() {
         dir.path()
             .join("dist/scope-foo-2.0.0.tgz")
             .exists(),
-        "out template expanded: {result:?}"
+        "out template expanded: {result:?}",
     );
 
     let dir2 = tempdir().unwrap();
@@ -184,7 +185,7 @@ fn honors_the_out_template_and_pack_destination() {
         dir2.path()
             .join("archives/scope-foo-2.0.0.tgz")
             .exists(),
-        "destination honored"
+        "destination honored",
     );
 }
 
@@ -204,7 +205,7 @@ fn accepts_a_sha1_declared_integrity() {
     assert!(
         dir.path()
             .join("foo-1.0.0.tgz")
-            .exists()
+            .exists(),
     );
 }
 
@@ -224,7 +225,7 @@ fn rejects_a_manifest_identity_that_escapes_the_destination() {
                 error,
                 PackError::InvalidPackageVersion { .. } | PackError::InvalidPackageName { .. }
             ),
-            "manifest {manifest} is rejected: {error}"
+            "manifest {manifest} is rejected: {error}",
         );
     }
     assert!(!outer.path().join("backup.tgz").exists(), "nothing written outside the destination");
@@ -243,6 +244,21 @@ fn packs_a_plain_tar() {
     assert!(
         dir.path()
             .join("foo-1.0.0.tgz")
-            .exists()
+            .exists(),
+    );
+}
+
+#[test]
+fn rejects_an_archive_that_decodes_past_the_scan_limit() {
+    let padding = "0".repeat(64 * 1024);
+    let bytes =
+        minimal_tgz(&json!({ "name": "foo", "version": "1.0.0" }), &[("pad.txt", &padding)]);
+    assert!(bytes.len() < 4096, "the gzip stays small: {} bytes", bytes.len());
+
+    let error = read_fetched_archive(&bytes, "foo.tgz", 4096).unwrap_err();
+
+    assert!(
+        matches!(error, PackError::FetchedTarballTooLarge { limit: 4096, .. }),
+        "the decoded size trips the limit: {error}",
     );
 }

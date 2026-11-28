@@ -22,6 +22,7 @@ use miette::{
     Diagnostic,
     IntoDiagnostic,
 };
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
@@ -171,7 +172,7 @@ async fn pack_local_dir<Reporter: self::Reporter>(
             path.starts_with(pnpm_pack::canonicalize_pack_dir(workspace_dir))
         });
     let shared = PackSharedContext {
-        catalogs: if in_workspace { configured_catalogs(config)? } else { Default::default() },
+        catalogs: if in_workspace { configured_catalogs(config)? } else { Catalogs::default() },
         output_base_dir: Some(dir.to_path_buf()),
         out: args.out.clone(),
         pack_destination: args.pack_destination.clone(),
