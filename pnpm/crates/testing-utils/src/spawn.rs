@@ -153,5 +153,6 @@ fn is_busy_shell_exec(output: &std::process::Output) -> bool {
     output.status.code() == Some(126)
         && String::from_utf8_lossy(&output.stderr)
             .lines()
-            .any(|line| line.trim_end().ends_with(": Text file busy"))
+            .map(str::trim_end)
+            .any(|line| line.ends_with(": Text file busy"))
 }
