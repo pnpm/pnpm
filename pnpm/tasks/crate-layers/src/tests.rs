@@ -110,8 +110,6 @@ base = { path = "../base" }
     );
 }
 
-/// Only `cargo creusot` sets `cfg(creusot)`, so no build compiles a
-/// dependency declared under it.
 #[test]
 fn leaves_out_dependencies_only_creusot_compiles() {
     let graph = workspace(

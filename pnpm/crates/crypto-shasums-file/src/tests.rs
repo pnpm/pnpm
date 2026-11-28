@@ -55,7 +55,6 @@ fn skips_empty_lines() {
     assert_eq!(items[0].file_name, "def");
 }
 
-/// Each malformed row used to give its file an empty or a wrong integrity.
 #[test]
 fn skips_rows_whose_hash_is_not_64_hex_digits() {
     let rows = [

@@ -32,7 +32,7 @@ cargo creusot -p <crate>        # one crate
 
 `just creusot` fails unless `cargo creusot` proved every Coma file it generated. `cargo creusot` itself exits 0 when `why3find` cannot read them, which a Why3 whose plugins came from two builds causes: install a release into an empty `/opt/creusot-why3`.
 
-A run writes three things at the repository root, all ignored by git: `verif/` holds the generated Coma, `why3find.proofs/` the prover each goal took, and `.why3find/` the prover cache. `why3find.json` configures the provers and is committed.
+A run writes these at the repository root, all ignored by git: `verif/` holds the generated Coma, `why3find.proofs/` the prover each goal took, and `.why3find/` the prover cache. `why3find.json` configures the provers and is committed.
 
 ## How a crate is verified
 
@@ -57,7 +57,7 @@ A fact about one value travels in the value's type, not in a precondition that e
 ## Writing proofs
 
 - Import from `creusot_std::prelude` by name. Its glob also brings a `vec!` that conflicts with the standard one.
-- A logic function that reads a private field is `#[logic(open(self))]`. Mark a predicate that is a conjunction `inline` too, so Why3 proves each conjunct as its own goal.
+- Mark a predicate that is a conjunction `inline`, so Why3 proves each conjunct as its own goal.
 - `proof_assert!` keeps only its last expression as a fact. When it calls a lemma, end it with the lemma's conclusion.
 - `str` methods take byte offsets and the contracts speak of characters. `to_bytes` relates the two, and `injective_to_bytes` shows that two strings with equal bytes are equal. The `utf8` module of `pnpm-creusot-models` holds the lemmas that relate them. Its `ascii_byte` shows that an ASCII byte is a whole character, so a scan of `as_bytes`, such as the one in `pnpm-env-placeholders`, can slice the `str` wherever it finds one. The `spec` module of `pnpm-pkg-name-split` slices a `str` at the byte length of a substring.
 - Pearlite has no byte literals. Name the byte as a `const`, which the program and its contracts then share.

@@ -3,7 +3,7 @@
 //! those of third-party crates.
 //!
 //! Creusot trusts a contract here: it assumes the postcondition and proves
-//! nothing about the body. Two things stand in for that proof:
+//! nothing about the body. These stand in for that proof:
 //!
 //! - `tests.rs` runs each real function on generated inputs and checks the
 //!   postcondition, so a contract that claims more than the function does

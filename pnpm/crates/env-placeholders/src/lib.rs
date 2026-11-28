@@ -204,11 +204,10 @@ fn cut_placeholder(text: &str, literal_start: usize, start: usize, end: usize) -
 /// The byte ranges of the placeholders of `text` that no backslash escapes,
 /// in order.
 ///
-/// A caller that resolves placeholders itself, rather than taking the whole
-/// substituted string from `pnpm-env-replace`, reads them from here so it
-/// agrees with that substitution about what a placeholder is, an unfinished
-/// `${` among them, which is text rather than the opening of one. Both read
-/// [`placeholders`].
+/// A caller that resolves placeholders itself, rather than taking the
+/// substituted string from `pnpm-env-replace`, reads them from here. Both
+/// read [`placeholders`], so they agree on what a placeholder is: an
+/// unfinished `${`, for one, is text.
 #[cfg_attr(creusot, ensures(forall<index> 0 <= index && index < result@.len() ==>
     is_placeholder(text@.to_bytes(), result@[index].start@, result@[index].end@)
         && is_boundary(text@, result@[index].start@) && is_boundary(text@, result@[index].end@)

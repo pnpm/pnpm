@@ -214,9 +214,9 @@ extern_spec! {
     }
 }
 
-/// A string holds at most `isize::MAX` bytes. The Rust Reference bounds the
-/// size of every value by `isize::MAX`, and no test can reach that size, so
-/// this is the one axiom here with nothing to check it against.
+/// A string holds at most `isize::MAX` bytes, as the Rust Reference bounds
+/// the size of every value. No test can reach that size, so nothing checks
+/// this axiom.
 #[trusted]
 #[logic]
 #[ensures(text@.to_bytes().len() <= isize::MAX@)]

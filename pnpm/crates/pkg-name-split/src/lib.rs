@@ -2,7 +2,7 @@
 //! bare name of `@{scope}/{bare}`, and the name and suffix of
 //! `{name}@{suffix}`, as lockfile keys, specifiers and descriptors write it.
 //!
-//! Creusot proves both splits, see `pnpm/VERIFICATION.md`. Each part is a
+//! Creusot proves each split, see `pnpm/VERIFICATION.md`. Each part is a
 //! substring of the input, the parts and their separator rejoin to the
 //! input, and the split is at the first separator the syntax allows there.
 //! Neither function panics, the slicing included.
@@ -38,9 +38,8 @@ use split_first_char::SplitFirstChar;
 pub struct Scope<'name>(&'name str);
 
 impl<'name> Scope<'name> {
-    /// The only constructor. It is private because only `cargo creusot`
-    /// checks its precondition, so a caller in another crate could
-    /// otherwise break the type invariant.
+    /// The only constructor, private for the reason `pnpm/VERIFICATION.md`
+    /// gives.
     #[cfg_attr(creusot, requires(spec::is_scope(text@)))]
     #[cfg_attr(creusot, ensures(result@ == text@))]
     fn new(text: &'name str) -> Self {
@@ -102,9 +101,8 @@ pub fn split_scope(name: &str) -> Result<ScopeSplit<'_>, SplitScopeError> {
 pub struct KeyName<'key>(&'key str);
 
 impl<'key> KeyName<'key> {
-    /// The only constructor. It is private because only `cargo creusot`
-    /// checks its precondition, so a caller in another crate could
-    /// otherwise break the type invariant.
+    /// The only constructor, private for the reason `pnpm/VERIFICATION.md`
+    /// gives.
     #[cfg_attr(creusot, requires(spec::is_key_name(text@)))]
     #[cfg_attr(creusot, ensures(result@ == text@))]
     fn new(text: &'key str) -> Self {

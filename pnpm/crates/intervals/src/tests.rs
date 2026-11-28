@@ -10,7 +10,7 @@ use super::{
 use pretty_assertions::assert_eq;
 use std::cmp::Ordering;
 
-/// The values the checks below probe: every bound value, and one on each side.
+/// The values the tests probe: every bound value, and one on each side.
 const PROBES: [i32; 4] = [-1, 0, 1, 2];
 
 fn bounds() -> Vec<Bound<i32>> {

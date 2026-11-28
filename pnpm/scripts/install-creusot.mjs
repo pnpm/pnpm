@@ -1,11 +1,11 @@
 // Install Creusot from a release of creusot-prebuilt, the nightly it was
 // built against, and the SMT solvers it proves with. See `pnpm/VERIFICATION.md`.
 //
-// Every file this downloads is pinned below by its SHA-256, and a file that
-// hashes to anything else is refused before it is unpacked. The release's
-// table comes from its `release.json`, and the nightly's from Rust's channel
-// manifest for that date. Both are read when the pins move, never when this
-// runs. `creusot-install`, one of the pinned archives, pins the solvers.
+// Every file this downloads is pinned in this script by its SHA-256, and a
+// file that hashes to anything else is refused before it is unpacked. The
+// release's table comes from its `release.json`, and the nightly's from Rust's
+// channel manifest for that date. Both are read when the pins move, never when
+// this runs. `creusot-install`, one of the pinned archives, pins the solvers.
 //
 // `--downloads <dir>` keeps each verified download in `dir`, and reuses a
 // kept file only while it still matches its pin.
