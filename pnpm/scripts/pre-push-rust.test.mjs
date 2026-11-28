@@ -22,6 +22,8 @@ function stubbedCheckout (context, { rustup = true, cargoDylint = true } = {}) {
   if (rustup) stub('rustup', '')
   stub('typos', '')
   stub('taplo', '')
+  // Not Node.js's own directory on PATH: it may hold the tools a test leaves out.
+  fs.symlinkSync(process.execPath, path.join(bin, 'node'))
   fs.mkdirSync(path.join(dir, 'pnpm/scripts'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'pnpm/scripts/rustfmt.mjs'), '')
   fs.copyFileSync(path.join(path.dirname(SCRIPT), 'cargo-dylint.mjs'), path.join(dir, 'pnpm/scripts/cargo-dylint.mjs'))
@@ -36,7 +38,7 @@ test('runs cargo dylint without the git variables a hook inherits', { skip: proc
     cwd: dir,
     encoding: 'utf8',
     env: {
-      PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter),
+      PATH: [bin, '/usr/bin', '/bin'].join(path.delimiter),
       GIT_DIR: path.join(repo, '.git'),
       GIT_INDEX_FILE: path.join(repo, '.git/index'),
       GIT_WORK_TREE: repo,
@@ -53,7 +55,7 @@ test('skips cargo dylint when rustup is not on PATH', { skip: process.platform =
   const result = spawnSync('bash', [SCRIPT], {
     cwd: dir,
     encoding: 'utf8',
-    env: { PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) },
+    env: { PATH: [bin, '/usr/bin', '/bin'].join(path.delimiter) },
   })
 
   assert.equal(result.status, 0, result.stderr)
@@ -67,7 +69,7 @@ test('fails when rustup is on PATH and cargo-dylint is not', { skip: process.pla
   const result = spawnSync('bash', [SCRIPT], {
     cwd: dir,
     encoding: 'utf8',
-    env: { PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) },
+    env: { PATH: [bin, '/usr/bin', '/bin'].join(path.delimiter) },
   })
 
   assert.equal(result.status, 1, result.stderr)

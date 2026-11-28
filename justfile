@@ -17,7 +17,8 @@ init:
   # with `cargo install` (pinned) instead of `cargo binstall`.
   cargo install cargo-fixit@0.1.15 --locked
   # The prebuilt `cargo-dylint` binaries fail to build the driver locally.
-  cargo install cargo-dylint@6.3.0 dylint-link@6.3.0 --locked
+  # `--force` replaces one that is already installed at this version.
+  cargo install cargo-dylint@6.3.0 dylint-link@6.3.0 --locked --force
   node pnpm/scripts/rustfmt.mjs --install
 
 # When ready, run the same CI commands
