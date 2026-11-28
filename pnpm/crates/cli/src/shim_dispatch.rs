@@ -110,10 +110,11 @@ use rust_toolchain::{
     RUST_SHIM_PACKAGE,
     RustSelection,
     find_rust_candidate,
-    overrides_toolchain,
     run_global_rust,
     run_next_on_path,
     run_rust_toolchain,
+    run_toolchain_override,
+    toolchain_override,
 };
 use serde_json::Value;
 use settings::{
@@ -308,8 +309,9 @@ fn dispatch_rust(
     policy: ShimPolicy,
     state_dir: &Path,
 ) -> i32 {
-    if overrides_toolchain(args) {
-        return run_next_on_path(shim, args);
+    let rustup_toolchain = std::env::var_os("RUSTUP_TOOLCHAIN");
+    if let Some(selection) = toolchain_override(args, rustup_toolchain.as_deref()) {
+        return run_toolchain_override(shim, selection, args, state_dir);
     }
     let rustup_settings = rustup_settings_file();
     let Ok(cwd) = std::env::current_dir() else { return run_next_on_path(shim, args) };

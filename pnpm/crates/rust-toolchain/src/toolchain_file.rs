@@ -62,6 +62,24 @@ impl ToolchainRequest {
         Self { channel, profile: Profile::Default, components: Vec::new(), targets: Vec::new() }
     }
 
+    /// The request for `channel` with the profile, components, and targets
+    /// of the toolchain file that governs `dir`, unless rustup handles that
+    /// file itself. A file that cannot be read is an error.
+    pub fn for_channel_in(channel: Channel, dir: &Path) -> Result<Self, RustToolchainError> {
+        let file = dir
+            .ancestors()
+            .last()
+            .and_then(|root| find_toolchain_file(dir, root));
+        let project = file
+            .map(|file| read_toolchain_file(&file))
+            .transpose()?
+            .and_then(Result::ok);
+        Ok(match project {
+            Some(project) => Self { channel, ..project },
+            None => Self::for_channel(channel),
+        })
+    }
+
     /// The request with the standard libraries of `targets` added. A value
     /// that names no published target is left out: a target specification
     /// file, or `host-tuple`, which Cargo reads as the host's.

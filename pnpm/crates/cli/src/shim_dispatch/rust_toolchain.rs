@@ -32,6 +32,7 @@ use pnpm_rust_toolchain::{
     install_toolchain,
     installed_release,
     installed_toolchain,
+    parse_toolchain_name,
     read_toolchain_file,
 };
 use std::{
@@ -184,15 +185,97 @@ fn rustup_override_dir(cwd: &Path, settings: &Path) -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
-/// Whether the invocation picks its toolchain the way only rustup can: a
-/// `+<toolchain>` first argument, or `RUSTUP_TOOLCHAIN`. Both outrank a
-/// toolchain file for rustup, so they are left to it.
-pub(super) fn overrides_toolchain(args: &[OsString]) -> bool {
+/// A toolchain an invocation names the rustup way. It outranks a toolchain
+/// file, as it does for rustup.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum ToolchainOverride {
+    /// `RUSTUP_TOOLCHAIN` is the directory of a toolchain.
+    Dir(PathBuf),
+    /// A release channel, and how many leading arguments named it.
+    Release { channel: Channel, selector_args: usize },
+    /// A name only rustup resolves, such as a linked toolchain.
+    Rustup,
+}
+
+/// The override in a `+<toolchain>` first argument, or else in
+/// `rustup_toolchain`, the value of `RUSTUP_TOOLCHAIN`.
+pub(super) fn toolchain_override(
+    args: &[OsString],
+    rustup_toolchain: Option<&OsStr>,
+) -> Option<ToolchainOverride> {
     let plus_toolchain = args
         .first()
         .and_then(|arg| arg.to_str())
-        .is_some_and(|arg| arg.starts_with('+'));
-    plus_toolchain || std::env::var_os("RUSTUP_TOOLCHAIN").is_some_and(|value| !value.is_empty())
+        .and_then(|arg| arg.strip_prefix('+'));
+    if let Some(name) = plus_toolchain {
+        return Some(release_override(name, 1));
+    }
+    let value = rustup_toolchain.filter(|value| !value.is_empty())?;
+    if Path::new(value).is_absolute() {
+        return Some(ToolchainOverride::Dir(PathBuf::from(value)));
+    }
+    Some(value.to_str().map_or(ToolchainOverride::Rustup, |name| release_override(name, 0)))
+}
+
+fn release_override(name: &str, selector_args: usize) -> ToolchainOverride {
+    match parse_toolchain_name(name) {
+        Some(channel) => ToolchainOverride::Release { channel, selector_args },
+        None => ToolchainOverride::Rustup,
+    }
+}
+
+/// Run the tool of the toolchain `selection` names.
+///
+/// A release goes to a rustup proxy when one is next on `PATH`, so a
+/// machine with rustup keeps one copy of the toolchains it selects this
+/// way. Without rustup, pnpm installs the release.
+pub(super) fn run_toolchain_override(
+    shim: &ShimInvocation<'_>,
+    selection: ToolchainOverride,
+    args: &[OsString],
+    state_dir: &Path,
+) -> i32 {
+    match selection {
+        ToolchainOverride::Dir(dir) => {
+            let toolchain = InstalledToolchain { dir };
+            let program = toolchain.executable(shim.name);
+            if !program.is_file() {
+                return run_next_on_path(shim, args);
+            }
+            exec_program_with_bin_dirs(&program, &[toolchain.bin_dir()], args)
+        }
+        ToolchainOverride::Release { channel, selector_args }
+            if !next_program(shim).is_some_and(|program| is_rustup_proxy(&program)) =>
+        {
+            let request = std::env::current_dir()
+                .map_err(miette::Report::msg)
+                .and_then(|cwd| {
+                    ToolchainRequest::for_channel_in(channel.clone(), &cwd)
+                        .map_err(miette::Report::new)
+                });
+            match request {
+                Ok(request) => {
+                    run_rust_toolchain(state_dir, &request, shim.name, &args[selector_args..])
+                }
+                Err(error) => {
+                    pnpm_diagnostics::eprintln!(
+                        "pnpm: failed to prepare Rust {channel}: {error:?}",
+                    );
+                    1
+                }
+            }
+        }
+        ToolchainOverride::Release { .. } | ToolchainOverride::Rustup => {
+            run_next_on_path(shim, args)
+        }
+    }
+}
+
+/// Whether `program` is one of rustup's proxies: they sit beside `rustup`.
+fn is_rustup_proxy(program: &Path) -> bool {
+    program
+        .parent()
+        .is_some_and(|dir| which::which_in("rustup", Some(dir), dir).is_ok())
 }
 
 /// Install the toolchain `request` names, if it is not in the store yet,
@@ -225,7 +308,7 @@ pub(super) fn run_rust_toolchain(
     // Cargo finds `cargo-clippy` and the other subcommands in
     // `$CARGO_HOME/bin` before `PATH`, where rustup keeps its proxies, and a
     // rustup proxy runs the toolchain `RUSTUP_TOOLCHAIN` names when it is a
-    // path. A shim reached with it set leaves the choice to that proxy.
+    // path. A shim reached with it set runs that toolchain too.
     exec_program_with_env(
         &program,
         &[toolchain.bin_dir()],
@@ -256,9 +339,7 @@ fn prepare_toolchain(
 /// project whose toolchain pnpm does not manage, or a shim that is switched
 /// off.
 pub(super) fn run_next_on_path(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
-    let path = std::env::var_os("PATH").unwrap_or_default();
-    let executable = pnpm_executor::current_executable().unwrap_or_default();
-    let Some(program) = next_on_path(shim.name, shim.bin_dir, &executable, &path) else {
+    let Some(program) = next_program(shim) else {
         pnpm_diagnostics::eprintln!(
             "ERR_PNPM_SHIM_NO_TARGET  No rust-toolchain.toml names a toolchain for {} here, and no other {} is on PATH.",
             shim.name,
@@ -267,6 +348,12 @@ pub(super) fn run_next_on_path(shim: &ShimInvocation<'_>, args: &[OsString]) -> 
         return 127;
     };
     exec_program_with_bin_dirs(&program, &[], args)
+}
+
+fn next_program(shim: &ShimInvocation<'_>) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let executable = pnpm_executor::current_executable().unwrap_or_default();
+    next_on_path(shim.name, shim.bin_dir, &executable, &path)
 }
 
 /// The first `name` on `path` that is not a shim: outside `bin_dir`, which

@@ -1,13 +1,57 @@
 use super::{
     RustSelection,
+    ToolchainOverride,
     find_rust_candidate,
     next_on_path,
+    toolchain_override,
 };
 use crate::shim_dispatch::Candidate;
+use pnpm_rust_toolchain::Channel;
 use std::{
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
     path::Path,
 };
+
+#[test]
+fn a_plus_argument_outranks_rustup_toolchain() {
+    let args = |args: &[&str]| {
+        args.iter()
+            .map(OsString::from)
+            .collect::<Vec<_>>()
+    };
+    let release = |channel: &str, selector_args| {
+        Some(ToolchainOverride::Release {
+            channel: Channel::parse(channel).unwrap(),
+            selector_args,
+        })
+    };
+    let dir = std::env::temp_dir();
+
+    assert_eq!(toolchain_override(&args(&["build"]), None), None);
+    assert_eq!(toolchain_override(&args(&["build"]), Some(OsStr::new(""))), None);
+    assert_eq!(toolchain_override(&args(&["build", "+nightly"]), None), None);
+    assert_eq!(
+        toolchain_override(&args(&["+nightly", "build"]), Some(dir.as_os_str())),
+        release("nightly", 1),
+    );
+    assert_eq!(
+        toolchain_override(&args(&["build"]), Some(OsStr::new("1.95.0"))),
+        release("1.95.0", 0),
+    );
+    assert_eq!(
+        toolchain_override(&args(&["build"]), Some(dir.as_os_str())),
+        Some(ToolchainOverride::Dir(dir.clone())),
+    );
+    assert_eq!(toolchain_override(&args(&["+linked"]), None), Some(ToolchainOverride::Rustup));
+    assert_eq!(
+        toolchain_override(&[], Some(OsStr::new("linked"))),
+        Some(ToolchainOverride::Rustup),
+    );
+}
 
 #[test]
 fn the_nearest_toolchain_file_decides() {

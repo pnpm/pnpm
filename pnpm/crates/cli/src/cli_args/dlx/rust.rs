@@ -20,11 +20,9 @@ use pnpm_rust_toolchain::{
     Channel,
     RustToolchainError,
     ToolchainRequest,
-    find_toolchain_file,
     install_toolchain,
     installed_toolchain,
     parse_toolchain_name,
-    read_toolchain_file,
 };
 
 /// The release `--package` names when it is `rust@<channel>` and the
@@ -72,28 +70,15 @@ pub(super) async fn run_rust<Reporter: self::Reporter>(
     Ok(())
 }
 
-/// What `channel` is installed with: the profile, components, and targets
-/// of the toolchain file that governs `cwd`, unless rustup handles that
-/// file itself, and the target of every `--target` in `args`. A file that
-/// cannot be read is an error.
+/// What `channel` is installed with: what
+/// [`ToolchainRequest::for_channel_in`] `cwd` gives it, and the target of
+/// every `--target` in `args`.
 fn rust_request(
     channel: Channel,
     cwd: &Path,
     args: &[String],
 ) -> Result<ToolchainRequest, RustToolchainError> {
-    let file = cwd
-        .ancestors()
-        .last()
-        .and_then(|root| find_toolchain_file(cwd, root));
-    let project = file
-        .map(|file| read_toolchain_file(&file))
-        .transpose()?
-        .and_then(Result::ok);
-    let request = match project {
-        Some(project) => ToolchainRequest { channel, ..project },
-        None => ToolchainRequest::for_channel(channel),
-    };
-    Ok(request.with_targets(target_args(args)))
+    Ok(ToolchainRequest::for_channel_in(channel, cwd)?.with_targets(target_args(args)))
 }
 
 /// The values of `--target` before a `--`, which ends the options the tool
