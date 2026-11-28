@@ -18,7 +18,8 @@ pub struct DocsArgs {
 impl DocsArgs {
     pub async fn run<Sys: OpenUrl>(self, config: &Config) -> miette::Result<()> {
         let url = self.documentation_url(config).await?;
-        open_url::<Sys>(&url)
+        open_url::<Sys>(&url);
+        Ok(())
     }
 
     async fn documentation_url(&self, config: &Config) -> miette::Result<String> {
@@ -50,15 +51,10 @@ fn is_http_url(value: &str) -> bool {
         .is_ok_and(|parsed| parsed.scheme() == "http" || parsed.scheme() == "https")
 }
 
-fn open_url<Sys: OpenUrl>(url: &str) -> miette::Result<()> {
-    match Sys::open_url(url) {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            let redacted = redact_url_for_display(url);
-            pnpm_diagnostics::eprintln!("Could not open browser: {e}");
-            pnpm_diagnostics::println!("{redacted}");
-            Ok(())
-        }
+fn open_url<Sys: OpenUrl>(url: &str) {
+    pnpm_diagnostics::println!("{}", redact_url_for_display(url));
+    if let Err(e) = Sys::open_url(url) {
+        pnpm_diagnostics::eprintln!("Could not open browser: {e}");
     }
 }
 

@@ -236,18 +236,17 @@ impl OpenUrl for FailingBrowser {
 }
 
 #[test]
-fn failing_browser_redacts_url_and_succeeds() {
-    const CHILD: &str = "PNPM_TEST_DOCS_FAILED_BROWSER";
+fn prints_redacted_url_for_each_browser_attempt() {
+    const CHILD: &str = "PNPM_TEST_DOCS_BROWSER_OUTPUT";
     if std::env::var_os(CHILD).is_some() {
-        let result = super::open_url::<FailingBrowser>(
-            "https://user:pass@example.com/docs?token=secret#frag",
-        );
-        assert!(result.is_ok());
+        let url = "https://user:pass@example.com/docs?token=secret#frag";
+        super::open_url::<FailingBrowser>(url);
+        super::open_url::<RecordingBrowser>(url);
         return;
     }
 
     let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .with_args(["--nocapture", "failing_browser_redacts_url_and_succeeds"])
+        .with_args(["--nocapture", "prints_redacted_url_for_each_browser_attempt"])
         .with_env(CHILD, "1")
         .output()
         .unwrap();
@@ -255,10 +254,12 @@ fn failing_browser_redacts_url_and_succeeds() {
     let stderr = String::from_utf8(output.stderr).unwrap();
     dbg!(&stdout, &stderr);
     assert!(output.status.success());
-    assert!(
+    assert_eq!(
         stdout
             .lines()
-            .any(|line| line == "https://example.com/docs"),
+            .filter(|line| *line == "https://example.com/docs")
+            .count(),
+        2,
     );
     assert!(!stdout.contains("secret"));
     assert!(!stdout.contains("user:pass"));
