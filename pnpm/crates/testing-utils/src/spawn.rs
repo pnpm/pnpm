@@ -114,12 +114,14 @@ fn wait_for_gate(ready: std::os::fd::RawFd, gate: std::os::fd::RawFd) -> std::io
     if succeeded { Ok(()) } else { Err(std::io::Error::last_os_error()) }
 }
 
-/// Run `command` to completion, retrying while `exec` fails with `ETXTBSY`.
+/// Run `command` to completion, retrying while it or a program it runs
+/// fails with `ETXTBSY`.
 ///
-/// For a test that runs an executable it has just written. A child that a
-/// concurrent test forks in the meantime inherits the write descriptor and
-/// holds it until its own `exec`, and Linux refuses to run a file open for
-/// writing.
+/// For a test that runs an executable it has just written, directly or
+/// through a shim. A child that a concurrent test forks in the meantime
+/// inherits the write descriptor and holds it until its own `exec`, and
+/// Linux refuses to run a file open for writing. A shell that hits this
+/// exits unsuccessfully and reports it on stderr.
 ///
 /// # Panics
 ///
@@ -133,13 +135,20 @@ pub fn output_retrying_busy(command: &mut std::process::Command) -> std::process
             reason = "a test helper starts processes the executor does not run"
         )]
         match command.output() {
+            Ok(output) if !output.status.success() && reports_busy_text_file(&output.stderr) => {
+                last_busy = Some(format!("{output:?}"));
+            }
             Ok(output) => return output,
             Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
-                last_busy = Some(error);
-                std::thread::sleep(std::time::Duration::from_millis(10));
+                last_busy = Some(format!("{error:?}"));
             }
             Err(error) => panic!("run {command:?}: {error:?}"),
         }
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
     panic!("{command:?} stayed busy: {last_busy:?}");
+}
+
+fn reports_busy_text_file(stderr: &[u8]) -> bool {
+    String::from_utf8_lossy(stderr).contains("Text file busy")
 }
