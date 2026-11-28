@@ -52,9 +52,9 @@ pub fn detect_dep_types(lockfile: &Lockfile, peer_edges: &PeerSatisfactionEdges)
         group_dep_paths(|importer| importer.optional_dependencies.as_ref());
     let prod_dep_paths = group_dep_paths(|importer| importer.dependencies.as_ref());
 
-    detect_in_subgraph(&mut ctx, &dev_dep_paths, true);
-    detect_in_subgraph(&mut ctx, &optional_dep_paths, false);
-    detect_in_subgraph(&mut ctx, &prod_dep_paths, false);
+    detect_in_subgraph(&mut ctx, dev_dep_paths, true);
+    detect_in_subgraph(&mut ctx, optional_dep_paths, false);
+    detect_in_subgraph(&mut ctx, prod_dep_paths, false);
     ctx.dep_types
 }
 
@@ -66,31 +66,27 @@ struct Ctx<'a> {
     dep_types: DepTypes,
 }
 
-fn detect_in_subgraph(ctx: &mut Ctx<'_>, dep_paths: &[PkgNameVerPeer], dev: bool) {
-    detect_in_subgraph_at(ctx, dep_paths, dev, 0);
-}
-
-fn detect_in_subgraph_at(ctx: &mut Ctx<'_>, dep_paths: &[PkgNameVerPeer], dev: bool, depth: usize) {
-    if depth >= super::MAX_WALK_DEPTH {
-        return;
-    }
-    for dep_path in dep_paths {
+/// Record the type of every package `pending` reaches. The walk keeps its
+/// pending packages on a stack of its own, so it reaches every package
+/// however long the path to it, and the types it records do not depend on
+/// the order it reaches them in.
+fn detect_in_subgraph(ctx: &mut Ctx<'_>, mut pending: Vec<PkgNameVerPeer>, dev: bool) {
+    while let Some(dep_path) = pending.pop() {
         if !ctx.walked.insert((dep_path.clone(), dev)) {
             continue;
         }
         let Some(snapshot) = ctx.lockfile.snapshots
             .as_ref()
-            .and_then(|snapshots| snapshots.get(dep_path))
+            .and_then(|snapshots| snapshots.get(&dep_path))
         else {
             continue;
         };
-        record_dep_type(ctx, dep_path, dev);
-
-        let child_paths: Vec<PkgNameVerPeer> = ctx.peer_edges
-            .followed_entries(dep_path, snapshot, true)
-            .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
-            .collect();
-        detect_in_subgraph_at(ctx, &child_paths, dev, depth + 1);
+        record_dep_type(ctx, &dep_path, dev);
+        pending.extend(
+            ctx.peer_edges
+                .followed_entries(&dep_path, snapshot, true)
+                .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias)),
+        );
     }
 }
 
@@ -107,3 +103,6 @@ fn record_dep_type(ctx: &mut Ctx<'_>, dep_path: &PkgNameVerPeer, dev: bool) {
         ctx.dep_types.insert(dep_path.clone(), DepType::ProdOnly);
     }
 }
+
+#[cfg(test)]
+mod tests;
