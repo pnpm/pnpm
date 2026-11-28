@@ -11,7 +11,9 @@
 //!   variable reference in it and halves each pair back to the text.
 
 #[cfg(creusot)]
-pub mod spec;
+pub mod lemmas;
+#[cfg(creusot)]
+pub mod logic;
 
 #[cfg(creusot)]
 use creusot_std::prelude::{
@@ -22,20 +24,23 @@ use creusot_std::prelude::{
     snapshot,
 };
 #[cfg(creusot)]
-use pnpm_creusot_models as _;
-#[cfg(creusot)]
-use spec::{
-    cmd_escape_char,
-    cmd_escaped,
+use lemmas::{
     cmd_escaped_push,
-    cmd_read,
     cmd_reads_escaped,
-    sh_escape,
-    sh_escaped,
     sh_escaped_push,
-    sh_read,
     sh_reads_quoted,
 };
+#[cfg(creusot)]
+use logic::{
+    cmd_escape_char,
+    cmd_escaped,
+    cmd_read,
+    sh_escape,
+    sh_escaped,
+    sh_read,
+};
+#[cfg(creusot)]
+use pnpm_creusot_models as _;
 use split_first_char::SplitFirstChar;
 
 /// Wrap `text` in single quotes for POSIX `sh`, writing each `'` in it as

@@ -16,7 +16,9 @@
 //!   boundaries.
 
 #[cfg(creusot)]
-pub mod spec;
+pub mod lemmas;
+#[cfg(creusot)]
+pub mod logic;
 
 #[cfg(creusot)]
 use creusot_std::prelude::{
@@ -27,21 +29,22 @@ use creusot_std::prelude::{
     snapshot,
 };
 #[cfg(creusot)]
-use pnpm_creusot_models::utf8::{
-    ascii_byte,
-    ends_are_boundaries,
-    is_boundary,
-};
+use lemmas::no_placeholder_inside;
 #[cfg(creusot)]
-use spec::{
+use logic::{
     escapes_before,
     is_body_byte,
     is_placeholder,
     last_end,
-    no_placeholder_inside,
     previous_end,
     reported,
     scanned,
+};
+#[cfg(creusot)]
+use pnpm_creusot_models::utf8::{
+    ascii_byte,
+    ends_are_boundaries,
+    is_boundary,
 };
 use std::ops::Range;
 

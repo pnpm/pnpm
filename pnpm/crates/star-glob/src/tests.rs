@@ -1,7 +1,7 @@
 use super::StarGlob;
 use pretty_assertions::assert_eq;
 
-/// `spec::glob`, written as Rust.
+/// `logic::glob`, written as Rust.
 fn glob(pattern: &[char], text: &[char]) -> bool {
     match pattern.split_first() {
         None => text.is_empty(),

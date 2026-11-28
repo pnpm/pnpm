@@ -4,7 +4,7 @@
 //! groups are found from the end.
 
 #[cfg(creusot)]
-pub mod spec;
+pub mod logic;
 
 #[cfg(creusot)]
 use creusot_std::prelude::{
@@ -16,6 +16,13 @@ use creusot_std::prelude::{
     requires,
 };
 #[cfg(creusot)]
+use logic::{
+    excess,
+    is_group,
+    is_paren,
+    tiles,
+};
+#[cfg(creusot)]
 use pnpm_creusot_models::{
     str_model::str_size_bound,
     utf8::{
@@ -23,13 +30,6 @@ use pnpm_creusot_models::{
         ends_are_boundaries,
         is_boundary,
     },
-};
-#[cfg(creusot)]
-use spec::{
-    excess,
-    is_group,
-    is_paren,
-    tiles,
 };
 
 // The bytes that open and close a group.

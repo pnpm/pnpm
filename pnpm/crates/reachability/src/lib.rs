@@ -11,9 +11,9 @@
 //! cycle reach each other, so they share one answer.
 
 #[cfg(creusot)]
-pub mod spec;
+pub mod lemmas;
 #[cfg(creusot)]
-pub mod theorems;
+pub mod logic;
 
 #[cfg(creusot)]
 use creusot_std::prelude::{
@@ -25,9 +25,7 @@ use creusot_std::prelude::{
     snapshot,
 };
 #[cfg(creusot)]
-use pnpm_creusot_models as _;
-#[cfg(creusot)]
-use spec::{
+use logic::{
     closed_except,
     edge,
     has,
@@ -37,6 +35,8 @@ use spec::{
     sound,
     well_formed,
 };
+#[cfg(creusot)]
+use pnpm_creusot_models as _;
 
 /// Whether each node of the graph `adjacency` draws reaches a node
 /// `targets` flags, itself included. `adjacency[node]` lists the nodes
@@ -61,7 +61,7 @@ pub fn reaching(adjacency: &[Vec<usize>], targets: &[bool]) -> Vec<bool> {
     #[cfg(creusot)]
     proof_assert! {
         forall<other: Int> 0 <= other && other < targets@.len() && reaches_target(adjacency@, targets@, other)
-            ==> { spec::marked_if_reaching(adjacency@, targets@, marked@, other); marked@[other] }
+            ==> { lemmas::marked_if_reaching(adjacency@, targets@, marked@, other); marked@[other] }
     };
     marked
 }
@@ -93,13 +93,13 @@ fn mark_targets(adjacency: &[Vec<usize>], targets: &[bool]) -> (Vec<bool>, Vec<u
     while node < targets.len() {
         if targets[node] {
             #[cfg(creusot)]
-            proof_assert! { spec::target_reaches(adjacency@, targets@, node@); true };
+            proof_assert! { lemmas::target_reaches(adjacency@, targets@, node@); true };
             marked[node] = true;
             #[cfg(creusot)]
             let before = snapshot! { pending };
             pending.push(node);
             #[cfg(creusot)]
-            proof_assert! { spec::has_snoc(before@, node); true };
+            proof_assert! { lemmas::has_snoc(before@, node); true };
         }
         node += 1;
     }
@@ -148,13 +148,13 @@ fn mark_predecessors(
         let predecessor = predecessors[node][index];
         #[cfg(creusot)]
         proof_assert! {
-            spec::has_element(predecessors@[node@]@, index@);
+            lemmas::has_element(predecessors@[node@]@, index@);
             edge(adjacency@, predecessor@, node@) && predecessor@ < marked@.len()
         };
         if !marked[predecessor] {
             #[cfg(creusot)]
             proof_assert! {
-                spec::extend_back(adjacency@, targets@, predecessor@, node@);
+                lemmas::extend_back(adjacency@, targets@, predecessor@, node@);
                 reaches_target(adjacency@, targets@, predecessor@)
             };
             marked[predecessor] = true;
@@ -162,7 +162,7 @@ fn mark_predecessors(
             let before = snapshot! { *pending };
             pending.push(predecessor);
             #[cfg(creusot)]
-            proof_assert! { spec::has_snoc(before@, predecessor); true };
+            proof_assert! { lemmas::has_snoc(before@, predecessor); true };
         }
         index += 1;
     }
@@ -214,8 +214,8 @@ fn add_edges_from(adjacency: &[Vec<usize>], predecessors: &mut [Vec<usize>], fro
         predecessors[to].push(from);
         #[cfg(creusot)]
         proof_assert! {
-            spec::has_snoc((*before)[to@]@, from);
-            spec::has_snoc(adjacency@[from@]@.subsequence(0, index@), to);
+            lemmas::has_snoc((*before)[to@]@, from);
+            lemmas::has_snoc(adjacency@[from@]@.subsequence(0, index@), to);
             true
         };
         index += 1;
@@ -230,3 +230,6 @@ use creusot_std::prelude::{
 
 #[cfg(test)]
 mod tests;
+#[cfg(creusot)]
+#[expect(dead_code, reason = "a theorem is proved, never called")]
+mod theorems;

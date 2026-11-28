@@ -2,11 +2,11 @@
 //! proving one is a test passing on all inputs at once.
 
 use crate::{
-    reaching,
-    spec::{
+    logic::{
         edge,
         well_formed,
     },
+    reaching,
 };
 use creusot_std::prelude::{
     Int,
@@ -20,7 +20,7 @@ use creusot_std::prelude::{
 #[requires(node@ < targets@.len() && targets@[node@])]
 #[ensures(result)]
 pub fn a_target_reaches_itself(adjacency: &[Vec<usize>], targets: &[bool], node: usize) -> bool {
-    proof_assert! { crate::spec::target_reaches(adjacency@, targets@, node@); true };
+    proof_assert! { crate::lemmas::target_reaches(adjacency@, targets@, node@); true };
     reaching(adjacency, targets)[node]
 }
 
@@ -45,11 +45,11 @@ pub fn an_edge_carries_the_answer_back(
 ) -> (bool, bool) {
     let reaches = reaching(adjacency, targets);
     proof_assert! {
-        crate::spec::has_element(adjacency@[from@]@, 0);
+        crate::lemmas::has_element(adjacency@[from@]@, 0);
         to@ < adjacency@.len() && from@ < adjacency@.len()
     };
     proof_assert! {
-        reaches@[to@] ==> { crate::spec::extend_back(adjacency@, targets@, from@, to@); reaches@[from@] }
+        reaches@[to@] ==> { crate::lemmas::extend_back(adjacency@, targets@, from@, to@); reaches@[from@] }
     };
     (reaches[from], reaches[to])
 }
@@ -67,8 +67,8 @@ pub fn a_cycle_shares_one_answer(
 ) -> (bool, bool) {
     let reaches = reaching(adjacency, targets);
     proof_assert! {
-        (reaches@[right@] ==> { crate::spec::extend_back(adjacency@, targets@, left@, right@); reaches@[left@] })
-            && (reaches@[left@] ==> { crate::spec::extend_back(adjacency@, targets@, right@, left@); reaches@[right@] })
+        (reaches@[right@] ==> { crate::lemmas::extend_back(adjacency@, targets@, left@, right@); reaches@[left@] })
+            && (reaches@[left@] ==> { crate::lemmas::extend_back(adjacency@, targets@, right@, left@); reaches@[right@] })
     };
     (reaches[left], reaches[right])
 }
@@ -82,7 +82,7 @@ pub fn a_node_with_no_edges_reaches_only_itself(
     targets: &[bool],
     node: usize,
 ) -> bool {
-    proof_assert! { crate::spec::no_edges(adjacency@, targets@, node@); true };
+    proof_assert! { crate::lemmas::no_edges(adjacency@, targets@, node@); true };
     reaching(adjacency, targets)[node]
 }
 
@@ -95,6 +95,6 @@ pub fn more_flags_never_take_an_answer_away(
     targets: &[bool],
     more: &[bool],
 ) -> (Vec<bool>, Vec<bool>) {
-    proof_assert! { crate::spec::more_targets(adjacency@, targets@, more@); true };
+    proof_assert! { crate::lemmas::more_targets(adjacency@, targets@, more@); true };
     (reaching(adjacency, targets), reaching(adjacency, more))
 }

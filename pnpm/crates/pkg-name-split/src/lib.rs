@@ -18,9 +18,9 @@
 
 pub mod groups;
 #[cfg(creusot)]
-pub mod spec;
+pub mod lemmas;
 #[cfg(creusot)]
-pub mod theorems;
+pub mod logic;
 
 #[cfg(creusot)]
 use creusot_std::prelude::{
@@ -40,7 +40,7 @@ pub struct Scope<'name>(&'name str);
 impl<'name> Scope<'name> {
     /// The only constructor, private for the reason `pnpm/VERIFICATION.md`
     /// gives.
-    #[cfg_attr(creusot, requires(spec::is_scope(text@)))]
+    #[cfg_attr(creusot, requires(logic::is_scope(text@)))]
     #[cfg_attr(creusot, ensures(result@ == text@))]
     fn new(text: &'name str) -> Self {
         Scope(text)
@@ -103,7 +103,7 @@ pub struct KeyName<'key>(&'key str);
 impl<'key> KeyName<'key> {
     /// The only constructor, private for the reason `pnpm/VERIFICATION.md`
     /// gives.
-    #[cfg_attr(creusot, requires(spec::is_key_name(text@)))]
+    #[cfg_attr(creusot, requires(logic::is_key_name(text@)))]
     #[cfg_attr(creusot, ensures(result@ == text@))]
     fn new(text: &'key str) -> Self {
         KeyName(text)
@@ -149,7 +149,7 @@ pub fn split_name_suffix(key: &str) -> Result<(KeyName<'_>, &str), SplitNameSuff
     };
     #[cfg(creusot)]
     proof_assert! {
-        spec::scoped_name_bytes(key, rest@, name_without_at@, suffix@);
+        lemmas::scoped_name_bytes(key, rest@, name_without_at@, suffix@);
         key@.subsequence(0, name_without_at@.len() + 1).to_bytes().len()
             == name_without_at@.to_bytes().len() + 1
             && name_without_at@.to_bytes().len() + 1 <= usize::MAX@
@@ -157,8 +157,8 @@ pub fn split_name_suffix(key: &str) -> Result<(KeyName<'_>, &str), SplitNameSuff
     let (name, _at_and_suffix) = key.split_at(name_without_at.len() + 1);
     #[cfg(creusot)]
     proof_assert! {
-        spec::scoped_name_bytes(key, rest@, name_without_at@, suffix@);
-        spec::equal_byte_prefixes(
+        lemmas::scoped_name_bytes(key, rest@, name_without_at@, suffix@);
+        lemmas::equal_byte_prefixes(
             name@,
             _at_and_suffix@,
             Seq::singleton('@').concat(name_without_at@),
@@ -173,3 +173,6 @@ pub fn split_name_suffix(key: &str) -> Result<(KeyName<'_>, &str), SplitNameSuff
 
 #[cfg(test)]
 mod tests;
+#[cfg(creusot)]
+#[expect(dead_code, reason = "a theorem is proved, never called")]
+mod theorems;

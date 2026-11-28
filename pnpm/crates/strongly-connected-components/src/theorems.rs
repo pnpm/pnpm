@@ -3,7 +3,7 @@
 
 use crate::{
     StronglyConnectedComponents,
-    spec::{
+    logic::{
         none,
         well_formed,
     },

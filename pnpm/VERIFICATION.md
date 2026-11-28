@@ -38,7 +38,12 @@ A run writes these at the repository root, all ignored by git: `verif/` holds th
 
 - **The whole crate is translated.** Creusot proves every function of the crate it is pointed at, and a `PartialEq` impl, a `serde` derive, or an `async fn` there each needs Creusot support of its own. So verified code lives in a small crate with no I/O, which the crates that do I/O depend on.
 - **Ordinary builds compile no Creusot.** `creusot-std` is LGPL-2.1-or-later, and `.config/deny.toml` allows it only because no shipped build compiles it. A crate takes it, and `pnpm-creusot-models`, under `[target.'cfg(creusot)'.dependencies]`. Every contract is a `#[cfg_attr(creusot, requires(...))]`, and every item that exists for the proof is `#[cfg(creusot)]`.
-- **Logic and lemmas** go in a `spec` module, and properties stated for all inputs in a `theorems` module, both `#[cfg(creusot)]`. A theorem is a verified function whose contract is the property. Proving it is a test that passes on every input at once.
+- **What exists for the proof** sits in three `#[cfg(creusot)]` modules:
+  - `logic`: the logic functions and predicates, and the `View` and `Invariant` impls. The contracts are stated in these, so the module is `pub` for a verified caller in another crate.
+  - `lemmas`: the logic functions that return nothing, whose contract is the fact they prove. A proof calls one to use that fact, and the module is `pub`, so a verified caller in another crate can call one as well.
+  - `theorems`: properties stated for all inputs. A theorem is a verified function whose contract is the property, and proving it is a test that passes on every input at once. Nothing calls one, so the module is private, declared beside `mod tests` with `#[expect(dead_code, reason = "a theorem is proved, never called")]`.
+
+  `pnpm-creusot-models` proves no code of its own, so its modules follow what each one describes, such as `utf8` and `str_model`. Its `theorems` holds the verified callers that check its contracts.
 - **Calls into the standard library or a third-party crate** need a contract. `creusot-std` covers much of `std`. The rest goes in `pnpm-creusot-models`, whose crate documentation says how each contract is checked against the function it describes.
 
 ## Passing a fact between functions
@@ -59,7 +64,7 @@ A fact about one value travels in the value's type, not in a precondition that e
 - Import from `creusot_std::prelude` by name. Its glob also brings a `vec!` that conflicts with the standard one.
 - Mark a predicate that is a conjunction `inline`, so Why3 proves each conjunct as its own goal.
 - `proof_assert!` keeps only its last expression as a fact. When it calls a lemma, end it with the lemma's conclusion.
-- `str` methods take byte offsets and the contracts speak of characters. `to_bytes` relates the two, and `injective_to_bytes` shows that two strings with equal bytes are equal. The `utf8` module of `pnpm-creusot-models` holds the lemmas that relate them. Its `ascii_byte` shows that an ASCII byte is a whole character, so a scan of `as_bytes`, such as the one in `pnpm-env-placeholders`, can slice the `str` wherever it finds one. The `spec` module of `pnpm-pkg-name-split` slices a `str` at the byte length of a substring.
+- `str` methods take byte offsets and the contracts speak of characters. `to_bytes` relates the two, and `injective_to_bytes` shows that two strings with equal bytes are equal. The `utf8` module of `pnpm-creusot-models` holds the lemmas that relate them. Its `ascii_byte` shows that an ASCII byte is a whole character, so a scan of `as_bytes`, such as the one in `pnpm-env-placeholders`, can slice the `str` wherever it finds one. The lemmas of `pnpm-pkg-name-split` show where a `str` sliced at the byte length of a substring is cut.
 - Pearlite has no byte literals. Name the byte as a `const`, which the program and its contracts then share.
 - The solvers rarely find an existential witness. Name it with `creusot_std::logic::such_that` and pass it to a lemma whose conclusion is the goal for that witness, as `glob_witness` in `pnpm-star-glob` does. Where the program changes the witness step by step, wrap `exists` in a named predicate with lemmas for each step, as `stacked` in `pnpm-strongly-connected-components` does.
 - After a `Vec::push`, assert against a `snapshot!` taken before it that the earlier elements are unchanged. Inside a larger goal, the solvers miss that step, and with it every fact about those elements.

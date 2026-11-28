@@ -10,7 +10,9 @@
 //! `acme`, and [`covers`] would not report that it covers `@acme/*`.
 
 #[cfg(creusot)]
-pub mod spec;
+pub mod lemmas;
+#[cfg(creusot)]
+pub mod logic;
 
 #[cfg(creusot)]
 use creusot_std::prelude::{
@@ -19,22 +21,25 @@ use creusot_std::prelude::{
     proof_assert,
 };
 #[cfg(creusot)]
-use pnpm_creusot_models as _;
-#[cfg(creusot)]
-use spec::{
+use lemmas::{
     cons_tail,
-    covered,
     covered_is_inclusion,
+    no_slash,
+    slash_split,
+};
+#[cfg(creusot)]
+use logic::{
+    covered,
     first_slash,
     in_namespace,
     is_namespace,
     is_scope,
     is_scoped,
     matches_name,
-    no_slash,
     scoped_in,
-    slash_split,
 };
+#[cfg(creusot)]
+use pnpm_creusot_models as _;
 use split_first_char::SplitFirstChar;
 
 /// The scope of an `@<scope>/*` pattern, without its `@`: non-empty, with no

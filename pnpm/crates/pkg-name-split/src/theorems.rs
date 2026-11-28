@@ -8,7 +8,7 @@ use crate::{
     ScopeSplit,
     SplitNameSuffixError,
     SplitScopeError,
-    spec::{
+    lemmas::{
         scope_split_is_unique,
         split_is_unique,
     },

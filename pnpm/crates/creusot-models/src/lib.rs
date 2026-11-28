@@ -8,7 +8,7 @@
 //! - `tests.rs` runs each real function on generated inputs and checks the
 //!   postcondition, so a contract that claims more than the function does
 //!   fails a test, and one that no result satisfies cannot pass.
-//! - `clients.rs` holds verified callers, so a contract too weak to be
+//! - `theorems.rs` holds verified callers, so a contract too weak to be
 //!   used fails to prove.
 //!
 //! A logic axiom such as `str_model::str_size_bound` describes no function,
@@ -21,8 +21,6 @@
 
 #![cfg_attr(creusot, feature(pattern))]
 
-#[cfg(creusot)]
-pub mod clients;
 #[cfg(creusot)]
 pub mod str_model;
 #[cfg(creusot)]
@@ -39,3 +37,6 @@ mod slice_model;
 
 #[cfg(test)]
 mod tests;
+#[cfg(creusot)]
+#[expect(dead_code, reason = "a theorem is proved, never called")]
+mod theorems;

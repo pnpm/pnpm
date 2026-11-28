@@ -24,25 +24,28 @@ use creusot_std::prelude::{
     snapshot,
 };
 #[cfg(creusot)]
-use pnpm_creusot_models as _;
-#[cfg(creusot)]
-use spec::{
-    discovered_prefix,
+use lemmas::{
     discovered_prefix_bounds,
     discovered_prefix_discover,
     discovered_prefix_missing,
     discovered_prefix_of_undiscovered,
-    none,
-    stacked,
     stacked_prefix_pop,
     stacked_push,
+};
+#[cfg(creusot)]
+use logic::{
+    discovered_prefix,
+    none,
+    stacked,
     well_formed,
 };
+#[cfg(creusot)]
+use pnpm_creusot_models as _;
 
 #[cfg(creusot)]
-pub mod spec;
+pub mod lemmas;
 #[cfg(creusot)]
-pub mod theorems;
+pub mod logic;
 
 /// The strongly connected components of the not-yet-removed subgraph,
 /// computed with an iterative Tarjan walk (recursion would overflow on a
@@ -324,3 +327,6 @@ impl TarjanWalk {
 
 #[cfg(test)]
 mod tests;
+#[cfg(creusot)]
+#[expect(dead_code, reason = "a theorem is proved, never called")]
+mod theorems;

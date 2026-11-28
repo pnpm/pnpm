@@ -9,7 +9,9 @@
 //! too.
 
 #[cfg(creusot)]
-pub mod spec;
+pub mod lemmas;
+#[cfg(creusot)]
+pub mod logic;
 
 #[cfg(creusot)]
 use creusot_std::{
@@ -26,19 +28,19 @@ use creusot_std::{
     },
 };
 #[cfg(creusot)]
-use pnpm_creusot_models as _;
-#[cfg(creusot)]
-use pnpm_creusot_models::{
-    str_model::occurs_at,
-    utf8::is_boundary,
-};
-#[cfg(creusot)]
-use spec::{
+use logic::{
     after_star,
     ends_with,
     glob,
     in_order,
     offset,
+};
+#[cfg(creusot)]
+use pnpm_creusot_models as _;
+#[cfg(creusot)]
+use pnpm_creusot_models::{
+    str_model::occurs_at,
+    utf8::is_boundary,
 };
 
 /// A pattern split at each `*`: one more segment than it has `*`s, and no
@@ -54,9 +56,9 @@ impl StarGlob {
     pub fn new(pattern: &str) -> Self {
         let mut segments: Vec<String> = Vec::new();
         let mut rest = pattern;
-        #[cfg_attr(creusot, invariant(spec::no_star_in(segments@, 0, segments@.len())))]
+        #[cfg_attr(creusot, invariant(logic::no_star_in(segments@, 0, segments@.len())))]
         #[cfg_attr(creusot, invariant(pattern@
-            == spec::stars_after(segments@, 0, segments@.len()).concat(rest@)))]
+            == logic::stars_after(segments@, 0, segments@.len()).concat(rest@)))]
         loop {
             let Some((segment, after)) = rest.split_once('*') else {
                 #[cfg(creusot)]
@@ -64,10 +66,10 @@ impl StarGlob {
                 segments.push(rest.to_owned());
                 #[cfg(creusot)]
                 proof_assert! {
-                    spec::joined_snoc((*before)@, segments@[before@.len()], 0);
-                    spec::no_star_snoc((*before)@, segments@[before@.len()]);
-                    spec::no_star_in(segments@, 0, segments@.len())
-                        && spec::joined(segments@, 0) == pattern@
+                    lemmas::joined_snoc((*before)@, segments@[before@.len()], 0);
+                    lemmas::no_star_snoc((*before)@, segments@[before@.len()]);
+                    logic::no_star_in(segments@, 0, segments@.len())
+                        && logic::joined(segments@, 0) == pattern@
                 };
                 return StarGlob { segments };
             };
@@ -76,14 +78,14 @@ impl StarGlob {
             segments.push(segment.to_owned());
             #[cfg(creusot)]
             proof_assert! {
-                spec::stars_after_snoc((*before)@, segments@[before@.len()], 0);
-                spec::no_star_snoc((*before)@, segments@[before@.len()]);
-                spec::stars_after(before@, 0, before@.len()).concat(segment@)
+                lemmas::stars_after_snoc((*before)@, segments@[before@.len()], 0);
+                lemmas::no_star_snoc((*before)@, segments@[before@.len()]);
+                logic::stars_after(before@, 0, before@.len()).concat(segment@)
                     .concat_assoc(Seq::singleton('*'), after@);
-                spec::stars_after(before@, 0, before@.len())
+                logic::stars_after(before@, 0, before@.len())
                     .concat_assoc(segment@, Seq::singleton('*').concat(after@));
-                spec::no_star_in(segments@, 0, segments@.len())
-                    && pattern@ == spec::stars_after(segments@, 0, segments@.len())
+                logic::no_star_in(segments@, 0, segments@.len())
+                    && pattern@ == logic::stars_after(segments@, 0, segments@.len())
                         .concat(after@)
             };
             rest = after;
@@ -99,14 +101,14 @@ impl StarGlob {
         if last == 0 {
             #[cfg(creusot)]
             proof_assert! {
-                spec::exact_text(first@);
+                lemmas::exact_text(first@);
                 glob(self.pattern(), input@) == (input@ == first@)
             };
             return first == input;
         }
         #[cfg(creusot)]
         proof_assert! {
-            spec::first_and_rest(self@, input@);
+            lemmas::first_and_rest(self@, input@);
             glob(self.pattern(), input@) == (occurs_at(input@, first@, 0)
                 && after_star(self@, 1, input@.subsequence(first@.len(), input@.len())))
         };
@@ -115,8 +117,8 @@ impl StarGlob {
         };
         #[cfg(creusot)]
         proof_assert! {
-            spec::concat_parts(first@, rest@);
-            spec::after_star_split(self@, 1, rest@);
+            lemmas::concat_parts(first@, rest@);
+            lemmas::after_star_split(self@, 1, rest@);
             glob(self.pattern(), input@) == (ends_with(rest@, self@[last@]@)
                 && in_order(self@, 1, last@,
                     rest@.subsequence(0, rest@.len() - self@[last@]@.len())))
@@ -126,7 +128,7 @@ impl StarGlob {
         };
         #[cfg(creusot)]
         proof_assert! {
-            spec::concat_parts(middle@, self@[last@]@);
+            lemmas::concat_parts(middle@, self@[last@]@);
             glob(self.pattern(), input@) == in_order(self@, 1, last@, middle@)
         };
         contains_in_order(middle, &self.segments, 1, last)
@@ -157,8 +159,8 @@ fn contains_in_order(mut input: &str, segments: &[String], from: usize, to: usiz
         };
         #[cfg(creusot)]
         proof_assert! {
-            spec::str_size(input);
-            spec::advance(segments@, index@, to@, input@, *count);
+            lemmas::str_size(input);
+            lemmas::advance(segments@, index@, to@, input@, *count);
             at@ + segment@.to_bytes().len() == offset(input@, *count + segment@.len())
                 && offset(input@, *count + segment@.len()) <= input@.to_bytes().len()
                 && input@.to_bytes().len() <= isize::MAX@

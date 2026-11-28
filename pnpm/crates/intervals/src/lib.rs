@@ -17,7 +17,9 @@
 //!   bounds of a union of exactly the values in both, in that shape too.
 
 #[cfg(creusot)]
-pub mod spec;
+pub mod lemmas;
+#[cfg(creusot)]
+pub mod logic;
 
 #[cfg(creusot)]
 use creusot_std::prelude::{
@@ -35,7 +37,7 @@ use pnpm_creusot_models as _;
 use std::cmp::Ordering;
 
 #[cfg(creusot)]
-use spec::{
+use logic::{
     above,
     below,
     in_pairs,
@@ -134,7 +136,7 @@ pub fn min_upper<'bound, Value: Ordered>(
 /// Whether the bounds could hold a value between them. When they cannot,
 /// none lies between them. When they can, every value past the upper bound
 /// is above the lower one.
-#[cfg_attr(creusot, ensures(result == spec::valid_log(*lower, *upper)))]
+#[cfg_attr(creusot, ensures(result == logic::valid_log(*lower, *upper)))]
 #[cfg_attr(creusot, ensures(!result ==> forall<value: Value::DeepModelTy>
     !(above(*lower, value) && below(*upper, value))))]
 #[cfg_attr(creusot, ensures(result ==> forall<value: Value::DeepModelTy>
@@ -143,8 +145,8 @@ pub fn min_upper<'bound, Value: Ordered>(
 pub fn is_valid_interval<Value: Ordered>(lower: &Bound<Value>, upper: &Bound<Value>) -> bool {
     #[cfg(creusot)]
     proof_assert! {
-        spec::valid_past_upper(*lower, *upper);
-        spec::valid_log(*lower, *upper) ==> forall<value: Value::DeepModelTy>
+        lemmas::valid_past_upper(*lower, *upper);
+        logic::valid_log(*lower, *upper) ==> forall<value: Value::DeepModelTy>
             !below(*upper, value) ==> above(*lower, value)
     };
     match (lower, upper) {
@@ -235,10 +237,10 @@ fn sort_by_lower<Value: Ordered>(mut intervals: Vec<Interval<Value>>) -> Vec<Int
         sorted.insert(index, interval);
         #[cfg(creusot)]
         proof_assert! {
-            spec::insert_union((*before)@, index@, *inserted, sorted@);
-            spec::insert_sorted((*before)@, index@, *inserted, sorted@);
+            lemmas::insert_union((*before)@, index@, *inserted, sorted@);
+            lemmas::insert_sorted((*before)@, index@, *inserted, sorted@);
             sorted_by_lower(sorted@) && forall<value: Value::DeepModelTy>
-                in_union(sorted@, value) == (in_union(before@, value) || spec::holds(*inserted, value))
+                in_union(sorted@, value) == (in_union(before@, value) || logic::holds(*inserted, value))
         };
     }
     sorted
@@ -271,10 +273,10 @@ pub fn merge_overlapping_intervals<Value: Ordered>(
         let interval = remaining.remove(0);
         #[cfg(creusot)]
         proof_assert! {
-            spec::front_union(unmerged@);
-            spec::drop_first(unmerged@);
+            lemmas::front_union(unmerged@);
+            lemmas::drop_first(unmerged@);
             forall<value: Value::DeepModelTy> in_union(unmerged@, value)
-                == (spec::holds(interval, value) || in_union(remaining@, value))
+                == (logic::holds(interval, value) || in_union(remaining@, value))
         };
         merge_one(&mut merged, interval);
     }
@@ -288,7 +290,7 @@ pub fn merge_overlapping_intervals<Value: Ordered>(
     ==> lower_cmp(merged@[done].lower, interval.lower) != Ordering::Greater))]
 #[cfg_attr(creusot, ensures(separated((^merged)@)))]
 #[cfg_attr(creusot, ensures(forall<value: Value::DeepModelTy> in_union((^merged)@, value)
-    == (in_union(merged@, value) || spec::holds(interval, value))))]
+    == (in_union(merged@, value) || logic::holds(interval, value))))]
 #[cfg_attr(creusot, ensures(forall<done: Int> 0 <= done && done < (^merged)@.len()
     ==> (done < merged@.len() && (^merged)@[done].lower == merged@[done].lower)
         || (^merged)@[done].lower == interval.lower))]
@@ -303,28 +305,28 @@ fn merge_one<Value: Ordered>(merged: &mut Vec<Interval<Value>>, interval: Interv
             merged[count - 1].upper = interval.upper;
             #[cfg(creusot)]
             proof_assert! {
-                spec::widened_holds(before@[count@ - 1], *taken, merged@[count@ - 1]);
-                spec::merge_into_last(before@, merged@, *taken);
-                spec::widen_separated(before@, merged@);
+                lemmas::widened_holds(before@[count@ - 1], *taken, merged@[count@ - 1]);
+                lemmas::merge_into_last(before@, merged@, *taken);
+                lemmas::widen_separated(before@, merged@);
                 separated(merged@) && forall<value: Value::DeepModelTy> in_union(merged@, value)
-                    == (in_union(before@, value) || spec::holds(*taken, value))
+                    == (in_union(before@, value) || logic::holds(*taken, value))
             };
         } else {
             #[cfg(creusot)]
             proof_assert! {
-                spec::absorbed(merged@[count@ - 1], *taken);
+                lemmas::absorbed(merged@[count@ - 1], *taken);
                 forall<value: Value::DeepModelTy>
-                    spec::holds(*taken, value) ==> in_union(merged@, value)
+                    logic::holds(*taken, value) ==> in_union(merged@, value)
             };
         }
     } else {
         merged.push(interval);
         #[cfg(creusot)]
         proof_assert! {
-            spec::snoc_union(before@, *taken);
-            spec::push_separated(before@, *taken);
+            lemmas::snoc_union(before@, *taken);
+            lemmas::push_separated(before@, *taken);
             separated(merged@) && forall<value: Value::DeepModelTy> in_union(merged@, value)
-                == (in_union(before@, value) || spec::holds(*taken, value))
+                == (in_union(before@, value) || logic::holds(*taken, value))
         };
     }
 }
@@ -348,10 +350,10 @@ pub fn intersect_intervals<'interval, Value: Ordered>(
     #[cfg_attr(creusot, invariant(left_index@ <= left@.len() && right_index@ <= right@.len()))]
     #[cfg_attr(creusot, invariant(forall<value: Value::DeepModelTy> in_pairs(result@, value)
         ==> in_union(left@, value) && in_union(right@, value)))]
-    #[cfg_attr(creusot, invariant(spec::covered(result@, left@, left_index@, right@, right_index@)))]
+    #[cfg_attr(creusot, invariant(logic::covered(result@, left@, left_index@, right@, right_index@)))]
     #[cfg_attr(creusot, invariant(pairs_separated(result@)))]
     #[cfg_attr(creusot, invariant(
-        spec::pairs_end_before(result@, left@, left_index@, right@, right_index@)))]
+        logic::pairs_end_before(result@, left@, left_index@, right@, right_index@)))]
     while left_index < left.len() && right_index < right.len() {
         #[cfg(creusot)]
         let before = snapshot! { result };
@@ -359,23 +361,23 @@ pub fn intersect_intervals<'interval, Value: Ordered>(
         if compare_upper(&left[left_index].upper, &right[right_index].upper) == Ordering::Less {
             #[cfg(creusot)]
             proof_assert! {
-                spec::step_left(before@, result@, left@, left_index@, right@, right_index@);
-                spec::covered(result@, left@, left_index@ + 1, right@, right_index@)
+                lemmas::step_left(before@, result@, left@, left_index@, right@, right_index@);
+                logic::covered(result@, left@, left_index@ + 1, right@, right_index@)
             };
             left_index += 1;
         } else {
             #[cfg(creusot)]
             proof_assert! {
-                spec::step_right(before@, result@, left@, left_index@, right@, right_index@);
-                spec::covered(result@, left@, left_index@, right@, right_index@ + 1)
+                lemmas::step_right(before@, result@, left@, left_index@, right@, right_index@);
+                logic::covered(result@, left@, left_index@, right@, right_index@ + 1)
             };
             right_index += 1;
         }
     }
     #[cfg(creusot)]
     proof_assert! {
-        spec::whole_prefix(left@);
-        spec::whole_prefix(right@);
+        lemmas::whole_prefix(left@);
+        lemmas::whole_prefix(right@);
         forall<value: Value::DeepModelTy> in_union(left@, value) && in_union(right@, value)
             ==> in_pairs(result@, value)
     };
@@ -388,21 +390,21 @@ pub fn intersect_intervals<'interval, Value: Ordered>(
 #[cfg_attr(creusot, requires(left_index@ < left@.len() && right_index@ < right@.len()))]
 #[cfg_attr(creusot, requires(pairs_separated(pairs@)))]
 #[cfg_attr(creusot, requires(
-    spec::pairs_end_before(pairs@, left@, left_index@, right@, right_index@)))]
+    logic::pairs_end_before(pairs@, left@, left_index@, right@, right_index@)))]
 #[cfg_attr(creusot, ensures(forall<value: Value::DeepModelTy> in_pairs((^pairs)@, value)
     == (in_pairs(pairs@, value)
-        || (spec::holds(left@[left_index@], value) && spec::holds(right@[right_index@], value)))))]
+        || (logic::holds(left@[left_index@], value) && logic::holds(right@[right_index@], value)))))]
 #[cfg_attr(creusot, ensures(forall<value: Value::DeepModelTy>
-    spec::holds(left@[left_index@], value) ==> in_union(left@, value)))]
+    logic::holds(left@[left_index@], value) ==> in_union(left@, value)))]
 #[cfg_attr(creusot, ensures(forall<value: Value::DeepModelTy>
-    spec::holds(right@[right_index@], value) ==> in_union(right@, value)))]
+    logic::holds(right@[right_index@], value) ==> in_union(right@, value)))]
 #[cfg_attr(creusot, ensures(pairs_separated((^pairs)@)))]
 #[cfg_attr(creusot, ensures(
     upper_cmp(left@[left_index@].upper, right@[right_index@].upper) == Ordering::Less
-        ==> spec::pairs_end_before((^pairs)@, left@, left_index@ + 1, right@, right_index@)))]
+        ==> logic::pairs_end_before((^pairs)@, left@, left_index@ + 1, right@, right_index@)))]
 #[cfg_attr(creusot, ensures(
     upper_cmp(left@[left_index@].upper, right@[right_index@].upper) != Ordering::Less
-        ==> spec::pairs_end_before((^pairs)@, left@, left_index@, right@, right_index@ + 1)))]
+        ==> logic::pairs_end_before((^pairs)@, left@, left_index@, right@, right_index@ + 1)))]
 fn push_overlap<'interval, Value: Ordered>(
     pairs: &mut Vec<(&'interval Bound<Value>, &'interval Bound<Value>)>,
     left: &'interval [Interval<Value>],
@@ -419,21 +421,21 @@ fn push_overlap<'interval, Value: Ordered>(
     }
     #[cfg(creusot)]
     proof_assert! {
-        spec::pair_added(before@, pairs@, lower, upper, left@, left_index@, right@, right_index@);
-        spec::prefix_grows(left@, left_index@);
-        spec::prefix_grows(right@, right_index@);
-        spec::pairs_grow(before@, pairs@, lower, upper, left@, left_index@, right@, right_index@);
+        lemmas::pair_added(before@, pairs@, lower, upper, left@, left_index@, right@, right_index@);
+        lemmas::prefix_grows(left@, left_index@);
+        lemmas::prefix_grows(right@, right_index@);
+        lemmas::pairs_grow(before@, pairs@, lower, upper, left@, left_index@, right@, right_index@);
         (forall<value: Value::DeepModelTy> in_pairs(pairs@, value) == (in_pairs(before@, value)
-            || (spec::holds(left@[left_index@], value) && spec::holds(right@[right_index@], value))))
+            || (logic::holds(left@[left_index@], value) && logic::holds(right@[right_index@], value))))
             && (forall<value: Value::DeepModelTy>
-                spec::holds(left@[left_index@], value) ==> in_union(left@, value))
+                logic::holds(left@[left_index@], value) ==> in_union(left@, value))
             && (forall<value: Value::DeepModelTy>
-                spec::holds(right@[right_index@], value) ==> in_union(right@, value))
+                logic::holds(right@[right_index@], value) ==> in_union(right@, value))
             && pairs_separated(pairs@)
             && (upper_cmp(left@[left_index@].upper, right@[right_index@].upper) == Ordering::Less
-                ==> spec::pairs_end_before(pairs@, left@, left_index@ + 1, right@, right_index@))
+                ==> logic::pairs_end_before(pairs@, left@, left_index@ + 1, right@, right_index@))
             && (upper_cmp(left@[left_index@].upper, right@[right_index@].upper) != Ordering::Less
-                ==> spec::pairs_end_before(pairs@, left@, left_index@, right@, right_index@ + 1))
+                ==> logic::pairs_end_before(pairs@, left@, left_index@, right@, right_index@ + 1))
     };
 }
 

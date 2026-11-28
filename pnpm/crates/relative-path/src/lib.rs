@@ -7,7 +7,9 @@
 //! also hold no Windows drive.
 
 #[cfg(creusot)]
-pub mod spec;
+pub mod lemmas;
+#[cfg(creusot)]
+pub mod logic;
 
 #[cfg(creusot)]
 use creusot_std::prelude::{
@@ -17,9 +19,9 @@ use creusot_std::prelude::{
     proof_assert,
 };
 #[cfg(creusot)]
-use pnpm_creusot_models as _;
+use lemmas::joined_step;
 #[cfg(creusot)]
-use spec::{
+use logic::{
     all_driveless_names,
     all_names,
     is_current,
@@ -27,9 +29,10 @@ use spec::{
     is_entry_segment,
     is_parent,
     joined,
-    joined_step,
     separator_free,
 };
+#[cfg(creusot)]
+use pnpm_creusot_models as _;
 use split_first_char::SplitFirstChar;
 
 /// The separators a path splits on. `\` is one, as it is in pnpm's
