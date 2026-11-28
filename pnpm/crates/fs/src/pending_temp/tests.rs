@@ -12,6 +12,7 @@ use super::{
 use command_extra::CommandExtra;
 use std::{
     fs,
+    io,
     path::Path,
     sync::{
         Arc,
@@ -252,4 +253,30 @@ fn the_exit_cleanup_stops_waiting_at_the_limit() {
         .expect("join the writer")
         .expect("the writer's create succeeds");
     cleanup.join().expect("join the cleanup");
+}
+
+/// A create that fails on a path someone else already holds releases its
+/// registration, so the cleanup leaves that file alone.
+#[test]
+fn a_failed_create_leaves_the_file_at_its_path_alone() {
+    static FILES: PendingTempFiles = PendingTempFiles::new(Duration::from_secs(60));
+    let dir = tempfile::tempdir().expect("tempdir");
+    let taken = dir.path().join("taken.tmp");
+    fs::write(&taken, "another writer's").expect("stage the other writer's file");
+
+    let Err(error) = FILES.track(&taken, || {
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&taken)
+    }) else {
+        panic!("creating a file that exists must fail");
+    };
+    assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+
+    FILES.remove_before_exit();
+    assert!(
+        taken.exists(),
+        "the cleanup must not unlink a file the write never created: {taken:?}"
+    );
 }
