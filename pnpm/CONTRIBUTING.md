@@ -76,8 +76,6 @@ just init
 
 `just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`, then installs `cargo-fixit@0.1.15`, `cargo-dylint`, and `dylint-link` from source with `cargo install ... --locked`. `cargo-fixit` backs the `just fix` task. It also installs the [pinned formatter](../CONTRIBUTING.md#rust-formatting). The repo-wide `pnpm install` wires up the git hooks in `.config/githooks/` (via `core.hooksPath`): the `pre-commit` hook formats the Rust files being committed and the `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript checks.
 
-`just init` does not install the dylint tools. To run the `Dylint` job's checks locally, install `cargo-dylint` and `dylint-link` as described under [Rust toolchain and git hooks](../CONTRIBUTING.md#rust-toolchain-and-git-hooks) in the root guide.
-
 Install the test dependencies:
 
 ```sh
