@@ -55,46 +55,54 @@ pub fn resolve_package_nodes(
     graph: &DependencyGraph,
 ) -> HashMap<TreeNodeId, ManifestSource> {
     let mut resolved: HashMap<TreeNodeId, ManifestSource> = HashMap::new();
-
-    fn walk(
-        env: &PkgInfoEnv<'_>,
-        graph: &DependencyGraph,
-        resolved: &mut HashMap<TreeNodeId, ManifestSource>,
-        node_id: &TreeNodeId,
-        edge_ctx: &EdgeContext<'_>,
-        depth: usize,
-    ) {
-        if depth >= super::super::MAX_WALK_DEPTH {
-            return;
-        }
-        let Some(node) = graph.nodes.get(node_id) else {
-            return;
-        };
-        for edge in &node.edges {
-            let Some(target) = &edge.target else {
-                continue;
-            };
-            if resolved.contains_key(target) || !matches!(target, TreeNodeId::Package(_)) {
-                continue;
-            }
-            let (_, manifest_source) = get_pkg_info(env, edge, edge_ctx);
-            let child_ctx = EdgeContext {
-                peers: None,
-                linked_path_base_dir: edge_ctx.linked_path_base_dir.clone(),
-                rewrite_link_version_dir: None,
-                parent_dir: Some(manifest_source.path.clone()),
-            };
-            resolved.insert(target.clone(), manifest_source);
-            walk(env, graph, resolved, target, &child_ctx, depth + 1);
-        }
-    }
-
     for node_id in graph.nodes.keys() {
         if let TreeNodeId::Importer(importer_id) = node_id {
-            walk(env, graph, &mut resolved, node_id, &importer_edge_ctx(env, importer_id), 0);
+            resolve_below(env, graph, &mut resolved, node_id, importer_edge_ctx(env, importer_id));
         }
     }
     resolved
+}
+
+/// Resolve every package below `root` that `resolved` does not hold yet,
+/// depth first, each from the directory of the parent the walk first
+/// reaches it through. The walk keeps its frames on a stack of its own, so
+/// it reaches every package however long the path to it.
+fn resolve_below<'graph>(
+    env: &PkgInfoEnv<'_>,
+    graph: &'graph DependencyGraph,
+    resolved: &mut HashMap<TreeNodeId, ManifestSource>,
+    root: &'graph TreeNodeId,
+    root_ctx: EdgeContext<'static>,
+) {
+    // Each frame holds a node, the context its edges resolve in, and the
+    // index of its next edge.
+    let mut frames: Vec<(&'graph TreeNodeId, EdgeContext<'static>, usize)> =
+        vec![(root, root_ctx, 0)];
+    while let Some((node_id, edge_ctx, next)) = frames.last_mut() {
+        let Some(edge) = graph.nodes
+            .get(*node_id)
+            .and_then(|node| node.edges.get(*next))
+        else {
+            frames.pop();
+            continue;
+        };
+        *next += 1;
+        let Some(target) = &edge.target else {
+            continue;
+        };
+        if resolved.contains_key(target) || !matches!(target, TreeNodeId::Package(_)) {
+            continue;
+        }
+        let (_, manifest_source) = get_pkg_info(env, edge, edge_ctx);
+        let child_ctx = EdgeContext {
+            peers: None,
+            linked_path_base_dir: edge_ctx.linked_path_base_dir.clone(),
+            rewrite_link_version_dir: None,
+            parent_dir: Some(manifest_source.path.clone()),
+        };
+        resolved.insert(target.clone(), manifest_source);
+        frames.push((target, child_ctx, 0));
+    }
 }
 
 /// The context of an importer's direct dependencies: hoisted copies

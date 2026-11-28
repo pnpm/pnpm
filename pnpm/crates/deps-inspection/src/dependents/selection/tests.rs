@@ -88,3 +88,93 @@ snapshots:
     assert_eq!(unc_bs.as_deref(), Some("dir://server/share/foo"));
     assert_eq!(unc_bs, unc_slash);
 }
+
+const LENGTH: usize = 1_000;
+
+/// A lockfile whose importer depends on `p0`, which depends on `p1`, and so
+/// on to `p999`.
+fn chain_lockfile(dir: &Path) -> Lockfile {
+    use std::fmt::Write;
+    let mut packages = String::new();
+    let mut snapshots = String::new();
+    for index in 0..LENGTH {
+        writeln!(packages, "  p{index}@1.0.0:\n    resolution: {{integrity: sha512-p{index}}}")
+            .unwrap();
+        if index + 1 < LENGTH {
+            let child = index + 1;
+            writeln!(snapshots, "  p{index}@1.0.0:\n    dependencies:\n      p{child}: 1.0.0")
+                .unwrap();
+        } else {
+            writeln!(snapshots, "  p{index}@1.0.0: {{}}").unwrap();
+        }
+    }
+    let importers = "importers:\n  .:\n    dependencies:\n      p0:\n        specifier: 1.0.0\n        \
+                     version: 1.0.0\n";
+    std::fs::write(
+        dir.join("pnpm-lock.yaml"),
+        format!("lockfileVersion: '9.0'\n{importers}packages:\n{packages}snapshots:\n{snapshots}"),
+    )
+    .unwrap();
+    Lockfile::load_wanted_from_dir(dir).unwrap().unwrap()
+}
+
+fn env_for<'lockfile>(
+    dir: &Path,
+    lockfile: &'lockfile Lockfile,
+) -> crate::pkg_info::PkgInfoEnv<'lockfile> {
+    use std::collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    };
+    crate::pkg_info::PkgInfoEnv {
+        registry_options_by_url: BTreeMap::new(),
+        registries: HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
+        skipped: HashSet::new(),
+        current_lockfile: lockfile,
+        wanted_lockfile: Some(lockfile),
+        dep_types: HashMap::new(),
+        layout: crate::pkg_info::InspectionLayout {
+            lockfile_dir: dir.to_path_buf(),
+            modules_dir: dir.join("node_modules"),
+            relative_modules_dir: std::path::PathBuf::from("node_modules"),
+            virtual_store_dir: dir.join("node_modules/.pnpm"),
+            virtual_store_dir_max_length: 120,
+            store_dir: None,
+            is_hoisted: false,
+            hoisted_dirs: BTreeMap::new(),
+        },
+    }
+}
+
+/// An importer whose dependency `p0` heads a chain a thousand snapshots
+/// deep resolves a location for every package of the chain.
+#[test]
+fn every_package_of_a_deep_chain_is_resolved() {
+    use crate::graph::{
+        BoundPeerEdges,
+        BuildGraphOptions,
+        build_dependency_graph,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let lockfile = chain_lockfile(dir.path());
+    let graph = build_dependency_graph(
+        vec![crate::TreeNodeId::Importer(".".to_string())],
+        &BuildGraphOptions {
+            lockfile: &lockfile,
+            include: pnpm_modules_yaml::IncludedDependencies {
+                dependencies: true,
+                dev_dependencies: true,
+                optional_dependencies: true,
+            },
+            only_projects: false,
+            peer_edges: pnpm_lockfile::PeerEdgeOptions::default(),
+            bound_peer_edges: BoundPeerEdges::Follow,
+        },
+    );
+    let resolved = super::resolve_package_nodes(&env_for(dir.path(), &lockfile), &graph);
+    assert_eq!(resolved.len(), LENGTH);
+}
