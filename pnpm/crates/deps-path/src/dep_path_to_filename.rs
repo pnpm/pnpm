@@ -22,7 +22,7 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
         .trim_end_matches(['.', ' '])
         .len();
     let trailing = filename.len() - kept;
-    let escapes_ambiguously = has_ambiguous_escape(dep_path);
+    let escapes_ambiguously = has_ambiguous_escape(dep_path, &filename);
     if trailing > 0 {
         let mut escaped = filename[..kept].to_string();
         escaped.extend(std::iter::repeat_n('+', trailing));
@@ -38,8 +38,9 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
 /// Whether escaping the URL or path of a non-registry dependency could map
 /// two distinct dep paths to one name. Only `/` after the scheme escapes
 /// unambiguously.
-fn has_ambiguous_escape(dep_path: &str) -> bool {
+fn has_ambiguous_escape(dep_path: &str, filename: &str) -> bool {
     let pkg_id = crate::remove_suffix(dep_path);
+    let has_suffix = pkg_id.len() < dep_path.len();
     let pkg_id = pkg_id.strip_prefix('/').unwrap_or(pkg_id);
     let version = if pkg_id.starts_with("file:") {
         pkg_id
@@ -53,11 +54,26 @@ fn has_ambiguous_escape(dep_path: &str) -> bool {
     if crate::parse_registry_qualified_version(version).is_some() {
         return false;
     }
-    if version.starts_with("file:") && location.contains(['(', ')']) {
+    if ends_with_hash_suffix(filename) || location.contains(['(', ')']) {
+        return true;
+    }
+    // A local path is chosen by the project, so its peer suffix keeps the
+    // unhashed name.
+    if has_suffix && !version.starts_with("file:") {
         return true;
     }
     let location = location.strip_prefix("//").unwrap_or(location);
     location.contains(['+', '\\', ':', '*', '?', '"', '<', '>', '|', '#'])
+}
+
+/// Whether `filename` has the `_<hash>` shape that
+/// [`hash_suffix_virtual_store_name`] appends.
+fn ends_with_hash_suffix(filename: &str) -> bool {
+    let Some(split) = filename.len().checked_sub(33) else { return false };
+    let Some(suffix) = filename.get(split..) else { return false };
+    let Some(hash) = suffix.strip_prefix('_') else { return false };
+    hash.bytes()
+        .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 /// Pre-escape pass: rewrite `file:` to `file+`, strip a single leading
