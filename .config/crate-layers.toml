@@ -302,6 +302,7 @@ pnpm-cli = 84
 pnpm-cmd-shim = 3
 pnpm-config = 22
 pnpm-config-parse-overrides = 3
+pnpm-crate-layers = 1
 pnpm-crypto-shasums-file = 4
 pnpm-default-reporter = 7
 pnpm-deps-inspection = 11

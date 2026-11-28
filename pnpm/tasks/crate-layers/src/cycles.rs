@@ -1,4 +1,5 @@
 use crate::modules::TopLevelGraph;
+use pnpm_strongly_connected_components::StronglyConnectedComponents;
 use std::collections::{
     BTreeMap,
     BTreeSet,
@@ -45,7 +46,8 @@ impl CycleReport {
     }
 }
 
-/// The strongly connected components of the module graph (Tarjan).
+/// The strongly connected components of the module graph, in the order
+/// `pnpm-strongly-connected-components` closes them.
 fn components(graph: &TopLevelGraph) -> Vec<Vec<String>> {
     let mut successors: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
     for module in graph.code_lines.keys() {
@@ -57,75 +59,42 @@ fn components(graph: &TopLevelGraph) -> Vec<Vec<String>> {
             .or_default()
             .insert(to);
     }
-    let mut tarjan = Tarjan {
-        successors: &successors,
-        next_index: 0,
-        index: BTreeMap::new(),
-        low_link: BTreeMap::new(),
-        stack: Vec::new(),
-        on_stack: BTreeSet::new(),
-        components: Vec::new(),
-    };
-    for module in successors.keys() {
-        if !tarjan.index.contains_key(module) {
-            tarjan.visit(module);
+    // A module that only an edge reaches comes after every module with an
+    // entry, so the walk meets it through that edge, not as a root.
+    let mut modules: Vec<&str> = successors.keys().copied().collect();
+    let mut index_of: BTreeMap<&str, usize> = modules
+        .iter()
+        .enumerate()
+        .map(|(index, module)| (*module, index))
+        .collect();
+    for target in successors.values().flatten() {
+        if !index_of.contains_key(target) {
+            index_of.insert(target, modules.len());
+            modules.push(target);
         }
     }
-    tarjan.components
-}
-
-struct Tarjan<'graph> {
-    successors: &'graph BTreeMap<&'graph str, BTreeSet<&'graph str>>,
-    next_index: usize,
-    index: BTreeMap<&'graph str, usize>,
-    low_link: BTreeMap<&'graph str, usize>,
-    stack: Vec<&'graph str>,
-    on_stack: BTreeSet<&'graph str>,
-    components: Vec<Vec<String>>,
-}
-
-impl<'graph> Tarjan<'graph> {
-    fn visit(&mut self, module: &'graph str) {
-        self.index.insert(module, self.next_index);
-        self.low_link.insert(module, self.next_index);
-        self.next_index += 1;
-        self.stack.push(module);
-        self.on_stack.insert(module);
-        let graph = self.successors;
-        let successors = graph
-            .get(module)
-            .into_iter()
-            .flatten()
-            .copied();
-        for successor in successors {
-            if !self.index.contains_key(successor) {
-                self.visit(successor);
-                self.lower(module, self.low_link[successor]);
-            } else if self.on_stack.contains(successor) {
-                self.lower(module, self.index[successor]);
-            }
-        }
-        if self.low_link[module] == self.index[module] {
-            self.pop_component(module);
-        }
-    }
-
-    fn lower(&mut self, module: &'graph str, candidate: usize) {
-        let low = self.low_link.entry(module).or_default();
-        *low = (*low).min(candidate);
-    }
-
-    fn pop_component(&mut self, root: &str) {
-        let mut component = Vec::new();
-        while let Some(member) = self.stack.pop() {
-            self.on_stack.remove(member);
-            component.push(member.to_owned());
-            if member == root {
-                break;
-            }
-        }
-        self.components.push(component);
-    }
+    let adjacency: Vec<Vec<usize>> = modules
+        .iter()
+        .map(|module| {
+            successors
+                .get(module)
+                .into_iter()
+                .flatten()
+                .map(|target| index_of[target])
+                .collect()
+        })
+        .collect();
+    let found = StronglyConnectedComponents::compute(&adjacency, &vec![false; modules.len()]);
+    found
+        .components()
+        .iter()
+        .map(|members| {
+            members
+                .iter()
+                .map(|&member| modules[member].to_owned())
+                .collect()
+        })
+        .collect()
 }
 
 /// Each crate's largest cycle size, for [`crate::ratchet::check`].

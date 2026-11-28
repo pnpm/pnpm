@@ -5219,6 +5219,7 @@ version = "0.0.0"
 dependencies = [
  "clap",
  "command-extra",
+ "pnpm-strongly-connected-components",
  "pretty_assertions",
  "prost",
  "serde",
