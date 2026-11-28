@@ -68,6 +68,8 @@ pub struct PublicationArchive {
     pub binding_gyp: bool,
     /// Every regular file, as a package-relative path with `/` separators.
     pub files: BTreeSet<String>,
+    /// Total byte size of the regular files.
+    pub unpacked_size: u64,
 }
 
 /// Why a published archive cannot be read for its manifest.
@@ -132,6 +134,7 @@ struct PublicationScan {
     shrinkwrap: Option<(Integrity, String)>,
     binding_gyp: bool,
     files: BTreeSet<String>,
+    unpacked_size: u64,
     /// What the paths kept in `files` may still add up to.
     path_bytes_left: usize,
 }
@@ -159,6 +162,9 @@ impl PublicationScan {
             None => {}
         }
         self.binding_gyp |= path == pnpm_package_manifest::BINDING_GYP;
+        // Header-declared sizes, summed for the pack report; saturation
+        // only matters for an archive lying about its entries.
+        self.unpacked_size = self.unpacked_size.saturating_add(entry.size());
         self.path_bytes_left = self.path_bytes_left
             .checked_sub(path.len())
             .ok_or(PublicationArchiveError::OversizedPaths)?;
@@ -223,6 +229,7 @@ impl PublicationScan {
             shrinkwrap_path,
             binding_gyp: self.binding_gyp,
             files: self.files,
+            unpacked_size: self.unpacked_size,
         })
     }
 }

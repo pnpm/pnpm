@@ -1392,6 +1392,7 @@ fn pack_preserves_internal_symlinks() {
 mod bundled_dependencies;
 mod copying;
 mod dotenv;
+mod fetched;
 mod output;
 mod publish_directory;
 
