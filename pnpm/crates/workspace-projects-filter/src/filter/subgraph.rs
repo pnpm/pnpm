@@ -59,11 +59,12 @@ impl WalkState {
     }
 }
 
-/// Walk the subgraph reachable from `next_node_ids`.
+/// Walk the subgraph reachable from `next_node_ids` depth first, adding
+/// to `walked` each node below them the first time the walk meets it, and
+/// each of `next_node_ids` too when `include_root` is set.
 ///
 /// `adj` returns the adjacency list (forward dependencies or reversed
-/// dependents) for a node; recursion always re-includes the visited
-/// children regardless of the top-level `include_root`.
+/// dependents) for a node.
 fn pick_subgraph<Adjacency>(
     adj: &Adjacency,
     next_node_ids: &[PathBuf],
@@ -80,7 +81,32 @@ fn pick_subgraph<Adjacency>(
             walked.insert(next_node_id.clone());
         }
         if let Some(children) = adj(next_node_id) {
-            pick_subgraph(adj, &children, walked, true);
+            pick_descendants(adj, children, walked);
+        }
+    }
+}
+
+/// Add each node `children` reach, themselves included, that `walked`
+/// does not hold yet, depth first. The walk keeps its frames on a stack of
+/// its own, so a chain of projects of any length is walked without
+/// recursion.
+fn pick_descendants<Adjacency>(
+    adj: &Adjacency,
+    children: Vec<PathBuf>,
+    walked: &mut IndexSet<PathBuf>,
+) where
+    Adjacency: Fn(&Path) -> Option<Vec<PathBuf>>,
+{
+    // Each frame holds one node's children and the index of the next.
+    let mut frames: Vec<(Vec<PathBuf>, usize)> = vec![(children, 0)];
+    while let Some((children, next)) = frames.last_mut() {
+        let Some(child) = children.get(*next).cloned() else {
+            frames.pop();
+            continue;
+        };
+        *next += 1;
+        if walked.insert(child.clone()) {
+            frames.extend(adj(&child).map(|grandchildren| (grandchildren, 0)));
         }
     }
 }
@@ -100,3 +126,6 @@ pub(super) fn reverse_graph<Pkg>(
     }
     reversed
 }
+
+#[cfg(test)]
+mod tests;
