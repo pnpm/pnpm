@@ -37,9 +37,7 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
 
 /// Whether escaping the URL or path of a non-registry dependency could map
 /// two distinct dep paths to one name. Only `/` after the scheme escapes
-/// unambiguously. A peer suffix or parentheses in a URL escape to `_`, as
-/// does a literal `_`. A name that already ends in a hash suffix could
-/// equal the hashed name of another dep path.
+/// unambiguously.
 fn has_ambiguous_escape(dep_path: &str, filename: &str) -> bool {
     let pkg_id = crate::remove_suffix(dep_path);
     let has_suffix = pkg_id.len() < dep_path.len();
