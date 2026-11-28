@@ -34,7 +34,7 @@ describe('renderDependentsTree', () => {
     fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
       name: 'foo',
       version: '1.0.0',
-      description: '\u001B[2J\u001B[Hdescription',
+      description: '\u001B[2J\u001B[H' + 'description',
       repository: '\u001B]52;c;cHduZWQ=\u0007https://example.com/repo',
       homepage: 'https://example.com/\u009B2J',
     }))
