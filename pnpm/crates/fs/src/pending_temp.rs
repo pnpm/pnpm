@@ -20,6 +20,16 @@
 //! This handler passes the signal on to whatever disposition it replaced
 //! for the same reason, unlinking only before the one that ends the
 //! process.
+//!
+//! A signal is handled on whichever thread it lands on while writes go on
+//! running on the others, so the cleanup that ends the process first closes
+//! a gate that every write passes before it creates a temp file. A write
+//! that finds the gate closed blocks until the process has ended. The
+//! cleanup then waits for the writes already past the gate, so that each
+//! has created and registered its temp file before the walk unlinks it.
+//! Without the gate, a write could create its temp file after the walk had
+//! unlinked the path, or register it in a slot the walk had already passed,
+//! and the file stayed behind.
 
 #![cfg_attr(
     not(unix),
@@ -30,6 +40,16 @@
 )]
 
 use pnpm_signal_registry::SignalRegistry;
+use std::{
+    io,
+    path::Path,
+    sync::atomic::{
+        AtomicBool,
+        AtomicUsize,
+        Ordering,
+    },
+    time::Duration,
+};
 
 /// The registered path as the cleanup reads it: a C string on Unix, where
 /// the reader is a signal handler and encoding one would allocate.
@@ -39,7 +59,117 @@ type StoredPath = std::ffi::CString;
 #[cfg(not(unix))]
 type StoredPath = std::path::PathBuf;
 
-static PENDING: SignalRegistry<StoredPath> = SignalRegistry::new();
+static PENDING: PendingTempFiles = PendingTempFiles::new(EXIT_WAIT_LIMIT);
+
+/// How long the cleanup that ends the process waits for the writes past the
+/// gate. A creation is one `open`, so the wait normally ends within
+/// microseconds. The limit covers a signal that lands on a thread mid
+/// creation, which cannot finish while the handler runs. That temp file is
+/// either registered and created, so the walk unlinks it, or never created.
+const EXIT_WAIT_LIMIT: Duration = Duration::from_millis(100);
+
+/// How long the cleanup sleeps between two checks of the writes past the
+/// gate.
+const EXIT_WAIT_STEP: Duration = Duration::from_millis(1);
+
+/// The temp files of in-flight atomic writes, and the gate that stops new
+/// ones once the process is ending.
+struct PendingTempFiles {
+    registry: SignalRegistry<StoredPath>,
+    /// Closed by the cleanup that ends the process. No write creates a temp
+    /// file once it is closed.
+    exiting: AtomicBool,
+    /// How many writes have passed the gate and not yet finished creating
+    /// their temp file.
+    creating: AtomicUsize,
+    exit_wait_limit: Duration,
+}
+
+impl PendingTempFiles {
+    const fn new(exit_wait_limit: Duration) -> Self {
+        Self {
+            registry: SignalRegistry::new(),
+            exiting: AtomicBool::new(false),
+            creating: AtomicUsize::new(0),
+            exit_wait_limit,
+        }
+    }
+
+    fn track<Created>(
+        &'static self,
+        path: &Path,
+        create: impl FnOnce() -> io::Result<Created>,
+    ) -> io::Result<(PendingTempFile, Created)> {
+        let _creating = self.pass_gate();
+        // Registered before the create, so a signal landing on this thread
+        // between the two cannot leave the fresh temp file behind.
+        let registration = store_path(path).map(|path| self.registry.register(path));
+        // A failed create means the path was never ours. Returning drops the
+        // registration before `_creating`, so the cleanup, which waits for
+        // `_creating`, cannot unlink a file that belongs to someone else.
+        let created = create()?;
+        Ok((PendingTempFile { _registration: registration }, created))
+    }
+
+    /// Count this write among those creating a temp file, or block until
+    /// the process ends if the gate is closed.
+    ///
+    /// The increment comes before the load, and the cleanup's store comes
+    /// before its own load, all in `SeqCst`. Of the two loads, at least one
+    /// sees the other side's write: either this write sees the gate closed,
+    /// or the cleanup sees this write counted and waits for it.
+    fn pass_gate(&self) -> Creating<'_> {
+        self.creating.fetch_add(1, Ordering::SeqCst);
+        if self.exiting.load(Ordering::SeqCst) {
+            self.creating.fetch_sub(1, Ordering::SeqCst);
+            block_until_exit();
+        }
+        Creating { count: &self.creating }
+    }
+
+    /// Close the gate, wait up to the limit for the writes past it, then
+    /// unlink every registered temp file. For the path that ends the
+    /// process, since no temp file is created afterwards.
+    ///
+    /// Async-signal-safe: the wait reads an atomic and sleeps, and
+    /// `std::thread::sleep` is a `nanosleep` loop on Unix.
+    #[cfg_attr(
+        not(any(unix, windows, test)),
+        expect(dead_code, reason = "only the Unix and Windows interrupt handlers end the process")
+    )]
+    fn remove_before_exit(&self) {
+        self.exiting.store(true, Ordering::SeqCst);
+        let mut remaining = self.exit_wait_limit;
+        while self.creating.load(Ordering::SeqCst) != 0 && !remaining.is_zero() {
+            std::thread::sleep(EXIT_WAIT_STEP);
+            remaining = remaining.saturating_sub(EXIT_WAIT_STEP);
+        }
+        self.remove_all();
+    }
+
+    fn remove_all(&self) {
+        self.registry.for_each(unlink_stored);
+    }
+}
+
+/// Block the calling thread for the moment the process takes to end.
+fn block_until_exit() -> ! {
+    loop {
+        std::thread::park();
+    }
+}
+
+/// A write's place in the count of writes past the gate, given up when it
+/// is dropped.
+struct Creating<'files> {
+    count: &'files AtomicUsize,
+}
+
+impl Drop for Creating<'_> {
+    fn drop(&mut self) {
+        self.count.fetch_sub(1, Ordering::SeqCst);
+    }
+}
 
 /// A staged temp file's registration. Dropping it releases the slot: the
 /// write has published or removed the temp file itself.
@@ -48,26 +178,32 @@ pub struct PendingTempFile {
 }
 
 /// Register `path` as a temp file to unlink if the process is interrupted,
-/// until the returned guard is dropped.
-#[must_use]
-pub fn track_temp_file(path: &std::path::Path) -> PendingTempFile {
+/// then create it with `create`. The registration lasts until the returned
+/// guard is dropped. A failed `create` releases it at once, since the path
+/// then belongs to whoever created it.
+///
+/// Once an interrupt has started ending the process, this blocks until the
+/// process has ended rather than create a temp file the cleanup would miss.
+pub fn track_temp_file<Created>(
+    path: &Path,
+    create: impl FnOnce() -> io::Result<Created>,
+) -> io::Result<(PendingTempFile, Created)> {
     install_temp_file_cleanup();
-    PendingTempFile { _registration: store_path(path).map(|path| PENDING.register(path)) }
+    PENDING.track(path, create)
 }
 
-/// Unlink every temp file still registered.
+/// Unlink every temp file still registered, leaving writes free to create
+/// more. The cleanup that ends the process goes through [`die_from_signal`]
+/// instead, which first stops them.
 ///
 /// Async-signal-safe: the walk takes no lock and allocates nothing, and
-/// `unlink` is safe to call from a handler. Called from this module's own
-/// handler on the path that ends the process, and through
-/// [`die_from_signal`] by `pnpm-executor`'s relay when that is the handler
-/// which ends it.
+/// `unlink` is safe to call from a handler.
 pub fn remove_pending_temp_files() {
-    PENDING.for_each(unlink_stored);
+    PENDING.remove_all();
 }
 
 #[cfg(unix)]
-fn store_path(path: &std::path::Path) -> Option<StoredPath> {
+fn store_path(path: &Path) -> Option<StoredPath> {
     use std::os::unix::ffi::OsStrExt as _;
 
     std::ffi::CString::new(path.as_os_str().as_bytes()).ok()
@@ -81,7 +217,7 @@ fn store_path(path: &std::path::Path) -> Option<StoredPath> {
         reason = "the `cfg(unix)` twin encodes this parameter into a `CString` rather than owning it, and both must offer one signature to the shared call site"
     )
 )]
-fn store_path(path: &std::path::Path) -> Option<StoredPath> {
+fn store_path(path: &Path) -> Option<StoredPath> {
     Some(path.to_path_buf())
 }
 
@@ -136,14 +272,15 @@ fn signal_number(interrupt: pnpm_ffi_signal::Interrupt) -> i32 {
     }
 }
 
-/// Unlink the pending temp files, then end the process as `signal` would
-/// have ended it without a handler, without dumping pnpm's own core. For a
-/// signal handler or child-status exit that decides the process dies.
+/// Stop writes from creating temp files, unlink the pending ones, then end
+/// the process as `signal` would have ended it without a handler, without
+/// dumping pnpm's own core. For a signal handler or child-status exit that
+/// decides the process dies.
 ///
 /// Async-signal-safe.
 #[cfg(unix)]
 pub fn die_from_signal(signal: i32) -> ! {
-    remove_pending_temp_files();
+    PENDING.remove_before_exit();
     // A core-dumping signal re-raised here (`SIGABRT`, `SIGSEGV`,
     // `SIGQUIT`, ...) is a child's status being reported as pnpm's own
     // exit. The child already had its chance to dump core, and a dump here
@@ -164,12 +301,13 @@ pub fn install_temp_file_cleanup() {
     INSTALLED.call_once(|| pnpm_ffi_signal::on_console_event(clean_temp_files));
 }
 
-/// Remove the pending temp files, then pass the event on to the default
-/// termination. `pnpm-executor`'s relay, registered after this handler,
-/// sees the event first and stops it there while children are running.
+/// Stop writes from creating temp files and remove the pending ones, then
+/// pass the event on to the default termination. `pnpm-executor`'s relay,
+/// registered after this handler, sees the event first and stops it there
+/// while children are running.
 #[cfg(windows)]
 fn clean_temp_files(_interrupt: pnpm_ffi_signal::Interrupt) -> pnpm_ffi_signal::Handled {
-    remove_pending_temp_files();
+    PENDING.remove_before_exit();
     pnpm_ffi_signal::Handled::No
 }
 
