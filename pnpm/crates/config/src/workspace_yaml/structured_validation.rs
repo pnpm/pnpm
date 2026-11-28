@@ -77,6 +77,20 @@ pub fn validate_structured_setting(
     }
 }
 
+/// Check the complete section after a nested write, including settings whose
+/// declared type precludes addressing them as a mapping.
+pub fn validate_nested_setting(
+    key: &str,
+    section: &Value,
+    target: YamlConfigTarget,
+) -> Result<(), String> {
+    validate_structured_setting(key, section, target)?;
+    if target == YamlConfigTarget::Global {
+        parse_yaml_setting::<MachineSettings>(key, section)?;
+    }
+    parse_workspace_yaml_setting(key, section, target).map(|_| ())
+}
+
 fn validate_concurrency_groups(value: &Value, target: YamlConfigTarget) -> Result<(), String> {
     require_object(value)?;
     let settings = parse_workspace_yaml_setting("concurrencyGroups", value, target)?;

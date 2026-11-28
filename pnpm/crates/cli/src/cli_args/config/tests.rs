@@ -503,14 +503,14 @@ fn set_object_value_with_json_writes_workspace_yaml() {
 // --- config set: validation errors -----------------------------------------
 
 #[test]
-fn set_rejects_deep_property_path() {
+fn set_rejects_array_index_in_property_path() {
     let tmp = TempDir::new().unwrap();
     let config = config_with_dir(&tmp.path().join("global-config"));
     let err = config_set(
         &config,
         tmp.path(),
         flags(true, None, false),
-        ".catalog.react".to_owned(),
+        "catalog[0]".to_owned(),
         Some("19".into()),
     )
     .unwrap_err();
@@ -1439,4 +1439,5 @@ fn global_flag_and_global_location_are_the_same_scope() {
     assert!(!flags(false, None, false).is_global());
 }
 
+mod nested;
 mod scope_routing;

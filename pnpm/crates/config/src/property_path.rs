@@ -1,10 +1,6 @@
 //! Parser for the property-path mini-language used by `pnpm config get`.
 //!
-//! Implements the read half: the tokenizer (`tokenize`), the parser
-//! ([`parse_property_path`]), and [`get_object_value_by_property_path`]. The
-//! mutating `set`/`delete` halves are not implemented, the config command
-//! only reads through a property path and uses [`parse_property_path`] to
-//! classify a key as simple vs. deep.
+//! Parses paths for config and package manifest commands and resolves values by path.
 //!
 //! Grammar:
 //! `foo.bar.baz`, `.foo.bar`, `foo.bar["baz"]`, `foo['bar'].baz`,
@@ -22,6 +18,21 @@ use serde_json::Value;
 pub enum Segment {
     Key(String),
     Index(f64),
+}
+
+/// The first property name that a write through a JavaScript object must reject.
+#[must_use]
+pub fn unsafe_key(segments: &[Segment]) -> Option<&str> {
+    segments
+        .iter()
+        .find_map(|segment| match segment {
+            Segment::Key(key)
+                if matches!(key.as_str(), "__proto__" | "constructor" | "prototype") =>
+            {
+                Some(key.as_str())
+            }
+            _ => None,
+        })
 }
 
 /// Error raised while parsing a property path. The error codes are part

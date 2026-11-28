@@ -30,6 +30,10 @@ pub use field_updates::{
     update_private_manifest_field,
     update_workspace_setting,
 };
+pub use nested_setting::{
+    SettingInput,
+    update_nested_setting,
+};
 pub use pnpm_config::version_policy::ResolvedPackageVersions;
 pub use version_policies::{
     remove_overrides,
@@ -57,6 +61,7 @@ use pnpm_catalogs_types::Catalogs;
 mod edit;
 mod flow;
 mod model;
+mod nested_setting;
 mod render;
 
 #[cfg(test)]

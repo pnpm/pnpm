@@ -5,9 +5,13 @@ use super::{
     IncludeError,
     IncludeSource,
     SettingSlot,
+    WorkspaceIncludes,
     selector::defined_slots,
 };
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 use yaml_serde::Mapping;
 
 /// Which source owns each setting of a workspace.
@@ -34,6 +38,37 @@ pub enum SettingOwner<'a> {
 enum Claimant {
     Root,
     Include(usize),
+}
+
+impl Claimant {
+    fn for_path(includes: &[Include], path: &Path) -> Result<Self, IncludeError> {
+        for (index, include) in includes.iter().enumerate() {
+            let IncludeSource::Local { spec, path: candidate } = &include.source else { continue };
+            if candidate == path
+                || same_file::is_same_file(candidate, path)
+                    .map_err(|source| IncludeError::ReadFragment { spec: spec.clone(), source })?
+            {
+                return Ok(Self::Include(index));
+            }
+        }
+        Ok(Self::Root)
+    }
+}
+
+impl WorkspaceIncludes {
+    /// Check that writing the setting into `path` respects every slot the new value defines.
+    pub fn check_setting_write(
+        &self,
+        path: &Path,
+        key: &str,
+        value: &yaml_serde::Value,
+    ) -> Result<(), IncludeError> {
+        let claimant = Claimant::for_path(&self.includes, path)?;
+        for slot in defined_slots(key, value) {
+            self.ownership.check_slot(claimant, &slot, &self.includes)?;
+        }
+        Ok(())
+    }
 }
 
 impl Ownership {
@@ -138,12 +173,25 @@ impl Ownership {
         slot: SettingSlot,
         includes: &[Include],
     ) -> Result<(), IncludeError> {
+        self.check_slot(claimant, &slot, includes)?;
+        if self.reservation_of(&slot).is_none() {
+            self.defined.insert(slot, claimant);
+        }
+        Ok(())
+    }
+
+    fn check_slot(
+        &self,
+        claimant: Claimant,
+        slot: &SettingSlot,
+        includes: &[Include],
+    ) -> Result<(), IncludeError> {
         let describe = |claimant| describe_claimant(claimant, includes);
         if let Claimant::Include(position) = claimant {
-            check_permitted(&includes[position], &slot)?;
+            check_permitted(&includes[position], slot)?;
         }
         if let Some(owner) = self
-            .reservation_of(&slot)
+            .reservation_of(slot)
             .filter(|&owner| claimant != Claimant::Include(owner))
         {
             return Err(IncludeError::DuplicateSetting {
@@ -153,7 +201,7 @@ impl Ownership {
             });
         }
         if let Some(&other) = self.defined
-            .get(&slot)
+            .get(slot)
             .filter(|&&other| other != claimant)
         {
             return Err(IncludeError::DuplicateSetting {
@@ -161,9 +209,6 @@ impl Ownership {
                 first: format!("defined in {}", describe(other)),
                 second: format!("defined in {}", describe(claimant)),
             });
-        }
-        if self.reservation_of(&slot).is_none() {
-            self.defined.insert(slot, claimant);
         }
         Ok(())
     }

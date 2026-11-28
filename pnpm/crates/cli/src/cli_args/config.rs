@@ -19,7 +19,6 @@ use clap::{
     Subcommand,
     ValueEnum,
 };
-use credentials::carries_global_credentials;
 use derive_more::{
     Display,
     Error,
@@ -37,10 +36,12 @@ use pnpm_config::{
     property_path,
     property_path::Segment,
     protected_settings,
+    protected_settings::carries_global_credentials,
     refused_keys,
     validate_structured_setting,
 };
 use pnpm_workspace_manifest_writer::{
+    SettingInput,
     update_manifest_field,
     update_private_manifest_field,
     update_workspace_setting,
@@ -56,10 +57,11 @@ use std::path::{
 use values::{
     cast_field,
     config_get,
+    config_key_path,
     config_list,
     is_string_only_ini_key,
+    segment_to_string,
     validate_ini_config_key,
-    validate_simple_key,
     validate_workspace_key,
     validate_yaml_config_key,
 };
@@ -85,7 +87,7 @@ impl ConfigArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum ConfigSubcommand {
-    /// Set the config key to the value provided.
+    /// Set a config key or a nested field of a YAML setting.
     Set(ConfigSetArgs),
     /// Print the config value at the provided property path, such as
     /// `nodeVersion` or `catalog.react`.
@@ -191,7 +193,7 @@ pub enum ConfigError {
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_EMPTY_KEY))]
     SetEmptyKey,
 
-    #[display("Setting deep property path is not supported")]
+    #[display("This operation requires a simple config key or a supported YAML mapping path")]
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_DEEP_KEY))]
     SetDeepKey,
 
@@ -318,24 +320,30 @@ fn config_set(
     config: &Config,
     dir: &Path,
     flags: ConfigFlags,
-    mut key: String,
+    key: String,
     value: Option<String>,
 ) -> miette::Result<()> {
     let global = resolve_global(flags);
-    let mut is_auth_setting = config_types::is_ini_config_key(&key);
-    if !is_auth_setting {
-        key = validate_simple_key(&key)?;
-        is_auth_setting = config_types::is_ini_config_key(&key);
-    }
+    let deleting = value.is_none();
+    let segments = config_key_path(key)?;
 
     // The cast/parsed value. `None` (delete) and JSON `null` both delete.
-    let value: Value = match value {
-        None => Value::Null,
-        Some(raw) if flags.json => serde_json::from_str(&raw).map_err(ConfigError::InvalidJson)?,
-        Some(raw) => Value::String(raw),
+    let input = match value {
+        None => SettingInput::Json(Value::Null),
+        Some(raw) if flags.json => {
+            SettingInput::Json(serde_json::from_str(&raw).map_err(ConfigError::InvalidJson)?)
+        }
+        Some(raw) => SettingInput::Plain(raw),
     };
 
-    if is_auth_setting {
+    let mut key = match segments.as_slice() {
+        [] => return Err(ConfigError::SetEmptyKey.into()),
+        [single] => segment_to_string(single),
+        path if !deleting => return nested::set(config, dir, flags, path, input),
+        _ => return Err(ConfigError::SetDeepKey.into()),
+    };
+    let value = Value::from(input);
+    if config_types::is_ini_config_key(&key) {
         return set_auth_setting(config, dir, global, key, &value);
     }
 
@@ -563,6 +571,6 @@ fn global_config_dir(config: &Config) -> Result<PathBuf, ConfigError> {
     config.config_dir.clone().ok_or(ConfigError::NoGlobalConfigDir)
 }
 
-mod credentials;
 mod incomplete;
+mod nested;
 mod values;
