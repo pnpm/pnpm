@@ -2,7 +2,7 @@ name: Assign New Issues
 
 # Assigns a new issue to its author when they tick the issue form's "I am
 # working on a fix" checkbox, and to the maintainer otherwise. An author who
-# ticks the checkbox in a later edit takes the issue over from the maintainer.
+# ticks the checkbox in a later edit is added as an assignee.
 
 on:
   issues:
@@ -56,13 +56,11 @@ jobs:
               ;;
             edited)
               # Act only on the edit that ticks the checkbox, so a maintainer
-              # who later reassigns the issue is not overridden by other edits.
+              # who later unassigns the author is not overridden by other edits.
               [ "$fix_state" = checked ] || exit 0
               [ -n "$PREVIOUS_BODY" ] || exit 0
               [ "$(.github/scripts/issue-fix-intent.sh <<<"$PREVIOUS_BODY")" != checked ] || exit 0
-              remove=()
-              [ "$AUTHOR" = "$MAINTAINER" ] || remove=(--remove-assignee "$MAINTAINER")
-              gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR" "${remove[@]}" ||
+              gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR" ||
                 echo "::warning::Could not assign the issue to $AUTHOR"
               ;;
           esac
