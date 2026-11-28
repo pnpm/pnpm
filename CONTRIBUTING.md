@@ -42,19 +42,11 @@ Most contributions need a working Rust toolchain and the Rust developer tools. T
    just init
    ```
 
-   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov` (via `cargo binstall`), plus `cargo-fixit` (pinned to `0.1.15` via `cargo install cargo-fixit@0.1.15 --locked`, since `cargo-fixit` has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. It also builds the pinned pnpm rustfmt fork described below.
+   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov` (via `cargo binstall`), plus `cargo-fixit`, `cargo-dylint`, and `dylint-link` (pinned and built from source with `cargo install --locked`). `cargo-fixit` backs the `just fix` task and has no prebuilt binaries. It also builds the pinned pnpm rustfmt fork described below.
 
    Because `cargo-fixit` is built from source, it needs a complete OpenSSL development installation — headers and libraries — which its `openssl-sys` dependency looks for at build time. Without one, `just init` fails while installing `cargo-fixit`, before it reaches the rustfmt step, with `failed to run custom build command for openssl-sys`. Install it first: `sudo dnf install openssl-devel` on Fedora, `sudo apt install libssl-dev pkg-config` on Debian and Ubuntu. If OpenSSL is installed somewhere `openssl-sys` does not look — under a Homebrew prefix, for instance — point it at that existing installation with `OPENSSL_DIR`, for example `export OPENSSL_DIR=$(brew --prefix openssl@3)`. `OPENSSL_DIR` only locates an installation; it is not a substitute for one.
 
-3. Install the dylint tools, which `just init` does not cover, **from source**:
-
-   ```shell
-   cargo install cargo-dylint dylint-link
-   ```
-
-   Install these from source rather than with `cargo binstall`. The prebuilt `cargo-dylint` binaries reference the `dylint_driver` crate at the path where they were built, so building the per-toolchain driver fails locally with an error that points at a nonexistent `.../dylint/driver` directory. A `cargo install` build resolves the driver against your local cargo registry and works.
-
-   Use dylint 6.3.0 or newer. Earlier releases clone rust-clippy's `master` branch, which rust-clippy renamed to `main`, so the driver build fails with `revspec 'master' not found` whenever the driver cache misses.
+   `cargo-dylint` and `dylint-link` are built from source because the prebuilt `cargo-dylint` binaries reference the `dylint_driver` crate at the path where they were built. Building the per-toolchain driver with one fails locally with an error that points at a nonexistent `.../dylint/driver` directory.
 
 `pnpm install` at the repository root installs the Rust dependencies alongside the JavaScript ones. It reads `Cargo.lock`, links the registry crates into `.pnpm/crates/crates-io` and the git-sourced ones into `.pnpm/crates/git`, and points Cargo at both through the source replacement block committed in `.cargo/config.toml`. `cargo build` and `cargo test` work as before, and `cargo metadata --locked --offline` confirms that every dependency resolves without network access.
 
@@ -62,7 +54,7 @@ Every crate reaches the build this way, in CI as well as locally. Cargo resolves
 
 The block is a function of `Cargo.lock`, so an install regenerates it byte for byte and leaves `git status` clean. It changes only when a git-sourced dependency moves to a new revision, and that change belongs in the same commit as the lockfile. Rust CI fails if the two drift apart.
 
-Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above points git at the hooks in `.config/githooks/`. The `pre-commit` hook formats the Rust files being committed, as described under [Rust formatting](#rust-formatting), and the `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript checks. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
+Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above points git at the hooks in `.config/githooks/`. The `pre-commit` hook formats the Rust files being committed, as described under [Rust formatting](#rust-formatting), and the `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript checks. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped those checks, so the problems surface only in CI. The exception is `cargo-dylint`: with `rustup` on `PATH` and `cargo-dylint` missing, the push fails.
 
 For the full Rust development workflow (checks, tests, benchmarks, and the code style guide), see [`pnpm/CONTRIBUTING.md`](./pnpm/CONTRIBUTING.md).
 

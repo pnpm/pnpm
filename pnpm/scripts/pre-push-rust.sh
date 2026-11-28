@@ -28,7 +28,12 @@ if command -v cargo >/dev/null 2>&1; then
         failed=1
     fi
 
-    if command -v cargo-dylint >/dev/null 2>&1 && command -v rustup >/dev/null 2>&1; then
+    if ! command -v rustup >/dev/null 2>&1; then
+        yellow '! rustup not found on PATH — skipping dylint check (install rustup, then run `just init`).'
+    elif ! command -v cargo-dylint >/dev/null 2>&1; then
+        red '✗ cargo-dylint not found on PATH — run `just init` to install it.'
+        failed=1
+    else
         yellow '▸ RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace'
         # Git exports its repository-local variables (GIT_DIR, GIT_INDEX_FILE,
         # ...) to hooks. When dylint builds a driver for a new toolchain it
@@ -43,8 +48,6 @@ if command -v cargo >/dev/null 2>&1; then
         # shellcheck disable=SC2046
         (unset $(git rev-parse --local-env-vars) && RUSTFLAGS='-D warnings' node pnpm/scripts/cargo-dylint.mjs --all -- --all-targets --workspace) >"$dylint_log" 2>&1 &
         dylint_pid=$!
-    else
-        yellow '! cargo-dylint or rustup not found on PATH — skipping dylint check (install rustup, then cargo-dylint from source with `cargo install cargo-dylint dylint-link`).'
     fi
 
     # Mirror the CI clippy gate. `--all-targets` is the load-bearing flag:

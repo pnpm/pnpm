@@ -429,8 +429,8 @@ are part of the public contract, not implementation detail. See
   (`pnpm/scripts/pre-push-rust.sh`), which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
   warnings`), `cargo doc` (with `RUSTDOCFLAGS=-D warnings`), and `cargo
   dylint`. Make sure your environment
-  can run cargo (the hook needs it) before pushing; `cargo-dylint` is
-  detected at runtime and skipped with a warning if not installed.
+  can run cargo (the hook needs it) before pushing. With `rustup` on
+  `PATH` and `cargo-dylint` missing, the hook fails: `just init` installs it.
 
 ### Commit messages
 

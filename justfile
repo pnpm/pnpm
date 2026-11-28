@@ -16,6 +16,9 @@ init:
   # `cargo-fixit` has no prebuilt binaries, so install it from source
   # with `cargo install` (pinned) instead of `cargo binstall`.
   cargo install cargo-fixit@0.1.15 --locked
+  # The prebuilt `cargo-dylint` binaries fail to build the driver locally.
+  # `--force` replaces one that is already installed at this version.
+  cargo install cargo-dylint@6.3.0 dylint-link@6.3.0 --locked --force
   node pnpm/scripts/rustfmt.mjs --install
 
 # When ready, run the same CI commands
@@ -136,10 +139,8 @@ lint:
 fix:
   cargo fixit --clippy --workspace --all-targets --allow-dirty --allow-staged
 
-# Run perfectionist dylint rules. Requires `cargo-dylint` and `dylint-link`
-# (install from source with `cargo install cargo-dylint dylint-link`; the
-# prebuilt binstall binaries fail to build the driver locally). The lint
-# library is pinned in `dylint.toml`.
+# Run perfectionist dylint rules. `just init` installs `cargo-dylint` and
+# `dylint-link`. The lint library is pinned in `dylint.toml`.
 dylint:
   env RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace
 
