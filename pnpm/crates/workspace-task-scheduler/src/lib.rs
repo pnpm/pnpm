@@ -121,7 +121,6 @@ pub struct TaskCycle {
 pub struct BuildTaskGraphOptions<'a, SelectScripts, Declaration>
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
-    Declaration: TaskDeclaration,
 {
     /// The projects the graph can contain and their dependency edges.
     /// Every dependency and requested project must be present in this map.
@@ -137,6 +136,7 @@ where
     /// Other projects participate only through `dependsOn` edges.
     pub requested_projects: Option<&'a [PathBuf]>,
     pub tasks: Option<&'a IndexMap<String, Declaration>>,
+    pub declaration: ReadTaskDeclaration<Declaration>,
     /// Whether a task name is a `RegExp` selector (a `/pattern/` literal).
     /// With `tasks` declared, a selector seeds one task per script
     /// `select_scripts` matches in each project, so each resolves the
@@ -147,7 +147,6 @@ where
 pub struct BuildPipelineTaskGraphOptions<'a, SelectScripts, Declaration>
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
-    Declaration: TaskDeclaration,
 {
     /// The dependency edges among the included projects, already resolved
     /// through the full workspace graph. Tasks are created only for these
@@ -167,18 +166,24 @@ where
     pub requested_projects: Option<&'a [PathBuf]>,
     pub is_selector_task: fn(&str) -> bool,
     pub tasks: Option<&'a IndexMap<String, Declaration>>,
+    pub declaration: ReadTaskDeclaration<Declaration>,
 }
 
 /// The parts of a task's entry in the `tasks` section that shape the task
 /// graph.
-pub trait TaskDeclaration {
+#[derive(Clone, Copy)]
+pub struct TaskDeclaration<'a> {
     /// The `dependsOn` entries. `None` when the entry omits the key, which
     /// declares no dependencies.
-    fn depends_on(&self) -> Option<&[String]>;
-
+    pub depends_on: Option<&'a [String]>,
     /// The most instances of the task that run at once.
-    fn concurrency(&self) -> Option<i64>;
+    pub concurrency: Option<i64>,
 }
+
+/// Reads a [`TaskDeclaration`] from the caller's type for a `tasks` entry.
+/// A function and not a trait, so that the type can live in a crate that
+/// does not depend on this one.
+pub type ReadTaskDeclaration<Declaration> = fn(&Declaration) -> TaskDeclaration<'_>;
 
 /// How the scheduler saw one task end.
 #[derive(Clone, Copy)]

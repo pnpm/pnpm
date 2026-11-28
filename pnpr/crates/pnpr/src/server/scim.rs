@@ -250,7 +250,8 @@ async fn delete_user(
 }
 
 fn location(state: &AppState, user_id: &str) -> String {
-    let public_url = state.inner.config.http.public_url.trim_end_matches('/');
+    let public_url = state.inner.config.http.public_url();
+    let public_url = public_url.trim_end_matches('/');
     let users = format!("{public_url}{BASE}/Users");
     let Ok(mut url) = url::Url::parse(&users) else {
         return format!("{users}/{user_id}");

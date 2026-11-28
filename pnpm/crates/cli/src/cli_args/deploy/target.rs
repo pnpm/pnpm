@@ -305,8 +305,9 @@ pub(super) fn copy_project(src: PathBuf, dest: &Path, files: CopyFiles) -> miett
 /// copy from `deploy_dir` is left as declared, so a source `readPackage`
 /// hook still matches it.
 pub(super) fn apply_deploy_hook(deploy_dir: &Path, project_dir: &Path) -> miette::Result<()> {
-    let mut manifest = PackageManifest::from_path(deploy_dir.join("package.json"))
-        .wrap_err("read deployed manifest")?;
+    let mut manifest =
+        PackageManifest::from_path(pnpm_package_manifest::project_manifest_path(deploy_dir))
+            .wrap_err("read deployed manifest")?;
     rebase_local_specifiers(manifest.value_mut(), project_dir, deploy_dir);
     apply_deploy_manifest_hook(manifest.value_mut());
     manifest.save().wrap_err("write deployed manifest")

@@ -56,8 +56,35 @@ pub(crate) struct CarriedSettings<'a> {
     /// [`recorded_registry_routes_after_install`](crate::install_state::recorded_registry_routes_after_install)
     /// for an install and the recorded ones for a passing check.
     pub(crate) registry_routes: Option<std::collections::BTreeMap<String, String>>,
+    pub(crate) selected_registry_routes_resolved: bool,
     /// The install settings to carry forward when a run check ignores their drift.
     pub(crate) kept_settings: Option<&'a WorkspaceStateSettings>,
+}
+
+impl CarriedSettings<'_> {
+    pub(crate) fn after_install(
+        config: &Config,
+        lockfile: Option<&pnpm_lockfile::Lockfile>,
+        previous_routes: Option<&std::collections::BTreeMap<String, String>>,
+        resolution: crate::install_state::ResolvedImporters,
+        trust_lockfile: bool,
+        established_auto_dedupe: Option<bool>,
+    ) -> Self {
+        Self {
+            trust_lockfile,
+            established_auto_dedupe,
+            registry_keys_verified: super::registry_keys_current(config, lockfile),
+            registry_routes: Some(crate::install_state::recorded_registry_routes_after_install(
+                config,
+                previous_routes,
+                lockfile,
+                resolution,
+            )),
+            selected_registry_routes_resolved: resolution
+                == crate::install_state::ResolvedImporters::Selected,
+            kept_settings: None,
+        }
+    }
 }
 
 /// The workspace state `write` records. Every writer goes through here, so a
@@ -67,28 +94,10 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         write.workspace_root,
         write.config,
         write.layout.node_linker,
-        write.layout.included,
-        write.layout.supported_architectures,
-        write.catalogs,
+        write.effective_settings(),
         write.projects.manifests,
         write.filesystem_now_ms,
     );
-    state.settings.trust_lockfile = write.carried.trust_lockfile.then_some(true);
-    state.settings.auto_dedupe =
-        recorded_auto_dedupe(write.config, write.carried.established_auto_dedupe);
-    if write.carried.registry_keys_verified {
-        state.settings.registry_prefixes =
-            crate::install_state::recorded_registry_prefixes(write.config);
-        state.settings.default_registry =
-            crate::install_state::recorded_default_registry(write.config);
-    }
-    state.settings.registry_routes.clone_from(&write.carried.registry_routes);
-    if state.settings.installed_registry_routes == state.settings.registry_routes {
-        state.settings.installed_registry_routes = None;
-    }
-    if let Some(kept) = write.carried.kept_settings {
-        carry_run_ignored_settings(&mut state.settings, kept);
-    }
     crate::install_state::validation::record_validation(
         &mut state,
         &crate::install_state::validation::RecordValidation {
@@ -101,6 +110,34 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         },
     );
     state
+}
+
+impl StateWrite<'_> {
+    fn effective_settings(&self) -> WorkspaceStateSettings {
+        let mut settings = crate::install_state::current_settings_with_catalogs(
+            self.config,
+            self.layout.node_linker,
+            self.layout.included,
+            self.layout.supported_architectures,
+            self.catalogs,
+        );
+        let carried = &self.carried;
+        settings.trust_lockfile = carried.trust_lockfile.then_some(true);
+        settings.auto_dedupe = recorded_auto_dedupe(self.config, carried.established_auto_dedupe);
+        if !carried.registry_keys_verified {
+            settings.registry_prefixes = None;
+            settings.default_registry = None;
+        }
+        if settings.registry_routes != carried.registry_routes {
+            settings.selected_registry_routes_resolved = carried.selected_registry_routes_resolved;
+            settings.installed_registry_routes = settings.registry_routes.take();
+            settings.registry_routes.clone_from(&carried.registry_routes);
+        }
+        if let Some(kept) = carried.kept_settings {
+            carry_run_ignored_settings(&mut settings, kept);
+        }
+        settings
+    }
 }
 
 fn carry_run_ignored_settings(

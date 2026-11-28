@@ -901,9 +901,13 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         &dirs.project_root,
         config,
         pnpm_config::NodeLinker::Isolated,
-        included,
-        None,
-        &Default::default(),
+        crate::install_state::current_settings_with_catalogs(
+            config,
+            pnpm_config::NodeLinker::Isolated,
+            included,
+            None,
+            &Default::default(),
+        ),
         crate::DeclaredManifests::new(&[(dirs.project_root.clone(), &manifest)]),
         None,
     );

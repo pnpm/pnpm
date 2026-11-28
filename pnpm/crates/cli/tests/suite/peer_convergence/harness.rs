@@ -4,6 +4,7 @@ use crate::_utils::{
     read_v11_bundle_path,
     write_project_manifest,
 };
+use pnpm_lockfile::LockfileFormat;
 use serde_json::Value;
 use std::{
     cell::RefCell,
@@ -88,25 +89,33 @@ pub(super) struct Row {
     pub(super) dedupe_peer_dependents: bool,
     pub(super) inject_workspace_packages: bool,
     pub(super) auto_dedupe: bool,
+    format: LockfileFormat,
+    peers_suffix_max_length: Option<usize>,
 }
 
 impl Row {
     /// Every combination of the settings. `injectWorkspacePackages` varies
     /// only for fixtures that depend on a workspace package.
     fn all(with_workspace_deps: bool) -> impl Iterator<Item = Self> {
-        (0..16u8)
+        (0..64u8)
             .map(|bits| Self {
                 auto_install_peers: bits & 1 != 0,
                 dedupe_peer_dependents: bits & 2 != 0,
                 inject_workspace_packages: bits & 4 != 0,
                 auto_dedupe: bits & 8 != 0,
+                format: if bits & 16 != 0 { LockfileFormat::V13 } else { LockfileFormat::V9 },
+                peers_suffix_max_length: (bits & 32 != 0).then_some(1),
             })
             .filter(move |row| with_workspace_deps || !row.inject_workspace_packages)
     }
 
     fn yaml(self) -> String {
+        let major = self.format.version().major;
+        let suffix = self.peers_suffix_max_length
+            .map(|limit| format!("peersSuffixMaxLength: {limit}\n"))
+            .unwrap_or_default();
         format!(
-            "autoInstallPeers: {}\ndedupePeerDependents: {}\ninjectWorkspacePackages: {}\nautoDedupe: {}\n",
+            "{suffix}lockfile:\n  format: v{major}\nautoInstallPeers: {}\ndedupePeerDependents: {}\ninjectWorkspacePackages: {}\nautoDedupe: {}\n",
             self.auto_install_peers,
             self.dedupe_peer_dependents,
             self.inject_workspace_packages,
@@ -119,11 +128,13 @@ impl fmt::Display for Row {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "autoInstallPeers={} dedupePeerDependents={} injectWorkspacePackages={} autoDedupe={}",
+            "autoInstallPeers={} dedupePeerDependents={} injectWorkspacePackages={} autoDedupe={} lockfile.format=v{} peersSuffixMaxLength={:?}",
             self.auto_install_peers,
             self.dedupe_peer_dependents,
             self.inject_workspace_packages,
             self.auto_dedupe,
+            self.format.version().major,
+            self.peers_suffix_max_length,
         )
     }
 }
@@ -137,7 +148,10 @@ enum Cli {
 
 impl Cli {
     fn runs(&self, row: Row) -> bool {
-        matches!(self, Self::V12) || !row.auto_dedupe
+        match row.format {
+            LockfileFormat::V9 => matches!(self, Self::V12) || !row.auto_dedupe,
+            LockfileFormat::V13 => matches!(self, Self::V12),
+        }
     }
 }
 
@@ -170,12 +184,13 @@ impl Harness {
             for (row, v11_lockfile) in &v11_fresh {
                 if let Some(v12_lockfile) = v12_fresh.get(row)
                     && v12_lockfile != v11_lockfile
+                    && let differences = diff(v12_lockfile, v11_lockfile)
+                    && !differences.is_empty()
                 {
                     v11.violation_at(
                         row,
                         &format!(
-                            "a fresh v11 install differs from a fresh v12 install:\n{}",
-                            diff(v12_lockfile, v11_lockfile),
+                            "a fresh v11 install differs from a fresh v12 install:\n{differences}",
                         ),
                         None,
                     );
@@ -197,7 +212,7 @@ impl Harness {
         moves: Vec<Move>,
         divergences: Vec<Divergence>,
     ) -> Self {
-        let fixture = WorkspaceFixture::new();
+        let fixture = WorkspaceFixture::with_lockfile_verification();
         write_project_manifest(&fixture.workspace, "root", ManifestDeps::default());
         let base_yaml = fs::read_to_string(fixture.workspace.join("pnpm-workspace.yaml"))
             .expect("read pnpm-workspace.yaml");
@@ -219,19 +234,29 @@ impl Harness {
             .iter()
             .flat_map(|project| project.deps)
             .any(|(_, spec)| spec.starts_with("workspace:"));
-        Row::all(with_workspace_deps)
-            .filter(|row| self.cli.runs(*row))
-            .filter_map(|row| Some((row.to_string(), self.check_row(row)?)))
-            .collect()
+        let mut fresh = BTreeMap::new();
+        for row in Row::all(with_workspace_deps).filter(|row| self.cli.runs(*row)) {
+            if let Some(lockfile) = self.check_row(row) {
+                fresh.insert(row.to_string(), lockfile);
+            }
+        }
+        for row in Row::all(with_workspace_deps).filter(|row| self.cli.runs(*row)) {
+            let v9 = match row.format {
+                LockfileFormat::V9 => continue,
+                LockfileFormat::V13 => Row { format: LockfileFormat::V9, ..row },
+            };
+            if let (Some(source), Some(expected)) =
+                (fresh.get(&v9.to_string()), fresh.get(&row.to_string()))
+            {
+                self.check_conversion(row, source, expected);
+            }
+        }
+        fresh
     }
 
     fn check_row(&self, row: Row) -> Option<String> {
         self.clean();
-        fs::write(
-            self.workspace().join("pnpm-workspace.yaml"),
-            format!("{}{}", self.base_yaml, row.yaml()),
-        )
-        .expect("write pnpm-workspace.yaml");
+        self.configure(row);
         self.write_manifests(self.dep_count(), false);
         let fresh = self.install(row, "a fresh install")?;
         self.check_repeat(row, &fresh);
@@ -243,6 +268,31 @@ impl Harness {
         self.check_incremental(row, &fresh);
         self.check_moves(row, &fresh);
         Some(fresh)
+    }
+
+    fn configure(&self, row: Row) {
+        fs::write(
+            self.workspace().join("pnpm-workspace.yaml"),
+            format!("{}{}", self.base_yaml, row.yaml()),
+        )
+        .expect("write pnpm-workspace.yaml");
+    }
+
+    fn check_conversion(&self, row: Row, source: &str, fresh: &str) {
+        self.clean();
+        self.write_manifests(self.dep_count(), false);
+        fs::write(self.workspace().join("pnpm-lock.yaml"), source)
+            .expect("restore fresh v9 lockfile");
+        self.configure(row);
+        if let Some(converted) = self.install(row, "converting v9 to v13")
+            && converted != fresh
+        {
+            self.violation(
+                row,
+                &format!("converted v9 differs from fresh v13:\n{}", diff(fresh, &converted)),
+                None,
+            );
+        }
     }
 
     fn check_repeat(&self, row: Row, fresh: &str) {
@@ -270,6 +320,7 @@ impl Harness {
 
     fn check_frozen(&self, row: Row, fresh: &str) {
         self.remove_node_modules();
+        self.fixture.clear_lockfile_verification();
         let output = self.run(self.workspace(), &["install", "--frozen-lockfile"]);
         if !output.status.success() {
             self.violation(row, "a frozen install rejected the fresh lockfile", Some(&output));
@@ -299,6 +350,7 @@ impl Harness {
             fs::copy(self.workspace().join(".npmrc"), deploy_dir.join(".npmrc"))
                 .expect("copy .npmrc into the deploy directory");
             remove_dir(&deploy_dir.join("node_modules"));
+            self.fixture.clear_lockfile_verification();
             let output = self.run(&deploy_dir, &["install", "--frozen-lockfile"]);
             if !output.status.success() {
                 let what = format!("a frozen install of the deployed {} failed", project.dir);
@@ -359,6 +411,7 @@ impl Harness {
         let Some(moved) = self.install(row, "a fresh install of the moved manifests") else {
             return;
         };
+        self.check_frozen(row, &moved);
         self.clean();
         self.write_manifests(self.dep_count(), false);
         if self.install(row, "a fresh install before moving").is_none() {

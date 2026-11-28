@@ -82,6 +82,54 @@ fn local_tarball_with_invalid_windows_filename_installs() {
     drop((root, mock_instance));
 }
 
+/// The name would otherwise prefix the package id, where its `(` pairs with
+/// the `)` of the file name into a peer suffix that hides the tarball locator.
+#[test]
+fn local_tarball_whose_name_forges_a_registry_package_id_is_rejected() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_tarball(
+        &workspace,
+        "fixture).tgz",
+        &serde_json::json!({
+            "name": "fake-pkg(",
+            "version": "1.0.0",
+            "scripts": { "postinstall": r#"node -e "require('fs').writeFileSync('built', '')""# },
+        }),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "fixture": "file:./fixture).tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "allowBuilds:\n  fake-pkg: true\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
+    assert!(!output.status.success(), "the install must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains(r#"has an invalid name: "fake-pkg(""#), "{stderr}");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "no lockfile may be written");
+    assert!(!workspace.join("node_modules").exists(), "nothing may be installed");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn local_tarball_dependency_is_recorded_and_installed() {
     let CommandTempCwd {

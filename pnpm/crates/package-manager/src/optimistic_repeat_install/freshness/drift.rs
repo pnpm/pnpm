@@ -404,25 +404,33 @@ fn reached_importers(
     current: &CurrentLockfile<'_>,
     selected: &[&Path],
 ) -> Option<HashSet<String>> {
-    let selected_ids: HashSet<String> = selected
-        .iter()
-        .map(|dir| importer_id_from_root_dir(check.workspace_root, dir))
-        .collect();
     let lockfile = match check.lockfile.get() {
         Ok(Some(wanted)) => wanted,
         Ok(None) => current.get()??,
         Err(_) => return None,
     };
+    Some(reached_lockfile_importers(lockfile, check.workspace_root, selected))
+}
+
+pub(super) fn reached_lockfile_importers(
+    lockfile: &pnpm_lockfile::Lockfile,
+    workspace_root: &Path,
+    selected: &[&Path],
+) -> HashSet<String> {
+    let selected_ids: HashSet<String> = selected
+        .iter()
+        .map(|dir| importer_id_from_root_dir(workspace_root, dir))
+        .collect();
     let mut reached = crate::materialization_closure(
         lockfile,
-        check.workspace_root,
+        workspace_root,
         &selected_ids,
         &crate::GroupSelection::all(),
         &crate::SkippedSnapshots::new(),
     )
     .importer_ids;
     reached.extend(selected_ids);
-    Some(reached)
+    reached
 }
 
 #[cfg(test)]

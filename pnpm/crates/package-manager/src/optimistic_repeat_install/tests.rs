@@ -451,6 +451,7 @@ fn record_test_workspace_state(
             established_auto_dedupe: config.auto_dedupe.then_some(true),
             registry_keys_verified: true,
             registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
+            selected_registry_routes_resolved: false,
             kept_settings: None,
         },
         vouched: &super::validation::Vouched::All,

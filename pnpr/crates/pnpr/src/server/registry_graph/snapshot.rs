@@ -133,7 +133,7 @@ pub(crate) fn build_snapshot(
             (name.clone(), namespace)
         })
         .collect();
-    let route_context = Arc::new(RouteContext::from_routing(&routing, &config.http.public_url));
+    let route_context = Arc::new(RouteContext::from_routing(&routing, &config.http.public_url()));
     let claimed_log_prefixes = routing.hosted
         .keys()
         .map(|name| (name.clone(), tokio::sync::Mutex::new(Some(0))))

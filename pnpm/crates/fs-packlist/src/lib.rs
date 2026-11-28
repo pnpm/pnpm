@@ -34,7 +34,7 @@ use pnpm_diagnostics::miette::{
     self,
     Diagnostic,
 };
-use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use serde_json::Value;
 use std::{
     collections::{
@@ -97,16 +97,16 @@ pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, Packlis
     packlist_with_options(pkg_dir, manifest, PacklistOptions::default())
 }
 
-/// Read `pkg_dir/package.json` (defaulting to `{}` if absent) and return
+/// Read the manifest of `pkg_dir` (defaulting to `{}` if absent) and return
 /// forward-slash relative paths for every selected file and internal symlink.
 pub fn packlist_dir(pkg_dir: &Path) -> Result<Vec<String>, PacklistError> {
     Ok(select_dir_package_files(pkg_dir)?.files.into_keys().collect())
 }
 
-/// Read `pkg_dir/package.json` (defaulting to `{}` if absent) and select the
+/// Read the manifest of `pkg_dir` (defaulting to `{}` if absent) and select the
 /// package's files and admitted internal symlinks.
 pub fn select_dir_package_files(pkg_dir: &Path) -> Result<SelectedPackageFiles, PacklistError> {
-    let manifest = safe_read_package_json_from_dir(pkg_dir)
+    let manifest = safe_read_project_manifest_from_dir(pkg_dir)
         .map_err(|err| io_error(pkg_dir, std::io::Error::other(err.to_string())))?
         .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
     select_package_files(pkg_dir, &manifest, PacklistOptions::default())

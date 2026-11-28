@@ -175,7 +175,11 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
     let state = relocated.as_ref().unwrap_or(state);
     let policy = GatePolicy {
         gate: Gate::Install,
-        ignored_settings: &[],
+        ignored_settings: if selected_routes_resolved(check, state, scope) {
+            &["registryRoutes"]
+        } else {
+            &[]
+        },
         check_local_file_deps: true,
         check_dangling_direct_links: true,
         missing_wanted_lockfile: MissingWantedLockfile::Restore,
@@ -186,6 +190,16 @@ pub(crate) fn check_optimistic_repeat_install_with_state(
         Ok(()) => Decision::UpToDate,
         Err(stale) => Decision::Skipped { reason: skip_reason(&stale) },
     }
+}
+
+fn selected_routes_resolved(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    scope: Scope<'_>,
+) -> bool {
+    matches!(scope, Scope::Selected(_))
+        && state.settings.selected_registry_routes_resolved
+        && check.config.shares_one_lockfile()
 }
 
 /// The diagnostic reason the fast path is skipped for.

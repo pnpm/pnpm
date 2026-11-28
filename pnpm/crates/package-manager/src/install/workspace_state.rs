@@ -26,7 +26,6 @@ use super::{
     Catalogs,
     Clock,
     Config,
-    IncludedDependencies,
     NodeLinker,
     PackageManifest,
     Path,
@@ -35,10 +34,92 @@ use super::{
     WorkspaceState,
     manifest_string_field,
 };
-use crate::install_state::last_validated_timestamp;
+use crate::{
+    install_state::last_validated_timestamp,
+    workspace_root::configured_or_discovered_workspace_dir,
+};
 use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_reporter::Reporter;
 use pnpm_workspace_state::update_workspace_state_in_modules;
+
+/// The installed tree whose policy a workspace-wide prune can establish.
+pub struct InstalledWorkspaceState {
+    root: PathBuf,
+    state: WorkspaceState,
+}
+
+impl InstalledWorkspaceState {
+    #[must_use]
+    pub fn from_project(root: &Path, config: &Config) -> Option<Self> {
+        let modules = config.workspace_state_modules_dir(root);
+        let state = pnpm_workspace_state::load_workspace_state_in_modules(&modules).ok()??;
+        Some(Self { root: root.to_owned(), state })
+    }
+
+    pub fn record_pruned_exclusions<Reporter: self::Reporter>(
+        self,
+        config: &Config,
+        pruned: &crate::PrunedInstallExclusions,
+    ) {
+        let Self { root, mut state } = self;
+        let Some(digest) = pruned.lockfiles.get(&root) else { return };
+        if pruned.edits.minimum_release_age.is_none()
+            && pruned.edits.trust_policy.is_none()
+        {
+            return;
+        }
+        let modules = config.workspace_state_modules_dir(&root);
+        let Ok(Some(published)) = pnpm_workspace_state::load_workspace_state_in_modules(&modules)
+        else {
+            return;
+        };
+        if state == published {
+            record_pruned_exclusions(&mut state, config, digest, &pruned.edits);
+            if state.settings != published.settings {
+                update_workspace_state_or_warn::<Reporter>(&root, &state, config);
+            }
+        }
+    }
+}
+
+/// A workspace-wide policy edit covers every recorded project only when their
+/// validation records all refer to the lockfile used to prune it.
+fn record_pruned_exclusions(
+    state: &mut WorkspaceState,
+    config: &Config,
+    digest: &str,
+    pruned: &pnpm_workspace_manifest_writer::PrunedExclusions,
+) {
+    let Some(validation) = &state.validation else { return };
+    if validation.lockfile.as_deref() != Some(digest)
+        || !validation.lockfiles.is_empty()
+        || !state.pnpmfiles.is_empty()
+    {
+        return;
+    }
+    for (setting, change, overridden, inherited) in [
+        (
+            &mut state.settings.minimum_release_age_exclude,
+            &pruned.minimum_release_age,
+            &config.boot_overrides.minimum_release_age_exclude,
+            &config.boot_inherited.minimum_release_age_exclude,
+        ),
+        (
+            &mut state.settings.trust_policy_exclude,
+            &pruned.trust_policy,
+            &config.boot_overrides.trust_policy_exclude,
+            &config.boot_inherited.trust_policy_exclude,
+        ),
+    ] {
+        if let Some(change) = change
+            && overridden.is_none()
+            && (change.after.is_some() || inherited.is_none())
+            && setting.as_ref() == Some(&change.before)
+        {
+            setting.clone_from(&change.after);
+        }
+    }
+}
 
 /// Persist `.pnpm-workspace-state-v1.json`, warning instead of failing
 /// the command when the write is lost.
@@ -62,25 +143,6 @@ pub(crate) fn update_workspace_state_or_warn<Reporter: self::Reporter>(
         pnpm_reporter::emit_global_warning::<Reporter>(&format!(
             "Failed to write the workspace state: {error}",
         ));
-    }
-}
-
-/// The workspace root the run belongs to: the configured one, else the
-/// nearest ancestor carrying a `pnpm-workspace.yaml`.
-///
-/// Yields `None` under [`Config::workspace_search_skipped`], where the
-/// ancestor walk would re-adopt the very `pnpm-workspace.yaml` that
-/// `--ignore-workspace` asked to ignore. Only that walk is suppressed:
-/// a caller that pinned [`Config::workspace_dir`] keeps it, which is how a
-/// global install anchors itself under the global packages dir.
-pub(crate) fn configured_or_discovered_workspace_dir(
-    config: &Config,
-    manifest_dir: &Path,
-) -> Result<Option<PathBuf>, pnpm_workspace::FindWorkspaceDirError> {
-    match &config.workspace_dir {
-        Some(workspace_dir) => Ok(Some(workspace_dir.clone())),
-        None if config.workspace_search_skipped => Ok(None),
-        None => pnpm_workspace::find_workspace_dir(manifest_dir),
     }
 }
 
@@ -246,28 +308,12 @@ pub(super) fn build_projects_map(
         .collect()
 }
 
-/// Assemble the [`WorkspaceState`] payload for
-/// [`pnpm_workspace_state::update_workspace_state`], for
-/// [`crate::install_state::validation::record_validation`] to
-/// complete once the caller has settled its settings.
-///
-/// Records the projects pacquet just materialized plus the resolved
-/// settings the install used, and the [`last_validated_timestamp`].
-/// Settings pacquet does not track yet (e.g. `peersSuffixMaxLength`)
-/// are omitted; pnpm's `checkDepsStatus`
-/// only iterates fields present in the serialized object, so an
-/// absent key is silently skipped rather than treated as a drift.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the workspace-state writer records the install run's resolved inputs"
-)]
+/// Assemble workspace state from the settings established by the run.
 pub(crate) fn build_workspace_state<Sys: Clock>(
     workspace_root: &Path,
     config: &Config,
     node_linker: NodeLinker,
-    included: IncludedDependencies,
-    supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
-    catalogs: &Catalogs,
+    settings: pnpm_workspace_state::WorkspaceStateSettings,
     project_manifests: crate::DeclaredManifests<'_>,
     filesystem_now_ms: Option<i64>,
 ) -> WorkspaceState {
@@ -284,27 +330,8 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
         filtered_install: false,
         config_dependencies: config.config_dependencies.clone(),
         validation: None,
-        // Settings construction is shared with
-        // `install_state::current_settings` so the
-        // freshness check sees the same byte shape this writer
-        // produces. Keeping the construction in one place guarantees
-        // adding a field on one side doesn't silently flip the other
-        // into "drift" on the next install.
-        settings: crate::install_state::current_settings_with_catalogs(
-            config,
-            node_linker,
-            included,
-            supported_architectures,
-            catalogs,
-        ),
+        settings,
     };
-    // Frozen installs share this builder and cannot establish a deduplication
-    // baseline, nor vouch for the lockfile's registry keys, nor say which
-    // routes its plain keys resolved through.
-    state.settings.auto_dedupe = None;
-    state.settings.registry_prefixes = None;
-    state.settings.default_registry = None;
-    state.settings.installed_registry_routes = state.settings.registry_routes.take();
     if node_linker == NodeLinker::Hoisted {
         record_hoisted_modules_dirs(
             &mut state.projects,

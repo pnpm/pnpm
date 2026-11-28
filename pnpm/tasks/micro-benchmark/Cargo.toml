@@ -26,6 +26,7 @@ pnpm-reporter = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
 pnpm-lockfile = { workspace = true }
+pnpm-lockfile-verification = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 pnpm-workspace-task-scheduler = { workspace = true }
 

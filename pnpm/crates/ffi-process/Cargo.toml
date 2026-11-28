@@ -10,6 +10,9 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+derive_more = { workspace = true }
+
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 

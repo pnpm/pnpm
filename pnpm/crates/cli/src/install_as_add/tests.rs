@@ -224,3 +224,19 @@ fn an_add_option_before_install_moves_after_the_rewritten_add() {
         );
     }
 }
+
+#[test]
+fn unknown_option_before_a_value_reports_install_usage() {
+    for unknown in ["--unknown-setting", "--only-projects", "-Z"] {
+        let (_, argv) = ConfigOverrides::extract(
+            ["pnpm", "install", "--fix-lockfile", unknown, "./example"].map(OsString::from),
+        );
+        let (cmd, argv) = crate::prepare_cli_argv(argv);
+        let error = cmd
+            .try_get_matches_from(argv)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains(&format!("unexpected argument '{unknown}'")), "{error}");
+        assert!(error.contains("Usage: pnpm install"), "{error}");
+    }
+}

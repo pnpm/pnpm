@@ -120,7 +120,7 @@ async fn main() -> miette::Result<()> {
     apply_storage_overrides(&mut config, &mut args.paths);
     apply_server_overrides(&mut config, &server_args);
 
-    init_logging(&config.logs);
+    init_logging(&config.logs, std::io::stdout);
     log_config_source(&source);
     warn_experimental_database(&config);
     warn_derived_public_url(&config);
@@ -150,7 +150,8 @@ async fn run_maintenance(
         return Ok(());
     }
 
-    init_logging(&config.logs);
+    // Stdout carries the command's output, such as the YAML of an export.
+    init_logging(&config.logs, std::io::stderr);
     log_config_source(&source);
     warn_experimental_database(&config);
     run_command(&config, cmd).await
@@ -227,15 +228,17 @@ fn redacted_report(err: &RegistryError) -> miette::Report {
 /// level, same precedence Node ecosystem tools use for their
 /// `LOG_LEVEL`/`DEBUG` env vars, and what existing pnpr
 /// operators will already expect.
-fn init_logging(logs: &LogConfig) {
+fn init_logging<Stream>(logs: &LogConfig, stream: fn() -> Stream)
+where
+    Stream: std::io::Write + IsTerminal + 'static,
+{
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(logs.level.as_filter_directive()));
-    // Emit ANSI colors only to an interactive terminal, never when stdout is
-    // redirected to a file or pipe (e.g. the benchmark's mock logs), where the
-    // escape codes are just noise that breaks downstream log parsing. The
-    // writer is pinned to stdout explicitly so the `is_terminal` probe always
-    // inspects the stream the subscriber actually writes to.
-    log_subscriber(logs, filter, std::io::stdout, std::io::stdout().is_terminal()).init();
+    // Emit ANSI colors only to an interactive terminal, never when the stream
+    // is redirected to a file or pipe (e.g. the benchmark's mock logs), where
+    // the escape codes are just noise that breaks downstream log parsing.
+    let ansi = stream().is_terminal();
+    log_subscriber(logs, filter, stream, ansi).init();
 }
 
 fn log_config_source(source: &ConfigSource) {
@@ -254,7 +257,7 @@ fn log_config_source(source: &ConfigSource) {
 /// URLs to its bind address, which clients usually cannot reach.
 fn warn_derived_public_url(config: &Config) {
     let listen = config.http.listen;
-    if !listen.ip().is_loopback() && config.http.public_url == format!("http://{listen}") {
+    if !listen.ip().is_loopback() && config.http.public_url.is_none() {
         tracing::warn!(
             %listen,
             "publicUrl is not set; tarball URLs point at the bind address. Set `publicUrl` to the URL clients use",

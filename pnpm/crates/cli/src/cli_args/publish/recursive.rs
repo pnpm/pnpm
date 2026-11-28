@@ -243,7 +243,7 @@ impl PublishArgs {
 
     async fn select_candidates<Reporter: self::Reporter>(
         &self,
-        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
         config: &Config,
         stage: bool,
         (dir, workspace_root): (&Path, &Path),
@@ -318,7 +318,7 @@ impl PublishArgs {
     /// `ThrottledClient` still bounds the actual in-flight fan-out).
     async fn projects_to_publish(
         &self,
-        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+        graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
         config: &Config,
         http_client: &pnpm_network::ThrottledClient,
         retry_opts: pnpm_network::RetryOpts,

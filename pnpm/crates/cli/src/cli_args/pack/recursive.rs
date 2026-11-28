@@ -29,7 +29,7 @@ use super::{
 pub(super) struct RecursivePack<'a, 'graph> {
     pub(super) config: &'a Config,
     pub(super) graph:
-        &'a pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'graph>>,
+        &'a pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'graph>>,
     pub(super) catalogs: Catalogs,
     pub(super) before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     pub(super) workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
@@ -88,7 +88,7 @@ pub(super) fn order_index(dependency_order: Vec<PathBuf>) -> HashMap<PathBuf, us
 /// rather than racing it.
 fn serialize_shared_outputs(
     project_dependencies: &mut indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
-    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
     dependency_order: &[PathBuf],
     base_dir: &Path,
     out: Option<&str>,
@@ -126,7 +126,7 @@ fn serialize_shared_outputs(
 }
 
 fn collect_planned_outputs(
-    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
     dependency_order: &[PathBuf],
     base_dir: &Path,
     out: Option<&str>,
@@ -160,7 +160,7 @@ fn collect_planned_outputs(
 /// manifest the output name comes from.
 fn output_can_change_while_packing(
     config: &Config,
-    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
     before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
 ) -> bool {
     if !before_packing_hooks.is_empty() {
@@ -209,7 +209,7 @@ fn render_recursive_pack(
 
 fn prepare_project_dependencies(
     project_dependencies: &mut indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
-    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
     config: &Config,
     hooks: &[Arc<dyn PnpmfileHooks>],
     output: &PackOutput,

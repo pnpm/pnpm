@@ -184,7 +184,7 @@ impl ExecStateInputs {
 /// with the tasks a previous run already completed taken out.
 fn resumed_exec_task_graph(
     args: &ExecArgs,
-    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
     full_task_graph: &TaskGraph,
     task_run_state_context: &TaskRunStateContext,
 ) -> miette::Result<TaskGraph> {

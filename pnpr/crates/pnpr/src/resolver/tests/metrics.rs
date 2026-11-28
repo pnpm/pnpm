@@ -83,7 +83,7 @@ async fn resolution_cache_metrics_split_public_hits_misses_and_stores() {
     let dir = tempfile::tempdir().unwrap();
     let mut config = registry_config();
     config.storage.cache_dir = dir.path().to_path_buf();
-    config.http.public_url = "http://example.test".into();
+    config.http.public_url = Some("http://example.test".into());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(format!("{origin}/")),
         package: None,

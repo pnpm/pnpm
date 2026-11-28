@@ -93,7 +93,7 @@ pub(super) fn run_exec_task(context: &ExecTaskContext<'_>, node: &TaskNode) -> T
 /// `--sort` asks for it.
 pub(super) fn build_exec_task_graph(
     args: &ExecArgs,
-    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
+    graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_package_manager::GraphPkg<'_>>,
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
     command_name: &str,
 ) -> TaskGraph {

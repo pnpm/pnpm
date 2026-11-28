@@ -230,11 +230,11 @@ fn remove_exclude_list(manifest: &mut Manifest, list: ExcludeList) -> bool {
 }
 
 /// The `minimumReleaseAgeExcludePrune` pass over `minimumReleaseAgeExclude:`.
-/// Returns whether anything changed.
+/// Returns the changed list.
 pub(crate) fn prune_minimum_release_age_excludes(
     manifest: &mut Manifest,
     resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
-) -> bool {
+) -> Option<crate::PrunedList> {
     prune_exclude_list(manifest, MINIMUM_RELEASE_AGE_EXCLUDE, resolved)
 }
 
@@ -243,7 +243,7 @@ pub(crate) fn prune_minimum_release_age_excludes(
 pub(crate) fn prune_trust_policy_excludes(
     manifest: &mut Manifest,
     resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
-) -> bool {
+) -> Option<crate::PrunedList> {
     prune_exclude_list(manifest, TRUST_POLICY_EXCLUDE, resolved)
 }
 
@@ -254,19 +254,24 @@ pub(crate) fn prune_trust_policy_excludes(
 /// the comments of the surviving entries stay, a pruned-to-empty list drops
 /// the block, and an unchanged list is a no-op. A list that is absent or
 /// already empty is left verbatim; it has nothing to prune, and dropping the
-/// block would diverge from pnpm. Returns whether anything changed.
+/// block would diverge from pnpm. Returns the changed list.
 fn prune_exclude_list(
     manifest: &mut Manifest,
     list: ExcludeList,
     resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
-) -> bool {
+) -> Option<crate::PrunedList> {
     let current = (list.decoded)(manifest).as_deref().unwrap_or_default();
     if current.is_empty() {
-        return false;
+        return None;
     }
     let pruned =
         pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
+    if pruned == current {
+        return None;
+    }
+    let before = current.to_vec();
     set_exclude_list(manifest, list, &pruned)
+        .then(|| crate::PrunedList { before, after: (!pruned.is_empty()).then_some(pruned) })
 }
 
 /// Render a brand-new `auditConfig:` block holding `ignoreGhsas`. GHSA IDs are

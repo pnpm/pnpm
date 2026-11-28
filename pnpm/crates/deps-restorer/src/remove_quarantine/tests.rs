@@ -138,7 +138,7 @@ fn sweep_targets_only_native_binaries_under_dir() {
         ("index.js".to_string(), script.clone().into()),
         ("clean.node".to_string(), clean.into()),
     ]);
-    assert_eq!(quarantined_native_binaries(dir.path(), &cas_paths), [native.clone()]);
+    assert_eq!(quarantined_native_binaries(dir.path(), &cas_paths), std::slice::from_ref(&native));
     remove_quarantine_from_native_binaries(dir.path(), &cas_paths);
     assert!(quarantined_native_binaries(dir.path(), &cas_paths).is_empty());
 
@@ -146,7 +146,7 @@ fn sweep_targets_only_native_binaries_under_dir() {
     assert!(has_quarantine(&script), "non-binary files must be left untouched");
 
     set_quarantine(&native, "");
-    assert_eq!(quarantined_native_binaries(dir.path(), &cas_paths), [native.clone()]);
+    assert_eq!(quarantined_native_binaries(dir.path(), &cas_paths), std::slice::from_ref(&native));
     remove_quarantine_from_native_binaries(dir.path(), &cas_paths);
     assert!(!has_quarantine(&native));
 }

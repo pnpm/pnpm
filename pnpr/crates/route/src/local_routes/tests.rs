@@ -6,7 +6,7 @@ use std::path::PathBuf;
 #[test]
 fn local_package_uses_the_serving_path() {
     let mut config = Config::proxy("127.0.0.1:7677".parse().unwrap(), PathBuf::from("unused"));
-    config.http.public_url = "https://registry.example/base".to_string();
+    config.http.public_url = Some("https://registry.example/base".to_string());
     let context = RouteContext::from_config(&config);
     for (path, package) in [
         ("cargo/index/wi/dg/widget", "widget"),
@@ -19,7 +19,7 @@ fn local_package_uses_the_serving_path() {
         ("npm/~internal/@scope%2Fwidget@1.0.0+r0", "@scope/widget"),
         ("npm/~internal/@scope/widget/-/widget-1.0.0.tgz", "@scope/widget"),
     ] {
-        let url = format!("{}/{path}", config.http.public_url);
+        let url = format!("{}/{path}", config.http.public_url());
         assert_eq!(context.local_package(&url).as_deref(), Some(package), "{url}");
     }
     assert_eq!(context.local_package("https://registry.example/base-other/npm/widget"), None);
@@ -40,7 +40,7 @@ fn local_fetch_rejects_urls_that_classification_does_not_recognize() {
     };
 
     let mut config = Config::proxy("127.0.0.1:7677".parse().unwrap(), PathBuf::from("unused"));
-    config.http.public_url = "https://registry.example/base".to_string();
+    config.http.public_url = Some("https://registry.example/base".to_string());
     let context = RouteContext::from_config(&config);
     assert_eq!(
         context.local_package("https://registry.example:443/base/npm/widget").as_deref(),
@@ -89,9 +89,9 @@ fn denied_own_origin_package_does_not_share_public_or_authorized_metadata_scope(
     };
 
     let mut config = Config::proxy("127.0.0.1:7677".parse().unwrap(), PathBuf::from("unused"));
-    config.http.public_url = "https://pnpr.example".to_string();
+    config.http.public_url = Some("https://pnpr.example".to_string());
     config.routing.route_policy.public.push(pnpr_config::PublicRoute {
-        registry: Some(config.http.public_url.clone()),
+        registry: Some(config.http.public_url().into_owned()),
         package: None,
     });
     let context = Arc::new(RouteContext::from_config(&config));
@@ -251,7 +251,7 @@ fn local_index_cache_scopes_follow_registry_grants() {
         for prefix in ["", "~internal/"] {
             let url = format!(
                 "{}/{ecosystem}/{prefix}{entry}",
-                config.http.public_url.trim_end_matches('/'),
+                config.http.public_url().trim_end_matches('/'),
             );
             let allowed = reader.metadata_scope(&url, None);
             let denied = outsider.metadata_scope(&url, None);

@@ -171,6 +171,31 @@ pub fn create_file_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result
     adopt(open_at(parent, &name, flags, Some(mode.narrow())))
 }
 
+/// Open or create a file for reading and writing without truncating it or
+/// following a symlink at its name. The mode applies only to a new file.
+pub fn open_or_create_file_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result<File> {
+    let name = entry_name(name)?;
+    let file = adopt(open_at(parent, &name, READ_WRITE_FLAGS | libc::O_CREAT, Some(mode.narrow())));
+    #[cfg(target_os = "macos")]
+    let file = file.or_else(|error| open_after_concurrent_create(error, parent, &name));
+    file
+}
+
+const READ_WRITE_FLAGS: libc::c_int = libc::O_RDWR | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+
+// Darwin can return ENOENT when another caller wins the first creation.
+#[cfg(any(test, target_os = "macos"))]
+fn open_after_concurrent_create(
+    error: io::Error,
+    parent: &File,
+    name: &CString,
+) -> io::Result<File> {
+    if error.kind() == io::ErrorKind::NotFound {
+        return adopt(open_at(parent, name, READ_WRITE_FLAGS, None));
+    }
+    Err(error)
+}
+
 /// Rename `from` to `to`, both inside `parent`, replacing whatever `to`
 /// names.
 pub fn rename_at(parent: &File, from: &OsStr, to: &OsStr) -> io::Result<()> {

@@ -229,6 +229,7 @@ use serde::{
     Serialize,
 };
 use std::{
+    borrow::Cow,
     collections::BTreeSet,
     fmt,
     net::SocketAddr,
@@ -354,7 +355,7 @@ pub struct HttpConfig {
     /// URL clients should use to reach this server. Used to rewrite
     /// `dist.tarball` URLs in served packuments so tarball requests
     /// flow through this server.
-    pub public_url: String,
+    pub public_url: Option<String>,
     /// Cross-origin browser access. Empty by default, so pnpr emits no CORS
     /// response headers unless an operator explicitly names trusted origins.
     pub cors: CorsConfig,
@@ -391,6 +392,15 @@ pub struct HttpConfig {
 }
 
 impl HttpConfig {
+    /// The advertised URL, defaulting to the HTTP listener.
+    #[must_use]
+    pub fn public_url(&self) -> Cow<'_, str> {
+        self.public_url
+            .as_deref()
+            .map(Cow::Borrowed)
+            .unwrap_or_else(|| format!("http://{}", self.listen).into())
+    }
+
     pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
     /// 25 seconds, leaving headroom inside Kubernetes' default 30-second
     /// `terminationGracePeriodSeconds` so `SIGKILL` does not land mid-drain.

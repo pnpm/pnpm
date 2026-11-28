@@ -20,7 +20,10 @@ pub use credentials::effective_user_id;
 pub use credentials::real_user_id;
 #[cfg(target_vendor = "apple")]
 pub use descriptors::inherit_only_stdio;
-pub use environment::SingleThreaded;
+pub use environment::{
+    OtherThreads,
+    SingleThreaded,
+};
 #[cfg(unix)]
 pub use group_announcement::spawn_announcing_group;
 #[cfg(windows)]

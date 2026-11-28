@@ -696,7 +696,7 @@ async fn deleting_orphan_tokens_does_not_reserve_a_login_name() {
 async fn deleting_a_passwordless_oidc_account_frees_its_name_but_not_its_id() {
     let dir = TempDir::new().unwrap();
     let mut config = load_config(&dir);
-    config.http.public_url = "https://example.test".to_string();
+    config.http.public_url = Some("https://example.test".to_string());
     config.identity.auth.oidc = serde_json::from_value(json!([{
         "name": "company", "issuer": "https://issuer.example.test", "audience": "pnpr",
         "login": { "users": [{ "subject": "subject-1", "userId": "oidc-member" }] },

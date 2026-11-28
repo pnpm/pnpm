@@ -8,6 +8,7 @@ use super::{
     make_node_with_optional,
     named_registries_with,
     single_importer_opts,
+    try_dependencies_graph_to_lockfile,
     write_manifest,
 };
 use crate::dependencies_graph_to_lockfile::packages::{
@@ -37,6 +38,54 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+
+#[test]
+fn different_resolutions_cannot_share_a_peer_stripped_package_key() {
+    let (_tmp, manifest) = write_manifest(json!({ "name": "fixture", "version": "1.0.0" }));
+    let registry = make_node(
+        "fake-pkg",
+        "2.0.0",
+        json!({ "name": "fake-pkg", "version": "2.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let mut tarball = make_node(
+        "fake-pkg",
+        "2.0.0",
+        json!({ "name": "fake-pkg", "version": "2.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    tarball.dep_path = DepPath::from("fake-pkg@2.0.0(peer@1.0.0)".to_string());
+    let tarball_result = Arc::get_mut(&mut tarball.resolve_result).expect("unique resolve result");
+    tarball_result.resolution = LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+        tarball: "https://example.test/other.tgz".to_string(),
+        integrity: None,
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+
+    let mut graph = DependenciesGraph::default();
+    graph.insert(registry.dep_path.clone(), registry);
+    graph.insert(tarball.dep_path.clone(), tarball);
+    let error = try_dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        BTreeMap::new(),
+        false,
+        false,
+        None,
+        None,
+    ))
+    .expect_err("peer-stripped package key collision");
+    let DependenciesGraphToLockfileError::ConflictingResolutions { package_key } = error else {
+        panic!("expected ConflictingResolutions, got {error:?}");
+    };
+    assert_eq!(package_key, "fake-pkg@2.0.0");
+}
 
 /// An install that resolved no publish dates leaves the section out
 /// rather than writing an empty map.

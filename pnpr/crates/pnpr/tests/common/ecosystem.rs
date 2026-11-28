@@ -62,7 +62,7 @@ pub fn mixed_router_config(
 ) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.http.public_url = PUBLIC_URL.to_string();
+    config.http.public_url = Some(PUBLIC_URL.to_string());
     config.http.packument_ttl = Duration::from_mins(1);
     config.routing.route_policy.allowed_private_networks = crate::network::loopback_networks();
     config.routing.hosted.insert(

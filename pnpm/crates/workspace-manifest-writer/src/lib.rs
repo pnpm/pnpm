@@ -205,6 +205,19 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
     pub added_minimum_release_age_excludes: &'a [String],
 }
 
+/// A policy list changed by workspace manifest pruning.
+pub struct PrunedList {
+    pub before: Vec<String>,
+    pub after: Option<Vec<String>>,
+}
+
+/// The policy changes committed to the workspace manifest and its includes.
+#[derive(Default)]
+pub struct PrunedExclusions {
+    pub minimum_release_age: Option<PrunedList>,
+    pub trust_policy: Option<PrunedList>,
+}
+
 /// Apply the requested merges and cleanup passes to `dir`'s
 /// `pnpm-workspace.yaml` and the files it includes, writing each file back
 /// only when something actually changed (and removing the root manifest when
@@ -213,15 +226,25 @@ pub fn update_workspace_manifest(
     dir: &Path,
     opts: &UpdateWorkspaceManifestOptions<'_>,
 ) -> Result<(), UpdateWorkspaceManifestError> {
+    update_workspace_manifest_with_pruned_exclusions(dir, opts).map(drop)
+}
+
+/// [`update_workspace_manifest`] with the exclusion lists the write pruned.
+pub fn update_workspace_manifest_with_pruned_exclusions(
+    dir: &Path,
+    opts: &UpdateWorkspaceManifestOptions<'_>,
+) -> Result<PrunedExclusions, UpdateWorkspaceManifestError> {
     let manifests = WorkspaceManifests::read(dir)?;
-    if !manifests.has_includes() {
+    let mut pruned = PrunedExclusions::default();
+    if manifests.has_includes() {
+        routing::update_included_manifests(&manifests, opts, &mut pruned)?;
+    } else {
         let target = manifests.root_target();
-        let edited = edit_manifest_file(&target, opts, None)?;
-        return edited
-            .map(|manifest| write_or_remove_manifest(&target, manifest))
-            .unwrap_or(Ok(()));
+        if let Some(manifest) = edit_manifest_file(&target, opts, None, &mut pruned)? {
+            write_or_remove_manifest(&target, manifest)?;
+        }
     }
-    routing::update_included_manifests(&manifests, opts)
+    Ok(pruned)
 }
 
 /// The edits of [`update_workspace_manifest`] applied to one file, or `None`
@@ -232,6 +255,7 @@ fn edit_manifest_file(
     target: &ManifestTarget,
     opts: &UpdateWorkspaceManifestOptions<'_>,
     merged: Option<&Manifest>,
+    pruned: &mut PrunedExclusions,
 ) -> Result<Option<Manifest>, UpdateWorkspaceManifestError> {
     let path = &target.path;
     let mut manifest = read_manifest_at(path)?;
@@ -249,7 +273,7 @@ fn edit_manifest_file(
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
     }
     if let Some(resolved) = opts.resolved_package_versions {
-        changed |= prune_version_policies(&mut manifest, opts, resolved);
+        changed |= prune_version_policies(&mut manifest, opts, resolved, pruned);
     }
     if !opts.added_minimum_release_age_excludes.is_empty() {
         changed |= add_minimum_release_age_excludes(&mut manifest, opts, path)?;
@@ -324,14 +348,21 @@ fn add_updated_catalogs(
 fn prune_version_policies(
     manifest: &mut Manifest,
     opts: &UpdateWorkspaceManifestOptions<'_>,
-    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+    resolved: &ResolvedPackageVersions,
+    pruned: &mut PrunedExclusions,
 ) -> bool {
     let mut changed = false;
-    if opts.prune_minimum_release_age_excludes {
-        changed |= edit::prune_minimum_release_age_excludes(manifest, resolved);
+    if opts.prune_minimum_release_age_excludes
+        && let Some(change) = edit::prune_minimum_release_age_excludes(manifest, resolved)
+    {
+        pruned.minimum_release_age = Some(change);
+        changed = true;
     }
-    if opts.prune_trust_policy_excludes {
-        changed |= edit::prune_trust_policy_excludes(manifest, resolved);
+    if opts.prune_trust_policy_excludes
+        && let Some(change) = edit::prune_trust_policy_excludes(manifest, resolved)
+    {
+        pruned.trust_policy = Some(change);
+        changed = true;
     }
     if opts.prune_allow_builds {
         changed |= edit::prune_allow_builds(manifest, resolved);

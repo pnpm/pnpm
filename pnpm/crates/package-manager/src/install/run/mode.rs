@@ -134,7 +134,7 @@ fn reject_lockfile_only_without_lockfile(
 /// outside the `lockfile: false` conflict (pnpm accepts that combination and
 /// writes nothing), and never turns a rebuild (which runs against an
 /// already-materialized `node_modules`) into a silent no-op.
-fn effective_lockfile_only(
+pub(super) fn effective_lockfile_only(
     config: &Config,
     lockfile_only: bool,
     rebuild: Option<&crate::RebuildOptions>,

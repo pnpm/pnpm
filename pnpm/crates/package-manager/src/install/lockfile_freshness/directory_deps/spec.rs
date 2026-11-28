@@ -28,7 +28,7 @@ pub(super) struct SpecDirs<'a> {
     pub(super) workspace_root: &'a Path,
     pub(super) lockfile_dir: &'a Path,
     /// The workspace projects' manifests, consulted before a `workspace:`
-    /// target's `package.json` on disk: a host that hands its project
+    /// target's manifest file on disk: a host that hands its project
     /// manifests over in memory need not have written one.
     pub(super) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
     pub(super) canonical_paths: &'a pnpm_fs::CanonicalPaths,

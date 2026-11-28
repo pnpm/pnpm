@@ -5,6 +5,7 @@ use super::{
     IndexMap,
     Path,
     PathBuf,
+    ReadTaskDeclaration,
     TaskDeclaration,
     TaskGraph,
     TaskKey,
@@ -23,7 +24,6 @@ pub fn build_task_graph<SelectScripts, Declaration>(
 ) -> TaskGraph
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
-    Declaration: TaskDeclaration,
 {
     let options = SeededBuildOptions {
         project_dependencies: options.project_dependencies,
@@ -31,6 +31,7 @@ where
         task_names: std::slice::from_ref(&options.task_name),
         requested_projects: options.requested_projects,
         tasks: options.tasks,
+        declaration: options.declaration,
         is_selector_task: options.is_selector_task,
     };
     options.build()
@@ -43,7 +44,6 @@ pub fn build_pipeline_task_graph<SelectScripts, Declaration>(
 ) -> TaskGraph
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
-    Declaration: TaskDeclaration,
 {
     let seeded = SeededBuildOptions {
         project_dependencies: options.project_dependencies,
@@ -51,6 +51,7 @@ where
         task_names: options.task_names,
         requested_projects: options.requested_projects,
         tasks: options.tasks,
+        declaration: options.declaration,
         is_selector_task: options.is_selector_task,
     };
     seeded.build()
@@ -59,20 +60,19 @@ where
 struct SeededBuildOptions<'a, SelectScripts, Declaration>
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
-    Declaration: TaskDeclaration,
 {
     project_dependencies: &'a IndexMap<PathBuf, Vec<PathBuf>>,
     select_scripts: &'a SelectScripts,
     task_names: &'a [&'a str],
     requested_projects: Option<&'a [PathBuf]>,
     tasks: Option<&'a IndexMap<String, Declaration>>,
+    declaration: ReadTaskDeclaration<Declaration>,
     is_selector_task: fn(&str) -> bool,
 }
 
 impl<SelectScripts, Declaration> SeededBuildOptions<'_, SelectScripts, Declaration>
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
-    Declaration: TaskDeclaration,
 {
     fn build(&self) -> TaskGraph {
         let mut graph: TaskGraph = IndexMap::new();
@@ -104,7 +104,7 @@ where
                 TaskNode {
                     project,
                     task_name,
-                    concurrency: settings.and_then(|settings| task_concurrency(settings)),
+                    concurrency: settings.and_then(task_concurrency),
                     scripts,
                     requested,
                     dependencies,
@@ -114,8 +114,10 @@ where
         graph
     }
 
-    fn task_settings(&self, task_name: &str) -> Option<&Declaration> {
-        self.tasks.and_then(|tasks| tasks.get(task_name))
+    fn task_settings(&self, task_name: &str) -> Option<TaskDeclaration<'_>> {
+        self.tasks
+            .and_then(|tasks| tasks.get(task_name))
+            .map(self.declaration)
     }
 
     /// Every requested task of every seed project, which is either the
@@ -167,13 +169,10 @@ where
         &self,
         project: &Path,
         task_name: &str,
-        settings: Option<&Declaration>,
+        settings: Option<TaskDeclaration<'_>>,
     ) -> Vec<TaskKey> {
         let entries: Vec<String> = match settings {
-            Some(settings) => settings
-                .depends_on()
-                .map(<[String]>::to_vec)
-                .unwrap_or_default(),
+            Some(settings) => settings.depends_on.map(<[String]>::to_vec).unwrap_or_default(),
             None => vec![format!("^{task_name}")],
         };
         let mut dependencies: Vec<TaskKey> = Vec::new();

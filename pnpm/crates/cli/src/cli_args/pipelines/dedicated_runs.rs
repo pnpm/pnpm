@@ -55,22 +55,19 @@ impl DedicatedProjectRuns<'_> {
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
-        if self.pipelined {
-            self.run_projects_pipelined(run).await?;
-        } else {
-            self.run_projects(run).await?;
-        }
-        if self.prune_excludes && self.projects.covers_workspace {
-            let project_dirs: Vec<PathBuf> = self.projects.dependencies
-                .keys()
-                .cloned()
-                .collect();
-            pnpm_package_manager::verify_patches_against_project_lockfiles::<Rep>(
-                self.config,
-                &project_dirs,
-            )
-            .map_err(miette::Report::new)?;
-            prune_after_dedicated_installs(self.config)?;
+        let caches = DedicatedCaches {
+            installed_states: (self.prunes_workspace()
+                && self.sync_injected_deps
+                && pnpm_package_manager::PrunedInstallExclusions::enabled(self.config))
+            .then(Default::default),
+            ..Default::default()
+        };
+        let pruned = self.run_and_prune::<Rep, _, _>(&caches, run).await?;
+        if let Some(pending) = caches.installed_states {
+            let writes = std::mem::take(&mut *pending.lock().expect("workspace states"));
+            for (config, state) in writes {
+                state.record_pruned_exclusions::<Rep>(config, &pruned);
+            }
         }
         if self.sync_injected_deps {
             let project_dirs: Vec<PathBuf> = self.projects.dependencies
@@ -89,15 +86,52 @@ impl DedicatedProjectRuns<'_> {
         Ok(())
     }
 
-    async fn run_projects<Runner, RunFuture>(&self, run: Runner) -> miette::Result<()>
+    const fn prunes_workspace(&self) -> bool {
+        self.prune_excludes && self.projects.covers_workspace
+    }
+
+    async fn run_and_prune<Rep, Runner, RunFuture>(
+        &self,
+        caches: &DedicatedCaches,
+        run: Runner,
+    ) -> miette::Result<pnpm_package_manager::PrunedInstallExclusions>
+    where
+        Rep: Reporter,
+        Runner: Fn(State) -> RunFuture + Sync,
+        RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
+    {
+        if self.pipelined {
+            self.run_projects_pipelined(caches, run).await?;
+        } else {
+            self.run_projects(caches, run).await?;
+        }
+        if !self.prunes_workspace() {
+            return Ok(pnpm_package_manager::PrunedInstallExclusions::default());
+        }
+        let project_dirs = self.projects.dependencies
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        pnpm_package_manager::verify_patches_against_project_lockfiles::<Rep>(
+            self.config,
+            &project_dirs,
+        )
+        .map_err(miette::Report::new)?;
+        prune_after_dedicated_installs(self.config)
+    }
+
+    async fn run_projects<Runner, RunFuture>(
+        &self,
+        caches: &DedicatedCaches,
+        run: Runner,
+    ) -> miette::Result<()>
     where
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
         let first_error = Mutex::new(None);
-        let caches = DedicatedCaches::default();
         let run_node = |project_dir: PathBuf| {
-            let (first_error, caches, run) = (&first_error, &caches, &run);
+            let (first_error, run) = (&first_error, &run);
             async move {
                 let result = self.install_project(&project_dir, caches, None, run).await;
                 record_dedicated_result(first_error, result)
@@ -150,8 +184,19 @@ impl DedicatedProjectRuns<'_> {
         // A project's install blocks its thread in places, such as while its
         // lifecycle scripts run. On its own task, the other projects'
         // installs move to another worker then.
+        let config = state.config;
         tokio::spawn(run(state)).await
-            .unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic()))
+            .unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic()))?;
+        if let Some(states) = &caches.installed_states
+            && let Some(installed) =
+                pnpm_package_manager::InstalledWorkspaceState::from_project(project_dir, config)
+        {
+            states
+                .lock()
+                .expect("workspace states")
+                .push((config, installed));
+        }
+        Ok(())
     }
 }
 

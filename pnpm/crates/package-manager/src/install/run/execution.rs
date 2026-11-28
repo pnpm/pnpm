@@ -402,7 +402,7 @@ impl<'a> RunExecution<'a> {
                 existing_wanted: lockfiles.wanted.loaded,
                 loaded: lockfiles.wanted.get(),
                 frozen: dispatched.take_frozen_path,
-                trust_lockfile: self.options.save.recorded_trust_lockfile.unwrap_or(
+                trust_lockfile: self.options.save.effective_trust_lockfile(
                     self.install.lockfile_policy.trust,
                 ),
                 locked_registry_routes: self.workspace.loaded_workspace

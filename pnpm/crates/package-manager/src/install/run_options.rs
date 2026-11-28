@@ -79,6 +79,10 @@ impl Default for InstallSaveOptions {
 }
 
 impl InstallSaveOptions {
+    pub(crate) fn effective_trust_lockfile(&self, trust_lockfile: bool) -> bool {
+        self.recorded_trust_lockfile.unwrap_or(trust_lockfile)
+    }
+
     /// Whether the run writes the wanted lockfile to disk.
     pub(crate) fn writes_lockfile(&self) -> bool {
         self.lockfile && self.lockfile_check.is_none()

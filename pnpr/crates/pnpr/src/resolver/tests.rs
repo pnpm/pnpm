@@ -154,7 +154,7 @@ fn tarball_router_with_registries(
     super::TarballRouter::new(
         Arc::new(RouteContext::from_config(config)),
         identity,
-        config.http.public_url.clone(),
+        config.http.public_url().into_owned(),
         registries,
     )
 }

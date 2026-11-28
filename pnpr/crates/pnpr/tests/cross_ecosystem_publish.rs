@@ -62,7 +62,7 @@ use tower::ServiceExt;
 fn tri_ecosystem_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.http.public_url = "http://pnpr.test".to_string();
+    config.http.public_url = Some("http://pnpr.test".to_string());
     config.identity.auth.users.max_users = MaxUsers::Unlimited;
     for (name, namespace) in [("crates", ""), ("python", "")] {
         config.routing.hosted.insert(

@@ -166,7 +166,7 @@ fn proxy_state(upstream: &str, storage: &Path) -> AppState {
     let npmjs = config.routing.upstreams.get_mut("npmjs").unwrap();
     npmjs.url = upstream.to_string();
     npmjs.packument_ttl = Some(Duration::from_hours(24));
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.routing.route_policy.allowed_private_networks =
         vec![pnpr_config::IpNetwork::parse("127.0.0.0/8").unwrap()];
     AppState {

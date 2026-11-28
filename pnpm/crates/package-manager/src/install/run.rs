@@ -159,6 +159,14 @@ where
         time_machine_exclusions: &mut super::TimeMachineExclusions,
     ) -> Result<(), InstallError> {
         let (config, manifest) = (self.context.config, self.context.manifest);
+        let record_state = options.save.workspace_state
+            && config.shares_one_lockfile()
+            && crate::PrunedInstallExclusions::enabled(config)
+            && !mode::effective_lockfile_only(
+                config,
+                self.execution.lockfile_only,
+                options.rebuild.as_ref(),
+            );
         let outcome =
             Box::pin(self.run_inner_impl::<Reporter>(options, time_machine_exclusions)).await?;
         if let Some(lockfile_dir) = branch_lockfiles_to_clean {
@@ -168,8 +176,19 @@ where
         if prune_excludes
             && let InstallRunOutcome::LockfileSettled { workspace_manifest_dir } = outcome
         {
-            post_install_prune(config, Some(&workspace_manifest_dir), manifest)
+            let installed = record_state
+                .then(|| {
+                    super::InstalledWorkspaceState::from_project(
+                        config.lockfile_dir_for(&workspace_manifest_dir),
+                        config,
+                    )
+                })
+                .flatten();
+            let pruned = post_install_prune(config, Some(&workspace_manifest_dir), manifest)
                 .map_err(InstallError::WriteWorkspaceManifest)?;
+            if let Some(installed) = installed {
+                installed.record_pruned_exclusions::<Reporter>(config, &pruned);
+            }
         }
         Ok(())
     }

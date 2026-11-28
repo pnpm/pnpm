@@ -98,7 +98,7 @@ impl<'a> LinkedPackagesContext<'a> {
             return Some(manifest_string_field(manifest, "version").unwrap_or_default());
         }
         let manifest =
-            pnpm_package_manifest::safe_read_package_json_from_dir(dir).ok().flatten()?;
+            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir).ok().flatten()?;
         Some(
             manifest
                 .get("version")

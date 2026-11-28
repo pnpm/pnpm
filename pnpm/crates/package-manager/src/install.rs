@@ -2,6 +2,7 @@ pub(crate) mod state_options;
 #[cfg(test)]
 pub(crate) mod tests;
 
+pub(crate) use crate::workspace_root::configured_or_discovered_workspace_dir;
 pub use deploy_manifest::apply_deploy_manifest_hook;
 pub(crate) use deploy_manifest::apply_deploy_manifest_hook_to_arc;
 pub use errors::{
@@ -12,6 +13,7 @@ pub(crate) use lifecycle::{
     checked_projects_opts,
     load_workspace_projects,
     read_checked_workspace_projects,
+    read_install_project_manifests,
 };
 pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions,
@@ -61,13 +63,11 @@ pub(crate) use run::{
     hook_one_manifest,
     register_workspace_in_store,
 };
-pub use workspace_state::build_workspace_packages_map;
 pub(crate) use workspace_state::{
     CarriedSettings,
     StateProjects,
     StateWrite,
     build_project_manifests_list,
-    configured_or_discovered_workspace_dir,
     lockfile_root_dir,
     lockfile_root_for,
     recorded_workspace_state,
@@ -75,6 +75,10 @@ pub(crate) use workspace_state::{
     replace_project_manifest,
     update_workspace_state_or_warn,
     workspace_packages_for_freshness,
+};
+pub use workspace_state::{
+    InstalledWorkspaceState,
+    build_workspace_packages_map,
 };
 
 pub use lifecycle::SharedDevPreinstall;

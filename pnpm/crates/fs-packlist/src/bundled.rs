@@ -10,8 +10,8 @@ use super::{
     VecDeque,
     collect_own_files,
     fs,
-    safe_read_package_json_from_dir,
 };
+use pnpm_package_manifest::safe_read_package_json_from_dir;
 
 /// Cap on `bundleDependencies` closure depth. Real packages bundle
 /// at most a handful of levels (most published packages bundle zero;

@@ -10,7 +10,7 @@
 //!   filtered set.
 
 use crate::error::DirectoryFetcherError;
-use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use std::{
     collections::{
         HashMap,
@@ -353,7 +353,7 @@ pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetche
     // packlist filter still works against an empty object (no `files`
     // field, no `bundleDependencies`), which collapses to "include
     // every walked file except always-excluded cruft".
-    let manifest = safe_read_package_json_from_dir(dir)
+    let manifest = safe_read_project_manifest_from_dir(dir)
         .map_err(DirectoryFetcherError::ReadManifest)?
         .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
     let selected = pnpm_fs_packlist::select_package_files(

@@ -1,7 +1,9 @@
 use crate::{
+    PROJECT_MANIFEST_BASENAMES,
     is_truthy,
     parse_manifest,
-    safe_read_package_json_from_dir,
+    parse_project_manifest,
+    safe_read_project_manifest_from_dir,
 };
 use serde_json::Value;
 use std::{
@@ -100,7 +102,7 @@ pub fn pkg_build_triggers(pkg_root: &Path) -> BuildTriggers {
         hooks: pkg_root.join(".hooks").is_dir(),
         gyp_build_opted_out: false,
     };
-    if let Ok(Some(manifest)) = safe_read_package_json_from_dir(pkg_root) {
+    if let Ok(Some(manifest)) = safe_read_project_manifest_from_dir(pkg_root) {
         triggers.read_manifest(&manifest);
     }
     triggers
@@ -167,15 +169,25 @@ where
 
 /// Whether a package's own files ask for a build: a `binding.gyp` (unless
 /// opted out with `gypfile: false`) or `.hooks/` entry, or an install
-/// script in its `package.json`.
+/// script in its manifest.
 #[must_use]
 pub fn requires_build_from_cas_paths<CasPath: AsRef<Path>>(
     cas_paths: &HashMap<String, CasPath>,
 ) -> bool {
-    requires_build_from_files(
-        read_package_json_from_cas_paths(cas_paths).as_ref(),
-        cas_paths.keys(),
-    )
+    requires_build_from_files(read_manifest_from_cas_paths(cas_paths).as_ref(), cas_paths.keys())
+}
+
+/// The package's manifest in the first format `cas_paths` holds, in
+/// [`PROJECT_MANIFEST_BASENAMES`] order. `None` when the package has none, or
+/// it cannot be read or parsed.
+fn read_manifest_from_cas_paths<CasPath: AsRef<Path>>(
+    cas_paths: &HashMap<String, CasPath>,
+) -> Option<Value> {
+    let (basename, path) = PROJECT_MANIFEST_BASENAMES
+        .iter()
+        .find_map(|basename| Some((basename, cas_paths.get(*basename)?)))?;
+    let contents = fs::read_to_string(path).ok()?;
+    parse_project_manifest(Path::new(basename), &contents).ok()
 }
 
 /// The package's `package.json`, read from the store file `cas_paths` maps it

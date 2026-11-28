@@ -182,7 +182,7 @@ pub type ResolvedPackageVersions =
 ///   [`merge_package_version_specs`], an emptied one is dropped.
 /// - A bare `name` (no version part, no `*`) is dropped when the
 ///   lockfile no longer resolves the package at all.
-/// - Name patterns carrying `*` and specs that fail parsing are kept
+/// - Name patterns and specs that fail parsing are kept
 ///   verbatim, the pass never rejects a hand-written entry.
 #[must_use]
 pub fn drop_unresolved_package_version_specs(
@@ -195,11 +195,30 @@ pub fn drop_unresolved_package_version_specs(
         .collect()
 }
 
+/// Prune against one project's lockfile while allowing other projects to
+/// account for entries retained in a workspace-wide policy.
+#[must_use]
+pub fn prune_project_version_specs(
+    recorded: &[String],
+    retained: &[String],
+    resolved: &ResolvedPackageVersions,
+) -> Vec<String> {
+    let mut possible = resolved.clone();
+    for spec in retained {
+        let Ok(rule) = parse_version_policy_rule(spec) else { continue };
+        possible
+            .entry(rule.package_name.to_string())
+            .or_default()
+            .extend(rule.exact_versions);
+    }
+    drop_unresolved_package_version_specs(recorded, &possible)
+}
+
 fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Option<String> {
     let Ok(parsed) = parse_version_policy_rule(spec) else {
         return Some(spec.to_string());
     };
-    if parsed.package_name.contains('*') {
+    if parsed.package_name.starts_with('!') || parsed.package_name.contains(['*', '?']) {
         return Some(spec.to_string());
     }
     let resolved_versions = resolved.get(parsed.package_name)?;

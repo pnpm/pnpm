@@ -194,10 +194,10 @@ pub(super) fn invalid_root_error(path: &Path) -> PackageManifestError {
     }
 }
 
-pub(super) fn parse_project_manifest(
-    path: &Path,
-    contents: &str,
-) -> Result<Value, PackageManifestError> {
+/// Parse the contents of the project manifest at `path`, whose basename
+/// selects the format. The root must be an object, and an empty YAML document
+/// is an empty manifest.
+pub fn parse_project_manifest(path: &Path, contents: &str) -> Result<Value, PackageManifestError> {
     let contents = strip_utf8_bom(contents);
     let value = if is_yaml_path(path) {
         pnpm_yaml_document_sync::parse(contents)

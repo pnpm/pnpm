@@ -204,34 +204,29 @@ pub(super) fn report_already_up_to_date<Reporter: self::Reporter>(
 /// fast paths call it before they short-circuit, so a project installed
 /// unregistered still gets an entry. Store prune walks the workspace's
 /// `node_modules` to find every installed package, so one entry per
-/// workspace is enough. A frozen store is read-only, but a global virtual
-/// store install still registers, best-effort, because prune removes the
-/// slots of an unregistered project.
+/// workspace is enough.
 ///
-/// Best-effort: a registry write failure shouldn't fail the install, so it is
-/// surfaced as `tracing::warn!` instead. Loaded installs register the
-/// directory holding their store manifest, which prune reads, and require
-/// durable registration because their blobs have no project hardlinks to
-/// protect them.
-/// A frozen store is externally managed and must not receive registry writes.
+/// Store prune removes every global virtual store slot that no registered
+/// project links to, so a global virtual store install fails when it cannot
+/// register, see [`register_global_virtual_store_user`]. A hoisted install
+/// writes no slots, so it registers like one without the global virtual store. Into a frozen store,
+/// which is externally managed and may be read-only, it only logs the
+/// failure. Other installs register best-effort and log a failure, because
+/// hard links keep their store files. Loaded installs register the directory
+/// holding their store manifest, which prune reads, and require durable
+/// registration because their blobs have no project hardlinks to protect them.
 pub(crate) fn register_workspace_in_store(
     config: &Config,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
-    if config.frozen_store && config.node_linker == pnpm_config::NodeLinker::Loaded {
-        return Ok(());
-    }
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
-        let loader_dir = config.store_loader_dir(workspace_root);
-        std::fs::create_dir_all(&loader_dir)
-            .map_err(|error| InstallError::CreateStoreLoaderDir {
-                dir: loader_dir.clone(),
-                error,
-            })?;
-        return pnpm_store_dir::register_loaded_project(&config.store_dir, &loader_dir)
-            .map_err(InstallError::RegisterLoadedProject);
+        return register_loaded_install(config, workspace_root);
     }
-    if config.frozen_store && !config.enable_global_virtual_store {
+    if config.enable_global_virtual_store && config.node_linker != pnpm_config::NodeLinker::Hoisted
+    {
+        return register_global_virtual_store_install(config, workspace_root);
+    }
+    if config.frozen_store {
         return Ok(());
     }
     // Create the store root before calling `register_project` so its
@@ -255,6 +250,57 @@ pub(crate) fn register_workspace_in_store(
         );
     }
     Ok(())
+}
+
+fn register_loaded_install(config: &Config, workspace_root: &Path) -> Result<(), InstallError> {
+    if config.frozen_store {
+        return Ok(());
+    }
+    let loader_dir = config.store_loader_dir(workspace_root);
+    std::fs::create_dir_all(&loader_dir)
+        .map_err(|error| InstallError::CreateStoreLoaderDir { dir: loader_dir.clone(), error })?;
+    pnpm_store_dir::register_loaded_project(&config.store_dir, &loader_dir)
+        .map_err(InstallError::RegisterProject)
+}
+
+fn register_global_virtual_store_install(
+    config: &Config,
+    workspace_root: &Path,
+) -> Result<(), InstallError> {
+    let registered = register_global_virtual_store_user(config, workspace_root);
+    if !config.frozen_store {
+        return registered;
+    }
+    if let Err(error) = registered {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to register workspace root in the frozen store's project registry; install continues",
+        );
+    }
+    Ok(())
+}
+
+/// Register `workspace_root`, even when the store is inside it, which prune's
+/// walk skips. Register a modules directory other than
+/// `<workspace_root>/node_modules` too: prune's walk of the workspace misses
+/// one outside it or under a hidden directory, and no setting may record it.
+fn register_global_virtual_store_user(
+    config: &Config,
+    workspace_root: &Path,
+) -> Result<(), InstallError> {
+    pnpm_store_dir::register_loaded_project(&config.store_dir, workspace_root)
+        .map_err(InstallError::RegisterProject)?;
+    if config.modules_dir == workspace_root.join("node_modules") {
+        return Ok(());
+    }
+    std::fs::create_dir_all(&config.modules_dir)
+        .map_err(|error| InstallError::CreateModulesDirForRegistry {
+            dir: config.modules_dir.clone(),
+            error,
+        })?;
+    pnpm_store_dir::register_loaded_project(&config.store_dir, &config.modules_dir)
+        .map_err(InstallError::RegisterProject)
 }
 
 impl super::RunExecution<'_> {

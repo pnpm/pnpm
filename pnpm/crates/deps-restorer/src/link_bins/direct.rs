@@ -4,18 +4,17 @@ use super::{
 };
 use crate::PackageManifests;
 use pnpm_cmd_shim::{
+    Host,
     LinkBinsError,
     PackageBinSource,
     ShimTargetCache,
+    read_package_manifest,
 };
 use pnpm_lockfile::{
     PackageKey,
     PackageMetadata,
 };
-use pnpm_package_manifest::{
-    find_parent_publish_manifest,
-    parse_manifest_bytes,
-};
+use pnpm_package_manifest::find_parent_publish_manifest;
 use std::{
     collections::{
         HashMap,
@@ -222,21 +221,8 @@ pub(super) fn prefetched_bin_source(
             .with_precalculated_bins(precalculated_bins),
     )
 }
-fn read_manifest_at(manifest_path: &Path) -> Result<Option<serde_json::Value>, LinkBinsError> {
-    let bytes = match fs::read(manifest_path) {
-        Ok(bytes) => bytes,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(LinkBinsError::ReadManifest { path: manifest_path.to_path_buf(), error });
-        }
-    };
-    parse_manifest_bytes(&bytes)
-        .map(Some)
-        .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path.to_path_buf(), error })
-}
-
-/// Reads `<modules_dir>/<name>/package.json`. A dependency linked to an
-/// existing `publishConfig.directory` that has no manifest of its own
+/// Reads the manifest of the package at `<modules_dir>/<name>`. A dependency
+/// linked to an existing `publishConfig.directory` that has no manifest of its own
 /// falls back to the manifest of the project that declares that
 /// directory, found through `target`. A publish directory that does not
 /// exist yet has no bins to link; a build creates it later.
@@ -259,7 +245,7 @@ fn read_linked_manifest(
     location: &Path,
     target: Option<&Path>,
 ) -> Result<Option<serde_json::Value>, LinkBinsError> {
-    match read_manifest_at(&location.join("package.json"))? {
+    match read_package_manifest::<Host>(location)? {
         Some(manifest) => Ok(Some(manifest)),
         None => match target {
             Some(target) => read_existing_publish_manifest(target),

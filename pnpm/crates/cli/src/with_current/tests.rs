@@ -1,8 +1,15 @@
 use super::{
     MissingWithCurrentCommand,
-    plan,
+    is_requested,
+    rewrite,
 };
 use std::ffi::OsString;
+
+/// The rewritten argv, and whether `pmOnFail=ignore` is forced for it.
+fn plan(argv: Vec<OsString>) -> miette::Result<(Vec<OsString>, bool)> {
+    let force = is_requested(&argv);
+    rewrite(argv).map(|rewritten| (rewritten, force))
+}
 
 /// Build an argv (with a leading program name) from string slices.
 fn argv(tokens: &[&str]) -> Vec<OsString> {

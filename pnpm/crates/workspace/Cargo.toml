@@ -17,7 +17,6 @@ pnpm-env-replace = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-local-spec = { workspace = true }
 pnpm-package-manifest = { workspace = true }
-pnpm-workspace-projects-graph = { workspace = true }
 
 cap-primitives = { workspace = true }
 derive_more = { workspace = true }

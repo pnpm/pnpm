@@ -14,14 +14,12 @@ use pnpm_config::{
     LinkWorkspacePackages,
 };
 use pnpm_package_manager::{
+    GraphPkg,
     VersionsOverrider,
     overrides_catalog_reference_rewriter,
     overrides_dependency_rewriter,
 };
-use pnpm_workspace::{
-    GraphPkg,
-    Project,
-};
+use pnpm_workspace::Project;
 use pnpm_workspace_projects_filter::{
     FilterWorkspaceProjectsOptions,
     ProjectDependencies,

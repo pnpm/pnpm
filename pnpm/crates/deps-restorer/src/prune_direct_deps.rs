@@ -23,7 +23,9 @@ use derive_more::{
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
     Host,
+    LinkBinsError,
     get_bins_from_package_manifest,
+    read_package_manifest,
     remove_bin,
 };
 use pnpm_config::Config;
@@ -34,10 +36,7 @@ use pnpm_fs::{
 };
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::{
-    DependencyGroup,
-    parse_manifest_bytes,
-};
+use pnpm_package_manifest::DependencyGroup;
 use std::{
     collections::HashSet,
     fs,
@@ -306,9 +305,8 @@ pub(crate) fn remove_extraneous_direct_dep(
 }
 
 /// Remove the shims the package at `pkg_dir` declares from
-/// `<modules_dir>/.bin`. A missing or unparsable `package.json` (a
-/// dangling link, a broken package) yields no bins to remove, the same
-/// best-effort read as pnpm's `removeBins`.
+/// `<modules_dir>/.bin`. A missing or unparsable manifest (a dangling
+/// link, a broken package) yields no bins to remove.
 pub(crate) fn remove_dep_bins(
     modules_dir: &Path,
     pkg_dir: &Path,
@@ -320,20 +318,12 @@ fn remove_dep_bins_with_version(
     modules_dir: &Path,
     pkg_dir: &Path,
 ) -> Result<Option<String>, PruneDirectDepsError> {
-    let manifest_path = pkg_dir.join("package.json");
-    let bytes = match fs::read(&manifest_path) {
-        Ok(bytes) => bytes,
-        Err(error)
-            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
-        {
-            return Ok(None);
+    let manifest = match read_package_manifest::<Host>(pkg_dir) {
+        Ok(Some(manifest)) => manifest,
+        Err(LinkBinsError::ReadManifest { path, error }) => {
+            return Err(PruneDirectDepsError::ReadManifest { path, error });
         }
-        Err(error) => {
-            return Err(PruneDirectDepsError::ReadManifest { path: manifest_path, error });
-        }
-    };
-    let Ok(manifest) = parse_manifest_bytes(&bytes) else {
-        return Ok(None);
+        Ok(None) | Err(_) => return Ok(None),
     };
     let version = manifest
         .get("version")

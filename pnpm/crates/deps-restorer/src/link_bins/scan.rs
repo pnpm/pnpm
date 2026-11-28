@@ -14,8 +14,8 @@ use pnpm_cmd_shim::{
     LinkBinsOptions,
     PackageBinSource,
     link_bins_of_packages,
+    read_package,
 };
-use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use std::{
     collections::HashSet,
@@ -25,7 +25,6 @@ use std::{
         Path,
         PathBuf,
     },
-    sync::Arc,
 };
 
 /// Fallback (non-lockfile) path: enumerate slots via `read_dir`,
@@ -216,19 +215,6 @@ pub(super) fn push_package_bin_source<Sys: FsReadFile>(
         packages.push(pkg);
     }
     Ok(())
-}
-pub(super) fn read_package<Sys: FsReadFile>(
-    location: &Path,
-) -> Result<Option<PackageBinSource>, LinkBinsError> {
-    let manifest_path = location.join("package.json");
-    let bytes = match Sys::read_file(&manifest_path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
-    };
-    let manifest: serde_json::Value = parse_manifest_bytes(&bytes)
-        .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path, error })?;
-    Ok(Some(PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
 }
 pub(super) fn paths_eq(lhs: &Path, rhs: &Path) -> bool {
     // Lexical comparison is enough; both paths come from the same

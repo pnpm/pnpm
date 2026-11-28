@@ -4,11 +4,9 @@ use pnpm_catalogs_types::{
     Catalogs,
 };
 use pnpm_config::Config;
+use pnpm_package_manager::GraphPkg;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::{
-    GraphPkg,
-    Project,
-};
+use pnpm_workspace::Project;
 use pnpm_workspace_projects_graph::{
     ProjectGraph,
     ProjectGraphNode,

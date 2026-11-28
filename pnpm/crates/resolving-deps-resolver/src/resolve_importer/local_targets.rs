@@ -6,7 +6,7 @@ use super::{
     ResolvedTree,
     WorkspaceRootDep,
     io,
-    safe_read_package_json_from_dir,
+    safe_read_project_manifest_from_dir,
     unwrap_package_name,
 };
 use node_semver::Version;
@@ -65,14 +65,14 @@ pub(super) struct LocalTargetIdentity {
     pub(super) version: String,
 }
 
-/// [`safe_read_package_json_from_dir`] maps only a missing file to
+/// [`safe_read_project_manifest_from_dir`] maps only a missing file to
 /// `Ok(None)`; a `file:` target is a tarball as often as a directory, and
 /// a path component of a tarball is not a directory to read a manifest
 /// from.
 pub(super) fn read_manifest_of_local_target(
     dir: &Path,
 ) -> Result<Option<serde_json::Value>, PackageManifestError> {
-    match safe_read_package_json_from_dir(dir) {
+    match safe_read_project_manifest_from_dir(dir) {
         Err(PackageManifestError::Read { source, .. })
             if source.kind() == io::ErrorKind::NotADirectory =>
         {

@@ -7,6 +7,7 @@
 //! "Already up to date" says nothing about cycles, pnpm returns before
 //! its own check in that case.
 
+use crate::GraphPkg;
 use pnpm_config::{
     Config,
     LinkWorkspacePackages,
@@ -22,10 +23,7 @@ use pnpm_reporter::{
     PnpmLog,
     Reporter,
 };
-use pnpm_workspace::{
-    GraphPkg,
-    Project,
-};
+use pnpm_workspace::Project;
 use pnpm_workspace_projects_graph::{
     CreateProjectsGraphOptions,
     DependencyRewriter,

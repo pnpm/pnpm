@@ -474,7 +474,7 @@ async fn search_augment_skips_when_upstream_404s() {
     let mut config = Config::proxy(listen, tmp.path().to_path_buf());
     config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url =
         upstream.url();
-    config.http.public_url = "http://example.test".to_string();
+    config.http.public_url = Some("http://example.test".to_string());
     config.http.packument_ttl = Duration::from_mins(1);
     let app = router(config);
 

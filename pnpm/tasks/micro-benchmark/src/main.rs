@@ -1,5 +1,6 @@
 #![expect(clippy::print_stdout, reason = "developer tool, not part of the pnpm binary")]
 
+mod lockfile_verification;
 mod trust_history;
 mod version_pick;
 mod workspace_resolution;
@@ -337,6 +338,7 @@ pub fn main() -> Result<(), String> {
     bench_concurrent_tarballs(&mut criterion, &mut server);
     bench_packument(&mut criterion, &packument);
     bench_lockfile(&mut criterion, &lockfile_dir);
+    lockfile_verification::bench_local_containment(&mut criterion);
     version_pick::bench_version_pick(&mut criterion);
     workspace_resolution::bench_workspace_resolution(&mut criterion);
     workspace_sort::bench_workspace_sort(&mut criterion);

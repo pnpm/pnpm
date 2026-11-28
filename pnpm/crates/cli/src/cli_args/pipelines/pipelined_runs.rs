@@ -109,6 +109,7 @@ fn can_start_early(manifest: &serde_json::Value) -> bool {
 impl DedicatedProjectRuns<'_> {
     pub(super) async fn run_projects_pipelined<Runner, RunFuture>(
         &self,
+        caches: &DedicatedCaches,
         run: Runner,
     ) -> miette::Result<()>
     where
@@ -128,7 +129,7 @@ impl DedicatedProjectRuns<'_> {
             slots: Semaphore::new(concurrency),
             stopped: Arc::new(AtomicBool::new(false)),
             first_error: Mutex::new(None),
-            caches: DedicatedCaches::default(),
+            caches: caches.clone(),
             run: &run,
         };
         let position: HashMap<&Path, usize> = order

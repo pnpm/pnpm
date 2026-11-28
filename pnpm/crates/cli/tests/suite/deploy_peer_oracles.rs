@@ -1,4 +1,5 @@
 use crate::_utils::{
+    DependencyGroups,
     ManifestDeps,
     TreeView,
     WorkspaceFixture,
@@ -152,8 +153,8 @@ fn deploy_retains_hashed_bindings_when_relocating_workspace_snapshots() {
         ["--filter", "app", "deploy", &deployed.to_string_lossy()],
     ));
     assert_eq!(
-        TreeView::new(&deployed).project(&deployed, false),
-        TreeView::new(&fixture.workspace).project(&source, false),
+        TreeView::new(&deployed).project(&deployed, DependencyGroups::Production),
+        TreeView::new(&fixture.workspace).project(&source, DependencyGroups::Production),
     );
     check_frozen_deploy(&fixture, &deployed, None);
     assert_eq!(fs::read(fixture.workspace.join("pnpm-lock.yaml")).unwrap(), source_lockfile);
@@ -195,8 +196,9 @@ fn check_workspace_peer_bindings(workspace_name: &str) {
         ["--filter", "app", "deploy", &deployed.to_string_lossy()],
     ));
     assert_eq!(
-        TreeView::new(&deployed).project(&deployed, false),
-        TreeView::new(&fixture.workspace).project(&fixture.workspace.join("packages/app"), false),
+        TreeView::new(&deployed).project(&deployed, DependencyGroups::Production),
+        TreeView::new(&fixture.workspace)
+            .project(&fixture.workspace.join("packages/app"), DependencyGroups::Production),
     );
     let lockfile = Lockfile::load_wanted_from_dir(&deployed).unwrap().unwrap();
     let sections = lockfile.to_next_sections().unwrap();
@@ -284,8 +286,8 @@ fn check_deploys(format: LockfileFormat, publish_directory: Option<&str>) {
                 format.version(),
             );
             assert_eq!(
-                TreeView::new(&deployed).project(&deployed, false),
-                TreeView::new(&fixture.workspace).project(&source, false),
+                TreeView::new(&deployed).project(&deployed, DependencyGroups::Production),
+                TreeView::new(&fixture.workspace).project(&source, DependencyGroups::Production),
                 "{app}",
             );
             check_frozen_deploy(&fixture, &deployed, expected_peer.as_deref());
@@ -297,12 +299,15 @@ fn check_deploys(format: LockfileFormat, publish_directory: Option<&str>) {
 fn check_frozen_deploy(fixture: &WorkspaceFixture, deployed: &Path, expected_peer: Option<&str>) {
     assert_eq!(shared_peer_version(deployed).as_deref(), expected_peer, "{}", deployed.display());
     let expected_lockfile = fs::read(deployed.join("pnpm-lock.yaml")).unwrap();
-    let expected_tree = TreeView::new(deployed).project(deployed, false);
+    let expected_tree = TreeView::new(deployed).project(deployed, DependencyGroups::Production);
     assert!(expected_tree.contains("shared@1.0.0"), "{expected_tree}");
     fs::remove_dir_all(deployed.join("node_modules")).unwrap();
     assert_success(&frozen_install_deployed(fixture, deployed));
     assert_eq!(fs::read(deployed.join("pnpm-lock.yaml")).unwrap(), expected_lockfile);
-    assert_eq!(TreeView::new(deployed).project(deployed, false), expected_tree);
+    assert_eq!(
+        TreeView::new(deployed).project(deployed, DependencyGroups::Production),
+        expected_tree,
+    );
     assert_eq!(shared_peer_version(deployed).as_deref(), expected_peer, "{}", deployed.display());
     let mut stale = read_manifest(deployed);
     stale["dependencies"]["shared"] = json!("0.0.0");

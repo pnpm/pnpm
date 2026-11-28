@@ -219,22 +219,144 @@ fn a_loaded_project_linking_outside_the_workspace_is_not_trusted() {
     assert!(!loaded_target_satisfies(&workspace_root, target_dir));
 }
 
+fn link_file(original: &Path, link: &Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(original, link).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(original, link).unwrap();
+}
+
 #[test]
-fn a_loaded_project_whose_package_json_links_outside_the_workspace_is_not_trusted() {
+fn a_loaded_project_whose_manifest_file_links_outside_the_workspace_is_not_trusted() {
+    for basename in pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES {
+        let (_fixture, workspace_root, outside) = loaded_link_fixture();
+        let target_dir = workspace_root.join("packages/pkg");
+        std::fs::create_dir_all(&target_dir).unwrap();
+        assert!(loaded_target_satisfies(&workspace_root, target_dir.clone()), "no {basename}");
+        link_file(&outside.join("package.json"), &target_dir.join(basename));
+        assert!(!loaded_target_satisfies(&workspace_root, target_dir), "{basename}");
+    }
+}
+
+#[test]
+fn a_loaded_project_is_held_to_its_first_manifest_file_only() {
     let (_fixture, workspace_root, outside) = loaded_link_fixture();
     let target_dir = workspace_root.join("packages/pkg");
     std::fs::create_dir_all(&target_dir).unwrap();
-    assert!(loaded_target_satisfies(&workspace_root, target_dir.clone()), "no package.json");
-    #[cfg(unix)]
-    std::os::unix::fs::symlink(outside.join("package.json"), target_dir.join("package.json"))
-        .unwrap();
-    #[cfg(windows)]
-    std::os::windows::fs::symlink_file(
-        outside.join("package.json"),
-        target_dir.join("package.json"),
-    )
-    .unwrap();
-    assert!(!loaded_target_satisfies(&workspace_root, target_dir));
+    std::fs::write(target_dir.join("package.json"), r#"{"name":"pkg","version":"1.2.3"}"#).unwrap();
+    link_file(&outside.join("package.json"), &target_dir.join("package.yaml"));
+    assert!(loaded_target_satisfies(&workspace_root, target_dir));
+}
+
+fn yaml_and_json5_manifests(version: &str) -> [(&'static str, String); 2] {
+    [
+        ("package.yaml", format!("name: pkg\nversion: {version}\n")),
+        ("package.json5", format!("{{name: 'pkg', version: '{version}'}}")),
+    ]
+}
+
+#[test]
+fn a_workspace_range_reads_a_yaml_or_json5_target_from_disk() {
+    for (basename, text) in yaml_and_json5_manifests("1.2.3") {
+        let fixture = tempfile::tempdir().unwrap();
+        let workspace_root = fixture.path().to_path_buf();
+        let project_dir = workspace_root.join("packages/app");
+        let target_dir = workspace_root.join("packages/pkg");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::create_dir_all(&target_dir).unwrap();
+        std::fs::write(target_dir.join(basename), text).unwrap();
+        let dirs = dirs(&workspace_root, &workspace_root);
+        let satisfies =
+            |spec| super::importer_link_satisfies(&dirs, &project_dir, "pkg", spec, "../pkg");
+
+        assert!(satisfies("workspace:^1.0.0"), "{basename}");
+        assert!(!satisfies("workspace:^2.0.0"), "{basename}");
+
+        std::fs::write(target_dir.join("package.json"), r#"{"name":"pkg","version":"3.0.0"}"#)
+            .unwrap();
+        assert!(satisfies("workspace:^3.0.0"), "package.json beside {basename}");
+    }
+}
+
+#[test]
+fn a_manifest_link_that_leads_nowhere_is_passed_over() {
+    for dangling in ["package.json", "package.json5"] {
+        let fixture = tempfile::tempdir().unwrap();
+        let workspace_root = fixture.path().to_path_buf();
+        let project_dir = workspace_root.join("packages/app");
+        let target_dir = workspace_root.join("packages/pkg");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::create_dir_all(&target_dir).unwrap();
+        link_file(&workspace_root.join("missing"), &target_dir.join(dangling));
+        std::fs::write(target_dir.join("package.yaml"), "name: pkg\nversion: 1.2.3\n").unwrap();
+
+        assert!(
+            super::importer_link_satisfies(
+                &dirs(&workspace_root, &workspace_root),
+                &project_dir,
+                "pkg",
+                "workspace:^1.0.0",
+                "../pkg",
+            ),
+            "{dangling}",
+        );
+    }
+}
+
+/// A link loop is not passed over as a link that leads nowhere is: the check
+/// cannot tell where it leads.
+#[test]
+fn a_manifest_link_that_cannot_be_resolved_fails_the_target() {
+    let (_fixture, workspace_root, _outside) = loaded_link_fixture();
+    let project_dir = workspace_root.join("packages/app");
+    let target_dir = workspace_root.join("packages/pkg");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    std::fs::create_dir_all(&target_dir).unwrap();
+    link_file(&target_dir.join("package.json"), &target_dir.join("package.json"));
+    std::fs::write(target_dir.join("package.yaml"), "name: pkg\nversion: 1.2.3\n").unwrap();
+
+    assert!(
+        !super::importer_link_satisfies(
+            &dirs(&workspace_root, &workspace_root),
+            &project_dir,
+            "pkg",
+            "workspace:^1.0.0",
+            "../pkg",
+        ),
+        "read from disk",
+    );
+    assert!(!loaded_target_satisfies(&workspace_root, target_dir), "held in memory");
+}
+
+#[test]
+fn a_yaml_or_json5_target_linking_outside_the_workspace_is_not_read() {
+    for (basename, text) in yaml_and_json5_manifests("1.2.3") {
+        let fixture = tempfile::tempdir().unwrap();
+        let workspace_root = fixture.path().join("workspace");
+        let outside = fixture.path().join("outside");
+        let project_dir = workspace_root.join("packages/app");
+        let target_dir = workspace_root.join("packages/pkg");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::create_dir_all(&target_dir).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join(basename), text).unwrap();
+        // Each check gets its own `SpecDirs`, which remembers real paths.
+        let satisfies = || {
+            super::importer_link_satisfies(
+                &dirs(&workspace_root, &workspace_root),
+                &project_dir,
+                "pkg",
+                "workspace:^1.0.0",
+                "../pkg",
+            )
+        };
+
+        std::fs::copy(outside.join(basename), target_dir.join(basename)).unwrap();
+        assert!(satisfies(), "{basename} as a regular file");
+        std::fs::remove_file(target_dir.join(basename)).unwrap();
+        link_file(&outside.join(basename), &target_dir.join(basename));
+        assert!(!satisfies(), "{basename} linked outside");
+    }
 }
 
 #[test]

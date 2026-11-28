@@ -21,7 +21,6 @@ mod scan;
 use scan::{
     existing_commands,
     read_location_bin_sources,
-    read_package,
     run_with_readdir,
 };
 
@@ -57,6 +56,7 @@ use pnpm_cmd_shim::{
     ShimTargetCache,
     collect_packages_in_modules_dir,
     link_bins_of_packages_cached,
+    read_package,
 };
 use pnpm_lockfile::{
     LockfileResolution,
