@@ -286,8 +286,6 @@ fn rejects_truncated_buffer() {
     assert!(matches!(err, DecodeError::UnexpectedEof { .. }), "got {err:?}");
 }
 
-/// A record definition claiming 2^32 - 1 field names used to reserve
-/// room for all of them before reading one, which aborts the process.
 #[test]
 fn rejects_a_field_count_larger_than_the_row() {
     let err =
@@ -295,7 +293,6 @@ fn rejects_a_field_count_larger_than_the_row() {
     assert!(matches!(err, DecodeError::UnexpectedEof { .. }), "got {err:?}");
 }
 
-/// A row of nested one-element arrays used to overflow the stack.
 #[test]
 fn rejects_nesting_deeper_than_the_limit() {
     let mut row = vec![0x91; 1_000_000];
