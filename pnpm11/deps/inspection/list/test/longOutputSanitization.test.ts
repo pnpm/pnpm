@@ -35,7 +35,7 @@ function expectSanitizedManifestFields (output: string): void {
   expect(output).not.toContain('\u0007')
   expect(output).not.toContain('\u009B')
   const lines = stripAnsi(output).split('\n').map((line) => line.replace(/^[\s│├└─]+/, ''))
-  expect(lines).toContain('[2J[Hfirst line')
+  expect(lines).toContain('[2J[H' + 'first line')
   expect(lines).toContain('second line')
   expect(lines).toContain(']52;c;cHduZWQ=https://example.com/repo')
   expect(lines).toContain('https://example.com/2J')
