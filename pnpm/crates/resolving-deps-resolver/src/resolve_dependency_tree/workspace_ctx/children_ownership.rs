@@ -424,3 +424,6 @@ impl super::WorkspaceTreeCtx {
         self.tree.record_tree_node_write(node_id);
     }
 }
+
+#[cfg(test)]
+mod test_support;

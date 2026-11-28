@@ -912,6 +912,32 @@ async fn finalized_packages_include_peer_free_cycles() {
     assert_eq!(ids, ["ping@1.0.0", "pong@1.0.0"]);
 }
 
+/// `cycle-a` and `cycle-b` depend on each other, and `cycle-a` also on
+/// `peered`, which declares a peer. Each of the three reaches a package
+/// with a peer, so none is finalized.
+#[tokio::test]
+async fn a_cycle_with_a_peer_below_it_is_not_finalized() {
+    let announced = announced_finalized_packages(
+        serde_json::json!({ "cycle-a": "^1.0.0" }),
+        HashMap::from_iter([
+            table_entry(
+                "cycle-a",
+                serde_json::json!({ "dependencies": { "cycle-b": "^1.0.0", "peered": "^1.0.0" } }),
+            ),
+            table_entry("cycle-b", serde_json::json!({ "dependencies": { "cycle-a": "^1.0.0" } })),
+            table_entry(
+                "peered",
+                serde_json::json!({
+                    "peerDependencies": { "react": "*" },
+                    "peerDependenciesMeta": { "react": { "optional": true } },
+                }),
+            ),
+        ]),
+    )
+    .await;
+    assert_eq!(announced, vec![]);
+}
+
 #[tokio::test]
 async fn warm_up_skips_dependencies_a_package_declares_as_its_own_peers() {
     // `p` lists `q` both as a dependency and as a peer. Under

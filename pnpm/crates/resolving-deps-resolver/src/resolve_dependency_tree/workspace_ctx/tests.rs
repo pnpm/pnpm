@@ -16,6 +16,7 @@ use super::{
         lock_recoverable,
         test_support::manifest_result,
     },
+    RecordedChildren,
     WorkspaceTreeCtx,
     children_ownership::ChildrenRecording,
 };
@@ -100,14 +101,14 @@ fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
     lock_recoverable(&workspace.children.by_id)
         .insert(
             Arc::from("root@1.0.0".to_string()),
-            recorded(vec![ChildEdge {
+            RecordedChildren::with_edges(vec![ChildEdge {
                 alias: "lazy-child".to_string(),
                 pkg_id: Arc::from("lazy-child@1.0.0".to_string()),
                 optional: false,
             }]),
         );
     lock_recoverable(&workspace.children.by_id)
-        .insert(Arc::from("foreign@1.0.0".to_string()), recorded(Vec::new()));
+        .insert(Arc::from("foreign@1.0.0".to_string()), RecordedChildren::with_edges(Vec::new()));
 
     let snapshot = workspace.snapshot_reachable_from(vec![DirectDep {
         alias: "root".to_string(),
@@ -350,7 +351,7 @@ fn run_preferred_versions_grow_with_new_roots_and_rebuild_on_children_rewrites()
     // A children-ownership rewrite can drop edges, so the closure is
     // rebuilt rather than grown.
     lock_recoverable(&workspace.children.by_id)
-        .insert(Arc::from("root@1.0.0".to_string()), recorded(vec![]));
+        .insert(Arc::from("root@1.0.0".to_string()), RecordedChildren::with_edges(vec![]));
     workspace.tree.record_children_rewrite();
     workspace.tree.bump_revision();
     let cache = workspace.run_preferred_versions();
@@ -426,7 +427,7 @@ fn insert_child_edge(workspace: &WorkspaceTreeCtx, parent_id: &str, alias: &str,
     lock_recoverable(&workspace.children.by_id)
         .insert(
             Arc::from(parent_id.to_string()),
-            recorded(vec![crate::resolved_tree::ChildEdge {
+            RecordedChildren::with_edges(vec![crate::resolved_tree::ChildEdge {
                 alias: alias.to_string(),
                 pkg_id: Arc::from(child_id.to_string()),
                 optional: false,
@@ -547,20 +548,6 @@ fn record_tree_node(workspace: &WorkspaceTreeCtx, node_id: &NodeId, pkg_id: &str
     }
     drop(tree);
     workspace.tree.record_tree_node_write(node_id);
-}
-
-/// Children recorded by a walk whose context these tests do not vary.
-fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChildren {
-    super::RecordedChildren {
-        edges: Arc::new(edges),
-        context: super::RecordedChildrenContext {
-            peer_shadowed: Arc::default(),
-            prior_key: None,
-            reused: false,
-            update_active: false,
-            children_scope: ParentPkgAliases::root(HashSet::default()),
-        },
-    }
 }
 
 /// Reuse is offered against what the recording walk resolved under, so
