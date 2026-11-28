@@ -33,7 +33,7 @@ Run `pnpm install` to recreate the modules directory with the new `hoistPattern`
 
 ## ERR_PNPM_IGNORED_BUILDS
 
-The install skipped the build scripts of one or more dependencies, because [`allowBuilds`](./settings/build.md#allowbuilds) does not allow them, and [`strictDepBuilds`](./settings/build.md#strictdepbuilds) is on. The message lists the packages whose scripts were skipped.
+The install skipped the build scripts of one or more dependencies because [`permissions`](./settings/build.md#permissions) does not allow them, and [`strictDepBuilds`](./settings/build.md#strictdepbuilds) is on. The message lists the packages whose scripts were skipped.
 
 Run [`pnpm approve-builds`](./cli/approve-builds.md) to allow the builds you trust. To install without failing on skipped builds, set `strictDepBuilds` to `false`.
 

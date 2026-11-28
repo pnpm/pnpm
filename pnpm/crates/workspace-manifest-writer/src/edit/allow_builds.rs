@@ -11,68 +11,8 @@ use super::{
     mapping_keys,
     remove_top_level_block,
     render,
-    replace_value_text_at,
     write_rendered_entry_at,
 };
-
-/// Upsert one `name → bool` entry into the top-level `allowBuilds:` block,
-/// creating the block if absent. Returns whether anything changed.
-pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) -> bool {
-    const BLOCK: &str = "allowBuilds";
-    let changed = if locate(manifest.document.text(), &[BLOCK]).is_some() {
-        let Some(changed) = write_allow_build(manifest, BLOCK, name, value) else {
-            return false;
-        };
-        changed
-    } else {
-        let block = format!("{BLOCK}:\n  {}: {}\n", render::render_value(name), render_bool(value));
-        let new_text = insert_top_level_block(manifest, BLOCK, &block);
-        manifest.document.set_text(new_text);
-        manifest.document.keys =
-            render::target_order(&manifest.document.keys, &[BLOCK.to_string()]);
-        true
-    };
-    // Keep the decoded view in sync so later upserts in the same write see
-    // this entry (for both no-op detection and block-presence checks).
-    manifest.allow_builds
-        .get_or_insert_with(IndexMap::new)
-        .insert(name.to_string(), AllowBuildValue::Bool(value));
-    changed
-}
-
-/// Write one entry into an existing `allowBuilds:` block. `None` when the
-/// entry already holds this value: rewriting the file would bump its mtime
-/// for nothing.
-fn write_allow_build(
-    manifest: &mut Manifest,
-    block: &str,
-    name: &str,
-    value: bool,
-) -> Option<bool> {
-    let text = manifest.document.text();
-    if !mapping_keys(text, &[block])
-        .iter()
-        .any(|key| key == name)
-    {
-        let new_text = write_rendered_entry_at(text, &[block], name, render_bool(value));
-        manifest.document.set_text(new_text);
-        return Some(true);
-    }
-    if manifest.allow_builds
-        .as_ref()
-        .and_then(|builds| builds.get(name))
-        == Some(&AllowBuildValue::Bool(value))
-    {
-        return None;
-    }
-    let new_text = if let Inline::Flow(collection) = locate_mapping(text, &[block]) {
-        flow::upsert(text, &collection, name, render_bool(value))
-    } else {
-        replace_value_text_at(text, &[block], name, render_bool(value))
-    };
-    manifest.document.set_text(new_text);
-    Some(true)
-}
 
 /// Add `name: <placeholder>` to the `allowBuilds:` block, creating the
 /// block when absent. An entry that already exists is left alone whatever

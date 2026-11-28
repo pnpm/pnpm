@@ -6,7 +6,7 @@ use std::{
 };
 use tempfile::tempdir;
 
-const HINTS: &str = "\nhint: To allow the execution of build scripts for a package, add its name to \"allowBuilds\" and set to \"true\", then run \"pnpm rebuild\".\nhint: For example:\nhint: allowBuilds:\nhint:   esbuild: true\nhint: If you don't want to build a package, set it to \"false\" instead.";
+const HINTS: &str = "\nhint: To allow the execution of build scripts for a package, add its name to \"permissions\" with \"build: true\", then run \"pnpm rebuild\".\nhint: For example:\nhint: permissions:\nhint:   esbuild:\nhint:     build: true\nhint: If you don't want to build a package, set \"build\" to \"false\" instead.";
 
 /// Build a `Config` whose `modules_dir` is a `node_modules` under `dir`
 /// and whose `allow_builds` records each `disallowed` name as `false`.
@@ -55,7 +55,7 @@ fn lists_explicitly_ignored_dependencies() {
     let output = render_ignored_builds(&config).unwrap();
     assert_eq!(
         output,
-        "Automatically ignored builds during installation:\n  None\n\nExplicitly ignored package builds (via allowBuilds):\n  bar\n",
+        "Automatically ignored builds during installation:\n  None\n\nExplicitly ignored package builds:\n  bar\n",
     );
 }
 
@@ -69,7 +69,7 @@ fn lists_both_automatically_and_explicitly_ignored() {
     assert_eq!(
         output,
         format!(
-            "Automatically ignored builds during installation:\n  foo\n  bar{HINTS}\n\nExplicitly ignored package builds (via allowBuilds):\n  qar\n  zoo\n",
+            "Automatically ignored builds during installation:\n  foo\n  bar{HINTS}\n\nExplicitly ignored package builds:\n  qar\n  zoo\n",
         ),
     );
 }
@@ -83,6 +83,6 @@ fn reports_cannot_identify_when_no_node_modules() {
     let output = render_ignored_builds(&config).unwrap();
     assert_eq!(
         output,
-        "Automatically ignored builds during installation:\n  Cannot identify as no node_modules found\n\nExplicitly ignored package builds (via allowBuilds):\n  qar\n  zoo\n",
+        "Automatically ignored builds during installation:\n  Cannot identify as no node_modules found\n\nExplicitly ignored package builds:\n  qar\n  zoo\n",
     );
 }

@@ -121,8 +121,8 @@ Since v12.16.0, it checks the source workspace lockfile against [`minimumRelease
 * The `prepare` script of the deployed project is not run.
 * A workspace project that the deploy installs as a `file:` dependency runs
   its build scripts. pnpm approves it by its dependency path in the
-  [`allowBuilds`](../settings/build.md#allowbuilds) setting. An `allowBuilds`
-  entry that denies the project still applies.
+  [`permissions`](../settings/build.md#permissions) setting. A denied entry in
+  `permissions` or deprecated `allowBuilds` still applies.
 * A workspace project with [`publishConfig.directory`](../package_json.md#publishconfigdirectory)
   is installed from that directory. Its build scripts run only if the
   directory is inside the project and not inside `node_modules`.

@@ -186,7 +186,7 @@ fn prepare_add_config(
     args.apply_cli_config(cfg);
     let config_root = derive_config_root(&mut *cfg, dir, reporter)
         .wrap_err("derive workspace root and package manager policy")?;
-    // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
+    // `permissions` is persisted to `pnpm-workspace.yaml`, which stays
     // at the workspace root even when `lockfileDir` moved the config
     // root elsewhere.
     let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());

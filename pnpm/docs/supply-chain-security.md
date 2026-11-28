@@ -7,7 +7,7 @@ Sometimes npm packages are compromised and published with malware. Luckily, ther
 
 ## Block risky postinstall scripts
 
-Historically, most compromised packages have used `postinstall` scripts to run code immediately upon installation. To mitigate this, pnpm does not run the build scripts of dependencies unless they are allowed in [allowBuilds]. With [strictDepBuilds] (on by default), an install fails if a dependency has a build script that is not allowed. Although there is a setting to re-enable them globally using [dangerouslyAllowAllBuilds], we recommend explicitly listing only trusted dependencies using [allowBuilds]. This way, if a dependency did not require a build in the past, it won't suddenly run a malicious script if a compromised version is published. Still, we recommend being cautious when updating a trusted package that has a `postinstall` script, as [it might get compromised].
+Historically, most compromised packages have used `postinstall` scripts to run code immediately upon installation. To mitigate this, pnpm does not run the build scripts of dependencies unless they are allowed in [permissions]. With [strictDepBuilds] (on by default), an install fails if a dependency has a build script that is not allowed. Although there is a setting to re-enable them globally using [dangerouslyAllowAllBuilds], we recommend explicitly listing only trusted dependencies using [permissions]. This way, if a dependency did not require a build in the past, it won't suddenly run a malicious script if a compromised version is published. Still, we recommend being cautious when updating a trusted package that has a `postinstall` script, as [it might get compromised].
 
 ## Prevent exotic transitive dependencies
 
@@ -44,7 +44,7 @@ If you install from more than one registry, use [namedRegistries] aliases for th
 [minimumReleaseAge]: settings/dependency-resolution.md#minimumreleaseage
 [trustPolicy]: settings/dependency-resolution.md#trustpolicy
 [trustPolicyExclude]: settings/dependency-resolution.md#trustpolicyexclude
-[allowBuilds]: settings/build.md#allowbuilds
+[permissions]: settings/build.md#permissions
 [blockExoticSubdeps]: settings/dependency-resolution.md#blockexoticsubdeps
 [strictDepBuilds]: settings/build.md#strictdepbuilds
 [trustPolicyIgnoreAfter]: settings/dependency-resolution.md#trustpolicyignoreafter

@@ -43,12 +43,39 @@ fn chosen(skills: &[&str]) -> PermissionValue {
 }
 
 #[test]
-fn build_decisions_go_to_allow_builds_without_a_permissions_block() {
+fn build_decisions_go_to_permissions_without_a_permissions_block() {
     let out =
         run(Some("packages:\n  - pkgs/*\n"), &[("esbuild", build(true)), ("sharp", build(false))]);
     assert_eq!(
         out.as_deref(),
-        Some("packages:\n  - pkgs/*\nallowBuilds:\n  esbuild: true\n  sharp: false\n"),
+        Some(
+            "packages:\n  - pkgs/*\npermissions:\n  esbuild:\n    build: true\n  sharp:\n    build: false\n"
+        ),
+    );
+}
+
+#[test]
+fn build_decisions_migrate_only_the_recorded_allow_builds_entries() {
+    let out = run(
+        Some("allowBuilds:\n  esbuild: false\n  sharp: true\n"),
+        &[("esbuild", build(true)), ("@acme/kit", build(false))],
+    );
+    assert_eq!(
+        out.as_deref(),
+        Some(
+            "allowBuilds:\n  sharp: true\npermissions:\n  '@acme/kit':\n    build: false\n  esbuild:\n    build: true\n"
+        ),
+    );
+}
+
+#[test]
+fn allow_builds_decisions_create_permissions() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    crate::set_allow_builds(dir.path(), [("esbuild", true)]).expect("update succeeds");
+    assert_eq!(
+        fs::read_to_string(path).expect("read manifest"),
+        "permissions:\n  esbuild:\n    build: true\n",
     );
 }
 
@@ -57,7 +84,7 @@ fn skills_decisions_create_the_permissions_block() {
     let out = run(None, &[("drizzle-kit", build(true)), ("drizzle-kit", all(true))]);
     assert_eq!(
         out.as_deref(),
-        Some("allowBuilds:\n  drizzle-kit: true\npermissions:\n  drizzle-kit:\n    skills: true\n"),
+        Some("permissions:\n  drizzle-kit:\n    build: true\n    skills: true\n"),
     );
 }
 
@@ -264,12 +291,12 @@ fn ends_an_unterminated_last_line_before_appending() {
         Some("permissions:\n  esbuild:\n    build: true\n  sharp:\n    build: false\n"),
     );
     let out = run(Some("allowBuilds:\n  esbuild: true"), &[("sharp", build(false))]);
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n  sharp: false\n"));
+    assert_eq!(
+        out.as_deref(),
+        Some("allowBuilds:\n  esbuild: true\npermissions:\n  sharp:\n    build: false\n"),
+    );
 }
 
-/// `permissions.<name>.build` outranks `allowBuilds.<name>`, so an
-/// `allowBuilds` write next to a `permissions` block updates the
-/// `permissions` entry and drops the outranked `allowBuilds` one.
 #[test]
 fn allow_builds_writes_go_to_an_existing_permissions_block() {
     let dir = TempDir::new().expect("temp dir");

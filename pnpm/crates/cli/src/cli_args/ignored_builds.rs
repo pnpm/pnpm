@@ -18,7 +18,7 @@ pub struct IgnoredBuildsArgs {}
 /// The automatically-ignored builds recorded in `.modules.yaml`, paired
 /// with the manifest they came from.
 pub(crate) struct IgnoredBuildsScan {
-    /// The `allowBuilds` keys of the packages whose build scripts were
+    /// The permission keys of the packages whose build scripts were
     /// ignored, deduplicated in first-seen order. `None` when there is no
     /// `.modules.yaml` or it records no `ignoredBuilds` field at all, the
     /// "cannot identify as no `node_modules` found" signal.
@@ -28,7 +28,7 @@ pub(crate) struct IgnoredBuildsScan {
 }
 
 /// Read `.modules.yaml` and project its `ignoredBuilds` depPaths onto the
-/// `allowBuilds` keys a user would approve them under.
+/// permission keys a user would approve them under.
 pub(crate) fn get_automatically_ignored_builds(
     config: &Config,
 ) -> miette::Result<IgnoredBuildsScan> {
@@ -50,7 +50,7 @@ pub(crate) fn get_automatically_ignored_builds(
 }
 
 pub(crate) fn render_ignored_builds(config: &Config) -> miette::Result<String> {
-    // pnpm preserves `allowBuilds` insertion order; pacquet's
+    // pnpm preserves permission insertion order; pacquet's
     // `Config::allow_builds` is a `HashMap`, so the source order is already
     // lost. Sort for a deterministic, reproducible listing.
     let mut disallowed_builds: Vec<String> = config.allow_builds
@@ -73,14 +73,14 @@ pub(crate) fn render_ignored_builds(config: &Config) -> miette::Result<String> {
             output.push_str("  ");
             output.push_str(&list.join("\n  "));
             output.push_str(
-                "\nhint: To allow the execution of build scripts for a package, add its name to \"allowBuilds\" and set to \"true\", then run \"pnpm rebuild\".\nhint: For example:\nhint: allowBuilds:\nhint:   esbuild: true\nhint: If you don't want to build a package, set it to \"false\" instead.",
+                "\nhint: To allow the execution of build scripts for a package, add its name to \"permissions\" with \"build: true\", then run \"pnpm rebuild\".\nhint: For example:\nhint: permissions:\nhint:   esbuild:\nhint:     build: true\nhint: If you don't want to build a package, set \"build\" to \"false\" instead.",
             );
         }
     }
     output.push('\n');
 
     if !disallowed_builds.is_empty() {
-        output.push_str("\nExplicitly ignored package builds (via allowBuilds):\n  ");
+        output.push_str("\nExplicitly ignored package builds:\n  ");
         output.push_str(&disallowed_builds.join("\n  "));
         output.push('\n');
     }

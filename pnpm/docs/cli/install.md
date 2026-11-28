@@ -300,8 +300,7 @@ Override the [`pnprServer`](../settings/dependency-resolution.md#pnprserver) set
 Added in: v12.7.0
 
 Allow the named package to run its lifecycle scripts during this install, and
-record it in the [`allowBuilds`](../settings/build.md#allowbuilds) field of
-`pnpm-workspace.yaml` so it stays allowed. Prefix a name with `!` to deny its
+record it in [`permissions`](../settings/build.md#permissions) so it stays allowed. Prefix a name with `!` to deny its
 scripts instead. The option can be repeated or, since v12.23.0, take a
 comma-separated list:
 
@@ -318,9 +317,11 @@ Windows `cmd.exe`, leave them out.
 writes:
 
 ```yaml title="pnpm-workspace.yaml"
-allowBuilds:
-  esbuild: true
-  core-js: false
+permissions:
+  esbuild:
+    build: true
+  core-js:
+    build: false
 ```
 
 ### --filter &lt;package_selector>

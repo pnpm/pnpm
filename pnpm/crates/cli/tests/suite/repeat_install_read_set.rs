@@ -70,12 +70,20 @@ const CLASSIFICATION: &[(&str, Input, &str)] = &[
 
 /// Every path a full install opens that is no input of the install, relative
 /// to the workspace, with the pnpm version that opens it and the reason.
-const NOT_INPUTS: &[(&str, Version, &str)] = &[(
-    "packages/b/cli.js",
-    Version::V11,
-    "pnpm v11 reads the shebang of a command it links to decide whether to repair \
-     it, and repairs only files under `node_modules`",
-)];
+const NOT_INPUTS: &[(&str, Version, &str)] = &[
+    (
+        "packages/b/cli.js",
+        Version::V11,
+        "pnpm v11 reads the shebang of a command it links to decide whether to repair \
+         it, and repairs only files under `node_modules`",
+    ),
+    (
+        "patches",
+        Version::V11,
+        "pnpm v11 opens the directory to read a configured patch file, whose contents \
+         are recorded as a `PatchFile` input",
+    ),
+];
 
 /// A workspace that exercises some of the inputs of an install. Its root
 /// `package.json` is a private manifest unless `files` writes one.
@@ -428,17 +436,12 @@ fn every_file_a_full_install_opens_is_recorded_or_classified() {
     for cli in &clis {
         seen.extend(assert_reads_recorded_or_classified(cli));
     }
-    let versions: Vec<Version> = clis.iter().map(Cli::version).collect();
-    let classified = CLASSIFICATION.iter().map(|(path, ..)| *path);
-    let not_inputs = NOT_INPUTS
+    let unused: Vec<&str> = CLASSIFICATION
         .iter()
-        .filter(|(_, version, _)| versions.contains(version))
-        .map(|(path, ..)| *path);
-    let unused: Vec<&str> = classified
-        .chain(not_inputs)
+        .map(|(path, ..)| *path)
         .filter(|path| !seen.contains(*path))
         .collect();
-    assert!(unused.is_empty(), "classified files no fixture opens: {unused:?}");
+    assert!(unused.is_empty(), "classified inputs no fixture opens: {unused:?}");
 }
 
 /// Assert that `cli` opens only recorded or classified files, and every

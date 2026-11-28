@@ -12,7 +12,6 @@
 //! caller can refuse the write.
 
 pub(crate) use allow_builds::{
-    add_allow_build,
     add_undecided_allow_build,
     prune_allow_builds,
 };

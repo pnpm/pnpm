@@ -46,7 +46,7 @@ This approves the requested capabilities for any commit from that repository. If
 
 After the decision is written, pnpm rebuilds the packages approved to build and links the approved agent skills.
 
-A `build` decision is written to `permissions` only when `pnpm-workspace.yaml` already has a `permissions` setting. Otherwise it is written to [`allowBuilds`](../settings/build.md#allowbuilds), which older pnpm versions read too.
+Build decisions are written to `permissions`. When a new decision is recorded for a package with an existing [`allowBuilds`](../settings/build.md#allowbuilds) entry, pnpm moves that entry to `permissions`.
 
 #### --all
 

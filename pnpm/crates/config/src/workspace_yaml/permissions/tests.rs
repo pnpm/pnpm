@@ -41,6 +41,24 @@ fn folds_build_permissions_into_allow_builds() {
 }
 
 #[test]
+fn warns_when_allow_builds_has_a_decision() {
+    let warnings = crate::tests::capture_warnings(|| {
+        applied("allowBuilds:\n  esbuild: true\n");
+    });
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| {
+                warning.contains("allowBuilds") && warning.contains("permissions.<package>.build")
+            }),
+    );
+    let warnings = crate::tests::capture_warnings(|| {
+        applied("allowBuilds:\n  esbuild: set this to true or false\n");
+    });
+    assert!(warnings.is_empty(), "an undecided placeholder is not an active setting");
+}
+
+#[test]
 fn skill_choices_are_recorded_as_chosen() {
     let config = applied("permissions:\n  drizzle-kit:\n    skills: [guide, migrate]\n");
     assert_eq!(

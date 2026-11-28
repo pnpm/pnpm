@@ -69,7 +69,10 @@ fn an_omitted_delegated_setting_is_written_to_its_owner() {
 fn a_setting_defined_in_an_unrestricted_file_stays_there() {
     let dir = workspace();
     set_allow_builds(dir.path(), [("sharp", true)]).expect("set");
-    assert_eq!(read(dir.path(), "security.yaml"), "allowBuilds:\n  esbuild: true\n  sharp: true\n");
+    assert_eq!(
+        read(dir.path(), "security.yaml"),
+        "allowBuilds:\n  esbuild: true\npermissions:\n  sharp:\n    build: true\n",
+    );
 }
 
 #[test]
