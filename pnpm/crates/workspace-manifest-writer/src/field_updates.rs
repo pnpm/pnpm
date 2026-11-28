@@ -80,7 +80,7 @@ pub fn is_owned_by_config_dependency(
 }
 
 #[derive(Clone, Copy)]
-enum WritePrivacy {
+pub(super) enum WritePrivacy {
     InheritOrUmask,
     OwnerOnly,
 }
@@ -132,7 +132,7 @@ fn map_edit_field_error(
     }
 }
 
-fn write_target_text(
+pub(super) fn write_target_text(
     path: &Path,
     ensure_parent_dir: bool,
     text: &str,

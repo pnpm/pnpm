@@ -92,7 +92,7 @@ impl ManifestTarget {
 /// The workspace manifest of a directory and the files it includes.
 pub(crate) struct WorkspaceManifests {
     root: PathBuf,
-    includes: Option<WorkspaceIncludes>,
+    pub(crate) includes: Option<WorkspaceIncludes>,
     /// The merged settings, when the root manifest has an include index.
     pub(crate) merged_text: Option<String>,
 }

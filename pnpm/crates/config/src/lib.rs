@@ -183,6 +183,7 @@ pub use workspace_yaml::{
         RegistryPrefixes,
     },
     render_yaml_top_level_field,
+    validate_nested_setting,
     validate_structured_setting,
     workspace_root_or,
 };

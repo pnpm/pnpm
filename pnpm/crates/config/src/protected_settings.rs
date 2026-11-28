@@ -84,5 +84,28 @@ fn censor_private_key_field(section: &mut Value) {
     }
 }
 
+/// Whether setting `camel_key` to `value` writes credentials: cache signing
+/// keys, or a protected setting inside a section of settings.
+#[must_use]
+pub fn carries_global_credentials(camel_key: &str, value: &Value) -> bool {
+    !value.is_null()
+        && (matches!(camel_key, "remoteCache" | "remoteSideEffectsCache")
+            || (camel_key == "sideEffectsCache"
+                && value
+                    .as_object()
+                    .is_some_and(|object| object.contains_key("remote")))
+            || (camel_key == "globalPackagesConfig"
+                && value
+                    .as_object()
+                    .is_some_and(|section| {
+                        section
+                            .iter()
+                            .any(|(setting, value)| {
+                                is_setting_protected(setting)
+                                    || carries_global_credentials(setting, value)
+                            })
+                    })))
+}
+
 #[cfg(test)]
 mod tests;

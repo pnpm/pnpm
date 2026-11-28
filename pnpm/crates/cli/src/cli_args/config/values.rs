@@ -52,22 +52,14 @@ fn parse_number(value: &str) -> Option<serde_json::Number> {
         .and_then(serde_json::Number::from_f64)
 }
 
-/// `validateSimpleKey`: a strictly-kebab-case key passes through; otherwise the
-/// key must parse to a single property-path segment.
-pub(super) fn validate_simple_key(key: &str) -> Result<String, ConfigError> {
-    if naming_cases::is_strictly_kebab_case(key) {
-        return Ok(key.to_string());
+pub(super) fn config_key_path(key: String) -> Result<Vec<Segment>, ConfigError> {
+    if config_types::is_ini_config_key(&key) || naming_cases::is_strictly_kebab_case(&key) {
+        return Ok(vec![Segment::Key(key)]);
     }
-    let segments =
-        property_path::parse_property_path(key).map_err(ConfigError::InvalidPropertyPath)?;
-    match segments.as_slice() {
-        [] => Err(ConfigError::SetEmptyKey),
-        [single] => Ok(segment_to_string(single)),
-        _ => Err(ConfigError::SetDeepKey),
-    }
+    property_path::parse_property_path(&key).map_err(ConfigError::InvalidPropertyPath)
 }
 
-fn segment_to_string(segment: &Segment) -> String {
+pub(super) fn segment_to_string(segment: &Segment) -> String {
     match segment {
         Segment::Key(key) => key.clone(),
         Segment::Index(n) => format!("{}", *n as i64),

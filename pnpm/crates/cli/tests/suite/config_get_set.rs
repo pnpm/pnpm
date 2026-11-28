@@ -623,3 +623,31 @@ fn camel_case_dotted_state_dir_supports_values_and_empty_reset_on_cli() {
 
     drop(root);
 }
+
+#[test]
+fn global_dotted_set_round_trips_one_field_and_keeps_its_sibling() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let config_home = root.path().join("xdg-config");
+    let config_dir = config_home.join("pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    fs::write(
+        config_dir.join("config.yaml"),
+        "globalPackagesConfig:\n  trustPolicy: no-downgrade\n",
+    )
+    .unwrap();
+    let command = || pacquet_in(&workspace).with_env("XDG_CONFIG_HOME", &config_home);
+    command()
+        .with_args(["config", "set", "-g", "globalPackagesConfig.virtualStoreType", "project"])
+        .assert()
+        .success();
+    for (key, expected) in [
+        ("globalPackagesConfig.virtualStoreType", "project\n"),
+        ("globalPackagesConfig.trustPolicy", "no-downgrade\n"),
+    ] {
+        command()
+            .with_args(["config", "get", "-g", key])
+            .assert()
+            .success()
+            .stdout(expected);
+    }
+}

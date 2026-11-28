@@ -6,16 +6,12 @@ use super::{
     parse_property_path,
 };
 
-const UNSAFE_KEYS: [&str; 3] = ["__proto__", "constructor", "prototype"];
+use pnpm_config::property_path::unsafe_key;
 
 pub(super) fn check_unsafe_key_in_path(key: &str) -> Result<(), PkgError> {
     let segments = parse_property_path(key).map_err(PkgError::InvalidPropertyPath)?;
-    for segment in &segments {
-        if let Segment::Key(k) = segment
-            && UNSAFE_KEYS.contains(&k.as_str())
-        {
-            return Err(PkgError::UnsafeKey { key: k.clone() });
-        }
+    if let Some(key) = unsafe_key(&segments) {
+        return Err(PkgError::UnsafeKey { key: key.to_owned() });
     }
     Ok(())
 }

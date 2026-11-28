@@ -56,6 +56,7 @@ pub use settings::{
 pub use structured_validation::{
     YamlConfigTarget,
     render_yaml_top_level_field,
+    validate_nested_setting,
     validate_structured_setting,
 };
 
