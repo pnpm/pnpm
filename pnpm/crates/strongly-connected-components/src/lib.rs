@@ -11,7 +11,9 @@
 //! - [`StronglyConnectedComponents`] keeps that labelling as a type
 //!   invariant, so each method that indexes by a component relies on it.
 //!
-//! That a component is strongly connected is tested, not proved.
+//! That a component is strongly connected, and the order
+//! [`StronglyConnectedComponents::components`] lists components and members
+//! in, are tested, not proved.
 
 #[cfg(creusot)]
 use creusot_std::prelude::{
@@ -47,7 +49,7 @@ pub mod theorems;
 /// workspace-deep chain). Removed nodes belong to no component.
 pub struct StronglyConnectedComponents {
     component_of: Vec<usize>,
-    component_size: Vec<usize>,
+    components: Vec<Vec<usize>>,
 }
 
 impl StronglyConnectedComponents {
@@ -82,10 +84,7 @@ impl StronglyConnectedComponents {
             }
             walk.run(root, adjacency, removed);
         }
-        StronglyConnectedComponents {
-            component_of: walk.component_of,
-            component_size: walk.component_size,
-        }
+        StronglyConnectedComponents { component_of: walk.component_of, components: walk.components }
     }
 
     /// Component indices for each node. Removed nodes use [`usize::MAX`].
@@ -95,11 +94,21 @@ impl StronglyConnectedComponents {
         &self.component_of
     }
 
+    /// The members of each component, indexed as [`Self::component_ids`]
+    /// numbers the components. The walk closes a component only after every
+    /// component it has an edge to, so each comes after those. A
+    /// component's members are in the order the walk popped them off its
+    /// stack, the reverse of the order it discovered them in.
+    #[must_use]
+    pub fn components(&self) -> &[Vec<usize>] {
+        &self.components
+    }
+
     /// The number of components in the included subgraph.
     #[cfg_attr(creusot, ensures(result@ == self.count()))]
     #[must_use]
     pub fn component_count(&self) -> usize {
-        self.component_size.len()
+        self.components.len()
     }
 
     /// Whether a cycle through `node` can exist: it shares a non-trivial
@@ -111,11 +120,11 @@ impl StronglyConnectedComponents {
     /// `node` must not have been removed when the components were computed.
     #[cfg_attr(creusot, requires(node@ < self.ids().len() && self.ids()[node@]@ != none()))]
     #[cfg_attr(creusot, requires(node@ < adjacency@.len()))]
-    #[cfg_attr(creusot, ensures(result == (self.sizes()[self.ids()[node@]@]@ >= 2
+    #[cfg_attr(creusot, ensures(result == (self.size(self.ids()[node@]@) >= 2
         || adjacency@[node@]@.contains(node))))]
     #[must_use]
     pub fn may_lie_on_cycle(&self, node: usize, adjacency: &[Vec<usize>]) -> bool {
-        self.component_size[self.component_of[node]] >= 2 || adjacency[node].contains(&node)
+        self.components[self.component_of[node]].len() >= 2 || adjacency[node].contains(&node)
     }
 
     /// Whether `left` and `right` share a component.
@@ -135,7 +144,7 @@ struct TarjanWalk {
     on_stack: Vec<bool>,
     stack: Vec<usize>,
     component_of: Vec<usize>,
-    component_size: Vec<usize>,
+    components: Vec<Vec<usize>>,
     next_discovery: usize,
     /// Explicit DFS frames of (node, next edge position).
     frames: Vec<(usize, usize)>,
@@ -148,7 +157,7 @@ impl TarjanWalk {
         && !result.on_stack@[node]
         && result.component_of@[node]@ == none()))]
     #[cfg_attr(creusot, ensures(result.stack@.len() == 0 && result.frames@.len() == 0))]
-    #[cfg_attr(creusot, ensures(result.component_size@.len() == 0 && result.next_discovery@ == 0))]
+    #[cfg_attr(creusot, ensures(result.components@.len() == 0 && result.next_discovery@ == 0))]
     fn new(node_count: usize) -> Self {
         TarjanWalk {
             discovery: vec![StronglyConnectedComponents::NONE; node_count],
@@ -156,7 +165,7 @@ impl TarjanWalk {
             on_stack: vec![false; node_count],
             stack: Vec::new(),
             component_of: vec![StronglyConnectedComponents::NONE; node_count],
-            component_size: Vec::new(),
+            components: Vec::new(),
             next_discovery: 0,
             frames: Vec::new(),
         }
@@ -290,9 +299,9 @@ impl TarjanWalk {
     fn pop_component(&mut self, root: usize) {
         #[cfg(creusot)]
         let before = snapshot!(*self);
-        let component = self.component_size.len();
-        let mut size = 0;
-        #[cfg_attr(creusot, invariant(self.popping(*before, root@, component@, size@)))]
+        let component = self.components.len();
+        let mut members = Vec::new();
+        #[cfg_attr(creusot, invariant(self.popping(*before, root@, component@, members@.len())))]
         loop {
             let member = self.stack.pop().expect("Tarjan stack holds the component");
             #[cfg(creusot)]
@@ -304,12 +313,12 @@ impl TarjanWalk {
             };
             self.on_stack[member] = false;
             self.component_of[member] = component;
-            size += 1;
+            members.push(member);
             if member == root {
                 break;
             }
         }
-        self.component_size.push(size);
+        self.components.push(members);
     }
 }
 

@@ -168,13 +168,13 @@ impl StronglyConnectedComponents {
     /// [`Self::component_count`] in the logic.
     #[logic(open(crate))]
     pub fn count(self) -> Int {
-        pearlite! { self.component_size@.len() }
+        pearlite! { self.components@.len() }
     }
 
-    /// The number of nodes in each component.
+    /// The number of nodes in `component`.
     #[logic(open(crate))]
-    pub fn sizes(self) -> Seq<usize> {
-        pearlite! { self.component_size@ }
+    pub fn size(self, component: Int) -> Int {
+        pearlite! { self.components@[component]@.len() }
     }
 }
 
@@ -265,7 +265,7 @@ impl TarjanWalk {
             && (forall<node> 0 <= node && node < self.node_count()
                 && self.discovery@[node]@ != none() ==>
                 self.discovery@[node]@ < self.next_discovery@)
-            && self.component_size@.len() + self.stack@.len() <= self.next_discovery@
+            && self.components@.len() + self.stack@.len() <= self.next_discovery@
         }
     }
 
@@ -280,7 +280,7 @@ impl TarjanWalk {
                 && (self.discovery@[node]@ != none() ==>
                     self.on_stack@[node] || self.component_of@[node]@ != none())
                 && (self.component_of@[node]@ == none()
-                    || self.component_of@[node]@ < self.component_size@.len())
+                    || self.component_of@[node]@ < self.components@.len())
         }
     }
 
@@ -373,7 +373,7 @@ impl TarjanWalk {
             && self.low_link@ == before.low_link@
             && self.frames@ == before.frames@
             && self.next_discovery == before.next_discovery
-            && self.component_size@ == before.component_size@
+            && self.components@ == before.components@
         }
     }
 }
