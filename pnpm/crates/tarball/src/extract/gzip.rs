@@ -120,7 +120,7 @@ pub(crate) const STREAM_EXTRACT_COMPRESSED_THRESHOLD: usize = 16 * 1024 * 1024;
 /// Whether a downloaded tarball should be extracted through the
 /// streaming path ([`stream_extract_gzipped_tarball_with_tar`]) instead of the
 /// eager whole-archive decompression
-/// ([`decompress_gzip`] + [`extract_tarball_entries_alongside`]).
+/// ([`decompress_gzip`] + [`write_pending_tar`]).
 ///
 /// The eager path materializes the entire decompressed archive as one
 /// contiguous buffer, which for a large package multiplies across every
