@@ -123,11 +123,15 @@ fn wait_for_gate(ready: std::os::fd::RawFd, gate: std::os::fd::RawFd) -> std::io
 /// Linux refuses to run a file open for writing. A shell that hits this
 /// exits with 126 and a diagnostic line ending in `: Text file busy`.
 ///
+/// Runs `command` with `LC_ALL=C`, so the shell's diagnostic is not
+/// translated.
+///
 /// # Panics
 ///
 /// When the spawn fails otherwise, or the file is still busy after two
 /// seconds.
 pub fn output_retrying_busy(command: &mut std::process::Command) -> std::process::Output {
+    command.env("LC_ALL", "C");
     let mut last_busy = None;
     for _ in 0..200 {
         #[expect(
@@ -156,3 +160,6 @@ fn is_busy_shell_exec(output: &std::process::Output) -> bool {
             .map(str::trim_end)
             .any(|line| line.ends_with(": Text file busy"))
 }
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests;

@@ -7094,6 +7094,7 @@ dependencies = [
  "ssri",
  "sysinfo",
  "tar",
+ "tempfile",
  "tokio",
  "url",
  "windows-sys 0.61.2",
