@@ -14,7 +14,6 @@ mod peer_scc;
 
 mod graph_edges;
 use graph_edges::{
-    PeerNameTarjan,
     insert_graph_node,
     transitive_peer_names,
 };

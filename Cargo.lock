@@ -6860,6 +6860,7 @@ dependencies = [
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
  "pnpm-semver-include-prerelease",
+ "pnpm-strongly-connected-components",
  "pnpm-tool-protocol",
  "pnpm-workspace-spec",
  "pretty_assertions",

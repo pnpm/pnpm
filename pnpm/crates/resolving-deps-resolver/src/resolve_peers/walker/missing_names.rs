@@ -8,6 +8,7 @@ use super::{
     NodeId,
     ResolvedTree,
 };
+use pnpm_strongly_connected_components::StronglyConnectedComponents;
 
 /// The resolved peers an ancestor still has to satisfy: the ones this node
 /// did not itself provide a child for.
@@ -59,16 +60,18 @@ impl<'a> MissingNames<'a> {
 }
 
 /// Strongly-connected-component ids over the recorded children graph.
-/// Iterative Tarjan, mirroring the peer-graph variant in the finalize
-/// pass, so deep graphs cannot overflow the call stack.
 pub(crate) fn children_scc_ids(tree: &ResolvedTree) -> HashMap<Arc<str>, usize> {
     let (node_ids, adjacency) = children_graph_adjacency(tree);
-    let mut pass = SccPass::new(adjacency);
-    pass.run();
+    let components =
+        StronglyConnectedComponents::compute(&adjacency, &vec![false; adjacency.len()]);
     node_ids
         .into_iter()
-        .zip(pass.scc_of_index)
-        .filter(|(_, scc)| *scc != usize::MAX)
+        .zip(
+            components
+                .component_ids()
+                .iter()
+                .copied(),
+        )
         .collect()
 }
 
@@ -100,105 +103,6 @@ pub(super) fn children_graph_adjacency(tree: &ResolvedTree) -> (Vec<Arc<str>>, V
     }
     adjacency.resize_with(node_ids.len(), Vec::new);
     (node_ids, adjacency)
-}
-
-/// One iterative Tarjan pass. The DFS stack is explicit so deep dependency
-/// graphs don't overflow the call stack.
-pub(super) struct SccPass {
-    pub(super) adjacency: Vec<Vec<usize>>,
-    pub(super) discovery: Vec<u32>,
-    pub(super) lowlink: Vec<u32>,
-    pub(super) on_stack: Vec<bool>,
-    pub(super) tarjan_stack: Vec<usize>,
-    pub(super) next_index: u32,
-    pub(super) scc_of_index: Vec<usize>,
-    pub(super) next_scc: usize,
-}
-
-impl SccPass {
-    pub(super) fn new(adjacency: Vec<Vec<usize>>) -> Self {
-        let node_count = adjacency.len();
-        SccPass {
-            adjacency,
-            discovery: vec![u32::MAX; node_count],
-            lowlink: vec![0; node_count],
-            on_stack: vec![false; node_count],
-            tarjan_stack: Vec::new(),
-            next_index: 0,
-            scc_of_index: vec![usize::MAX; node_count],
-            next_scc: 0,
-        }
-    }
-
-    pub(super) fn run(&mut self) {
-        for root in 0..self.adjacency.len() {
-            if self.discovery[root] != u32::MAX {
-                continue;
-            }
-            self.visit_root(root);
-        }
-    }
-
-    pub(super) fn visit_root(&mut self, root: usize) {
-        let mut work: Vec<(usize, usize)> = vec![(root, 0)];
-        while let Some(&mut (node, ref mut cursor)) = work.last_mut() {
-            if *cursor == 0 {
-                self.open(node);
-            }
-            if let Some(child) = self.next_unvisited_child(node, cursor) {
-                work.push((child, 0));
-                continue;
-            }
-            if self.lowlink[node] == self.discovery[node] {
-                self.close_scc(node);
-            }
-            work.pop();
-            if let Some(&mut (parent, _)) = work.last_mut() {
-                self.lowlink[parent] = self.lowlink[parent].min(self.lowlink[node]);
-            }
-        }
-    }
-
-    pub(super) fn open(&mut self, node: usize) {
-        self.discovery[node] = self.next_index;
-        self.lowlink[node] = self.next_index;
-        self.next_index += 1;
-        self.on_stack[node] = true;
-        self.tarjan_stack.push(node);
-    }
-
-    /// Advances `node`'s edge cursor to its next unvisited child, folding
-    /// every child already on the Tarjan stack into `node`'s lowlink on the
-    /// way.
-    pub(super) fn next_unvisited_child(
-        &mut self,
-        node: usize,
-        cursor: &mut usize,
-    ) -> Option<usize> {
-        while *cursor < self.adjacency[node].len() {
-            let child = self.adjacency[node][*cursor];
-            *cursor += 1;
-            if self.discovery[child] == u32::MAX {
-                return Some(child);
-            }
-            if self.on_stack[child] {
-                self.lowlink[node] = self.lowlink[node].min(self.discovery[child]);
-            }
-        }
-        None
-    }
-
-    pub(super) fn close_scc(&mut self, root: usize) {
-        loop {
-            let member = self.tarjan_stack.pop().expect("Tarjan stack holds the open SCC");
-            self.on_stack[member] = false;
-            self.scc_of_index[member] = self.next_scc;
-            if member == root {
-                break;
-            }
-        }
-        self.next_scc += 1;
-    }
 }
 
 /// Index the per-package missing-peer names `roots` reported, borrowing
