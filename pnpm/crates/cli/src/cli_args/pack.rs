@@ -105,7 +105,7 @@ impl Reporter for PackJsonReporter {
 /// Create a tarball from a package.
 #[derive(Debug, Args)]
 pub struct PackArgs {
-    /// Package spec(s) to pack instead of the project in the current
+    /// Package specs to pack instead of the project in the current
     /// directory: a registry package (`name[@version|tag|range]`), a
     /// tarball URL, a local directory, or a local tarball file.
     pub packages: Vec<String>,

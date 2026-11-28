@@ -189,6 +189,53 @@ fn honors_the_out_template_and_pack_destination() {
 }
 
 #[test]
+fn accepts_a_sha1_declared_integrity() {
+    let dir = tempdir().unwrap();
+    let bytes = minimal_tgz(&json!({ "name": "foo", "version": "1.0.0" }), &[]);
+    let sha1 = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha1)
+        .chain(&bytes)
+        .result();
+    let mut opts = fetched(dir.path(), &bytes);
+    opts.expected_integrity = Some(&sha1);
+
+    pack_fetched_tarball::<Host>(&opts)
+        .expect("a registry entry declaring only SHA-1 still verifies");
+    assert!(
+        dir.path()
+            .join("foo-1.0.0.tgz")
+            .exists()
+    );
+}
+
+#[test]
+fn rejects_a_manifest_identity_that_escapes_the_destination() {
+    let dir = tempdir().unwrap();
+    for manifest in [
+        json!({ "name": "foo", "version": "../backup" }),
+        json!({ "name": "../evil", "version": "1.0.0" }),
+    ] {
+        let bytes = minimal_tgz(&manifest, &[]);
+        let error = pack_fetched_tarball::<Host>(&fetched(dir.path(), &bytes)).unwrap_err();
+        assert!(
+            matches!(
+                error,
+                PackError::InvalidPackageVersion { .. } | PackError::InvalidPackageName { .. }
+            ),
+            "manifest {manifest} is rejected: {error}"
+        );
+    }
+    assert!(
+        !dir.path()
+            .parent()
+            .unwrap()
+            .join("backup.tgz")
+            .exists(),
+        "nothing written outside the destination"
+    );
+}
+
+#[test]
 fn packs_a_plain_tar() {
     let dir = tempdir().unwrap();
     let manifest = json!({ "name": "foo", "version": "1.0.0" });

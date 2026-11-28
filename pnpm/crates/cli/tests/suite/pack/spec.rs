@@ -1,15 +1,12 @@
-//! `pack <spec>`: packing a positional package spec — a registry package,
-//! a tarball URL, a local directory, or a local tarball file — instead of
+//! `pack <spec>`: packing a positional package spec (a registry package,
+//! a tarball URL, a local directory, or a local tarball file) instead of
 //! the project in the working directory. Registry tests run against the
 //! mocked registry; URL tests against a `mockito` server.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils_registry::{
-    bin::{
-        AddMockedRegistry,
-        CommandTempCwd,
-    },
+    bin::CommandTempCwd,
     fixtures::minimal_tarball,
 };
 use serde_json::{
@@ -296,6 +293,99 @@ fn rejects_recursive_with_a_spec() {
     );
 
     drop(root);
+}
+
+#[test]
+fn json_error_names_the_underlying_failure() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_args(["pack", "./no-such-dir", "--json"])
+        .output()
+        .expect("spawn pacquet pack");
+
+    assert!(!output.status.success(), "a missing local path must fail");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let error: Value = serde_json::from_str(&stdout).expect("a JSON error on stdout");
+    let message = error["error"]["message"].as_str().expect("error.message");
+    assert!(
+        message.contains("no file or directory"),
+        "the message carries the underlying failure, not just the spec; got: {message}",
+    );
+    assert_eq!(error["error"]["code"], "ERR_PNPM_PACK_SPEC_NOT_FOUND");
+
+    drop(root);
+}
+
+#[test]
+fn packing_a_directory_outside_the_workspace_inherits_no_workspace_license() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - '.'\n").unwrap();
+    fs::write(workspace.join("LICENSE"), "workspace license\n").unwrap();
+    let external = root.path().join("external");
+    fs::create_dir(&external).unwrap();
+    fs::write(
+        external.join("package.json"),
+        json!({ "name": "external-pkg", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+    fs::write(external.join("index.js"), "console.log()\n").unwrap();
+
+    pacquet
+        .with_args(["pack", "../external"])
+        .assert()
+        .success();
+
+    let entries = tarball_entry_names(&workspace.join("external-pkg-1.0.0.tgz"));
+    assert!(
+        !entries
+            .iter()
+            .any(|entry| entry == "package/LICENSE"),
+        "the calling workspace's LICENSE must not leak into another project's tarball: {entries:?}",
+    );
+
+    drop(root);
+}
+
+#[test]
+fn a_failing_url_spec_redacts_credentials_from_the_error() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    server
+        .mock("GET", "/pkg.tgz")
+        .with_status(404)
+        .create();
+    let url = format!("{}/pkg.tgz", server.url()).replacen("http://", "http://user:secret@", 1);
+
+    let output = pacquet_at(&workspace)
+        .with_args(["pack", &url])
+        .output()
+        .expect("spawn pacquet pack");
+
+    assert!(!output.status.success(), "a 404 download must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.contains("secret"), "credentials are redacted; got:\n{stderr}");
+
+    drop((root, server));
+}
+
+/// The entry names of a written `.tgz`, for assertions.
+fn tarball_entry_names(tarball: &Path) -> Vec<String> {
+    let bytes = fs::read(tarball).expect("read tarball");
+    let decoder = flate2::read::GzDecoder::new(bytes.as_slice());
+    let mut archive = tar::Archive::new(decoder);
+    archive
+        .entries()
+        .expect("iterate tarball entries")
+        .map(|entry| {
+            entry
+                .expect("read tarball entry")
+                .path()
+                .expect("entry path")
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect()
 }
 
 fn pacquet_at(workspace: &Path) -> std::process::Command {

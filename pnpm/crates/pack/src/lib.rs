@@ -314,6 +314,15 @@ pub enum PackError {
         #[error(not(source))]
         actual: String,
     },
+
+    #[display("The tarball from {source} exceeds the {limit}-byte unpacked size limit")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
+    FetchedTarballTooLarge {
+        #[error(not(source))]
+        source: String,
+        #[error(not(source))]
+        limit: u64,
+    },
 }
 
 pub async fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>

@@ -86,10 +86,9 @@ pub(super) async fn run_specs<Reporter: self::Reporter>(
     }
     let mut results = Vec::new();
     for spec in &args.packages {
-        let result = pack_spec::<Reporter>(args, dir, config, &before_packing_hooks, spec)
-            .await
-            .wrap_err_with(|| format!("pack {spec}"))?;
-        results.push(to_pack_result_json(&result));
+        results.push(to_pack_result_json(
+            &pack_spec::<Reporter>(args, dir, config, &before_packing_hooks, spec).await?,
+        ));
     }
     Ok(format_pack_output(&results, args.json, false))
 }
@@ -116,12 +115,21 @@ async fn pack_spec<Reporter: self::Reporter>(
             Ok(pack_fetched_tarball::<Host>(&fetched_options(
                 args,
                 dir,
-                &pnpm_network::redact_url_credentials(&url),
+                &redact_spec(&url),
                 &bytes,
                 None,
             ))?)
         }
         PackSpec::Registry => pack_registry_spec(args, dir, config, spec).await,
+    }
+}
+
+/// A spec as errors may print it: credentials in a URL spec are redacted.
+fn redact_spec(spec: &str) -> String {
+    if spec.starts_with("http:") || spec.starts_with("https:") {
+        pnpm_network::redact_url_credentials(spec)
+    } else {
+        spec.to_string()
     }
 }
 
@@ -153,8 +161,15 @@ async fn pack_local_dir<Reporter: self::Reporter>(
     before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     path: PathBuf,
 ) -> miette::Result<PackResult> {
+    // A directory outside the current workspace is packed without the
+    // workspace's context: its catalogs, workspace package versions,
+    // composed changelog, and root LICENSE belong to the calling project,
+    // not to the packed one.
+    let in_workspace = config.workspace_dir
+        .as_deref()
+        .is_some_and(|workspace_dir| path.starts_with(workspace_dir));
     let shared = PackSharedContext {
-        catalogs: configured_catalogs(config)?,
+        catalogs: if in_workspace { configured_catalogs(config)? } else { Default::default() },
         output_base_dir: Some(dir.to_path_buf()),
         out: args.out.clone(),
         pack_destination: args.pack_destination.clone(),
@@ -162,7 +177,12 @@ async fn pack_local_dir<Reporter: self::Reporter>(
         workspace_packages: None,
     };
     let mut options = args.pack_options(path.clone(), config, shared);
-    set_injected_changelog(&mut options, config, &path).await?;
+    if in_workspace {
+        set_injected_changelog(&mut options, config, &path).await?;
+    } else {
+        options.workspace_dir = None;
+        options.manifest.catalogs_dir = None;
+    }
     Ok(api::<Reporter, Host>(&options).await?)
 }
 
@@ -176,7 +196,7 @@ async fn pack_registry_spec(
     let dist = &fetched.picked.dist;
     if dist.tarball.is_empty() {
         return Err(PackSpecError::UnsupportedSpec {
-            spec: spec.to_string(),
+            spec: redact_spec(spec),
             reason: "the registry metadata names no tarball URL",
         }
         .into());
@@ -219,7 +239,7 @@ enum PackSpec {
 fn classify(spec: &str, dir: &Path) -> Result<PackSpec, PackSpecError> {
     if pnpm_resolving_git_resolver::parse_bare_specifier(spec).is_some() {
         return Err(PackSpecError::UnsupportedSpec {
-            spec: spec.to_string(),
+            spec: redact_spec(spec),
             reason: "packing a git dependency is not supported yet",
         });
     }
@@ -227,7 +247,7 @@ fn classify(spec: &str, dir: &Path) -> Result<PackSpec, PackSpecError> {
         return id
             .map(PackSpec::RemoteTarballUrl)
             .map_err(|_| PackSpecError::UnsupportedSpec {
-                spec: spec.to_string(),
+                spec: redact_spec(spec),
                 reason: "invalid tarball URL",
             });
     }
@@ -237,7 +257,7 @@ fn classify(spec: &str, dir: &Path) -> Result<PackSpec, PackSpecError> {
             (true, _) => Ok(PackSpec::LocalDir(path)),
             (false, true) => Ok(PackSpec::LocalTarball(path)),
             (false, false) => Err(PackSpecError::NotFound {
-                spec: spec.to_string(),
+                spec: redact_spec(spec),
                 path: path.display().to_string(),
             }),
         };
@@ -246,7 +266,8 @@ fn classify(spec: &str, dir: &Path) -> Result<PackSpec, PackSpecError> {
 }
 
 /// The filesystem path a `file:` / `link:` / path-shaped spec names,
-/// resolved against the CLI directory.
+/// resolved against the CLI directory and lexically normalized, so a
+/// workspace-membership check can compare prefixes.
 fn local_spec_path(spec: &str, dir: &Path) -> PathBuf {
     let path = spec
         .strip_prefix("file:")
@@ -255,7 +276,7 @@ fn local_spec_path(spec: &str, dir: &Path) -> PathBuf {
     if let Some(home_relative) = path.strip_prefix("~/")
         && let Some(home) = home_dir()
     {
-        return home.join(home_relative);
+        return pnpm_fs::lexical_normalize(&home.join(home_relative));
     }
-    dir.join(path)
+    pnpm_fs::lexical_normalize(&dir.join(path))
 }
