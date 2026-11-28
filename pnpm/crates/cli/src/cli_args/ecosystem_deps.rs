@@ -10,6 +10,7 @@ pub(crate) use outdated::{
     ecosystem_project_name,
     requires_ecosystem_lockfile,
 };
+pub(crate) use rust_toolchain::NewerRustReleases;
 pub(crate) use selectors::{
     EcosystemFilterKind,
     excludes_only,
@@ -23,6 +24,7 @@ pub(crate) use standalone::{
 };
 
 mod outdated;
+mod rust_toolchain;
 
 use crate::ecosystem_install::InstallContext;
 use cargo::{
@@ -32,6 +34,7 @@ use cargo::{
 };
 use miette::Result;
 use pnpm_config::Config;
+use pnpm_install_coordinator::InstallPlan;
 use pnpm_matcher::{
     Matcher,
     create_matcher,
@@ -50,7 +53,9 @@ use python::{
     update_python_projects,
     validate_explicit_python_requests,
 };
+use rust_toolchain::RUST;
 use selectors::{
+    RustToolchainSelector,
     parse_update_selectors,
     updates_all_except_exclusions,
 };
@@ -209,11 +214,62 @@ async fn update_ecosystem_targets<Reporter: self::Reporter + 'static>(
         lockfile_only: run.options.lockfile_only,
         frozen_lockfile: false,
     };
+    let toolchain_updated = if updates_rust_toolchain(run.options, run.parsed) {
+        update_rust_toolchains::<Reporter>(target_dirs, &install_context).await?
+    } else {
+        false
+    };
     let cargo_updated =
         update_cargo_projects::<Reporter>(target_dirs, install_context.clone(), &cargo_opts).await?;
     let py_updated =
         update_python_projects::<Reporter>(python_targets, install_context, &py_opts).await?;
-    Ok(cargo_updated || py_updated)
+    Ok(toolchain_updated || cargo_updated || py_updated)
+}
+
+/// The toolchain pin moves only to the latest release, when the update
+/// names `rust` or covers everything `!rust` does not exclude. It is a dev
+/// dependency, which `updateConfig.ignoreDependencies` can hold back as it
+/// holds back a crate, even one the update names.
+fn updates_rust_toolchain(
+    options: &EcosystemUpdateStepOptions<'_>,
+    parsed: &selectors::ParsedUpdateSelectors,
+) -> bool {
+    let selected = match parsed.rust_toolchain {
+        Some(RustToolchainSelector::Include) => true,
+        Some(RustToolchainSelector::Exclude) => false,
+        None => options.selectors.is_empty() || excludes_only(options.selectors),
+    };
+    let ignored = options.ignore_matcher.is_some_and(|matcher| matcher.matches(RUST));
+    selected
+        && !ignored
+        && options.include_groups.contains(&DependencyGroup::Dev)
+        && options.latest
+        && !options.no_save
+}
+
+/// Pinned before the crates update, so their lockfile is resolved with the
+/// new toolchain.
+async fn update_rust_toolchains<Reporter: self::Reporter + 'static>(
+    target_dirs: &[PathBuf],
+    context: &InstallContext,
+) -> Result<bool> {
+    if !context.config.cargo.enabled {
+        return Ok(false);
+    }
+    let tasks = crate::cargo_deps::toolchain::update::plan::<Reporter>(context, target_dirs).await?;
+    if tasks.is_empty() {
+        return Ok(false);
+    }
+    let root = context.config.workspace_dir
+        .clone()
+        .or_else(|| target_dirs.first().cloned());
+    let Some(root) = root else { return Ok(false) };
+    let mut plan = InstallPlan::new(root);
+    for task in tasks {
+        plan = plan.with_task(task);
+    }
+    plan.run().await?;
+    Ok(true)
 }
 
 pub(crate) async fn validate_dedicated_update_requests<'a>(

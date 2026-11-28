@@ -155,6 +155,11 @@ pub(crate) async fn get(
 }
 
 impl Manifest {
+    /// The day the release was published, as the manifest writes it.
+    pub(crate) fn date(&self) -> &str {
+        &self.date
+    }
+
     /// The pinned name of the release this manifest describes, which is
     /// what a channel that moves resolved to.
     ///

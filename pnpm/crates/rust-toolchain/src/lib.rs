@@ -14,6 +14,7 @@ pub use channel::{
     Channel,
     ChannelName,
 };
+pub use newer_release::newer_release;
 pub use rustup_settings::rustup_settings_file;
 pub use toolchain_file::{
     Profile,
@@ -28,6 +29,7 @@ mod channel;
 mod host;
 mod install;
 mod manifest;
+mod newer_release;
 mod rustup_settings;
 mod toolchain_file;
 
@@ -346,6 +348,13 @@ pub enum RustToolchainError {
     Offline {
         #[error(not(source))]
         channel: String,
+    },
+
+    #[display("Cannot look up a newer Rust release than {pin} offline")]
+    #[diagnostic(code(ERR_PNPM_RUST_TOOLCHAIN_OFFLINE))]
+    OfflineUpdate {
+        #[error(not(source))]
+        pin: String,
     },
 
     #[display("Failed to download {url}")]

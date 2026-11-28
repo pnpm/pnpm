@@ -1,5 +1,6 @@
 //! `pnpm run` and `pnpm exec` finding the Rust toolchain pnpm linked beside
-//! a rustup toolchain file, and `pnpm dlx` running a Rust release.
+//! a rustup toolchain file, `pnpm dlx` running a Rust release, and `pnpm add`
+//! and `pnpm update` pinning one.
 
 #[cfg(unix)]
 use crate::_utils::write_executable;
@@ -257,5 +258,143 @@ fn add_rust_through_a_filter_is_refused() {
     );
     assert!(!workspace.join("rust-toolchain.toml").exists());
     assert!(!member.join("rust-toolchain.toml").exists());
+    drop(root);
+}
+
+/// A distribution server whose `stable` channel is Rust 1.8.0.
+fn stable_dist_server() -> mockito::ServerGuard {
+    let mut server = mockito::Server::new();
+    server
+        .mock("GET", "/dist/channel-rust-stable.toml")
+        .with_body(include_bytes!("../../../rust-toolchain/src/fixtures/channel-rust-1.8.0.toml"))
+        .create();
+    server
+        .mock("GET", "/dist/channel-rust-stable.toml.asc")
+        .with_body(include_bytes!(
+            "../../../rust-toolchain/src/fixtures/channel-rust-1.8.0.toml.asc"
+        ))
+        .create();
+    server
+}
+
+/// A workspace pinning Rust 1.7.0, with Rust 1.8.0 already in the store so
+/// that pinning it downloads nothing.
+fn workspace_pinning_an_old_release() -> CommandTempCwd<()> {
+    let env = CommandTempCwd::init();
+    let workspace = &env.workspace;
+    let store = env.root.path().join("store");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("storeDir: {}\ncargo:\n  enabled: true\n", store.display()),
+    )
+    .unwrap();
+    let toolchain_file = workspace.join("rust-toolchain.toml");
+    fs::write(&toolchain_file, "[toolchain]\nchannel = \"1.7.0\"\n").unwrap();
+    let request = pnpm_rust_toolchain::read_toolchain_file(&toolchain_file).unwrap().unwrap();
+    let mut config = pnpm_config::Config::new();
+    config.store_dir = pnpm_store_dir::StoreDir::from(store);
+    let newest = pnpm_rust_toolchain::Channel::parse("1.8.0").unwrap();
+    let toolchain = pnpm_rust_toolchain::installation_dir(&config, &newest, &request).unwrap();
+    write_fake_bin(&toolchain.join("bin"), "cargo", MARKER);
+    env
+}
+
+fn with_mirror(
+    workspace: &std::path::Path,
+    server: &mockito::ServerGuard,
+    args: &[&str],
+) -> std::process::Output {
+    let tools = json!({ "rust": { "mirror": server.url() } }).to_string();
+    pacquet_in(workspace)
+        .with_env("PNPM_CONFIG_TOOLS", tools)
+        .with_args(args)
+        .output()
+        .unwrap()
+}
+
+fn update(workspace: &std::path::Path, server: &mockito::ServerGuard, args: &[&str]) {
+    let output = with_mirror(workspace, server, &[&["update"], args].concat());
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+}
+
+fn outdated(
+    workspace: &std::path::Path,
+    server: &mockito::ServerGuard,
+    args: &[&str],
+) -> serde_json::Value {
+    let output =
+        with_mirror(workspace, server, &[&["outdated", "--format", "json"], args].concat());
+    assert!(
+        output.status
+            .code()
+            .is_some_and(|code| code <= 1),
+        "{output:?}",
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+fn pinned_channel(workspace: &std::path::Path) -> String {
+    fs::read_to_string(workspace.join("rust-toolchain.toml")).unwrap()
+}
+
+#[test]
+fn update_latest_moves_the_pinned_rust_release() {
+    let CommandTempCwd { workspace, root, .. } = workspace_pinning_an_old_release();
+    let server = stable_dist_server();
+
+    update(&workspace, &server, &["--latest"]);
+
+    assert_eq!(pinned_channel(&workspace), "[toolchain]\nchannel = \"1.8.0\"\n");
+    drop(root);
+}
+
+#[test]
+fn update_latest_rust_moves_only_the_pinned_rust_release() {
+    let CommandTempCwd { workspace, root, .. } = workspace_pinning_an_old_release();
+    let server = stable_dist_server();
+
+    update(&workspace, &server, &["--latest", "rust"]);
+
+    assert_eq!(pinned_channel(&workspace), "[toolchain]\nchannel = \"1.8.0\"\n");
+    drop(root);
+}
+
+#[test]
+fn the_pinned_rust_release_is_kept_without_latest_or_when_excluded() {
+    let CommandTempCwd { workspace, root, .. } = workspace_pinning_an_old_release();
+    let server = stable_dist_server();
+
+    update(&workspace, &server, &[]);
+    update(&workspace, &server, &["--latest", "!rust"]);
+    update(&workspace, &server, &["--latest", "--no-save"]);
+    update(&workspace, &server, &["--latest", "--prod"]);
+    let workspace_manifest = workspace.join("pnpm-workspace.yaml");
+    let mut settings = fs::read_to_string(&workspace_manifest).unwrap();
+    settings.push_str("updateConfig:\n  ignoreDependencies:\n    - rust\n");
+    fs::write(&workspace_manifest, settings).unwrap();
+    update(&workspace, &server, &["--latest", "rust"]);
+
+    assert_eq!(pinned_channel(&workspace), "[toolchain]\nchannel = \"1.7.0\"\n");
+    drop(root);
+}
+
+#[test]
+fn outdated_lists_a_pinned_rust_release_that_has_a_newer_one() {
+    let CommandTempCwd { workspace, root, .. } = workspace_pinning_an_old_release();
+    let server = stable_dist_server();
+
+    let report = outdated(&workspace, &server, &[]);
+    assert_eq!(report["rust"]["current"], "1.7.0");
+    assert_eq!(report["rust"]["latest"], "1.8.0");
+    assert_eq!(outdated(&workspace, &server, &["rust"])["rust"]["latest"], "1.8.0");
+
+    for args in [&["--compatible"][..], &["!rust"], &["--prod"]] {
+        assert_eq!(outdated(&workspace, &server, args).get("rust"), None, "{args:?}");
+    }
     drop(root);
 }

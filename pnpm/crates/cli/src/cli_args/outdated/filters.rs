@@ -149,6 +149,9 @@ fn validation_patterns(pattern: &[String]) -> miette::Result<Vec<String>> {
             candidates.push(format!("{prefix}{name}"));
         }
     }
+    // The Rust toolchain is declared without a prefix, and selected the way
+    // a crate is.
+    candidates.extend(patterns_for_ecosystem(pattern, EcosystemFilterKind::Cargo)?);
     Ok(candidates)
 }
 

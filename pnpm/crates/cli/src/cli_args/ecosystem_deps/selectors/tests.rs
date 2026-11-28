@@ -1,5 +1,8 @@
 use super::{
+    BareUpdateNames,
     EcosystemFilterKind,
+    RustToolchainSelector,
+    parse_update_selection,
     parse_update_selectors,
     patterns_for_ecosystem,
     validate_ecosystem_selectors,
@@ -238,4 +241,32 @@ fn interactive_choices_route_exact_names_to_the_selected_ecosystem() {
     assert_eq!(parsed.cargo_requests[0].name, "cargo-example");
     assert_eq!(parsed.python_requests.len(), 1);
     assert_eq!(parsed.python_requests[0].name, "python-example");
+}
+
+#[test]
+fn rust_names_the_toolchain_only_where_cargo_is_enabled() {
+    let mut config = Config::default();
+    let parsed = parse_update_selectors(&["rust".to_string()], &config).unwrap();
+    assert_eq!(parsed.rust_toolchain, None);
+    assert_eq!(parsed.node_selectors, vec!["rust"]);
+
+    config.cargo.enabled = true;
+    let parsed = parse_update_selectors(&["rust".to_string()], &config).unwrap();
+    assert_eq!(parsed.rust_toolchain, Some(RustToolchainSelector::Include));
+    assert!(parsed.node_selectors.is_empty());
+    assert!(parsed.cargo_requests.is_empty());
+
+    let parsed = parse_update_selectors(&["!rust".to_string()], &config).unwrap();
+    assert_eq!(parsed.rust_toolchain, Some(RustToolchainSelector::Exclude));
+    assert_eq!(parsed.cargo_exclusions, vec!["rust"]);
+}
+
+#[test]
+fn an_interactive_pick_of_rust_names_the_toolchain() {
+    let mut config = Config::default();
+    config.cargo.enabled = true;
+    let picks = ["rust".to_string(), "foo".to_string()];
+    let parsed = parse_update_selection(&picks, &config, BareUpdateNames::NodeOnly).unwrap();
+    assert_eq!(parsed.rust_toolchain, Some(RustToolchainSelector::Include));
+    assert_eq!(parsed.node_selectors, vec!["foo"]);
 }

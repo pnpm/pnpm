@@ -2,6 +2,7 @@
 //! installed by pnpm and linked beside the file.
 
 pub(crate) mod add;
+pub(crate) mod update;
 
 use super::workspace_directory::{
     ensure_workspace_directory,
