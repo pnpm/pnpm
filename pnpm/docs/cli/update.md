@@ -31,6 +31,7 @@ Besides moving `pnpm-lock.yaml` to the newly resolved versions, `pnpm update` wr
 * Since v12.12.0, a [config dependency](../config-dependencies.md#how-to-update-config-dependencies) is updated too, and its new range is written to `pnpm-workspace.yaml`.
 * A runtime (`node`, `deno`, `bun` declared in `devEngines.runtime`, `engines.runtime`, or through the `runtime:` / `tool:` protocol) and a package manager (`pnpm`, `npm`, `yarn`, `bun` declared in `devEngines.packageManager` or `packageManager`) are updated too, and their new versions or ranges are written back to `package.json` (and `pnpm-lock.yaml` when the pin is recorded there). A Node.js runtime range such as `>=20 <23` keeps its bounds when the updated stable version satisfies it. An `engines.pnpm` range moves with the pnpm pin, the way [`pnpm self-update`](./self-update.md) moves it.
 * When [`cargo.enabled`](../cargo.md#cargoenabled) is `true`, Cargo dependencies in `Cargo.toml` and `Cargo.lock` are updated too. Pass `crate:<name>` (or `crate:<name>@<req>`) to target specific crates.
+* Since v12.25.0, when [`cargo.enabled`](../cargo.md#cargoenabled) is `true`, `--latest` also moves the Rust release that a [toolchain file](../cargo.md#rust-toolchain) pins. Pass `rust` to update only the toolchain, or `!rust` to leave it out.
 * When [`python.enabled`](../python.md#pythonenabled) is `true`, Python dependencies in `pyproject.toml` and `pylock.toml` are updated too. Pass `pypi:<name>` (or `pypi:<requirement>`) to target specific Python distributions.
 
 Recursive and filtered updates include standalone Python and Cargo workspace members. Python name patterns ignore case and treat runs of dots, underscores, and hyphens as one hyphen. Cargo selectors match both the dependency alias and the crate name.
@@ -128,6 +129,10 @@ is kept while the new version matches it, and becomes a caret requirement, such
 as `^2.0.0`, when `--latest` moves past it. A requirement in the selector, as in
 `pnpm update crate:foo@^2`, replaces it. `savePrefix` and `saveExact` apply only
 to new Cargo dependencies. Saved Cargo requirements omit build metadata.
+
+A pinned Rust release keeps its form. `1.95.0` becomes the newest stable
+version, `1.95` the newest stable minor line, and `nightly-2026-01-01` the
+newest nightly. A channel that moves by itself, such as `stable`, stays as it is.
 
 A Python requirement keeps its operator and precision too, so `~=1.0` becomes
 `~=2.0` and `==1.*` becomes `==2.*`. A requirement with only an upper bound,

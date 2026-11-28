@@ -1,3 +1,5 @@
+pub(crate) use rust_toolchain::RustToolchainSelector;
+
 use crate::{
     cli_args::add::AddRequest,
     package_specifier::{
@@ -11,6 +13,7 @@ use miette::{
 };
 use pnpm_config::Config;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use rust_toolchain::parse_unprefixed_update_selector;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EcosystemFilterKind {
@@ -28,6 +31,7 @@ pub(crate) struct ParsedUpdateSelectors {
     pub(crate) python_exclusions: Vec<String>,
     pub(crate) cargo_patterns: Vec<String>,
     pub(crate) python_patterns: Vec<String>,
+    pub(crate) rust_toolchain: Option<RustToolchainSelector>,
 }
 
 #[derive(Debug, Clone)]
@@ -272,10 +276,7 @@ pub(crate) fn parse_update_selection(
         if is_cargo_prefixed(selector) || is_python_prefixed(selector) || is_purl(selector) {
             parse_prefixed_update_selector(selector, mode, &mut parsed)?;
         } else {
-            match bare_names {
-                BareUpdateNames::NodeOnly => parsed.node_selectors.push(raw.clone()),
-                BareUpdateNames::AllEcosystems => parse_bare_update_selector(raw, &mut parsed),
-            }
+            parse_unprefixed_update_selector(raw, (bare_names, config), &mut parsed);
         }
     }
     parsed.node_selectors = pnpm_matcher::prune_orphan_ignores(parsed.node_selectors, packages);
@@ -396,7 +397,7 @@ fn push_python_update_selector(
     Ok(())
 }
 
-fn parse_bare_update_selector(raw: &str, parsed: &mut ParsedUpdateSelectors) {
+pub(super) fn parse_bare_update_selector(raw: &str, parsed: &mut ParsedUpdateSelectors) {
     parsed.node_selectors.push(raw.to_string());
     let unnegated = raw.strip_prefix('!').unwrap_or(raw);
     if unnegated.starts_with('@') {
@@ -432,6 +433,8 @@ fn parse_bare_update_selector(raw: &str, parsed: &mut ParsedUpdateSelectors) {
         explicit: false,
     });
 }
+
+mod rust_toolchain;
 
 #[cfg(test)]
 mod tests;

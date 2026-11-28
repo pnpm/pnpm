@@ -71,16 +71,26 @@ fn governing_file(context: &InstallContext, root: &Path) -> Result<PathBuf> {
         .unwrap_or_else(|| project.join("rust-toolchain.toml")))
 }
 /// Set the channel of the toolchain file governing `root` to `channel`.
-///
-/// The file is the task's declared metadata, so it is written while the
-/// task prepares and restored by the install plan if the add fails. The
-/// toolchain is linked when the add publishes.
 pub(crate) fn plan<Reporter: self::Reporter + 'static>(
     context: InstallContext,
     root: &Path,
     channel: Channel,
 ) -> Result<InstallTask<'static>> {
     let file = governing_file(&context, root)?;
+    Ok(pin::<Reporter>(context, file, channel))
+}
+
+/// Set the channel of the toolchain file `file` to `channel`, creating the
+/// file if there is none.
+///
+/// The file is the task's declared metadata, so it is written while the
+/// task prepares and restored by the install plan if the install fails. The
+/// toolchain is linked when the task publishes.
+pub(super) fn pin<Reporter: self::Reporter + 'static>(
+    context: InstallContext,
+    file: PathBuf,
+    channel: Channel,
+) -> InstallTask<'static> {
     let metadata = vec![file.clone()];
     let prepare = async move {
         let existing = match fs::read_to_string(&file) {
@@ -112,7 +122,7 @@ pub(crate) fn plan<Reporter: self::Reporter + 'static>(
         let toolchain = install::<Reporter>(&context, &file).await?;
         Ok(vec![PinnedToolchain { file, toolchain, replaced: None }])
     };
-    Ok(InstallTask::new(metadata, prepare))
+    InstallTask::new(metadata, prepare)
 }
 
 /// Install the toolchain `file` now names, where the Cargo integration is

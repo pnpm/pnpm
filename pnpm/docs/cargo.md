@@ -142,7 +142,7 @@ pnpm verifies the release manifest against the Rust release signing key and chec
 
 A channel that moves, such as `stable`, is checked once a day, so a new release is installed when it comes out. Offline, or when the server cannot be reached, pnpm uses the newest release of the channel already in the store. Pin a version to avoid the check.
 
-`pnpm add rust@1.95` writes the toolchain file for you. `pnpm add -g rust` installs a toolchain globally and makes the bare `cargo`, `rustc`, and the other Rust tools in your shell run the toolchain the project's toolchain file names, and the global one elsewhere. On a machine with rustup, `pnpm shim add rust` does the same without a global toolchain. See [Adding the Rust toolchain](./cli/add.md#adding-the-rust-toolchain) and [`pnpm shim`](./cli/shim.md#how-a-version-is-chosen).
+`pnpm add rust@1.95` writes the toolchain file for you. [`pnpm update --latest`](./cli/update.md#--latest--l) moves a pinned release to the newest one. `pnpm add -g rust` installs a toolchain globally and makes the bare `cargo`, `rustc`, and the other Rust tools in your shell run the toolchain the project's toolchain file names, and the global one elsewhere. On a machine with rustup, `pnpm shim add rust` does the same without a global toolchain. See [Adding the Rust toolchain](./cli/add.md#adding-the-rust-toolchain) and [`pnpm shim`](./cli/shim.md#how-a-version-is-chosen).
 
 [`runtimeOnFail`](./settings/cli.md#runtimeonfail) set to `error`, `warn`, or `ignore` turns this off and leaves the toolchain to rustup. A distribution that builds a package with its own Rust toolchain can run `pnpm install --config.runtime-on-fail=ignore`. Download toolchains from a mirror with [`tools.rust.mirror`](./settings/cli.md#tools).
 
