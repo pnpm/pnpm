@@ -147,7 +147,7 @@ fn reports_a_lock_directory_that_cannot_be_opened_for_reading_or_search() {
     }
     let root = tempfile::tempdir().unwrap();
     let directory = super::secure_lock_dir(root.path().to_owned(), "locks").unwrap();
-    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0)).unwrap();
+    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o000)).unwrap();
     let error = super::secure_lock_dir(root.path().to_owned(), "locks").unwrap_err();
     assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
     assert!(error.to_string().contains("Restore owner read or search permission"));
