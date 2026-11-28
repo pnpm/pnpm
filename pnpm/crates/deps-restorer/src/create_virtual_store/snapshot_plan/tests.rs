@@ -216,8 +216,14 @@ impl PlanFixture {
         self.plan_inner(true, force, None)
     }
 
-    fn plan_with_rebuild(&self, force: bool, rebuild: &crate::RebuildOptions) -> SnapshotPlan<'_> {
-        self.plan_inner(true, force, Some(rebuild))
+    /// [`Self::plan_with_matching_current`] for a rebuild with this selection.
+    fn plan_with_rebuild(&self, rebuild: &crate::RebuildOptions) -> SnapshotPlan<'_> {
+        self.plan_inner(true, false, Some(rebuild))
+    }
+
+    /// [`Self::plan_with_rebuild`] with `--force`.
+    fn plan_forced_with_rebuild(&self, rebuild: &crate::RebuildOptions) -> SnapshotPlan<'_> {
+        self.plan_inner(true, true, Some(rebuild))
     }
 
     fn plan_inner(
@@ -525,7 +531,7 @@ fn selected_rebuild_reuses_unselected_directory_slot() {
         selected_names: Some(HashSet::from(["dep1".to_string()])),
         ..Default::default()
     };
-    let plan = fixture.plan_with_rebuild(false, &selected_rebuild);
+    let plan = fixture.plan_with_rebuild(&selected_rebuild);
     let survivor_keys: HashSet<&PackageKey> = plan.survivors
         .iter()
         .map(|(key, _, _)| *key)
@@ -536,11 +542,11 @@ fn selected_rebuild_reuses_unselected_directory_slot() {
         "selected directory dependency is re-imported while unselected directory slot is reused",
     );
 
-    let forced_plan = fixture.plan_with_rebuild(true, &selected_rebuild);
+    let forced_plan = fixture.plan_forced_with_rebuild(&selected_rebuild);
     assert_eq!(forced_plan.survivors.len(), 2, "--force must re-import every directory slot");
 
     let full_rebuild = crate::RebuildOptions::default();
-    let full_plan = fixture.plan_with_rebuild(false, &full_rebuild);
+    let full_plan = fixture.plan_with_rebuild(&full_rebuild);
     assert_eq!(
         full_plan.survivors.len(),
         2,
