@@ -1,0 +1,68 @@
+name: Assign New Issues
+
+# Assigns a new issue to its author when they tick the issue form's "I am
+# working on a fix" checkbox, and to the maintainer otherwise. An author who
+# ticks the checkbox in a later edit takes the issue over from the maintainer.
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions: {}
+
+concurrency:
+  group: assign-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  assign:
+    name: Assign the issue
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: github.event.issue.user.type != 'Bot'
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Assign the author or the maintainer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAINTAINER: zkochan
+          ACTION: ${{ github.event.action }}
+          # Passed as env, never inlined into the script, so the free-form
+          # bodies cannot be interpreted as shell code.
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          # Empty unless the edit changed the body.
+          PREVIOUS_BODY: ${{ github.event.changes.body.from }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          fix_state=$(.github/scripts/issue-fix-intent.sh <<<"$ISSUE_BODY")
+          case "$ACTION" in
+            opened)
+              if [ "$fix_state" = checked ]; then
+                assignee=$AUTHOR
+              else
+                assignee=$MAINTAINER
+              fi
+              # GitHub refuses some authors as assignees.
+              gh issue edit "$ISSUE_URL" --add-assignee "$assignee" ||
+                echo "::warning::Could not assign the issue to $assignee"
+              ;;
+            edited)
+              # Act only on the edit that ticks the checkbox, so a maintainer
+              # who later reassigns the issue is not overridden by other edits.
+              [ "$fix_state" = checked ] || exit 0
+              [ -n "$PREVIOUS_BODY" ] || exit 0
+              [ "$(.github/scripts/issue-fix-intent.sh <<<"$PREVIOUS_BODY")" != checked ] || exit 0
+              remove=()
+              [ "$AUTHOR" = "$MAINTAINER" ] || remove=(--remove-assignee "$MAINTAINER")
+              gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR" "${remove[@]}" ||
+                echo "::warning::Could not assign the issue to $AUTHOR"
+              ;;
+          esac
