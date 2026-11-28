@@ -43,7 +43,7 @@ use std::{
     collections::HashMap,
 };
 
-/// Opens the URL of the package's repository in a browser.
+/// Prints the URL of a package's repository and opens it in the browser.
 #[derive(Debug, Args)]
 pub struct RepoArgs {
     /// The base URL of the npm registry.

@@ -330,7 +330,7 @@ pub enum CliCommand {
     /// Opens the documentation of a package in the browser.
     #[clap(visible_alias = "home")]
     Docs(DocsArgs),
-    /// Opens the URL of the package's repository in a browser.
+    /// Prints the URL of a package's repository and opens it in the browser.
     Repo(RepoArgs),
     /// Updates pnpm to the latest version (or the one specified)
     SelfUpdate(SelfUpdateArgs),

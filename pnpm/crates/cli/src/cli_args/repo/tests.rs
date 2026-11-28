@@ -293,6 +293,7 @@ async fn test_opens_repository_url_from_local_manifest() {
 
     impl OpenUrlAndWait for RecordingBrowser {
         fn open_url_and_wait(url: &str) -> io::Result<()> {
+            pnpm_diagnostics::println!("browser opened");
             OPENED_URLS
                 .lock()
                 .unwrap()

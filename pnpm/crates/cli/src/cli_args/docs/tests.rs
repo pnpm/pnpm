@@ -18,6 +18,8 @@ use std::{
     sync::Mutex,
 };
 
+const VERSION_ONE_HOMEPAGE: &str = "https://v1.example/docs?token=example#fragment";
+
 fn packument() -> String {
     json!({
         "name": "is-negative",
@@ -27,7 +29,7 @@ fn packument() -> String {
             "1.0.0": {
                 "name": "is-negative",
                 "version": "1.0.0",
-                "homepage": "https://v1.example/docs",
+                "homepage": VERSION_ONE_HOMEPAGE,
                 "dist": { "tarball": "https://registry.example/is-negative-1.0.0.tgz" }
             },
             "2.0.0": {
@@ -51,6 +53,7 @@ struct RecordingBrowser;
 
 impl OpenUrl for RecordingBrowser {
     fn open_url(url: &str) -> io::Result<()> {
+        pnpm_diagnostics::println!("browser opened");
         OPENED_URLS
             .lock()
             .unwrap()
@@ -105,7 +108,7 @@ async fn requested_version_uses_its_homepage() {
         .expect("docs URL must open");
 
     mock.assert_async().await;
-    assert_eq!(OPENED_URLS.lock().unwrap().as_slice(), ["https://v1.example/docs"]);
+    assert_eq!(OPENED_URLS.lock().unwrap().as_slice(), [VERSION_ONE_HOMEPAGE]);
 }
 
 #[tokio::test]
@@ -145,7 +148,7 @@ async fn named_tag_uses_the_tagged_version_homepage() {
         .expect("docs URL must resolve");
 
     mock.assert_async().await;
-    assert_eq!(url, "https://v1.example/docs");
+    assert_eq!(url, VERSION_ONE_HOMEPAGE);
 }
 
 #[tokio::test]
@@ -165,7 +168,7 @@ async fn semver_range_uses_the_highest_matching_version_homepage() {
         .expect("docs URL must resolve");
 
     mock.assert_async().await;
-    assert_eq!(url, "https://v1.example/docs");
+    assert_eq!(url, VERSION_ONE_HOMEPAGE);
 }
 
 #[test]
@@ -224,7 +227,7 @@ async fn docs_supports_registry_override() {
         .expect("docs URL must resolve with registry override");
 
     mock.assert_async().await;
-    assert_eq!(url, "https://v1.example/docs");
+    assert_eq!(url, VERSION_ONE_HOMEPAGE);
 }
 
 struct FailingBrowser;
