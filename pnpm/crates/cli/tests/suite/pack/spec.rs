@@ -99,6 +99,26 @@ fn packs_a_tarball_url_without_a_tgz_suffix() {
 
 #[test]
 fn registry_spec_fails_on_integrity_mismatch() {
+    // The SHA-512 of the empty string: well-formed, but not the tarball's.
+    let wrong_integrity = "sha512-z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcg/SpIdNs6c5H0NE8XYXysP+DGNKHfuwvY7kxvUdBeoGlODJ6+SfaPg==";
+    assert_registry_pack_rejects_dist(
+        |tarball_url| json!({ "tarball": tarball_url, "integrity": wrong_integrity }),
+    );
+}
+
+#[test]
+fn registry_spec_fails_on_a_legacy_shasum_mismatch() {
+    // The SHA-1 of the empty string: well-formed, but not the tarball's.
+    let wrong_shasum = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
+    assert_registry_pack_rejects_dist(
+        |tarball_url| json!({ "tarball": tarball_url, "shasum": wrong_shasum }),
+    );
+}
+
+/// Serve `foo@1.0.0` from a mock registry with the `dist` that `make_dist`
+/// builds from the tarball URL, and assert `pack foo@1.0.0` fails the
+/// integrity check without writing the tarball.
+fn assert_registry_pack_rejects_dist(make_dist: impl FnOnce(&str) -> Value) {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let auth_file = root.path().join("auth-npmrc");
     fs::write(&auth_file, "").unwrap();
@@ -106,17 +126,11 @@ fn registry_spec_fails_on_integrity_mismatch() {
     fs::write(workspace.join(".npmrc"), format!("registry={}/\n", server.url())).unwrap();
     let tarball = minimal_tarball("foo", "1.0.0");
     let tarball_url = format!("{}/foo/-/foo-1.0.0.tgz", server.url());
-    // The SHA-512 of the empty string: well-formed, but not the tarball's.
-    let wrong_integrity = "sha512-z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcg/SpIdNs6c5H0NE8XYXysP+DGNKHfuwvY7kxvUdBeoGlODJ6+SfaPg==";
     let packument = json!({
         "name": "foo",
         "dist-tags": { "latest": "1.0.0" },
         "versions": {
-            "1.0.0": {
-                "name": "foo",
-                "version": "1.0.0",
-                "dist": { "tarball": tarball_url, "integrity": wrong_integrity },
-            }
+            "1.0.0": { "name": "foo", "version": "1.0.0", "dist": make_dist(&tarball_url) }
         },
     })
     .to_string();
@@ -369,7 +383,87 @@ fn a_failing_url_spec_redacts_credentials_from_the_error() {
     drop((root, server));
 }
 
-/// The entry names of a written `.tgz`, for assertions.
+#[test]
+fn a_git_spec_error_redacts_credentials() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_args(["pack", "git+https://user:secret@example.test/repo.git"])
+        .output()
+        .expect("spawn pacquet pack");
+
+    assert!(!output.status.success(), "a git spec must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("git dependency"), "stderr must say why; got:\n{stderr}");
+    assert!(!stderr.contains("secret"), "credentials are redacted; got:\n{stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn a_url_spec_error_omits_the_query_string() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    server
+        .mock("GET", "/pkg.tgz")
+        .match_query(mockito::Matcher::Any)
+        .with_status(200)
+        .with_body("not a tarball")
+        .create();
+    let url = format!("{}/pkg.tgz?token=secret", server.url());
+
+    let output = pacquet_at(&workspace)
+        .with_args(["pack", &url])
+        .output()
+        .expect("spawn pacquet pack");
+
+    assert!(!output.status.success(), "an unreadable tarball must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("pkg.tgz"), "stderr must name the source; got:\n{stderr}");
+    assert!(!stderr.contains("secret"), "the query string is dropped; got:\n{stderr}");
+
+    drop((root, server));
+}
+
+#[test]
+fn packing_a_directory_outside_the_workspace_ignores_workspace_package_versions() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - '.'\n  - 'bar'\n").unwrap();
+    fs::create_dir(workspace.join("bar")).unwrap();
+    fs::write(
+        workspace.join("bar/package.json"),
+        json!({ "name": "bar", "version": "2.0.0" }).to_string(),
+    )
+    .unwrap();
+    let external = root.path().join("external");
+    fs::create_dir(&external).unwrap();
+    fs::write(
+        external.join("package.json"),
+        json!({
+            "name": "external-pkg",
+            "version": "1.0.0",
+            "dependencies": { "bar": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    let output = pacquet
+        .with_args(["pack", "../external", "--json"])
+        .output()
+        .expect("spawn pacquet pack");
+
+    assert!(
+        !output.status.success(),
+        "the calling workspace's `bar@2.0.0` must not resolve the external `workspace:*`",
+    );
+    let error: Value = serde_json::from_slice(&output.stdout).expect("a JSON error on stdout");
+    assert_eq!(error["error"]["code"], "ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL");
+    assert!(!workspace.join("external-pkg-1.0.0.tgz").exists());
+
+    drop(root);
+}
+
 fn tarball_entry_names(tarball: &Path) -> Vec<String> {
     let bytes = fs::read(tarball).expect("read tarball");
     let decoder = flate2::read::GzDecoder::new(bytes.as_slice());

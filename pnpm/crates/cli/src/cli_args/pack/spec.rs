@@ -65,6 +65,15 @@ enum PackSpecError {
         reason: &'static str,
     },
 
+    #[display("The tarball at {url} exceeds the {limit}-byte download size limit")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
+    DownloadTooLarge {
+        #[error(not(source))]
+        url: String,
+        #[error(not(source))]
+        limit: usize,
+    },
+
     #[display("Cannot pack \"{spec}\": no file or directory at {path}")]
     #[diagnostic(code(ERR_PNPM_PACK_SPEC_NOT_FOUND))]
     NotFound {
@@ -125,12 +134,14 @@ async fn pack_spec<Reporter: self::Reporter>(
     }
 }
 
-/// A spec as errors may print it: credentials in a URL spec are redacted.
+/// A spec as errors may print it. An HTTP(S) URL loses its credentials,
+/// query, and fragment; any other URL-shaped spec, such as a git URL, loses
+/// its credentials.
 fn redact_spec(spec: &str) -> String {
-    if spec.starts_with("http:") || spec.starts_with("https:") {
-        pnpm_network::redact_url_credentials(spec)
+    if pnpm_network::has_http_scheme(spec) {
+        pnpm_network::redact_url_for_display(spec)
     } else {
-        spec.to_string()
+        pnpm_network::redact_url_credentials(spec)
     }
 }
 
@@ -185,6 +196,7 @@ async fn pack_local_dir<Reporter: self::Reporter>(
     } else {
         options.workspace_dir = None;
         options.manifest.catalogs_dir = None;
+        options.manifest.workspace_packages = None;
     }
     Ok(api::<Reporter, Host>(&options).await?)
 }
@@ -204,26 +216,47 @@ async fn pack_registry_spec(
         }
         .into());
     }
+    let expected_integrity = pnpm_resolving_npm_resolver::dist_integrity(dist)?;
     let bytes = download_tarball(config, &dist.tarball).await?;
     Ok(pack_fetched_tarball::<Host>(&fetched_options(
         args,
         dir,
         spec,
         &bytes,
-        dist.integrity.as_ref(),
+        expected_integrity.as_ref(),
     ))?)
 }
+
+/// The download is held in memory whole, so it is capped at the size its
+/// decoded scan is capped at.
+const MAX_DOWNLOAD_BYTES: usize = {
+    let limit = pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE;
+    if limit > usize::MAX as u64 { usize::MAX } else { limit as usize }
+};
 
 async fn download_tarball(config: &Config, url: &str) -> miette::Result<Vec<u8>> {
     let client = build_registry_client(config)?;
     let response = client
-        .get_bytes_with_secure_auth_and_retry(url, &config.auth_headers, None, config.retry_opts())
+        .get_limited_bytes_with_secure_auth_and_retry(
+            url,
+            &config.auth_headers,
+            None,
+            config.retry_opts(),
+            MAX_DOWNLOAD_BYTES,
+        )
         .await
         .map_err(|error| pnpm_tarball::NetworkError::new(url, error))?;
     if !response.status.is_success() {
         return Err(pnpm_tarball::HttpStatusError {
             url: pnpm_network::redact_url_credentials(url),
             status: response.status.as_u16(),
+        }
+        .into());
+    }
+    if response.body_truncated {
+        return Err(PackSpecError::DownloadTooLarge {
+            url: pnpm_network::redact_url_for_display(url),
+            limit: MAX_DOWNLOAD_BYTES,
         }
         .into());
     }

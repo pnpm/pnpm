@@ -128,7 +128,6 @@ pub(crate) fn read_fetched_archive(
     })
 }
 
-/// The manifest inside the archive, parsed.
 fn archive_manifest(
     archive: &pnpm_tarball::PublicationArchive,
     source: &str,

@@ -92,6 +92,7 @@ pub use npm_resolver::{
     RegistryMetadataClient,
     RegistryMetadataFormat,
     detect_min_release_age_violation,
+    dist_integrity,
     normalize_tarball_url,
 };
 pub use parse_bare_specifier::{
